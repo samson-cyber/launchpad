@@ -6,6 +6,8 @@
   var groupSortable = null;
   var activeMenu = null;
   var modalState = {};
+  var expandedGroups = {};
+  var rcLoadedItems = [];
 
   var $ = function (s, p) { return (p || document).querySelector(s); };
   var $$ = function (s, p) { return [].slice.call((p || document).querySelectorAll(s)); };
@@ -18,6 +20,8 @@
   var CLOSE_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
   var MORE_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>';
   var RC_FALLBACK_SVG = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>';
+  var CHEVRON_RIGHT_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
+  var CHEVRON_DOWN_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
 
   // ===== Init =====
 
@@ -32,6 +36,9 @@
       data.settings = { theme: "system", columns: 6 };
       await Storage.saveAll(data);
       console.warn("[LaunchPad] Repaired missing settings");
+    }
+    if (!data.settings.collapsedGroups) {
+      data.settings.collapsedGroups = {};
     }
 
     await loadBackground();
@@ -117,17 +124,30 @@
       .map(function (g) { return groupHTML(g, singleGroup); })
       .join("");
     initSortables();
+    setupShowMore();
   }
 
   function groupHTML(group, singleGroup) {
-    var headerClass = "group-header" + (singleGroup ? " single-group" : "");
+    var collapsed = data.settings.collapsedGroups && data.settings.collapsedGroups[group.id];
+    var hideHeader = singleGroup && (group.name === "Ungrouped" || group.name === "My Shortcuts");
+    var headerClass = "group-header" + (hideHeader ? " hide-header" : "");
+    var groupClass = "group" + (collapsed ? " collapsed" : "");
     var deleteBtn = (group.id === "ungrouped" || singleGroup)
       ? ""
       : '<button class="group-delete-btn" data-group-id="' + group.id + '" title="Delete group">' + CLOSE_SVG + "</button>";
+    var chevron = collapsed ? CHEVRON_RIGHT_SVG : CHEVRON_DOWN_SVG;
+    var shortcutCount = group.shortcuts.length;
+    var countBadge = collapsed
+      ? '<span class="group-count">(' + shortcutCount + " shortcut" + (shortcutCount !== 1 ? "s" : "") + ")</span>"
+      : "";
     return (
-      '<section class="group" data-group-id="' + group.id + '">' +
+      '<section class="' + groupClass + '" data-group-id="' + group.id + '">' +
         '<div class="' + headerClass + '">' +
-          '<h2 class="group-name" data-group-id="' + group.id + '">' + esc(group.name) + "</h2>" +
+          '<div class="group-header-left">' +
+            '<button class="group-collapse-btn" data-group-id="' + group.id + '" title="' + (collapsed ? "Expand" : "Collapse") + '">' + chevron + "</button>" +
+            '<h2 class="group-name" data-group-id="' + group.id + '">' + esc(group.name) + "</h2>" +
+            countBadge +
+          "</div>" +
           '<div class="group-header-actions">' +
             deleteBtn +
           "</div>" +
@@ -164,6 +184,52 @@
         '<span class="add-tile-label">Add shortcut</span>' +
       '</button>'
     );
+  }
+
+  // ===== Group Collapse & Show More =====
+
+  async function toggleGroupCollapse(groupId) {
+    if (!data.settings.collapsedGroups) data.settings.collapsedGroups = {};
+    if (data.settings.collapsedGroups[groupId]) {
+      delete data.settings.collapsedGroups[groupId];
+    } else {
+      data.settings.collapsedGroups[groupId] = true;
+    }
+    await Storage.saveAll(data);
+    render();
+  }
+
+  function setupShowMore() {
+    $$(".show-more-row").forEach(function (el) { el.remove(); });
+    $$(".shortcuts-grid").forEach(function (grid) {
+      var groupId = grid.dataset.groupId;
+      var group = findGroup(groupId);
+      if (!group) return;
+      if (grid.closest(".group.collapsed")) return;
+      grid.classList.remove("capped");
+      var needsCap = grid.scrollHeight > 184;
+      if (!needsCap) return;
+      var count = group.shortcuts.length;
+      var row = document.createElement("div");
+      row.className = "show-more-row";
+      row.dataset.groupId = groupId;
+      if (expandedGroups[groupId]) {
+        row.innerHTML = '<button class="show-more-btn" data-group-id="' + groupId + '" type="button">Show less</button>';
+      } else {
+        grid.classList.add("capped");
+        row.innerHTML = '<button class="show-more-btn" data-group-id="' + groupId + '" type="button">Show all (' + count + ')</button>';
+      }
+      grid.parentElement.insertBefore(row, grid.nextSibling);
+    });
+  }
+
+  function toggleShowMore(groupId) {
+    if (expandedGroups[groupId]) {
+      delete expandedGroups[groupId];
+    } else {
+      expandedGroups[groupId] = true;
+    }
+    setupShowMore();
   }
 
   // ===== Recently Closed / History =====
@@ -225,16 +291,18 @@
       console.warn("[LaunchPad] chrome.history API not available");
       return;
     }
+    var maxFetch = (rcActiveFilter === "week" || rcActiveFilter === "custom") ? 500 : 200;
+    var maxShow = (rcActiveFilter === "week" || rcActiveFilter === "custom") ? 40 : 40;
     chrome.history.search({
       text: "",
       startTime: startTime,
       endTime: endTime,
-      maxResults: 100
+      maxResults: maxFetch
     }, function (results) {
       var items = (results || [])
         .filter(function (r) { return r.url && !/^chrome:\/\//i.test(r.url); })
         .map(function (r) { return { url: r.url, title: r.title }; });
-      items = deduplicateByUrl(items).slice(0, 16);
+      items = deduplicateByUrl(items).slice(0, maxShow);
       showRcItems(items);
     });
   }
@@ -249,15 +317,23 @@
   }
 
   function showRcItems(items) {
+    rcLoadedItems = items;
     var section = $("#recently-closed");
     var list = $("#recently-closed-list");
-    if (!items.length) {
-      list.innerHTML = '<span class="rc-empty">No pages found</span>';
+    var clearBtn = $("#rc-clear-btn");
+    if (clearBtn) clearBtn.classList.toggle("hidden", rcActiveFilter === "recent");
+    var query = ($("#rc-search-input") && $("#rc-search-input").value || "").toLowerCase().trim();
+    var filtered = query ? items.filter(function (t) {
+      return (t.title && t.title.toLowerCase().indexOf(query) !== -1) ||
+             (t.url && t.url.toLowerCase().indexOf(query) !== -1);
+    }) : items;
+    if (!filtered.length) {
+      list.innerHTML = '<span class="rc-empty">' + (query ? "No matches" : "No pages found") + '</span>';
       section.classList.remove("hidden");
       updateRcScroll();
       return;
     }
-    list.innerHTML = items.map(function (t) { return rcItemHTML(t); }).join("");
+    list.innerHTML = filtered.map(function (t) { return rcItemHTML(t); }).join("");
     section.classList.remove("hidden");
     updateRcScroll();
   }
@@ -348,9 +424,53 @@
     var wrapper = $("#rc-scroll-wrapper");
     var list = $("#recently-closed-list");
     if (!wrapper || !list) return;
-    var hasOverflow = list.scrollWidth > wrapper.clientWidth;
-    wrapper.classList.toggle("has-overflow-right", hasOverflow && list.scrollLeft < list.scrollWidth - wrapper.clientWidth - 2);
-    wrapper.classList.toggle("has-overflow-left", hasOverflow && list.scrollLeft > 2);
+    var hasOverflow = list.scrollWidth > list.clientWidth;
+    var arrowLeft = $(".rc-arrow-left", wrapper);
+    var arrowRight = $(".rc-arrow-right", wrapper);
+    if (arrowLeft) arrowLeft.classList.toggle("hidden", !hasOverflow || list.scrollLeft <= 2);
+    if (arrowRight) arrowRight.classList.toggle("hidden", !hasOverflow || list.scrollLeft >= list.scrollWidth - list.clientWidth - 2);
+  }
+
+  function filterRcBySearch() {
+    showRcItems(rcLoadedItems);
+  }
+
+  function handleRcClear() {
+    if (rcActiveFilter === "recent") return;
+    var msg = "Delete browsing history for this period? This cannot be undone.";
+    if (!confirm(msg)) return;
+    var now = new Date();
+    var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    var startTime, endTime;
+    if (rcActiveFilter === "today") {
+      startTime = startOfToday;
+      endTime = Date.now();
+    } else if (rcActiveFilter === "yesterday") {
+      startTime = startOfToday - 86400000;
+      endTime = startOfToday;
+    } else if (rcActiveFilter === "week") {
+      startTime = startOfToday - 7 * 86400000;
+      endTime = Date.now();
+    } else if (rcActiveFilter === "custom" && rcCustomStart && rcCustomEnd) {
+      startTime = rcCustomStart.getTime();
+      endTime = rcCustomEnd.getTime() + 86400000;
+    }
+    if (startTime && endTime && chrome.history && chrome.history.deleteRange) {
+      chrome.history.deleteRange({ startTime: startTime, endTime: endTime }, function () {
+        console.log("[LaunchPad] History cleared for period");
+        loadRcData(rcActiveFilter);
+      });
+    }
+  }
+
+  function scrollRcLeft() {
+    var list = $("#recently-closed-list");
+    if (list) list.scrollBy({ left: -300, behavior: "smooth" });
+  }
+
+  function scrollRcRight() {
+    var list = $("#recently-closed-list");
+    if (list) list.scrollBy({ left: 300, behavior: "smooth" });
   }
 
   // ===== Background =====
@@ -496,6 +616,12 @@
     $("#groups").addEventListener("click", function (e) {
       var el;
 
+      el = e.target.closest(".group-collapse-btn");
+      if (el) { toggleGroupCollapse(el.dataset.groupId); return; }
+
+      el = e.target.closest(".show-more-btn");
+      if (el) { toggleShowMore(el.dataset.groupId); return; }
+
       el = e.target.closest(".add-tile");
       if (el) { openModal("add", el.dataset.groupId); return; }
 
@@ -599,6 +725,22 @@
     if (rcList) {
       rcList.addEventListener("scroll", updateRcScroll);
     }
+    var rcSearchInput = $("#rc-search-input");
+    if (rcSearchInput) {
+      rcSearchInput.addEventListener("input", filterRcBySearch);
+    }
+    var rcClearBtn = $("#rc-clear-btn");
+    if (rcClearBtn) {
+      rcClearBtn.addEventListener("click", handleRcClear);
+    }
+    var arrowLeft = $(".rc-arrow-left");
+    if (arrowLeft) {
+      arrowLeft.addEventListener("click", scrollRcLeft);
+    }
+    var arrowRight = $(".rc-arrow-right");
+    if (arrowRight) {
+      arrowRight.addEventListener("click", scrollRcRight);
+    }
 
     // Wallpaper / Background
     $("#wallpaper-btn").addEventListener("click", function (e) {
@@ -644,6 +786,12 @@
 
     // Close menu on scroll
     window.addEventListener("scroll", hideMenu);
+
+    // Recalculate show-more on resize
+    window.addEventListener("resize", function () {
+      setupShowMore();
+      updateRcScroll();
+    });
   }
 
   // ===== Context Menu =====
