@@ -395,8 +395,7 @@
       '<div class="shortcut" data-id="' + s.id + '">' +
         '<a href="' + esc(s.url) + '" class="shortcut-link" title="' + esc(s.title || s.url) + '">' +
           '<div class="shortcut-icon">' +
-            '<img src="' + favicon + '" alt="" width="24" height="24" loading="lazy" ' +
-              'onerror="this.onerror=null;this.src=\'assets/placeholder.svg\'">' +
+            '<img src="' + favicon + '" alt="" width="24" height="24" loading="lazy">' +
           "</div>" +
           '<span class="shortcut-name">' + esc(s.title || domain) + "</span>" +
         "</a>" +
@@ -574,8 +573,7 @@
       '<div class="rc-item">' +
         '<a href="' + esc(tab.url) + '" class="rc-link" title="' + esc(title) + '">' +
           '<div class="rc-icon">' +
-            '<img src="' + favicon + '" alt="" width="24" height="24" loading="lazy" ' +
-              'onerror="this.onerror=null;this.src=\'assets/placeholder.svg\'">' +
+            '<img src="' + favicon + '" alt="" width="24" height="24" loading="lazy">' +
           '</div>' +
           '<span class="rc-name">' + esc(title) + '</span>' +
         '</a>' +
@@ -868,6 +866,13 @@
   function bindEvents() {
     $("#theme-toggle").addEventListener("click", toggleTheme);
     $("#add-group-btn").addEventListener("click", addGroup);
+
+    // Global favicon error fallback (replaces inline onerror handlers)
+    document.addEventListener("error", function (e) {
+      if (e.target.tagName === "IMG" && e.target.closest(".shortcut-icon, .rc-icon")) {
+        e.target.src = "assets/placeholder.svg";
+      }
+    }, true);
 
     // First-run toast events
     var toastDismiss = $("#toast-dismiss");
