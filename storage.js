@@ -111,6 +111,23 @@ var Storage = (function () {
     }
   }
 
+  async function getOnboardingComplete() {
+    try {
+      var result = await chrome.storage.local.get("launchpad_onboarding");
+      return !!result.launchpad_onboarding;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  async function setOnboardingComplete() {
+    try {
+      await chrome.storage.local.set({ launchpad_onboarding: true });
+    } catch (err) {
+      console.error("[LaunchPad] Failed to save onboarding flag:", err);
+    }
+  }
+
   return {
     getDefaultData: getDefaultData,
     getAll: getAll,
@@ -122,6 +139,8 @@ var Storage = (function () {
     reorderShortcuts: reorderShortcuts,
     reorderGroups: reorderGroups,
     getBackground: getBackground,
-    saveBackground: saveBackground
+    saveBackground: saveBackground,
+    getOnboardingComplete: getOnboardingComplete,
+    setOnboardingComplete: setOnboardingComplete
   };
 })();

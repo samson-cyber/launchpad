@@ -3,7 +3,10 @@
   "name": "LaunchPad - New Tab Shortcuts",
   "version": "1.0.0",
   "description": "Unlimited organized shortcuts on your new tab page. Groups, drag-and-drop, dark mode. Free and private.",
-  "permissions": ["storage", "bookmarks", "contextMenus", "favicon", "sessions", "history"],
+  "permissions": ["storage", "bookmarks", "contextMenus", "favicon", "sessions", "history", "topSites"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; img-src 'self' https://images.unsplash.com https://www.google.com data:;"
+  },
   "chrome_url_overrides": {
     "newtab": "newtab.html"
   },

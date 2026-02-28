@@ -23,6 +23,25 @@
   var CHEVRON_RIGHT_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
   var CHEVRON_DOWN_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
 
+  // ===== Gallery Images =====
+
+  var GALLERY_IMAGES = [
+    { url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920", thumb: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=250&fit=crop", label: "Mountains" },
+    { url: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1920", thumb: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&h=250&fit=crop", label: "Foggy forest" },
+    { url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920", thumb: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=250&fit=crop", label: "Tropical beach" },
+    { url: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1920", thumb: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&h=250&fit=crop", label: "Starry mountain" },
+    { url: "https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=1920", thumb: "https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=400&h=250&fit=crop", label: "Sunset mountains" },
+    { url: "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=1920", thumb: "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=400&h=250&fit=crop", label: "Green valley" },
+    { url: "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=1920", thumb: "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=400&h=250&fit=crop", label: "Lake reflection" },
+    { url: "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1920", thumb: "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=400&h=250&fit=crop", label: "Aerial forest" },
+    { url: "https://images.unsplash.com/photo-1518173946687-a42769a16dcd?w=1920", thumb: "https://images.unsplash.com/photo-1518173946687-a42769a16dcd?w=400&h=250&fit=crop", label: "Purple sky" },
+    { url: "https://images.unsplash.com/photo-1534088568595-a066f410bcda?w=1920", thumb: "https://images.unsplash.com/photo-1534088568595-a066f410bcda?w=400&h=250&fit=crop", label: "Ocean wave" },
+    { url: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1920", thumb: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=250&fit=crop", label: "Dramatic peaks" },
+    { url: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=1920", thumb: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=400&h=250&fit=crop", label: "Northern lights" }
+  ];
+
+  var CHECK_SVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
   // ===== Init =====
 
   document.addEventListener("DOMContentLoaded", init);
@@ -44,9 +63,10 @@
     await loadBackground();
     applyTheme();
 
-    // First-run: show toast instead of welcome screen
-    if (Bookmarks.isFirstRun(data)) {
-      showFirstRunToast();
+    // Check if onboarding needed
+    var onboardingDone = await Storage.getOnboardingComplete();
+    if (!onboardingDone && Bookmarks.isFirstRun(data)) {
+      showOnboarding();
     }
 
     render();
@@ -56,6 +76,11 @@
       data = newData;
       hideFirstRunToast();
       render();
+      // If onboarding triggered a bookmark import, advance to step 2
+      if (obPendingBookmarks) {
+        obPendingBookmarks = false;
+        goToObStep(2);
+      }
     });
 
     // Listen for external storage changes (e.g. context menu adds a shortcut)
@@ -87,6 +112,209 @@
   function hideFirstRunToast() {
     var toast = $("#first-run-toast");
     if (toast) toast.classList.add("hidden");
+  }
+
+  // ===== Onboarding =====
+
+  var obCurrentStep = 1;
+  var obSelectedBg = "";
+  var obPendingBookmarks = false;
+
+  function showOnboarding() {
+    var overlay = $("#onboarding-overlay");
+    if (!overlay) return;
+    overlay.classList.remove("hidden");
+    obCurrentStep = 1;
+    updateObDots();
+    previewTopSites();
+    console.log("[LaunchPad] Onboarding started");
+  }
+
+  function hideOnboarding() {
+    var overlay = $("#onboarding-overlay");
+    if (overlay) overlay.classList.add("hidden");
+  }
+
+  function goToObStep(step) {
+    obCurrentStep = step;
+    $$(".ob-step").forEach(function (el) {
+      el.classList.toggle("hidden", parseInt(el.dataset.step) !== step);
+    });
+    updateObDots();
+    if (step === 2) {
+      renderObGallery();
+    }
+    // Show onboarding overlay if it was hidden (e.g. during bookmark import)
+    $("#onboarding-overlay").classList.remove("hidden");
+  }
+
+  function updateObDots() {
+    $$(".ob-dot").forEach(function (dot) {
+      dot.classList.toggle("active", parseInt(dot.dataset.step) <= obCurrentStep);
+    });
+  }
+
+  function previewTopSites() {
+    if (!chrome.topSites || !chrome.topSites.get) return;
+    chrome.topSites.get(function (sites) {
+      var preview = $("#ob-top-sites-preview");
+      if (!preview || !sites || !sites.length) return;
+      var html = sites.slice(0, 8).map(function (site) {
+        var domain = getDomain(site.url);
+        var favicon = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=32";
+        return '<img class="ob-preview-favicon" src="' + favicon + '" alt="" width="20" height="20" title="' + esc(site.title || domain) + '">';
+      }).join("");
+      preview.innerHTML = html;
+    });
+  }
+
+  function importTopSites(callback) {
+    if (!chrome.topSites || !chrome.topSites.get) {
+      console.warn("[LaunchPad] chrome.topSites not available");
+      if (callback) callback();
+      return;
+    }
+    chrome.topSites.get(function (sites) {
+      if (!sites || !sites.length) {
+        if (callback) callback();
+        return;
+      }
+      var groupId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      var shortcuts = sites.map(function (site, i) {
+        return {
+          id: Date.now().toString(36) + i.toString(36) + Math.random().toString(36).slice(2, 7),
+          url: site.url,
+          title: site.title || getDomain(site.url),
+          addedAt: Date.now()
+        };
+      });
+      data.groups.push({ id: groupId, name: "Top Sites", shortcuts: shortcuts });
+      data.groupOrder.push(groupId);
+      Storage.saveAll(data).then(function () {
+        render();
+        console.log("[LaunchPad] Imported", shortcuts.length, "top sites");
+        if (callback) callback();
+      });
+    });
+  }
+
+  function handleObTopSites() {
+    importTopSites(function () {
+      goToObStep(2);
+    });
+  }
+
+  function handleObBookmarks() {
+    obPendingBookmarks = true;
+    hideOnboarding();
+    Bookmarks.showPicker();
+    // If user cancels bookmark picker, re-show onboarding at step 2
+    waitForHidden($("#bookmark-overlay"), function () {
+      if (obPendingBookmarks) {
+        obPendingBookmarks = false;
+        goToObStep(2);
+      }
+    });
+  }
+
+  function handleObBoth() {
+    importTopSites(function () {
+      handleObBookmarks();
+    });
+  }
+
+  function waitForHidden(el, callback) {
+    if (el.classList.contains("hidden")) {
+      callback();
+      return;
+    }
+    var observer = new MutationObserver(function () {
+      if (el.classList.contains("hidden")) {
+        observer.disconnect();
+        callback();
+      }
+    });
+    observer.observe(el, { attributes: true, attributeFilter: ["class"] });
+  }
+
+  function renderObGallery() {
+    var grid = $("#ob-bg-grid");
+    if (!grid) return;
+    var html = '<button class="ob-bg-thumb ob-bg-none selected" data-bg="" type="button">' +
+      '<span class="ob-bg-check">' + CHECK_SVG + '</span>' +
+      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+      '<span>None</span></button>';
+    html += GALLERY_IMAGES.map(function (img) {
+      return '<button class="ob-bg-thumb" data-bg="' + img.url + '" type="button" title="' + esc(img.label) + '">' +
+        '<span class="ob-bg-check">' + CHECK_SVG + '</span>' +
+        '<img src="' + img.thumb + '" alt="' + esc(img.label) + '" loading="lazy">' +
+        '</button>';
+    }).join("");
+    grid.innerHTML = html;
+    obSelectedBg = "";
+  }
+
+  function selectObBg(thumbEl) {
+    $$(".ob-bg-thumb", $("#ob-bg-grid")).forEach(function (el) {
+      el.classList.remove("selected");
+    });
+    thumbEl.classList.add("selected");
+    obSelectedBg = thumbEl.dataset.bg;
+    // Live preview
+    if (obSelectedBg) {
+      applyBackground(obSelectedBg);
+    } else {
+      removeBackgroundVisual();
+    }
+  }
+
+  function handleObBgNext() {
+    // Save the selected background
+    if (obSelectedBg) {
+      Storage.saveBackground(obSelectedBg).then(function () {
+        applyBackground(obSelectedBg);
+      });
+    } else {
+      Storage.saveBackground(null);
+      removeBackgroundVisual();
+    }
+    goToObStep(3);
+  }
+
+  function handleObUploadOwn() {
+    $("#ob-file-input").click();
+  }
+
+  function handleObFileUpload(file) {
+    if (!file || !file.type.startsWith("image/")) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        resizeImage(img, function (dataUrl) {
+          obSelectedBg = dataUrl;
+          applyBackground(dataUrl);
+          // Mark all thumbs as unselected (custom upload)
+          $$(".ob-bg-thumb", $("#ob-bg-grid")).forEach(function (el) {
+            el.classList.remove("selected");
+          });
+        });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function finishOnboarding() {
+    // Save background if selected
+    if (obSelectedBg) {
+      await Storage.saveBackground(obSelectedBg);
+      applyBackground(obSelectedBg);
+    }
+    await Storage.setOnboardingComplete();
+    hideOnboarding();
+    render();
+    console.log("[LaunchPad] Onboarding complete");
   }
 
   // ===== Theme =====
@@ -498,11 +726,54 @@
     $("#bg-overlay").classList.remove("hidden");
     $("#bg-url-input").value = "";
     hideBgError();
+    renderBgGallery();
+    switchBgTab("gallery");
   }
 
   function closeBgModal() {
     $("#bg-overlay").classList.add("hidden");
     hideBgError();
+  }
+
+  function renderBgGallery() {
+    var grid = $("#bg-gallery-grid");
+    if (!grid) return;
+    var currentBg = document.body.style.backgroundImage;
+    var html = '<button class="bg-gallery-thumb bg-gallery-none' + (!currentBg ? ' selected' : '') + '" data-bg="" type="button">' +
+      '<span class="bg-check">' + CHECK_SVG + '</span>' +
+      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+      '<span>None</span></button>';
+    html += GALLERY_IMAGES.map(function (img) {
+      var isSelected = currentBg && currentBg.indexOf(img.url) !== -1;
+      return '<button class="bg-gallery-thumb' + (isSelected ? ' selected' : '') + '" data-bg="' + img.url + '" type="button" title="' + esc(img.label) + '">' +
+        '<span class="bg-check">' + CHECK_SVG + '</span>' +
+        '<img src="' + img.thumb + '" alt="' + esc(img.label) + '" loading="lazy">' +
+        '</button>';
+    }).join("");
+    grid.innerHTML = html;
+  }
+
+  function switchBgTab(tabName) {
+    $$(".bg-tab").forEach(function (tab) {
+      tab.classList.toggle("active", tab.dataset.tab === tabName);
+    });
+    $$(".bg-tab-content").forEach(function (content) {
+      content.classList.toggle("hidden", content.dataset.tab !== tabName);
+    });
+  }
+
+  function handleBgGalleryClick(thumbEl) {
+    var url = thumbEl.dataset.bg;
+    if (url) {
+      // Gallery image — store URL directly (saves space)
+      Storage.saveBackground(url).then(function () {
+        applyBackground(url);
+        closeBgModal();
+      });
+    } else {
+      // "None" selected — remove background
+      handleBgRemove();
+    }
   }
 
   function showBgError(msg) {
@@ -765,6 +1036,57 @@
       if (e.key === "Enter") { e.preventDefault(); handleBgUrl(this.value); }
     });
     $("#bg-remove").addEventListener("click", handleBgRemove);
+
+    // Background gallery tabs
+    $$("#bg-tabs .bg-tab").forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        switchBgTab(this.dataset.tab);
+      });
+    });
+    // Background gallery click (delegated)
+    var bgGalleryGrid = $("#bg-gallery-grid");
+    if (bgGalleryGrid) {
+      bgGalleryGrid.addEventListener("click", function (e) {
+        var thumb = e.target.closest(".bg-gallery-thumb");
+        if (thumb) handleBgGalleryClick(thumb);
+      });
+    }
+
+    // Onboarding events
+    var obTopSites = $("#ob-top-sites");
+    if (obTopSites) obTopSites.addEventListener("click", handleObTopSites);
+    var obBookmarks = $("#ob-bookmarks");
+    if (obBookmarks) obBookmarks.addEventListener("click", function () { handleObBookmarks(); });
+    var obBoth = $("#ob-both");
+    if (obBoth) obBoth.addEventListener("click", handleObBoth);
+    var obSkipImport = $("#ob-skip-import");
+    if (obSkipImport) obSkipImport.addEventListener("click", function (e) { e.preventDefault(); goToObStep(2); });
+    var obBgNext = $("#ob-bg-next");
+    if (obBgNext) obBgNext.addEventListener("click", handleObBgNext);
+    var obSkipBg = $("#ob-skip-bg");
+    if (obSkipBg) obSkipBg.addEventListener("click", function (e) {
+      e.preventDefault();
+      Storage.saveBackground(null);
+      removeBackgroundVisual();
+      goToObStep(3);
+    });
+    var obUploadOwn = $("#ob-upload-own");
+    if (obUploadOwn) obUploadOwn.addEventListener("click", handleObUploadOwn);
+    var obFileInput = $("#ob-file-input");
+    if (obFileInput) obFileInput.addEventListener("change", function () {
+      if (this.files && this.files[0]) handleObFileUpload(this.files[0]);
+      this.value = "";
+    });
+    var obGetStarted = $("#ob-get-started");
+    if (obGetStarted) obGetStarted.addEventListener("click", finishOnboarding);
+    // Onboarding gallery click (delegated)
+    var obBgGrid = $("#ob-bg-grid");
+    if (obBgGrid) {
+      obBgGrid.addEventListener("click", function (e) {
+        var thumb = e.target.closest(".ob-bg-thumb");
+        if (thumb) selectObBg(thumb);
+      });
+    }
 
     // Close menus on outside click
     document.addEventListener("click", function (e) {

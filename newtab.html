@@ -82,6 +82,104 @@
     </div>
   </section>
 
+  <div id="onboarding-overlay" class="hidden">
+    <div id="onboarding-card">
+      <div id="ob-progress">
+        <span class="ob-dot active" data-step="1"></span>
+        <span class="ob-dot" data-step="2"></span>
+        <span class="ob-dot" data-step="3"></span>
+      </div>
+
+      <div class="ob-step" data-step="1">
+        <h1 class="ob-title">Welcome to LaunchPad</h1>
+        <p class="ob-subtitle">Let's set up your new tab page. First, let's bring in your existing shortcuts.</p>
+        <div class="ob-import-options">
+          <button class="ob-import-card" id="ob-top-sites" type="button">
+            <span class="ob-badge">Recommended</span>
+            <div class="ob-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+            </div>
+            <span class="ob-card-title">Most Visited Sites</span>
+            <span class="ob-card-desc">Import your top sites from Chrome</span>
+            <div class="ob-top-sites-preview" id="ob-top-sites-preview"></div>
+          </button>
+          <button class="ob-import-card" id="ob-bookmarks" type="button">
+            <div class="ob-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+              </svg>
+            </div>
+            <span class="ob-card-title">Chrome Bookmarks</span>
+            <span class="ob-card-desc">Import bookmark folders as groups</span>
+          </button>
+          <button class="ob-import-card" id="ob-both" type="button">
+            <div class="ob-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/>
+              </svg>
+            </div>
+            <span class="ob-card-title">Both</span>
+            <span class="ob-card-desc">Import top sites and bookmarks</span>
+          </button>
+        </div>
+        <a class="ob-skip-link" id="ob-skip-import" href="#">Skip &mdash; I'll add my own</a>
+      </div>
+
+      <div class="ob-step hidden" data-step="2">
+        <h1 class="ob-title">Make it yours</h1>
+        <p class="ob-subtitle">Pick a background, or keep it clean.</p>
+        <div class="ob-bg-grid" id="ob-bg-grid"></div>
+        <button class="ob-upload-btn" id="ob-upload-own" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Upload your own
+        </button>
+        <input type="file" id="ob-file-input" accept="image/*" class="hidden">
+        <div class="ob-step-actions">
+          <button class="ob-btn-primary" id="ob-bg-next" type="button">Next</button>
+        </div>
+        <a class="ob-skip-link" id="ob-skip-bg" href="#">Skip</a>
+      </div>
+
+      <div class="ob-step hidden" data-step="3">
+        <h1 class="ob-title">You're ready to go</h1>
+        <p class="ob-subtitle">Here are a few tips to get the most out of LaunchPad:</p>
+        <div class="ob-tips">
+          <div class="ob-tip">
+            <div class="ob-tip-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </div>
+            <span>Click <strong>+</strong> to add a new shortcut to any group</span>
+          </div>
+          <div class="ob-tip">
+            <div class="ob-tip-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>
+            </div>
+            <span>Drag and drop to rearrange your shortcuts and groups</span>
+          </div>
+          <div class="ob-tip">
+            <div class="ob-tip-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </div>
+            <span>Right-click any webpage and select <strong>Add to LaunchPad</strong> to save it</span>
+          </div>
+          <div class="ob-tip">
+            <div class="ob-tip-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            </div>
+            <span>Click the wallpaper icon in the bottom-right to change your background anytime</span>
+          </div>
+        </div>
+        <div class="ob-step-actions">
+          <button class="ob-btn-primary" id="ob-get-started" type="button">Get Started</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="first-run-toast" class="hidden">
     <span>LaunchPad is ready! <a id="toast-import" href="#">Import your Chrome bookmarks</a> or start adding shortcuts.</span>
     <button id="toast-dismiss" type="button" title="Dismiss">&times;</button>
@@ -149,24 +247,39 @@
     <div id="bg-modal">
       <div id="bg-modal-header">
         <h2>Change Background</h2>
+        <div id="bg-tabs">
+          <button class="bg-tab active" data-tab="gallery" type="button">Gallery</button>
+          <button class="bg-tab" data-tab="upload" type="button">Upload</button>
+          <button class="bg-tab" data-tab="url" type="button">URL</button>
+        </div>
       </div>
       <div id="bg-modal-body">
-        <button id="bg-upload-btn" class="bg-option" type="button">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-          </svg>
-          Upload image
-        </button>
-        <input type="file" id="bg-file-input" accept="image/*" class="hidden">
-        <div id="bg-url-row">
-          <input type="text" id="bg-url-input" placeholder="Paste image URL..." autocomplete="off">
-          <button id="bg-url-apply" type="button">Apply</button>
+        <div class="bg-tab-content" data-tab="gallery">
+          <div id="bg-gallery-grid"></div>
+        </div>
+        <div class="bg-tab-content hidden" data-tab="upload">
+          <button id="bg-upload-btn" class="bg-option" type="button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Upload image
+          </button>
+          <input type="file" id="bg-file-input" accept="image/*" class="hidden">
+        </div>
+        <div class="bg-tab-content hidden" data-tab="url">
+          <div id="bg-url-row">
+            <input type="text" id="bg-url-input" placeholder="Paste image URL..." autocomplete="off">
+            <button id="bg-url-apply" type="button">Apply</button>
+          </div>
         </div>
         <div id="bg-error" class="hidden"></div>
       </div>
       <div id="bg-modal-footer">
-        <button id="bg-remove" type="button">Remove background</button>
-        <button id="bg-cancel" type="button">Cancel</button>
+        <p class="bg-tip-text">Tip: Use LaunchPad's background picker instead of Chrome's &lsquo;Customize Chrome&rsquo; to keep your shortcuts visible.</p>
+        <div class="bg-footer-actions">
+          <button id="bg-remove" type="button">Remove background</button>
+          <button id="bg-cancel" type="button">Cancel</button>
+        </div>
       </div>
     </div>
   </div>
