@@ -89,6 +89,28 @@ var Storage = (function () {
     await saveAll(data);
   }
 
+  async function getBackground() {
+    try {
+      var result = await chrome.storage.local.get("launchpad_background");
+      return result.launchpad_background || null;
+    } catch (err) {
+      console.error("[LaunchPad] Background read failed:", err);
+      return null;
+    }
+  }
+
+  async function saveBackground(bgData) {
+    try {
+      if (bgData) {
+        await chrome.storage.local.set({ launchpad_background: bgData });
+      } else {
+        await chrome.storage.local.remove("launchpad_background");
+      }
+    } catch (err) {
+      console.error("[LaunchPad] Background write failed:", err);
+    }
+  }
+
   return {
     getDefaultData: getDefaultData,
     getAll: getAll,
@@ -98,6 +120,8 @@ var Storage = (function () {
     addGroup: addGroup,
     removeGroup: removeGroup,
     reorderShortcuts: reorderShortcuts,
-    reorderGroups: reorderGroups
+    reorderGroups: reorderGroups,
+    getBackground: getBackground,
+    saveBackground: saveBackground
   };
 })();

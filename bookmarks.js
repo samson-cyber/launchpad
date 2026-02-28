@@ -118,18 +118,6 @@ var Bookmarks = (function () {
     return data;
   }
 
-  // ===== First-run: start from scratch =====
-
-  async function startFromScratch() {
-    var data = await Storage.getAll();
-    var groupId = makeId();
-    data.groups.push({ id: groupId, name: "My Shortcuts", shortcuts: [] });
-    data.groupOrder.push(groupId);
-    await Storage.saveAll(data);
-    console.log("[LaunchPad] Started from scratch");
-    return data;
-  }
-
   // ===== Check if first run =====
 
   function isFirstRun(data) {
@@ -158,38 +146,9 @@ var Bookmarks = (function () {
       boxes.forEach(function (cb) { cb.checked = !allChecked; });
     });
 
-    var welcomeImport = $("#welcome-import");
-    var welcomeScratch = $("#welcome-scratch");
-    if (welcomeImport) {
-      welcomeImport.addEventListener("click", function () {
-        hideWelcome();
-        showPicker();
-      });
-    }
-    if (welcomeScratch) {
-      welcomeScratch.addEventListener("click", async function () {
-        hideWelcome();
-        var newData = await startFromScratch();
-        if (onImportDone) onImportDone(newData);
-      });
-    }
-
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") hidePicker();
     });
-  }
-
-  // ===== Welcome screen =====
-
-  function showWelcome() {
-    $("#welcome-screen").classList.remove("hidden");
-    $("#add-group-btn").classList.add("hidden");
-    console.log("[LaunchPad] First run — showing welcome screen");
-  }
-
-  function hideWelcome() {
-    $("#welcome-screen").classList.add("hidden");
-    $("#add-group-btn").classList.remove("hidden");
   }
 
   // ===== Utilities =====
@@ -209,8 +168,6 @@ var Bookmarks = (function () {
     showPicker: showPicker,
     hidePicker: hidePicker,
     isFirstRun: isFirstRun,
-    showWelcome: showWelcome,
-    hideWelcome: hideWelcome,
     bindEvents: bindEvents
   };
 })();

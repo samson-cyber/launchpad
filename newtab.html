@@ -7,38 +7,24 @@
 </head>
 <body>
   <div id="search-section">
+    <div id="brand-logo" draggable="false">
+      <svg class="brand-icon" width="28" height="28" viewBox="0 0 24 24" fill="none">
+        <circle cx="7" cy="7" r="3" fill="#4285F4"/><circle cx="17" cy="7" r="3" fill="#EA4335"/>
+        <circle cx="7" cy="17" r="3" fill="#34A853"/><circle cx="17" cy="17" r="3" fill="#FBBC05"/>
+      </svg>
+      <span class="brand-text">LaunchPad</span>
+    </div>
     <form id="search-form" action="https://www.google.com/search" method="GET" autocomplete="off">
       <div id="search-bar">
         <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
-        <input type="text" name="q" id="search-input" placeholder="Search Google or type a URL" autofocus>
+        <input type="text" name="q" id="search-input" placeholder="Search the web or type a URL" autofocus>
       </div>
     </form>
   </div>
 
   <main id="content">
-    <div id="welcome-screen" class="hidden">
-      <div id="welcome-card">
-        <h1 id="welcome-title">Welcome to LaunchPad</h1>
-        <p id="welcome-subtitle">Your new tab, organized your way.</p>
-        <div id="welcome-actions">
-          <button id="welcome-import" type="button" class="welcome-btn welcome-btn-primary">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
-            </svg>
-            Import from Chrome Bookmarks
-          </button>
-          <button id="welcome-scratch" type="button" class="welcome-btn welcome-btn-secondary">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            Start from scratch
-          </button>
-        </div>
-      </div>
-    </div>
-
     <div id="groups"></div>
     <button id="add-group-btn" type="button">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -47,6 +33,41 @@
       Add group
     </button>
   </main>
+
+  <section id="recently-closed" class="hidden">
+    <div id="recently-closed-inner">
+      <div class="rc-toolbar">
+        <button id="rc-filter-btn" type="button">
+          <span id="rc-filter-label">Recently closed</span>
+          <svg class="rc-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <div id="rc-filter-menu" class="hidden">
+          <button class="rc-filter-option" data-filter="recent" type="button">Recent</button>
+          <button class="rc-filter-option" data-filter="today" type="button">Today</button>
+          <button class="rc-filter-option" data-filter="yesterday" type="button">Yesterday</button>
+          <button class="rc-filter-option" data-filter="week" type="button">Last 7 days</button>
+          <button class="rc-filter-option" data-filter="custom" type="button">Custom range...</button>
+        </div>
+        <div id="rc-date-picker" class="hidden">
+          <input type="date" id="rc-date-start">
+          <span class="rc-date-sep">&ndash;</span>
+          <input type="date" id="rc-date-end">
+          <button id="rc-date-apply" type="button">Go</button>
+        </div>
+        <button id="rc-dismiss" type="button" title="Hide for this session">&times;</button>
+      </div>
+      <div id="rc-scroll-wrapper">
+        <div id="recently-closed-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <div id="first-run-toast" class="hidden">
+    <span>LaunchPad is ready! <a id="toast-import" href="#">Import your Chrome bookmarks</a> or start adding shortcuts.</span>
+    <button id="toast-dismiss" type="button" title="Dismiss">&times;</button>
+  </div>
 
   <div id="shortcut-menu" class="hidden">
     <button id="menu-edit" class="menu-item" type="button">
@@ -76,6 +97,10 @@
         <label for="modal-url">URL</label>
         <input type="text" id="modal-url" placeholder="https://" autocomplete="off">
       </div>
+      <div id="modal-divider"></div>
+      <div id="modal-import-link">
+        <a id="modal-import-bookmarks" href="#">or Import from Chrome Bookmarks</a>
+      </div>
       <div id="modal-footer">
         <button id="modal-cancel" type="button">Cancel</button>
         <button id="modal-save" type="button">Done</button>
@@ -102,11 +127,45 @@
     </div>
   </div>
 
-  <button id="settings-btn" type="button" title="Settings">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-    </svg>
-  </button>
+  <div id="bg-overlay" class="hidden">
+    <div id="bg-modal">
+      <div id="bg-modal-header">
+        <h2>Change Background</h2>
+      </div>
+      <div id="bg-modal-body">
+        <button id="bg-upload-btn" class="bg-option" type="button">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Upload image
+        </button>
+        <input type="file" id="bg-file-input" accept="image/*" class="hidden">
+        <div id="bg-url-row">
+          <input type="text" id="bg-url-input" placeholder="Paste image URL..." autocomplete="off">
+          <button id="bg-url-apply" type="button">Apply</button>
+        </div>
+        <div id="bg-error" class="hidden"></div>
+      </div>
+      <div id="bg-modal-footer">
+        <button id="bg-remove" type="button">Remove background</button>
+        <button id="bg-cancel" type="button">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="bottom-controls">
+    <button id="settings-btn" type="button" title="Settings">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+    <button id="wallpaper-btn" type="button" title="Change background">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+      </svg>
+    </button>
+    <button id="theme-toggle" type="button" title="Toggle dark mode"></button>
+  </div>
   <div id="settings-menu" class="hidden">
     <button id="settings-import" class="menu-item" type="button">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -115,8 +174,6 @@
       Import Bookmarks
     </button>
   </div>
-
-  <button id="theme-toggle" type="button" title="Toggle dark mode"></button>
 
   <script src="storage.js"></script>
   <script src="bookmarks.js"></script>
