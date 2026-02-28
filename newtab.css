@@ -1486,12 +1486,6 @@ html.dark #search-bar:focus-within {
 
 /* ===== Background Active Overrides ===== */
 
-html.has-bg body {
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
-}
-
 html.has-bg body::before {
   content: "";
   position: fixed;
@@ -1504,10 +1498,13 @@ html.has-bg body::before {
 html.has-bg #search-section,
 html.has-bg #content,
 html.has-bg #recently-closed,
-html.has-bg #first-run-toast,
-html.has-bg #bottom-controls {
+html.has-bg #first-run-toast {
   position: relative;
   z-index: 1;
+}
+
+html.has-bg #bottom-controls {
+  z-index: 10;
 }
 
 html.has-bg .brand-text {

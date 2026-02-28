@@ -708,14 +708,22 @@
     }
   }
 
-  function applyBackground(dataUrl) {
-    document.body.style.backgroundImage = 'url("' + dataUrl + '")';
+  function applyBackground(bgUrl) {
+    document.body.style.backgroundImage = "url('" + bgUrl + "')";
+    document.body.style.backgroundSize = "cover";
+    document.body.style.backgroundPosition = "center";
+    document.body.style.backgroundRepeat = "no-repeat";
+    document.body.style.backgroundAttachment = "fixed";
     document.documentElement.classList.add("has-bg");
     document.documentElement.classList.remove("dark");
   }
 
   function removeBackgroundVisual() {
     document.body.style.backgroundImage = "";
+    document.body.style.backgroundSize = "";
+    document.body.style.backgroundPosition = "";
+    document.body.style.backgroundRepeat = "";
+    document.body.style.backgroundAttachment = "";
     document.documentElement.classList.remove("has-bg");
     applyTheme();
   }
