@@ -1609,14 +1609,17 @@
     safeOn("#groups", "click", function (e) {
       var el;
 
+      // Group name — inline rename (must check BEFORE group-header-left)
+      el = e.target.closest(".group-name");
+      if (el) { e.stopPropagation(); startRename(el); return; }
+
+      // Open All button
+      el = e.target.closest(".group-open-all-btn");
+      if (el) { e.stopPropagation(); openAllInGroup(el.dataset.groupId); return; }
+
+      // Chevron — collapse/expand
       el = e.target.closest(".group-collapse-btn");
       if (el) { toggleGroupCollapse(el.dataset.groupId); return; }
-
-      el = e.target.closest(".group-header-left");
-      if (el && !e.target.closest(".group-collapse-btn")) {
-        toggleGroupCollapse(el.dataset.groupId);
-        return;
-      }
 
       el = e.target.closest(".add-tile");
       if (el) { openModal("add", el.dataset.groupId); return; }
@@ -1638,14 +1641,6 @@
         showMenu(tile.dataset.id, grid.dataset.groupId, el);
         return;
       }
-    });
-
-    // Click group name to rename inline
-    safeOn("#groups", "click", function (e) {
-      var el = e.target.closest(".group-open-all-btn");
-      if (el) { e.stopPropagation(); openAllInGroup(el.dataset.groupId); return; }
-      el = e.target.closest(".group-name");
-      if (el) { e.stopPropagation(); startRename(el); }
     });
 
     // Enter key on group header triggers Open All

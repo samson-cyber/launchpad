@@ -155,7 +155,6 @@ html.dark #search-bar:focus-within {
   display: flex;
   align-items: center;
   gap: 2px;
-  cursor: pointer;
   user-select: none;
 }
 
@@ -189,13 +188,15 @@ html.dark #search-bar:focus-within {
   margin: 0;
   font-family: inherit;
   line-height: 1.4;
-  border-bottom: 1px solid transparent;
-  transition: border-color 0.15s, background-color 0.15s;
+  text-decoration: underline transparent;
+  text-decoration-style: dashed;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.15s, background-color 0.15s;
 }
 
 .group-name:hover {
   background: var(--bg-hover);
-  border-bottom-color: var(--text-hint);
+  text-decoration-color: var(--text-hint);
 }
 
 .group-count {
@@ -1801,7 +1802,7 @@ html.has-bg .group-name {
 
 html.has-bg .group-name:hover {
   background: rgba(255, 255, 255, 0.1);
-  border-bottom-color: rgba(255, 255, 255, 0.4);
+  text-decoration-color: rgba(255, 255, 255, 0.4);
 }
 
 html.has-bg .group-open-all-btn {
