@@ -6,7 +6,6 @@
   var groupSortable = null;
   var activeMenu = null;
   var modalState = {};
-  var expandedGroups = {};
   var rcLoadedItems = [];
 
   var $ = function (s, p) { return (p || document).querySelector(s); };
@@ -41,6 +40,19 @@
   ];
 
   var CHECK_SVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  var CHECK_SM_SVG = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+  var POPULAR_SITES = [
+    { title: "Google", url: "https://www.google.com" },
+    { title: "YouTube", url: "https://www.youtube.com" },
+    { title: "Amazon", url: "https://www.amazon.com" },
+    { title: "Facebook", url: "https://www.facebook.com" },
+    { title: "Instagram", url: "https://www.instagram.com" },
+    { title: "Gmail", url: "https://mail.google.com" },
+    { title: "Netflix", url: "https://www.netflix.com" },
+    { title: "LinkedIn", url: "https://www.linkedin.com" }
+  ];
+  var obSelectedPopular = {};
 
   // ===== Init =====
 
@@ -125,8 +137,10 @@
     if (!overlay) return;
     overlay.classList.remove("hidden");
     obCurrentStep = 1;
+    obSelectedPopular = {};
     updateObDots();
     previewTopSites();
+    renderObPopularSites();
     console.log("[LaunchPad] Onboarding started");
   }
 
@@ -200,20 +214,26 @@
 
   function handleObTopSites() {
     importTopSites(function () {
-      goToObStep(2);
+      addSelectedPopularSites().then(function () {
+        render();
+        goToObStep(2);
+      });
     });
   }
 
   function handleObBookmarks() {
     obPendingBookmarks = true;
-    hideOnboarding();
-    Bookmarks.showPicker();
-    // If user cancels bookmark picker, re-show onboarding at step 2
-    waitForHidden($("#bookmark-overlay"), function () {
-      if (obPendingBookmarks) {
-        obPendingBookmarks = false;
-        goToObStep(2);
-      }
+    addSelectedPopularSites().then(function () {
+      render();
+      hideOnboarding();
+      Bookmarks.showPicker();
+      // If user cancels bookmark picker, re-show onboarding at step 2
+      waitForHidden($("#bookmark-overlay"), function () {
+        if (obPendingBookmarks) {
+          obPendingBookmarks = false;
+          goToObStep(2);
+        }
+      });
     });
   }
 
@@ -317,6 +337,62 @@
     console.log("[LaunchPad] Onboarding complete");
   }
 
+  // ===== Onboarding Popular Sites =====
+
+  function renderObPopularSites() {
+    var row = $("#ob-popular-row");
+    if (!row) return;
+    row.innerHTML = POPULAR_SITES.map(function (site, i) {
+      var domain = getDomain(site.url);
+      var favicon = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=64";
+      return '<button class="ob-popular-item" data-index="' + i + '" type="button">' +
+        '<div class="ob-popular-icon">' +
+          '<img src="' + favicon + '" alt="" width="20" height="20">' +
+          '<span class="ob-popular-check">' + CHECK_SM_SVG + '</span>' +
+        '</div>' +
+        '<span class="ob-popular-label">' + esc(site.title) + '</span>' +
+      '</button>';
+    }).join("");
+  }
+
+  function toggleObPopularSite(index) {
+    if (obSelectedPopular[index]) {
+      delete obSelectedPopular[index];
+    } else {
+      obSelectedPopular[index] = true;
+    }
+    var items = $$(".ob-popular-item", $("#ob-popular-row"));
+    items.forEach(function (el) {
+      el.classList.toggle("selected", !!obSelectedPopular[parseInt(el.dataset.index)]);
+    });
+  }
+
+  async function addSelectedPopularSites() {
+    var indices = Object.keys(obSelectedPopular);
+    if (!indices.length) return;
+    var shortcuts = indices.map(function (i, idx) {
+      var site = POPULAR_SITES[parseInt(i)];
+      return {
+        id: Date.now().toString(36) + idx.toString(36) + Math.random().toString(36).slice(2, 7),
+        url: site.url,
+        title: site.title,
+        addedAt: Date.now()
+      };
+    });
+    // Add to "Ungrouped" group or create "Quick Start"
+    var ungrouped = data.groups.find(function (g) { return g.id === "ungrouped"; });
+    if (ungrouped) {
+      ungrouped.shortcuts = ungrouped.shortcuts.concat(shortcuts);
+    } else {
+      var groupId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      data.groups.push({ id: groupId, name: "Quick Start", shortcuts: shortcuts });
+      data.groupOrder.push(groupId);
+    }
+    await Storage.saveAll(data);
+    obSelectedPopular = {};
+    console.log("[LaunchPad] Added", shortcuts.length, "popular sites");
+  }
+
   // ===== Theme =====
 
   function isDark() {
@@ -352,27 +428,22 @@
       .map(function (g) { return groupHTML(g, singleGroup); })
       .join("");
     initSortables();
-    setupShowMore();
   }
 
   function groupHTML(group, singleGroup) {
     var collapsed = data.settings.collapsedGroups && data.settings.collapsedGroups[group.id];
-    var hideHeader = singleGroup && (group.name === "Ungrouped" || group.name === "My Shortcuts");
-    var headerClass = "group-header" + (hideHeader ? " hide-header" : "");
     var groupClass = "group" + (collapsed ? " collapsed" : "");
     var deleteBtn = (group.id === "ungrouped" || singleGroup)
       ? ""
       : '<button class="group-delete-btn" data-group-id="' + group.id + '" title="Delete group">' + CLOSE_SVG + "</button>";
-    var chevron = collapsed ? CHEVRON_RIGHT_SVG : CHEVRON_DOWN_SVG;
     var shortcutCount = group.shortcuts.length;
-    var countBadge = collapsed
-      ? '<span class="group-count">(' + shortcutCount + " shortcut" + (shortcutCount !== 1 ? "s" : "") + ")</span>"
-      : "";
+    var countBadge = '<span class="group-count">(' + shortcutCount + " shortcut" + (shortcutCount !== 1 ? "s" : "") + ")</span>";
+    var gridStyle = collapsed ? ' style="max-height:0"' : '';
     return (
       '<section class="' + groupClass + '" data-group-id="' + group.id + '">' +
-        '<div class="' + headerClass + '">' +
-          '<div class="group-header-left">' +
-            '<button class="group-collapse-btn" data-group-id="' + group.id + '" title="' + (collapsed ? "Expand" : "Collapse") + '">' + chevron + "</button>" +
+        '<div class="group-header">' +
+          '<div class="group-header-left" data-group-id="' + group.id + '">' +
+            '<button class="group-collapse-btn" data-group-id="' + group.id + '" title="' + (collapsed ? "Expand" : "Collapse") + '">' + CHEVRON_DOWN_SVG + "</button>" +
             '<h2 class="group-name" data-group-id="' + group.id + '">' + esc(group.name) + "</h2>" +
             countBadge +
           "</div>" +
@@ -380,7 +451,7 @@
             deleteBtn +
           "</div>" +
         "</div>" +
-        '<div class="shortcuts-grid" data-group-id="' + group.id + '">' +
+        '<div class="shortcuts-grid" data-group-id="' + group.id + '"' + gridStyle + '>' +
           group.shortcuts.map(function (s) { return shortcutHTML(s); }).join("") +
           addTileHTML(group.id) +
         "</div>" +
@@ -417,46 +488,41 @@
 
   async function toggleGroupCollapse(groupId) {
     if (!data.settings.collapsedGroups) data.settings.collapsedGroups = {};
-    if (data.settings.collapsedGroups[groupId]) {
+    var groupEl = document.querySelector('.group[data-group-id="' + groupId + '"]');
+    if (!groupEl) return;
+    var grid = groupEl.querySelector('.shortcuts-grid');
+    if (!grid) return;
+
+    var isCollapsed = groupEl.classList.contains('collapsed');
+
+    if (isCollapsed) {
+      // Expand
       delete data.settings.collapsedGroups[groupId];
+      grid.style.maxHeight = '0px';
+      groupEl.classList.remove('collapsed');
+      // Force reflow so the browser registers the 0px state
+      grid.offsetHeight;
+      grid.style.maxHeight = grid.scrollHeight + 'px';
+      var onExpand = function () {
+        grid.style.maxHeight = '';
+        grid.removeEventListener('transitionend', onExpand);
+      };
+      grid.addEventListener('transitionend', onExpand);
     } else {
+      // Collapse
       data.settings.collapsedGroups[groupId] = true;
+      grid.style.maxHeight = grid.scrollHeight + 'px';
+      // Force reflow so the browser registers the current height
+      grid.offsetHeight;
+      groupEl.classList.add('collapsed');
+      grid.style.maxHeight = '0px';
+      var onCollapse = function () {
+        grid.removeEventListener('transitionend', onCollapse);
+      };
+      grid.addEventListener('transitionend', onCollapse);
     }
+
     await Storage.saveAll(data);
-    render();
-  }
-
-  function setupShowMore() {
-    $$(".show-more-row").forEach(function (el) { el.remove(); });
-    $$(".shortcuts-grid").forEach(function (grid) {
-      var groupId = grid.dataset.groupId;
-      var group = findGroup(groupId);
-      if (!group) return;
-      if (grid.closest(".group.collapsed")) return;
-      grid.classList.remove("capped");
-      var needsCap = grid.scrollHeight > 184;
-      if (!needsCap) return;
-      var count = group.shortcuts.length;
-      var row = document.createElement("div");
-      row.className = "show-more-row";
-      row.dataset.groupId = groupId;
-      if (expandedGroups[groupId]) {
-        row.innerHTML = '<button class="show-more-btn" data-group-id="' + groupId + '" type="button">Show less</button>';
-      } else {
-        grid.classList.add("capped");
-        row.innerHTML = '<button class="show-more-btn" data-group-id="' + groupId + '" type="button">Show all (' + count + ')</button>';
-      }
-      grid.parentElement.insertBefore(row, grid.nextSibling);
-    });
-  }
-
-  function toggleShowMore(groupId) {
-    if (expandedGroups[groupId]) {
-      delete expandedGroups[groupId];
-    } else {
-      expandedGroups[groupId] = true;
-    }
-    setupShowMore();
   }
 
   // ===== Recently Closed / History =====
@@ -903,8 +969,11 @@
       el = e.target.closest(".group-collapse-btn");
       if (el) { toggleGroupCollapse(el.dataset.groupId); return; }
 
-      el = e.target.closest(".show-more-btn");
-      if (el) { toggleShowMore(el.dataset.groupId); return; }
+      el = e.target.closest(".group-header-left");
+      if (el && !e.target.closest(".group-collapse-btn")) {
+        toggleGroupCollapse(el.dataset.groupId);
+        return;
+      }
 
       el = e.target.closest(".add-tile");
       if (el) { openModal("add", el.dataset.groupId); return; }
@@ -921,9 +990,12 @@
         showMenu(tile.dataset.id, grid.dataset.groupId, el);
         return;
       }
+    });
 
-      el = e.target.closest(".group-name");
-      if (el) { startRename(el); return; }
+    // Double-click group name to rename
+    $("#groups").addEventListener("dblclick", function (e) {
+      var el = e.target.closest(".group-name");
+      if (el) { startRename(el); }
     });
 
     // Modal
@@ -1073,7 +1145,10 @@
     var obBoth = $("#ob-both");
     if (obBoth) obBoth.addEventListener("click", handleObBoth);
     var obSkipImport = $("#ob-skip-import");
-    if (obSkipImport) obSkipImport.addEventListener("click", function (e) { e.preventDefault(); goToObStep(2); });
+    if (obSkipImport) obSkipImport.addEventListener("click", function (e) {
+      e.preventDefault();
+      addSelectedPopularSites().then(function () { render(); goToObStep(2); });
+    });
     var obBgNext = $("#ob-bg-next");
     if (obBgNext) obBgNext.addEventListener("click", handleObBgNext);
     var obSkipBg = $("#ob-skip-bg");
@@ -1092,6 +1167,14 @@
     });
     var obGetStarted = $("#ob-get-started");
     if (obGetStarted) obGetStarted.addEventListener("click", finishOnboarding);
+    // Popular sites toggle (delegated)
+    var obPopularRow = $("#ob-popular-row");
+    if (obPopularRow) {
+      obPopularRow.addEventListener("click", function (e) {
+        var item = e.target.closest(".ob-popular-item");
+        if (item) toggleObPopularSite(parseInt(item.dataset.index));
+      });
+    }
     // Onboarding gallery click (delegated)
     var obBgGrid = $("#ob-bg-grid");
     if (obBgGrid) {
@@ -1124,7 +1207,6 @@
 
     // Recalculate show-more on resize
     window.addEventListener("resize", function () {
-      setupShowMore();
       updateRcScroll();
     });
   }

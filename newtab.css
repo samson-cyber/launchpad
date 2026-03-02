@@ -120,17 +120,9 @@ html.dark #search-bar:focus-within {
 /* ===== Content ===== */
 
 #content {
-  max-width: 720px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 32px 24px 48px;
-}
-
-@media (min-width: 960px) {
-  #content { max-width: 944px; }
-}
-
-@media (min-width: 1250px) {
-  #content { max-width: 1168px; }
 }
 
 /* ===== Groups ===== */
@@ -152,14 +144,12 @@ html.dark #search-bar:focus-within {
   cursor: grabbing;
 }
 
-.group-header.hide-header {
-  display: none;
-}
-
 .group-header-left {
   display: flex;
   align-items: center;
   gap: 2px;
+  cursor: pointer;
+  user-select: none;
 }
 
 .group-collapse-btn {
@@ -186,7 +176,7 @@ html.dark #search-bar:focus-within {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-hint);
-  cursor: text;
+  cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
   margin: 0;
@@ -204,6 +194,11 @@ html.dark #search-bar:focus-within {
   font-weight: 400;
   margin-left: 2px;
   white-space: nowrap;
+  display: none;
+}
+
+.group.collapsed .group-count {
+  display: inline;
 }
 
 .group-name-input {
@@ -231,38 +226,14 @@ html.dark #search-bar:focus-within {
   padding-top: 24px;
 }
 
-/* ===== Group Collapse & Show More ===== */
+/* ===== Group Collapse ===== */
 
-.group.collapsed .shortcuts-grid,
-.group.collapsed .show-more-row {
-  display: none !important;
+.group-collapse-btn svg {
+  transition: transform 0.25s ease;
 }
 
-.shortcuts-grid.capped {
-  max-height: 180px;
-  overflow: hidden;
-}
-
-.show-more-row {
-  text-align: center;
-  padding: 4px 0 8px;
-}
-
-.show-more-btn {
-  background: none;
-  border: none;
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 500;
-  font-family: inherit;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background-color 0.15s;
-}
-
-.show-more-btn:hover {
-  background: var(--bg-hover);
+.group.collapsed .group-collapse-btn svg {
+  transform: rotate(-90deg);
 }
 
 .group-delete-btn {
@@ -276,7 +247,12 @@ html.dark #search-bar:focus-within {
   border-radius: 50%;
   cursor: pointer;
   color: var(--text-secondary);
-  transition: background-color 0.15s;
+  opacity: 0;
+  transition: background-color 0.15s, opacity 0.15s;
+}
+
+.group-header:hover .group-delete-btn {
+  opacity: 1;
 }
 
 .group-delete-btn:hover {
@@ -286,16 +262,17 @@ html.dark #search-bar:focus-within {
 /* ===== Shortcuts Grid ===== */
 
 .shortcuts-grid {
-  display: flex;
-  flex-wrap: wrap;
-  min-height: 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px 16px;
+  overflow: hidden;
+  transition: max-height 0.25s ease;
 }
 
 /* ===== Shortcut Tile ===== */
 
 .shortcut {
   position: relative;
-  width: 112px;
   padding: 12px 0 8px;
   border-radius: 8px;
   text-align: center;
@@ -349,7 +326,6 @@ html.dark #search-bar:focus-within {
 /* ===== Add Shortcut Tile ===== */
 
 .add-tile {
-  width: 112px;
   padding: 12px 0 8px;
   border-radius: 8px;
   text-align: center;
@@ -833,17 +809,9 @@ html.dark #search-bar:focus-within {
 /* ===== Recently Closed ===== */
 
 #recently-closed {
-  max-width: 720px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 0 24px 48px;
-}
-
-@media (min-width: 960px) {
-  #recently-closed { max-width: 944px; }
-}
-
-@media (min-width: 1250px) {
-  #recently-closed { max-width: 1168px; }
 }
 
 #recently-closed-inner {
@@ -1647,14 +1615,6 @@ html.has-bg .group + .group {
   border-top-color: rgba(255, 255, 255, 0.15);
 }
 
-html.has-bg .show-more-btn {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-html.has-bg .show-more-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
 html.has-bg #rc-search-box {
   background: rgba(255, 255, 255, 0.15);
 }
@@ -1817,6 +1777,96 @@ html.has-bg .rc-scroll-arrow {
   width: 20px;
   height: 20px;
   border-radius: 4px;
+}
+
+/* --- Onboarding Popular Sites --- */
+
+.ob-popular-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #f1f3f4;
+}
+
+.ob-popular-heading {
+  font-size: 12px;
+  color: #9aa0a6;
+  margin: 0 0 12px;
+  font-weight: 400;
+}
+
+.ob-popular-row {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.ob-popular-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  padding: 6px;
+  border-radius: 8px;
+  font-family: inherit;
+  transition: background-color 0.15s;
+  position: relative;
+}
+
+.ob-popular-item:hover {
+  background: #f1f3f4;
+}
+
+.ob-popular-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f1f3f4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: box-shadow 0.15s;
+}
+
+.ob-popular-item.selected .ob-popular-icon {
+  box-shadow: 0 0 0 2px #1a73e8;
+}
+
+.ob-popular-icon img {
+  width: 20px;
+  height: 20px;
+  border-radius: 2px;
+}
+
+.ob-popular-check {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 16px;
+  height: 16px;
+  background: #1a73e8;
+  border-radius: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.ob-popular-item.selected .ob-popular-check {
+  display: flex;
+}
+
+.ob-popular-label {
+  font-size: 10px;
+  color: #5f6368;
+  max-width: 52px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ob-skip-link {
