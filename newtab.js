@@ -7,7 +7,7 @@
   var activeMenu = null;
   var modalState = {};
   var rcLoadedItems = [];
-  var rcHistoryVisible = true;
+  var sidebarGroupObserver = null;
 
   var $ = function (s, p) { return (p || document).querySelector(s); };
   var $$ = function (s, p) { return [].slice.call((p || document).querySelectorAll(s)); };
@@ -22,6 +22,7 @@
   var RC_FALLBACK_SVG = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>';
   var CHEVRON_RIGHT_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
   var CHEVRON_DOWN_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+  var FOLDER_SVG = '<svg class="sb-group-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
 
   // ===== Gallery Images =====
 
@@ -76,10 +77,6 @@
     await loadBackground();
     applyTheme();
 
-    // Load history toggle state
-    var historyResult = await chrome.storage.local.get("launchpad_history_visible");
-    rcHistoryVisible = historyResult.launchpad_history_visible !== false;
-
     // Check if onboarding needed
     var onboardingDone = await Storage.getOnboardingComplete();
     if (!onboardingDone && Bookmarks.isFirstRun(data)) {
@@ -88,7 +85,6 @@
 
     render();
     bindEvents();
-    renderRecentlyClosed();
     Bookmarks.bindEvents(function (newData) {
       data = newData;
       hideFirstRunToast();
@@ -541,7 +537,14 @@
     if (document.documentElement.classList.contains("has-bg")) return;
     var dark = isDark();
     document.documentElement.classList.toggle("dark", dark);
-    $("#theme-toggle").innerHTML = dark ? SUN_SVG : MOON_SVG;
+    updateSidebarThemeIcon();
+  }
+
+  function updateSidebarThemeIcon() {
+    var btn = $("#sb-theme");
+    if (btn) btn.innerHTML = isDark()
+      ? '<svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg><span class="sb-label">Light Mode</span>'
+      : '<svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><span class="sb-label">Dark Mode</span>';
   }
 
   async function toggleTheme() {
@@ -590,6 +593,8 @@
       .join("");
     ensureAllPlaceholders();
     initSortables();
+    renderSidebarGroups();
+    initSidebarGroupObserver();
   }
 
   function groupHTML(group, singleGroup) {
@@ -691,27 +696,158 @@
     await Storage.saveAll(data);
   }
 
+  // ===== Sidebar Functions =====
+
+  function renderSidebarGroups() {
+    var list = $("#sb-group-list");
+    if (!list) return;
+    var groupMap = {};
+    data.groups.forEach(function (g) { groupMap[g.id] = g; });
+    list.innerHTML = data.groupOrder
+      .map(function (id) { return groupMap[id]; })
+      .filter(Boolean)
+      .map(function (g) {
+        return '<button class="sb-group-item" data-group-id="' + g.id + '" type="button" title="' + esc(g.name) + '">' +
+          FOLDER_SVG +
+          '<span class="sb-group-name">' + esc(g.name) + '</span>' +
+          '<span class="sb-group-count">' + g.shortcuts.length + '</span>' +
+        '</button>';
+      }).join("");
+  }
+
+  function scrollToGroup(groupId) {
+    var el = document.querySelector('.group[data-group-id="' + groupId + '"]');
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function initSidebarGroupObserver() {
+    if (sidebarGroupObserver) sidebarGroupObserver.disconnect();
+    var groupEls = $$(".group[data-group-id]");
+    if (!groupEls.length) return;
+    sidebarGroupObserver = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          var gid = entry.target.dataset.groupId;
+          $$(".sb-group-item").forEach(function (btn) {
+            btn.classList.toggle("active", btn.dataset.groupId === gid);
+          });
+        }
+      });
+    }, { rootMargin: "-20% 0px -60% 0px", threshold: 0 });
+    groupEls.forEach(function (el) { sidebarGroupObserver.observe(el); });
+  }
+
+  function openHistoryOverlay() {
+    var overlay = $("#history-overlay");
+    if (!overlay) return;
+    overlay.classList.remove("hidden");
+    var panel = $("#history-panel");
+    if (panel) panel.classList.remove("closing");
+    // Always reset to "Today" filter on open
+    rcActiveFilter = "today";
+    updateRcFilterLabel();
+    var datePicker = $("#rc-date-picker");
+    if (datePicker) datePicker.classList.add("hidden");
+    var searchInput = $("#rc-search-input");
+    if (searchInput) searchInput.value = "";
+    loadRcData("today");
+  }
+
+  function closeHistoryOverlay() {
+    var overlay = $("#history-overlay");
+    if (!overlay || overlay.classList.contains("hidden")) return;
+    var panel = $("#history-panel");
+    if (panel) {
+      panel.classList.add("closing");
+      setTimeout(function () {
+        overlay.classList.add("hidden");
+        panel.classList.remove("closing");
+      }, 200);
+    } else {
+      overlay.classList.add("hidden");
+    }
+  }
+
+  function openRestoreDropdown() {
+    var dd = $("#restore-dropdown");
+    if (!dd) return;
+    if (!dd.classList.contains("hidden")) { closeRestoreDropdown(); return; }
+    dd.classList.remove("hidden");
+    // Position next to sidebar restore button
+    var btn = $("#sb-restore");
+    if (btn) {
+      var rect = btn.getBoundingClientRect();
+      dd.style.top = rect.top + "px";
+      dd.style.left = (rect.right + 6) + "px";
+    }
+    loadRestoreSessions();
+  }
+
+  function closeRestoreDropdown() {
+    var dd = $("#restore-dropdown");
+    if (dd) dd.classList.add("hidden");
+  }
+
+  function loadRestoreSessions() {
+    var list = $("#restore-list");
+    if (!list) return;
+    if (!chrome.sessions || !chrome.sessions.getRecentlyClosed) {
+      list.innerHTML = '<div class="restore-empty">Session restore not available</div>';
+      return;
+    }
+    chrome.sessions.getRecentlyClosed({ maxResults: 25 }, function (sessions) {
+      var tabs = [];
+      (sessions || []).forEach(function (s) {
+        if (s.tab && s.tab.url && !/^chrome:\/\//i.test(s.tab.url)) {
+          tabs.push({ url: s.tab.url, title: s.tab.title, sessionId: s.tab.sessionId });
+        }
+      });
+      if (!tabs.length) {
+        list.innerHTML = '<div class="restore-empty">No recent tabs to restore</div>';
+        return;
+      }
+      list.innerHTML = tabs.map(function (t) {
+        var domain = getDomain(t.url);
+        var favicon = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=32";
+        return '<a class="restore-tab-item" href="' + esc(t.url) + '" data-session-id="' + (t.sessionId || '') + '" title="' + esc(t.url) + '">' +
+          '<img src="' + favicon + '" alt="" width="16" height="16">' +
+          '<span class="restore-tab-title">' + esc(t.title || domain) + '</span>' +
+        '</a>';
+      }).join("");
+    });
+  }
+
+  function restoreAllTabs() {
+    if (!chrome.sessions || !chrome.sessions.restore) return;
+    var items = $$("#restore-list .restore-tab-item");
+    items.forEach(function (item) {
+      var sid = item.dataset.sessionId;
+      if (sid) {
+        chrome.sessions.restore(sid);
+      } else {
+        window.open(item.href, "_blank");
+      }
+    });
+    closeRestoreDropdown();
+  }
+
+  function toggleMobileSidebar() {
+    var sidebar = $("#sidebar");
+    var backdrop = $("#sidebar-backdrop");
+    if (!sidebar) return;
+    var isOpen = sidebar.classList.contains("mobile-open");
+    sidebar.classList.toggle("mobile-open", !isOpen);
+    if (backdrop) backdrop.classList.toggle("visible", !isOpen);
+  }
+
   // ===== History Section =====
 
   var rcActiveFilter = "today";
   var rcCustomStart = null;
   var rcCustomEnd = null;
 
-  function renderRecentlyClosed() {
-    var section = $("#recently-closed");
-    var toggle = $("#rc-toggle-input");
-    section.classList.remove("hidden");
-    toggle.checked = rcHistoryVisible;
-    section.classList.toggle("rc-off", !rcHistoryVisible);
-    if (rcHistoryVisible) {
-      loadRcData(rcActiveFilter);
-    }
-  }
-
   function loadRcData(filter) {
-    if (filter === "recent") {
-      loadRecentSessions();
-    } else if (filter === "custom") {
+    if (filter === "custom") {
       if (rcCustomStart && rcCustomEnd) {
         loadHistory(rcCustomStart.getTime(), rcCustomEnd.getTime() + 86400000);
       }
@@ -728,25 +864,12 @@
       } else if (filter === "week") {
         startTime = startOfToday - 7 * 86400000;
         endTime = Date.now();
+      } else if (filter === "all") {
+        startTime = 0;
+        endTime = Date.now();
       }
       loadHistory(startTime, endTime);
     }
-  }
-
-  function loadRecentSessions() {
-    if (!chrome.sessions || !chrome.sessions.getRecentlyClosed) {
-      console.warn("[LaunchPad] chrome.sessions API not available");
-      return;
-    }
-    chrome.sessions.getRecentlyClosed({ maxResults: 25 }, function (sessions) {
-      var tabs = [];
-      (sessions || []).forEach(function (s) {
-        if (s.tab && s.tab.url && !/^chrome:\/\//i.test(s.tab.url)) {
-          tabs.push({ url: s.tab.url, title: s.tab.title, lastVisitTime: s.lastModified ? s.lastModified * 1000 : Date.now() });
-        }
-      });
-      showRcItems(tabs);
-    });
   }
 
   function loadHistory(startTime, endTime) {
@@ -754,7 +877,7 @@
       console.warn("[LaunchPad] chrome.history API not available");
       return;
     }
-    var maxFetch = (rcActiveFilter === "week" || rcActiveFilter === "custom") ? 1000 : 500;
+    var maxFetch = (rcActiveFilter === "all") ? 500 : (rcActiveFilter === "week" || rcActiveFilter === "custom") ? 1000 : 500;
     chrome.history.search({
       text: "",
       startTime: startTime,
@@ -803,8 +926,6 @@
   function showRcItems(items) {
     rcLoadedItems = items;
     var list = $("#recently-closed-list");
-    var clearBtn = $("#rc-clear-btn");
-    if (clearBtn) clearBtn.classList.toggle("hidden", rcActiveFilter === "recent");
     var query = ($("#rc-search-input") && $("#rc-search-input").value || "").toLowerCase().trim();
 
     closeDomainPanel();
@@ -816,7 +937,7 @@
                (t.url && t.url.toLowerCase().indexOf(query) !== -1);
       });
       if (!filtered.length) {
-        list.innerHTML = '<span class="rc-empty">No matches</span>';
+        list.innerHTML = '<div class="rc-empty-state"><div class="rc-empty-state-icon">&#128269;</div><div class="rc-empty-state-text">No matches found</div></div>';
         return;
       }
       list.innerHTML = filtered.map(function (t) { return rcFlatItemHTML(t); }).join("");
@@ -825,8 +946,8 @@
 
     var groups = groupByDomain(items);
     if (!groups.length) {
-      var emptyMsg = rcActiveFilter === "today" ? "No browsing history yet today" : "No pages found";
-      list.innerHTML = '<span class="rc-empty">' + emptyMsg + '</span>';
+      var emptyMsg = rcActiveFilter === "today" ? "No browsing history yet today" : "No pages found for this period";
+      list.innerHTML = '<div class="rc-empty-state"><div class="rc-empty-state-icon">&#128214;</div><div class="rc-empty-state-text">' + emptyMsg + '</div></div>';
       return;
     }
     list.innerHTML = groups.map(function (g) { return rcDomainHTML(g); }).join("");
@@ -933,10 +1054,10 @@
 
   function updateRcFilterLabel() {
     var label = $("#rc-filter-label");
-    if (rcActiveFilter === "recent") label.textContent = "Recently Closed";
-    else if (rcActiveFilter === "today") label.textContent = "Today";
+    if (rcActiveFilter === "today") label.textContent = "Today";
     else if (rcActiveFilter === "yesterday") label.textContent = "Yesterday";
     else if (rcActiveFilter === "week") label.textContent = "Last 7 days";
+    else if (rcActiveFilter === "all") label.textContent = "All";
     else if (rcActiveFilter === "custom" && rcCustomStart && rcCustomEnd) {
       label.textContent = formatShortDate(rcCustomStart) + " \u2013 " + formatShortDate(rcCustomEnd);
     }
@@ -998,34 +1119,6 @@
 
   function filterRcBySearch() {
     showRcItems(rcLoadedItems);
-  }
-
-  function handleRcClear() {
-    if (rcActiveFilter === "recent") return;
-    var msg = "Delete browsing history for this period? This cannot be undone.";
-    if (!confirm(msg)) return;
-    var now = new Date();
-    var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    var startTime, endTime;
-    if (rcActiveFilter === "today") {
-      startTime = startOfToday;
-      endTime = Date.now();
-    } else if (rcActiveFilter === "yesterday") {
-      startTime = startOfToday - 86400000;
-      endTime = startOfToday;
-    } else if (rcActiveFilter === "week") {
-      startTime = startOfToday - 7 * 86400000;
-      endTime = Date.now();
-    } else if (rcActiveFilter === "custom" && rcCustomStart && rcCustomEnd) {
-      startTime = rcCustomStart.getTime();
-      endTime = rcCustomEnd.getTime() + 86400000;
-    }
-    if (startTime && endTime && chrome.history && chrome.history.deleteRange) {
-      chrome.history.deleteRange({ startTime: startTime, endTime: endTime }, function () {
-        console.log("[LaunchPad] History cleared for period");
-        loadRcData(rcActiveFilter);
-      });
-    }
   }
 
   // ===== Background =====
@@ -1201,8 +1294,40 @@
   // ===== Events =====
 
   function bindEvents() {
-    $("#theme-toggle").addEventListener("click", toggleTheme);
-    $("#add-group-btn").addEventListener("click", addGroup);
+    // Sidebar buttons
+    $("#sb-history").addEventListener("click", openHistoryOverlay);
+    $("#history-panel-close").addEventListener("click", closeHistoryOverlay);
+    $("#history-overlay").addEventListener("click", function (e) {
+      if (e.target === e.currentTarget) closeHistoryOverlay();
+    });
+    $("#sb-restore").addEventListener("click", function (e) {
+      e.stopPropagation();
+      openRestoreDropdown();
+    });
+    $("#restore-all-btn").addEventListener("click", restoreAllTabs);
+    $("#restore-list").addEventListener("click", function (e) {
+      var item = e.target.closest(".restore-tab-item");
+      if (item) {
+        e.preventDefault();
+        window.open(item.href, "_blank");
+        closeRestoreDropdown();
+      }
+    });
+    $("#sb-add-group").addEventListener("click", addGroup);
+    $("#sb-group-list").addEventListener("click", function (e) {
+      var item = e.target.closest(".sb-group-item");
+      if (item) scrollToGroup(item.dataset.groupId);
+    });
+    $("#sb-settings").addEventListener("click", function () {
+      Bookmarks.showPicker();
+    });
+    $("#sb-wallpaper").addEventListener("click", function (e) {
+      e.stopPropagation();
+      openBgModal();
+    });
+    $("#sb-theme").addEventListener("click", toggleTheme);
+    $("#sidebar-hamburger").addEventListener("click", toggleMobileSidebar);
+    $("#sidebar-backdrop").addEventListener("click", toggleMobileSidebar);
 
     // Global favicon error fallback (replaces inline onerror handlers)
     document.addEventListener("error", function (e) {
@@ -1328,20 +1453,6 @@
       render();
     });
 
-    // Settings gear menu
-    $("#settings-btn").addEventListener("click", function (e) {
-      e.stopPropagation();
-      $("#settings-menu").classList.toggle("hidden");
-    });
-    $("#settings-import").addEventListener("click", function () {
-      $("#settings-menu").classList.add("hidden");
-      Bookmarks.showPicker();
-    });
-    // Rate button — opens Chrome Web Store
-    $("#rate-btn").addEventListener("click", function (e) {
-      e.stopPropagation();
-      window.open("https://chrome.google.com/webstore/detail/launchpad/EXTENSION_ID_HERE", "_blank");
-    });
 
     // History section
     $("#rc-filter-btn").addEventListener("click", function (e) {
@@ -1353,15 +1464,6 @@
         selectRcFilter(this.dataset.filter);
       });
     });
-    $("#rc-toggle-input").addEventListener("change", async function () {
-      rcHistoryVisible = this.checked;
-      await chrome.storage.local.set({ launchpad_history_visible: rcHistoryVisible });
-      var section = $("#recently-closed");
-      section.classList.toggle("rc-off", !rcHistoryVisible);
-      if (rcHistoryVisible) {
-        loadRcData(rcActiveFilter);
-      }
-    });
     // Domain group click handler
     $("#recently-closed-list").addEventListener("click", function (e) {
       var item = e.target.closest(".rc-item[data-rc-domain]");
@@ -1371,27 +1473,13 @@
     });
     // Domain panel close
     $("#rc-panel-close").addEventListener("click", closeDomainPanel);
-    $("#rc-date-apply").addEventListener("click", applyCustomDateRange);
-    $("#rc-date-start").addEventListener("keydown", function (e) {
-      if (e.key === "Enter") applyCustomDateRange();
-    });
-    $("#rc-date-end").addEventListener("keydown", function (e) {
-      if (e.key === "Enter") applyCustomDateRange();
-    });
+    $("#rc-date-start").addEventListener("change", applyCustomDateRange);
+    $("#rc-date-end").addEventListener("change", applyCustomDateRange);
     var rcSearchInput = $("#rc-search-input");
     if (rcSearchInput) {
       rcSearchInput.addEventListener("input", filterRcBySearch);
     }
-    var rcClearBtn = $("#rc-clear-btn");
-    if (rcClearBtn) {
-      rcClearBtn.addEventListener("click", handleRcClear);
-    }
-
-    // Wallpaper / Background
-    $("#wallpaper-btn").addEventListener("click", function (e) {
-      e.stopPropagation();
-      openBgModal();
-    });
+    // Background modal
     $("#bg-overlay").addEventListener("click", function (e) {
       if (e.target === e.currentTarget) closeBgModal();
     });
@@ -1478,20 +1566,25 @@
       if (!e.target.closest("#shortcut-menu") && !e.target.closest(".shortcut-more")) {
         hideMenu();
       }
-      if (!e.target.closest("#settings-menu") && !e.target.closest("#settings-btn")) {
-        $("#settings-menu").classList.add("hidden");
-      }
       if (!e.target.closest("#rc-filter-btn") && !e.target.closest("#rc-filter-menu")) {
         closeRcFilterMenu();
       }
       if (!e.target.closest("#rc-domain-panel") && !e.target.closest(".rc-item[data-rc-domain]")) {
         closeDomainPanel();
       }
+      if (!e.target.closest("#restore-dropdown") && !e.target.closest("#sb-restore")) {
+        closeRestoreDropdown();
+      }
     });
 
     // Escape key
     document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") { closeModal(); hideMenu(); closeBgModal(); closeRcFilterMenu(); closeDomainPanel(); $("#settings-menu").classList.add("hidden"); }
+      if (e.key === "Escape") {
+        closeModal(); hideMenu(); closeBgModal(); closeRcFilterMenu(); closeDomainPanel();
+        closeHistoryOverlay(); closeRestoreDropdown();
+        var sidebar = $("#sidebar");
+        if (sidebar && sidebar.classList.contains("mobile-open")) toggleMobileSidebar();
+      }
     });
 
     // Close menu on scroll
