@@ -615,6 +615,9 @@
     var moreBtn = '<button class="group-more-btn" data-group-id="' + group.id + '" title="Group options">' + THREE_DOT_SVG + "</button>";
     var shortcutCount = group.shortcuts.length;
     var countBadge = '<span class="group-count">(' + shortcutCount + " shortcut" + (shortcutCount !== 1 ? "s" : "") + ")</span>";
+    var openAllBtn = shortcutCount > 0
+      ? '<button class="group-open-all-btn" data-group-id="' + group.id + '" title="Open all shortcuts in new tabs">\u25B6 Open All</button>'
+      : '';
     var gridStyle = collapsed ? ' style="max-height:0"' : '';
     var emptyHint = shortcutCount === 0
       ? '<span class="empty-group-hint">or right-click any page \u2192 Add to LaunchPad</span>'
@@ -628,6 +631,7 @@
             countBadge +
           "</div>" +
           '<div class="group-header-actions">' +
+            openAllBtn +
             moreBtn +
           "</div>" +
         "</div>" +
@@ -1561,8 +1565,19 @@
 
     // Click group name to rename inline
     safeOn("#groups", "click", function (e) {
-      var el = e.target.closest(".group-name");
+      var el = e.target.closest(".group-open-all-btn");
+      if (el) { e.stopPropagation(); openAllInGroup(el.dataset.groupId); return; }
+      el = e.target.closest(".group-name");
       if (el) { e.stopPropagation(); startRename(el); }
+    });
+
+    // Enter key on group header triggers Open All
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter") return;
+      var header = document.querySelector(".group-header:hover");
+      if (!header) return;
+      var section = header.closest(".group");
+      if (section) { openAllInGroup(section.dataset.groupId); }
     });
 
     // Modal
@@ -1845,6 +1860,15 @@
     var rect = anchor.getBoundingClientRect();
     var sidebar = $("#sidebar");
 
+    // Disable "Open All" if group has no shortcuts
+    var group = findGroup(groupId);
+    var openAllOpt = menu.querySelector('[data-action="openall"]');
+    if (openAllOpt) {
+      var empty = !group || !group.shortcuts.length;
+      openAllOpt.classList.toggle("gm-disabled", empty);
+      openAllOpt.disabled = empty;
+    }
+
     // Lock sidebar + panel open while context menu is visible
     sidebarLocked = true;
     if (sidebar) sidebar.classList.add("sidebar-locked");
@@ -1884,7 +1908,9 @@
     hideGroupMenu();
     if (!groupId) return;
 
-    if (action === "rename") {
+    if (action === "openall") {
+      openAllInGroup(groupId);
+    } else if (action === "rename") {
       // Try sidebar name first, then main page name
       var nameEl = document.querySelector('.group[data-group-id="' + groupId + '"] .group-name');
       if (nameEl) {
@@ -2053,6 +2079,28 @@
     });
 
     await Storage.saveAll(data);
+  }
+
+  // ===== Open All in Group =====
+
+  function openAllInGroup(groupId) {
+    var group = findGroup(groupId);
+    if (!group || !group.shortcuts.length) return;
+    group.shortcuts.forEach(function (s, i) {
+      chrome.tabs.create({ url: s.url, active: i === 0 });
+    });
+    showOpenAllToast(group.shortcuts.length, group.name);
+  }
+
+  function showOpenAllToast(count, groupName) {
+    var toast = $("#open-all-toast");
+    if (!toast) return;
+    toast.textContent = "Opened " + count + " tab" + (count !== 1 ? "s" : "") + " from " + groupName;
+    toast.classList.add("visible");
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(function () {
+      toast.classList.remove("visible");
+    }, 3000);
   }
 
   // ===== Utilities =====
