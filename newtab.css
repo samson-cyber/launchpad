@@ -149,11 +149,6 @@ html.dark #search-bar:focus-within {
   justify-content: space-between;
   padding: 4px 0;
   margin-bottom: 4px;
-  cursor: grab;
-}
-
-.group-header:active {
-  cursor: grabbing;
 }
 
 .group-header-left {
@@ -3054,41 +3049,94 @@ html.has-bg .rc-empty-state-text {
   color: var(--text-primary);
 }
 
-#restore-sections {
-  flex: 1;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
-}
+/* --- Date selector bar --- */
 
-.restore-section {
+#restore-date-bar {
+  position: relative;
+  padding: 8px 14px;
   border-bottom: 1px solid var(--border);
 }
 
-.restore-section:last-child {
-  border-bottom: none;
+#restore-date-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
 }
 
-.restore-section-header {
+#restore-date-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--text-hint);
+}
+
+.restore-chevron {
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+#restore-date-btn.open .restore-chevron {
+  transform: rotate(180deg);
+}
+
+#restore-date-menu {
+  position: absolute;
+  top: 100%;
+  left: 14px;
+  margin-top: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px var(--shadow-color);
+  z-index: 500;
+  min-width: 180px;
+  overflow: hidden;
+}
+
+.restore-date-option {
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.restore-date-option:hover {
+  background: var(--bg-hover);
+}
+
+.restore-date-option.active {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* --- Session info bar --- */
+
+#restore-session-info {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 8px 14px;
-  gap: 8px;
+  border-bottom: 1px solid var(--border);
 }
 
-.restore-section-title {
+#restore-tab-count {
   font-size: 12px;
-  font-weight: 600;
   color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.restore-section-time {
-  font-size: 11px;
-  color: var(--text-hint);
-  margin-left: 6px;
 }
 
 .restore-all-btn {
@@ -3108,8 +3156,10 @@ html.has-bg .rc-empty-state-text {
   opacity: 0.9;
 }
 
-.restore-tab-list {
-  max-height: 250px;
+/* --- Tab list --- */
+
+#restore-tab-list {
+  flex: 1;
   overflow-y: auto;
   padding: 2px 0;
   scrollbar-width: thin;
@@ -3204,16 +3254,42 @@ html.has-bg .restore-header span {
   color: #fff;
 }
 
-html.has-bg .restore-section {
+html.has-bg #restore-date-bar {
   border-bottom-color: rgba(255, 255, 255, 0.1);
 }
 
-html.has-bg .restore-section-title {
+html.has-bg #restore-date-btn {
   color: rgba(255, 255, 255, 0.7);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
-html.has-bg .restore-section-time {
-  color: rgba(255, 255, 255, 0.4);
+html.has-bg #restore-date-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+html.has-bg #restore-date-menu {
+  background: rgba(30, 30, 30, 0.95);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+html.has-bg .restore-date-option {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+html.has-bg .restore-date-option:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+html.has-bg .restore-date-option.active {
+  color: var(--accent);
+}
+
+html.has-bg #restore-session-info {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+html.has-bg #restore-tab-count {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 html.has-bg .restore-tab-item:hover {

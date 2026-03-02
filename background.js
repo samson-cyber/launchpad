@@ -57,6 +57,14 @@ async function buildContextMenu() {
 
 // ===== Session Saving System =====
 
+function getTodayKey() {
+  var d = new Date();
+  var y = d.getFullYear();
+  var m = String(d.getMonth() + 1).padStart(2, "0");
+  var day = String(d.getDate()).padStart(2, "0");
+  return y + "-" + m + "-" + day;
+}
+
 async function saveCurrentSession() {
   try {
     var tabs = await chrome.tabs.query({});
@@ -79,26 +87,30 @@ async function saveCurrentSession() {
 
     var result = await chrome.storage.local.get("savedSessions");
     var saved = result.savedSessions || {};
-    saved.current = { windows: windowList, timestamp: Date.now() };
+    var todayKey = getTodayKey();
+    saved[todayKey] = { windows: windowList, timestamp: Date.now() };
     await chrome.storage.local.set({ savedSessions: saved });
-    console.log("[LaunchPad] Session saved:", windowList.length, "window(s)");
+    console.log("[LaunchPad] Session saved for", todayKey, ":", windowList.length, "window(s)");
   } catch (err) {
     console.error("[LaunchPad] Failed to save session:", err);
   }
 }
 
-async function rotateSessionOnStartup() {
+async function pruneOldSessions() {
   try {
     var result = await chrome.storage.local.get("savedSessions");
     var saved = result.savedSessions || {};
-    if (saved.current) {
-      saved.previous = saved.current;
+    // Remove legacy keys
+    delete saved.current;
+    delete saved.previous;
+    var keys = Object.keys(saved).sort().reverse();
+    if (keys.length > 7) {
+      keys.slice(7).forEach(function (k) { delete saved[k]; });
+      await chrome.storage.local.set({ savedSessions: saved });
+      console.log("[LaunchPad] Pruned old sessions, keeping", Math.min(keys.length, 7), "days");
     }
-    saved.current = null;
-    await chrome.storage.local.set({ savedSessions: saved });
-    console.log("[LaunchPad] Session rotated on startup");
   } catch (err) {
-    console.error("[LaunchPad] Failed to rotate session:", err);
+    console.error("[LaunchPad] Failed to prune sessions:", err);
   }
 }
 
@@ -110,8 +122,9 @@ chrome.runtime.onInstalled.addListener(function () {
 });
 chrome.runtime.onStartup.addListener(function () {
   buildContextMenu();
-  rotateSessionOnStartup();
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
+  saveCurrentSession();
+  pruneOldSessions();
 });
 
 // Rebuild when storage changes (groups added/renamed/deleted)

@@ -838,6 +838,7 @@
 
   function closeRestoreDropdown() {
     if (restoreCloseTimer) { clearTimeout(restoreCloseTimer); restoreCloseTimer = null; }
+    closeRestoreDateMenu();
     var dd = $("#restore-dropdown");
     if (dd) dd.classList.add("hidden");
 
@@ -848,19 +849,43 @@
     hideSidebarPanel();
   }
 
-  function formatSessionTime(timestamp) {
-    if (!timestamp) return "";
-    var diff = Date.now() - timestamp;
-    var mins = Math.floor(diff / 60000);
-    if (mins < 1) return "Just now";
-    if (mins < 60) return mins + "m ago";
-    var hrs = Math.floor(mins / 60);
-    if (hrs < 24) return hrs + "h ago";
-    var d = new Date(timestamp);
+  var restoreSessions = {};
+  var restoreSelectedDate = null;
+
+  function getDateKey(d) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+  }
+
+  function formatDateLabel(dateKey) {
+    var today = getDateKey(new Date());
+    var yesterday = getDateKey(new Date(Date.now() - 86400000));
+    if (dateKey === today) return "Today";
+    if (dateKey === yesterday) return "Yesterday";
+    var parts = dateKey.split("-");
+    var d = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+    var days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
     var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return days[d.getDay()] + ", " + months[d.getMonth()] + " " + d.getDate();
+  }
+
+  function formatSavedTime(timestamp) {
+    if (!timestamp) return "";
+    var d = new Date(timestamp);
     var h = d.getHours();
     var m = d.getMinutes();
-    return months[d.getMonth()] + " " + d.getDate() + ", " + (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+    var ampm = h >= 12 ? "PM" : "AM";
+    var h12 = h % 12 || 12;
+    return "Saved at " + h12 + ":" + (m < 10 ? "0" : "") + m + " " + ampm;
+  }
+
+  function countSessionTabs(session) {
+    if (!session || !session.windows) return 0;
+    var n = 0;
+    session.windows.forEach(function (w) { n += (w.tabs || []).length; });
+    return n;
   }
 
   function renderSessionTabs(windows) {
@@ -881,44 +906,93 @@
   }
 
   function loadRestoreSessions() {
-    var prevSection = $("#restore-previous");
-    var currSection = $("#restore-current");
-    var emptyMsg = $("#restore-empty");
-    if (!prevSection || !currSection || !emptyMsg) return;
-
     chrome.storage.local.get("savedSessions", function (result) {
       var saved = result.savedSessions || {};
-      var hasPrev = saved.previous && saved.previous.windows && saved.previous.windows.length;
-      var hasCurr = saved.current && saved.current.windows && saved.current.windows.length;
+      // Filter to only date-keyed entries
+      restoreSessions = {};
+      Object.keys(saved).forEach(function (k) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(k) && saved[k] && saved[k].windows && saved[k].windows.length) {
+          restoreSessions[k] = saved[k];
+        }
+      });
 
-      if (!hasPrev && !hasCurr) {
-        prevSection.classList.add("hidden");
-        currSection.classList.add("hidden");
-        emptyMsg.classList.remove("hidden");
+      var dateKeys = Object.keys(restoreSessions).sort().reverse();
+      var emptyMsg = $("#restore-empty");
+      var dateBar = $("#restore-date-bar");
+      var infoBar = $("#restore-session-info");
+      var tabList = $("#restore-tab-list");
+
+      if (!dateKeys.length) {
+        if (dateBar) dateBar.style.display = "none";
+        if (infoBar) infoBar.style.display = "none";
+        if (tabList) tabList.style.display = "none";
+        if (emptyMsg) emptyMsg.classList.remove("hidden");
         return;
       }
-      emptyMsg.classList.add("hidden");
 
-      if (hasPrev) {
-        prevSection.classList.remove("hidden");
-        var prevTime = $("#restore-prev-time");
-        if (prevTime) prevTime.textContent = formatSessionTime(saved.previous.timestamp);
-        var prevList = $("#restore-prev-list");
-        if (prevList) prevList.innerHTML = renderSessionTabs(saved.previous.windows);
-      } else {
-        prevSection.classList.add("hidden");
+      if (emptyMsg) emptyMsg.classList.add("hidden");
+      if (dateBar) dateBar.style.display = "";
+      if (infoBar) infoBar.style.display = "";
+      if (tabList) tabList.style.display = "";
+
+      // Build date menu
+      var menu = $("#restore-date-menu");
+      if (menu) {
+        menu.innerHTML = dateKeys.map(function (k) {
+          return '<button class="restore-date-option" data-date="' + k + '" type="button">' + formatDateLabel(k) + '</button>';
+        }).join("");
       }
 
-      if (hasCurr) {
-        currSection.classList.remove("hidden");
-        var currTime = $("#restore-curr-time");
-        if (currTime) currTime.textContent = formatSessionTime(saved.current.timestamp);
-        var currList = $("#restore-curr-list");
-        if (currList) currList.innerHTML = renderSessionTabs(saved.current.windows);
-      } else {
-        currSection.classList.add("hidden");
+      // Default: most recent date that is NOT today
+      var todayKey = getDateKey(new Date());
+      if (!restoreSelectedDate || !restoreSessions[restoreSelectedDate]) {
+        restoreSelectedDate = dateKeys.find(function (k) { return k !== todayKey; }) || dateKeys[0];
       }
+
+      showRestoreDate(restoreSelectedDate);
     });
+  }
+
+  function showRestoreDate(dateKey) {
+    restoreSelectedDate = dateKey;
+    var session = restoreSessions[dateKey];
+    var label = $("#restore-date-label");
+    if (label) label.textContent = formatDateLabel(dateKey);
+
+    // Update active state in menu
+    $$("#restore-date-menu .restore-date-option").forEach(function (btn) {
+      btn.classList.toggle("active", btn.dataset.date === dateKey);
+    });
+
+    var tabCount = countSessionTabs(session);
+    var countEl = $("#restore-tab-count");
+    if (countEl) {
+      countEl.textContent = tabCount + " tab" + (tabCount !== 1 ? "s" : "") + " \u00B7 " + formatSavedTime(session ? session.timestamp : null);
+    }
+
+    var allBtn = $("#restore-all-btn");
+    if (allBtn) allBtn.textContent = "Restore All (" + tabCount + ")";
+
+    var tabList = $("#restore-tab-list");
+    if (tabList) {
+      tabList.innerHTML = session ? renderSessionTabs(session.windows) : '';
+    }
+  }
+
+  function toggleRestoreDateMenu() {
+    var menu = $("#restore-date-menu");
+    var btn = $("#restore-date-btn");
+    if (!menu) return;
+    var isOpen = !menu.classList.contains("hidden");
+    menu.classList.toggle("hidden", isOpen);
+    if (btn) btn.classList.toggle("open", !isOpen);
+  }
+
+  function closeRestoreDateMenu() {
+    var menu = $("#restore-date-menu");
+    var btn = $("#restore-date-btn");
+    if (menu) menu.classList.add("hidden");
+    if (btn) btn.classList.remove("open");
   }
 
   function restoreSessionTabs(windows) {
@@ -1419,19 +1493,22 @@
       e.stopPropagation();
       openRestoreDropdown();
     });
-    safeOn("#restore-prev-all", "click", function () {
-      chrome.storage.local.get("savedSessions", function (result) {
-        var saved = result.savedSessions || {};
-        if (saved.previous && saved.previous.windows) restoreSessionTabs(saved.previous.windows);
-      });
+    safeOn("#restore-date-btn", "click", function (e) {
+      e.stopPropagation();
+      toggleRestoreDateMenu();
     });
-    safeOn("#restore-curr-all", "click", function () {
-      chrome.storage.local.get("savedSessions", function (result) {
-        var saved = result.savedSessions || {};
-        if (saved.current && saved.current.windows) restoreSessionTabs(saved.current.windows);
-      });
+    safeOn("#restore-date-menu", "click", function (e) {
+      var opt = e.target.closest(".restore-date-option");
+      if (opt) {
+        showRestoreDate(opt.dataset.date);
+        closeRestoreDateMenu();
+      }
     });
-    safeOn("#restore-sections", "click", function (e) {
+    safeOn("#restore-all-btn", "click", function () {
+      var session = restoreSessions[restoreSelectedDate];
+      if (session && session.windows) restoreSessionTabs(session.windows);
+    });
+    safeOn("#restore-tab-list", "click", function (e) {
       var item = e.target.closest(".restore-tab-item");
       if (item) {
         e.preventDefault();
@@ -1721,6 +1798,9 @@
       }
       if (!e.target.closest("#restore-dropdown") && !e.target.closest("#sb-restore")) {
         closeRestoreDropdown();
+      }
+      if (!e.target.closest("#restore-date-btn") && !e.target.closest("#restore-date-menu")) {
+        closeRestoreDateMenu();
       }
     });
 
@@ -2014,18 +2094,6 @@
       console.warn("[LaunchPad] SortableJS not loaded — drag-and-drop disabled");
       return;
     }
-
-    groupSortable = new Sortable($("#groups"), {
-      animation: 150,
-      handle: ".group-header",
-      draggable: ".group",
-      ghostClass: "group-ghost",
-      onEnd: async function () {
-        data.groupOrder = $$("#groups > .group").map(function (el) { return el.dataset.groupId; });
-        await Storage.saveAll(data);
-        console.log("[LaunchPad] Groups reordered:", data.groupOrder);
-      }
-    });
 
     $$(".shortcuts-grid").forEach(function (grid) {
       var s = new Sortable(grid, {
