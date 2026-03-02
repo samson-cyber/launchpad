@@ -6,6 +6,7 @@
   var groupSortable = null;
   var activeMenu = null;
   var activeGroupMenu = null;
+  var groupMenuCloseTimer = null;
   var modalState = {};
   var rcLoadedItems = [];
   var sidebarGroupObserver = null;
@@ -13,6 +14,10 @@
 
   var $ = function (s, p) { return (p || document).querySelector(s); };
   var $$ = function (s, p) { return [].slice.call((p || document).querySelectorAll(s)); };
+  function safeOn(sel, evt, handler, opts) {
+    var el = typeof sel === "string" ? $(sel) : sel;
+    if (el) el.addEventListener(evt, handler, opts);
+  }
 
   // ===== SVG Icons =====
 
@@ -1330,23 +1335,17 @@
 
   function bindEvents() {
     // Sidebar buttons
-    var sbHistory = $("#sb-history");
-    if (sbHistory) sbHistory.addEventListener("click", openHistoryOverlay);
-    var histPanelClose = $("#history-panel-close");
-    if (histPanelClose) histPanelClose.addEventListener("click", closeHistoryOverlay);
-    var histOverlay = $("#history-overlay");
-    if (histOverlay) histOverlay.addEventListener("click", function (e) {
+    safeOn("#sb-history", "click", openHistoryOverlay);
+    safeOn("#history-panel-close", "click", closeHistoryOverlay);
+    safeOn("#history-overlay", "click", function (e) {
       if (e.target === e.currentTarget) closeHistoryOverlay();
     });
-    var sbRestore = $("#sb-restore");
-    if (sbRestore) sbRestore.addEventListener("click", function (e) {
+    safeOn("#sb-restore", "click", function (e) {
       e.stopPropagation();
       openRestoreDropdown();
     });
-    var restoreAllBtn = $("#restore-all-btn");
-    if (restoreAllBtn) restoreAllBtn.addEventListener("click", restoreAllTabs);
-    var restoreList = $("#restore-list");
-    if (restoreList) restoreList.addEventListener("click", function (e) {
+    safeOn("#restore-all-btn", "click", restoreAllTabs);
+    safeOn("#restore-list", "click", function (e) {
       var item = e.target.closest(".restore-tab-item");
       if (item) {
         e.preventDefault();
@@ -1354,11 +1353,8 @@
         closeRestoreDropdown();
       }
     });
-    var sbAddGroup = $("#sb-add-group");
-    if (sbAddGroup) sbAddGroup.addEventListener("click", addGroup);
-    var sbGroupList = $("#sb-group-list");
-    if (sbGroupList) sbGroupList.addEventListener("click", function (e) {
-      // Three-dot menu click — separate target
+    safeOn("#sb-add-group", "click", addGroup);
+    safeOn("#sb-group-list", "click", function (e) {
       var moreBtn = e.target.closest(".sb-group-more");
       if (moreBtn) {
         e.preventDefault();
@@ -1366,48 +1362,44 @@
         showGroupMenu(moreBtn.dataset.groupId, moreBtn);
         return;
       }
-      // Group name/icon click — scroll to group
       var item = e.target.closest(".sb-group-item");
       if (item) scrollToGroup(item.dataset.groupId);
     });
 
     // Group context menu option clicks
-    var groupMenu = $("#group-menu");
-    if (groupMenu) groupMenu.addEventListener("click", function (e) {
+    safeOn("#group-menu", "click", function (e) {
       var opt = e.target.closest(".gm-option");
-      if (opt) {
-        handleGroupMenuAction(opt.dataset.action);
-      }
+      if (opt) handleGroupMenuAction(opt.dataset.action);
     });
 
     // Delete dialog handlers
-    var gdCancel = $("#gd-cancel");
-    if (gdCancel) gdCancel.addEventListener("click", hideDeleteDialog);
-    var gdConfirm = $("#gd-confirm");
-    if (gdConfirm) gdConfirm.addEventListener("click", confirmDeleteGroup);
-    var gdMoveDelete = $("#gd-move-delete");
-    if (gdMoveDelete) gdMoveDelete.addEventListener("click", moveAndDeleteGroup);
-    var gdOverlay = $("#group-delete-overlay");
-    if (gdOverlay) gdOverlay.addEventListener("click", function (e) {
+    safeOn("#gd-cancel", "click", hideDeleteDialog);
+    safeOn("#gd-confirm", "click", confirmDeleteGroup);
+    safeOn("#gd-move-delete", "click", moveAndDeleteGroup);
+    safeOn("#group-delete-overlay", "click", function (e) {
       if (e.target === e.currentTarget) hideDeleteDialog();
     });
-    var sbSettings = $("#sb-settings");
-    if (sbSettings) sbSettings.addEventListener("click", function () {
-      Bookmarks.showPicker();
-    });
-    var sbWallpaper = $("#sb-wallpaper");
-    if (sbWallpaper) sbWallpaper.addEventListener("click", function (e) {
-      e.stopPropagation();
-      openBgModal();
-    });
-    var sbTheme = $("#sb-theme");
-    if (sbTheme) sbTheme.addEventListener("click", toggleTheme);
-    var sidebarHamburger = $("#sidebar-hamburger");
-    if (sidebarHamburger) sidebarHamburger.addEventListener("click", toggleMobileSidebar);
-    var sidebarBackdrop = $("#sidebar-backdrop");
-    if (sidebarBackdrop) sidebarBackdrop.addEventListener("click", toggleMobileSidebar);
+    safeOn("#sb-settings", "click", function () { Bookmarks.showPicker(); });
+    safeOn("#sb-wallpaper", "click", function (e) { e.stopPropagation(); openBgModal(); });
+    safeOn("#sb-theme", "click", toggleTheme);
+    safeOn("#sidebar-hamburger", "click", toggleMobileSidebar);
+    safeOn("#sidebar-backdrop", "click", toggleMobileSidebar);
 
-    // Global favicon error fallback (replaces inline onerror handlers)
+    // Sidebar mouseleave — close all sidebar-related popovers
+    safeOn("#sidebar", "mouseleave", function () {
+      hideGroupMenu();
+      closeRestoreDropdown();
+    });
+
+    // Group context menu — close on mouseleave after 300ms delay
+    safeOn("#group-menu", "mouseleave", function () {
+      groupMenuCloseTimer = setTimeout(hideGroupMenu, 300);
+    });
+    safeOn("#group-menu", "mouseenter", function () {
+      if (groupMenuCloseTimer) { clearTimeout(groupMenuCloseTimer); groupMenuCloseTimer = null; }
+    });
+
+    // Global favicon error fallback
     document.addEventListener("error", function (e) {
       if (e.target.tagName === "IMG" && e.target.closest(".shortcut-icon, .rc-icon")) {
         e.target.src = "assets/placeholder.svg";
@@ -1415,22 +1407,15 @@
     }, true);
 
     // First-run toast events
-    var toastDismiss = $("#toast-dismiss");
-    if (toastDismiss) {
-      toastDismiss.addEventListener("click", hideFirstRunToast);
-    }
-    var toastImport = $("#toast-import");
-    if (toastImport) {
-      toastImport.addEventListener("click", function (e) {
-        e.preventDefault();
-        hideFirstRunToast();
-        Bookmarks.showPicker();
-      });
-    }
+    safeOn("#toast-dismiss", "click", hideFirstRunToast);
+    safeOn("#toast-import", "click", function (e) {
+      e.preventDefault();
+      hideFirstRunToast();
+      Bookmarks.showPicker();
+    });
 
     // Promo toast events
-    var promoCta = $("#promo-toast-cta");
-    if (promoCta) promoCta.addEventListener("click", function () {
+    safeOn("#promo-toast-cta", "click", function () {
       var toast = $("#promo-toast");
       var type = toast ? toast.dataset.type : "";
       if (type === "bmc") {
@@ -1440,20 +1425,14 @@
       }
       dismissPromoToast();
     });
-    var promoDismiss = $("#promo-toast-dismiss");
-    if (promoDismiss) promoDismiss.addEventListener("click", function (e) {
-      e.preventDefault();
-      dismissPromoToast();
-    });
-    var promoClose = $("#promo-toast-close");
-    if (promoClose) promoClose.addEventListener("click", dismissPromoToast);
+    safeOn("#promo-toast-dismiss", "click", function (e) { e.preventDefault(); dismissPromoToast(); });
+    safeOn("#promo-toast-close", "click", dismissPromoToast);
 
     // Right-click tip
-    var rcTipDismiss = $("#rc-tip-dismiss");
-    if (rcTipDismiss) rcTipDismiss.addEventListener("click", dismissRightClickTip);
+    safeOn("#rc-tip-dismiss", "click", dismissRightClickTip);
 
     // Delegated clicks on groups container
-    $("#groups").addEventListener("click", function (e) {
+    safeOn("#groups", "click", function (e) {
       var el;
 
       el = e.target.closest(".group-collapse-btn");
@@ -1488,60 +1467,47 @@
     });
 
     // Double-click group name to rename
-    $("#groups").addEventListener("dblclick", function (e) {
+    safeOn("#groups", "dblclick", function (e) {
       var el = e.target.closest(".group-name");
       if (el) { startRename(el); }
     });
 
     // Modal
-    var modalCancel = $("#modal-cancel");
-    if (modalCancel) modalCancel.addEventListener("click", closeModal);
-    var modalSave = $("#modal-save");
-    if (modalSave) modalSave.addEventListener("click", saveModal);
-    var modalOverlay = $("#modal-overlay");
-    if (modalOverlay) modalOverlay.addEventListener("click", function (e) {
+    safeOn("#modal-cancel", "click", closeModal);
+    safeOn("#modal-save", "click", saveModal);
+    safeOn("#modal-overlay", "click", function (e) {
       if (e.target === e.currentTarget) closeModal();
     });
-
-    // Import bookmarks link inside modal
-    var modalImport = $("#modal-import-bookmarks");
-    if (modalImport) modalImport.addEventListener("click", function (e) {
+    safeOn("#modal-import-bookmarks", "click", function (e) {
       e.preventDefault();
       closeModal();
       Bookmarks.showPicker();
     });
-
-    // URL auto-populates name (only when name is empty or was auto-filled)
-    var modalUrl = $("#modal-url");
-    if (modalUrl) modalUrl.addEventListener("input", function () {
-      if ($("#modal-name").dataset.edited === "true") return;
+    safeOn("#modal-url", "input", function () {
+      var nameEl = $("#modal-name");
+      if (nameEl && nameEl.dataset.edited === "true") return;
       var domain = getDomain(this.value.trim());
-      if (domain) $("#modal-name").value = domain.replace(/^www\./, "");
+      if (domain && nameEl) nameEl.value = domain.replace(/^www\./, "");
     });
-    var modalName = $("#modal-name");
-    if (modalName) modalName.addEventListener("input", function () {
+    safeOn("#modal-name", "input", function () {
       this.dataset.edited = "true";
     });
-
-    // Enter in modal fields
-    if (modalUrl) modalUrl.addEventListener("keydown", function (e) {
+    safeOn("#modal-url", "keydown", function (e) {
       if (e.key === "Enter") { e.preventDefault(); saveModal(); }
     });
-    if (modalName) modalName.addEventListener("keydown", function (e) {
+    safeOn("#modal-name", "keydown", function (e) {
       if (e.key === "Enter") { e.preventDefault(); saveModal(); }
     });
 
     // Context menu items
-    var menuEdit = $("#menu-edit");
-    if (menuEdit) menuEdit.addEventListener("click", function () {
+    safeOn("#menu-edit", "click", function () {
       if (!activeMenu) return;
       var group = findGroup(activeMenu.groupId);
       var sc = group && group.shortcuts.find(function (s) { return s.id === activeMenu.shortcutId; });
       if (sc) openModal("edit", activeMenu.groupId, sc);
       hideMenu();
     });
-    var menuRemove = $("#menu-remove");
-    if (menuRemove) menuRemove.addEventListener("click", async function () {
+    safeOn("#menu-remove", "click", async function () {
       if (!activeMenu) return;
       await Storage.removeShortcut(activeMenu.groupId, activeMenu.shortcutId);
       hideMenu();
@@ -1549,10 +1515,8 @@
       render();
     });
 
-
     // History section
-    var rcFilterBtn = $("#rc-filter-btn");
-    if (rcFilterBtn) rcFilterBtn.addEventListener("click", function (e) {
+    safeOn("#rc-filter-btn", "click", function (e) {
       e.stopPropagation();
       toggleRcFilterMenu();
     });
@@ -1561,53 +1525,38 @@
         selectRcFilter(this.dataset.filter);
       });
     });
-    // Domain group click handler
-    var rcList = $("#recently-closed-list");
-    if (rcList) rcList.addEventListener("click", function (e) {
+    safeOn("#recently-closed-list", "click", function (e) {
       var item = e.target.closest(".rc-item[data-rc-domain]");
       if (!item) return;
       e.preventDefault();
       openDomainPanel(item.dataset.rcDomain, item);
     });
-    // Domain panel close
-    var rcPanelClose = $("#rc-panel-close");
-    if (rcPanelClose) rcPanelClose.addEventListener("click", closeDomainPanel);
-    var rcDateStart = $("#rc-date-start");
-    if (rcDateStart) rcDateStart.addEventListener("change", applyCustomDateRange);
-    var rcDateEnd = $("#rc-date-end");
-    if (rcDateEnd) rcDateEnd.addEventListener("change", applyCustomDateRange);
-    var rcSearchInput = $("#rc-search-input");
-    if (rcSearchInput) {
-      rcSearchInput.addEventListener("input", filterRcBySearch);
-    }
+    safeOn("#rc-panel-close", "click", closeDomainPanel);
+    safeOn("#rc-date-start", "change", applyCustomDateRange);
+    safeOn("#rc-date-end", "change", applyCustomDateRange);
+    safeOn("#rc-search-input", "input", filterRcBySearch);
+
     // Background modal
-    var bgOverlay = $("#bg-overlay");
-    if (bgOverlay) bgOverlay.addEventListener("click", function (e) {
+    safeOn("#bg-overlay", "click", function (e) {
       if (e.target === e.currentTarget) closeBgModal();
     });
-    var bgCancel = $("#bg-cancel");
-    if (bgCancel) bgCancel.addEventListener("click", closeBgModal);
-    var bgUploadBtn = $("#bg-upload-btn");
-    if (bgUploadBtn) bgUploadBtn.addEventListener("click", function () {
+    safeOn("#bg-cancel", "click", closeBgModal);
+    safeOn("#bg-upload-btn", "click", function () {
       var fi = $("#bg-file-input");
       if (fi) fi.click();
     });
-    var bgFileInput = $("#bg-file-input");
-    if (bgFileInput) bgFileInput.addEventListener("change", function () {
+    safeOn("#bg-file-input", "change", function () {
       if (this.files && this.files[0]) handleBgUpload(this.files[0]);
       this.value = "";
     });
-    var bgUrlApply = $("#bg-url-apply");
-    if (bgUrlApply) bgUrlApply.addEventListener("click", function () {
+    safeOn("#bg-url-apply", "click", function () {
       var inp = $("#bg-url-input");
       if (inp) handleBgUrl(inp.value);
     });
-    var bgUrlInput = $("#bg-url-input");
-    if (bgUrlInput) bgUrlInput.addEventListener("keydown", function (e) {
+    safeOn("#bg-url-input", "keydown", function (e) {
       if (e.key === "Enter") { e.preventDefault(); handleBgUrl(this.value); }
     });
-    var bgRemove = $("#bg-remove");
-    if (bgRemove) bgRemove.addEventListener("click", handleBgRemove);
+    safeOn("#bg-remove", "click", handleBgRemove);
 
     // Background gallery tabs
     $$("#bg-tabs .bg-tab").forEach(function (tab) {
@@ -1615,61 +1564,40 @@
         switchBgTab(this.dataset.tab);
       });
     });
-    // Background gallery click (delegated)
-    var bgGalleryGrid = $("#bg-gallery-grid");
-    if (bgGalleryGrid) {
-      bgGalleryGrid.addEventListener("click", function (e) {
-        var thumb = e.target.closest(".bg-gallery-thumb");
-        if (thumb) handleBgGalleryClick(thumb);
-      });
-    }
+    safeOn("#bg-gallery-grid", "click", function (e) {
+      var thumb = e.target.closest(".bg-gallery-thumb");
+      if (thumb) handleBgGalleryClick(thumb);
+    });
 
     // Onboarding events
-    var obTopSites = $("#ob-top-sites");
-    if (obTopSites) obTopSites.addEventListener("click", handleObTopSites);
-    var obBookmarks = $("#ob-bookmarks");
-    if (obBookmarks) obBookmarks.addEventListener("click", function () { handleObBookmarks(); });
-    var obBoth = $("#ob-both");
-    if (obBoth) obBoth.addEventListener("click", handleObBoth);
-    var obSkipImport = $("#ob-skip-import");
-    if (obSkipImport) obSkipImport.addEventListener("click", function (e) {
+    safeOn("#ob-top-sites", "click", handleObTopSites);
+    safeOn("#ob-bookmarks", "click", function () { handleObBookmarks(); });
+    safeOn("#ob-both", "click", handleObBoth);
+    safeOn("#ob-skip-import", "click", function (e) {
       e.preventDefault();
       addSelectedPopularSites().then(function () { render(); goToObStep(2); });
     });
-    var obBgNext = $("#ob-bg-next");
-    if (obBgNext) obBgNext.addEventListener("click", handleObBgNext);
-    var obSkipBg = $("#ob-skip-bg");
-    if (obSkipBg) obSkipBg.addEventListener("click", function (e) {
+    safeOn("#ob-bg-next", "click", handleObBgNext);
+    safeOn("#ob-skip-bg", "click", function (e) {
       e.preventDefault();
       Storage.saveBackground(null);
       removeBackgroundVisual();
       goToObStep(3);
     });
-    var obUploadOwn = $("#ob-upload-own");
-    if (obUploadOwn) obUploadOwn.addEventListener("click", handleObUploadOwn);
-    var obFileInput = $("#ob-file-input");
-    if (obFileInput) obFileInput.addEventListener("change", function () {
+    safeOn("#ob-upload-own", "click", handleObUploadOwn);
+    safeOn("#ob-file-input", "change", function () {
       if (this.files && this.files[0]) handleObFileUpload(this.files[0]);
       this.value = "";
     });
-    var obGetStarted = $("#ob-get-started");
-    if (obGetStarted) obGetStarted.addEventListener("click", finishOnboarding);
-    // Popular sites toggle (delegated)
-    var obPopularRow = $("#ob-popular-row");
-    if (obPopularRow) {
-      obPopularRow.addEventListener("click", function (e) {
-        var item = e.target.closest(".ob-popular-item");
-        if (item) toggleObPopularSite(parseInt(item.dataset.index));
-      });
-    }
-    // Onboarding gallery click (delegated)
-    var obBgGrid = $("#ob-bg-grid");
-    if (obBgGrid) {
-      obBgGrid.addEventListener("click", function (e) {
-        var thumb = e.target.closest(".ob-bg-thumb");
-        if (thumb) selectObBg(thumb);
-      });
-    }
+    safeOn("#ob-get-started", "click", finishOnboarding);
+    safeOn("#ob-popular-row", "click", function (e) {
+      var item = e.target.closest(".ob-popular-item");
+      if (item) toggleObPopularSite(parseInt(item.dataset.index));
+    });
+    safeOn("#ob-bg-grid", "click", function (e) {
+      var thumb = e.target.closest(".ob-bg-thumb");
+      if (thumb) selectObBg(thumb);
+    });
 
     // Close menus on outside click
     document.addEventListener("click", function (e) {
@@ -1702,7 +1630,7 @@
     });
 
     // Close menu on scroll
-    window.addEventListener("scroll", hideMenu);
+    window.addEventListener("scroll", function () { hideMenu(); hideGroupMenu(); });
 
   }
 
@@ -1841,6 +1769,7 @@
   }
 
   function hideGroupMenu() {
+    if (groupMenuCloseTimer) { clearTimeout(groupMenuCloseTimer); groupMenuCloseTimer = null; }
     var menu = $("#group-menu");
     if (menu) menu.classList.add("hidden");
     activeGroupMenu = null;

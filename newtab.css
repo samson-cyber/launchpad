@@ -2440,19 +2440,24 @@ html.has-bg #promo-toast-close:hover {
   left: 0;
   width: 48px;
   height: 100%;
-  background: transparent;
+  background: transparent !important;
+  background-color: transparent !important;
+  border-right: none !important;
+  box-shadow: none !important;
   display: flex;
   flex-direction: column;
   z-index: 200;
   overflow: hidden;
-  transition: width 300ms ease, background-color 200ms ease, backdrop-filter 200ms ease, -webkit-backdrop-filter 200ms ease;
+  transition: width 300ms ease, background 200ms ease, backdrop-filter 200ms ease, -webkit-backdrop-filter 200ms ease;
 }
 
 #sidebar:hover {
   width: 260px;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.2) !important;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  border-right: none !important;
+  box-shadow: none !important;
 }
 
 #sidebar-top {
@@ -2648,11 +2653,11 @@ html.has-bg #promo-toast-close:hover {
 /* --- Sidebar: dark mode --- */
 
 html.dark #sidebar {
-  background: transparent;
+  background: transparent !important;
 }
 
 html.dark #sidebar:hover {
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.4) !important;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
@@ -2673,13 +2678,13 @@ html.dark #sb-group-list::-webkit-scrollbar-thumb {
 /* --- Sidebar: has-bg mode (always dark style) --- */
 
 html.has-bg #sidebar {
-  background: transparent;
+  background: transparent !important;
 }
 
 html.has-bg #sidebar:hover {
+  background: rgba(0, 0, 0, 0.2) !important;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  background: rgba(0, 0, 0, 0.15);
 }
 
 html.has-bg .sb-item,
@@ -3057,18 +3062,10 @@ html.has-bg .restore-tab-title {
   #sidebar {
     transform: translateX(-260px);
     width: 260px;
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(0, 0, 0, 0.2) !important;
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    transition: transform 300ms ease, background-color 200ms ease;
-  }
-
-  html.dark #sidebar {
-    background: rgba(30, 30, 30, 0.92);
-  }
-
-  html.has-bg #sidebar {
-    background: rgba(0, 0, 0, 0.3);
+    transition: transform 300ms ease, background 200ms ease;
   }
 
   #sidebar .sb-label,
