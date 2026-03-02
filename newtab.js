@@ -528,7 +528,7 @@
   // ===== Recently Closed / History =====
 
   var rcDismissed = false;
-  var rcActiveFilter = "recent";
+  var rcActiveFilter = "today";
   var rcCustomStart = null;
   var rcCustomEnd = null;
 
@@ -585,7 +585,7 @@
       return;
     }
     var maxFetch = (rcActiveFilter === "week" || rcActiveFilter === "custom") ? 500 : 200;
-    var maxShow = (rcActiveFilter === "week" || rcActiveFilter === "custom") ? 40 : 40;
+    var maxShow = (rcActiveFilter === "week" || rcActiveFilter === "custom") ? 40 : 30;
     chrome.history.search({
       text: "",
       startTime: startTime,
@@ -621,7 +621,8 @@
              (t.url && t.url.toLowerCase().indexOf(query) !== -1);
     }) : items;
     if (!filtered.length) {
-      list.innerHTML = '<span class="rc-empty">' + (query ? "No matches" : "No pages found") + '</span>';
+      var emptyMsg = query ? "No matches" : (rcActiveFilter === "today" ? "No browsing history yet today" : "No pages found");
+      list.innerHTML = '<span class="rc-empty">' + emptyMsg + '</span>';
       section.classList.remove("hidden");
       updateRcScroll();
       return;
@@ -649,8 +650,8 @@
 
   function updateRcFilterLabel() {
     var label = $("#rc-filter-label");
-    if (rcActiveFilter === "recent") label.textContent = "Recently closed";
-    else if (rcActiveFilter === "today") label.textContent = "Visited today";
+    if (rcActiveFilter === "recent") label.textContent = "History";
+    else if (rcActiveFilter === "today") label.textContent = "Today";
     else if (rcActiveFilter === "yesterday") label.textContent = "Visited yesterday";
     else if (rcActiveFilter === "week") label.textContent = "Last 7 days";
     else if (rcActiveFilter === "custom" && rcCustomStart && rcCustomEnd) {
