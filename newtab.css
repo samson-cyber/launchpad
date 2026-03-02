@@ -2313,8 +2313,9 @@ html.has-bg .rc-tip-text {
 
 #promo-toast {
   position: fixed;
-  bottom: 24px;
-  left: 24px;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(40px);
   max-width: 320px;
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -2326,13 +2327,12 @@ html.has-bg .rc-tip-text {
   gap: 10px;
   z-index: 600;
   opacity: 0;
-  transform: translateY(20px);
   transition: opacity 400ms ease, transform 400ms ease;
 }
 
 #promo-toast.toast-visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateX(-50%) translateY(0);
 }
 
 .promo-toast-icon {
@@ -2446,6 +2446,7 @@ aside#sidebar,
   background-color: transparent !important;
   background-image: none !important;
   border-right: none !important;
+  border: none !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -2453,17 +2454,20 @@ aside#sidebar,
   flex-direction: column;
   z-index: 200;
   overflow: hidden;
-  transition: width 300ms ease, background 200ms ease, backdrop-filter 200ms ease, -webkit-backdrop-filter 200ms ease;
+  /* Only transition width when collapsing — background/blur disappear instantly */
+  transition: width 300ms ease;
 }
 
 #sidebar:hover,
 #sidebar.sidebar-locked {
   width: 260px;
-  background: rgba(0, 0, 0, 0.2) !important;
+  background: rgba(0, 0, 0, 0.25) !important;
   backdrop-filter: blur(16px) !important;
   -webkit-backdrop-filter: blur(16px) !important;
   border-right: none !important;
   box-shadow: none !important;
+  /* Expanding: animate width + background/blur in smoothly */
+  transition: width 300ms ease, background 200ms ease, backdrop-filter 200ms ease, -webkit-backdrop-filter 200ms ease;
 }
 
 #sidebar-top {
@@ -3088,10 +3092,10 @@ html.has-bg .restore-tab-title {
   #sidebar {
     transform: translateX(-260px);
     width: 260px;
-    background: rgba(0, 0, 0, 0.2) !important;
+    background: rgba(0, 0, 0, 0.25) !important;
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    transition: transform 300ms ease, background 200ms ease;
+    transition: transform 300ms ease;
   }
 
   #sidebar .sb-label,
