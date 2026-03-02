@@ -116,6 +116,9 @@
       if (data.settings.theme === "system") applyTheme();
     });
 
+    // Increment tab counter and check for promo toasts
+    incrementTabCounter();
+
     console.log("[LaunchPad] Ready —", data.groups.length, "group(s),",
       data.groups.reduce(function (n, g) { return n + g.shortcuts.length; }, 0), "shortcut(s)");
   }
@@ -131,6 +134,84 @@
   function hideFirstRunToast() {
     var toast = $("#first-run-toast");
     if (toast) toast.classList.add("hidden");
+  }
+
+  // ===== Promo Toast (one-time BMC / Rate) =====
+
+  var promoToastTimer = null;
+
+  async function incrementTabCounter() {
+    var result = await chrome.storage.local.get(["tabOpenCount", "bmcToastDismissed", "rateToastDismissed"]);
+    var count = (result.tabOpenCount || 0) + 1;
+    await chrome.storage.local.set({ tabOpenCount: count });
+
+    // Check BMC toast (5th open)
+    if (count >= 5 && !result.bmcToastDismissed) {
+      showPromoToast("bmc");
+      return;
+    }
+    // Check Rate toast (12th open)
+    if (count >= 12 && !result.rateToastDismissed) {
+      showPromoToast("rate");
+    }
+  }
+
+  function showPromoToast(type) {
+    var toast = $("#promo-toast");
+    if (!toast) return;
+
+    var icon = $("#promo-toast-icon");
+    var text = $("#promo-toast-text");
+    var cta = $("#promo-toast-cta");
+    var dismiss = $("#promo-toast-dismiss");
+
+    if (type === "bmc") {
+      icon.textContent = "\u2615";
+      text.textContent = "Enjoying LaunchPad? Consider buying me a coffee to support development!";
+      cta.textContent = "Support \u2615";
+      dismiss.textContent = "Maybe later";
+      toast.dataset.type = "bmc";
+    } else {
+      icon.textContent = "\u2B50";
+      text.textContent = "Love LaunchPad? A quick rating on the Chrome Web Store helps others find it!";
+      cta.textContent = "Rate \u2B50";
+      dismiss.textContent = "Not now";
+      toast.dataset.type = "rate";
+    }
+
+    toast.classList.remove("hidden");
+    // Trigger slide-in animation on next frame
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        toast.classList.add("toast-visible");
+      });
+    });
+
+    // Auto-dismiss after 15 seconds
+    promoToastTimer = setTimeout(function () {
+      dismissPromoToast();
+    }, 15000);
+  }
+
+  function dismissPromoToast() {
+    var toast = $("#promo-toast");
+    if (!toast || toast.classList.contains("hidden")) return;
+
+    if (promoToastTimer) {
+      clearTimeout(promoToastTimer);
+      promoToastTimer = null;
+    }
+
+    var type = toast.dataset.type;
+    var flagKey = type === "bmc" ? "bmcToastDismissed" : "rateToastDismissed";
+    var obj = {};
+    obj[flagKey] = true;
+    chrome.storage.local.set(obj);
+
+    toast.classList.remove("toast-visible");
+    setTimeout(function () {
+      toast.classList.add("hidden");
+    }, 400);
   }
 
   // ===== Onboarding =====
@@ -990,6 +1071,22 @@
         Bookmarks.showPicker();
       });
     }
+
+    // Promo toast events
+    $("#promo-toast-cta").addEventListener("click", function () {
+      var type = $("#promo-toast").dataset.type;
+      if (type === "bmc") {
+        window.open("https://buymeacoffee.com/cybersamwise", "_blank");
+      } else {
+        window.open("https://chrome.google.com/webstore/detail/launchpad/EXTENSION_ID_HERE", "_blank");
+      }
+      dismissPromoToast();
+    });
+    $("#promo-toast-dismiss").addEventListener("click", function (e) {
+      e.preventDefault();
+      dismissPromoToast();
+    });
+    $("#promo-toast-close").addEventListener("click", dismissPromoToast);
 
     // Delegated clicks on groups container
     $("#groups").addEventListener("click", function (e) {

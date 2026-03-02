@@ -2131,6 +2131,130 @@ html.has-bg #bmc-btn:hover {
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* ===== Promo Toast (one-time BMC / Rate) ===== */
+
+#promo-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  max-width: 320px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 4px 16px var(--shadow-color);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  z-index: 600;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 400ms ease, transform 400ms ease;
+}
+
+#promo-toast.toast-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.promo-toast-icon {
+  font-size: 24px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.promo-toast-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.promo-toast-text {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-primary);
+  margin: 0 0 10px;
+}
+
+.promo-toast-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#promo-toast-cta {
+  background: var(--accent);
+  color: var(--accent-text);
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+#promo-toast-cta:hover {
+  opacity: 0.85;
+}
+
+#promo-toast-dismiss {
+  font-size: 12px;
+  color: var(--text-hint);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+#promo-toast-dismiss:hover {
+  color: var(--text-secondary);
+  text-decoration: underline;
+}
+
+#promo-toast-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: none;
+  border: none;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-hint);
+  padding: 2px 4px;
+}
+
+#promo-toast-close:hover {
+  color: var(--text-primary);
+}
+
+html.has-bg #promo-toast {
+  background: rgba(0, 0, 0, 0.7);
+  border-color: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+html.has-bg .promo-toast-text {
+  color: #fff;
+}
+
+html.has-bg #promo-toast-dismiss {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+html.has-bg #promo-toast-dismiss:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+html.has-bg #promo-toast-close {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+html.has-bg #promo-toast-close:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
 /* ===== Utility ===== */
 
 .hidden {
