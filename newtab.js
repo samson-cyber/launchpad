@@ -8,8 +8,6 @@
   var modalState = {};
   var rcLoadedItems = [];
   var rcHistoryVisible = true;
-  var rcShowAll = false;
-  var RC_DEFAULT_LIMIT = 20;
 
   var $ = function (s, p) { return (p || document).querySelector(s); };
   var $$ = function (s, p) { return [].slice.call((p || document).querySelectorAll(s)); };
@@ -744,10 +742,9 @@
       var tabs = [];
       (sessions || []).forEach(function (s) {
         if (s.tab && s.tab.url && !/^chrome:\/\//i.test(s.tab.url)) {
-          tabs.push({ url: s.tab.url, title: s.tab.title });
+          tabs.push({ url: s.tab.url, title: s.tab.title, lastVisitTime: s.lastModified ? s.lastModified * 1000 : Date.now() });
         }
       });
-      tabs = deduplicateByUrl(tabs).slice(0, 20);
       showRcItems(tabs);
     });
   }
@@ -757,8 +754,7 @@
       console.warn("[LaunchPad] chrome.history API not available");
       return;
     }
-    var maxFetch = (rcActiveFilter === "week" || rcActiveFilter === "custom") ? 500 : 200;
-    var maxShow = (rcActiveFilter === "week" || rcActiveFilter === "custom") ? 200 : 100;
+    var maxFetch = (rcActiveFilter === "week" || rcActiveFilter === "custom") ? 1000 : 500;
     chrome.history.search({
       text: "",
       startTime: startTime,
@@ -767,53 +763,94 @@
     }, function (results) {
       var items = (results || [])
         .filter(function (r) { return r.url && !/^chrome:\/\//i.test(r.url); })
-        .map(function (r) { return { url: r.url, title: r.title }; });
-      items = deduplicateByUrl(items).slice(0, maxShow);
+        .map(function (r) { return { url: r.url, title: r.title, lastVisitTime: r.lastVisitTime || Date.now(), visitCount: r.visitCount || 1 }; });
       showRcItems(items);
     });
   }
 
-  function deduplicateByUrl(items) {
-    var seen = {};
-    return items.filter(function (item) {
-      if (seen[item.url]) return false;
-      seen[item.url] = true;
-      return true;
+  function groupByDomain(items) {
+    var map = {};
+    var order = [];
+    items.forEach(function (item) {
+      var domain = getDomain(item.url);
+      if (!map[domain]) {
+        map[domain] = { domain: domain, pages: [], latestTime: 0, totalVisits: 0 };
+        order.push(domain);
+      }
+      var group = map[domain];
+      // Deduplicate by URL within domain
+      var existing = group.pages.find(function (p) { return p.url === item.url; });
+      if (existing) {
+        existing.visitCount = (existing.visitCount || 1) + (item.visitCount || 1);
+        if ((item.lastVisitTime || 0) > (existing.lastVisitTime || 0)) {
+          existing.lastVisitTime = item.lastVisitTime;
+          existing.title = item.title || existing.title;
+        }
+      } else {
+        group.pages.push({ url: item.url, title: item.title || domain, lastVisitTime: item.lastVisitTime || 0, visitCount: item.visitCount || 1 });
+      }
+      group.totalVisits += (item.visitCount || 1);
+      if ((item.lastVisitTime || 0) > group.latestTime) {
+        group.latestTime = item.lastVisitTime || 0;
+      }
+    });
+    // Sort groups by most recent visit time
+    return order.map(function (d) { return map[d]; }).sort(function (a, b) {
+      return b.latestTime - a.latestTime;
     });
   }
 
   function showRcItems(items) {
     rcLoadedItems = items;
     var list = $("#recently-closed-list");
-    var showMoreBtn = $("#rc-show-more");
     var clearBtn = $("#rc-clear-btn");
     if (clearBtn) clearBtn.classList.toggle("hidden", rcActiveFilter === "recent");
     var query = ($("#rc-search-input") && $("#rc-search-input").value || "").toLowerCase().trim();
-    var filtered = query ? items.filter(function (t) {
-      return (t.title && t.title.toLowerCase().indexOf(query) !== -1) ||
-             (t.url && t.url.toLowerCase().indexOf(query) !== -1);
-    }) : items;
-    if (!filtered.length) {
-      var emptyMsg = query ? "No matches" : (rcActiveFilter === "today" ? "No browsing history yet today" : "No pages found");
-      list.innerHTML = '<span class="rc-empty">' + emptyMsg + '</span>';
-      if (showMoreBtn) showMoreBtn.classList.add("hidden");
+
+    closeDomainPanel();
+
+    if (query) {
+      // When searching, show individual matching pages (not grouped)
+      var filtered = items.filter(function (t) {
+        return (t.title && t.title.toLowerCase().indexOf(query) !== -1) ||
+               (t.url && t.url.toLowerCase().indexOf(query) !== -1);
+      });
+      if (!filtered.length) {
+        list.innerHTML = '<span class="rc-empty">No matches</span>';
+        return;
+      }
+      list.innerHTML = filtered.map(function (t) { return rcFlatItemHTML(t); }).join("");
       return;
     }
-    var showAll = rcShowAll || !!query;
-    var displayItems = showAll ? filtered : filtered.slice(0, RC_DEFAULT_LIMIT);
-    var hasMore = !showAll && filtered.length > RC_DEFAULT_LIMIT;
-    list.innerHTML = displayItems.map(function (t) { return rcItemHTML(t); }).join("");
-    if (showMoreBtn) {
-      if (hasMore) {
-        showMoreBtn.classList.remove("hidden");
-        showMoreBtn.textContent = "Show more (" + (filtered.length - RC_DEFAULT_LIMIT) + " more)";
-      } else {
-        showMoreBtn.classList.add("hidden");
-      }
+
+    var groups = groupByDomain(items);
+    if (!groups.length) {
+      var emptyMsg = rcActiveFilter === "today" ? "No browsing history yet today" : "No pages found";
+      list.innerHTML = '<span class="rc-empty">' + emptyMsg + '</span>';
+      return;
     }
+    list.innerHTML = groups.map(function (g) { return rcDomainHTML(g); }).join("");
   }
 
-  function rcItemHTML(tab) {
+  function rcDomainHTML(group) {
+    var favicon = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(group.domain) + "&sz=64";
+    var badge = group.pages.length > 1
+      ? '<span class="rc-badge">' + group.pages.length + '</span>'
+      : '';
+    return (
+      '<div class="rc-item" data-rc-domain="' + esc(group.domain) + '">' +
+        '<div class="rc-link">' +
+          '<div class="rc-icon">' +
+            '<img src="' + favicon + '" alt="" width="20" height="20" loading="lazy">' +
+            badge +
+          '</div>' +
+          '<span class="rc-name">' + esc(group.domain) + '</span>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function rcFlatItemHTML(tab) {
     var domain = getDomain(tab.url);
     var favicon = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=64";
     var title = tab.title || domain;
@@ -827,6 +864,71 @@
         '</a>' +
       '</div>'
     );
+  }
+
+  // --- Domain detail panel ---
+
+  function openDomainPanel(domain, anchorEl) {
+    var groups = groupByDomain(rcLoadedItems);
+    var group = groups.find(function (g) { return g.domain === domain; });
+    if (!group) return;
+
+    // Single page — just navigate
+    if (group.pages.length === 1) {
+      window.open(group.pages[0].url, "_blank");
+      return;
+    }
+
+    var panel = $("#rc-domain-panel");
+    var title = $("#rc-panel-title");
+    var listEl = $("#rc-panel-list");
+
+    title.textContent = group.domain + " (" + group.pages.length + " pages)";
+
+    // Sort pages by most recent
+    var sorted = group.pages.slice().sort(function (a, b) {
+      return (b.lastVisitTime || 0) - (a.lastVisitTime || 0);
+    });
+
+    listEl.innerHTML = sorted.map(function (p) {
+      var favicon = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(group.domain) + "&sz=32";
+      var time = p.lastVisitTime ? formatTime(p.lastVisitTime) : "";
+      var countNote = p.visitCount > 1 ? " (visited " + p.visitCount + " times)" : "";
+      var displayTitle = (p.title || group.domain) + countNote;
+      return (
+        '<a href="' + esc(p.url) + '" class="rc-panel-item" title="' + esc(p.url) + '">' +
+          '<img src="' + favicon + '" alt="" width="16" height="16" loading="lazy">' +
+          '<span class="rc-panel-item-title">' + esc(displayTitle) + '</span>' +
+          (time ? '<span class="rc-panel-item-meta">' + time + '</span>' : '') +
+        '</a>'
+      );
+    }).join("");
+
+    // Position panel near the clicked icon
+    var rect = anchorEl.getBoundingClientRect();
+    panel.classList.remove("hidden");
+    panel.style.top = (rect.bottom + 6) + "px";
+    panel.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 340)) + "px";
+
+    // Recheck if panel goes off-screen below
+    var panelRect = panel.getBoundingClientRect();
+    if (panelRect.bottom > window.innerHeight - 8) {
+      panel.style.top = Math.max(8, rect.top - panelRect.height - 6) + "px";
+    }
+  }
+
+  function closeDomainPanel() {
+    var panel = $("#rc-domain-panel");
+    if (panel) panel.classList.add("hidden");
+  }
+
+  function formatTime(ts) {
+    var d = new Date(ts);
+    var h = d.getHours();
+    var m = d.getMinutes();
+    var ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    return h + ":" + (m < 10 ? "0" : "") + m + " " + ampm;
   }
 
   function updateRcFilterLabel() {
@@ -865,7 +967,6 @@
 
   function selectRcFilter(filter) {
     closeRcFilterMenu();
-    rcShowAll = false;
     var datePicker = $("#rc-date-picker");
     if (filter === "custom") {
       datePicker.classList.remove("hidden");
@@ -891,7 +992,6 @@
       rcCustomEnd = tmp;
     }
     rcActiveFilter = "custom";
-    rcShowAll = false;
     updateRcFilterLabel();
     loadRcData("custom");
   }
@@ -1262,10 +1362,15 @@
         loadRcData(rcActiveFilter);
       }
     });
-    $("#rc-show-more").addEventListener("click", function () {
-      rcShowAll = true;
-      showRcItems(rcLoadedItems);
+    // Domain group click handler
+    $("#recently-closed-list").addEventListener("click", function (e) {
+      var item = e.target.closest(".rc-item[data-rc-domain]");
+      if (!item) return;
+      e.preventDefault();
+      openDomainPanel(item.dataset.rcDomain, item);
     });
+    // Domain panel close
+    $("#rc-panel-close").addEventListener("click", closeDomainPanel);
     $("#rc-date-apply").addEventListener("click", applyCustomDateRange);
     $("#rc-date-start").addEventListener("keydown", function (e) {
       if (e.key === "Enter") applyCustomDateRange();
@@ -1379,11 +1484,14 @@
       if (!e.target.closest("#rc-filter-btn") && !e.target.closest("#rc-filter-menu")) {
         closeRcFilterMenu();
       }
+      if (!e.target.closest("#rc-domain-panel") && !e.target.closest(".rc-item[data-rc-domain]")) {
+        closeDomainPanel();
+      }
     });
 
     // Escape key
     document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") { closeModal(); hideMenu(); closeBgModal(); closeRcFilterMenu(); $("#settings-menu").classList.add("hidden"); }
+      if (e.key === "Escape") { closeModal(); hideMenu(); closeBgModal(); closeRcFilterMenu(); closeDomainPanel(); $("#settings-menu").classList.add("hidden"); }
     });
 
     // Close menu on scroll
