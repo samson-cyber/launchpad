@@ -9,6 +9,7 @@
   var modalState = {};
   var rcLoadedItems = [];
   var sidebarGroupObserver = null;
+  var sidebarSortable = null;
 
   var $ = function (s, p) { return (p || document).querySelector(s); };
   var $$ = function (s, p) { return [].slice.call((p || document).querySelectorAll(s)); };
@@ -597,6 +598,7 @@
     ensureAllPlaceholders();
     initSortables();
     renderSidebarGroups();
+    initSidebarSortable();
     initSidebarGroupObserver();
   }
 
@@ -715,6 +717,37 @@
           '<button class="sb-group-more" data-group-id="' + g.id + '" type="button" title="Group options">' + THREE_DOT_SM_SVG + '</button>' +
         '</div>';
       }).join("");
+  }
+
+  function initSidebarSortable() {
+    if (sidebarSortable) { sidebarSortable.destroy(); sidebarSortable = null; }
+    var list = $("#sb-group-list");
+    if (!list || typeof Sortable === "undefined") return;
+    sidebarSortable = new Sortable(list, {
+      animation: 150,
+      draggable: ".sb-group-item",
+      ghostClass: "sb-group-ghost",
+      filter: ".sb-group-more",
+      preventOnFilter: false,
+      onEnd: async function () {
+        data.groupOrder = $$("#sb-group-list > .sb-group-item").map(function (el) { return el.dataset.groupId; });
+        await Storage.saveAll(data);
+        // Re-render main page to match new order
+        var container = $("#groups");
+        var groupMap = {};
+        data.groups.forEach(function (g) { groupMap[g.id] = g; });
+        var singleGroup = data.groupOrder.length <= 1;
+        container.innerHTML = data.groupOrder
+          .map(function (id) { return groupMap[id]; })
+          .filter(Boolean)
+          .map(function (g) { return groupHTML(g, singleGroup); })
+          .join("");
+        ensureAllPlaceholders();
+        initSortables();
+        initSidebarGroupObserver();
+        console.log("[LaunchPad] Groups reordered via sidebar drag:", data.groupOrder);
+      }
+    });
   }
 
   function scrollToGroup(groupId) {
@@ -1297,17 +1330,23 @@
 
   function bindEvents() {
     // Sidebar buttons
-    $("#sb-history").addEventListener("click", openHistoryOverlay);
-    $("#history-panel-close").addEventListener("click", closeHistoryOverlay);
-    $("#history-overlay").addEventListener("click", function (e) {
+    var sbHistory = $("#sb-history");
+    if (sbHistory) sbHistory.addEventListener("click", openHistoryOverlay);
+    var histPanelClose = $("#history-panel-close");
+    if (histPanelClose) histPanelClose.addEventListener("click", closeHistoryOverlay);
+    var histOverlay = $("#history-overlay");
+    if (histOverlay) histOverlay.addEventListener("click", function (e) {
       if (e.target === e.currentTarget) closeHistoryOverlay();
     });
-    $("#sb-restore").addEventListener("click", function (e) {
+    var sbRestore = $("#sb-restore");
+    if (sbRestore) sbRestore.addEventListener("click", function (e) {
       e.stopPropagation();
       openRestoreDropdown();
     });
-    $("#restore-all-btn").addEventListener("click", restoreAllTabs);
-    $("#restore-list").addEventListener("click", function (e) {
+    var restoreAllBtn = $("#restore-all-btn");
+    if (restoreAllBtn) restoreAllBtn.addEventListener("click", restoreAllTabs);
+    var restoreList = $("#restore-list");
+    if (restoreList) restoreList.addEventListener("click", function (e) {
       var item = e.target.closest(".restore-tab-item");
       if (item) {
         e.preventDefault();
@@ -1315,8 +1354,10 @@
         closeRestoreDropdown();
       }
     });
-    $("#sb-add-group").addEventListener("click", addGroup);
-    $("#sb-group-list").addEventListener("click", function (e) {
+    var sbAddGroup = $("#sb-add-group");
+    if (sbAddGroup) sbAddGroup.addEventListener("click", addGroup);
+    var sbGroupList = $("#sb-group-list");
+    if (sbGroupList) sbGroupList.addEventListener("click", function (e) {
       // Three-dot menu click — separate target
       var moreBtn = e.target.closest(".sb-group-more");
       if (moreBtn) {
@@ -1331,30 +1372,40 @@
     });
 
     // Group context menu option clicks
-    $("#group-menu").addEventListener("click", function (e) {
+    var groupMenu = $("#group-menu");
+    if (groupMenu) groupMenu.addEventListener("click", function (e) {
       var opt = e.target.closest(".gm-option");
-      if (opt && !opt.classList.contains("gm-disabled")) {
+      if (opt) {
         handleGroupMenuAction(opt.dataset.action);
       }
     });
 
     // Delete dialog handlers
-    $("#gd-cancel").addEventListener("click", hideDeleteDialog);
-    $("#gd-confirm").addEventListener("click", confirmDeleteGroup);
-    $("#gd-move-delete").addEventListener("click", moveAndDeleteGroup);
-    $("#group-delete-overlay").addEventListener("click", function (e) {
+    var gdCancel = $("#gd-cancel");
+    if (gdCancel) gdCancel.addEventListener("click", hideDeleteDialog);
+    var gdConfirm = $("#gd-confirm");
+    if (gdConfirm) gdConfirm.addEventListener("click", confirmDeleteGroup);
+    var gdMoveDelete = $("#gd-move-delete");
+    if (gdMoveDelete) gdMoveDelete.addEventListener("click", moveAndDeleteGroup);
+    var gdOverlay = $("#group-delete-overlay");
+    if (gdOverlay) gdOverlay.addEventListener("click", function (e) {
       if (e.target === e.currentTarget) hideDeleteDialog();
     });
-    $("#sb-settings").addEventListener("click", function () {
+    var sbSettings = $("#sb-settings");
+    if (sbSettings) sbSettings.addEventListener("click", function () {
       Bookmarks.showPicker();
     });
-    $("#sb-wallpaper").addEventListener("click", function (e) {
+    var sbWallpaper = $("#sb-wallpaper");
+    if (sbWallpaper) sbWallpaper.addEventListener("click", function (e) {
       e.stopPropagation();
       openBgModal();
     });
-    $("#sb-theme").addEventListener("click", toggleTheme);
-    $("#sidebar-hamburger").addEventListener("click", toggleMobileSidebar);
-    $("#sidebar-backdrop").addEventListener("click", toggleMobileSidebar);
+    var sbTheme = $("#sb-theme");
+    if (sbTheme) sbTheme.addEventListener("click", toggleTheme);
+    var sidebarHamburger = $("#sidebar-hamburger");
+    if (sidebarHamburger) sidebarHamburger.addEventListener("click", toggleMobileSidebar);
+    var sidebarBackdrop = $("#sidebar-backdrop");
+    if (sidebarBackdrop) sidebarBackdrop.addEventListener("click", toggleMobileSidebar);
 
     // Global favicon error fallback (replaces inline onerror handlers)
     document.addEventListener("error", function (e) {
@@ -1378,8 +1429,10 @@
     }
 
     // Promo toast events
-    $("#promo-toast-cta").addEventListener("click", function () {
-      var type = $("#promo-toast").dataset.type;
+    var promoCta = $("#promo-toast-cta");
+    if (promoCta) promoCta.addEventListener("click", function () {
+      var toast = $("#promo-toast");
+      var type = toast ? toast.dataset.type : "";
       if (type === "bmc") {
         window.open("https://buymeacoffee.com/cybersamwise", "_blank");
       } else {
@@ -1387,14 +1440,17 @@
       }
       dismissPromoToast();
     });
-    $("#promo-toast-dismiss").addEventListener("click", function (e) {
+    var promoDismiss = $("#promo-toast-dismiss");
+    if (promoDismiss) promoDismiss.addEventListener("click", function (e) {
       e.preventDefault();
       dismissPromoToast();
     });
-    $("#promo-toast-close").addEventListener("click", dismissPromoToast);
+    var promoClose = $("#promo-toast-close");
+    if (promoClose) promoClose.addEventListener("click", dismissPromoToast);
 
     // Right-click tip
-    $("#rc-tip-dismiss").addEventListener("click", dismissRightClickTip);
+    var rcTipDismiss = $("#rc-tip-dismiss");
+    if (rcTipDismiss) rcTipDismiss.addEventListener("click", dismissRightClickTip);
 
     // Delegated clicks on groups container
     $("#groups").addEventListener("click", function (e) {
@@ -1438,46 +1494,54 @@
     });
 
     // Modal
-    $("#modal-cancel").addEventListener("click", closeModal);
-    $("#modal-save").addEventListener("click", saveModal);
-    $("#modal-overlay").addEventListener("click", function (e) {
+    var modalCancel = $("#modal-cancel");
+    if (modalCancel) modalCancel.addEventListener("click", closeModal);
+    var modalSave = $("#modal-save");
+    if (modalSave) modalSave.addEventListener("click", saveModal);
+    var modalOverlay = $("#modal-overlay");
+    if (modalOverlay) modalOverlay.addEventListener("click", function (e) {
       if (e.target === e.currentTarget) closeModal();
     });
 
     // Import bookmarks link inside modal
-    $("#modal-import-bookmarks").addEventListener("click", function (e) {
+    var modalImport = $("#modal-import-bookmarks");
+    if (modalImport) modalImport.addEventListener("click", function (e) {
       e.preventDefault();
       closeModal();
       Bookmarks.showPicker();
     });
 
     // URL auto-populates name (only when name is empty or was auto-filled)
-    $("#modal-url").addEventListener("input", function () {
+    var modalUrl = $("#modal-url");
+    if (modalUrl) modalUrl.addEventListener("input", function () {
       if ($("#modal-name").dataset.edited === "true") return;
       var domain = getDomain(this.value.trim());
       if (domain) $("#modal-name").value = domain.replace(/^www\./, "");
     });
-    $("#modal-name").addEventListener("input", function () {
+    var modalName = $("#modal-name");
+    if (modalName) modalName.addEventListener("input", function () {
       this.dataset.edited = "true";
     });
 
     // Enter in modal fields
-    $("#modal-url").addEventListener("keydown", function (e) {
+    if (modalUrl) modalUrl.addEventListener("keydown", function (e) {
       if (e.key === "Enter") { e.preventDefault(); saveModal(); }
     });
-    $("#modal-name").addEventListener("keydown", function (e) {
+    if (modalName) modalName.addEventListener("keydown", function (e) {
       if (e.key === "Enter") { e.preventDefault(); saveModal(); }
     });
 
     // Context menu items
-    $("#menu-edit").addEventListener("click", function () {
+    var menuEdit = $("#menu-edit");
+    if (menuEdit) menuEdit.addEventListener("click", function () {
       if (!activeMenu) return;
       var group = findGroup(activeMenu.groupId);
       var sc = group && group.shortcuts.find(function (s) { return s.id === activeMenu.shortcutId; });
       if (sc) openModal("edit", activeMenu.groupId, sc);
       hideMenu();
     });
-    $("#menu-remove").addEventListener("click", async function () {
+    var menuRemove = $("#menu-remove");
+    if (menuRemove) menuRemove.addEventListener("click", async function () {
       if (!activeMenu) return;
       await Storage.removeShortcut(activeMenu.groupId, activeMenu.shortcutId);
       hideMenu();
@@ -1487,7 +1551,8 @@
 
 
     // History section
-    $("#rc-filter-btn").addEventListener("click", function (e) {
+    var rcFilterBtn = $("#rc-filter-btn");
+    if (rcFilterBtn) rcFilterBtn.addEventListener("click", function (e) {
       e.stopPropagation();
       toggleRcFilterMenu();
     });
@@ -1497,39 +1562,52 @@
       });
     });
     // Domain group click handler
-    $("#recently-closed-list").addEventListener("click", function (e) {
+    var rcList = $("#recently-closed-list");
+    if (rcList) rcList.addEventListener("click", function (e) {
       var item = e.target.closest(".rc-item[data-rc-domain]");
       if (!item) return;
       e.preventDefault();
       openDomainPanel(item.dataset.rcDomain, item);
     });
     // Domain panel close
-    $("#rc-panel-close").addEventListener("click", closeDomainPanel);
-    $("#rc-date-start").addEventListener("change", applyCustomDateRange);
-    $("#rc-date-end").addEventListener("change", applyCustomDateRange);
+    var rcPanelClose = $("#rc-panel-close");
+    if (rcPanelClose) rcPanelClose.addEventListener("click", closeDomainPanel);
+    var rcDateStart = $("#rc-date-start");
+    if (rcDateStart) rcDateStart.addEventListener("change", applyCustomDateRange);
+    var rcDateEnd = $("#rc-date-end");
+    if (rcDateEnd) rcDateEnd.addEventListener("change", applyCustomDateRange);
     var rcSearchInput = $("#rc-search-input");
     if (rcSearchInput) {
       rcSearchInput.addEventListener("input", filterRcBySearch);
     }
     // Background modal
-    $("#bg-overlay").addEventListener("click", function (e) {
+    var bgOverlay = $("#bg-overlay");
+    if (bgOverlay) bgOverlay.addEventListener("click", function (e) {
       if (e.target === e.currentTarget) closeBgModal();
     });
-    $("#bg-cancel").addEventListener("click", closeBgModal);
-    $("#bg-upload-btn").addEventListener("click", function () {
-      $("#bg-file-input").click();
+    var bgCancel = $("#bg-cancel");
+    if (bgCancel) bgCancel.addEventListener("click", closeBgModal);
+    var bgUploadBtn = $("#bg-upload-btn");
+    if (bgUploadBtn) bgUploadBtn.addEventListener("click", function () {
+      var fi = $("#bg-file-input");
+      if (fi) fi.click();
     });
-    $("#bg-file-input").addEventListener("change", function () {
+    var bgFileInput = $("#bg-file-input");
+    if (bgFileInput) bgFileInput.addEventListener("change", function () {
       if (this.files && this.files[0]) handleBgUpload(this.files[0]);
       this.value = "";
     });
-    $("#bg-url-apply").addEventListener("click", function () {
-      handleBgUrl($("#bg-url-input").value);
+    var bgUrlApply = $("#bg-url-apply");
+    if (bgUrlApply) bgUrlApply.addEventListener("click", function () {
+      var inp = $("#bg-url-input");
+      if (inp) handleBgUrl(inp.value);
     });
-    $("#bg-url-input").addEventListener("keydown", function (e) {
+    var bgUrlInput = $("#bg-url-input");
+    if (bgUrlInput) bgUrlInput.addEventListener("keydown", function (e) {
       if (e.key === "Enter") { e.preventDefault(); handleBgUrl(this.value); }
     });
-    $("#bg-remove").addEventListener("click", handleBgRemove);
+    var bgRemove = $("#bg-remove");
+    if (bgRemove) bgRemove.addEventListener("click", handleBgRemove);
 
     // Background gallery tabs
     $$("#bg-tabs .bg-tab").forEach(function (tab) {
@@ -1744,14 +1822,8 @@
     hideGroupMenu();
     activeGroupMenu = groupId;
     var menu = $("#group-menu");
+    if (!menu) return;
     var rect = anchor.getBoundingClientRect();
-
-    // Enable/disable move up/down
-    var idx = data.groupOrder.indexOf(groupId);
-    var upOpt = menu.querySelector('[data-action="move-up"]');
-    var downOpt = menu.querySelector('[data-action="move-down"]');
-    upOpt.classList.toggle("gm-disabled", idx <= 0);
-    downOpt.classList.toggle("gm-disabled", idx >= data.groupOrder.length - 1);
 
     menu.classList.remove("hidden");
     menu.style.top = rect.top + "px";
@@ -1797,26 +1869,9 @@
           });
         }
       }
-    } else if (action === "move-up") {
-      moveGroup(groupId, -1);
-    } else if (action === "move-down") {
-      moveGroup(groupId, 1);
     } else if (action === "delete") {
       showDeleteDialog(groupId);
     }
-  }
-
-  async function moveGroup(groupId, direction) {
-    var idx = data.groupOrder.indexOf(groupId);
-    if (idx < 0) return;
-    var newIdx = idx + direction;
-    if (newIdx < 0 || newIdx >= data.groupOrder.length) return;
-    // Swap
-    var temp = data.groupOrder[idx];
-    data.groupOrder[idx] = data.groupOrder[newIdx];
-    data.groupOrder[newIdx] = temp;
-    await Storage.saveAll(data);
-    render();
   }
 
   function showDeleteDialog(groupId) {
@@ -1944,6 +1999,7 @@
 
   function destroySortables() {
     if (groupSortable) { groupSortable.destroy(); groupSortable = null; }
+    if (sidebarSortable) { sidebarSortable.destroy(); sidebarSortable = null; }
     sortables.forEach(function (s) { s.destroy(); });
     sortables = [];
   }

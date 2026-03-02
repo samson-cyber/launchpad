@@ -354,16 +354,6 @@ html.has-bg .sb-group-more:hover {
   background: rgba(244, 67, 54, 0.12);
 }
 
-.gm-option.gm-disabled {
-  opacity: 0.35;
-  pointer-events: none;
-}
-
-.gm-divider {
-  height: 1px;
-  background: rgba(255, 255, 255, 0.1);
-  margin: 4px 0;
-}
 
 /* --- Group Delete Confirmation Dialog --- */
 
@@ -2450,7 +2440,7 @@ html.has-bg #promo-toast-close:hover {
   left: 0;
   width: 48px;
   height: 100%;
-  background: rgba(0, 0, 0, 0.03);
+  background: transparent;
   display: flex;
   flex-direction: column;
   z-index: 200;
@@ -2460,7 +2450,7 @@ html.has-bg #promo-toast-close:hover {
 
 #sidebar:hover {
   width: 260px;
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
@@ -2493,7 +2483,7 @@ html.has-bg #promo-toast-close:hover {
 }
 
 .sb-item:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .sb-item.active {
@@ -2522,9 +2512,14 @@ html.has-bg #promo-toast-close:hover {
 
 .sb-separator {
   height: 1px;
-  background: rgba(0, 0, 0, 0.08);
+  background: transparent;
   margin: 4px 10px;
   flex-shrink: 0;
+  transition: background-color 200ms ease;
+}
+
+#sidebar:hover .sb-separator {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 #sb-group-list {
@@ -2567,13 +2562,19 @@ html.has-bg #promo-toast-close:hover {
 }
 
 .sb-group-item:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .sb-group-item.active {
   border-left-color: #4285F4;
   color: var(--text-primary);
   font-weight: 500;
+}
+
+.sb-group-ghost {
+  opacity: 0.4;
+  background: rgba(66, 133, 244, 0.15);
+  border-radius: 8px;
 }
 
 .sb-group-icon {
@@ -2647,11 +2648,11 @@ html.has-bg #promo-toast-close:hover {
 /* --- Sidebar: dark mode --- */
 
 html.dark #sidebar {
-  background: rgba(255, 255, 255, 0.03);
+  background: transparent;
 }
 
 html.dark #sidebar:hover {
-  background: rgba(30, 30, 30, 0.85);
+  background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
@@ -2661,8 +2662,8 @@ html.dark .sb-group-item:hover {
   background: rgba(255, 255, 255, 0.08);
 }
 
-html.dark .sb-separator {
-  background: rgba(255, 255, 255, 0.08);
+html.dark #sidebar:hover .sb-separator {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 html.dark #sb-group-list::-webkit-scrollbar-thumb {
@@ -2696,7 +2697,7 @@ html.has-bg .sb-group-item.active {
   color: #fff;
 }
 
-html.has-bg .sb-separator {
+html.has-bg #sidebar:hover .sb-separator {
   background: rgba(255, 255, 255, 0.1);
 }
 
