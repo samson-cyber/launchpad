@@ -935,6 +935,16 @@
     closeBgModal();
   }
 
+  // ===== Support Modal =====
+
+  function openSupportModal() {
+    $("#support-overlay").classList.remove("hidden");
+  }
+
+  function closeSupportModal() {
+    $("#support-overlay").classList.add("hidden");
+  }
+
   // ===== Events =====
 
   function bindEvents() {
@@ -1055,6 +1065,23 @@
       $("#settings-menu").classList.add("hidden");
       Bookmarks.showPicker();
     });
+    $("#settings-support").addEventListener("click", function () {
+      $("#settings-menu").classList.add("hidden");
+      openSupportModal();
+    });
+
+    // Support button + modal
+    $("#support-btn").addEventListener("click", function (e) {
+      e.stopPropagation();
+      openSupportModal();
+    });
+    $("#support-close").addEventListener("click", closeSupportModal);
+    $("#support-overlay").addEventListener("click", function (e) {
+      if (e.target === e.currentTarget) closeSupportModal();
+    });
+
+    // Footer branding opens support modal
+    $("#footer-branding").addEventListener("click", openSupportModal);
 
     // Recently Closed toolbar
     $("#rc-filter-btn").addEventListener("click", function (e) {
@@ -1199,7 +1226,7 @@
 
     // Escape key
     document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") { closeModal(); hideMenu(); closeBgModal(); closeRcFilterMenu(); $("#settings-menu").classList.add("hidden"); }
+      if (e.key === "Escape") { closeModal(); hideMenu(); closeBgModal(); closeSupportModal(); closeRcFilterMenu(); $("#settings-menu").classList.add("hidden"); }
     });
 
     // Close menu on scroll
