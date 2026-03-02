@@ -7,7 +7,7 @@ var Storage = (function () {
     return {
       groups: [{ id: "ungrouped", name: "Ungrouped", shortcuts: [] }],
       groupOrder: ["ungrouped"],
-      settings: { theme: "system", columns: 6 }
+      settings: { columns: 6 }
     };
   }
 

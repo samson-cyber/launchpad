@@ -84,7 +84,7 @@
 
     // Guard against missing settings (corrupted storage)
     if (!data.settings) {
-      data.settings = { theme: "system", columns: 6 };
+      data.settings = { columns: 6 };
       await Storage.saveAll(data);
       console.warn("[LaunchPad] Repaired missing settings");
     }
@@ -93,7 +93,6 @@
     }
 
     await loadBackground();
-    applyTheme();
     applyIconSize(data.settings.iconSize || "medium");
     applySearchEngine(data.settings.searchEngine || "google");
 
@@ -121,13 +120,9 @@
       if (changes.data) {
         console.log("[LaunchPad] Storage changed externally, refreshing");
         data = changes.data.newValue || Storage.getDefaultData();
-        if (!data.settings) data.settings = { theme: "system", columns: 6 };
+        if (!data.settings) data.settings = { columns: 6 };
         render();
       }
-    });
-
-    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
-      if (data.settings.theme === "system") applyTheme();
     });
 
     // Increment tab counter and check for promo toasts / right-click tip
@@ -546,18 +541,6 @@
     console.log("[LaunchPad] Added", shortcuts.length, "popular sites");
   }
 
-  // ===== Theme =====
-
-  function isDark() {
-    var t = (data.settings && data.settings.theme) || "system";
-    return t === "dark" || (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  }
-
-  function applyTheme() {
-    var dark = isDark();
-    document.documentElement.classList.toggle("dark", dark);
-  }
-
   // ===== Settings Panel =====
 
   function openSettingsPanel() {
@@ -600,12 +583,6 @@
   }
 
   function updateSettingsUI() {
-    // Theme segmented control
-    var theme = (data.settings && data.settings.theme) || "system";
-    $$(".seg-btn", $("#settings-theme")).forEach(function (btn) {
-      btn.classList.toggle("active", btn.dataset.value === theme);
-    });
-
     // Icon size segmented control
     var iconSize = (data.settings && data.settings.iconSize) || "medium";
     $$(".seg-btn", $("#settings-icon-size")).forEach(function (btn) {
@@ -1431,7 +1408,6 @@
     document.body.style.backgroundRepeat = "no-repeat";
     document.body.style.backgroundAttachment = "fixed";
     document.documentElement.classList.add("has-bg");
-    document.documentElement.classList.remove("dark");
   }
 
   function removeBackgroundVisual() {
@@ -1441,7 +1417,6 @@
     document.body.style.backgroundRepeat = "";
     document.body.style.backgroundAttachment = "";
     document.documentElement.classList.remove("has-bg");
-    applyTheme();
   }
 
   function openBgModal() {
@@ -1660,15 +1635,6 @@
 
     // Settings panel events
     safeOn("#settings-close", "click", closeSettingsPanel);
-    safeOn("#settings-theme", "click", function (e) {
-      var btn = e.target.closest(".seg-btn");
-      if (!btn) return;
-      data.settings.theme = btn.dataset.value;
-      Storage.saveAll(data);
-      applyTheme();
-      updateSettingsUI();
-      console.log("[LaunchPad] Theme set to:", btn.dataset.value);
-    });
     safeOn("#settings-icon-size", "click", function (e) {
       var btn = e.target.closest(".seg-btn");
       if (!btn) return;

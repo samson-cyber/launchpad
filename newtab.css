@@ -17,23 +17,6 @@
   --accent-text: #fff;
 }
 
-html.dark {
-  --bg: #202124;
-  --bg-hover: rgba(255, 255, 255, 0.06);
-  --bg-card: #303134;
-  --text-primary: #e8eaed;
-  --text-secondary: #9aa0a6;
-  --text-hint: #9aa0a6;
-  --border: #3c4043;
-  --shadow-color: rgba(0, 0, 0, 0.5);
-  --icon-bg: #303134;
-  --icon-bg-hover: #3c4043;
-  --search-bg: #303134;
-  --search-bg-focus: #303134;
-  --accent: #8ab4f8;
-  --accent-text: #202124;
-}
-
 html {
   height: 100%;
   background: var(--bg);
@@ -103,10 +86,6 @@ body {
 #search-bar:focus-within {
   background: var(--search-bg-focus);
   box-shadow: 0 1px 6px rgba(32, 33, 36, 0.28);
-}
-
-html.dark #search-bar:focus-within {
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
 }
 
 .search-icon {
@@ -280,14 +259,6 @@ html.has-bg .group-name-input {
   background: var(--bg-hover);
 }
 
-html.dark .group-open-all-btn {
-  color: rgba(255, 255, 255, 0.4);
-}
-
-html.dark .group-open-all-btn:hover {
-  color: rgba(255, 255, 255, 0.7);
-}
-
 .group-more-btn {
   display: flex;
   align-items: center;
@@ -340,10 +311,6 @@ html.dark .group-open-all-btn:hover {
 .sb-group-more:hover {
   background: rgba(0, 0, 0, 0.08);
   color: var(--text-secondary);
-}
-
-html.dark .sb-group-more:hover {
-  background: rgba(255, 255, 255, 0.1);
 }
 
 html.has-bg .sb-group-more {
@@ -884,11 +851,6 @@ html.has-bg .gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
   visibility: hidden;
 }
 
-html.dark .sortable-ghost {
-  border-color: rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.05);
-}
-
 html.has-bg .sortable-ghost {
   border-color: rgba(255, 255, 255, 0.4);
   background: rgba(255, 255, 255, 0.05);
@@ -926,11 +888,6 @@ html.has-bg .sortable-ghost {
 
 .shortcuts-grid.is-dragging .grid-placeholder {
   display: block;
-}
-
-html.dark .shortcuts-grid.is-dragging .grid-placeholder {
-  border-color: rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.03);
 }
 
 html.has-bg .shortcuts-grid.is-dragging .grid-placeholder {
@@ -1270,14 +1227,6 @@ html.has-bg .shortcuts-grid.is-dragging .grid-placeholder {
 #recently-closed-list::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.15);
   border-radius: 3px;
-}
-
-html.dark #recently-closed-list::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-html.dark #recently-closed-list {
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
 @media (min-width: 600px) {
@@ -2311,10 +2260,6 @@ html.has-bg #rc-search-input::placeholder {
   pointer-events: none;
 }
 
-html.dark .empty-group-hint {
-  color: rgba(255, 255, 255, 0.35);
-}
-
 html.has-bg .empty-group-hint {
   color: rgba(255, 255, 255, 0.5);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -2769,27 +2714,7 @@ html.has-bg #promo-toast-close:hover {
   opacity: 1;
 }
 
-/* --- Sidebar: dark mode --- */
-
-html.dark #sidebar-panel {
-  background: rgba(0, 0, 0, 0.4);
-}
-
-html.dark .sb-item:hover,
-html.dark .sb-group-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-html.dark #sidebar.expanded .sb-separator,
-html.dark #sidebar.sidebar-locked .sb-separator {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-html.dark #sb-group-list::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-/* --- Sidebar: has-bg mode (always dark style) --- */
+/* --- Sidebar: has-bg mode --- */
 
 html.has-bg #sidebar-panel {
   background: rgba(0, 0, 0, 0.2);
@@ -3571,18 +3496,6 @@ html.has-bg #restore-empty {
   font-size: 12px;
   color: var(--text-hint);
   margin: 0;
-}
-
-/* --- Settings: dark mode --- */
-
-html.dark .seg-btn.active {
-  background: var(--bg);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-}
-
-html.dark .settings-dropdown-menu {
-  background: #303134;
-  border-color: #3c4043;
 }
 
 /* --- Settings: has-bg mode --- */
