@@ -569,10 +569,13 @@
     closeRestoreDropdown();
     hideGroupMenu();
 
-    // Lock sidebar open
+    // Lock sidebar open and force expanded
     sidebarLocked = true;
     var sidebar = $("#sidebar");
-    if (sidebar) sidebar.classList.add("sidebar-locked");
+    if (sidebar) {
+      sidebar.classList.add("sidebar-locked");
+      sidebar.classList.add("expanded");
+    }
     showSidebarPanel();
 
     panel.classList.remove("hidden");
@@ -586,11 +589,13 @@
 
     sidebarLocked = false;
     var sidebar = $("#sidebar");
-    if (sidebar) sidebar.classList.remove("sidebar-locked");
-
-    // Collapse sidebar if mouse is not over it
-    if (sidebar && !sidebar.matches(":hover")) {
-      hideSidebarPanel();
+    if (sidebar) {
+      sidebar.classList.remove("sidebar-locked");
+      // Collapse sidebar if mouse is not over it
+      if (!sidebar.matches(":hover")) {
+        sidebar.classList.remove("expanded");
+        hideSidebarPanel();
+      }
     }
   }
 
@@ -910,10 +915,13 @@
     if (!dd) return;
     if (!dd.classList.contains("hidden")) { closeRestoreDropdown(); return; }
 
-    // Lock sidebar open
+    // Lock sidebar open and force expanded
     sidebarLocked = true;
     var sidebar = $("#sidebar");
-    if (sidebar) sidebar.classList.add("sidebar-locked");
+    if (sidebar) {
+      sidebar.classList.add("sidebar-locked");
+      sidebar.classList.add("expanded");
+    }
     showSidebarPanel();
 
     dd.classList.remove("hidden");
@@ -931,13 +939,19 @@
     if (restoreCloseTimer) { clearTimeout(restoreCloseTimer); restoreCloseTimer = null; }
     closeRestoreDateMenu();
     var dd = $("#restore-dropdown");
-    if (dd) dd.classList.add("hidden");
+    // Only unlock sidebar if the dropdown was actually open
+    if (!dd || dd.classList.contains("hidden")) return;
+    dd.classList.add("hidden");
 
-    // Unlock sidebar
     sidebarLocked = false;
     var sidebar = $("#sidebar");
-    if (sidebar) sidebar.classList.remove("sidebar-locked");
-    hideSidebarPanel();
+    if (sidebar) {
+      sidebar.classList.remove("sidebar-locked");
+      if (!sidebar.matches(":hover")) {
+        sidebar.classList.remove("expanded");
+        hideSidebarPanel();
+      }
+    }
   }
 
   var restoreSessions = {};
@@ -1700,9 +1714,15 @@
     safeOn("#sidebar-hamburger", "click", toggleMobileSidebar);
     safeOn("#sidebar-backdrop", "click", toggleMobileSidebar);
 
-    // Sidebar hover — show/hide frosted glass panel
-    safeOn("#sidebar", "mouseenter", showSidebarPanel);
+    // Sidebar hover — JS-driven expand/collapse
+    safeOn("#sidebar", "mouseenter", function () {
+      var sidebar = $("#sidebar");
+      if (sidebar) sidebar.classList.add("expanded");
+      showSidebarPanel();
+    });
     safeOn("#sidebar", "mouseleave", function () {
+      var sidebar = $("#sidebar");
+      if (sidebar && !sidebarLocked) sidebar.classList.remove("expanded");
       hideSidebarPanel();
       if (sidebarLocked) return;
       hideGroupMenu();
@@ -2101,7 +2121,10 @@
 
     // Lock sidebar + panel open while context menu is visible
     sidebarLocked = true;
-    if (sidebar) sidebar.classList.add("sidebar-locked");
+    if (sidebar) {
+      sidebar.classList.add("sidebar-locked");
+      sidebar.classList.add("expanded");
+    }
     showSidebarPanel();
 
     menu.classList.remove("hidden");
@@ -2123,14 +2146,23 @@
   function hideGroupMenu() {
     if (groupMenuCloseTimer) { clearTimeout(groupMenuCloseTimer); groupMenuCloseTimer = null; }
     var menu = $("#group-menu");
-    if (menu) menu.classList.add("hidden");
+    // Only unlock sidebar if the menu was actually open
+    if (!menu || menu.classList.contains("hidden")) {
+      activeGroupMenu = null;
+      return;
+    }
+    menu.classList.add("hidden");
     activeGroupMenu = null;
 
-    // Unlock sidebar + hide panel if mouse not over sidebar
     sidebarLocked = false;
     var sidebar = $("#sidebar");
-    if (sidebar) sidebar.classList.remove("sidebar-locked");
-    hideSidebarPanel();
+    if (sidebar) {
+      sidebar.classList.remove("sidebar-locked");
+      if (!sidebar.matches(":hover")) {
+        sidebar.classList.remove("expanded");
+        hideSidebarPanel();
+      }
+    }
   }
 
   function handleGroupMenuAction(action) {

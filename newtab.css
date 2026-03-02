@@ -332,7 +332,7 @@ html.dark .group-open-all-btn:hover {
   transition: background-color 0.15s, opacity 0.15s;
 }
 
-#sidebar:hover .sb-group-item:hover .sb-group-more,
+#sidebar.expanded .sb-group-item:hover .sb-group-more,
 #sidebar.sidebar-locked .sb-group-item:hover .sb-group-more {
   opacity: 1;
 }
@@ -2548,7 +2548,7 @@ html.has-bg #promo-toast-close:hover {
   /* NO background, border, shadow, or backdrop-filter — ever */
 }
 
-#sidebar:hover,
+#sidebar.expanded,
 #sidebar.sidebar-locked {
   width: 260px;
 }
@@ -2623,7 +2623,7 @@ html.has-bg #promo-toast-close:hover {
   text-overflow: ellipsis;
 }
 
-#sidebar:hover .sb-label,
+#sidebar.expanded .sb-label,
 #sidebar.sidebar-locked .sb-label {
   opacity: 1;
   transition-delay: 100ms;
@@ -2637,7 +2637,7 @@ html.has-bg #promo-toast-close:hover {
   transition: background-color 200ms ease;
 }
 
-#sidebar:hover .sb-separator,
+#sidebar.expanded .sb-separator,
 #sidebar.sidebar-locked .sb-separator {
   background: rgba(255, 255, 255, 0.12);
 }
@@ -2710,7 +2710,7 @@ html.has-bg #promo-toast-close:hover {
   transition: opacity 150ms ease 0ms;
 }
 
-#sidebar:hover .sb-group-name,
+#sidebar.expanded .sb-group-name,
 #sidebar.sidebar-locked .sb-group-name {
   opacity: 1;
   transition-delay: 100ms;
@@ -2727,7 +2727,7 @@ html.has-bg #promo-toast-close:hover {
   transition: opacity 150ms ease 0ms;
 }
 
-#sidebar:hover .sb-group-count,
+#sidebar.expanded .sb-group-count,
 #sidebar.sidebar-locked .sb-group-count {
   opacity: 1;
   transition-delay: 100ms;
@@ -2744,8 +2744,8 @@ html.has-bg #promo-toast-close:hover {
   flex-direction: column;
 }
 
-#sidebar:hover .sb-settings-row,
-#sidebar:hover .sb-support-row,
+#sidebar.expanded .sb-settings-row,
+#sidebar.expanded .sb-support-row,
 #sidebar.sidebar-locked .sb-settings-row,
 #sidebar.sidebar-locked .sb-support-row {
   flex-direction: row;
@@ -2780,7 +2780,7 @@ html.dark .sb-group-item:hover {
   background: rgba(255, 255, 255, 0.08);
 }
 
-html.dark #sidebar:hover .sb-separator,
+html.dark #sidebar.expanded .sb-separator,
 html.dark #sidebar.sidebar-locked .sb-separator {
   background: rgba(255, 255, 255, 0.1);
 }
@@ -2810,7 +2810,7 @@ html.has-bg .sb-group-item.active {
   color: #fff;
 }
 
-html.has-bg #sidebar:hover .sb-separator,
+html.has-bg #sidebar.expanded .sb-separator,
 html.has-bg #sidebar.sidebar-locked .sb-separator {
   background: rgba(255, 255, 255, 0.1);
 }
