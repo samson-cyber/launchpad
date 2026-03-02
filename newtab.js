@@ -116,8 +116,9 @@
       if (data.settings.theme === "system") applyTheme();
     });
 
-    // Increment tab counter and check for promo toasts
+    // Increment tab counter and check for promo toasts / right-click tip
     incrementTabCounter();
+    checkRightClickTip();
 
     console.log("[LaunchPad] Ready —", data.groups.length, "group(s),",
       data.groups.reduce(function (n, g) { return n + g.shortcuts.length; }, 0), "shortcut(s)");
@@ -211,6 +212,56 @@
     toast.classList.remove("toast-visible");
     setTimeout(function () {
       toast.classList.add("hidden");
+    }, 400);
+  }
+
+  // ===== Right-Click Tip =====
+
+  var rcTipTimer = null;
+
+  async function checkRightClickTip() {
+    var result = await chrome.storage.local.get(["tabOpenCount", "rightClickTipShown"]);
+    var count = result.tabOpenCount || 0;
+    // Show on 2nd tab open (not first — user is still in onboarding)
+    if (count >= 2 && !result.rightClickTipShown) {
+      showRightClickTip();
+    }
+  }
+
+  function showRightClickTip() {
+    // Don't show if a promo toast is already visible
+    var promoToast = $("#promo-toast");
+    if (promoToast && !promoToast.classList.contains("hidden")) return;
+
+    var tip = $("#rc-tip");
+    if (!tip) return;
+
+    tip.classList.remove("hidden");
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        tip.classList.add("tip-visible");
+      });
+    });
+
+    rcTipTimer = setTimeout(function () {
+      dismissRightClickTip();
+    }, 10000);
+  }
+
+  function dismissRightClickTip() {
+    var tip = $("#rc-tip");
+    if (!tip || tip.classList.contains("hidden")) return;
+
+    if (rcTipTimer) {
+      clearTimeout(rcTipTimer);
+      rcTipTimer = null;
+    }
+
+    chrome.storage.local.set({ rightClickTipShown: true });
+
+    tip.classList.remove("tip-visible");
+    setTimeout(function () {
+      tip.classList.add("hidden");
     }, 400);
   }
 
@@ -554,6 +605,9 @@
     var shortcutCount = group.shortcuts.length;
     var countBadge = '<span class="group-count">(' + shortcutCount + " shortcut" + (shortcutCount !== 1 ? "s" : "") + ")</span>";
     var gridStyle = collapsed ? ' style="max-height:0"' : '';
+    var emptyHint = shortcutCount === 0
+      ? '<span class="empty-group-hint">or right-click any page \u2192 Add to LaunchPad</span>'
+      : '';
     return (
       '<section class="' + groupClass + '" data-group-id="' + group.id + '">' +
         '<div class="group-header">' +
@@ -569,6 +623,7 @@
         '<div class="shortcuts-grid" data-group-id="' + group.id + '"' + gridStyle + '>' +
           group.shortcuts.map(function (s) { return shortcutHTML(s); }).join("") +
           addTileHTML(group.id) +
+          emptyHint +
         "</div>" +
       "</section>"
     );
@@ -1088,6 +1143,9 @@
     });
     $("#promo-toast-close").addEventListener("click", dismissPromoToast);
 
+    // Right-click tip
+    $("#rc-tip-dismiss").addEventListener("click", dismissRightClickTip);
+
     // Delegated clicks on groups container
     $("#groups").addEventListener("click", function (e) {
       var el;
@@ -1485,7 +1543,7 @@
         ghostClass: "sortable-ghost",
         chosenClass: "sortable-chosen",
         dragClass: "sortable-drag",
-        filter: ".shortcut-more, .add-tile, .grid-placeholder",
+        filter: ".shortcut-more, .add-tile, .grid-placeholder, .empty-group-hint",
         preventOnFilter: false,
         onStart: function () {
           $$(".shortcuts-grid").forEach(function (g) {
