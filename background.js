@@ -55,12 +55,63 @@ async function buildContextMenu() {
   console.log("[LaunchPad] Context menu rebuilt with", ordered.length, "group(s)");
 }
 
+// ===== Session Saving System =====
+
+async function saveCurrentSession() {
+  try {
+    var tabs = await chrome.tabs.query({});
+    var windows = {};
+    tabs.forEach(function (tab) {
+      if (/^chrome:\/\/|^chrome-extension:\/\//.test(tab.url || "")) return;
+      if (!windows[tab.windowId]) windows[tab.windowId] = [];
+      var domain;
+      try { domain = new URL(tab.url).hostname; } catch (e) { domain = ""; }
+      windows[tab.windowId].push({
+        url: tab.url,
+        title: tab.title || "",
+        favicon: "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=32"
+      });
+    });
+    var windowList = Object.keys(windows).map(function (wid) {
+      return { tabs: windows[wid] };
+    }).filter(function (w) { return w.tabs.length > 0; });
+    if (!windowList.length) return;
+
+    var result = await chrome.storage.local.get("savedSessions");
+    var saved = result.savedSessions || {};
+    saved.current = { windows: windowList, timestamp: Date.now() };
+    await chrome.storage.local.set({ savedSessions: saved });
+    console.log("[LaunchPad] Session saved:", windowList.length, "window(s)");
+  } catch (err) {
+    console.error("[LaunchPad] Failed to save session:", err);
+  }
+}
+
+async function rotateSessionOnStartup() {
+  try {
+    var result = await chrome.storage.local.get("savedSessions");
+    var saved = result.savedSessions || {};
+    if (saved.current) {
+      saved.previous = saved.current;
+    }
+    saved.current = null;
+    await chrome.storage.local.set({ savedSessions: saved });
+    console.log("[LaunchPad] Session rotated on startup");
+  } catch (err) {
+    console.error("[LaunchPad] Failed to rotate session:", err);
+  }
+}
+
 // Build on install / startup
 chrome.runtime.onInstalled.addListener(function () {
   buildContextMenu();
+  chrome.alarms.create("save-session", { periodInMinutes: 5 });
+  saveCurrentSession();
 });
 chrome.runtime.onStartup.addListener(function () {
   buildContextMenu();
+  rotateSessionOnStartup();
+  chrome.alarms.create("save-session", { periodInMinutes: 5 });
 });
 
 // Rebuild when storage changes (groups added/renamed/deleted)
@@ -129,4 +180,16 @@ chrome.contextMenus.onClicked.addListener(async function (info, tab) {
   } catch (err) {
     console.error("[LaunchPad] Failed to add shortcut:", err);
   }
+});
+
+// Save session periodically via alarm
+chrome.alarms.onAlarm.addListener(function (alarm) {
+  if (alarm.name === "save-session") {
+    saveCurrentSession();
+  }
+});
+
+// Save session when a window closes
+chrome.windows.onRemoved.addListener(function () {
+  saveCurrentSession();
 });

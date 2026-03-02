@@ -132,10 +132,31 @@
 
   <div id="restore-dropdown" class="hidden">
     <div class="restore-header">
-      <span>Previous Session</span>
-      <button id="restore-all-btn" type="button">Restore All</button>
+      <span>Restore Session</span>
     </div>
-    <div id="restore-list"></div>
+    <div id="restore-sections">
+      <div id="restore-previous" class="restore-section hidden">
+        <div class="restore-section-header">
+          <div>
+            <span class="restore-section-title">Last Session</span>
+            <span class="restore-section-time" id="restore-prev-time"></span>
+          </div>
+          <button class="restore-all-btn" id="restore-prev-all" type="button">Restore All</button>
+        </div>
+        <div class="restore-tab-list" id="restore-prev-list"></div>
+      </div>
+      <div id="restore-current" class="restore-section hidden">
+        <div class="restore-section-header">
+          <div>
+            <span class="restore-section-title">Current Session</span>
+            <span class="restore-section-time" id="restore-curr-time"></span>
+          </div>
+          <button class="restore-all-btn" id="restore-curr-all" type="button">Restore All</button>
+        </div>
+        <div class="restore-tab-list" id="restore-curr-list"></div>
+      </div>
+    </div>
+    <div id="restore-empty" class="hidden">No saved sessions yet. Sessions are saved automatically every 5 minutes.</div>
   </div>
 
   <div id="rc-domain-panel" class="hidden">

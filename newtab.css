@@ -188,16 +188,19 @@ html.dark #search-bar:focus-within {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-hint);
-  cursor: pointer;
+  cursor: text;
   padding: 2px 6px;
   border-radius: 4px;
   margin: 0;
   font-family: inherit;
   line-height: 1.4;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.15s, background-color 0.15s;
 }
 
 .group-name:hover {
   background: var(--bg-hover);
+  border-bottom-color: var(--text-hint);
 }
 
 .group-count {
@@ -217,13 +220,23 @@ html.dark #search-bar:focus-within {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-primary);
-  background: transparent;
-  border: none;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-bottom: 2px solid var(--accent);
   outline: none;
-  padding: 2px 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
   font-family: inherit;
   line-height: 1.4;
+}
+
+html.has-bg .group-name-input {
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-bottom: 2px solid var(--accent);
 }
 
 .group-header-actions {
@@ -1750,8 +1763,13 @@ html.has-bg .search-icon {
 }
 
 html.has-bg .group-name {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.9);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+html.has-bg .group-name:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-bottom-color: rgba(255, 255, 255, 0.4);
 }
 
 html.has-bg .group-more-btn {
@@ -1823,6 +1841,7 @@ html.has-bg .shortcut-more {
 
 html.has-bg .group-collapse-btn {
   color: rgba(255, 255, 255, 0.6);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
 
 html.has-bg .group-collapse-btn:hover {
@@ -1831,6 +1850,7 @@ html.has-bg .group-collapse-btn:hover {
 
 html.has-bg .group-count {
   color: rgba(255, 255, 255, 0.5);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 html.has-bg .group + .group {
@@ -2254,6 +2274,7 @@ html.dark .empty-group-hint {
 
 html.has-bg .empty-group-hint {
   color: rgba(255, 255, 255, 0.5);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 /* ===== Right-Click Tip Tooltip ===== */
@@ -2920,10 +2941,10 @@ html.has-bg .rc-empty-state-text {
 #restore-dropdown {
   position: fixed;
   top: 52px;
-  left: 52px;
-  max-width: 350px;
-  width: 320px;
-  max-height: 400px;
+  left: 260px;
+  max-width: 420px;
+  width: 380px;
+  max-height: 520px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -2949,7 +2970,6 @@ html.has-bg .rc-empty-state-text {
 .restore-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
 }
@@ -2960,7 +2980,44 @@ html.has-bg .rc-empty-state-text {
   color: var(--text-primary);
 }
 
-#restore-all-btn {
+#restore-sections {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+}
+
+.restore-section {
+  border-bottom: 1px solid var(--border);
+}
+
+.restore-section:last-child {
+  border-bottom: none;
+}
+
+.restore-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  gap: 8px;
+}
+
+.restore-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.restore-section-time {
+  font-size: 11px;
+  color: var(--text-hint);
+  margin-left: 6px;
+}
+
+.restore-all-btn {
   padding: 4px 12px;
   border: none;
   border-radius: 4px;
@@ -2970,16 +3027,17 @@ html.has-bg .rc-empty-state-text {
   font-weight: 500;
   cursor: pointer;
   font-family: inherit;
+  flex-shrink: 0;
 }
 
-#restore-all-btn:hover {
+.restore-all-btn:hover {
   opacity: 0.9;
 }
 
-#restore-list {
-  flex: 1;
+.restore-tab-list {
+  max-height: 250px;
   overflow-y: auto;
-  padding: 4px 0;
+  padding: 2px 0;
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
 }
@@ -3015,10 +3073,20 @@ html.has-bg .rc-empty-state-text {
   white-space: nowrap;
 }
 
-.restore-empty {
+.restore-tab-domain {
+  font-size: 11px;
+  color: var(--text-hint);
+  flex-shrink: 0;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#restore-empty {
   font-size: 13px;
   color: var(--text-hint);
-  padding: 16px 14px;
+  padding: 24px 14px;
   text-align: center;
 }
 
@@ -3062,12 +3130,32 @@ html.has-bg .restore-header span {
   color: #fff;
 }
 
+html.has-bg .restore-section {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+html.has-bg .restore-section-title {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+html.has-bg .restore-section-time {
+  color: rgba(255, 255, 255, 0.4);
+}
+
 html.has-bg .restore-tab-item:hover {
   background: rgba(255, 255, 255, 0.1);
 }
 
 html.has-bg .restore-tab-title {
   color: #fff;
+}
+
+html.has-bg .restore-tab-domain {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+html.has-bg #restore-empty {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 /* ===== Responsive: Mobile ===== */
@@ -3118,6 +3206,7 @@ html.has-bg .restore-tab-title {
     right: 12px;
     width: auto;
     max-width: none;
+    max-height: 70vh;
   }
 }
 

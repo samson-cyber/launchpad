@@ -7,6 +7,7 @@
   var activeMenu = null;
   var activeGroupMenu = null;
   var groupMenuCloseTimer = null;
+  var restoreCloseTimer = null;
   var sidebarLocked = false;
   var modalState = {};
   var rcLoadedItems = [];
@@ -813,61 +814,119 @@
     var dd = $("#restore-dropdown");
     if (!dd) return;
     if (!dd.classList.contains("hidden")) { closeRestoreDropdown(); return; }
+
+    // Lock sidebar open
+    sidebarLocked = true;
+    var sidebar = $("#sidebar");
+    if (sidebar) sidebar.classList.add("sidebar-locked");
+    showSidebarPanel();
+
     dd.classList.remove("hidden");
-    // Position next to sidebar restore button
+    // Position flush with expanded sidebar edge
     var btn = $("#sb-restore");
     if (btn) {
       var rect = btn.getBoundingClientRect();
       dd.style.top = rect.top + "px";
-      dd.style.left = (rect.right + 6) + "px";
     }
+    dd.style.left = "260px";
     loadRestoreSessions();
   }
 
   function closeRestoreDropdown() {
+    if (restoreCloseTimer) { clearTimeout(restoreCloseTimer); restoreCloseTimer = null; }
     var dd = $("#restore-dropdown");
     if (dd) dd.classList.add("hidden");
+
+    // Unlock sidebar
+    sidebarLocked = false;
+    var sidebar = $("#sidebar");
+    if (sidebar) sidebar.classList.remove("sidebar-locked");
+    hideSidebarPanel();
+  }
+
+  function formatSessionTime(timestamp) {
+    if (!timestamp) return "";
+    var diff = Date.now() - timestamp;
+    var mins = Math.floor(diff / 60000);
+    if (mins < 1) return "Just now";
+    if (mins < 60) return mins + "m ago";
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + "h ago";
+    var d = new Date(timestamp);
+    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    var h = d.getHours();
+    var m = d.getMinutes();
+    return months[d.getMonth()] + " " + d.getDate() + ", " + (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+  }
+
+  function renderSessionTabs(windows) {
+    if (!windows || !windows.length) return "";
+    var html = "";
+    windows.forEach(function (w) {
+      (w.tabs || []).forEach(function (t) {
+        var domain = getDomain(t.url);
+        var favicon = t.favicon || "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=32";
+        html += '<a class="restore-tab-item" href="' + esc(t.url) + '" title="' + esc(t.url) + '">' +
+          '<img src="' + esc(favicon) + '" alt="" width="16" height="16">' +
+          '<span class="restore-tab-title">' + esc(t.title || domain) + '</span>' +
+          '<span class="restore-tab-domain">' + esc(domain) + '</span>' +
+        '</a>';
+      });
+    });
+    return html;
   }
 
   function loadRestoreSessions() {
-    var list = $("#restore-list");
-    if (!list) return;
-    if (!chrome.sessions || !chrome.sessions.getRecentlyClosed) {
-      list.innerHTML = '<div class="restore-empty">Session restore not available</div>';
-      return;
-    }
-    chrome.sessions.getRecentlyClosed({ maxResults: 25 }, function (sessions) {
-      var tabs = [];
-      (sessions || []).forEach(function (s) {
-        if (s.tab && s.tab.url && !/^chrome:\/\//i.test(s.tab.url)) {
-          tabs.push({ url: s.tab.url, title: s.tab.title, sessionId: s.tab.sessionId });
-        }
-      });
-      if (!tabs.length) {
-        list.innerHTML = '<div class="restore-empty">No recent tabs to restore</div>';
+    var prevSection = $("#restore-previous");
+    var currSection = $("#restore-current");
+    var emptyMsg = $("#restore-empty");
+    if (!prevSection || !currSection || !emptyMsg) return;
+
+    chrome.storage.local.get("savedSessions", function (result) {
+      var saved = result.savedSessions || {};
+      var hasPrev = saved.previous && saved.previous.windows && saved.previous.windows.length;
+      var hasCurr = saved.current && saved.current.windows && saved.current.windows.length;
+
+      if (!hasPrev && !hasCurr) {
+        prevSection.classList.add("hidden");
+        currSection.classList.add("hidden");
+        emptyMsg.classList.remove("hidden");
         return;
       }
-      list.innerHTML = tabs.map(function (t) {
-        var domain = getDomain(t.url);
-        var favicon = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=32";
-        return '<a class="restore-tab-item" href="' + esc(t.url) + '" data-session-id="' + (t.sessionId || '') + '" title="' + esc(t.url) + '">' +
-          '<img src="' + favicon + '" alt="" width="16" height="16">' +
-          '<span class="restore-tab-title">' + esc(t.title || domain) + '</span>' +
-        '</a>';
-      }).join("");
+      emptyMsg.classList.add("hidden");
+
+      if (hasPrev) {
+        prevSection.classList.remove("hidden");
+        var prevTime = $("#restore-prev-time");
+        if (prevTime) prevTime.textContent = formatSessionTime(saved.previous.timestamp);
+        var prevList = $("#restore-prev-list");
+        if (prevList) prevList.innerHTML = renderSessionTabs(saved.previous.windows);
+      } else {
+        prevSection.classList.add("hidden");
+      }
+
+      if (hasCurr) {
+        currSection.classList.remove("hidden");
+        var currTime = $("#restore-curr-time");
+        if (currTime) currTime.textContent = formatSessionTime(saved.current.timestamp);
+        var currList = $("#restore-curr-list");
+        if (currList) currList.innerHTML = renderSessionTabs(saved.current.windows);
+      } else {
+        currSection.classList.add("hidden");
+      }
     });
   }
 
-  function restoreAllTabs() {
-    if (!chrome.sessions || !chrome.sessions.restore) return;
-    var items = $$("#restore-list .restore-tab-item");
-    items.forEach(function (item) {
-      var sid = item.dataset.sessionId;
-      if (sid) {
-        chrome.sessions.restore(sid);
-      } else {
-        window.open(item.href, "_blank");
-      }
+  function restoreSessionTabs(windows) {
+    if (!windows || !windows.length) return;
+    windows.forEach(function (w) {
+      if (!w.tabs || !w.tabs.length) return;
+      var urls = w.tabs.map(function (t) { return t.url; });
+      chrome.windows.create({ url: urls[0] }, function (newWin) {
+        urls.slice(1).forEach(function (url) {
+          chrome.tabs.create({ windowId: newWin.id, url: url });
+        });
+      });
     });
     closeRestoreDropdown();
   }
@@ -1356,14 +1415,33 @@
       e.stopPropagation();
       openRestoreDropdown();
     });
-    safeOn("#restore-all-btn", "click", restoreAllTabs);
-    safeOn("#restore-list", "click", function (e) {
+    safeOn("#restore-prev-all", "click", function () {
+      chrome.storage.local.get("savedSessions", function (result) {
+        var saved = result.savedSessions || {};
+        if (saved.previous && saved.previous.windows) restoreSessionTabs(saved.previous.windows);
+      });
+    });
+    safeOn("#restore-curr-all", "click", function () {
+      chrome.storage.local.get("savedSessions", function (result) {
+        var saved = result.savedSessions || {};
+        if (saved.current && saved.current.windows) restoreSessionTabs(saved.current.windows);
+      });
+    });
+    safeOn("#restore-sections", "click", function (e) {
       var item = e.target.closest(".restore-tab-item");
       if (item) {
         e.preventDefault();
         window.open(item.href, "_blank");
         closeRestoreDropdown();
       }
+    });
+
+    // Restore dropdown hover — keep open while mouse is over it
+    safeOn("#restore-dropdown", "mouseenter", function () {
+      if (restoreCloseTimer) { clearTimeout(restoreCloseTimer); restoreCloseTimer = null; }
+    });
+    safeOn("#restore-dropdown", "mouseleave", function () {
+      restoreCloseTimer = setTimeout(closeRestoreDropdown, 400);
     });
     safeOn("#sb-add-group", "click", addGroup);
     safeOn("#sb-group-list", "click", function (e) {
@@ -1481,10 +1559,10 @@
       }
     });
 
-    // Double-click group name to rename
-    safeOn("#groups", "dblclick", function (e) {
+    // Click group name to rename inline
+    safeOn("#groups", "click", function (e) {
       var el = e.target.closest(".group-name");
-      if (el) { startRename(el); }
+      if (el) { e.stopPropagation(); startRename(el); }
     });
 
     // Modal
