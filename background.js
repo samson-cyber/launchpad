@@ -74,10 +74,13 @@ async function saveCurrentSession() {
       if (!windows[tab.windowId]) windows[tab.windowId] = [];
       var domain;
       try { domain = new URL(tab.url).hostname; } catch (e) { domain = ""; }
+      var tabFavicon = (tab.favIconUrl && !tab.favIconUrl.startsWith("chrome://"))
+        ? tab.favIconUrl
+        : "https://www.google.com/s2/favicons?domain=" + domain + "&sz=128";
       windows[tab.windowId].push({
         url: tab.url,
         title: tab.title || "",
-        favicon: "https://icons.duckduckgo.com/ip3/" + domain + ".ico"
+        favicon: tabFavicon
       });
     });
     var windowList = Object.keys(windows).map(function (wid) {
@@ -152,7 +155,14 @@ chrome.contextMenus.onClicked.addListener(async function (info, tab) {
 
     var domain;
     try { domain = new URL(url).hostname; } catch (e) { domain = url; }
-    var favicon = "https://icons.duckduckgo.com/ip3/" + domain + ".ico";
+
+    // Use Chrome's real favicon when adding via page context; Google API for links
+    var favicon;
+    if (!info.linkUrl && tab && tab.favIconUrl && !tab.favIconUrl.startsWith("chrome://")) {
+      favicon = tab.favIconUrl;
+    } else {
+      favicon = "https://www.google.com/s2/favicons?domain=" + domain + "&sz=128";
+    }
 
     var shortcut = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
@@ -205,4 +215,35 @@ chrome.alarms.onAlarm.addListener(function (alarm) {
 // Save session when a window closes
 chrome.windows.onRemoved.addListener(function () {
   saveCurrentSession();
+});
+
+// Refresh stored favicon when user visits a bookmarked site
+chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
+  if (changeInfo.status !== "complete" || !tab.favIconUrl || !tab.url) return;
+  if (tab.favIconUrl.startsWith("chrome://")) return;
+
+  chrome.storage.local.get("data", function (result) {
+    var data = result.data;
+    if (!data || !data.groups) return;
+    var tabDomain;
+    try { tabDomain = new URL(tab.url).hostname; } catch (e) { return; }
+
+    var updated = false;
+    data.groups.forEach(function (group) {
+      group.shortcuts.forEach(function (shortcut) {
+        try {
+          if (new URL(shortcut.url).hostname === tabDomain) {
+            if (tab.favIconUrl !== shortcut.favicon && !(shortcut.favicon && shortcut.favicon.startsWith("data:"))) {
+              shortcut.favicon = tab.favIconUrl;
+              updated = true;
+            }
+          }
+        } catch (e) {}
+      });
+    });
+
+    if (updated) {
+      chrome.storage.local.set({ data: data });
+    }
+  });
 });

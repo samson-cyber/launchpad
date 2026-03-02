@@ -63,12 +63,24 @@
     "meet.google.com": "https://fonts.gstatic.com/s/i/productlogos/meet_2020q4/v1/web-48dp/logo_meet_2020q4_color_1x_web_48dp.png"
   };
 
-  function getFaviconUrl(url) {
+  function getFaviconUrl(urlOrShortcut) {
+    var url, storedFavicon;
+    if (typeof urlOrShortcut === "object" && urlOrShortcut !== null) {
+      url = urlOrShortcut.url;
+      storedFavicon = urlOrShortcut.favicon;
+    } else {
+      url = urlOrShortcut;
+    }
+
+    // Priority 1: stored favicon (from add-time capture or visit refresh)
+    if (storedFavicon && storedFavicon.length > 0) return storedFavicon;
+
+    // Priority 2: curated overrides for sites with generic icons
     var domain;
     try { domain = new URL(url).hostname; } catch (e) { return "assets/placeholder.svg"; }
-
     if (FAVICON_OVERRIDES[domain]) return FAVICON_OVERRIDES[domain];
 
+    // Priority 3: Google's favicon API
     return "https://www.google.com/s2/favicons?domain=" + domain + "&sz=128";
   }
 
@@ -78,9 +90,9 @@
       g.shortcuts.forEach(function (s) {
         if (!s.url) return;
         if (s.favicon && s.favicon.indexOf("data:") === 0) return;
-        var newFavicon = getFaviconUrl(s.url);
-        if (s.favicon !== newFavicon) {
-          s.favicon = newFavicon;
+        // Migrate missing favicons or old DuckDuckGo URLs
+        if (!s.favicon || s.favicon.indexOf("duckduckgo.com") !== -1) {
+          s.favicon = getFaviconUrl(s.url);
           changed = true;
         }
       });
@@ -758,7 +770,7 @@
 
   function shortcutHTML(s) {
     var domain = getDomain(s.url);
-    var favicon = (s.favicon && s.favicon.indexOf("data:") === 0) ? s.favicon : getFaviconUrl(s.url);
+    var favicon = getFaviconUrl(s);
     return (
       '<div class="shortcut" data-id="' + s.id + '">' +
         '<a href="' + esc(s.url) + '" class="shortcut-link" title="' + esc(s.title || s.url) + '">' +
@@ -1729,13 +1741,23 @@
       if (groupMenuCloseTimer) { clearTimeout(groupMenuCloseTimer); groupMenuCloseTimer = null; }
     });
 
-    // Global favicon error fallback — simple placeholder
+    // Global favicon error fallback — try Google API, then placeholder
     document.addEventListener("error", function (e) {
       var img = e.target;
       if (img.tagName !== "IMG") return;
       if (!img.closest(".shortcut-icon, .rc-icon, .ob-popular-icon, .ob-preview-favicon, .restore-tab-item, .rc-panel-item")) return;
-      img.src = "assets/placeholder.svg";
-      img.onerror = null;
+
+      var url = img.dataset.url || (img.closest("a[href]") && img.closest("a[href]").href) || "";
+      var domain;
+      try { domain = new URL(url).hostname; } catch (ex) { domain = ""; }
+      var googleSrc = domain ? "https://www.google.com/s2/favicons?domain=" + domain + "&sz=128" : "";
+
+      if (googleSrc && img.getAttribute("src") !== googleSrc) {
+        img.src = googleSrc;
+      } else {
+        img.src = "assets/placeholder.svg";
+        img.onerror = null;
+      }
     }, true);
 
     // First-run toast events
@@ -1848,7 +1870,7 @@
       modalState.customFavicon = "";
       var preview = $("#modal-icon-preview");
       if (preview && modalState.shortcut) {
-        preview.src = getFaviconUrl(modalState.shortcut.url);
+        preview.src = getFaviconUrl(modalState.shortcut);
       }
       this.classList.add("hidden");
       var fileInput = $("#modal-icon-file");
@@ -2056,8 +2078,7 @@
     if (iconRow) {
       if (mode === "edit" && shortcut) {
         iconRow.classList.remove("hidden");
-        var currentFavicon = (shortcut.favicon && shortcut.favicon.indexOf("data:") === 0)
-          ? shortcut.favicon : getFaviconUrl(shortcut.url);
+        var currentFavicon = getFaviconUrl(shortcut);
         iconPreview.src = currentFavicon;
         resetBtn.classList.toggle("hidden", !(shortcut.favicon && shortcut.favicon.indexOf("data:") === 0));
       } else {
@@ -2086,7 +2107,8 @@
     if (modalState.mode === "add") {
       var newShortcut = {
         url: url,
-        title: name || getDomain(url).replace(/^www\./, "")
+        title: name || getDomain(url).replace(/^www\./, ""),
+        favicon: getFaviconUrl(url)
       };
       if (modalState.customFavicon) newShortcut.favicon = modalState.customFavicon;
       await Storage.addShortcut(modalState.groupId, newShortcut);
