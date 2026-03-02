@@ -7,6 +7,9 @@
   var activeMenu = null;
   var modalState = {};
   var rcLoadedItems = [];
+  var rcHistoryVisible = true;
+  var rcShowAll = false;
+  var RC_DEFAULT_LIMIT = 20;
 
   var $ = function (s, p) { return (p || document).querySelector(s); };
   var $$ = function (s, p) { return [].slice.call((p || document).querySelectorAll(s)); };
@@ -74,6 +77,10 @@
 
     await loadBackground();
     applyTheme();
+
+    // Load history toggle state
+    var historyResult = await chrome.storage.local.get("launchpad_history_visible");
+    rcHistoryVisible = historyResult.launchpad_history_visible !== false;
 
     // Check if onboarding needed
     var onboardingDone = await Storage.getOnboardingComplete();
@@ -552,16 +559,21 @@
     await Storage.saveAll(data);
   }
 
-  // ===== Recently Closed / History =====
+  // ===== History Section =====
 
-  var rcDismissed = false;
   var rcActiveFilter = "today";
   var rcCustomStart = null;
   var rcCustomEnd = null;
 
   function renderRecentlyClosed() {
-    if (rcDismissed) return;
-    loadRcData(rcActiveFilter);
+    var section = $("#recently-closed");
+    var toggle = $("#rc-toggle-input");
+    section.classList.remove("hidden");
+    toggle.checked = rcHistoryVisible;
+    section.classList.toggle("rc-off", !rcHistoryVisible);
+    if (rcHistoryVisible) {
+      loadRcData(rcActiveFilter);
+    }
   }
 
   function loadRcData(filter) {
@@ -594,14 +606,14 @@
       console.warn("[LaunchPad] chrome.sessions API not available");
       return;
     }
-    chrome.sessions.getRecentlyClosed({ maxResults: 10 }, function (sessions) {
+    chrome.sessions.getRecentlyClosed({ maxResults: 25 }, function (sessions) {
       var tabs = [];
       (sessions || []).forEach(function (s) {
         if (s.tab && s.tab.url && !/^chrome:\/\//i.test(s.tab.url)) {
           tabs.push({ url: s.tab.url, title: s.tab.title });
         }
       });
-      tabs = deduplicateByUrl(tabs).slice(0, 8);
+      tabs = deduplicateByUrl(tabs).slice(0, 20);
       showRcItems(tabs);
     });
   }
@@ -612,7 +624,7 @@
       return;
     }
     var maxFetch = (rcActiveFilter === "week" || rcActiveFilter === "custom") ? 500 : 200;
-    var maxShow = (rcActiveFilter === "week" || rcActiveFilter === "custom") ? 40 : 30;
+    var maxShow = (rcActiveFilter === "week" || rcActiveFilter === "custom") ? 200 : 100;
     chrome.history.search({
       text: "",
       startTime: startTime,
@@ -638,8 +650,8 @@
 
   function showRcItems(items) {
     rcLoadedItems = items;
-    var section = $("#recently-closed");
     var list = $("#recently-closed-list");
+    var showMoreBtn = $("#rc-show-more");
     var clearBtn = $("#rc-clear-btn");
     if (clearBtn) clearBtn.classList.toggle("hidden", rcActiveFilter === "recent");
     var query = ($("#rc-search-input") && $("#rc-search-input").value || "").toLowerCase().trim();
@@ -650,13 +662,21 @@
     if (!filtered.length) {
       var emptyMsg = query ? "No matches" : (rcActiveFilter === "today" ? "No browsing history yet today" : "No pages found");
       list.innerHTML = '<span class="rc-empty">' + emptyMsg + '</span>';
-      section.classList.remove("hidden");
-      updateRcScroll();
+      if (showMoreBtn) showMoreBtn.classList.add("hidden");
       return;
     }
-    list.innerHTML = filtered.map(function (t) { return rcItemHTML(t); }).join("");
-    section.classList.remove("hidden");
-    updateRcScroll();
+    var showAll = rcShowAll || !!query;
+    var displayItems = showAll ? filtered : filtered.slice(0, RC_DEFAULT_LIMIT);
+    var hasMore = !showAll && filtered.length > RC_DEFAULT_LIMIT;
+    list.innerHTML = displayItems.map(function (t) { return rcItemHTML(t); }).join("");
+    if (showMoreBtn) {
+      if (hasMore) {
+        showMoreBtn.classList.remove("hidden");
+        showMoreBtn.textContent = "Show more (" + (filtered.length - RC_DEFAULT_LIMIT) + " more)";
+      } else {
+        showMoreBtn.classList.add("hidden");
+      }
+    }
   }
 
   function rcItemHTML(tab) {
@@ -667,7 +687,7 @@
       '<div class="rc-item">' +
         '<a href="' + esc(tab.url) + '" class="rc-link" title="' + esc(title) + '">' +
           '<div class="rc-icon">' +
-            '<img src="' + favicon + '" alt="" width="24" height="24" loading="lazy">' +
+            '<img src="' + favicon + '" alt="" width="20" height="20" loading="lazy">' +
           '</div>' +
           '<span class="rc-name">' + esc(title) + '</span>' +
         '</a>' +
@@ -677,9 +697,9 @@
 
   function updateRcFilterLabel() {
     var label = $("#rc-filter-label");
-    if (rcActiveFilter === "recent") label.textContent = "History";
+    if (rcActiveFilter === "recent") label.textContent = "Recently Closed";
     else if (rcActiveFilter === "today") label.textContent = "Today";
-    else if (rcActiveFilter === "yesterday") label.textContent = "Visited yesterday";
+    else if (rcActiveFilter === "yesterday") label.textContent = "Yesterday";
     else if (rcActiveFilter === "week") label.textContent = "Last 7 days";
     else if (rcActiveFilter === "custom" && rcCustomStart && rcCustomEnd) {
       label.textContent = formatShortDate(rcCustomStart) + " \u2013 " + formatShortDate(rcCustomEnd);
@@ -711,6 +731,7 @@
 
   function selectRcFilter(filter) {
     closeRcFilterMenu();
+    rcShowAll = false;
     var datePicker = $("#rc-date-picker");
     if (filter === "custom") {
       datePicker.classList.remove("hidden");
@@ -736,19 +757,9 @@
       rcCustomEnd = tmp;
     }
     rcActiveFilter = "custom";
+    rcShowAll = false;
     updateRcFilterLabel();
     loadRcData("custom");
-  }
-
-  function updateRcScroll() {
-    var wrapper = $("#rc-scroll-wrapper");
-    var list = $("#recently-closed-list");
-    if (!wrapper || !list) return;
-    var hasOverflow = list.scrollWidth > list.clientWidth;
-    var arrowLeft = $(".rc-arrow-left", wrapper);
-    var arrowRight = $(".rc-arrow-right", wrapper);
-    if (arrowLeft) arrowLeft.classList.toggle("hidden", !hasOverflow || list.scrollLeft <= 2);
-    if (arrowRight) arrowRight.classList.toggle("hidden", !hasOverflow || list.scrollLeft >= list.scrollWidth - list.clientWidth - 2);
   }
 
   function filterRcBySearch() {
@@ -781,16 +792,6 @@
         loadRcData(rcActiveFilter);
       });
     }
-  }
-
-  function scrollRcLeft() {
-    var list = $("#recently-closed-list");
-    if (list) list.scrollBy({ left: -300, behavior: "smooth" });
-  }
-
-  function scrollRcRight() {
-    var list = $("#recently-closed-list");
-    if (list) list.scrollBy({ left: 300, behavior: "smooth" });
   }
 
   // ===== Background =====
@@ -1089,7 +1090,7 @@
       window.open("https://chrome.google.com/webstore/detail/launchpad/EXTENSION_ID_HERE", "_blank");
     });
 
-    // Recently Closed toolbar
+    // History section
     $("#rc-filter-btn").addEventListener("click", function (e) {
       e.stopPropagation();
       toggleRcFilterMenu();
@@ -1099,9 +1100,18 @@
         selectRcFilter(this.dataset.filter);
       });
     });
-    $("#rc-dismiss").addEventListener("click", function () {
-      rcDismissed = true;
-      $("#recently-closed").classList.add("hidden");
+    $("#rc-toggle-input").addEventListener("change", async function () {
+      rcHistoryVisible = this.checked;
+      await chrome.storage.local.set({ launchpad_history_visible: rcHistoryVisible });
+      var section = $("#recently-closed");
+      section.classList.toggle("rc-off", !rcHistoryVisible);
+      if (rcHistoryVisible) {
+        loadRcData(rcActiveFilter);
+      }
+    });
+    $("#rc-show-more").addEventListener("click", function () {
+      rcShowAll = true;
+      showRcItems(rcLoadedItems);
     });
     $("#rc-date-apply").addEventListener("click", applyCustomDateRange);
     $("#rc-date-start").addEventListener("keydown", function (e) {
@@ -1110,10 +1120,6 @@
     $("#rc-date-end").addEventListener("keydown", function (e) {
       if (e.key === "Enter") applyCustomDateRange();
     });
-    var rcList = $("#recently-closed-list");
-    if (rcList) {
-      rcList.addEventListener("scroll", updateRcScroll);
-    }
     var rcSearchInput = $("#rc-search-input");
     if (rcSearchInput) {
       rcSearchInput.addEventListener("input", filterRcBySearch);
@@ -1121,14 +1127,6 @@
     var rcClearBtn = $("#rc-clear-btn");
     if (rcClearBtn) {
       rcClearBtn.addEventListener("click", handleRcClear);
-    }
-    var arrowLeft = $(".rc-arrow-left");
-    if (arrowLeft) {
-      arrowLeft.addEventListener("click", scrollRcLeft);
-    }
-    var arrowRight = $(".rc-arrow-right");
-    if (arrowRight) {
-      arrowRight.addEventListener("click", scrollRcRight);
     }
 
     // Wallpaper / Background
@@ -1238,10 +1236,6 @@
     // Close menu on scroll
     window.addEventListener("scroll", hideMenu);
 
-    // Recalculate show-more on resize
-    window.addEventListener("resize", function () {
-      updateRcScroll();
-    });
   }
 
   // ===== Context Menu =====

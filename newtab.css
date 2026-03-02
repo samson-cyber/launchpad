@@ -863,7 +863,7 @@ html.has-bg .shortcuts-grid.is-dragging .grid-placeholder {
   opacity: 0.9;
 }
 
-/* ===== Recently Closed ===== */
+/* ===== History Section ===== */
 
 #recently-closed {
   max-width: 1100px;
@@ -876,7 +876,7 @@ html.has-bg .shortcuts-grid.is-dragging .grid-placeholder {
   padding-top: 12px;
 }
 
-/* --- Toolbar: filter button + dismiss --- */
+/* --- Toolbar --- */
 
 .rc-toolbar {
   display: flex;
@@ -886,26 +886,33 @@ html.has-bg .shortcuts-grid.is-dragging .grid-placeholder {
   position: relative;
 }
 
-#rc-filter-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
+.rc-heading {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-hint);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  padding: 2px 4px;
+  user-select: none;
+}
+
+#rc-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 2px 8px;
   border-radius: 4px;
-  transition: background-color 0.15s;
+  transition: background-color 0.15s, border-color 0.15s;
 }
 
 #rc-filter-btn:hover {
   background: var(--bg-hover);
+  border-color: var(--text-hint);
 }
 
 .rc-chevron {
@@ -1040,7 +1047,7 @@ html.has-bg .shortcuts-grid.is-dragging .grid-placeholder {
   color: var(--text-hint);
 }
 
-/* --- Clear & Dismiss buttons --- */
+/* --- Clear button --- */
 
 #rc-clear-btn {
   display: flex;
@@ -1062,134 +1069,98 @@ html.has-bg .shortcuts-grid.is-dragging .grid-placeholder {
   color: #d93025;
 }
 
-#rc-clear-btn.hidden-soft {
-  opacity: 0.3;
-  pointer-events: none;
-}
+/* --- Toggle switch --- */
 
-#rc-dismiss {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  background: none;
-  border: none;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  color: var(--text-hint);
-  border-radius: 4px;
-  flex-shrink: 0;
-  transition: background-color 0.15s, color 0.15s;
-}
-
-#rc-dismiss:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-/* --- Scroll wrapper with arrows and fade edges --- */
-
-#rc-scroll-wrapper {
+.rc-toggle {
   position: relative;
-  overflow: hidden;
-}
-
-#recently-closed-list {
-  display: flex;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  gap: 0;
-  scroll-behavior: smooth;
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-#recently-closed-list::-webkit-scrollbar {
-  height: 0;
-  transition: height 0.2s;
-}
-
-#rc-scroll-wrapper:hover #recently-closed-list::-webkit-scrollbar {
-  height: 4px;
-}
-
-#recently-closed-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-#recently-closed-list::-webkit-scrollbar-thumb {
-  background: var(--text-hint);
-  border-radius: 2px;
-}
-
-/* --- Scroll arrows --- */
-
-.rc-scroll-arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: var(--bg-card);
-  border-radius: 50%;
-  box-shadow: 0 1px 4px var(--shadow-color);
-  cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  z-index: 2;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.rc-toggle input {
   opacity: 0;
-  transition: opacity 0.2s;
-}
-
-#rc-scroll-wrapper:hover .rc-scroll-arrow:not(.hidden) {
-  opacity: 1;
-}
-
-.rc-scroll-arrow:hover {
-  background: var(--icon-bg-hover);
-}
-
-.rc-arrow-left { left: 0; }
-.rc-arrow-right { right: 0; }
-
-#rc-scroll-wrapper.has-overflow-right::after {
-  content: "";
+  width: 0;
+  height: 0;
   position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 40px;
-  background: linear-gradient(to right, transparent, var(--bg));
-  pointer-events: none;
 }
 
-#rc-scroll-wrapper.has-overflow-left::before {
-  content: "";
+.rc-toggle-slider {
   position: absolute;
   top: 0;
   left: 0;
+  right: 0;
   bottom: 0;
-  width: 40px;
-  background: linear-gradient(to left, transparent, var(--bg));
-  pointer-events: none;
-  z-index: 1;
+  background: var(--border);
+  border-radius: 10px;
+  transition: background-color 0.2s;
+}
+
+.rc-toggle-slider::before {
+  content: "";
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.rc-toggle input:checked + .rc-toggle-slider {
+  background: var(--accent);
+}
+
+.rc-toggle input:checked + .rc-toggle-slider::before {
+  transform: translateX(16px);
+}
+
+/* --- Collapsed state (toggle OFF) --- */
+
+#recently-closed.rc-off #rc-filter-btn,
+#recently-closed.rc-off #rc-filter-menu,
+#recently-closed.rc-off #rc-date-picker,
+#recently-closed.rc-off #rc-search-box,
+#recently-closed.rc-off #rc-clear-btn,
+#recently-closed.rc-off #recently-closed-list,
+#recently-closed.rc-off #rc-show-more {
+  display: none;
+}
+
+/* --- History grid --- */
+
+#recently-closed-list {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px 0;
+}
+
+@media (min-width: 600px) {
+  #recently-closed-list { grid-template-columns: repeat(6, 1fr); }
+}
+
+@media (min-width: 900px) {
+  #recently-closed-list { grid-template-columns: repeat(8, 1fr); }
+}
+
+@media (min-width: 1200px) {
+  #recently-closed-list { grid-template-columns: repeat(10, 1fr); }
 }
 
 .rc-empty {
   font-size: 13px;
   color: var(--text-hint);
   padding: 12px 0;
+  grid-column: 1 / -1;
 }
 
 .rc-item {
-  width: 112px;
-  min-width: 112px;
-  padding: 12px 0 8px;
+  padding: 10px 0 8px;
   border-radius: 8px;
   text-align: center;
   transition: background-color 0.15s;
@@ -1208,8 +1179,8 @@ html.has-bg .shortcuts-grid.is-dragging .grid-placeholder {
 }
 
 .rc-icon {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background: var(--icon-bg);
   display: flex;
@@ -1224,19 +1195,40 @@ html.has-bg .shortcuts-grid.is-dragging .grid-placeholder {
 }
 
 .rc-icon img {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border-radius: 2px;
 }
 
 .rc-name {
-  font-size: 13px;
+  font-size: 12px;
   line-height: 16px;
-  max-width: 96px;
+  max-width: 80px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-primary);
+}
+
+/* --- Show more --- */
+
+#rc-show-more {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  margin-top: 4px;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.15s;
+}
+
+#rc-show-more:hover {
+  background: var(--bg-hover);
 }
 
 /* ===== Wallpaper Button ===== */
@@ -1604,22 +1596,19 @@ html.has-bg #add-group-btn:hover {
   border-color: rgba(255, 255, 255, 0.5);
 }
 
-html.has-bg #rc-filter-btn {
+html.has-bg .rc-heading {
   color: rgba(255, 255, 255, 0.7);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
+html.has-bg #rc-filter-btn {
+  color: rgba(255, 255, 255, 0.7);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
 html.has-bg #rc-filter-btn:hover {
   background: rgba(255, 255, 255, 0.1);
-}
-
-html.has-bg #rc-dismiss {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-html.has-bg #rc-dismiss:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 html.has-bg .rc-name {
@@ -1631,12 +1620,12 @@ html.has-bg #recently-closed-inner {
   border-top-color: rgba(255, 255, 255, 0.2);
 }
 
-html.has-bg #rc-scroll-wrapper.has-overflow-right::after {
-  background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.35));
+html.has-bg .rc-toggle-slider {
+  background: rgba(255, 255, 255, 0.3);
 }
 
-html.has-bg #rc-scroll-wrapper.has-overflow-left::before {
-  background: linear-gradient(to left, transparent, rgba(0, 0, 0, 0.35));
+html.has-bg #rc-show-more {
+  color: rgba(255, 255, 255, 0.8);
 }
 
 html.has-bg #theme-toggle {
@@ -1691,11 +1680,6 @@ html.has-bg #rc-clear-btn {
 html.has-bg #rc-clear-btn:hover {
   color: #ff6b6b;
   background: rgba(255, 255, 255, 0.1);
-}
-
-html.has-bg .rc-scroll-arrow {
-  background: rgba(0, 0, 0, 0.5);
-  color: #fff;
 }
 
 /* ===== Onboarding ===== */
