@@ -13,6 +13,8 @@
   var rcLoadedItems = [];
   var sidebarGroupObserver = null;
   var sidebarSortable = null;
+  var faviconCache = {};
+  var saveCacheTimeout;
 
   var $ = function (s, p) { return (p || document).querySelector(s); };
   var $$ = function (s, p) { return [].slice.call((p || document).querySelectorAll(s)); };
@@ -73,37 +75,43 @@
     "admin.shopify.com": "https://cdn.shopify.com/shopifycloud/web/assets/v1/favicon-default.ico"
   };
 
-  function getFaviconUrl(url, size) {
-    size = size || 128;
+  function getFaviconUrl(url) {
     var domain;
     try { domain = new URL(url).hostname; } catch (e) { return "assets/placeholder.svg"; }
 
     if (FAVICON_OVERRIDES[domain]) return FAVICON_OVERRIDES[domain];
+    if (faviconCache[domain]) return faviconCache[domain];
 
-    return "https://icons.duckduckgo.com/ip3/" + domain + ".ico";
+    return "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=128";
   }
 
-  function setupFaviconFallback(imgElement, url) {
-    if (!imgElement || !url) return;
-    var domain;
-    try { domain = new URL(url).hostname; } catch (e) { return; }
-    var origin;
-    try { origin = new URL(url).origin; } catch (e) { return; }
+  function cacheFavicon(imgElement, domain) {
+    if (!domain || faviconCache[domain]) return;
+    try {
+      var canvas = document.createElement("canvas");
+      canvas.width = 64;
+      canvas.height = 64;
+      var ctx = canvas.getContext("2d");
+      ctx.drawImage(imgElement, 0, 0, 64, 64);
+      var dataUrl = canvas.toDataURL("image/png");
+      faviconCache[domain] = dataUrl;
+      debouncedSaveFaviconCache();
+    } catch (e) {
+      // Canvas tainted by cross-origin image — skip caching
+    }
+  }
 
-    var fallbacks = [
-      "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=128",
-      origin + "/favicon.ico",
-      origin + "/apple-touch-icon.png",
-      "assets/placeholder.svg"
-    ];
-    var fallbackIndex = 0;
-    imgElement.addEventListener("error", function onFaviconError() {
-      if (fallbackIndex < fallbacks.length) {
-        imgElement.src = fallbacks[fallbackIndex++];
-      } else {
-        imgElement.removeEventListener("error", onFaviconError);
+  function debouncedSaveFaviconCache() {
+    clearTimeout(saveCacheTimeout);
+    saveCacheTimeout = setTimeout(function () {
+      var keys = Object.keys(faviconCache);
+      if (keys.length > 500) {
+        var trimmed = {};
+        keys.slice(keys.length - 500).forEach(function (k) { trimmed[k] = faviconCache[k]; });
+        faviconCache = trimmed;
       }
-    });
+      chrome.storage.local.set({ faviconCache: faviconCache });
+    }, 2000);
   }
 
   function refreshOldFavicons() {
@@ -155,6 +163,13 @@
   async function init() {
     console.log("[LaunchPad] Initializing...");
     data = await Storage.getAll();
+
+    // Load favicon cache for instant icon display
+    faviconCache = await new Promise(function (resolve) {
+      chrome.storage.local.get("faviconCache", function (result) {
+        resolve(result.faviconCache || {});
+      });
+    });
 
     // Guard against missing settings (corrupted storage)
     if (!data.settings) {
@@ -799,7 +814,7 @@
       '<div class="shortcut" data-id="' + s.id + '">' +
         '<a href="' + esc(s.url) + '" class="shortcut-link" title="' + esc(s.title || s.url) + '">' +
           '<div class="shortcut-icon">' +
-            '<img src="' + favicon + '" alt="" width="24" height="24" loading="lazy" data-url="' + esc(s.url) + '">' +
+            '<img crossorigin="anonymous" src="' + favicon + '" alt="" width="24" height="24" loading="lazy" data-url="' + esc(s.url) + '" data-domain="' + esc(domain) + '">' +
           "</div>" +
           '<span class="shortcut-name">' + esc(s.title || domain) + "</span>" +
         "</a>" +
@@ -1765,30 +1780,55 @@
       if (groupMenuCloseTimer) { clearTimeout(groupMenuCloseTimer); groupMenuCloseTimer = null; }
     });
 
-    // Global favicon error fallback — attach per-image fallback chains
+    // Global favicon error fallback — step-based fallback chain
     document.addEventListener("error", function (e) {
       var img = e.target;
       if (img.tagName !== "IMG") return;
       if (!img.closest(".shortcut-icon, .rc-icon, .ob-popular-icon, .ob-preview-favicon, .restore-tab-item, .rc-panel-item")) return;
-      if (img.dataset.fallbackAttached) {
-        // Already has fallback chain — let it handle errors
-        return;
-      }
-      // First error: attach fallback chain, then trigger first fallback
-      var url = img.dataset.url || img.closest("a[href]") && img.closest("a[href]").href || "";
-      if (url) {
-        img.dataset.fallbackAttached = "1";
-        setupFaviconFallback(img, url);
-        // Re-trigger the error chain by setting a Google fallback
-        var domain;
-        try { domain = new URL(url).hostname; } catch (ex) { domain = ""; }
-        if (domain) {
-          img.src = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=128";
-        } else {
-          img.src = "assets/placeholder.svg";
-        }
+
+      var url = img.dataset.url || (img.closest("a[href]") && img.closest("a[href]").href) || "";
+      var domain;
+      try { domain = new URL(url).hostname; } catch (ex) { domain = ""; }
+      if (!domain) { img.src = "assets/placeholder.svg"; return; }
+
+      var src = img.getAttribute("src") || "";
+      var tried = (img.dataset.triedFallbacks || "").split(",").filter(Boolean);
+
+      // Mark current source as tried
+      if (src.indexOf("google.com/s2/favicons") !== -1) tried.push("google");
+      else if (src.indexOf("duckduckgo.com") !== -1) tried.push("ddg");
+      else if (src.indexOf("/favicon.ico") !== -1) tried.push("direct");
+      else tried.push("other");
+      img.dataset.triedFallbacks = tried.join(",");
+
+      // Try next untried source
+      if (tried.indexOf("google") === -1) {
+        img.src = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=128";
+      } else if (tried.indexOf("ddg") === -1) {
+        img.src = "https://icons.duckduckgo.com/ip3/" + domain + ".ico";
+      } else if (tried.indexOf("direct") === -1) {
+        img.removeAttribute("crossorigin");
+        try { img.src = new URL(url).origin + "/favicon.ico"; } catch (ex) { img.src = "assets/placeholder.svg"; }
       } else {
         img.src = "assets/placeholder.svg";
+      }
+    }, true);
+
+    // Global favicon load handler — cache successfully loaded favicons
+    document.addEventListener("load", function (e) {
+      var img = e.target;
+      if (img.tagName !== "IMG") return;
+      if (!img.closest(".shortcut-icon, .rc-icon, .ob-popular-icon, .ob-preview-favicon, .restore-tab-item, .rc-panel-item")) return;
+      var src = img.src || "";
+      // Don't cache data URLs (already cached) or local placeholders
+      if (src.indexOf("data:") === 0 || src.indexOf("assets/") !== -1 || src.indexOf("placeholder") !== -1) return;
+      var domain = img.dataset.domain;
+      if (!domain) {
+        var url = img.dataset.url || (img.closest("a[href]") && img.closest("a[href]").href) || "";
+        try { domain = new URL(url).hostname; } catch (ex) { return; }
+      }
+      if (domain && !faviconCache[domain]) {
+        cacheFavicon(img, domain);
       }
     }, true);
 
