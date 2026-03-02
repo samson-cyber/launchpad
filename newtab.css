@@ -240,7 +240,7 @@ html.dark #search-bar:focus-within {
   transform: rotate(-90deg);
 }
 
-.group-delete-btn {
+.group-more-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -250,17 +250,248 @@ html.dark #search-bar:focus-within {
   background: transparent;
   border-radius: 50%;
   cursor: pointer;
-  color: var(--text-secondary);
+  color: var(--text-hint);
   opacity: 0;
   transition: background-color 0.15s, opacity 0.15s;
+  flex-shrink: 0;
 }
 
-.group-header:hover .group-delete-btn {
+.group-header:hover .group-more-btn {
   opacity: 1;
 }
 
-.group-delete-btn:hover {
+.group-more-btn:hover {
   background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+/* --- Sidebar group three-dot --- */
+
+.sb-group-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--text-hint);
+  opacity: 0;
+  flex-shrink: 0;
+  padding: 0;
+  transition: background-color 0.15s, opacity 0.15s;
+}
+
+#sidebar:hover .sb-group-item:hover .sb-group-more {
+  opacity: 1;
+}
+
+.sb-group-more:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text-secondary);
+}
+
+html.dark .sb-group-more:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+html.has-bg .sb-group-more {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+html.has-bg .sb-group-more:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+/* --- Group Context Menu --- */
+
+#group-menu {
+  position: fixed;
+  min-width: 160px;
+  background: rgba(30, 30, 30, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  padding: 4px 0;
+  z-index: 2100;
+  animation: gmFadeIn 0.12s ease;
+}
+
+@keyframes gmFadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.gm-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.gm-option:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.gm-option.gm-danger {
+  color: #f44336;
+}
+
+.gm-option.gm-danger:hover {
+  background: rgba(244, 67, 54, 0.12);
+}
+
+.gm-option.gm-disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.gm-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 4px 0;
+}
+
+/* --- Group Delete Confirmation Dialog --- */
+
+#group-delete-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2200;
+}
+
+#group-delete-dialog {
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 24px;
+  width: 90vw;
+  max-width: 380px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+#gd-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+#gd-message {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+#gd-move-section {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--bg-hover);
+  border-radius: 8px;
+}
+
+#gd-move-section label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+#gd-move-target {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  margin-bottom: 8px;
+}
+
+#gd-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.gd-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.gd-btn:hover {
+  filter: brightness(0.95);
+}
+
+.gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
+  background: var(--icon-bg);
+  color: var(--text-primary);
+}
+
+.gd-btn-primary {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.gd-btn-danger {
+  background: #f44336;
+  color: #fff;
+}
+
+#gd-move-delete {
+  width: 100%;
+}
+
+html.has-bg #group-delete-dialog {
+  background: rgba(30, 30, 30, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+html.has-bg #gd-title {
+  color: #fff;
+}
+
+html.has-bg #gd-message {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+html.has-bg #gd-move-section {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+html.has-bg #gd-move-target {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+html.has-bg .gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
 }
 
 /* ===== Shortcuts Grid ===== */
@@ -1524,6 +1755,15 @@ html.has-bg .group-name {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
+html.has-bg .group-more-btn {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+html.has-bg .group-more-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
 html.has-bg .shortcut-name {
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
@@ -2210,17 +2450,19 @@ html.has-bg #promo-toast-close:hover {
   left: 0;
   width: 48px;
   height: 100%;
-  background: var(--bg-card);
-  border-right: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.03);
   display: flex;
   flex-direction: column;
   z-index: 200;
   overflow: hidden;
-  transition: width 300ms ease, background-color 200ms ease, border-color 200ms ease;
+  transition: width 300ms ease, background-color 200ms ease, backdrop-filter 200ms ease, -webkit-backdrop-filter 200ms ease;
 }
 
 #sidebar:hover {
   width: 260px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 #sidebar-top {
@@ -2251,7 +2493,7 @@ html.has-bg #promo-toast-close:hover {
 }
 
 .sb-item:hover {
-  background: var(--bg-hover);
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .sb-item.active {
@@ -2280,7 +2522,7 @@ html.has-bg #promo-toast-close:hover {
 
 .sb-separator {
   height: 1px;
-  background: var(--border);
+  background: rgba(0, 0, 0, 0.08);
   margin: 4px 10px;
   flex-shrink: 0;
 }
@@ -2325,7 +2567,7 @@ html.has-bg #promo-toast-close:hover {
 }
 
 .sb-group-item:hover {
-  background: var(--bg-hover);
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .sb-group-item.active {
@@ -2405,8 +2647,22 @@ html.has-bg #promo-toast-close:hover {
 /* --- Sidebar: dark mode --- */
 
 html.dark #sidebar {
-  background: var(--bg-card);
-  border-right-color: var(--border);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+html.dark #sidebar:hover {
+  background: rgba(30, 30, 30, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+html.dark .sb-item:hover,
+html.dark .sb-group-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+html.dark .sb-separator {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 html.dark #sb-group-list::-webkit-scrollbar-thumb {
@@ -2416,14 +2672,13 @@ html.dark #sb-group-list::-webkit-scrollbar-thumb {
 /* --- Sidebar: has-bg mode (always dark style) --- */
 
 html.has-bg #sidebar {
-  background: rgba(0, 0, 0, 0.2);
-  border-right-color: rgba(255, 255, 255, 0.08);
+  background: transparent;
 }
 
 html.has-bg #sidebar:hover {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.15);
 }
 
 html.has-bg .sb-item,
@@ -2801,7 +3056,18 @@ html.has-bg .restore-tab-title {
   #sidebar {
     transform: translateX(-260px);
     width: 260px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     transition: transform 300ms ease, background-color 200ms ease;
+  }
+
+  html.dark #sidebar {
+    background: rgba(30, 30, 30, 0.92);
+  }
+
+  html.has-bg #sidebar {
+    background: rgba(0, 0, 0, 0.3);
   }
 
   #sidebar .sb-label,

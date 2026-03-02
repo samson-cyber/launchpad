@@ -5,6 +5,7 @@
   var sortables = [];
   var groupSortable = null;
   var activeMenu = null;
+  var activeGroupMenu = null;
   var modalState = {};
   var rcLoadedItems = [];
   var sidebarGroupObserver = null;
@@ -23,6 +24,8 @@
   var CHEVRON_RIGHT_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
   var CHEVRON_DOWN_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
   var FOLDER_SVG = '<svg class="sb-group-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+  var THREE_DOT_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>';
+  var THREE_DOT_SM_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>';
 
   // ===== Gallery Images =====
 
@@ -600,9 +603,7 @@
   function groupHTML(group, singleGroup) {
     var collapsed = data.settings.collapsedGroups && data.settings.collapsedGroups[group.id];
     var groupClass = "group" + (collapsed ? " collapsed" : "");
-    var deleteBtn = (group.id === "ungrouped" || singleGroup)
-      ? ""
-      : '<button class="group-delete-btn" data-group-id="' + group.id + '" title="Delete group">' + CLOSE_SVG + "</button>";
+    var moreBtn = '<button class="group-more-btn" data-group-id="' + group.id + '" title="Group options">' + THREE_DOT_SVG + "</button>";
     var shortcutCount = group.shortcuts.length;
     var countBadge = '<span class="group-count">(' + shortcutCount + " shortcut" + (shortcutCount !== 1 ? "s" : "") + ")</span>";
     var gridStyle = collapsed ? ' style="max-height:0"' : '';
@@ -618,7 +619,7 @@
             countBadge +
           "</div>" +
           '<div class="group-header-actions">' +
-            deleteBtn +
+            moreBtn +
           "</div>" +
         "</div>" +
         '<div class="shortcuts-grid" data-group-id="' + group.id + '"' + gridStyle + '>' +
@@ -707,11 +708,12 @@
       .map(function (id) { return groupMap[id]; })
       .filter(Boolean)
       .map(function (g) {
-        return '<button class="sb-group-item" data-group-id="' + g.id + '" type="button" title="' + esc(g.name) + '">' +
+        return '<div class="sb-group-item" data-group-id="' + g.id + '" title="' + esc(g.name) + '">' +
           FOLDER_SVG +
           '<span class="sb-group-name">' + esc(g.name) + '</span>' +
           '<span class="sb-group-count">' + g.shortcuts.length + '</span>' +
-        '</button>';
+          '<button class="sb-group-more" data-group-id="' + g.id + '" type="button" title="Group options">' + THREE_DOT_SM_SVG + '</button>' +
+        '</div>';
       }).join("");
   }
 
@@ -1315,8 +1317,33 @@
     });
     $("#sb-add-group").addEventListener("click", addGroup);
     $("#sb-group-list").addEventListener("click", function (e) {
+      // Three-dot menu click — separate target
+      var moreBtn = e.target.closest(".sb-group-more");
+      if (moreBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        showGroupMenu(moreBtn.dataset.groupId, moreBtn);
+        return;
+      }
+      // Group name/icon click — scroll to group
       var item = e.target.closest(".sb-group-item");
       if (item) scrollToGroup(item.dataset.groupId);
+    });
+
+    // Group context menu option clicks
+    $("#group-menu").addEventListener("click", function (e) {
+      var opt = e.target.closest(".gm-option");
+      if (opt && !opt.classList.contains("gm-disabled")) {
+        handleGroupMenuAction(opt.dataset.action);
+      }
+    });
+
+    // Delete dialog handlers
+    $("#gd-cancel").addEventListener("click", hideDeleteDialog);
+    $("#gd-confirm").addEventListener("click", confirmDeleteGroup);
+    $("#gd-move-delete").addEventListener("click", moveAndDeleteGroup);
+    $("#group-delete-overlay").addEventListener("click", function (e) {
+      if (e.target === e.currentTarget) hideDeleteDialog();
     });
     $("#sb-settings").addEventListener("click", function () {
       Bookmarks.showPicker();
@@ -1385,8 +1412,13 @@
       el = e.target.closest(".add-tile");
       if (el) { openModal("add", el.dataset.groupId); return; }
 
-      el = e.target.closest(".group-delete-btn");
-      if (el) { deleteGroup(el.dataset.groupId); return; }
+      el = e.target.closest(".group-more-btn");
+      if (el) {
+        e.preventDefault();
+        e.stopPropagation();
+        showGroupMenu(el.dataset.groupId, el);
+        return;
+      }
 
       el = e.target.closest(".shortcut-more");
       if (el) {
@@ -1566,6 +1598,9 @@
       if (!e.target.closest("#shortcut-menu") && !e.target.closest(".shortcut-more")) {
         hideMenu();
       }
+      if (!e.target.closest("#group-menu") && !e.target.closest(".group-more-btn") && !e.target.closest(".sb-group-more")) {
+        hideGroupMenu();
+      }
       if (!e.target.closest("#rc-filter-btn") && !e.target.closest("#rc-filter-menu")) {
         closeRcFilterMenu();
       }
@@ -1580,7 +1615,8 @@
     // Escape key
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") {
-        closeModal(); hideMenu(); closeBgModal(); closeRcFilterMenu(); closeDomainPanel();
+        closeModal(); hideMenu(); hideGroupMenu(); hideDeleteDialog();
+        closeBgModal(); closeRcFilterMenu(); closeDomainPanel();
         closeHistoryOverlay(); closeRestoreDropdown();
         var sidebar = $("#sidebar");
         if (sidebar && sidebar.classList.contains("mobile-open")) toggleMobileSidebar();
@@ -1702,13 +1738,156 @@
     });
   }
 
-  async function deleteGroup(groupId) {
+  // ===== Group Context Menu =====
+
+  function showGroupMenu(groupId, anchor) {
+    hideGroupMenu();
+    activeGroupMenu = groupId;
+    var menu = $("#group-menu");
+    var rect = anchor.getBoundingClientRect();
+
+    // Enable/disable move up/down
+    var idx = data.groupOrder.indexOf(groupId);
+    var upOpt = menu.querySelector('[data-action="move-up"]');
+    var downOpt = menu.querySelector('[data-action="move-down"]');
+    upOpt.classList.toggle("gm-disabled", idx <= 0);
+    downOpt.classList.toggle("gm-disabled", idx >= data.groupOrder.length - 1);
+
+    menu.classList.remove("hidden");
+    menu.style.top = rect.top + "px";
+    menu.style.left = (rect.right + 6) + "px";
+
+    // If overflowing right, flip to left of anchor
+    var menuRect = menu.getBoundingClientRect();
+    if (menuRect.right > window.innerWidth - 8) {
+      menu.style.left = (rect.left - menuRect.width - 6) + "px";
+    }
+    // If overflowing bottom, shift up
+    if (menuRect.bottom > window.innerHeight - 8) {
+      menu.style.top = Math.max(8, window.innerHeight - menuRect.height - 8) + "px";
+    }
+  }
+
+  function hideGroupMenu() {
+    var menu = $("#group-menu");
+    if (menu) menu.classList.add("hidden");
+    activeGroupMenu = null;
+  }
+
+  function handleGroupMenuAction(action) {
+    var groupId = activeGroupMenu;
+    hideGroupMenu();
+    if (!groupId) return;
+
+    if (action === "rename") {
+      // Try sidebar name first, then main page name
+      var nameEl = document.querySelector('.group[data-group-id="' + groupId + '"] .group-name');
+      if (nameEl) {
+        startRename(nameEl);
+      } else {
+        // Fallback: prompt rename
+        var group = findGroup(groupId);
+        if (!group) return;
+        var newName = prompt("Rename group:", group.name);
+        if (newName && newName.trim() && newName.trim() !== group.name) {
+          group.name = newName.trim();
+          Storage.saveAll(data).then(function () {
+            data = null;
+            Storage.getAll().then(function (d) { data = d; render(); });
+          });
+        }
+      }
+    } else if (action === "move-up") {
+      moveGroup(groupId, -1);
+    } else if (action === "move-down") {
+      moveGroup(groupId, 1);
+    } else if (action === "delete") {
+      showDeleteDialog(groupId);
+    }
+  }
+
+  async function moveGroup(groupId, direction) {
+    var idx = data.groupOrder.indexOf(groupId);
+    if (idx < 0) return;
+    var newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= data.groupOrder.length) return;
+    // Swap
+    var temp = data.groupOrder[idx];
+    data.groupOrder[idx] = data.groupOrder[newIdx];
+    data.groupOrder[newIdx] = temp;
+    await Storage.saveAll(data);
+    render();
+  }
+
+  function showDeleteDialog(groupId) {
     var group = findGroup(groupId);
     if (!group) return;
-    var msg = group.shortcuts.length
-      ? 'Delete "' + group.name + '" and its ' + group.shortcuts.length + " shortcut(s)?"
-      : 'Delete empty group "' + group.name + '"?';
-    if (!confirm(msg)) return;
+    var overlay = $("#group-delete-overlay");
+    var titleEl = $("#gd-title");
+    var msgEl = $("#gd-message");
+    var moveSection = $("#gd-move-section");
+    var moveCount = $("#gd-move-count");
+    var moveTarget = $("#gd-move-target");
+    var confirmBtn = $("#gd-confirm");
+
+    titleEl.textContent = 'Delete group "' + group.name + '"?';
+
+    var count = group.shortcuts.length;
+    if (count > 0) {
+      msgEl.textContent = "This group has " + count + " shortcut" + (count !== 1 ? "s" : "") + ". You can move them to another group or delete everything.";
+      moveCount.textContent = count;
+      // Build dropdown of other groups
+      moveTarget.innerHTML = data.groups
+        .filter(function (g) { return g.id !== groupId; })
+        .map(function (g) { return '<option value="' + g.id + '">' + esc(g.name) + '</option>'; })
+        .join("");
+      moveSection.classList.remove("hidden");
+      confirmBtn.textContent = "Delete All";
+    } else {
+      msgEl.textContent = 'Delete empty group "' + group.name + '"?';
+      moveSection.classList.add("hidden");
+      confirmBtn.textContent = "Delete";
+    }
+
+    overlay.dataset.groupId = groupId;
+    overlay.classList.remove("hidden");
+  }
+
+  function hideDeleteDialog() {
+    var overlay = $("#group-delete-overlay");
+    if (overlay) {
+      overlay.classList.add("hidden");
+      delete overlay.dataset.groupId;
+    }
+  }
+
+  async function confirmDeleteGroup() {
+    var overlay = $("#group-delete-overlay");
+    var groupId = overlay.dataset.groupId;
+    if (!groupId) return;
+    hideDeleteDialog();
+    await Storage.removeGroup(groupId);
+    data = await Storage.getAll();
+    render();
+  }
+
+  async function moveAndDeleteGroup() {
+    var overlay = $("#group-delete-overlay");
+    var groupId = overlay.dataset.groupId;
+    if (!groupId) return;
+    var targetId = $("#gd-move-target").value;
+    if (!targetId) return;
+
+    var group = findGroup(groupId);
+    var target = findGroup(targetId);
+    if (!group || !target) return;
+
+    // Move shortcuts to target group
+    target.shortcuts = target.shortcuts.concat(group.shortcuts);
+    group.shortcuts = [];
+    await Storage.saveAll(data);
+
+    hideDeleteDialog();
     await Storage.removeGroup(groupId);
     data = await Storage.getAll();
     render();
