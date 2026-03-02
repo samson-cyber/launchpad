@@ -657,8 +657,36 @@ html.dark #search-bar:focus-within {
 
 /* ===== Drag & Drop ===== */
 
-.shortcut-ghost {
+.sortable-ghost {
   opacity: 0.3;
+  border: 2px dashed var(--text-hint);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.sortable-ghost > * {
+  visibility: hidden;
+}
+
+html.dark .sortable-ghost {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+html.has-bg .sortable-ghost {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sortable-chosen {
+  transform: scale(1.05);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  border-radius: 8px;
+}
+
+.sortable-drag {
+  opacity: 0.9;
 }
 
 .group-ghost {

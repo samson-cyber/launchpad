@@ -1384,10 +1384,12 @@
     $$(".shortcuts-grid").forEach(function (grid) {
       var s = new Sortable(grid, {
         group: "shortcuts",
-        animation: 150,
+        animation: 200,
         draggable: ".shortcut",
-        ghostClass: "shortcut-ghost",
-        filter: ".shortcut-more",
+        ghostClass: "sortable-ghost",
+        chosenClass: "sortable-chosen",
+        dragClass: "sortable-drag",
+        filter: ".shortcut-more, .add-tile",
         preventOnFilter: false,
         onEnd: async function () {
           await syncShortcutsFromDOM();
