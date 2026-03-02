@@ -7,6 +7,7 @@
   var activeMenu = null;
   var activeGroupMenu = null;
   var groupMenuCloseTimer = null;
+  var sidebarLocked = false;
   var modalState = {};
   var rcLoadedItems = [];
   var sidebarGroupObserver = null;
@@ -1385,8 +1386,9 @@
     safeOn("#sidebar-hamburger", "click", toggleMobileSidebar);
     safeOn("#sidebar-backdrop", "click", toggleMobileSidebar);
 
-    // Sidebar mouseleave — close all sidebar-related popovers
+    // Sidebar mouseleave — close all sidebar-related popovers (unless locked by context menu)
     safeOn("#sidebar", "mouseleave", function () {
+      if (sidebarLocked) return;
       hideGroupMenu();
       closeRestoreDropdown();
     });
@@ -1520,10 +1522,9 @@
       e.stopPropagation();
       toggleRcFilterMenu();
     });
-    $$("#rc-filter-menu .rc-filter-option").forEach(function (opt) {
-      opt.addEventListener("click", function () {
-        selectRcFilter(this.dataset.filter);
-      });
+    safeOn("#rc-filter-menu", "click", function (e) {
+      var opt = e.target.closest(".rc-filter-option");
+      if (opt) selectRcFilter(opt.dataset.filter);
     });
     safeOn("#recently-closed-list", "click", function (e) {
       var item = e.target.closest(".rc-item[data-rc-domain]");
@@ -1559,10 +1560,9 @@
     safeOn("#bg-remove", "click", handleBgRemove);
 
     // Background gallery tabs
-    $$("#bg-tabs .bg-tab").forEach(function (tab) {
-      tab.addEventListener("click", function () {
-        switchBgTab(this.dataset.tab);
-      });
+    safeOn("#bg-tabs", "click", function (e) {
+      var tab = e.target.closest(".bg-tab");
+      if (tab) switchBgTab(tab.dataset.tab);
     });
     safeOn("#bg-gallery-grid", "click", function (e) {
       var thumb = e.target.closest(".bg-gallery-thumb");
@@ -1752,15 +1752,21 @@
     var menu = $("#group-menu");
     if (!menu) return;
     var rect = anchor.getBoundingClientRect();
+    var sidebar = $("#sidebar");
+
+    // Lock sidebar open while context menu is visible
+    sidebarLocked = true;
+    if (sidebar) sidebar.classList.add("sidebar-locked");
 
     menu.classList.remove("hidden");
     menu.style.top = rect.top + "px";
-    menu.style.left = (rect.right + 6) + "px";
+    // Position at sidebar expanded width (260px) + 8px gap
+    menu.style.left = "268px";
 
-    // If overflowing right, flip to left of anchor
+    // If overflowing right, flip to left side
     var menuRect = menu.getBoundingClientRect();
     if (menuRect.right > window.innerWidth - 8) {
-      menu.style.left = (rect.left - menuRect.width - 6) + "px";
+      menu.style.left = (260 - menuRect.width - 8) + "px";
     }
     // If overflowing bottom, shift up
     if (menuRect.bottom > window.innerHeight - 8) {
@@ -1773,6 +1779,11 @@
     var menu = $("#group-menu");
     if (menu) menu.classList.add("hidden");
     activeGroupMenu = null;
+
+    // Unlock sidebar
+    sidebarLocked = false;
+    var sidebar = $("#sidebar");
+    if (sidebar) sidebar.classList.remove("sidebar-locked");
   }
 
   function handleGroupMenuAction(action) {

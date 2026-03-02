@@ -284,7 +284,8 @@ html.dark #search-bar:focus-within {
   transition: background-color 0.15s, opacity 0.15s;
 }
 
-#sidebar:hover .sb-group-item:hover .sb-group-more {
+#sidebar:hover .sb-group-item:hover .sb-group-more,
+#sidebar.sidebar-locked .sb-group-item:hover .sb-group-more {
   opacity: 1;
 }
 
@@ -2434,16 +2435,20 @@ html.has-bg #promo-toast-close:hover {
 
 /* ===== Sidebar ===== */
 
+aside#sidebar,
 #sidebar {
   position: fixed;
   top: 0;
   left: 0;
   width: 48px;
   height: 100%;
-  background: transparent !important;
+  background: none !important;
   background-color: transparent !important;
+  background-image: none !important;
   border-right: none !important;
   box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   display: flex;
   flex-direction: column;
   z-index: 200;
@@ -2451,11 +2456,12 @@ html.has-bg #promo-toast-close:hover {
   transition: width 300ms ease, background 200ms ease, backdrop-filter 200ms ease, -webkit-backdrop-filter 200ms ease;
 }
 
-#sidebar:hover {
+#sidebar:hover,
+#sidebar.sidebar-locked {
   width: 260px;
   background: rgba(0, 0, 0, 0.2) !important;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
   border-right: none !important;
   box-shadow: none !important;
 }
@@ -2510,7 +2516,8 @@ html.has-bg #promo-toast-close:hover {
   text-overflow: ellipsis;
 }
 
-#sidebar:hover .sb-label {
+#sidebar:hover .sb-label,
+#sidebar.sidebar-locked .sb-label {
   opacity: 1;
   transition-delay: 100ms;
 }
@@ -2523,7 +2530,8 @@ html.has-bg #promo-toast-close:hover {
   transition: background-color 200ms ease;
 }
 
-#sidebar:hover .sb-separator {
+#sidebar:hover .sb-separator,
+#sidebar.sidebar-locked .sb-separator {
   background: rgba(255, 255, 255, 0.12);
 }
 
@@ -2595,7 +2603,8 @@ html.has-bg #promo-toast-close:hover {
   transition: opacity 150ms ease 0ms;
 }
 
-#sidebar:hover .sb-group-name {
+#sidebar:hover .sb-group-name,
+#sidebar.sidebar-locked .sb-group-name {
   opacity: 1;
   transition-delay: 100ms;
 }
@@ -2611,7 +2620,8 @@ html.has-bg #promo-toast-close:hover {
   transition: opacity 150ms ease 0ms;
 }
 
-#sidebar:hover .sb-group-count {
+#sidebar:hover .sb-group-count,
+#sidebar.sidebar-locked .sb-group-count {
   opacity: 1;
   transition-delay: 100ms;
 }
@@ -2628,7 +2638,9 @@ html.has-bg #promo-toast-close:hover {
 }
 
 #sidebar:hover .sb-settings-row,
-#sidebar:hover .sb-support-row {
+#sidebar:hover .sb-support-row,
+#sidebar.sidebar-locked .sb-settings-row,
+#sidebar.sidebar-locked .sb-support-row {
   flex-direction: row;
   flex-wrap: wrap;
 }
@@ -2652,14 +2664,20 @@ html.has-bg #promo-toast-close:hover {
 
 /* --- Sidebar: dark mode --- */
 
+html.dark aside#sidebar,
 html.dark #sidebar {
-  background: transparent !important;
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
-html.dark #sidebar:hover {
+html.dark #sidebar:hover,
+html.dark #sidebar.sidebar-locked {
   background: rgba(0, 0, 0, 0.4) !important;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
 }
 
 html.dark .sb-item:hover,
@@ -2667,7 +2685,8 @@ html.dark .sb-group-item:hover {
   background: rgba(255, 255, 255, 0.08);
 }
 
-html.dark #sidebar:hover .sb-separator {
+html.dark #sidebar:hover .sb-separator,
+html.dark #sidebar.sidebar-locked .sb-separator {
   background: rgba(255, 255, 255, 0.1);
 }
 
@@ -2677,14 +2696,20 @@ html.dark #sb-group-list::-webkit-scrollbar-thumb {
 
 /* --- Sidebar: has-bg mode (always dark style) --- */
 
+html.has-bg aside#sidebar,
 html.has-bg #sidebar {
-  background: transparent !important;
+  background: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
-html.has-bg #sidebar:hover {
+html.has-bg #sidebar:hover,
+html.has-bg #sidebar.sidebar-locked {
   background: rgba(0, 0, 0, 0.2) !important;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
 }
 
 html.has-bg .sb-item,
@@ -2702,7 +2727,8 @@ html.has-bg .sb-group-item.active {
   color: #fff;
 }
 
-html.has-bg #sidebar:hover .sb-separator {
+html.has-bg #sidebar:hover .sb-separator,
+html.has-bg #sidebar.sidebar-locked .sb-separator {
   background: rgba(255, 255, 255, 0.1);
 }
 
