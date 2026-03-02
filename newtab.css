@@ -698,6 +698,35 @@ html.has-bg .sortable-ghost {
   visibility: hidden;
 }
 
+/* ===== Grid Placeholders (drag-to-extend) ===== */
+
+.grid-placeholder {
+  visibility: hidden;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  transition: all 200ms ease;
+}
+
+.shortcuts-grid.is-dragging .grid-placeholder {
+  visibility: visible;
+  height: auto;
+  min-height: 80px;
+  border: 2px dashed rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+html.dark .shortcuts-grid.is-dragging .grid-placeholder {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+html.has-bg .shortcuts-grid.is-dragging .grid-placeholder {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.03);
+}
+
 /* ===== Bookmark Picker Modal ===== */
 
 #bookmark-overlay {
@@ -2056,9 +2085,9 @@ html.has-bg .rc-scroll-arrow {
   padding-top: 4px;
 }
 
-/* ===== Support Button ===== */
+/* ===== Rate Button (bottom-right) ===== */
 
-#support-btn {
+#rate-btn {
   width: 36px;
   height: 36px;
   border: none;
@@ -2068,150 +2097,54 @@ html.has-bg .rc-scroll-arrow {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #e91e63;
+  color: #f4b400;
   opacity: 0.5;
   transition: background-color 0.15s, opacity 0.15s, transform 0.15s;
 }
 
-#support-btn:hover {
+#rate-btn:hover {
   background: var(--bg-hover);
   opacity: 1;
   transform: scale(1.1);
 }
 
-/* ===== Support Modal ===== */
+html.has-bg #rate-btn {
+  color: #fdd663;
+}
 
-#support-overlay {
+/* ===== Buy Me a Coffee (top-right) ===== */
+
+#bmc-btn {
   position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  top: 16px;
+  right: 16px;
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
-}
-
-#support-modal {
-  position: relative;
-  background: var(--bg-card);
-  border-radius: 12px;
-  width: 380px;
-  max-width: 90vw;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  text-align: center;
-}
-
-#support-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
   color: var(--text-hint);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.15s, color 0.15s;
-}
-
-#support-close:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-#support-modal-body {
-  padding: 28px 24px 24px;
-}
-
-#support-heart-icon {
-  margin-bottom: 12px;
-}
-
-#support-title {
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--text-primary);
-  margin: 0 0 8px;
-}
-
-#support-subtitle {
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-  margin: 0 0 20px;
-}
-
-#support-bmc-btn {
-  display: inline-block;
-  padding: 10px 28px;
-  background: #ffdd00;
-  color: #000;
-  font-size: 14px;
-  font-weight: 600;
-  font-family: inherit;
-  border-radius: 8px;
+  opacity: 0.4;
   text-decoration: none;
-  transition: opacity 0.15s, transform 0.15s;
+  transition: opacity 0.15s, transform 0.15s, background-color 0.15s;
 }
 
-#support-bmc-btn:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-
-#support-thanks {
-  font-size: 12px;
-  color: var(--text-hint);
-  margin: 16px 0 0;
-  line-height: 1.5;
-}
-
-/* ===== Page Footer ===== */
-
-#page-footer {
-  text-align: center;
-  padding: 12px 0 20px;
-  position: relative;
-  z-index: 1;
-}
-
-#footer-branding {
-  font-size: 11px;
-  color: var(--text-hint);
-  opacity: 0.6;
-  cursor: pointer;
-  transition: opacity 0.15s;
-  user-select: none;
-}
-
-#footer-branding:hover {
+#bmc-btn:hover {
   opacity: 1;
+  transform: scale(1.1);
+  background: var(--bg-hover);
+  color: #ffdd00;
 }
 
-.footer-heart {
-  color: #e91e63;
-}
-
-html.has-bg #footer-branding {
+html.has-bg #bmc-btn {
   color: rgba(255, 255, 255, 0.4);
 }
 
-html.has-bg #footer-branding:hover {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-html.has-bg .footer-heart {
-  color: #f48fb1;
-}
-
-html.has-bg #support-btn {
-  color: #f48fb1;
+html.has-bg #bmc-btn:hover {
+  color: #ffdd00;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* ===== Utility ===== */

@@ -414,6 +414,32 @@
     console.log("[LaunchPad] Theme set to:", data.settings.theme);
   }
 
+  // ===== Grid Placeholders =====
+
+  function getGridColumnCount(gridEl) {
+    gridEl.offsetHeight; // force layout
+    var style = window.getComputedStyle(gridEl);
+    var columns = style.getPropertyValue('grid-template-columns');
+    if (!columns || columns === 'none') return 6;
+    return columns.split(' ').filter(function (s) { return s.trim(); }).length;
+  }
+
+  function ensurePlaceholders(gridEl) {
+    $$(".grid-placeholder", gridEl).forEach(function (el) { el.remove(); });
+    var cols = getGridColumnCount(gridEl);
+    var addTile = $(".add-tile", gridEl);
+    for (var i = 0; i < cols; i++) {
+      var ph = document.createElement("div");
+      ph.className = "grid-placeholder";
+      if (i === 0) ph.style.gridColumnStart = "1";
+      gridEl.insertBefore(ph, addTile);
+    }
+  }
+
+  function ensureAllPlaceholders() {
+    $$(".shortcuts-grid").forEach(ensurePlaceholders);
+  }
+
   // ===== Render =====
 
   function render() {
@@ -427,6 +453,7 @@
       .filter(Boolean)
       .map(function (g) { return groupHTML(g, singleGroup); })
       .join("");
+    ensureAllPlaceholders();
     initSortables();
   }
 
@@ -936,16 +963,6 @@
     closeBgModal();
   }
 
-  // ===== Support Modal =====
-
-  function openSupportModal() {
-    $("#support-overlay").classList.remove("hidden");
-  }
-
-  function closeSupportModal() {
-    $("#support-overlay").classList.add("hidden");
-  }
-
   // ===== Events =====
 
   function bindEvents() {
@@ -1066,23 +1083,11 @@
       $("#settings-menu").classList.add("hidden");
       Bookmarks.showPicker();
     });
-    $("#settings-support").addEventListener("click", function () {
-      $("#settings-menu").classList.add("hidden");
-      openSupportModal();
-    });
-
-    // Support button + modal
-    $("#support-btn").addEventListener("click", function (e) {
+    // Rate button — opens Chrome Web Store
+    $("#rate-btn").addEventListener("click", function (e) {
       e.stopPropagation();
-      openSupportModal();
+      window.open("https://chrome.google.com/webstore/detail/launchpad/EXTENSION_ID_HERE", "_blank");
     });
-    $("#support-close").addEventListener("click", closeSupportModal);
-    $("#support-overlay").addEventListener("click", function (e) {
-      if (e.target === e.currentTarget) closeSupportModal();
-    });
-
-    // Footer branding opens support modal
-    $("#footer-branding").addEventListener("click", openSupportModal);
 
     // Recently Closed toolbar
     $("#rc-filter-btn").addEventListener("click", function (e) {
@@ -1227,7 +1232,7 @@
 
     // Escape key
     document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") { closeModal(); hideMenu(); closeBgModal(); closeSupportModal(); closeRcFilterMenu(); $("#settings-menu").classList.add("hidden"); }
+      if (e.key === "Escape") { closeModal(); hideMenu(); closeBgModal(); closeRcFilterMenu(); $("#settings-menu").classList.add("hidden"); }
     });
 
     // Close menu on scroll
@@ -1385,14 +1390,24 @@
       var s = new Sortable(grid, {
         group: "shortcuts",
         animation: 200,
-        draggable: ".shortcut",
+        draggable: ".shortcut, .grid-placeholder",
         ghostClass: "sortable-ghost",
         chosenClass: "sortable-chosen",
         dragClass: "sortable-drag",
-        filter: ".shortcut-more, .add-tile",
+        filter: ".shortcut-more, .add-tile, .grid-placeholder",
         preventOnFilter: false,
+        onStart: function () {
+          $$(".shortcuts-grid").forEach(function (g) {
+            g.classList.add("is-dragging");
+          });
+        },
         onEnd: async function () {
+          $$(".shortcuts-grid").forEach(function (g) {
+            g.classList.remove("is-dragging");
+          });
+          $$(".grid-placeholder").forEach(function (el) { el.remove(); });
           await syncShortcutsFromDOM();
+          ensureAllPlaceholders();
           console.log("[LaunchPad] Shortcuts reordered via drag");
         }
       });
