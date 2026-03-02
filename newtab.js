@@ -13,8 +13,6 @@
   var rcLoadedItems = [];
   var sidebarGroupObserver = null;
   var sidebarSortable = null;
-  var faviconCache = {};
-  var saveCacheTimeout;
 
   var $ = function (s, p) { return (p || document).querySelector(s); };
   var $$ = function (s, p) { return [].slice.call((p || document).querySelectorAll(s)); };
@@ -56,23 +54,13 @@
 
   var FAVICON_OVERRIDES = {
     "mail.google.com": "https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico",
+    "ads.google.com": "https://ads.google.com/favicon.ico",
     "docs.google.com": "https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico",
     "sheets.google.com": "https://ssl.gstatic.com/docs/spreadsheets/favicon3.ico",
     "slides.google.com": "https://ssl.gstatic.com/docs/presentations/images/favicon5.ico",
     "drive.google.com": "https://ssl.gstatic.com/images/branding/product/1x/drive_2020q4_48dp.png",
-    "calendar.google.com": "https://ssl.gstatic.com/calendar/images/favicon_v2021_48.ico",
-    "meet.google.com": "https://fonts.gstatic.com/s/i/productlogos/meet_2020q4/v1/web-48dp/logo_meet_2020q4_color_1x_web_48dp.png",
-    "maps.google.com": "https://maps.google.com/favicon.ico",
-    "photos.google.com": "https://ssl.gstatic.com/imagemods/ui/1/photos_2016/ic_photos_googblue_28dp.png",
-    "play.google.com": "https://www.gstatic.com/android/market_images/web/favicon_v3.ico",
-    "ads.google.com": "https://ads.google.com/favicon.ico",
-    "analytics.google.com": "https://www.gstatic.com/analytics-suite/header/suite/v2/ic_analytics.svg",
-    "console.cloud.google.com": "https://www.gstatic.com/devrel-devsite/prod/v0e0f589edd85502a40d78d7d0b2f6c3f0c3a3549efb2a4e64ce0c4d3340e511e/cloud/images/favicons/onecloud/favicon.ico",
-    "outlook.live.com": "https://res.cdn.office.net/assets/mail/pwa/v1/pngs/Outlook_256x256.png",
-    "outlook.office.com": "https://res.cdn.office.net/assets/mail/pwa/v1/pngs/Outlook_256x256.png",
-    "teams.microsoft.com": "https://statics.teams.cdn.office.net/hashedassets-new/favicon/favicon-prod.ico",
-    "sellercentral.amazon.com": "https://sellercentral.amazon.com/favicon.ico",
-    "admin.shopify.com": "https://cdn.shopify.com/shopifycloud/web/assets/v1/favicon-default.ico"
+    "calendar.google.com": "https://calendar.google.com/googlecalendar/images/favicons_2020q4/calendar_31.ico",
+    "meet.google.com": "https://fonts.gstatic.com/s/i/productlogos/meet_2020q4/v1/web-48dp/logo_meet_2020q4_color_1x_web_48dp.png"
   };
 
   function getFaviconUrl(url) {
@@ -80,38 +68,8 @@
     try { domain = new URL(url).hostname; } catch (e) { return "assets/placeholder.svg"; }
 
     if (FAVICON_OVERRIDES[domain]) return FAVICON_OVERRIDES[domain];
-    if (faviconCache[domain]) return faviconCache[domain];
 
-    return "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=128";
-  }
-
-  function cacheFavicon(imgElement, domain) {
-    if (!domain || faviconCache[domain]) return;
-    try {
-      var canvas = document.createElement("canvas");
-      canvas.width = 64;
-      canvas.height = 64;
-      var ctx = canvas.getContext("2d");
-      ctx.drawImage(imgElement, 0, 0, 64, 64);
-      var dataUrl = canvas.toDataURL("image/png");
-      faviconCache[domain] = dataUrl;
-      debouncedSaveFaviconCache();
-    } catch (e) {
-      // Canvas tainted by cross-origin image — skip caching
-    }
-  }
-
-  function debouncedSaveFaviconCache() {
-    clearTimeout(saveCacheTimeout);
-    saveCacheTimeout = setTimeout(function () {
-      var keys = Object.keys(faviconCache);
-      if (keys.length > 500) {
-        var trimmed = {};
-        keys.slice(keys.length - 500).forEach(function (k) { trimmed[k] = faviconCache[k]; });
-        faviconCache = trimmed;
-      }
-      chrome.storage.local.set({ faviconCache: faviconCache });
-    }, 2000);
+    return "https://www.google.com/s2/favicons?domain=" + domain + "&sz=128";
   }
 
   function refreshOldFavicons() {
@@ -119,7 +77,6 @@
     data.groups.forEach(function (g) {
       g.shortcuts.forEach(function (s) {
         if (!s.url) return;
-        // Skip custom user-uploaded favicons (data: URLs)
         if (s.favicon && s.favicon.indexOf("data:") === 0) return;
         var newFavicon = getFaviconUrl(s.url);
         if (s.favicon !== newFavicon) {
@@ -130,7 +87,6 @@
     });
     if (changed) {
       Storage.saveAll(data);
-      console.log("[LaunchPad] Refreshed old favicon URLs to higher quality sources");
     }
   }
 
@@ -163,13 +119,6 @@
   async function init() {
     console.log("[LaunchPad] Initializing...");
     data = await Storage.getAll();
-
-    // Load favicon cache for instant icon display
-    faviconCache = await new Promise(function (resolve) {
-      chrome.storage.local.get("faviconCache", function (result) {
-        resolve(result.faviconCache || {});
-      });
-    });
 
     // Guard against missing settings (corrupted storage)
     if (!data.settings) {
@@ -814,7 +763,7 @@
       '<div class="shortcut" data-id="' + s.id + '">' +
         '<a href="' + esc(s.url) + '" class="shortcut-link" title="' + esc(s.title || s.url) + '">' +
           '<div class="shortcut-icon">' +
-            '<img crossorigin="anonymous" src="' + favicon + '" alt="" width="24" height="24" loading="lazy" data-url="' + esc(s.url) + '" data-domain="' + esc(domain) + '">' +
+            '<img src="' + favicon + '" alt="" width="24" height="24" loading="lazy" data-url="' + esc(s.url) + '">' +
           "</div>" +
           '<span class="shortcut-name">' + esc(s.title || domain) + "</span>" +
         "</a>" +
@@ -1780,56 +1729,13 @@
       if (groupMenuCloseTimer) { clearTimeout(groupMenuCloseTimer); groupMenuCloseTimer = null; }
     });
 
-    // Global favicon error fallback — step-based fallback chain
+    // Global favicon error fallback — simple placeholder
     document.addEventListener("error", function (e) {
       var img = e.target;
       if (img.tagName !== "IMG") return;
       if (!img.closest(".shortcut-icon, .rc-icon, .ob-popular-icon, .ob-preview-favicon, .restore-tab-item, .rc-panel-item")) return;
-
-      var url = img.dataset.url || (img.closest("a[href]") && img.closest("a[href]").href) || "";
-      var domain;
-      try { domain = new URL(url).hostname; } catch (ex) { domain = ""; }
-      if (!domain) { img.src = "assets/placeholder.svg"; return; }
-
-      var src = img.getAttribute("src") || "";
-      var tried = (img.dataset.triedFallbacks || "").split(",").filter(Boolean);
-
-      // Mark current source as tried
-      if (src.indexOf("google.com/s2/favicons") !== -1) tried.push("google");
-      else if (src.indexOf("duckduckgo.com") !== -1) tried.push("ddg");
-      else if (src.indexOf("/favicon.ico") !== -1) tried.push("direct");
-      else tried.push("other");
-      img.dataset.triedFallbacks = tried.join(",");
-
-      // Try next untried source
-      if (tried.indexOf("google") === -1) {
-        img.src = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=128";
-      } else if (tried.indexOf("ddg") === -1) {
-        img.src = "https://icons.duckduckgo.com/ip3/" + domain + ".ico";
-      } else if (tried.indexOf("direct") === -1) {
-        img.removeAttribute("crossorigin");
-        try { img.src = new URL(url).origin + "/favicon.ico"; } catch (ex) { img.src = "assets/placeholder.svg"; }
-      } else {
-        img.src = "assets/placeholder.svg";
-      }
-    }, true);
-
-    // Global favicon load handler — cache successfully loaded favicons
-    document.addEventListener("load", function (e) {
-      var img = e.target;
-      if (img.tagName !== "IMG") return;
-      if (!img.closest(".shortcut-icon, .rc-icon, .ob-popular-icon, .ob-preview-favicon, .restore-tab-item, .rc-panel-item")) return;
-      var src = img.src || "";
-      // Don't cache data URLs (already cached) or local placeholders
-      if (src.indexOf("data:") === 0 || src.indexOf("assets/") !== -1 || src.indexOf("placeholder") !== -1) return;
-      var domain = img.dataset.domain;
-      if (!domain) {
-        var url = img.dataset.url || (img.closest("a[href]") && img.closest("a[href]").href) || "";
-        try { domain = new URL(url).hostname; } catch (ex) { return; }
-      }
-      if (domain && !faviconCache[domain]) {
-        cacheFavicon(img, domain);
-      }
+      img.src = "assets/placeholder.svg";
+      img.onerror = null;
     }, true);
 
     // First-run toast events

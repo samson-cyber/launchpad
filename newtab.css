@@ -562,8 +562,6 @@ html.has-bg .gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
   width: 24px;
   height: 24px;
   border-radius: 2px;
-  background: url('assets/placeholder.svg') center center no-repeat;
-  background-size: 24px 24px;
 }
 
 .shortcut-name {
