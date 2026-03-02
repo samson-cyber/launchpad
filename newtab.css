@@ -2446,18 +2446,32 @@ html.has-bg #promo-toast-close:hover {
   z-index: 200;
   overflow: hidden;
   transition: width 300ms ease;
+  /* NO background, border, shadow, or backdrop-filter — ever */
 }
 
 #sidebar:hover,
 #sidebar.sidebar-locked {
   width: 260px;
-  background: rgba(0, 0, 0, 0.25) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  border-right: none !important;
-  box-shadow: none !important;
-  /* Expanding: animate width + background/blur in smoothly */
-  transition: width 300ms ease, background 200ms ease, backdrop-filter 200ms ease, -webkit-backdrop-filter 200ms ease;
+}
+
+/* Separate frosted glass panel behind sidebar content */
+#sidebar-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 260px;
+  height: 100%;
+  z-index: 199;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+#sidebar-panel.visible {
+  opacity: 1;
 }
 
 #sidebar-top {
@@ -2658,13 +2672,8 @@ html.has-bg #promo-toast-close:hover {
 
 /* --- Sidebar: dark mode --- */
 
-/* dark collapsed: no overrides needed — nuclear rule at EOF handles it */
-
-html.dark #sidebar:hover,
-html.dark #sidebar.sidebar-locked {
-  background: rgba(0, 0, 0, 0.4) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
+html.dark #sidebar-panel {
+  background: rgba(0, 0, 0, 0.4);
 }
 
 html.dark .sb-item:hover,
@@ -2683,13 +2692,8 @@ html.dark #sb-group-list::-webkit-scrollbar-thumb {
 
 /* --- Sidebar: has-bg mode (always dark style) --- */
 
-/* has-bg collapsed: no overrides needed — nuclear rule at EOF handles it */
-
-html.has-bg #sidebar:hover,
-html.has-bg #sidebar.sidebar-locked {
-  background: rgba(0, 0, 0, 0.2) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
+html.has-bg #sidebar-panel {
+  background: rgba(0, 0, 0, 0.2);
 }
 
 html.has-bg .sb-item,
@@ -3068,10 +3072,17 @@ html.has-bg .restore-tab-title {
   #sidebar {
     transform: translateX(-260px);
     width: 260px;
-    background: rgba(0, 0, 0, 0.25) !important;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
     transition: transform 300ms ease;
+  }
+
+  #sidebar-panel {
+    display: none;
+  }
+
+  #sidebar.mobile-open ~ #sidebar-panel {
+    display: block;
+    opacity: 1;
+    transform: translateX(0);
   }
 
   #sidebar .sb-label,
@@ -3107,32 +3118,3 @@ html.has-bg .restore-tab-title {
   display: none !important;
 }
 
-/* ===== NUCLEAR: Sidebar transparent when collapsed (last rule = highest cascade priority) ===== */
-
-#sidebar:not(:hover):not(.sidebar-locked) {
-  background: transparent !important;
-  background-color: transparent !important;
-  background-image: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  box-shadow: none !important;
-  border: none !important;
-}
-
-#sidebar:not(:hover):not(.sidebar-locked)::before,
-#sidebar:not(:hover):not(.sidebar-locked)::after {
-  display: none !important;
-}
-
-/* Force transparency on all sidebar children in collapsed state */
-#sidebar:not(:hover):not(.sidebar-locked) #sidebar-top,
-#sidebar:not(:hover):not(.sidebar-locked) #sidebar-bottom,
-#sidebar:not(:hover):not(.sidebar-locked) #sb-group-list {
-  background: transparent !important;
-  background-color: transparent !important;
-}
-
-/* DEBUG: red border to confirm targeting — remove after verification */
-#sidebar:not(:hover):not(.sidebar-locked) {
-  border: 2px solid red !important;
-}

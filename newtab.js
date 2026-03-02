@@ -881,6 +881,17 @@
     if (backdrop) backdrop.classList.toggle("visible", !isOpen);
   }
 
+  function showSidebarPanel() {
+    var panel = $("#sidebar-panel");
+    if (panel) panel.classList.add("visible");
+  }
+
+  function hideSidebarPanel() {
+    if (sidebarLocked) return;
+    var panel = $("#sidebar-panel");
+    if (panel) panel.classList.remove("visible");
+  }
+
   // ===== History Section =====
 
   var rcActiveFilter = "today";
@@ -1386,8 +1397,10 @@
     safeOn("#sidebar-hamburger", "click", toggleMobileSidebar);
     safeOn("#sidebar-backdrop", "click", toggleMobileSidebar);
 
-    // Sidebar mouseleave — close all sidebar-related popovers (unless locked by context menu)
+    // Sidebar hover — show/hide frosted glass panel
+    safeOn("#sidebar", "mouseenter", showSidebarPanel);
     safeOn("#sidebar", "mouseleave", function () {
+      hideSidebarPanel();
       if (sidebarLocked) return;
       hideGroupMenu();
       closeRestoreDropdown();
@@ -1754,9 +1767,10 @@
     var rect = anchor.getBoundingClientRect();
     var sidebar = $("#sidebar");
 
-    // Lock sidebar open while context menu is visible
+    // Lock sidebar + panel open while context menu is visible
     sidebarLocked = true;
     if (sidebar) sidebar.classList.add("sidebar-locked");
+    showSidebarPanel();
 
     menu.classList.remove("hidden");
     menu.style.top = rect.top + "px";
@@ -1780,10 +1794,11 @@
     if (menu) menu.classList.add("hidden");
     activeGroupMenu = null;
 
-    // Unlock sidebar
+    // Unlock sidebar + hide panel if mouse not over sidebar
     sidebarLocked = false;
     var sidebar = $("#sidebar");
     if (sidebar) sidebar.classList.remove("sidebar-locked");
+    hideSidebarPanel();
   }
 
   function handleGroupMenuAction(action) {
