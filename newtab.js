@@ -8,6 +8,7 @@
   var activeGroupMenu = null;
   var groupMenuCloseTimer = null;
   var restoreCloseTimer = null;
+  var settingsCloseTimer = null;
   var sidebarLocked = false;
   var modalState = {};
   var rcLoadedItems = [];
@@ -67,6 +68,13 @@
   ];
   var obSelectedPopular = {};
 
+  var SEARCH_ENGINES = {
+    google: { action: "https://www.google.com/search", param: "q", placeholder: "Search Google or type a URL" },
+    bing: { action: "https://www.bing.com/search", param: "q", placeholder: "Search Bing or type a URL" },
+    duckduckgo: { action: "https://duckduckgo.com/", param: "q", placeholder: "Search DuckDuckGo or type a URL" },
+    yahoo: { action: "https://search.yahoo.com/search", param: "p", placeholder: "Search Yahoo or type a URL" }
+  };
+
   // ===== Init =====
 
   document.addEventListener("DOMContentLoaded", init);
@@ -87,6 +95,8 @@
 
     await loadBackground();
     applyTheme();
+    applyIconSize(data.settings.iconSize || "medium");
+    applySearchEngine(data.settings.searchEngine || "google");
 
     // Check if onboarding needed
     var onboardingDone = await Storage.getOnboardingComplete();
@@ -548,21 +558,94 @@
     if (document.documentElement.classList.contains("has-bg")) return;
     var dark = isDark();
     document.documentElement.classList.toggle("dark", dark);
-    updateSidebarThemeIcon();
   }
 
-  function updateSidebarThemeIcon() {
-    var btn = $("#sb-theme");
-    if (btn) btn.innerHTML = isDark()
-      ? '<svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg><span class="sb-label">Light Mode</span>'
-      : '<svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><span class="sb-label">Dark Mode</span>';
+  // ===== Settings Panel =====
+
+  function openSettingsPanel() {
+    var panel = $("#settings-panel");
+    if (!panel) return;
+    if (!panel.classList.contains("hidden")) { closeSettingsPanel(); return; }
+
+    // Close other panels first
+    closeRestoreDropdown();
+    hideGroupMenu();
+
+    // Lock sidebar open
+    sidebarLocked = true;
+    var sidebar = $("#sidebar");
+    if (sidebar) sidebar.classList.add("sidebar-locked");
+    showSidebarPanel();
+
+    panel.classList.remove("hidden");
+    updateSettingsUI();
   }
 
-  async function toggleTheme() {
-    data.settings.theme = isDark() ? "light" : "dark";
-    await Storage.saveAll(data);
-    applyTheme();
-    console.log("[LaunchPad] Theme set to:", data.settings.theme);
+  function closeSettingsPanel() {
+    if (settingsCloseTimer) { clearTimeout(settingsCloseTimer); settingsCloseTimer = null; }
+    var panel = $("#settings-panel");
+    if (panel) panel.classList.add("hidden");
+
+    sidebarLocked = false;
+    var sidebar = $("#sidebar");
+    if (sidebar) sidebar.classList.remove("sidebar-locked");
+    hideSidebarPanel();
+  }
+
+  function updateSettingsUI() {
+    // Theme segmented control
+    var theme = (data.settings && data.settings.theme) || "system";
+    $$(".seg-btn", $("#settings-theme")).forEach(function (btn) {
+      btn.classList.toggle("active", btn.dataset.value === theme);
+    });
+
+    // Icon size segmented control
+    var iconSize = (data.settings && data.settings.iconSize) || "medium";
+    $$(".seg-btn", $("#settings-icon-size")).forEach(function (btn) {
+      btn.classList.toggle("active", btn.dataset.value === iconSize);
+    });
+
+    // Search engine dropdown
+    var engine = (data.settings && data.settings.searchEngine) || "google";
+    var sel = $("#settings-search-engine");
+    if (sel) sel.value = engine;
+
+    // Wallpaper thumbnail
+    updateWallpaperThumb();
+  }
+
+  function updateWallpaperThumb() {
+    var thumb = $("#settings-wallpaper-thumb");
+    if (!thumb) return;
+    var bgUrl = document.body.style.backgroundImage;
+    if (bgUrl && bgUrl !== "none") {
+      thumb.style.backgroundImage = bgUrl;
+    } else {
+      thumb.style.backgroundImage = "none";
+    }
+    // Show/hide remove button based on whether background exists
+    var removeBtn = $("#settings-remove-wallpaper");
+    if (removeBtn) {
+      removeBtn.style.display = (bgUrl && bgUrl !== "none") ? "" : "none";
+    }
+  }
+
+  function applyIconSize(size) {
+    var html = document.documentElement;
+    html.classList.remove("icon-size-small", "icon-size-large");
+    if (size === "small") html.classList.add("icon-size-small");
+    else if (size === "large") html.classList.add("icon-size-large");
+  }
+
+  function applySearchEngine(engine) {
+    var config = SEARCH_ENGINES[engine] || SEARCH_ENGINES.google;
+    var form = $("#search-form");
+    var input = $("#search-input");
+    if (form) form.action = config.action;
+    if (input) {
+      input.name = config.param;
+      input.placeholder = config.placeholder;
+    }
   }
 
   // ===== Grid Placeholders =====
@@ -1350,6 +1433,7 @@
   function closeBgModal() {
     $("#bg-overlay").classList.add("hidden");
     hideBgError();
+    updateWallpaperThumb();
   }
 
   function renderBgGallery() {
@@ -1550,9 +1634,52 @@
     safeOn("#group-delete-overlay", "click", function (e) {
       if (e.target === e.currentTarget) hideDeleteDialog();
     });
-    safeOn("#sb-settings", "click", function () { Bookmarks.showPicker(); });
-    safeOn("#sb-wallpaper", "click", function (e) { e.stopPropagation(); openBgModal(); });
-    safeOn("#sb-theme", "click", toggleTheme);
+    safeOn("#sb-settings", "click", function (e) { e.stopPropagation(); openSettingsPanel(); });
+
+    // Settings panel events
+    safeOn("#settings-close", "click", closeSettingsPanel);
+    safeOn("#settings-theme", "click", function (e) {
+      var btn = e.target.closest(".seg-btn");
+      if (!btn) return;
+      data.settings.theme = btn.dataset.value;
+      Storage.saveAll(data);
+      applyTheme();
+      updateSettingsUI();
+      console.log("[LaunchPad] Theme set to:", btn.dataset.value);
+    });
+    safeOn("#settings-icon-size", "click", function (e) {
+      var btn = e.target.closest(".seg-btn");
+      if (!btn) return;
+      data.settings.iconSize = btn.dataset.value;
+      Storage.saveAll(data);
+      applyIconSize(btn.dataset.value);
+      updateSettingsUI();
+      console.log("[LaunchPad] Icon size set to:", btn.dataset.value);
+    });
+    safeOn("#settings-search-engine", "change", function () {
+      data.settings.searchEngine = this.value;
+      Storage.saveAll(data);
+      applySearchEngine(this.value);
+      console.log("[LaunchPad] Search engine set to:", this.value);
+    });
+    safeOn("#settings-change-wallpaper", "click", function () {
+      closeSettingsPanel();
+      openBgModal();
+    });
+    safeOn("#settings-remove-wallpaper", "click", function () {
+      handleBgRemove();
+      updateWallpaperThumb();
+    });
+    safeOn("#settings-import-bookmarks", "click", function () {
+      closeSettingsPanel();
+      Bookmarks.showPicker();
+    });
+    safeOn("#settings-panel", "mouseenter", function () {
+      if (settingsCloseTimer) { clearTimeout(settingsCloseTimer); settingsCloseTimer = null; }
+    });
+    safeOn("#settings-panel", "mouseleave", function () {
+      settingsCloseTimer = setTimeout(closeSettingsPanel, 400);
+    });
     safeOn("#sidebar-hamburger", "click", toggleMobileSidebar);
     safeOn("#sidebar-backdrop", "click", toggleMobileSidebar);
 
@@ -1563,6 +1690,7 @@
       if (sidebarLocked) return;
       hideGroupMenu();
       closeRestoreDropdown();
+      closeSettingsPanel();
     });
 
     // Group context menu — close on mouseleave after 300ms delay
@@ -1798,13 +1926,16 @@
       if (!e.target.closest("#restore-date-btn") && !e.target.closest("#restore-date-menu")) {
         closeRestoreDateMenu();
       }
+      if (!e.target.closest("#settings-panel") && !e.target.closest("#sb-settings")) {
+        closeSettingsPanel();
+      }
     });
 
     // Escape key
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") {
         closeModal(); hideMenu(); hideGroupMenu(); hideDeleteDialog();
-        closeBgModal(); closeRcFilterMenu(); closeDomainPanel();
+        closeBgModal(); closeRcFilterMenu(); closeDomainPanel(); closeSettingsPanel();
         closeHistoryOverlay(); closeRestoreDropdown();
         var sidebar = $("#sidebar");
         if (sidebar && sidebar.classList.contains("mobile-open")) toggleMobileSidebar();

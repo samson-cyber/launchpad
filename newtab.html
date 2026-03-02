@@ -32,19 +32,12 @@
     <div class="sb-separator"></div>
     <div id="sidebar-bottom">
       <div class="sb-settings-row">
-        <button id="sb-settings" class="sb-item" type="button" title="Import Bookmarks">
+        <button id="sb-settings" class="sb-item" type="button" title="Settings">
           <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
           <span class="sb-label">Settings</span>
         </button>
-        <button id="sb-wallpaper" class="sb-item" type="button" title="Change Background">
-          <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-          </svg>
-          <span class="sb-label">Wallpaper</span>
-        </button>
-        <button id="sb-theme" class="sb-item" type="button" title="Toggle Theme"></button>
       </div>
       <div class="sb-support-row">
         <a id="sb-bmc" class="sb-item" href="https://buymeacoffee.com/cybersamwise" target="_blank" rel="noopener noreferrer" title="Buy me a coffee">
@@ -147,6 +140,65 @@
     </div>
     <div id="restore-tab-list"></div>
     <div id="restore-empty" class="hidden">No saved sessions yet. Sessions are saved automatically every 5 minutes.</div>
+  </div>
+
+  <div id="settings-panel" class="hidden">
+    <div class="settings-header">
+      <span>Settings</span>
+      <button id="settings-close" type="button" title="Close">&times;</button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-section">
+        <h3 class="settings-section-title">Appearance</h3>
+        <div class="settings-row">
+          <label class="settings-label">Theme</label>
+          <div class="settings-segmented" id="settings-theme">
+            <button class="seg-btn" data-value="light" type="button">Light</button>
+            <button class="seg-btn" data-value="dark" type="button">Dark</button>
+            <button class="seg-btn" data-value="system" type="button">System</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Icon Size</label>
+          <div class="settings-segmented" id="settings-icon-size">
+            <button class="seg-btn" data-value="small" type="button">Small</button>
+            <button class="seg-btn" data-value="medium" type="button">Medium</button>
+            <button class="seg-btn" data-value="large" type="button">Large</button>
+          </div>
+        </div>
+        <div class="settings-row settings-wallpaper-row">
+          <label class="settings-label">Wallpaper</label>
+          <div class="settings-wallpaper-controls">
+            <div id="settings-wallpaper-thumb" class="settings-wallpaper-thumb"></div>
+            <button id="settings-change-wallpaper" type="button" class="settings-btn">Change</button>
+            <button id="settings-remove-wallpaper" type="button" class="settings-btn settings-btn-danger">Remove</button>
+          </div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3 class="settings-section-title">Search</h3>
+        <div class="settings-row">
+          <label class="settings-label">Search Engine</label>
+          <select id="settings-search-engine" class="settings-select">
+            <option value="google">Google</option>
+            <option value="bing">Bing</option>
+            <option value="duckduckgo">DuckDuckGo</option>
+            <option value="yahoo">Yahoo</option>
+          </select>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3 class="settings-section-title">Data</h3>
+        <div class="settings-row">
+          <button id="settings-import-bookmarks" type="button" class="settings-btn settings-btn-full">Import Chrome Bookmarks</button>
+        </div>
+      </div>
+      <div class="settings-section settings-about">
+        <h3 class="settings-section-title">About</h3>
+        <p class="settings-version">LaunchPad v1.0.0</p>
+        <p class="settings-privacy">All data stored locally. No tracking.</p>
+      </div>
+    </div>
   </div>
 
   <div id="rc-domain-panel" class="hidden">
