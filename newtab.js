@@ -916,19 +916,6 @@
 
   function initSidebarGroupObserver() {
     if (sidebarGroupObserver) sidebarGroupObserver.disconnect();
-    var groupEls = $$(".group[data-group-id]");
-    if (!groupEls.length) return;
-    sidebarGroupObserver = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) {
-        if (entry.isIntersecting) {
-          var gid = entry.target.dataset.groupId;
-          $$(".sb-group-item").forEach(function (btn) {
-            btn.classList.toggle("active", btn.dataset.groupId === gid);
-          });
-        }
-      });
-    }, { rootMargin: "-20% 0px -60% 0px", threshold: 0 });
-    groupEls.forEach(function (el) { sidebarGroupObserver.observe(el); });
   }
 
   function openHistoryOverlay() {

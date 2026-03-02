@@ -2609,10 +2609,6 @@ html.has-bg #promo-toast-close:hover {
   background: rgba(255, 255, 255, 0.1);
 }
 
-.sb-item.active {
-  border-left-color: #4285F4;
-  color: #4285F4;
-}
 
 .sb-icon {
   flex-shrink: 0;
@@ -2690,11 +2686,6 @@ html.has-bg #promo-toast-close:hover {
   background: rgba(255, 255, 255, 0.1);
 }
 
-.sb-group-item.active {
-  border-left-color: #4285F4;
-  color: var(--text-primary);
-  font-weight: 500;
-}
 
 .sb-group-ghost {
   opacity: 0.4;
@@ -2790,10 +2781,6 @@ html.has-bg .sb-group-item:hover {
   background: rgba(255, 255, 255, 0.1);
 }
 
-html.has-bg .sb-item.active,
-html.has-bg .sb-group-item.active {
-  color: #fff;
-}
 
 html.has-bg #sidebar.expanded .sb-separator,
 html.has-bg #sidebar.sidebar-locked .sb-separator {
