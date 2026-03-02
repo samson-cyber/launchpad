@@ -566,12 +566,10 @@
   function ensurePlaceholders(gridEl) {
     $$(".grid-placeholder", gridEl).forEach(function (el) { el.remove(); });
     var cols = getGridColumnCount(gridEl);
-    var addTile = $(".add-tile", gridEl);
     for (var i = 0; i < cols; i++) {
       var ph = document.createElement("div");
       ph.className = "grid-placeholder";
-      if (i === 0) ph.style.gridColumnStart = "1";
-      gridEl.insertBefore(ph, addTile);
+      gridEl.appendChild(ph);
     }
   }
 
@@ -1539,7 +1537,7 @@
       var s = new Sortable(grid, {
         group: "shortcuts",
         animation: 200,
-        draggable: ".shortcut, .grid-placeholder",
+        draggable: ".shortcut",
         ghostClass: "sortable-ghost",
         chosenClass: "sortable-chosen",
         dragClass: "sortable-drag",
