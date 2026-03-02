@@ -34,15 +34,23 @@ html.dark {
   --accent-text: #202124;
 }
 
-html, body {
+html {
   height: 100%;
+  background: var(--bg);
+}
+
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
   background: var(--bg);
   color: var(--text-primary);
   font-family: "Google Sans", Roboto, Arial, sans-serif;
   transition: background-color 0.2s, color 0.2s;
 }
 
-body {
+#search-section,
+#content {
   margin-left: 56px;
 }
 
@@ -3065,7 +3073,8 @@ html.has-bg .restore-tab-title {
 /* ===== Responsive: Mobile ===== */
 
 @media (max-width: 599px) {
-  body {
+  #search-section,
+  #content {
     margin-left: 0;
   }
 
