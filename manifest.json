@@ -5,7 +5,7 @@
   "description": "Unlimited organized shortcuts on your new tab page. Groups, drag-and-drop, dark mode. Free and private.",
   "permissions": ["storage", "bookmarks", "contextMenus", "favicon", "sessions", "history", "topSites", "tabs", "alarms"],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; img-src 'self' https://images.unsplash.com https://*.gstatic.com https://www.google.com data: blob:; connect-src 'self' https://images.unsplash.com;"
+    "extension_pages": "script-src 'self'; img-src 'self' https://images.unsplash.com https://*.gstatic.com https://www.google.com https://icons.duckduckgo.com https://*.cdn.office.net https://cdn.shopify.com data: blob:; connect-src 'self' https://images.unsplash.com;"
   },
   "chrome_url_overrides": {
     "newtab": "newtab.html"

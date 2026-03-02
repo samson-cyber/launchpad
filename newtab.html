@@ -372,6 +372,15 @@
         <input type="text" id="modal-name" autocomplete="off">
         <label for="modal-url">URL</label>
         <input type="text" id="modal-url" placeholder="https://" autocomplete="off">
+        <div id="modal-icon-row" class="hidden">
+          <label>Icon</label>
+          <div id="modal-icon-controls">
+            <img id="modal-icon-preview" src="assets/placeholder.svg" alt="" width="32" height="32">
+            <button id="modal-icon-upload" type="button" class="modal-icon-btn">Upload custom icon</button>
+            <button id="modal-icon-reset" type="button" class="modal-icon-btn modal-icon-reset hidden">Reset</button>
+          </div>
+          <input type="file" id="modal-icon-file" accept=".png,.jpg,.jpeg,.ico,.svg" class="hidden">
+        </div>
       </div>
       <div id="modal-divider"></div>
       <div id="modal-import-link">

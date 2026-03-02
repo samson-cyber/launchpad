@@ -23,8 +23,6 @@
 
   // ===== SVG Icons =====
 
-  var MOON_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
-  var SUN_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
   var PLUS_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
   var CLOSE_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
   var MORE_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>';
@@ -51,6 +49,82 @@
     { url: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1920", thumb: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=250&fit=crop", label: "Dramatic peaks" },
     { url: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=1920", thumb: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=400&h=250&fit=crop", label: "Northern lights" }
   ];
+
+  // ===== Favicon System =====
+
+  var FAVICON_OVERRIDES = {
+    "mail.google.com": "https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico",
+    "docs.google.com": "https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico",
+    "sheets.google.com": "https://ssl.gstatic.com/docs/spreadsheets/favicon3.ico",
+    "slides.google.com": "https://ssl.gstatic.com/docs/presentations/images/favicon5.ico",
+    "drive.google.com": "https://ssl.gstatic.com/images/branding/product/1x/drive_2020q4_48dp.png",
+    "calendar.google.com": "https://ssl.gstatic.com/calendar/images/favicon_v2021_48.ico",
+    "meet.google.com": "https://fonts.gstatic.com/s/i/productlogos/meet_2020q4/v1/web-48dp/logo_meet_2020q4_color_1x_web_48dp.png",
+    "maps.google.com": "https://maps.google.com/favicon.ico",
+    "photos.google.com": "https://ssl.gstatic.com/imagemods/ui/1/photos_2016/ic_photos_googblue_28dp.png",
+    "play.google.com": "https://www.gstatic.com/android/market_images/web/favicon_v3.ico",
+    "ads.google.com": "https://ads.google.com/favicon.ico",
+    "analytics.google.com": "https://www.gstatic.com/analytics-suite/header/suite/v2/ic_analytics.svg",
+    "console.cloud.google.com": "https://www.gstatic.com/devrel-devsite/prod/v0e0f589edd85502a40d78d7d0b2f6c3f0c3a3549efb2a4e64ce0c4d3340e511e/cloud/images/favicons/onecloud/favicon.ico",
+    "outlook.live.com": "https://res.cdn.office.net/assets/mail/pwa/v1/pngs/Outlook_256x256.png",
+    "outlook.office.com": "https://res.cdn.office.net/assets/mail/pwa/v1/pngs/Outlook_256x256.png",
+    "teams.microsoft.com": "https://statics.teams.cdn.office.net/hashedassets-new/favicon/favicon-prod.ico",
+    "sellercentral.amazon.com": "https://sellercentral.amazon.com/favicon.ico",
+    "admin.shopify.com": "https://cdn.shopify.com/shopifycloud/web/assets/v1/favicon-default.ico"
+  };
+
+  function getFaviconUrl(url, size) {
+    size = size || 128;
+    var domain;
+    try { domain = new URL(url).hostname; } catch (e) { return "assets/placeholder.svg"; }
+
+    if (FAVICON_OVERRIDES[domain]) return FAVICON_OVERRIDES[domain];
+
+    return "https://icons.duckduckgo.com/ip3/" + domain + ".ico";
+  }
+
+  function setupFaviconFallback(imgElement, url) {
+    if (!imgElement || !url) return;
+    var domain;
+    try { domain = new URL(url).hostname; } catch (e) { return; }
+    var origin;
+    try { origin = new URL(url).origin; } catch (e) { return; }
+
+    var fallbacks = [
+      "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=128",
+      origin + "/favicon.ico",
+      origin + "/apple-touch-icon.png",
+      "assets/placeholder.svg"
+    ];
+    var fallbackIndex = 0;
+    imgElement.addEventListener("error", function onFaviconError() {
+      if (fallbackIndex < fallbacks.length) {
+        imgElement.src = fallbacks[fallbackIndex++];
+      } else {
+        imgElement.removeEventListener("error", onFaviconError);
+      }
+    });
+  }
+
+  function refreshOldFavicons() {
+    var changed = false;
+    data.groups.forEach(function (g) {
+      g.shortcuts.forEach(function (s) {
+        if (!s.url) return;
+        // Skip custom user-uploaded favicons (data: URLs)
+        if (s.favicon && s.favicon.indexOf("data:") === 0) return;
+        var newFavicon = getFaviconUrl(s.url);
+        if (s.favicon !== newFavicon) {
+          s.favicon = newFavicon;
+          changed = true;
+        }
+      });
+    });
+    if (changed) {
+      Storage.saveAll(data);
+      console.log("[LaunchPad] Refreshed old favicon URLs to higher quality sources");
+    }
+  }
 
   var CHECK_SVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
   var CHECK_SM_SVG = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
@@ -103,6 +177,7 @@
     }
 
     render();
+    refreshOldFavicons();
     bindEvents();
     Bookmarks.bindEvents(function (newData) {
       data = newData;
@@ -323,7 +398,7 @@
       if (!preview || !sites || !sites.length) return;
       var html = sites.slice(0, 8).map(function (site) {
         var domain = getDomain(site.url);
-        var favicon = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=32";
+        var favicon = getFaviconUrl(site.url);
         return '<img class="ob-preview-favicon" src="' + favicon + '" alt="" width="20" height="20" title="' + esc(site.title || domain) + '">';
       }).join("");
       preview.innerHTML = html;
@@ -492,7 +567,7 @@
     if (!row) return;
     row.innerHTML = POPULAR_SITES.map(function (site, i) {
       var domain = getDomain(site.url);
-      var favicon = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=64";
+      var favicon = getFaviconUrl(site.url);
       return '<button class="ob-popular-item" data-index="' + i + '" type="button">' +
         '<div class="ob-popular-icon">' +
           '<img src="' + favicon + '" alt="" width="20" height="20">' +
@@ -719,12 +794,12 @@
 
   function shortcutHTML(s) {
     var domain = getDomain(s.url);
-    var favicon = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=64";
+    var favicon = (s.favicon && s.favicon.indexOf("data:") === 0) ? s.favicon : getFaviconUrl(s.url);
     return (
       '<div class="shortcut" data-id="' + s.id + '">' +
         '<a href="' + esc(s.url) + '" class="shortcut-link" title="' + esc(s.title || s.url) + '">' +
           '<div class="shortcut-icon">' +
-            '<img src="' + favicon + '" alt="" width="24" height="24" loading="lazy">' +
+            '<img src="' + favicon + '" alt="" width="24" height="24" loading="lazy" data-url="' + esc(s.url) + '">' +
           "</div>" +
           '<span class="shortcut-name">' + esc(s.title || domain) + "</span>" +
         "</a>" +
@@ -976,7 +1051,7 @@
     windows.forEach(function (w) {
       (w.tabs || []).forEach(function (t) {
         var domain = getDomain(t.url);
-        var favicon = t.favicon || "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=32";
+        var favicon = t.favicon || getFaviconUrl(t.url);
         html += '<a class="restore-tab-item" href="' + esc(t.url) + '" title="' + esc(t.url) + '">' +
           '<img src="' + esc(favicon) + '" alt="" width="16" height="16">' +
           '<span class="restore-tab-title">' + esc(t.title || domain) + '</span>' +
@@ -1225,7 +1300,7 @@
   }
 
   function rcDomainHTML(group) {
-    var favicon = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(group.domain) + "&sz=64";
+    var favicon = getFaviconUrl("https://" + group.domain);
     var badge = group.pages.length > 1
       ? '<span class="rc-badge">' + group.pages.length + '</span>'
       : '';
@@ -1244,7 +1319,7 @@
 
   function rcFlatItemHTML(tab) {
     var domain = getDomain(tab.url);
-    var favicon = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=64";
+    var favicon = getFaviconUrl(tab.url);
     var title = tab.title || domain;
     return (
       '<div class="rc-item">' +
@@ -1283,7 +1358,7 @@
     });
 
     listEl.innerHTML = sorted.map(function (p) {
-      var favicon = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(group.domain) + "&sz=32";
+      var favicon = getFaviconUrl("https://" + group.domain);
       var time = p.lastVisitTime ? formatTime(p.lastVisitTime) : "";
       var countNote = p.visitCount > 1 ? " (visited " + p.visitCount + " times)" : "";
       var displayTitle = (p.title || group.domain) + countNote;
@@ -1703,10 +1778,30 @@
       if (groupMenuCloseTimer) { clearTimeout(groupMenuCloseTimer); groupMenuCloseTimer = null; }
     });
 
-    // Global favicon error fallback
+    // Global favicon error fallback — attach per-image fallback chains
     document.addEventListener("error", function (e) {
-      if (e.target.tagName === "IMG" && e.target.closest(".shortcut-icon, .rc-icon")) {
-        e.target.src = "assets/placeholder.svg";
+      var img = e.target;
+      if (img.tagName !== "IMG") return;
+      if (!img.closest(".shortcut-icon, .rc-icon, .ob-popular-icon, .ob-preview-favicon, .restore-tab-item, .rc-panel-item")) return;
+      if (img.dataset.fallbackAttached) {
+        // Already has fallback chain — let it handle errors
+        return;
+      }
+      // First error: attach fallback chain, then trigger first fallback
+      var url = img.dataset.url || img.closest("a[href]") && img.closest("a[href]").href || "";
+      if (url) {
+        img.dataset.fallbackAttached = "1";
+        setupFaviconFallback(img, url);
+        // Re-trigger the error chain by setting a Google fallback
+        var domain;
+        try { domain = new URL(url).hostname; } catch (ex) { domain = ""; }
+        if (domain) {
+          img.src = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=128";
+        } else {
+          img.src = "assets/placeholder.svg";
+        }
+      } else {
+        img.src = "assets/placeholder.svg";
       }
     }, true);
 
@@ -1793,6 +1888,38 @@
       e.preventDefault();
       closeModal();
       Bookmarks.showPicker();
+    });
+    safeOn("#modal-icon-upload", "click", function () {
+      var fileInput = $("#modal-icon-file");
+      if (fileInput) fileInput.click();
+    });
+    safeOn("#modal-icon-file", "change", function () {
+      var file = this.files && this.files[0];
+      if (!file) return;
+      if (file.size > 102400) {
+        alert("Icon file must be under 100KB.");
+        this.value = "";
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function (ev) {
+        modalState.customFavicon = ev.target.result;
+        var preview = $("#modal-icon-preview");
+        if (preview) preview.src = ev.target.result;
+        var resetBtn = $("#modal-icon-reset");
+        if (resetBtn) resetBtn.classList.remove("hidden");
+      };
+      reader.readAsDataURL(file);
+    });
+    safeOn("#modal-icon-reset", "click", function () {
+      modalState.customFavicon = "";
+      var preview = $("#modal-icon-preview");
+      if (preview && modalState.shortcut) {
+        preview.src = getFaviconUrl(modalState.shortcut.url);
+      }
+      this.classList.add("hidden");
+      var fileInput = $("#modal-icon-file");
+      if (fileInput) fileInput.value = "";
     });
     safeOn("#modal-url", "input", function () {
       var nameEl = $("#modal-name");
@@ -1983,11 +2110,30 @@
   // ===== Modal =====
 
   function openModal(mode, groupId, shortcut) {
-    modalState = { mode: mode, groupId: groupId, shortcut: shortcut || null };
+    modalState = { mode: mode, groupId: groupId, shortcut: shortcut || null, customFavicon: null };
     $("#modal-title").textContent = mode === "edit" ? "Edit shortcut" : "Add shortcut";
     $("#modal-name").value = shortcut ? (shortcut.title || "") : "";
     $("#modal-url").value = shortcut ? (shortcut.url || "") : "";
     $("#modal-name").dataset.edited = mode === "edit" ? "true" : "false";
+
+    // Icon row — show in edit mode
+    var iconRow = $("#modal-icon-row");
+    var iconPreview = $("#modal-icon-preview");
+    var resetBtn = $("#modal-icon-reset");
+    if (iconRow) {
+      if (mode === "edit" && shortcut) {
+        iconRow.classList.remove("hidden");
+        var currentFavicon = (shortcut.favicon && shortcut.favicon.indexOf("data:") === 0)
+          ? shortcut.favicon : getFaviconUrl(shortcut.url);
+        iconPreview.src = currentFavicon;
+        resetBtn.classList.toggle("hidden", !(shortcut.favicon && shortcut.favicon.indexOf("data:") === 0));
+      } else {
+        iconRow.classList.add("hidden");
+        iconPreview.src = "assets/placeholder.svg";
+        resetBtn.classList.add("hidden");
+      }
+    }
+
     $("#modal-overlay").classList.remove("hidden");
     (mode === "edit" ? $("#modal-name") : $("#modal-url")).focus();
   }
@@ -1995,6 +2141,8 @@
   function closeModal() {
     $("#modal-overlay").classList.add("hidden");
     modalState = {};
+    var fileInput = $("#modal-icon-file");
+    if (fileInput) fileInput.value = "";
   }
 
   async function saveModal() {
@@ -2003,16 +2151,23 @@
     if (!url || url === "https://") return;
 
     if (modalState.mode === "add") {
-      await Storage.addShortcut(modalState.groupId, {
+      var newShortcut = {
         url: url,
         title: name || getDomain(url).replace(/^www\./, "")
-      });
+      };
+      if (modalState.customFavicon) newShortcut.favicon = modalState.customFavicon;
+      await Storage.addShortcut(modalState.groupId, newShortcut);
     } else if (modalState.mode === "edit" && modalState.shortcut) {
       var group = findGroup(modalState.groupId);
       var sc = group && group.shortcuts.find(function (s) { return s.id === modalState.shortcut.id; });
       if (sc) {
         sc.url = url;
         sc.title = name || getDomain(url).replace(/^www\./, "");
+        if (modalState.customFavicon) {
+          sc.favicon = modalState.customFavicon;
+        } else if (modalState.customFavicon === "") {
+          sc.favicon = "";
+        }
         await Storage.saveAll(data);
       }
     }

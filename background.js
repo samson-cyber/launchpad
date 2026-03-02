@@ -77,7 +77,7 @@ async function saveCurrentSession() {
       windows[tab.windowId].push({
         url: tab.url,
         title: tab.title || "",
-        favicon: "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=32"
+        favicon: "https://icons.duckduckgo.com/ip3/" + domain + ".ico"
       });
     });
     var windowList = Object.keys(windows).map(function (wid) {
@@ -152,7 +152,7 @@ chrome.contextMenus.onClicked.addListener(async function (info, tab) {
 
     var domain;
     try { domain = new URL(url).hostname; } catch (e) { domain = url; }
-    var favicon = "https://www.google.com/s2/favicons?domain=" + encodeURIComponent(domain) + "&sz=64";
+    var favicon = "https://icons.duckduckgo.com/ip3/" + domain + ".ico";
 
     var shortcut = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),

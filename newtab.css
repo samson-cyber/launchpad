@@ -791,6 +791,66 @@ html.has-bg .gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
   opacity: 0.9;
 }
 
+#modal-icon-row {
+  margin-top: 4px;
+}
+
+#modal-icon-row label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+#modal-icon-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#modal-icon-preview {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  object-fit: contain;
+  background: var(--icon-bg);
+  flex-shrink: 0;
+}
+
+.modal-icon-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.modal-icon-btn:hover {
+  background: var(--bg-hover);
+}
+
+.modal-icon-reset {
+  color: var(--text-secondary);
+}
+
+html.has-bg #modal-icon-preview {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+html.has-bg .modal-icon-btn {
+  color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+html.has-bg .modal-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
 
 /* ===== First-Run Toast ===== */
 
