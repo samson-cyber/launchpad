@@ -3431,9 +3431,16 @@ html.has-bg #restore-empty {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-/* --- Select Dropdown --- */
+/* --- Custom Dropdown --- */
 
-.settings-select {
+.settings-dropdown {
+  position: relative;
+}
+
+.settings-dropdown-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   width: 100%;
   padding: 7px 10px;
   border: 1px solid var(--border);
@@ -3443,12 +3450,57 @@ html.has-bg #restore-empty {
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
-  outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background-color 0.15s;
 }
 
-.settings-select:focus {
-  border-color: var(--accent);
+.settings-dropdown-btn:hover {
+  border-color: var(--text-hint);
+}
+
+.settings-dropdown-chevron {
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.settings-dropdown-btn.open .settings-dropdown-chevron {
+  transform: rotate(180deg);
+}
+
+.settings-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px var(--shadow-color);
+  z-index: 500;
+  padding: 4px 0;
+  overflow: hidden;
+}
+
+.settings-dropdown-option {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.settings-dropdown-option:hover {
+  background: var(--bg-hover);
+}
+
+.settings-dropdown-option.active {
+  color: var(--accent);
+  font-weight: 500;
 }
 
 /* --- Settings Buttons --- */
@@ -3528,6 +3580,11 @@ html.dark .seg-btn.active {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
+html.dark .settings-dropdown-menu {
+  background: #303134;
+  border-color: #3c4043;
+}
+
 /* --- Settings: has-bg mode --- */
 
 html.has-bg #settings-panel {
@@ -3583,10 +3640,31 @@ html.has-bg .seg-btn.active {
   box-shadow: none;
 }
 
-html.has-bg .settings-select {
+html.has-bg .settings-dropdown-btn {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.15);
   color: #fff;
+}
+
+html.has-bg .settings-dropdown-btn:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+html.has-bg .settings-dropdown-menu {
+  background: rgba(30, 30, 30, 0.95);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+html.has-bg .settings-dropdown-option {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+html.has-bg .settings-dropdown-option:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+html.has-bg .settings-dropdown-option.active {
+  color: var(--accent);
 }
 
 html.has-bg .settings-btn {

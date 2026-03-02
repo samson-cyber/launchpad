@@ -8,7 +8,6 @@
   var activeGroupMenu = null;
   var groupMenuCloseTimer = null;
   var restoreCloseTimer = null;
-  var settingsCloseTimer = null;
   var sidebarLocked = false;
   var modalState = {};
   var rcLoadedItems = [];
@@ -555,7 +554,6 @@
   }
 
   function applyTheme() {
-    if (document.documentElement.classList.contains("has-bg")) return;
     var dark = isDark();
     document.documentElement.classList.toggle("dark", dark);
   }
@@ -582,14 +580,18 @@
   }
 
   function closeSettingsPanel() {
-    if (settingsCloseTimer) { clearTimeout(settingsCloseTimer); settingsCloseTimer = null; }
     var panel = $("#settings-panel");
-    if (panel) panel.classList.add("hidden");
+    if (!panel || panel.classList.contains("hidden")) return;
+    panel.classList.add("hidden");
 
     sidebarLocked = false;
     var sidebar = $("#sidebar");
     if (sidebar) sidebar.classList.remove("sidebar-locked");
-    hideSidebarPanel();
+
+    // Collapse sidebar if mouse is not over it
+    if (sidebar && !sidebar.matches(":hover")) {
+      hideSidebarPanel();
+    }
   }
 
   function updateSettingsUI() {
@@ -605,10 +607,16 @@
       btn.classList.toggle("active", btn.dataset.value === iconSize);
     });
 
-    // Search engine dropdown
+    // Search engine custom dropdown
     var engine = (data.settings && data.settings.searchEngine) || "google";
-    var sel = $("#settings-search-engine");
-    if (sel) sel.value = engine;
+    var label = $("#search-engine-label");
+    if (label) {
+      var names = { google: "Google", bing: "Bing", duckduckgo: "DuckDuckGo", yahoo: "Yahoo" };
+      label.textContent = names[engine] || "Google";
+    }
+    $$(".settings-dropdown-option", $("#settings-search-engine")).forEach(function (opt) {
+      opt.classList.toggle("active", opt.dataset.value === engine);
+    });
 
     // Wallpaper thumbnail
     updateWallpaperThumb();
@@ -1656,11 +1664,26 @@
       updateSettingsUI();
       console.log("[LaunchPad] Icon size set to:", btn.dataset.value);
     });
-    safeOn("#settings-search-engine", "change", function () {
-      data.settings.searchEngine = this.value;
+    safeOn("#search-engine-btn", "click", function (e) {
+      e.stopPropagation();
+      var menu = $("#search-engine-menu");
+      var btn = $("#search-engine-btn");
+      if (!menu) return;
+      var isOpen = !menu.classList.contains("hidden");
+      menu.classList.toggle("hidden", isOpen);
+      if (btn) btn.classList.toggle("open", !isOpen);
+    });
+    safeOn("#search-engine-menu", "click", function (e) {
+      var opt = e.target.closest(".settings-dropdown-option");
+      if (!opt) return;
+      data.settings.searchEngine = opt.dataset.value;
       Storage.saveAll(data);
-      applySearchEngine(this.value);
-      console.log("[LaunchPad] Search engine set to:", this.value);
+      applySearchEngine(opt.dataset.value);
+      updateSettingsUI();
+      $("#search-engine-menu").classList.add("hidden");
+      var btn = $("#search-engine-btn");
+      if (btn) btn.classList.remove("open");
+      console.log("[LaunchPad] Search engine set to:", opt.dataset.value);
     });
     safeOn("#settings-change-wallpaper", "click", function () {
       closeSettingsPanel();
@@ -1674,12 +1697,6 @@
       closeSettingsPanel();
       Bookmarks.showPicker();
     });
-    safeOn("#settings-panel", "mouseenter", function () {
-      if (settingsCloseTimer) { clearTimeout(settingsCloseTimer); settingsCloseTimer = null; }
-    });
-    safeOn("#settings-panel", "mouseleave", function () {
-      settingsCloseTimer = setTimeout(closeSettingsPanel, 400);
-    });
     safeOn("#sidebar-hamburger", "click", toggleMobileSidebar);
     safeOn("#sidebar-backdrop", "click", toggleMobileSidebar);
 
@@ -1690,7 +1707,6 @@
       if (sidebarLocked) return;
       hideGroupMenu();
       closeRestoreDropdown();
-      closeSettingsPanel();
     });
 
     // Group context menu — close on mouseleave after 300ms delay
@@ -1928,6 +1944,12 @@
       }
       if (!e.target.closest("#settings-panel") && !e.target.closest("#sb-settings")) {
         closeSettingsPanel();
+      }
+      if (!e.target.closest("#search-engine-btn") && !e.target.closest("#search-engine-menu")) {
+        var seMenu = $("#search-engine-menu");
+        var seBtn = $("#search-engine-btn");
+        if (seMenu) seMenu.classList.add("hidden");
+        if (seBtn) seBtn.classList.remove("open");
       }
     });
 
