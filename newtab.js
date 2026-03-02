@@ -1646,6 +1646,7 @@
     // Enter key on group header triggers Open All
     document.addEventListener("keydown", function (e) {
       if (e.key !== "Enter") return;
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.isContentEditable) return;
       var header = document.querySelector(".group-header:hover");
       if (!header) return;
       var section = header.closest(".group");
@@ -1920,8 +1921,9 @@
 
     input.addEventListener("blur", save);
     input.addEventListener("keydown", function (e) {
+      e.stopPropagation();
       if (e.key === "Enter") { e.preventDefault(); input.blur(); }
-      if (e.key === "Escape") { input.value = current; input.blur(); }
+      if (e.key === "Escape") { e.preventDefault(); input.value = current; input.blur(); }
     });
   }
 
