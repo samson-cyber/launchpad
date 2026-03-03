@@ -118,10 +118,10 @@
   var obSelectedPopular = {};
 
   var SEARCH_ENGINES = {
-    google: { action: "https://www.google.com/search", param: "q", placeholder: "Search Google or type a URL" },
-    bing: { action: "https://www.bing.com/search", param: "q", placeholder: "Search Bing or type a URL" },
-    duckduckgo: { action: "https://duckduckgo.com/", param: "q", placeholder: "Search DuckDuckGo or type a URL" },
-    yahoo: { action: "https://search.yahoo.com/search", param: "p", placeholder: "Search Yahoo or type a URL" }
+    google: { url: "https://www.google.com/search?q=", placeholder: "Search Google or type a URL" },
+    bing: { url: "https://www.bing.com/search?q=", placeholder: "Search Bing or type a URL" },
+    duckduckgo: { url: "https://duckduckgo.com/?q=", placeholder: "Search DuckDuckGo or type a URL" },
+    yahoo: { url: "https://search.yahoo.com/search?p=", placeholder: "Search Yahoo or type a URL" }
   };
 
   // ===== Init =====
@@ -682,10 +682,24 @@
     var config = SEARCH_ENGINES[engine] || SEARCH_ENGINES.google;
     var form = $("#search-form");
     var input = $("#search-input");
-    if (form) form.action = config.action;
-    if (input) {
-      input.name = config.param;
-      input.placeholder = config.placeholder;
+    if (input) input.placeholder = config.placeholder;
+    if (form && !form._searchHandlerAttached) {
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var query = $("#search-input").value.trim();
+        if (!query) return;
+        var currentEngine = (data.settings && data.settings.searchEngine) || "google";
+        var cfg = SEARCH_ENGINES[currentEngine] || SEARCH_ENGINES.google;
+        // Detect URLs: contains a dot and no spaces
+        if (query.indexOf(".") !== -1 && query.indexOf(" ") === -1) {
+          var url = query;
+          if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+          window.location.href = url;
+        } else {
+          window.location.href = cfg.url + encodeURIComponent(query);
+        }
+      });
+      form._searchHandlerAttached = true;
     }
   }
 
