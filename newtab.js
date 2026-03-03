@@ -120,7 +120,7 @@
   var SEARCH_ENGINES = {
     google: { url: "https://www.google.com/search?q=", placeholder: "Search Google or type a URL" },
     bing: { url: "https://www.bing.com/search?q=", placeholder: "Search Bing or type a URL" },
-    duckduckgo: { url: "https://duckduckgo.com/?q=", placeholder: "Search DuckDuckGo or type a URL" },
+    brave: { url: "https://search.brave.com/search?q=", placeholder: "Search Brave or type a URL" },
     yahoo: { url: "https://search.yahoo.com/search?p=", placeholder: "Search Yahoo or type a URL" }
   };
 
@@ -140,6 +140,11 @@
     }
     if (!data.settings.collapsedGroups) {
       data.settings.collapsedGroups = {};
+    }
+    // Migrate removed DuckDuckGo engine to Google
+    if (data.settings.searchEngine === "duckduckgo") {
+      data.settings.searchEngine = "google";
+      await Storage.saveAll(data);
     }
 
     await loadBackground();
@@ -644,7 +649,7 @@
     var engine = (data.settings && data.settings.searchEngine) || "google";
     var label = $("#search-engine-label");
     if (label) {
-      var names = { google: "Google", bing: "Bing", duckduckgo: "DuckDuckGo", yahoo: "Yahoo" };
+      var names = { google: "Google", bing: "Bing", brave: "Brave", yahoo: "Yahoo" };
       label.textContent = names[engine] || "Google";
     }
     $$(".settings-dropdown-option", $("#settings-search-engine")).forEach(function (opt) {
