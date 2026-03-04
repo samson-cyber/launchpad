@@ -16,28 +16,54 @@
     h1 { font-size: 1.5rem; }
     h2 { font-size: 1.1rem; margin-top: 1.5em; }
     p { margin: 0.5em 0; }
+    .updated { color: #666; font-size: 0.9rem; }
   </style>
 </head>
 <body>
   <h1>LaunchPad — Privacy Policy</h1>
-  <p><strong>Effective date:</strong> February 28, 2026</p>
+  <p class="updated"><strong>Last updated:</strong> March 4, 2026</p>
+
+  <h2>Overview</h2>
+  <p>LaunchPad is a Chrome extension that replaces your new tab page with a customizable shortcut dashboard. We are committed to protecting your privacy.</p>
 
   <h2>Data Collection</h2>
-  <p>LaunchPad does not collect, transmit, or store any personal data. No analytics, telemetry, or usage data is gathered.</p>
+  <p>LaunchPad does not collect, transmit, or store any personal data on external servers. No analytics, telemetry, or usage data is gathered. LaunchPad does not have a backend server. No data ever leaves your device.</p>
 
   <h2>Local Storage</h2>
-  <p>All shortcuts and settings are stored locally on your device using Chrome's built-in storage APIs. This data never leaves your browser.</p>
+  <p>All shortcuts, groups, settings, wallpaper preferences, and session data are stored locally on your device using Chrome's built-in storage API (chrome.storage.local). This data remains entirely on your computer and is never transmitted anywhere.</p>
+
+  <h2>Permissions</h2>
+  <p>LaunchPad requests the following browser permissions, each used solely for core functionality:</p>
+  <p><strong>storage</strong> — Saves your shortcuts, groups, settings, and session data locally on your device.</p>
+  <p><strong>topSites</strong> — Used during initial setup to suggest your most visited sites as shortcuts.</p>
+  <p><strong>bookmarks</strong> — Allows you to import your existing Chrome bookmarks into LaunchPad groups.</p>
+  <p><strong>history</strong> — Displays your browsing history in the History panel so you can quickly revisit sites.</p>
+  <p><strong>tabs</strong> — Captures favicon URLs for your shortcuts and saves open tabs for the session restore feature.</p>
+  <p><strong>sessions</strong> — Enables restoring recently closed browser tabs.</p>
+  <p><strong>contextMenus</strong> — Adds the "Add to LaunchPad" option to your right-click menu on any webpage.</p>
 
   <h2>Third-Party Services</h2>
-  <p>LaunchPad does not communicate with any third-party servers or services.</p>
+  <p>LaunchPad uses the following external services solely to display content within the extension:</p>
+  <p><strong>Google Favicon API</strong> — Used to fetch website icons for your shortcuts. Only the domain name is sent to retrieve the icon. No personal data is transmitted.</p>
+  <p><strong>Unsplash</strong> — If you choose a wallpaper from the built-in gallery, images are loaded from Unsplash. No personal data is shared with Unsplash.</p>
+  <p>Apart from these, LaunchPad does not communicate with any other third-party servers or services.</p>
 
   <h2>Tracking</h2>
-  <p>There are no cookies, pixels, fingerprinting, or any other form of tracking.</p>
+  <p>There are no cookies, pixels, fingerprinting, advertising, or any other form of tracking.</p>
 
   <h2>Account</h2>
   <p>No account or sign-in is required to use LaunchPad.</p>
 
+  <h2>Data Sharing</h2>
+  <p>We do not sell, trade, rent, or share any user data with third parties.</p>
+
+  <h2>Children's Privacy</h2>
+  <p>LaunchPad does not knowingly collect any data from children under the age of 13. Since LaunchPad does not collect any personal data from any user, no special provisions are necessary.</p>
+
+  <h2>Changes to This Policy</h2>
+  <p>If we update this privacy policy, we will post the revised version on this page with an updated date. Continued use of LaunchPad after changes constitutes acceptance of the updated policy.</p>
+
   <h2>Contact</h2>
-  <p>For questions about this policy, open an issue on the project's GitHub repository.</p>
+  <p>For questions about this privacy policy or LaunchPad, contact us at <a href="mailto:cybersamwise@gmail.com">cybersamwise@gmail.com</a> or open an issue on the project's <a href="https://github.com/samson-cyber/launchpad">GitHub repository</a>.</p>
 </body>
 </html>
