@@ -63,26 +63,30 @@
   </button>
   <div id="sidebar-backdrop"></div>
 
-  <div id="search-section">
-    <div id="brand-logo" draggable="false">
-      <svg class="brand-icon" width="28" height="28" viewBox="0 0 24 24" fill="none">
-        <circle cx="7" cy="7" r="3" fill="#4285F4"/><circle cx="17" cy="7" r="3" fill="#EA4335"/>
-        <circle cx="7" cy="17" r="3" fill="#34A853"/><circle cx="17" cy="17" r="3" fill="#FBBC05"/>
-      </svg>
-      <span class="brand-text">LaunchPad</span>
-    </div>
-    <form id="search-form" autocomplete="off">
-      <div id="search-bar">
-        <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <input type="text" id="search-input" placeholder="Search the web or type a URL" autofocus>
-      </div>
-    </form>
-  </div>
-
   <main id="content">
-    <div id="groups"></div>
+    <!-- FIXED HEADER -->
+    <div id="content-header">
+      <div id="brand-logo" draggable="false">
+        <svg class="brand-icon" width="28" height="28" viewBox="0 0 24 24" fill="none">
+          <circle cx="7" cy="7" r="3" fill="#4285F4"/><circle cx="17" cy="7" r="3" fill="#EA4335"/>
+          <circle cx="7" cy="17" r="3" fill="#34A853"/><circle cx="17" cy="17" r="3" fill="#FBBC05"/>
+        </svg>
+        <span class="brand-text">LaunchPad</span>
+      </div>
+      <form id="search-form" autocomplete="off">
+        <div id="search-bar">
+          <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" id="search-input" placeholder="Search the web or type a URL" autofocus>
+        </div>
+      </form>
+    </div>
+
+    <!-- SCROLLABLE GRID AREA -->
+    <div id="shortcut-grid-area">
+      <div id="groups"></div>
+    </div>
   </main>
 
   <div id="history-overlay" class="hidden">
