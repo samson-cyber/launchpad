@@ -2193,6 +2193,8 @@
 
   // ===== Group Context Menu =====
 
+  var groupMenuFromSidebar = false;
+
   function showGroupMenu(groupId, anchor) {
     hideGroupMenu();
     activeGroupMenu = groupId;
@@ -2207,6 +2209,18 @@
       var empty = !group || !group.shortcuts.length;
       openAllOpt.classList.toggle("gm-disabled", empty);
       openAllOpt.disabled = empty;
+    }
+
+    // Lock sidebar open if menu was triggered from sidebar
+    groupMenuFromSidebar = !!anchor.closest("#sidebar");
+    if (groupMenuFromSidebar) {
+      sidebarLocked = true;
+      var sidebar = $("#sidebar");
+      if (sidebar) {
+        sidebar.classList.add("sidebar-locked");
+        sidebar.classList.add("expanded");
+      }
+      showSidebarPanel();
     }
 
     menu.classList.remove("hidden");
@@ -2232,6 +2246,20 @@
     }
     menu.classList.add("hidden");
     activeGroupMenu = null;
+
+    // Unlock sidebar if the menu was opened from sidebar
+    if (groupMenuFromSidebar) {
+      groupMenuFromSidebar = false;
+      sidebarLocked = false;
+      var sidebar = $("#sidebar");
+      if (sidebar) {
+        sidebar.classList.remove("sidebar-locked");
+        if (!sidebar.matches(":hover")) {
+          sidebar.classList.remove("expanded");
+          hideSidebarPanel();
+        }
+      }
+    }
   }
 
   function handleGroupMenuAction(action) {
