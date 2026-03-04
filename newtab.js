@@ -6,7 +6,6 @@
   var groupSortable = null;
   var activeMenu = null;
   var activeGroupMenu = null;
-  var groupMenuCloseTimer = null;
   var restoreCloseTimer = null;
   var sidebarLocked = false;
   var modalState = {};
@@ -1752,12 +1751,9 @@
       closeRestoreDropdown();
     });
 
-    // Group context menu — close on mouseleave after 300ms delay
-    safeOn("#group-menu", "mouseleave", function () {
-      groupMenuCloseTimer = setTimeout(hideGroupMenu, 300);
-    });
-    safeOn("#group-menu", "mouseenter", function () {
-      if (groupMenuCloseTimer) { clearTimeout(groupMenuCloseTimer); groupMenuCloseTimer = null; }
+    // Group context menu — close on Escape
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") hideGroupMenu();
     });
 
     // Global favicon error fallback — try Google API, then placeholder
@@ -2203,7 +2199,6 @@
     var menu = $("#group-menu");
     if (!menu) return;
     var rect = anchor.getBoundingClientRect();
-    var sidebar = $("#sidebar");
 
     // Disable "Open All" if group has no shortcuts
     var group = findGroup(groupId);
@@ -2214,50 +2209,29 @@
       openAllOpt.disabled = empty;
     }
 
-    // Lock sidebar + panel open while context menu is visible
-    sidebarLocked = true;
-    if (sidebar) {
-      sidebar.classList.add("sidebar-locked");
-      sidebar.classList.add("expanded");
-    }
-    showSidebarPanel();
-
     menu.classList.remove("hidden");
-    menu.style.top = rect.top + "px";
-    // Position at sidebar expanded width (260px) + 8px gap
-    menu.style.left = "268px";
+    menu.style.top = (rect.bottom + 4) + "px";
+    menu.style.left = rect.left + "px";
 
-    // If overflowing right, flip to left side
+    // If overflowing right, align to right edge of button
     var menuRect = menu.getBoundingClientRect();
     if (menuRect.right > window.innerWidth - 8) {
-      menu.style.left = (260 - menuRect.width - 8) + "px";
+      menu.style.left = (rect.right - menuRect.width) + "px";
     }
-    // If overflowing bottom, shift up
+    // If overflowing bottom, show above the button
     if (menuRect.bottom > window.innerHeight - 8) {
-      menu.style.top = Math.max(8, window.innerHeight - menuRect.height - 8) + "px";
+      menu.style.top = (rect.top - menuRect.height - 4) + "px";
     }
   }
 
   function hideGroupMenu() {
-    if (groupMenuCloseTimer) { clearTimeout(groupMenuCloseTimer); groupMenuCloseTimer = null; }
     var menu = $("#group-menu");
-    // Only unlock sidebar if the menu was actually open
     if (!menu || menu.classList.contains("hidden")) {
       activeGroupMenu = null;
       return;
     }
     menu.classList.add("hidden");
     activeGroupMenu = null;
-
-    sidebarLocked = false;
-    var sidebar = $("#sidebar");
-    if (sidebar) {
-      sidebar.classList.remove("sidebar-locked");
-      if (!sidebar.matches(":hover")) {
-        sidebar.classList.remove("expanded");
-        hideSidebarPanel();
-      }
-    }
   }
 
   function handleGroupMenuAction(action) {
