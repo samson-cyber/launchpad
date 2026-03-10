@@ -4547,11 +4547,7 @@ html.has-bg .settings-privacy {
   border-radius: 50%;
 }
 
-/* Freeze nest targets in place during drag */
-.shortcut-nest-target,
-.shortcut-nest-target-all {
-  pointer-events: none;
-}
+/* Nest targets remain in place — SortableJS onMove blocks reordering near them */
 
 @keyframes nestGlow {
   0%, 100% { box-shadow: 0 0 6px 2px rgba(0, 200, 180, 0.4); }

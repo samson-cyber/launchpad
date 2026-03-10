@@ -900,30 +900,26 @@
       container.appendChild(bubble);
       variantBubbles.push({ el: bubble, finalLeft: finalLeft, finalTop: finalTop, item: item });
 
-      // Make variant bubbles draggable (not parent)
-      if (!item.isParent) {
-        bubble.draggable = true;
-        bubble.addEventListener("dragstart", function (e) {
-          e.dataTransfer.setData("text/plain", JSON.stringify({
-            variantId: item.id,
-            parentId: shortcutId,
-            groupId: groupId,
-            title: item.title
-          }));
-          e.dataTransfer.effectAllowed = "move";
-          bubble.classList.add("bubble-dragging");
-          // Show ungroup drop zone
-          var zone = $("#ungroup-drop-zone");
-          if (zone) {
-            zone.classList.add("visible");
-          }
-        });
-        bubble.addEventListener("dragend", function () {
-          bubble.classList.remove("bubble-dragging");
-          var zone = $("#ungroup-drop-zone");
-          if (zone) zone.classList.remove("visible", "drag-over");
-        });
-      }
+      // Make all bubbles draggable (parent and variants)
+      bubble.draggable = true;
+      bubble.addEventListener("dragstart", function (e) {
+        e.dataTransfer.setData("text/plain", JSON.stringify({
+          variantId: item.id,
+          parentId: shortcutId,
+          groupId: groupId,
+          title: item.title,
+          isParent: item.isParent
+        }));
+        e.dataTransfer.effectAllowed = "move";
+        bubble.classList.add("bubble-dragging");
+        var zone = $("#ungroup-drop-zone");
+        if (zone) zone.classList.add("visible");
+      });
+      bubble.addEventListener("dragend", function () {
+        bubble.classList.remove("bubble-dragging");
+        var zone = $("#ungroup-drop-zone");
+        if (zone) zone.classList.remove("visible", "drag-over");
+      });
 
       // Click handler
       bubble.addEventListener("click", function (e) {
@@ -2797,37 +2793,79 @@
           if (!group) return;
           var parent = group.shortcuts.find(function (s) { return s.id === payload.parentId; });
           if (!parent || !parent.variants) return;
-          var variantIdx = parent.variants.findIndex(function (v) { return v.id === payload.variantId; });
-          if (variantIdx === -1) return;
-          var variant = parent.variants[variantIdx];
-          // Remove from parent
-          parent.variants.splice(variantIdx, 1);
-          if (parent.variants.length === 0) delete parent.variants;
-          // Add as standalone shortcut after parent
-          var parentIdx = group.shortcuts.indexOf(parent);
-          var standalone = {
-            id: variant.id,
-            url: variant.url,
-            title: variant.title,
-            favicon: variant.favicon,
-            addedAt: Date.now()
-          };
-          group.shortcuts.splice(parentIdx + 1, 0, standalone);
+          var draggedTitle = payload.title || "shortcut";
+
+          if (payload.isParent) {
+            // Parent dragged out — promote first variant to new parent
+            var parentIdx = group.shortcuts.indexOf(parent);
+            if (parent.variants.length === 1) {
+              // Only 1 variant — both become standalone
+              var onlyVariant = parent.variants[0];
+              var newStandalone = {
+                id: onlyVariant.id,
+                url: onlyVariant.url,
+                title: onlyVariant.customLabel || onlyVariant.title,
+                favicon: onlyVariant.favicon,
+                addedAt: Date.now()
+              };
+              delete parent.variants;
+              delete parent.customLabel;
+              group.shortcuts.splice(parentIdx + 1, 0, newStandalone);
+            } else {
+              // Multiple variants — first variant becomes new parent
+              var newParentData = parent.variants.shift();
+              var remainingVariants = parent.variants;
+              var oldParentStandalone = {
+                id: parent.id,
+                url: parent.url,
+                title: parent.customLabel || parent.title,
+                favicon: parent.favicon,
+                addedAt: Date.now()
+              };
+              // Replace parent in-place with new parent
+              group.shortcuts[parentIdx] = {
+                id: newParentData.id,
+                url: newParentData.url,
+                title: newParentData.customLabel || newParentData.title,
+                favicon: newParentData.favicon,
+                variants: remainingVariants,
+                addedAt: Date.now()
+              };
+              // Add old parent as standalone after new parent
+              group.shortcuts.splice(parentIdx + 1, 0, oldParentStandalone);
+            }
+          } else {
+            // Variant dragged out
+            var variantIdx = parent.variants.findIndex(function (v) { return v.id === payload.variantId; });
+            if (variantIdx === -1) return;
+            var variant = parent.variants[variantIdx];
+            parent.variants.splice(variantIdx, 1);
+            if (parent.variants.length === 0) delete parent.variants;
+            var parentIdx2 = group.shortcuts.indexOf(parent);
+            var standalone = {
+              id: variant.id,
+              url: variant.url,
+              title: variant.title,
+              favicon: variant.favicon,
+              addedAt: Date.now()
+            };
+            group.shortcuts.splice(parentIdx2 + 1, 0, standalone);
+          }
+
           await Storage.saveAll(data);
           closeVariantPanel();
           data = await Storage.getAll();
           render();
-          // Show toast
           var toast = $("#open-all-toast");
           if (toast) {
-            toast.textContent = "Ungrouped \"" + (variant.title || "shortcut") + "\"";
+            toast.textContent = "Ungrouped \"" + draggedTitle + "\"";
             toast.classList.add("visible");
             clearTimeout(toast._timer);
             toast._timer = setTimeout(function () { toast.classList.remove("visible"); }, 3000);
           }
-          console.log("[LaunchPad] Ungrouped variant via drag:", variant.title);
+          console.log("[LaunchPad] Ungrouped via drag:", draggedTitle);
         } catch (err) {
-          console.error("[LaunchPad] Failed to ungroup variant:", err);
+          console.error("[LaunchPad] Failed to ungroup:", err);
         }
       });
     }
@@ -3807,7 +3845,33 @@
     if (!dragState) return null;
 
     var state = dragState;
+
+    // Final hover check at drop time using last known mouse position
+    if (state.lastX !== undefined && state.lastY !== undefined) {
+      checkNestHover(state.lastX, state.lastY);
+    }
+
     var targetEl = state.hoveredTarget;
+
+    // Also check: if SortableJS dropped onto a nest-target element, detect it
+    if (!targetEl && evt && evt.item) {
+      // Check if there's a nest target near the drop position
+      var dropX = state.lastX || 0;
+      var dropY = state.lastY || 0;
+      $$(".shortcut").forEach(function (el) {
+        if (targetEl) return;
+        if (el.dataset.id === state.draggedId) return;
+        if (el.dataset.nestTarget !== "true") return;
+        var iconEl = el.querySelector(".shortcut-icon");
+        if (!iconEl) return;
+        var rect = iconEl.getBoundingClientRect();
+        var pad = 14;
+        if (dropX >= rect.left - pad && dropX <= rect.right + pad &&
+            dropY >= rect.top - pad && dropY <= rect.bottom + pad) {
+          targetEl = el;
+        }
+      });
+    }
 
     // Cleanup
     document.removeEventListener("keydown", state._keyDown);
