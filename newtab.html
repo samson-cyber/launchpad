@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>New Tab</title>
+  <link rel="stylesheet" href="newtab.css">
+</head>
+<body>
+  <aside id="sidebar">
+    <div id="sidebar-top">
+      <button id="sb-history" class="sb-item" type="button" title="History">
+        <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span class="sb-label">History</span>
+      </button>
+      <button id="sb-restore" class="sb-item" type="button" title="Restore Session">
+        <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+        <span class="sb-label">Restore Session</span>
+      </button>
+    </div>
+    <div class="sb-separator"></div>
+    <div id="sb-group-list"></div>
+    <button id="sb-add-group" class="sb-item" type="button" title="Add Group">
+      <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      <span class="sb-label">Add Group</span>
+    </button>
+    <div class="sb-separator"></div>
+    <div id="sidebar-bottom">
+      <div class="sb-settings-row">
+        <button id="sb-settings" class="sb-item" type="button" title="Settings">
+          <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          <span class="sb-label">Settings</span>
+        </button>
+      </div>
+      <div class="sb-support-row">
+        <a id="sb-bmc" class="sb-item" href="https://buymeacoffee.com/cybersamwise" target="_blank" rel="noopener noreferrer" title="Buy me a coffee">
+          <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+            <path d="M2 21V19H20V21H2ZM20 8V5H18V8H20ZM20 3C20.5523 3 21 3.44772 21 4V9C21 9.55228 20.5523 10 20 10H18V11C18 13.2091 16.2091 15 14 15H8C5.79086 15 4 13.2091 4 11V4C4 3.44772 4.44772 3 5 3H20ZM16 10V5H6V11C6 12.1046 6.89543 13 8 13H14C15.1046 13 16 12.1046 16 11V10Z"/>
+          </svg>
+          <span class="sb-label">Buy me a coffee</span>
+        </a>
+        <a id="sb-rate" class="sb-item" href="https://chrome.google.com/webstore/detail/launchpad/EXTENSION_ID_HERE" target="_blank" rel="noopener noreferrer" title="Rate LaunchPad">
+          <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+          </svg>
+          <span class="sb-label">Rate LaunchPad</span>
+        </a>
+      </div>
+    </div>
+  </aside>
+  <div id="sidebar-panel"></div>
+  <button id="sidebar-hamburger" type="button" title="Menu">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  </button>
+  <div id="sidebar-backdrop"></div>
+
+  <main id="content">
+    <!-- FIXED HEADER -->
+    <div id="content-header">
+      <div id="brand-logo" draggable="false">
+        <svg class="brand-icon" width="28" height="28" viewBox="0 0 24 24" fill="none">
+          <circle cx="7" cy="7" r="3" fill="#4285F4"/><circle cx="17" cy="7" r="3" fill="#EA4335"/>
+          <circle cx="7" cy="17" r="3" fill="#34A853"/><circle cx="17" cy="17" r="3" fill="#FBBC05"/>
+        </svg>
+        <span class="brand-text">LaunchPad</span>
+      </div>
+      <form id="search-form" autocomplete="off">
+        <div id="search-bar">
+          <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" id="search-input" placeholder="Search or type a URL" autofocus>
+        </div>
+      </form>
+    </div>
+
+    <!-- SCROLLABLE GRID AREA -->
+    <div id="shortcut-grid-area">
+      <div id="groups"></div>
+    </div>
+  </main>
+
+  <div id="history-overlay" class="hidden">
+    <div id="history-panel">
+      <div class="history-panel-header">
+        <h2>History</h2>
+        <button id="history-panel-close" type="button" title="Close">&times;</button>
+      </div>
+      <div id="history-panel-body">
+        <div class="rc-toolbar">
+          <button id="rc-filter-btn" type="button">
+            <span id="rc-filter-label">Today</span>
+            <svg class="rc-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <div id="rc-filter-menu" class="hidden">
+            <button class="rc-filter-option" data-filter="today" type="button">Today</button>
+            <button class="rc-filter-option" data-filter="yesterday" type="button">Yesterday</button>
+            <button class="rc-filter-option" data-filter="week" type="button">Last 7 days</button>
+            <button class="rc-filter-option" data-filter="all" type="button">All</button>
+            <button class="rc-filter-option" data-filter="custom" type="button">Custom range...</button>
+          </div>
+          <div id="rc-date-picker" class="hidden">
+            <input type="date" id="rc-date-start">
+            <span class="rc-date-sep">&ndash;</span>
+            <input type="date" id="rc-date-end">
+          </div>
+          <div id="rc-search-box">
+            <svg class="rc-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" id="rc-search-input" placeholder="Search history..." autocomplete="off">
+          </div>
+        </div>
+        <div id="recently-closed-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="restore-dropdown" class="hidden">
+    <div class="restore-header">
+      <span>Restore Session</span>
+    </div>
+    <div id="restore-date-bar">
+      <button id="restore-date-btn" type="button">
+        <span id="restore-date-label">Yesterday</span>
+        <svg class="restore-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div id="restore-date-menu" class="hidden"></div>
+    </div>
+    <div id="restore-session-info">
+      <span id="restore-tab-count"></span>
+      <button class="restore-all-btn" id="restore-all-btn" type="button">Restore All</button>
+    </div>
+    <div id="restore-tab-list"></div>
+    <div id="restore-empty" class="hidden">No saved sessions yet. Sessions are saved automatically every 5 minutes.</div>
+  </div>
+
+  <div id="settings-panel" class="hidden">
+    <div class="settings-header">
+      <span>Settings</span>
+      <button id="settings-close" type="button" title="Close">&times;</button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-section">
+        <h3 class="settings-section-title">Appearance</h3>
+        <div class="settings-row">
+          <label class="settings-label">Icon Size</label>
+          <div class="settings-segmented" id="settings-icon-size">
+            <button class="seg-btn" data-value="small" type="button">Small</button>
+            <button class="seg-btn" data-value="medium" type="button">Medium</button>
+            <button class="seg-btn" data-value="large" type="button">Large</button>
+          </div>
+        </div>
+        <div class="settings-row settings-wallpaper-row">
+          <label class="settings-label">Wallpaper</label>
+          <div class="settings-wallpaper-controls">
+            <div id="settings-wallpaper-thumb" class="settings-wallpaper-thumb"></div>
+            <button id="settings-change-wallpaper" type="button" class="settings-btn">Change</button>
+            <button id="settings-remove-wallpaper" type="button" class="settings-btn settings-btn-danger">Remove</button>
+          </div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3 class="settings-section-title">Data</h3>
+        <div class="settings-row">
+          <button id="settings-import-bookmarks" type="button" class="settings-btn settings-btn-full">Import Chrome Bookmarks</button>
+        </div>
+      </div>
+      <div class="settings-section settings-about">
+        <h3 class="settings-section-title">About</h3>
+        <p class="settings-version">LaunchPad v1.0.0</p>
+        <p class="settings-privacy">All data stored locally. No tracking.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="rc-domain-panel" class="hidden">
+    <div class="rc-panel-header">
+      <span class="rc-panel-title" id="rc-panel-title"></span>
+      <button id="rc-panel-close" type="button" title="Close">&times;</button>
+    </div>
+    <div class="rc-panel-list" id="rc-panel-list"></div>
+  </div>
+
+  <div id="onboarding-overlay" class="hidden">
+    <div id="onboarding-card">
+      <div id="ob-progress">
+        <span class="ob-dot active" data-step="1"></span>
+        <span class="ob-dot" data-step="2"></span>
+        <span class="ob-dot" data-step="3"></span>
+      </div>
+
+      <div class="ob-step" data-step="1">
+        <h1 class="ob-title">Welcome to LaunchPad</h1>
+        <p class="ob-subtitle">Let's set up your new tab page. First, let's bring in your existing shortcuts.</p>
+        <div class="ob-import-options">
+          <button class="ob-import-card" id="ob-top-sites" type="button">
+            <span class="ob-badge">Recommended</span>
+            <div class="ob-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+            </div>
+            <span class="ob-card-title">Most Visited Sites</span>
+            <span class="ob-card-desc">Import your top sites from Chrome</span>
+            <div class="ob-top-sites-preview" id="ob-top-sites-preview"></div>
+          </button>
+          <button class="ob-import-card" id="ob-bookmarks" type="button">
+            <div class="ob-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+              </svg>
+            </div>
+            <span class="ob-card-title">Chrome Bookmarks</span>
+            <span class="ob-card-desc">Import bookmark folders as groups</span>
+          </button>
+          <button class="ob-import-card" id="ob-both" type="button">
+            <div class="ob-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/>
+              </svg>
+            </div>
+            <span class="ob-card-title">Both</span>
+            <span class="ob-card-desc">Import top sites and bookmarks</span>
+          </button>
+        </div>
+        <div class="ob-popular-section">
+          <p class="ob-popular-heading">Or quickly add popular sites</p>
+          <div class="ob-popular-row" id="ob-popular-row"></div>
+        </div>
+        <a class="ob-skip-link" id="ob-skip-import" href="#">Skip &mdash; I'll add my own</a>
+      </div>
+
+      <div class="ob-step hidden" data-step="2">
+        <h1 class="ob-title">Make it yours</h1>
+        <p class="ob-subtitle">Pick a background, or keep it clean.</p>
+        <div class="ob-bg-grid" id="ob-bg-grid"></div>
+        <button class="ob-upload-btn" id="ob-upload-own" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Upload your own
+        </button>
+        <input type="file" id="ob-file-input" accept="image/*" class="hidden">
+        <div class="ob-step-actions">
+          <button class="ob-btn-primary" id="ob-bg-next" type="button">Next</button>
+        </div>
+        <a class="ob-skip-link" id="ob-skip-bg" href="#">Skip</a>
+      </div>
+
+      <div class="ob-step hidden" data-step="3">
+        <h1 class="ob-title">You're ready to go</h1>
+        <p class="ob-subtitle">Here are a few tips to get the most out of LaunchPad:</p>
+        <div class="ob-tips">
+          <div class="ob-tip">
+            <div class="ob-tip-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </div>
+            <span>Click <strong>+</strong> to add a new shortcut to any group</span>
+          </div>
+          <div class="ob-tip">
+            <div class="ob-tip-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>
+            </div>
+            <span>Drag and drop to rearrange your shortcuts and groups</span>
+          </div>
+          <div class="ob-tip">
+            <div class="ob-tip-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </div>
+            <span>Right-click any webpage and select <strong>Add to LaunchPad</strong> to save it</span>
+          </div>
+          <div class="ob-tip">
+            <div class="ob-tip-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            </div>
+            <span>Click the wallpaper icon in the sidebar to change your background anytime</span>
+          </div>
+        </div>
+        <div class="ob-step-actions">
+          <button class="ob-btn-primary" id="ob-get-started" type="button">Get Started</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="first-run-toast" class="hidden">
+    <span>LaunchPad is ready! <a id="toast-import" href="#">Import your Chrome bookmarks</a> or start adding shortcuts.</span>
+    <button id="toast-dismiss" type="button" title="Dismiss">&times;</button>
+  </div>
+
+  <div id="shortcut-menu" class="hidden">
+    <button id="menu-edit" class="menu-item" type="button">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+      </svg>
+      Edit shortcut
+    </button>
+    <button id="menu-remove" class="menu-item" type="button">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+        <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+      </svg>
+      Remove
+    </button>
+  </div>
+
+  <div id="group-menu" class="hidden">
+    <button class="gm-option" data-action="openall" type="button">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      Open All
+    </button>
+    <button class="gm-option" data-action="rename" type="button">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Rename
+    </button>
+    <button class="gm-option gm-danger" data-action="delete" type="button">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      Delete
+    </button>
+  </div>
+
+  <div id="group-delete-overlay" class="hidden">
+    <div id="group-delete-dialog">
+      <h3 id="gd-title">Delete group?</h3>
+      <p id="gd-message"></p>
+      <div id="gd-move-section" class="hidden">
+        <label for="gd-move-target">Move <span id="gd-move-count"></span> shortcuts to:</label>
+        <select id="gd-move-target"></select>
+        <button id="gd-move-delete" type="button" class="gd-btn gd-btn-primary">Move &amp; Delete</button>
+      </div>
+      <div id="gd-actions">
+        <button id="gd-cancel" type="button" class="gd-btn">Cancel</button>
+        <button id="gd-confirm" type="button" class="gd-btn gd-btn-danger">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-overlay" class="hidden">
+    <div id="modal">
+      <div id="modal-header">
+        <h2 id="modal-title">Add shortcut</h2>
+      </div>
+      <div id="modal-body">
+        <label for="modal-name">Name</label>
+        <input type="text" id="modal-name" autocomplete="off">
+        <label for="modal-url">URL</label>
+        <input type="text" id="modal-url" placeholder="https://" autocomplete="off">
+        <div id="modal-icon-row" class="hidden">
+          <label>Icon</label>
+          <div id="modal-icon-controls">
+            <img id="modal-icon-preview" src="assets/placeholder.svg" alt="" width="32" height="32">
+            <button id="modal-icon-upload" type="button" class="modal-icon-btn">Upload custom icon</button>
+            <button id="modal-icon-reset" type="button" class="modal-icon-btn modal-icon-reset hidden">Reset</button>
+          </div>
+          <input type="file" id="modal-icon-file" accept=".png,.jpg,.jpeg,.ico,.svg" class="hidden">
+        </div>
+      </div>
+      <div id="modal-divider"></div>
+      <div id="modal-import-link">
+        <a id="modal-import-bookmarks" href="#">or Import from Chrome Bookmarks</a>
+      </div>
+      <div id="modal-footer">
+        <button id="modal-cancel" type="button">Cancel</button>
+        <button id="modal-save" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="bookmark-overlay" class="hidden">
+    <div id="bookmark-modal">
+      <div id="bookmark-modal-header">
+        <h2>Import Bookmarks</h2>
+        <p>Select folders to import as shortcut groups.</p>
+      </div>
+      <div id="bookmark-modal-body">
+        <div id="bookmark-toolbar">
+          <button id="bookmark-select-all" type="button">Select all / none</button>
+        </div>
+        <div id="bookmark-folder-list"></div>
+      </div>
+      <div id="bookmark-modal-footer">
+        <button id="bookmark-cancel" type="button">Cancel</button>
+        <button id="bookmark-import-btn" type="button">Import</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="bg-overlay" class="hidden">
+    <div id="bg-modal">
+      <div id="bg-modal-header">
+        <h2>Change Background</h2>
+        <div id="bg-tabs">
+          <button class="bg-tab active" data-tab="gallery" type="button">Gallery</button>
+          <button class="bg-tab" data-tab="upload" type="button">Upload</button>
+          <button class="bg-tab" data-tab="url" type="button">URL</button>
+        </div>
+      </div>
+      <div id="bg-modal-body">
+        <div class="bg-tab-content" data-tab="gallery">
+          <div id="bg-gallery-grid"></div>
+        </div>
+        <div class="bg-tab-content hidden" data-tab="upload">
+          <button id="bg-upload-btn" class="bg-option" type="button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Upload image
+          </button>
+          <input type="file" id="bg-file-input" accept="image/*" class="hidden">
+        </div>
+        <div class="bg-tab-content hidden" data-tab="url">
+          <div id="bg-url-row">
+            <input type="text" id="bg-url-input" placeholder="Paste image URL..." autocomplete="off">
+            <button id="bg-url-apply" type="button">Apply</button>
+          </div>
+        </div>
+        <div id="bg-error" class="hidden"></div>
+      </div>
+      <div id="bg-modal-footer">
+        <p class="bg-tip-text">Tip: Use LaunchPad's background picker instead of Chrome's &lsquo;Customize Chrome&rsquo; to keep your shortcuts visible.</p>
+        <div class="bg-footer-actions">
+          <button id="bg-remove" type="button">Remove background</button>
+          <button id="bg-cancel" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="rc-tip" class="hidden">
+    <span class="rc-tip-text">&#x1F4A1; Tip: Right-click any webpage and select &lsquo;Add to LaunchPad&rsquo; to quickly save it to any group!</span>
+    <button id="rc-tip-dismiss" type="button">Got it</button>
+  </div>
+
+  <div id="promo-toast" class="hidden">
+    <div class="promo-toast-icon" id="promo-toast-icon"></div>
+    <div class="promo-toast-body">
+      <p class="promo-toast-text" id="promo-toast-text"></p>
+      <div class="promo-toast-actions">
+        <button id="promo-toast-cta" type="button"></button>
+        <a id="promo-toast-dismiss" href="#">Maybe later</a>
+      </div>
+    </div>
+    <button id="promo-toast-close" type="button" title="Close">&times;</button>
+  </div>
+
+  <div id="open-all-toast"></div>
+
+  <script src="storage.js"></script>
+  <script src="bookmarks.js"></script>
+  <script src="lib/Sortable.min.js"></script>
+  <script src="newtab.js"></script>
+</body>
+</html>
