@@ -749,20 +749,25 @@
     anchorEl.classList.add("variants-open");
 
     // Build items: parent + variants
+    var parentLabel = shortcut.customLabel || shortcut.title || getBaseDomain(shortcut.url) || "";
+    var parentIcon = shortcut.customIcon || getFaviconUrl(shortcut);
     var items = [{
       id: "__parent__",
       url: shortcut.url,
-      title: shortcut.title || getBaseDomain(shortcut.url) || "",
-      favicon: getFaviconUrl(shortcut),
+      title: parentLabel,
+      favicon: parentIcon,
+      customIcon: shortcut.customIcon || "",
       isParent: true
     }];
     shortcut.variants.forEach(function (v) {
       var label = v.customLabel || v.title || generateVariantLabel(shortcut.url, v.url, v.title, shortcut.title);
+      var icon = v.customIcon || getFaviconUrl(v);
       items.push({
         id: v.id,
         url: v.url,
         title: label,
-        favicon: getFaviconUrl(v),
+        favicon: icon,
+        customIcon: v.customIcon || "",
         isParent: false
       });
     });
@@ -829,6 +834,7 @@
       img.alt = "";
       img.width = 24;
       img.height = 24;
+      if (item.customIcon) img.classList.add("custom-icon");
       bubble.appendChild(img);
 
       var label = document.createElement("span");
@@ -851,23 +857,19 @@
         closeVariantPanel();
       });
 
-      // Double-click label to edit (only for variants, not parent)
-      if (!item.isParent) {
-        label.style.pointerEvents = "auto";
-        label.addEventListener("dblclick", function (e) {
-          e.stopPropagation();
-          startVariantLabelEdit(bubble, label, item, shortcutId, groupId);
-        });
-      }
+      // Double-click label to edit (parent and variants)
+      label.style.pointerEvents = "auto";
+      label.addEventListener("dblclick", function (e) {
+        e.stopPropagation();
+        startVariantLabelEdit(bubble, label, item, shortcutId, groupId);
+      });
 
-      // Right-click on variant (not parent)
-      if (!item.isParent) {
-        bubble.addEventListener("contextmenu", function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          showVariantCtxMenu(e, item, shortcutId, groupId);
-        });
-      }
+      // Right-click context menu (parent and variants)
+      bubble.addEventListener("contextmenu", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        showVariantCtxMenu(e, item, shortcutId, groupId);
+      });
     });
 
     // Stagger open animation
@@ -883,6 +885,7 @@
 
   function closeVariantPanel() {
     closeVariantCtxMenu();
+    closeVariantIconDialog();
     if (!variantPanelState) return;
 
     // Remove highlight from parent icon
@@ -955,12 +958,19 @@
       var group = findGroup(groupId);
       if (!group) return;
       var parent = group.shortcuts.find(function (s) { return s.id === parentShortcutId; });
-      if (!parent || !parent.variants) return;
-      var variant = parent.variants.find(function (v) { return v.id === item.id; });
-      if (variant) {
-        variant.customLabel = newLabel;
+      if (!parent) return;
+      if (item.isParent) {
+        // Save customLabel on parent shortcut (does NOT change main title)
+        parent.customLabel = newLabel;
         Storage.saveAll(data);
-        console.log("[LaunchPad] Variant label updated:", newLabel);
+        console.log("[LaunchPad] Parent label updated:", newLabel);
+      } else if (parent.variants) {
+        var variant = parent.variants.find(function (v) { return v.id === item.id; });
+        if (variant) {
+          variant.customLabel = newLabel;
+          Storage.saveAll(data);
+          console.log("[LaunchPad] Variant label updated:", newLabel);
+        }
       }
     };
 
@@ -977,8 +987,16 @@
 
   function showVariantCtxMenu(e, item, parentShortcutId, groupId) {
     closeVariantCtxMenu();
+    closeVariantIconDialog();
     variantCtxState = { item: item, parentShortcutId: parentShortcutId, groupId: groupId };
     var menu = $("#variant-ctx-menu");
+
+    // Show/hide items based on parent vs variant
+    var ungroupBtn = $("#vctx-ungroup");
+    var deleteBtn = $("#vctx-delete");
+    if (ungroupBtn) ungroupBtn.classList.toggle("hidden", item.isParent);
+    if (deleteBtn) deleteBtn.classList.toggle("hidden", item.isParent);
+
     menu.classList.remove("hidden");
     menu.style.left = e.clientX + "px";
     menu.style.top = e.clientY + "px";
@@ -1009,6 +1027,11 @@
         var label = bubble.querySelector(".variant-label");
         if (label) startVariantLabelEdit(bubble, label, item, parentId, groupId);
       }
+    } else if (action === "changeicon") {
+      // Show icon dialog near the bubble
+      var bubble = document.querySelector('.variant-bubble[data-variant-id="' + item.id + '"]');
+      if (bubble) showVariantIconDialog(bubble, item, parentId, groupId);
+      return;
     } else if (action === "ungroup") {
       // Remove variant and make it standalone
       var group = findGroup(groupId);
@@ -1044,6 +1067,79 @@
       data = await Storage.getAll();
       render();
     }
+  }
+
+  // ===== Variant Icon Dialog =====
+
+  var iconDialogState = null;
+
+  function showVariantIconDialog(bubble, item, parentShortcutId, groupId) {
+    closeVariantIconDialog();
+    iconDialogState = { item: item, parentShortcutId: parentShortcutId, groupId: groupId, bubble: bubble };
+
+    var dialog = $("#variant-icon-dialog");
+    var input = $("#vid-url-input");
+    input.value = item.customIcon || "";
+
+    var rect = bubble.getBoundingClientRect();
+    dialog.classList.remove("hidden");
+    var left = rect.right + 8;
+    if (left + 220 > window.innerWidth - 8) left = rect.left - 228;
+    dialog.style.left = left + "px";
+    dialog.style.top = rect.top + "px";
+
+    var dr = dialog.getBoundingClientRect();
+    if (dr.bottom > window.innerHeight - 8) {
+      dialog.style.top = Math.max(8, window.innerHeight - dr.height - 8) + "px";
+    }
+
+    input.focus();
+  }
+
+  function closeVariantIconDialog() {
+    var dialog = $("#variant-icon-dialog");
+    if (dialog) dialog.classList.add("hidden");
+    iconDialogState = null;
+  }
+
+  function saveVariantIcon(url) {
+    if (!iconDialogState) return;
+    var item = iconDialogState.item;
+    var parentId = iconDialogState.parentShortcutId;
+    var groupId = iconDialogState.groupId;
+    var bubble = iconDialogState.bubble;
+
+    var group = findGroup(groupId);
+    if (!group) return;
+    var parent = group.shortcuts.find(function (s) { return s.id === parentId; });
+    if (!parent) return;
+
+    if (item.isParent) {
+      parent.customIcon = url || "";
+    } else if (parent.variants) {
+      var variant = parent.variants.find(function (v) { return v.id === item.id; });
+      if (variant) variant.customIcon = url || "";
+    }
+
+    Storage.saveAll(data);
+
+    // Update the bubble image live
+    if (bubble) {
+      var img = bubble.querySelector("img");
+      if (img) {
+        if (url) {
+          img.src = url;
+          img.classList.add("custom-icon");
+        } else {
+          // Reset to default favicon
+          img.src = item.isParent ? getFaviconUrl(parent) : getFaviconUrl(parent.variants.find(function (v) { return v.id === item.id; }) || parent);
+          img.classList.remove("custom-icon");
+        }
+      }
+    }
+
+    closeVariantIconDialog();
+    console.log("[LaunchPad] Variant icon updated:", url ? "custom" : "reset to default");
   }
 
   // ===== Nest Submenu =====
@@ -2396,6 +2492,20 @@
       if (item) handleVariantCtxAction(item.dataset.action);
     });
 
+    // Variant icon dialog
+    safeOn("#vid-save", "click", function () {
+      var url = ($("#vid-url-input").value || "").trim();
+      saveVariantIcon(url);
+    });
+    safeOn("#vid-reset", "click", function () {
+      saveVariantIcon("");
+    });
+    safeOn("#vid-url-input", "keydown", function (e) {
+      e.stopPropagation();
+      if (e.key === "Enter") { e.preventDefault(); saveVariantIcon((this.value || "").trim()); }
+      if (e.key === "Escape") { e.preventDefault(); closeVariantIconDialog(); }
+    });
+
     // History section
     safeOn("#rc-filter-btn", "click", function (e) {
       e.stopPropagation();
@@ -2484,8 +2594,9 @@
         hideMenu();
         closeNestSubmenu();
       }
-      if (!e.target.closest(".variant-bubble") && !e.target.closest("#variant-ctx-menu") && !e.target.closest(".shortcut.has-variants .shortcut-link")) {
+      if (!e.target.closest(".variant-bubble") && !e.target.closest("#variant-ctx-menu") && !e.target.closest("#variant-icon-dialog") && !e.target.closest(".shortcut.has-variants .shortcut-link")) {
         closeVariantCtxMenu();
+        closeVariantIconDialog();
       }
       if (!e.target.closest("#group-menu") && !e.target.closest(".group-more-btn") && !e.target.closest(".sb-group-more")) {
         hideGroupMenu();
@@ -2513,7 +2624,7 @@
         closeModal(); hideMenu(); hideGroupMenu(); hideDeleteDialog();
         closeBgModal(); closeRcFilterMenu(); closeDomainPanel(); closeSettingsPanel();
         closeHistoryOverlay(); closeRestoreDropdown();
-        closeVariantPanel(); closeVariantCtxMenu(); closeNestSubmenu();
+        closeVariantPanel(); closeVariantCtxMenu(); closeVariantIconDialog(); closeNestSubmenu();
         var sidebar = $("#sidebar");
         if (sidebar && sidebar.classList.contains("mobile-open")) toggleMobileSidebar();
       }

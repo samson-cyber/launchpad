@@ -337,8 +337,18 @@
 
   <div id="variant-ctx-menu" class="hidden">
     <button class="vctx-item" data-action="rename" type="button">Rename</button>
-    <button class="vctx-item" data-action="ungroup" type="button">Ungroup</button>
-    <button class="vctx-item vctx-danger" data-action="delete" type="button">Delete</button>
+    <button class="vctx-item" data-action="changeicon" type="button">Change icon</button>
+    <button class="vctx-item" id="vctx-ungroup" data-action="ungroup" type="button">Ungroup</button>
+    <button class="vctx-item vctx-danger" id="vctx-delete" data-action="delete" type="button">Delete</button>
+  </div>
+
+  <div id="variant-icon-dialog" class="hidden">
+    <div class="vid-header">Paste an image URL:</div>
+    <input type="text" id="vid-url-input" class="vid-input" placeholder="https://..." autocomplete="off">
+    <div class="vid-actions">
+      <button id="vid-save" class="vid-btn vid-btn-primary" type="button">Save</button>
+      <button id="vid-reset" class="vid-btn" type="button">Reset to default</button>
+    </div>
   </div>
 
   <div id="nest-submenu" class="hidden">
