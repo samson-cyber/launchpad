@@ -147,6 +147,26 @@
     if (!data.settings.collapsedGroups) {
       data.settings.collapsedGroups = {};
     }
+
+    // One-time cleanup: remove any variant that duplicates the parent URL
+    var cleaned = false;
+    data.groups.forEach(function (g) {
+      g.shortcuts.forEach(function (s) {
+        if (s.variants && s.variants.length > 0) {
+          var before = s.variants.length;
+          s.variants = s.variants.filter(function (v) {
+            return v.url !== s.url;
+          });
+          if (s.variants.length < before) cleaned = true;
+          if (s.variants.length === 0) delete s.variants;
+        }
+      });
+    });
+    if (cleaned) {
+      await Storage.saveAll(data);
+      console.log("[LaunchPad] Cleaned up duplicate variants");
+    }
+
     await loadBackground();
     applyIconSize(data.settings.iconSize || "medium");
     applySearch();
@@ -1241,14 +1261,27 @@
   }
 
   async function nestShortcutWith(shortcutId, targetId, groupId) {
-    var group = findGroup(groupId);
-    if (!group) return;
-    var shortcut = group.shortcuts.find(function (s) { return s.id === shortcutId; });
-    var target = group.shortcuts.find(function (s) { return s.id === targetId; });
-    if (!shortcut || !target) return;
+    // Find the shortcut and target across all groups (dragged may have moved cross-group)
+    var shortcut = null;
+    var shortcutGroup = null;
+    var target = null;
+    var targetGroup = null;
 
-    // Add the shortcut as a variant of the target
+    data.groups.forEach(function (g) {
+      g.shortcuts.forEach(function (s) {
+        if (s.id === shortcutId) { shortcut = s; shortcutGroup = g; }
+        if (s.id === targetId) { target = s; targetGroup = g; }
+      });
+    });
+
+    if (!shortcut || !target || shortcut === target) return;
+
+    var wasFirstNest = !target.variants || target.variants.length === 0;
+
+    // Initialize variants array on target if needed
     if (!target.variants) target.variants = [];
+
+    // Do NOT add target as a variant of itself — only add the dragged shortcut
     target.variants.push({
       id: shortcut.id,
       url: shortcut.url,
@@ -1256,12 +1289,92 @@
       favicon: shortcut.favicon
     });
 
-    // Remove the original shortcut from the group
-    group.shortcuts = group.shortcuts.filter(function (s) { return s.id !== shortcutId; });
+    // Remove the dragged shortcut from its group's shortcuts array
+    shortcutGroup.shortcuts = shortcutGroup.shortcuts.filter(function (s) { return s.id !== shortcutId; });
+
     await Storage.saveAll(data);
     data = await Storage.getAll();
     render();
     console.log("[LaunchPad] Nested shortcut", shortcut.title, "under", target.title);
+
+    // If this was the first nest (target had no variants before), offer rename
+    if (wasFirstNest) {
+      showNestRenameDialog(targetId, groupId || (targetGroup && targetGroup.id));
+    }
+  }
+
+  function showNestRenameDialog(shortcutId, groupId) {
+    var shortcutEl = document.querySelector('.shortcut[data-id="' + shortcutId + '"]');
+    if (!shortcutEl) return;
+    var shortcut = findShortcutById(shortcutId);
+    if (!shortcut) return;
+
+    // Remove any existing dialog
+    var existing = $("#nest-rename-dialog");
+    if (existing) existing.remove();
+
+    var rect = shortcutEl.getBoundingClientRect();
+    var domain = getBaseDomain(shortcut.url) || shortcut.title || "";
+
+    var dialog = document.createElement("div");
+    dialog.id = "nest-rename-dialog";
+    dialog.innerHTML =
+      '<div class="nrd-title">Shortcuts grouped! Name this group?</div>' +
+      '<input type="text" class="nrd-input" value="' + esc(shortcut.title || domain) + '">' +
+      '<div class="nrd-actions">' +
+        '<button class="nrd-save" type="button">Save</button>' +
+        '<button class="nrd-skip" type="button">Skip</button>' +
+      '</div>';
+
+    // Position near the shortcut
+    dialog.style.position = "fixed";
+    dialog.style.left = Math.min(rect.left, window.innerWidth - 260) + "px";
+    dialog.style.top = (rect.bottom + 8) + "px";
+    if (rect.bottom + 140 > window.innerHeight) {
+      dialog.style.top = (rect.top - 120) + "px";
+    }
+
+    document.body.appendChild(dialog);
+
+    var input = dialog.querySelector(".nrd-input");
+    input.focus();
+    input.select();
+
+    var closed = false;
+    var close = function () {
+      if (closed) return;
+      closed = true;
+      dialog.remove();
+    };
+
+    var save = async function () {
+      var val = input.value.trim();
+      if (val && shortcut) {
+        shortcut.customLabel = val;
+        await Storage.saveAll(data);
+        data = await Storage.getAll();
+        render();
+      }
+      close();
+    };
+
+    dialog.querySelector(".nrd-save").addEventListener("click", save);
+    dialog.querySelector(".nrd-skip").addEventListener("click", close);
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); save(); }
+      if (e.key === "Escape") { e.preventDefault(); close(); }
+    });
+
+    // Close on outside click (delayed to avoid immediate trigger)
+    setTimeout(function () {
+      var outsideClick = function (e) {
+        if (!dialog.contains(e.target)) {
+          close();
+          document.removeEventListener("mousedown", outsideClick);
+        }
+      };
+      document.addEventListener("mousedown", outsideClick);
+    }, 100);
   }
 
   async function ungroupAll(shortcutId, groupId) {
@@ -1482,15 +1595,31 @@
     return group.shortcuts.map(function (s) {
       var favicon = getFaviconUrl(s);
       var hasVariants = s.variants && s.variants.length > 0;
+      var chevron = hasVariants
+        ? '<span class="sidebar-variant-chevron" data-shortcut-id="' + s.id + '">\u25B8</span>'
+        : '';
       var variantBadge = hasVariants
         ? '<span class="sidebar-shortcut-variant-badge">' + (1 + s.variants.length) + '</span>'
         : '';
-      return '<div class="sidebar-shortcut-item" data-shortcut-id="' + s.id + '" data-url="' + esc(s.url) + '" title="' + esc(s.title || s.url) + '">' +
+      var html = '<div class="sidebar-shortcut-item" data-shortcut-id="' + s.id + '" data-url="' + esc(s.url) + '" title="' + esc(s.title || s.url) + '">' +
         '<span class="sidebar-shortcut-drag-handle" title="Drag to reorder">\u2807</span>' +
+        chevron +
         '<img src="' + favicon + '" alt="" width="16" height="16">' +
         '<span class="sidebar-shortcut-name">' + esc(s.title || getDomain(s.url)) + '</span>' +
         variantBadge +
       '</div>';
+      if (hasVariants) {
+        html += '<div class="sidebar-variant-list" data-parent-id="' + s.id + '">';
+        s.variants.forEach(function (v) {
+          var vFavicon = v.favicon || getFaviconUrl(v);
+          html += '<div class="sidebar-variant-item sidebar-shortcut-item" data-variant-url="' + esc(v.url) + '" title="' + esc(v.title || v.url) + '">' +
+            '<img src="' + vFavicon + '" alt="" width="16" height="16">' +
+            '<span class="sidebar-shortcut-name">' + esc(v.title || v.url) + '</span>' +
+          '</div>';
+        });
+        html += '</div>';
+      }
+      return html;
     }).join("");
   }
 
@@ -2575,6 +2704,33 @@
 
       // Drag handles — do nothing (SortableJS handles them)
       if (e.target.closest(".sidebar-drag-handle") || e.target.closest(".sidebar-shortcut-drag-handle")) return;
+
+      // Variant chevron — toggle variant sub-list
+      var variantChevron = e.target.closest(".sidebar-variant-chevron");
+      if (variantChevron) {
+        e.preventDefault();
+        e.stopPropagation();
+        var parentId = variantChevron.dataset.shortcutId;
+        var listEl = variantChevron.closest(".sidebar-shortcut-list");
+        if (listEl) {
+          var variantList = listEl.querySelector('.sidebar-variant-list[data-parent-id="' + parentId + '"]');
+          if (variantList) {
+            var isOpen = variantList.classList.contains("expanded");
+            variantList.classList.toggle("expanded", !isOpen);
+            variantChevron.classList.toggle("expanded", !isOpen);
+          }
+        }
+        return;
+      }
+
+      // Variant item — open the VARIANT's own URL
+      var variantItem = e.target.closest(".sidebar-variant-item");
+      if (variantItem && variantItem.dataset.variantUrl) {
+        e.preventDefault();
+        e.stopPropagation();
+        chrome.tabs.update({ url: variantItem.dataset.variantUrl });
+        return;
+      }
 
       // Shortcut item — open URL
       var shortcutItem = e.target.closest(".sidebar-shortcut-item");
@@ -3693,9 +3849,8 @@
 
       console.log("[LaunchPad] Drag-to-nest:", state.draggedId, "→", targetId);
 
-      // Perform nesting
+      // Perform nesting — do NOT sync DOM first, we want original data positions
       return (async function () {
-        await syncShortcutsFromDOM();
         await nestShortcutWith(state.draggedId, targetId, targetGroupId);
 
         // Show toast
