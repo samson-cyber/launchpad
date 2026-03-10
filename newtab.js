@@ -1419,6 +1419,7 @@
           '</div>' +
         '</div>';
       }).join("");
+    initSidebarShortcutSortables();
   }
 
   function sidebarShortcutListHTML(group) {
@@ -1428,26 +1429,15 @@
     return group.shortcuts.map(function (s) {
       var favicon = getFaviconUrl(s);
       var hasVariants = s.variants && s.variants.length > 0;
-      var chevron = hasVariants
-        ? '<span class="sidebar-variant-chevron" data-shortcut-id="' + s.id + '">\u25B8</span>'
+      var variantBadge = hasVariants
+        ? '<span class="sidebar-shortcut-variant-badge">' + (1 + s.variants.length) + '</span>'
         : '';
-      var html = '<div class="sidebar-shortcut-item" data-url="' + esc(s.url) + '" title="' + esc(s.title || s.url) + '">' +
-        chevron +
+      return '<div class="sidebar-shortcut-item" data-shortcut-id="' + s.id + '" data-url="' + esc(s.url) + '" title="' + esc(s.title || s.url) + '">' +
+        '<span class="sidebar-shortcut-drag-handle" title="Drag to reorder">\u2807</span>' +
         '<img src="' + favicon + '" alt="" width="16" height="16">' +
         '<span class="sidebar-shortcut-name">' + esc(s.title || getDomain(s.url)) + '</span>' +
+        variantBadge +
       '</div>';
-      if (hasVariants) {
-        html += '<div class="sidebar-variant-list" data-parent-id="' + s.id + '">';
-        s.variants.forEach(function (v) {
-          var vFavicon = v.favicon || getFaviconUrl(v);
-          html += '<div class="sidebar-variant-item sidebar-shortcut-item" data-url="' + esc(v.url) + '" title="' + esc(v.title || v.url) + '">' +
-            '<img src="' + vFavicon + '" alt="" width="16" height="16">' +
-            '<span class="sidebar-shortcut-name">' + esc(v.title || v.url) + '</span>' +
-          '</div>';
-        });
-        html += '</div>';
-      }
-      return html;
     }).join("");
   }
 
@@ -1481,6 +1471,240 @@
         console.log("[LaunchPad] Groups reordered via sidebar drag:", data.groupOrder);
       }
     });
+  }
+
+  var sidebarShortcutSortables = [];
+
+  function initSidebarShortcutSortables() {
+    destroySidebarShortcutSortables();
+    if (typeof Sortable === "undefined") return;
+    $$(".sidebar-shortcut-list").forEach(function (listEl) {
+      var groupId = listEl.dataset.groupId;
+      if (!groupId) return;
+      var s = new Sortable(listEl, {
+        animation: 150,
+        draggable: ".sidebar-shortcut-item",
+        ghostClass: "sb-shortcut-ghost",
+        handle: ".sidebar-shortcut-drag-handle",
+        filter: ".sidebar-shortcut-empty",
+        preventOnFilter: false,
+        onEnd: async function () {
+          var group = findGroup(groupId);
+          if (!group) return;
+          var allShortcuts = {};
+          group.shortcuts.forEach(function (sc) { allShortcuts[sc.id] = sc; });
+          var newOrder = $$(".sidebar-shortcut-item", listEl)
+            .map(function (el) { return allShortcuts[el.dataset.shortcutId]; })
+            .filter(Boolean);
+          group.shortcuts = newOrder;
+          await Storage.saveAll(data);
+          renderMainGrid();
+          console.log("[LaunchPad] Shortcuts reordered via sidebar in group:", groupId);
+        }
+      });
+      sidebarShortcutSortables.push(s);
+    });
+  }
+
+  function destroySidebarShortcutSortables() {
+    sidebarShortcutSortables.forEach(function (s) { s.destroy(); });
+    sidebarShortcutSortables = [];
+  }
+
+  function renderMainGrid() {
+    destroySortables();
+    var container = $("#groups");
+    var groupMap = {};
+    data.groups.forEach(function (g) { groupMap[g.id] = g; });
+    var singleGroup = data.groupOrder.length <= 1;
+    container.innerHTML = data.groupOrder
+      .map(function (id) { return groupMap[id]; })
+      .filter(Boolean)
+      .map(function (g) { return groupHTML(g, singleGroup); })
+      .join("");
+    ensureAllPlaceholders();
+    initSortables();
+    initSidebarGroupObserver();
+  }
+
+  // ===== Sidebar Shortcut Context Menu =====
+
+  var sidebarCtxState = null;
+
+  function showSidebarShortcutCtxMenu(e, shortcutId, groupId) {
+    e.preventDefault();
+    e.stopPropagation();
+    closeSidebarShortcutCtxMenu();
+
+    var group = findGroup(groupId);
+    if (!group) return;
+    var shortcut = group.shortcuts.find(function (s) { return s.id === shortcutId; });
+    if (!shortcut) return;
+
+    sidebarCtxState = { shortcutId: shortcutId, groupId: groupId };
+
+    var menu = $("#sidebar-shortcut-ctx-menu");
+    if (!menu) return;
+
+    // Lock sidebar open
+    sidebarLocked = true;
+    var sidebar = $("#sidebar");
+    if (sidebar) {
+      sidebar.classList.add("sidebar-locked", "expanded");
+    }
+    showSidebarPanel();
+
+    menu.classList.remove("hidden");
+    var rect = e.target.closest(".sidebar-shortcut-item").getBoundingClientRect();
+    menu.style.top = rect.top + "px";
+    menu.style.left = (rect.right + 4) + "px";
+
+    // Keep within viewport
+    var menuRect = menu.getBoundingClientRect();
+    if (menuRect.right > window.innerWidth - 8) {
+      menu.style.left = (rect.left - menuRect.width - 4) + "px";
+    }
+    if (menuRect.bottom > window.innerHeight - 8) {
+      menu.style.top = (window.innerHeight - menuRect.height - 8) + "px";
+    }
+  }
+
+  function closeSidebarShortcutCtxMenu() {
+    var menu = $("#sidebar-shortcut-ctx-menu");
+    if (menu) menu.classList.add("hidden");
+    if (sidebarCtxState) {
+      sidebarCtxState = null;
+      sidebarLocked = false;
+      var sidebar = $("#sidebar");
+      if (sidebar) {
+        sidebar.classList.remove("sidebar-locked");
+        if (!sidebar.matches(":hover")) {
+          sidebar.classList.remove("expanded");
+          hideSidebarPanel();
+        }
+      }
+    }
+  }
+
+  async function handleSidebarCtxAction(action) {
+    if (!sidebarCtxState) return;
+    var groupId = sidebarCtxState.groupId;
+    var shortcutId = sidebarCtxState.shortcutId;
+    var group = findGroup(groupId);
+    if (!group) { closeSidebarShortcutCtxMenu(); return; }
+    var shortcut = group.shortcuts.find(function (s) { return s.id === shortcutId; });
+    if (!shortcut) { closeSidebarShortcutCtxMenu(); return; }
+
+    closeSidebarShortcutCtxMenu();
+
+    if (action === "open") {
+      chrome.tabs.update({ url: shortcut.url });
+    } else if (action === "open-new-tab") {
+      chrome.tabs.create({ url: shortcut.url });
+    } else if (action === "rename") {
+      startSidebarInlineEdit(shortcutId, groupId, "title");
+    } else if (action === "edit-url") {
+      startSidebarInlineEdit(shortcutId, groupId, "url");
+    } else if (action === "delete") {
+      var hasVariants = shortcut.variants && shortcut.variants.length > 0;
+      if (hasVariants) {
+        if (!confirm("This shortcut has " + shortcut.variants.length + " nested variant(s). Delete all?")) return;
+      }
+      group.shortcuts = group.shortcuts.filter(function (s) { return s.id !== shortcutId; });
+      await Storage.saveAll(data);
+      refreshSidebarGroup(groupId);
+      renderMainGrid();
+      console.log("[LaunchPad] Deleted shortcut from sidebar:", shortcut.title);
+    }
+  }
+
+  function startSidebarInlineEdit(shortcutId, groupId, field) {
+    var itemEl = document.querySelector('.sidebar-shortcut-item[data-shortcut-id="' + shortcutId + '"]');
+    if (!itemEl) return;
+    var group = findGroup(groupId);
+    if (!group) return;
+    var shortcut = group.shortcuts.find(function (s) { return s.id === shortcutId; });
+    if (!shortcut) return;
+
+    // Lock sidebar
+    sidebarLocked = true;
+    var sidebar = $("#sidebar");
+    if (sidebar) sidebar.classList.add("sidebar-locked", "expanded");
+    showSidebarPanel();
+
+    var nameEl = itemEl.querySelector(".sidebar-shortcut-name");
+    if (!nameEl) return;
+
+    var currentVal = field === "url" ? shortcut.url : (shortcut.title || getDomain(shortcut.url));
+    var input = document.createElement("input");
+    input.type = "text";
+    input.className = "sidebar-inline-edit";
+    input.value = currentVal;
+
+    nameEl.style.display = "none";
+    itemEl.insertBefore(input, nameEl.nextSibling);
+    input.focus();
+    input.select();
+
+    var saved = false;
+    var finish = async function (save) {
+      if (saved) return;
+      saved = true;
+      var val = input.value.trim();
+      input.remove();
+      nameEl.style.display = "";
+
+      if (save && val && val !== currentVal) {
+        if (field === "url") {
+          // Validate URL
+          var normalized = val;
+          if (!/^https?:\/\//i.test(normalized)) normalized = "https://" + normalized;
+          try { new URL(normalized); } catch (e) { return; }
+          shortcut.url = normalized;
+          itemEl.dataset.url = normalized;
+        } else {
+          shortcut.title = val;
+        }
+        await Storage.saveAll(data);
+        refreshSidebarGroup(groupId);
+        renderMainGrid();
+      }
+
+      // Unlock sidebar
+      sidebarLocked = false;
+      if (sidebar) {
+        sidebar.classList.remove("sidebar-locked");
+        if (!sidebar.matches(":hover")) {
+          sidebar.classList.remove("expanded");
+          hideSidebarPanel();
+        }
+      }
+    };
+
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); finish(true); }
+      if (e.key === "Escape") { e.preventDefault(); finish(false); }
+    });
+    input.addEventListener("blur", function () { finish(true); });
+  }
+
+  function refreshSidebarGroup(groupId) {
+    var wrapper = document.querySelector('.sb-group-wrapper[data-group-id="' + groupId + '"]');
+    if (!wrapper) return;
+    var listEl = wrapper.querySelector(".sidebar-shortcut-list");
+    if (!listEl) return;
+    var group = findGroup(groupId);
+    if (!group) return;
+    var wasExpanded = wrapper.classList.contains("sb-expanded");
+    listEl.innerHTML = sidebarShortcutListHTML(group);
+    // Update shortcut count
+    var countEl = wrapper.querySelector(".sb-group-count");
+    if (countEl) countEl.textContent = group.shortcuts.length;
+    // Re-init sortable for this list
+    initSidebarShortcutSortables();
+    if (wasExpanded) {
+      listEl.style.maxHeight = "200px";
+    }
   }
 
   function scrollToGroup(groupId) {
@@ -2296,23 +2520,8 @@
         return;
       }
 
-      // Drag handle — do nothing (SortableJS handles it)
-      if (e.target.closest(".sidebar-drag-handle")) return;
-
-      // Variant chevron — toggle variant sub-list
-      var variantChevron = e.target.closest(".sidebar-variant-chevron");
-      if (variantChevron) {
-        e.preventDefault();
-        e.stopPropagation();
-        var parentId = variantChevron.dataset.shortcutId;
-        var variantList = variantChevron.closest(".sidebar-shortcut-list").querySelector('.sidebar-variant-list[data-parent-id="' + parentId + '"]');
-        if (variantList) {
-          var isOpen = variantList.classList.contains("expanded");
-          variantList.classList.toggle("expanded", !isOpen);
-          variantChevron.classList.toggle("expanded", !isOpen);
-        }
-        return;
-      }
+      // Drag handles — do nothing (SortableJS handles them)
+      if (e.target.closest(".sidebar-drag-handle") || e.target.closest(".sidebar-shortcut-drag-handle")) return;
 
       // Shortcut item — open URL
       var shortcutItem = e.target.closest(".sidebar-shortcut-item");
@@ -2329,6 +2538,33 @@
         var groupId = groupItem.dataset.groupId;
         toggleSidebarGroup(groupId);
         scrollToGroup(groupId);
+      }
+    });
+
+    // Right-click on sidebar shortcuts
+    safeOn("#sb-group-list", "contextmenu", function (e) {
+      var shortcutItem = e.target.closest(".sidebar-shortcut-item");
+      if (!shortcutItem || !shortcutItem.dataset.shortcutId) return;
+      var listEl = shortcutItem.closest(".sidebar-shortcut-list");
+      if (!listEl) return;
+      showSidebarShortcutCtxMenu(e, shortcutItem.dataset.shortcutId, listEl.dataset.groupId);
+    });
+
+    // Sidebar shortcut context menu actions
+    safeOn("#sidebar-shortcut-ctx-menu", "click", function (e) {
+      var opt = e.target.closest(".sb-ctx-option");
+      if (opt) handleSidebarCtxAction(opt.dataset.action);
+    });
+
+    // Close sidebar ctx menu on outside click and escape
+    document.addEventListener("click", function (e) {
+      if (sidebarCtxState && !e.target.closest("#sidebar-shortcut-ctx-menu")) {
+        closeSidebarShortcutCtxMenu();
+      }
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && sidebarCtxState) {
+        closeSidebarShortcutCtxMenu();
       }
     });
 
@@ -3432,6 +3668,7 @@
   function destroySortables() {
     if (groupSortable) { groupSortable.destroy(); groupSortable = null; }
     if (sidebarSortable) { sidebarSortable.destroy(); sidebarSortable = null; }
+    destroySidebarShortcutSortables();
     sortables.forEach(function (s) { s.destroy(); });
     sortables = [];
   }
