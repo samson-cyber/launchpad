@@ -1,5 +1,31 @@
 /* global chrome */
 
+var DOMAIN_ALIASES = {
+  'outlook.live.com': 'microsoft-mail',
+  'outlook.cloud.microsoft': 'microsoft-mail',
+  'outlook.office.com': 'microsoft-mail',
+  'outlook.office365.com': 'microsoft-mail',
+  'mail.google.com': 'google-mail',
+  'gmail.com': 'google-mail',
+  'facebook.com': 'meta',
+  'www.facebook.com': 'meta',
+  'adsmanager.facebook.com': 'meta-ads',
+  'business.facebook.com': 'meta-ads',
+  'ads.google.com': 'google-ads',
+  'docs.google.com': 'google-docs',
+  'sheets.google.com': 'google-docs',
+  'slides.google.com': 'google-docs',
+  'drive.google.com': 'google-docs'
+};
+
+function getMatchKeyBg(url) {
+  try {
+    var hostname = new URL(url).hostname;
+    if (DOMAIN_ALIASES[hostname]) return DOMAIN_ALIASES[hostname];
+    return hostname;
+  } catch (e) { return null; }
+}
+
 function getDefaultData() {
   return {
     groups: [{ id: "ungrouped", name: "Ungrouped", shortcuts: [] }],
@@ -9,50 +35,61 @@ function getDefaultData() {
 }
 
 async function buildContextMenu() {
-  await chrome.contextMenus.removeAll();
+  try {
+    await chrome.contextMenus.removeAll();
 
-  var result = await chrome.storage.local.get("data");
-  var data = result.data || getDefaultData();
-  var groupMap = {};
-  data.groups.forEach(function (g) { groupMap[g.id] = g; });
+    var result = await chrome.storage.local.get("data");
+    var data = result.data || getDefaultData();
+    var groupMap = {};
+    (data.groups || []).forEach(function (g) { groupMap[g.id] = g; });
 
-  // Parent item
-  chrome.contextMenus.create({
-    id: "add-to-launchpad",
-    title: "Add to LaunchPad",
-    contexts: ["page", "link"]
-  });
-
-  // Child items for each group, in groupOrder
-  var ordered = (data.groupOrder || [])
-    .map(function (id) { return groupMap[id]; })
-    .filter(Boolean);
-
-  ordered.forEach(function (group) {
+    // Parent item
     chrome.contextMenus.create({
-      id: "add-to-group_" + group.id,
-      parentId: "add-to-launchpad",
-      title: group.name,
+      id: "add-to-launchpad",
+      title: "Add to LaunchPad",
       contexts: ["page", "link"]
     });
-  });
 
-  // Separator + New Group
-  chrome.contextMenus.create({
-    id: "add-to-group_separator",
-    parentId: "add-to-launchpad",
-    type: "separator",
-    contexts: ["page", "link"]
-  });
+    // Child items for each group, in groupOrder
+    var ordered = (data.groupOrder || [])
+      .map(function (id) { return groupMap[id]; })
+      .filter(Boolean);
 
-  chrome.contextMenus.create({
-    id: "add-to-group_new",
-    parentId: "add-to-launchpad",
-    title: "+ New Group...",
-    contexts: ["page", "link"]
-  });
+    // Also include any groups not in groupOrder (safety net)
+    (data.groups || []).forEach(function (g) {
+      if (!ordered.find(function (o) { return o.id === g.id; })) {
+        ordered.push(g);
+      }
+    });
 
-  console.log("[LaunchPad] Context menu rebuilt with", ordered.length, "group(s)");
+    ordered.forEach(function (group) {
+      chrome.contextMenus.create({
+        id: "add-to-group_" + group.id,
+        parentId: "add-to-launchpad",
+        title: group.name,
+        contexts: ["page", "link"]
+      });
+    });
+
+    // Separator + New Group
+    chrome.contextMenus.create({
+      id: "add-to-group_separator",
+      parentId: "add-to-launchpad",
+      type: "separator",
+      contexts: ["page", "link"]
+    });
+
+    chrome.contextMenus.create({
+      id: "add-to-group_new",
+      parentId: "add-to-launchpad",
+      title: "+ New Group...",
+      contexts: ["page", "link"]
+    });
+
+    console.log("[LaunchPad] Context menu rebuilt with", ordered.length, "group(s)");
+  } catch (err) {
+    console.error("[LaunchPad] Failed to build context menu:", err);
+  }
 }
 
 // ===== Session Saving System =====
@@ -197,13 +234,13 @@ chrome.contextMenus.onClicked.addListener(async function (info, tab) {
       }
     }
 
-    // Auto-nest: check if a shortcut with the same domain already exists
+    // Auto-nest: check if a shortcut with the same domain/alias already exists
+    var matchKey = getMatchKeyBg(url);
     var existingMatch = null;
     targetGroup.shortcuts.forEach(function (s) {
       if (!existingMatch) {
-        try {
-          if (new URL(s.url).hostname === domain) existingMatch = s;
-        } catch (e) {}
+        var sKey = getMatchKeyBg(s.url);
+        if (sKey && matchKey && sKey === matchKey) existingMatch = s;
       }
     });
 

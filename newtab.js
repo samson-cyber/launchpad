@@ -695,11 +695,39 @@
     }
   }
 
+  // ===== Domain Alias Map =====
+
+  var DOMAIN_ALIASES = {
+    'outlook.live.com': 'microsoft-mail',
+    'outlook.cloud.microsoft': 'microsoft-mail',
+    'outlook.office.com': 'microsoft-mail',
+    'outlook.office365.com': 'microsoft-mail',
+    'mail.google.com': 'google-mail',
+    'gmail.com': 'google-mail',
+    'facebook.com': 'meta',
+    'www.facebook.com': 'meta',
+    'adsmanager.facebook.com': 'meta-ads',
+    'business.facebook.com': 'meta-ads',
+    'ads.google.com': 'google-ads',
+    'docs.google.com': 'google-docs',
+    'sheets.google.com': 'google-docs',
+    'slides.google.com': 'google-docs',
+    'drive.google.com': 'google-docs'
+  };
+
   // ===== Variant Helpers =====
 
   function getBaseDomain(url) {
     try {
       return new URL(url).hostname;
+    } catch (e) { return null; }
+  }
+
+  function getMatchKey(url) {
+    try {
+      var hostname = new URL(url).hostname;
+      if (DOMAIN_ALIASES[hostname]) return DOMAIN_ALIASES[hostname];
+      return hostname;
     } catch (e) { return null; }
   }
 
@@ -722,12 +750,12 @@
   }
 
   function findDomainMatchInGroup(groupId, url) {
-    var domain = getBaseDomain(url);
-    if (!domain) return null;
+    var key = getMatchKey(url);
+    if (!key) return null;
     var group = findGroup(groupId);
     if (!group) return null;
     return group.shortcuts.find(function (s) {
-      return getBaseDomain(s.url) === domain;
+      return getMatchKey(s.url) === key;
     }) || null;
   }
 
@@ -851,6 +879,31 @@
 
       container.appendChild(bubble);
       variantBubbles.push({ el: bubble, finalLeft: finalLeft, finalTop: finalTop, item: item });
+
+      // Make variant bubbles draggable (not parent)
+      if (!item.isParent) {
+        bubble.draggable = true;
+        bubble.addEventListener("dragstart", function (e) {
+          e.dataTransfer.setData("text/plain", JSON.stringify({
+            variantId: item.id,
+            parentId: shortcutId,
+            groupId: groupId,
+            title: item.title
+          }));
+          e.dataTransfer.effectAllowed = "move";
+          bubble.classList.add("bubble-dragging");
+          // Show ungroup drop zone
+          var zone = $("#ungroup-drop-zone");
+          if (zone) {
+            zone.classList.add("visible");
+          }
+        });
+        bubble.addEventListener("dragend", function () {
+          bubble.classList.remove("bubble-dragging");
+          var zone = $("#ungroup-drop-zone");
+          if (zone) zone.classList.remove("visible", "drag-over");
+        });
+      }
 
       // Click handler
       bubble.addEventListener("click", function (e) {
@@ -2568,6 +2621,61 @@
       }
     });
 
+    // Ungroup drop zone for variant bubble drag-out
+    var ungroupZone = $("#ungroup-drop-zone");
+    if (ungroupZone) {
+      ungroupZone.addEventListener("dragover", function (e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        ungroupZone.classList.add("drag-over");
+      });
+      ungroupZone.addEventListener("dragleave", function () {
+        ungroupZone.classList.remove("drag-over");
+      });
+      ungroupZone.addEventListener("drop", async function (e) {
+        e.preventDefault();
+        ungroupZone.classList.remove("visible", "drag-over");
+        try {
+          var payload = JSON.parse(e.dataTransfer.getData("text/plain"));
+          var group = findGroup(payload.groupId);
+          if (!group) return;
+          var parent = group.shortcuts.find(function (s) { return s.id === payload.parentId; });
+          if (!parent || !parent.variants) return;
+          var variantIdx = parent.variants.findIndex(function (v) { return v.id === payload.variantId; });
+          if (variantIdx === -1) return;
+          var variant = parent.variants[variantIdx];
+          // Remove from parent
+          parent.variants.splice(variantIdx, 1);
+          if (parent.variants.length === 0) delete parent.variants;
+          // Add as standalone shortcut after parent
+          var parentIdx = group.shortcuts.indexOf(parent);
+          var standalone = {
+            id: variant.id,
+            url: variant.url,
+            title: variant.title,
+            favicon: variant.favicon,
+            addedAt: Date.now()
+          };
+          group.shortcuts.splice(parentIdx + 1, 0, standalone);
+          await Storage.saveAll(data);
+          closeVariantPanel();
+          data = await Storage.getAll();
+          render();
+          // Show toast
+          var toast = $("#open-all-toast");
+          if (toast) {
+            toast.textContent = "Ungrouped \"" + (variant.title || "shortcut") + "\"";
+            toast.classList.add("visible");
+            clearTimeout(toast._timer);
+            toast._timer = setTimeout(function () { toast.classList.remove("visible"); }, 3000);
+          }
+          console.log("[LaunchPad] Ungrouped variant via drag:", variant.title);
+        } catch (err) {
+          console.error("[LaunchPad] Failed to ungroup variant:", err);
+        }
+      });
+    }
+
     // Group context menu option clicks
     safeOn("#group-menu", "click", function (e) {
       var opt = e.target.closest(".gm-option");
@@ -3096,7 +3204,7 @@
     if (modalState.mode === "add") {
       // Check for domain match — offer to nest
       var existingMatch = findDomainMatchInGroup(modalState.groupId, url);
-      if (existingMatch && confirm('A shortcut for "' + getBaseDomain(url) + '" already exists (' + (existingMatch.title || '') + '). Nest this as a variant?')) {
+      if (existingMatch && confirm('A shortcut for "' + (getBaseDomain(url) || url) + '" already exists (' + (existingMatch.title || '') + '). Nest this as a variant?')) {
         if (!existingMatch.variants) existingMatch.variants = [];
         var variantTitle = name || generateVariantLabel(existingMatch.url, url, name, existingMatch.title);
         existingMatch.variants.push({
@@ -3379,7 +3487,7 @@
           startDragNestTracking(evt);
         },
         onMove: function (evt) {
-          updateDragNestTracking(evt);
+          return updateDragNestTracking(evt);
         },
         onEnd: async function (evt) {
           var nestResult = finishDragNestTracking(evt);
@@ -3421,19 +3529,19 @@
 
     if (!draggedShortcut) return;
 
-    var draggedDomain = getBaseDomain(draggedShortcut.url);
-    var shiftHeld = false;
+    var draggedMatchKey = getMatchKey(draggedShortcut.url);
 
     dragState = {
       draggedId: draggedId,
-      draggedDomain: draggedDomain,
+      draggedDomain: draggedMatchKey,
       draggedGroupId: draggedGroupId,
       hoveredTarget: null,
-      shiftHeld: shiftHeld
+      shiftHeld: false,
+      draggedTitle: draggedShortcut.title || ""
     };
 
-    // Highlight matching domain shortcuts
-    highlightNestTargets(draggedId, draggedDomain, false);
+    // Highlight matching domain shortcuts and freeze them
+    highlightNestTargets(draggedId, draggedMatchKey, false);
 
     // Listen for shift key
     dragState._keyDown = function (e) {
@@ -3464,23 +3572,25 @@
     hideNestingTooltip();
   }
 
-  function highlightNestTargets(draggedId, draggedDomain, shiftMode) {
-    // Remove all existing highlights
+  function highlightNestTargets(draggedId, draggedMatchKey, shiftMode) {
+    // Remove all existing highlights and freeze flags
     $$(".shortcut-nest-target, .shortcut-nest-target-all").forEach(function (el) {
       el.classList.remove("shortcut-nest-target", "shortcut-nest-target-all");
+      delete el.dataset.nestTarget;
     });
 
     $$(".shortcut").forEach(function (el) {
       if (el.dataset.id === draggedId) return;
       if (shiftMode) {
         el.classList.add("shortcut-nest-target-all");
-      } else if (draggedDomain) {
-        // Check if this shortcut has matching domain
+        el.dataset.nestTarget = "true";
+      } else if (draggedMatchKey) {
         var shortcut = findShortcutById(el.dataset.id);
         if (shortcut) {
-          var targetDomain = getBaseDomain(shortcut.url);
-          if (targetDomain && targetDomain === draggedDomain) {
+          var targetKey = getMatchKey(shortcut.url);
+          if (targetKey && targetKey === draggedMatchKey) {
             el.classList.add("shortcut-nest-target");
+            el.dataset.nestTarget = "true";
           }
         }
       }
@@ -3495,52 +3605,46 @@
     $$(".shortcut").forEach(function (el) {
       if (el.dataset.id === dragState.draggedId) return;
       if (el.classList.contains("sortable-ghost")) return;
+      if (el.dataset.nestTarget !== "true") return;
       var iconEl = el.querySelector(".shortcut-icon");
       if (!iconEl) return;
       var rect = iconEl.getBoundingClientRect();
-      // Expand hit area slightly for easier targeting
-      var pad = 8;
+      var pad = 10;
       if (x >= rect.left - pad && x <= rect.right + pad &&
           y >= rect.top - pad && y <= rect.bottom + pad) {
-        var isTarget = el.classList.contains("shortcut-nest-target") ||
-                       el.classList.contains("shortcut-nest-target-all");
-        if (isTarget) {
-          hovered = el;
-        }
+        hovered = el;
       }
     });
 
     if (hovered !== dragState.hoveredTarget) {
       // Remove previous highlight
       if (dragState.hoveredTarget) {
-        dragState.hoveredTarget.querySelector(".shortcut-icon").classList.remove("variants-open");
+        dragState.hoveredTarget.classList.remove("shortcut-nest-hover");
       }
       dragState.hoveredTarget = hovered;
       if (hovered) {
-        hovered.querySelector(".shortcut-icon").classList.add("variants-open");
+        hovered.classList.add("shortcut-nest-hover");
         var shortcut = findShortcutById(hovered.dataset.id);
         if (shortcut && dropLabel) {
-          dropLabel.textContent = "Nest with " + (shortcut.title || "shortcut");
-          dropLabel.style.left = (x + 14) + "px";
-          dropLabel.style.top = (y - 8) + "px";
+          var iconRect = hovered.querySelector(".shortcut-icon").getBoundingClientRect();
+          dropLabel.textContent = "Drop to group";
+          dropLabel.style.left = (iconRect.left + iconRect.width / 2) + "px";
+          dropLabel.style.top = (iconRect.top - 24) + "px";
           dropLabel.classList.add("visible");
         }
       } else if (dropLabel) {
         dropLabel.classList.remove("visible");
       }
     }
-
-    // Update label position if hovering
-    if (dragState.hoveredTarget && dropLabel) {
-      dropLabel.style.left = (x + 14) + "px";
-      dropLabel.style.top = (y - 8) + "px";
-    }
   }
 
   function updateDragNestTracking(evt) {
-    // SortableJS onMove — check hover position
     if (!dragState) return;
-    // The mousemove listener handles real-time tracking
+    // If dragging over a frozen nest target, prevent SortableJS from inserting there
+    var related = evt.related;
+    if (related && related.dataset && related.dataset.nestTarget === "true") {
+      return false; // Prevent SortableJS from placing element near frozen target
+    }
   }
 
   function finishDragNestTracking(evt) {
@@ -3556,10 +3660,11 @@
 
     $$(".shortcut-nest-target, .shortcut-nest-target-all").forEach(function (el) {
       el.classList.remove("shortcut-nest-target", "shortcut-nest-target-all");
+      delete el.dataset.nestTarget;
     });
 
-    $$(".shortcut-icon.variants-open").forEach(function (el) {
-      el.classList.remove("variants-open");
+    $$(".shortcut-nest-hover").forEach(function (el) {
+      el.classList.remove("shortcut-nest-hover");
     });
 
     var dropLabel = $("#nest-drop-label");
@@ -3570,13 +3675,11 @@
     // If hovering over a valid nest target, perform nesting
     if (targetEl && targetEl.dataset.id !== state.draggedId) {
       var targetId = targetEl.dataset.id;
-      // Find which group the target is in
       var targetGroupId = null;
       var gridEl = targetEl.closest(".shortcuts-grid");
       if (gridEl) targetGroupId = gridEl.dataset.groupId;
       if (!targetGroupId) targetGroupId = state.draggedGroupId;
 
-      // Need to find the dragged shortcut's current group (may have changed due to SortableJS cross-group)
       var draggedGroupId = state.draggedGroupId;
       var draggedEl = document.querySelector('.shortcut[data-id="' + state.draggedId + '"]');
       if (draggedEl) {
@@ -3584,14 +3687,26 @@
         if (draggedGrid) draggedGroupId = draggedGrid.dataset.groupId;
       }
 
+      var draggedTitle = state.draggedTitle;
+      var targetShortcut = findShortcutById(targetId);
+      var targetTitle = targetShortcut ? targetShortcut.title : "";
+
       console.log("[LaunchPad] Drag-to-nest:", state.draggedId, "→", targetId);
 
       // Perform nesting
       return (async function () {
-        // First sync DOM so positions are correct
         await syncShortcutsFromDOM();
-        // Now nest — the dragged shortcut should be in targetGroupId after SortableJS moved it
         await nestShortcutWith(state.draggedId, targetId, targetGroupId);
+
+        // Show toast
+        showOpenAllToast(0, "");
+        var toast = $("#open-all-toast");
+        if (toast) {
+          toast.textContent = "Grouped \"" + draggedTitle + "\" under \"" + targetTitle + "\"";
+          toast.classList.add("visible");
+          clearTimeout(toast._timer);
+          toast._timer = setTimeout(function () { toast.classList.remove("visible"); }, 3000);
+        }
 
         // Auto-dismiss nesting tooltip
         if (data.settings && !data.settings.nestingTipDismissed) {
@@ -3624,17 +3739,17 @@
     var match = null;
     data.groups.forEach(function (g) {
       if (match) return;
-      var domainMap = {};
+      var keyMap = {};
       g.shortcuts.forEach(function (s) {
         if (match) return;
-        var domain = getBaseDomain(s.url);
-        if (!domain) return;
+        var key = getMatchKey(s.url);
+        if (!key) return;
         // Skip shortcuts that already have variants
         if (s.variants && s.variants.length > 0) return;
-        if (domainMap[domain]) {
-          match = { domain: domain, first: domainMap[domain], second: s.title };
+        if (keyMap[key]) {
+          match = { domain: key, first: keyMap[key], second: s.title };
         } else {
-          domainMap[domain] = s.title;
+          keyMap[key] = s.title;
         }
       });
     });

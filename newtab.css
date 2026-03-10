@@ -1278,18 +1278,12 @@ html.has-bg .sortable-ghost {
 .grid-placeholder {
   display: none;
   min-height: 80px;
-  border: 2px dashed rgba(0, 0, 0, 0.1);
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.02);
+  border: none;
+  background: none;
 }
 
 .shortcuts-grid.is-dragging .grid-placeholder {
   display: block;
-}
-
-html.has-bg .shortcuts-grid.is-dragging .grid-placeholder {
-  border-color: rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.03);
 }
 
 /* ===== Bookmark Picker Modal ===== */
@@ -4403,6 +4397,12 @@ html.has-bg .settings-privacy {
   border-radius: 50%;
 }
 
+/* Freeze nest targets in place during drag */
+.shortcut-nest-target,
+.shortcut-nest-target-all {
+  pointer-events: none;
+}
+
 @keyframes nestGlow {
   0%, 100% { box-shadow: 0 0 6px 2px rgba(0, 200, 180, 0.4); }
   50% { box-shadow: 0 0 14px 5px rgba(0, 200, 180, 0.7); }
@@ -4418,22 +4418,81 @@ html.has-bg .settings-privacy {
   50% { box-shadow: 0 0 8px 3px rgba(0, 200, 180, 0.4); }
 }
 
+/* Hover scale effect on nest target */
+.shortcut-nest-hover .shortcut-icon {
+  transform: scale(1.2);
+  transition: transform 0.15s ease;
+  animation: none;
+  box-shadow: 0 0 16px 6px rgba(0, 200, 180, 0.8);
+}
+
+/* Dragged item semi-transparent */
+.sortable-drag {
+  opacity: 0.6;
+}
+
 .nest-drop-label {
   position: fixed;
   background: rgba(0, 0, 0, 0.8);
   color: #fff;
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 12px;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 10px;
   pointer-events: none;
   z-index: 10000;
   white-space: nowrap;
   opacity: 0;
   transition: opacity 0.15s;
+  transform: translateX(-50%);
 }
 
 .nest-drop-label.visible {
   opacity: 1;
+}
+
+/* ===== Variant Bubble Drag-to-Ungroup ===== */
+
+.variant-bubble[draggable="true"] {
+  cursor: grab;
+}
+
+.variant-bubble[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.variant-bubble.bubble-dragging {
+  opacity: 0.4;
+}
+
+#ungroup-drop-zone {
+  position: fixed;
+  bottom: 0;
+  left: 56px;
+  right: 0;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 200, 180, 0.1);
+  border-top: 2px dashed rgba(0, 200, 180, 0.3);
+  color: rgba(0, 200, 180, 0.7);
+  font-size: 13px;
+  font-family: inherit;
+  z-index: 1001;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, background 0.2s;
+}
+
+#ungroup-drop-zone.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#ungroup-drop-zone.drag-over {
+  background: rgba(0, 200, 180, 0.2);
+  border-color: rgba(0, 200, 180, 0.6);
+  color: rgba(0, 200, 180, 1);
 }
 
 /* ===== Nesting Tooltip ===== */
