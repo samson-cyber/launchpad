@@ -3001,13 +3001,18 @@ html.has-bg #promo-toast-close:hover {
   border-radius: 2px;
 }
 
+/* Wrapper for group row + expandable shortcut list */
+.sb-group-wrapper {
+  width: 100%;
+}
+
 .sb-group-item {
   display: flex;
   align-items: center;
   height: 36px;
   min-height: 36px;
-  padding: 0 12px;
-  gap: 10px;
+  padding: 0 8px 0 4px;
+  gap: 6px;
   border: none;
   background: transparent;
   border-radius: 8px;
@@ -3026,11 +3031,198 @@ html.has-bg #promo-toast-close:hover {
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* Drag handle */
+.sidebar-drag-handle {
+  opacity: 0;
+  cursor: grab;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 12px;
+  padding: 4px 2px;
+  transition: opacity 0.15s ease;
+  user-select: none;
+  flex-shrink: 0;
+  line-height: 1;
+}
 
+.sb-group-item:hover .sidebar-drag-handle {
+  opacity: 1;
+}
+
+.sidebar-drag-handle:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.sidebar-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Hide drag handle when sidebar is collapsed */
+#sidebar:not(.expanded):not(.sidebar-locked) .sidebar-drag-handle {
+  display: none;
+}
+
+/* Expand chevron */
+.sb-group-expand-chevron {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 150ms ease 0ms, transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  color: var(--text-hint);
+}
+
+#sidebar.expanded .sb-group-expand-chevron,
+#sidebar.sidebar-locked .sb-group-expand-chevron {
+  opacity: 0.6;
+  transition-delay: 100ms;
+}
+
+.sb-group-expand-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+/* Expandable shortcut list */
+.sidebar-shortcut-list {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease-out;
+  padding-left: 28px;
+}
+
+.sb-group-wrapper.sb-expanded .sidebar-shortcut-list {
+  overflow-y: auto;
+}
+
+.sidebar-shortcut-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-shortcut-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.sidebar-shortcut-item img {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.sidebar-shortcut-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-shortcut-empty {
+  display: block;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+}
+
+/* Variant chevron (▸) */
+.sidebar-variant-chevron {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  transition: transform 0.2s ease;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.sidebar-variant-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.sidebar-variant-chevron:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Variant sub-list */
+.sidebar-variant-list {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.2s ease-out;
+}
+
+.sidebar-variant-list.expanded {
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.sidebar-variant-item {
+  padding-left: 20px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.sidebar-variant-item:hover {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Ghost class for drag (applied to wrapper now) */
 .sb-group-ghost {
   opacity: 0.4;
   background: rgba(66, 133, 244, 0.15);
   border-radius: 8px;
+}
+
+/* Hide shortcut list and handle elements when sidebar collapsed */
+#sidebar:not(.expanded):not(.sidebar-locked) .sidebar-shortcut-list,
+#sidebar:not(.expanded):not(.sidebar-locked) .sb-group-expand-chevron {
+  display: none;
+}
+
+/* Non-background mode: darker colors for sidebar shortcuts */
+html:not(.has-bg) .sidebar-shortcut-item {
+  color: var(--text-secondary);
+}
+
+html:not(.has-bg) .sidebar-shortcut-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+html:not(.has-bg) .sidebar-shortcut-empty {
+  color: var(--text-hint);
+}
+
+html:not(.has-bg) .sidebar-variant-chevron {
+  color: var(--text-hint);
+}
+
+html:not(.has-bg) .sidebar-variant-chevron:hover {
+  color: var(--text-secondary);
+}
+
+html:not(.has-bg) .sidebar-variant-item {
+  color: var(--text-hint);
+}
+
+html:not(.has-bg) .sidebar-variant-item:hover {
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+}
+
+html:not(.has-bg) .sidebar-drag-handle {
+  color: var(--text-hint);
+}
+
+html:not(.has-bg) .sidebar-drag-handle:hover {
+  color: var(--text-secondary);
 }
 
 .sb-group-icon {
@@ -3133,6 +3325,18 @@ html.has-bg .sb-group-icon {
 
 html.has-bg .sb-group-count {
   background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+html.has-bg .sb-group-expand-chevron {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+html.has-bg .sidebar-drag-handle {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+html.has-bg .sidebar-drag-handle:hover {
   color: rgba(255, 255, 255, 0.6);
 }
 
@@ -4070,6 +4274,14 @@ html.has-bg .settings-privacy {
   #sidebar .sb-group-name,
   #sidebar .sb-group-count {
     opacity: 1;
+  }
+
+  #sidebar .sb-group-expand-chevron {
+    opacity: 0.6;
+  }
+
+  #sidebar .sidebar-shortcut-list {
+    display: block;
   }
 
   #sidebar.mobile-open {

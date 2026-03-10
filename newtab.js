@@ -1405,13 +1405,50 @@
       .map(function (id) { return groupMap[id]; })
       .filter(Boolean)
       .map(function (g) {
-        return '<div class="sb-group-item" data-group-id="' + g.id + '" title="' + esc(g.name) + '">' +
-          FOLDER_SVG +
-          '<span class="sb-group-name">' + esc(g.name) + '</span>' +
-          '<span class="sb-group-count">' + g.shortcuts.length + '</span>' +
-          '<button class="sb-group-more" data-group-id="' + g.id + '" type="button" title="Group options">' + THREE_DOT_SM_SVG + '</button>' +
+        return '<div class="sb-group-wrapper" data-group-id="' + g.id + '">' +
+          '<div class="sb-group-item" data-group-id="' + g.id + '" title="' + esc(g.name) + '">' +
+            '<span class="sidebar-drag-handle" title="Drag to reorder">\u2807</span>' +
+            '<span class="sb-group-expand-chevron">' + CHEVRON_RIGHT_SVG + '</span>' +
+            FOLDER_SVG +
+            '<span class="sb-group-name">' + esc(g.name) + '</span>' +
+            '<span class="sb-group-count">' + g.shortcuts.length + '</span>' +
+            '<button class="sb-group-more" data-group-id="' + g.id + '" type="button" title="Group options">' + THREE_DOT_SM_SVG + '</button>' +
+          '</div>' +
+          '<div class="sidebar-shortcut-list" data-group-id="' + g.id + '">' +
+            sidebarShortcutListHTML(g) +
+          '</div>' +
         '</div>';
       }).join("");
+  }
+
+  function sidebarShortcutListHTML(group) {
+    if (!group.shortcuts || !group.shortcuts.length) {
+      return '<span class="sidebar-shortcut-empty">No shortcuts</span>';
+    }
+    return group.shortcuts.map(function (s) {
+      var favicon = getFaviconUrl(s);
+      var hasVariants = s.variants && s.variants.length > 0;
+      var chevron = hasVariants
+        ? '<span class="sidebar-variant-chevron" data-shortcut-id="' + s.id + '">\u25B8</span>'
+        : '';
+      var html = '<div class="sidebar-shortcut-item" data-url="' + esc(s.url) + '" title="' + esc(s.title || s.url) + '">' +
+        chevron +
+        '<img src="' + favicon + '" alt="" width="16" height="16">' +
+        '<span class="sidebar-shortcut-name">' + esc(s.title || getDomain(s.url)) + '</span>' +
+      '</div>';
+      if (hasVariants) {
+        html += '<div class="sidebar-variant-list" data-parent-id="' + s.id + '">';
+        s.variants.forEach(function (v) {
+          var vFavicon = v.favicon || getFaviconUrl(v);
+          html += '<div class="sidebar-variant-item sidebar-shortcut-item" data-url="' + esc(v.url) + '" title="' + esc(v.title || v.url) + '">' +
+            '<img src="' + vFavicon + '" alt="" width="16" height="16">' +
+            '<span class="sidebar-shortcut-name">' + esc(v.title || v.url) + '</span>' +
+          '</div>';
+        });
+        html += '</div>';
+      }
+      return html;
+    }).join("");
   }
 
   function initSidebarSortable() {
@@ -1420,12 +1457,13 @@
     if (!list || typeof Sortable === "undefined") return;
     sidebarSortable = new Sortable(list, {
       animation: 150,
-      draggable: ".sb-group-item",
+      draggable: ".sb-group-wrapper",
       ghostClass: "sb-group-ghost",
-      filter: ".sb-group-more",
+      handle: ".sidebar-drag-handle",
+      filter: ".sb-group-more, .sidebar-shortcut-list",
       preventOnFilter: false,
       onEnd: async function () {
-        data.groupOrder = $$("#sb-group-list > .sb-group-item").map(function (el) { return el.dataset.groupId; });
+        data.groupOrder = $$("#sb-group-list > .sb-group-wrapper").map(function (el) { return el.dataset.groupId; });
         await Storage.saveAll(data);
         // Re-render main page to match new order
         var container = $("#groups");
@@ -1448,6 +1486,50 @@
   function scrollToGroup(groupId) {
     var el = document.querySelector('.group[data-group-id="' + groupId + '"]');
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function toggleSidebarGroup(groupId) {
+    var wrapper = document.querySelector('.sb-group-wrapper[data-group-id="' + groupId + '"]');
+    if (!wrapper) return;
+    var shortcutList = wrapper.querySelector(".sidebar-shortcut-list");
+    var chevron = wrapper.querySelector(".sb-group-expand-chevron");
+    if (!shortcutList) return;
+
+    var isExpanded = wrapper.classList.contains("sb-expanded");
+
+    if (isExpanded) {
+      // Collapse
+      shortcutList.style.maxHeight = shortcutList.scrollHeight + "px";
+      shortcutList.offsetHeight; // force reflow
+      shortcutList.style.maxHeight = "0";
+      wrapper.classList.remove("sb-expanded");
+      if (chevron) chevron.classList.remove("expanded");
+    } else {
+      // Collapse any other expanded group (accordion behavior)
+      $$(".sb-group-wrapper.sb-expanded").forEach(function (other) {
+        if (other === wrapper) return;
+        var otherList = other.querySelector(".sidebar-shortcut-list");
+        var otherChevron = other.querySelector(".sb-group-expand-chevron");
+        if (otherList) {
+          otherList.style.maxHeight = otherList.scrollHeight + "px";
+          otherList.offsetHeight;
+          otherList.style.maxHeight = "0";
+        }
+        other.classList.remove("sb-expanded");
+        if (otherChevron) otherChevron.classList.remove("expanded");
+      });
+
+      // Expand
+      wrapper.classList.add("sb-expanded");
+      if (chevron) chevron.classList.add("expanded");
+      shortcutList.style.maxHeight = shortcutList.scrollHeight + "px";
+      // After transition, allow natural overflow for internal scrolling
+      var onTransEnd = function () {
+        shortcutList.style.maxHeight = "200px";
+        shortcutList.removeEventListener("transitionend", onTransEnd);
+      };
+      shortcutList.addEventListener("transitionend", onTransEnd);
+    }
   }
 
   function initSidebarGroupObserver() {
@@ -2205,6 +2287,7 @@
     });
     safeOn("#sb-add-group", "click", addGroup);
     safeOn("#sb-group-list", "click", function (e) {
+      // Three-dot menu button
       var moreBtn = e.target.closest(".sb-group-more");
       if (moreBtn) {
         e.preventDefault();
@@ -2212,8 +2295,41 @@
         showGroupMenu(moreBtn.dataset.groupId, moreBtn);
         return;
       }
-      var item = e.target.closest(".sb-group-item");
-      if (item) scrollToGroup(item.dataset.groupId);
+
+      // Drag handle — do nothing (SortableJS handles it)
+      if (e.target.closest(".sidebar-drag-handle")) return;
+
+      // Variant chevron — toggle variant sub-list
+      var variantChevron = e.target.closest(".sidebar-variant-chevron");
+      if (variantChevron) {
+        e.preventDefault();
+        e.stopPropagation();
+        var parentId = variantChevron.dataset.shortcutId;
+        var variantList = variantChevron.closest(".sidebar-shortcut-list").querySelector('.sidebar-variant-list[data-parent-id="' + parentId + '"]');
+        if (variantList) {
+          var isOpen = variantList.classList.contains("expanded");
+          variantList.classList.toggle("expanded", !isOpen);
+          variantChevron.classList.toggle("expanded", !isOpen);
+        }
+        return;
+      }
+
+      // Shortcut item — open URL
+      var shortcutItem = e.target.closest(".sidebar-shortcut-item");
+      if (shortcutItem && shortcutItem.dataset.url) {
+        e.preventDefault();
+        e.stopPropagation();
+        chrome.tabs.update({ url: shortcutItem.dataset.url });
+        return;
+      }
+
+      // Group row — toggle expand and scroll to group
+      var groupItem = e.target.closest(".sb-group-item");
+      if (groupItem) {
+        var groupId = groupItem.dataset.groupId;
+        toggleSidebarGroup(groupId);
+        scrollToGroup(groupId);
+      }
     });
 
     // Group context menu option clicks
