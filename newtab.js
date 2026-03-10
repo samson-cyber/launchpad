@@ -94,6 +94,17 @@
           s.favicon = getFaviconUrl(s.url);
           changed = true;
         }
+        // Also refresh variant favicons
+        if (s.variants) {
+          s.variants.forEach(function (v) {
+            if (!v.url) return;
+            if (v.favicon && v.favicon.indexOf("data:") === 0) return;
+            if (!v.favicon || v.favicon.indexOf("duckduckgo.com") !== -1) {
+              v.favicon = getFaviconUrl(v.url);
+              changed = true;
+            }
+          });
+        }
       });
     });
     if (changed) {
@@ -682,6 +693,196 @@
     }
   }
 
+  // ===== Variant Helpers =====
+
+  function getBaseDomain(url) {
+    try {
+      return new URL(url).hostname;
+    } catch (e) { return null; }
+  }
+
+  function generateVariantLabel(parentUrl, variantUrl, variantTitle, parentTitle) {
+    try {
+      var variantPath = new URL(variantUrl).pathname;
+      // Gmail-style: /mail/u/0/ vs /mail/u/1/
+      var accountMatch = variantPath.match(/\/u\/(\d+)/);
+      if (accountMatch) return "Account " + (parseInt(accountMatch[1]) + 1);
+      // Shopify-style: /store/name
+      var storeMatch = variantPath.match(/\/store\/([^\/]+)/);
+      if (storeMatch) return storeMatch[1];
+      // Fallback: use the page title if different from parent
+      if (variantTitle && variantTitle !== parentTitle) return variantTitle;
+      // Last resort: truncated path
+      return variantPath.substring(0, 30) || "Variant";
+    } catch (e) {
+      return variantTitle || "Variant";
+    }
+  }
+
+  function findDomainMatchInGroup(groupId, url) {
+    var domain = getBaseDomain(url);
+    if (!domain) return null;
+    var group = findGroup(groupId);
+    if (!group) return null;
+    return group.shortcuts.find(function (s) {
+      return getBaseDomain(s.url) === domain;
+    }) || null;
+  }
+
+  // ===== Variant Panel =====
+
+  var variantPanelState = null;
+
+  function showVariantPanel(shortcutId, groupId, anchorEl) {
+    closeVariantPanel();
+    var group = findGroup(groupId);
+    if (!group) return;
+    var shortcut = group.shortcuts.find(function (s) { return s.id === shortcutId; });
+    if (!shortcut || !shortcut.variants || !shortcut.variants.length) return;
+
+    variantPanelState = { shortcutId: shortcutId, groupId: groupId };
+    var panel = $("#variant-panel");
+    var domain = getBaseDomain(shortcut.url) || "";
+
+    $(".variant-panel-header", panel).textContent = domain;
+
+    // Build list: parent first, then variants
+    var items = [{ url: shortcut.url, title: shortcut.title || domain, favicon: getFaviconUrl(shortcut) }];
+    shortcut.variants.forEach(function (v) {
+      var label = v.title || generateVariantLabel(shortcut.url, v.url, v.title, shortcut.title);
+      items.push({ url: v.url, title: label, favicon: getFaviconUrl(v) });
+    });
+
+    $(".variant-panel-list", panel).innerHTML = items.map(function (item) {
+      return '<a href="' + esc(item.url) + '" class="variant-item" title="' + esc(item.url) + '">' +
+        '<img src="' + esc(item.favicon) + '" alt="" width="20" height="20">' +
+        '<span class="variant-item-label">' + esc(item.title) + '</span>' +
+      '</a>';
+    }).join("");
+
+    // Position to the right of the icon
+    var rect = anchorEl.getBoundingClientRect();
+    panel.classList.remove("hidden");
+    var panelWidth = 220;
+    var left = rect.right + 8;
+    if (left + panelWidth > window.innerWidth - 8) {
+      left = rect.left - panelWidth - 8;
+    }
+    panel.style.left = left + "px";
+    panel.style.top = rect.top + "px";
+
+    // Check bottom overflow
+    var panelRect = panel.getBoundingClientRect();
+    if (panelRect.bottom > window.innerHeight - 8) {
+      panel.style.top = Math.max(8, window.innerHeight - panelRect.height - 8) + "px";
+    }
+  }
+
+  function closeVariantPanel() {
+    var panel = $("#variant-panel");
+    if (panel) panel.classList.add("hidden");
+    variantPanelState = null;
+  }
+
+  // ===== Nest Submenu =====
+
+  function showNestSubmenu(shortcutId, groupId, anchorEl) {
+    closeNestSubmenu();
+    var group = findGroup(groupId);
+    if (!group) return;
+    var shortcut = group.shortcuts.find(function (s) { return s.id === shortcutId; });
+    if (!shortcut) return;
+
+    var others = group.shortcuts.filter(function (s) {
+      return s.id !== shortcutId;
+    });
+    if (!others.length) return;
+
+    var panel = $("#nest-submenu");
+    $(".nest-submenu-list", panel).innerHTML = others.map(function (s) {
+      var favicon = getFaviconUrl(s);
+      return '<button class="nest-submenu-item" data-target-id="' + s.id + '" type="button">' +
+        '<img src="' + esc(favicon) + '" alt="" width="20" height="20">' +
+        '<span>' + esc(s.title || getDomain(s.url)) + '</span>' +
+      '</button>';
+    }).join("");
+
+    // Position next to anchor
+    var rect = anchorEl.getBoundingClientRect();
+    panel.classList.remove("hidden");
+    panel.style.top = rect.top + "px";
+    panel.style.left = (rect.right + 4) + "px";
+
+    var panelRect = panel.getBoundingClientRect();
+    if (panelRect.right > window.innerWidth - 8) {
+      panel.style.left = (rect.left - panelRect.width - 4) + "px";
+    }
+    if (panelRect.bottom > window.innerHeight - 8) {
+      panel.style.top = Math.max(8, window.innerHeight - panelRect.height - 8) + "px";
+    }
+  }
+
+  function closeNestSubmenu() {
+    var panel = $("#nest-submenu");
+    if (panel) panel.classList.add("hidden");
+  }
+
+  async function nestShortcutWith(shortcutId, targetId, groupId) {
+    var group = findGroup(groupId);
+    if (!group) return;
+    var shortcut = group.shortcuts.find(function (s) { return s.id === shortcutId; });
+    var target = group.shortcuts.find(function (s) { return s.id === targetId; });
+    if (!shortcut || !target) return;
+
+    // Add the shortcut as a variant of the target
+    if (!target.variants) target.variants = [];
+    target.variants.push({
+      id: shortcut.id,
+      url: shortcut.url,
+      title: shortcut.title,
+      favicon: shortcut.favicon
+    });
+
+    // Remove the original shortcut from the group
+    group.shortcuts = group.shortcuts.filter(function (s) { return s.id !== shortcutId; });
+    await Storage.saveAll(data);
+    data = await Storage.getAll();
+    render();
+    console.log("[LaunchPad] Nested shortcut", shortcut.title, "under", target.title);
+  }
+
+  async function ungroupAll(shortcutId, groupId) {
+    var group = findGroup(groupId);
+    if (!group) return;
+    var idx = group.shortcuts.findIndex(function (s) { return s.id === shortcutId; });
+    if (idx === -1) return;
+    var shortcut = group.shortcuts[idx];
+    if (!shortcut.variants || !shortcut.variants.length) return;
+
+    // Convert variants to standalone shortcuts, inserted after the parent
+    var standalones = shortcut.variants.map(function (v) {
+      return {
+        id: v.id,
+        url: v.url,
+        title: v.title,
+        favicon: v.favicon,
+        addedAt: Date.now()
+      };
+    });
+
+    // Remove variants from parent
+    delete shortcut.variants;
+
+    // Insert standalones after the parent
+    var args = [idx + 1, 0].concat(standalones);
+    Array.prototype.splice.apply(group.shortcuts, args);
+
+    await Storage.saveAll(data);
+    data = await Storage.getAll();
+    render();
+    console.log("[LaunchPad] Ungrouped", standalones.length, "variants from", shortcut.title);
+  }
+
   // ===== Grid Placeholders =====
 
   function getGridColumnCount(gridEl) {
@@ -764,11 +965,16 @@
   function shortcutHTML(s) {
     var domain = getDomain(s.url);
     var favicon = getFaviconUrl(s);
+    var hasVariants = s.variants && s.variants.length > 0;
+    var badge = hasVariants
+      ? '<span class="variant-badge">' + (1 + s.variants.length) + '</span>'
+      : '';
     return (
-      '<div class="shortcut" data-id="' + s.id + '">' +
+      '<div class="shortcut' + (hasVariants ? ' has-variants' : '') + '" data-id="' + s.id + '">' +
         '<a href="' + esc(s.url) + '" class="shortcut-link" title="' + esc(s.title || s.url) + '">' +
           '<div class="shortcut-icon">' +
             '<img src="' + favicon + '" alt="" width="24" height="24" loading="lazy" data-url="' + esc(s.url) + '">' +
+            badge +
           "</div>" +
           '<span class="shortcut-name">' + esc(s.title || domain) + "</span>" +
         "</a>" +
@@ -1770,6 +1976,16 @@
       el = e.target.closest(".group-collapse-btn");
       if (el) { toggleGroupCollapse(el.dataset.groupId); return; }
 
+      // Nested shortcut — intercept click to show variant panel
+      el = e.target.closest(".shortcut.has-variants .shortcut-link");
+      if (el) {
+        e.preventDefault();
+        var tile = el.closest(".shortcut");
+        var grid = tile.closest(".shortcuts-grid");
+        showVariantPanel(tile.dataset.id, grid.dataset.groupId, tile.querySelector(".shortcut-icon"));
+        return;
+      }
+
       el = e.target.closest(".add-tile");
       if (el) { openModal("add", el.dataset.groupId); return; }
 
@@ -1876,6 +2092,50 @@
       data = await Storage.getAll();
       render();
     });
+    safeOn("#menu-open-default", "click", function () {
+      if (!activeMenu) return;
+      var group = findGroup(activeMenu.groupId);
+      var sc = group && group.shortcuts.find(function (s) { return s.id === activeMenu.shortcutId; });
+      if (sc) chrome.tabs.update({ url: sc.url });
+      hideMenu();
+    });
+    safeOn("#menu-manage-variants", "click", function () {
+      if (!activeMenu) return;
+      var tile = document.querySelector('.shortcut[data-id="' + activeMenu.shortcutId + '"]');
+      if (tile) {
+        showVariantPanel(activeMenu.shortcutId, activeMenu.groupId, tile.querySelector(".shortcut-icon"));
+      }
+      hideMenu();
+    });
+    safeOn("#menu-ungroup", "click", async function () {
+      if (!activeMenu) return;
+      await ungroupAll(activeMenu.shortcutId, activeMenu.groupId);
+      hideMenu();
+    });
+    safeOn("#menu-nest-with", "click", function () {
+      if (!activeMenu) return;
+      var menuEl = $("#shortcut-menu");
+      showNestSubmenu(activeMenu.shortcutId, activeMenu.groupId, menuEl);
+    });
+
+    // Nest submenu item click
+    safeOn("#nest-submenu", "click", async function (e) {
+      var item = e.target.closest(".nest-submenu-item");
+      if (!item || !activeMenu) return;
+      var targetId = item.dataset.targetId;
+      await nestShortcutWith(activeMenu.shortcutId, targetId, activeMenu.groupId);
+      closeNestSubmenu();
+      hideMenu();
+    });
+
+    // Variant panel item click
+    safeOn("#variant-panel", "click", function (e) {
+      var item = e.target.closest(".variant-item");
+      if (!item) return;
+      e.preventDefault();
+      chrome.tabs.update({ url: item.href });
+      closeVariantPanel();
+    });
 
     // History section
     safeOn("#rc-filter-btn", "click", function (e) {
@@ -1961,8 +2221,12 @@
 
     // Close menus on outside click
     document.addEventListener("click", function (e) {
-      if (!e.target.closest("#shortcut-menu") && !e.target.closest(".shortcut-more")) {
+      if (!e.target.closest("#shortcut-menu") && !e.target.closest(".shortcut-more") && !e.target.closest("#nest-submenu")) {
         hideMenu();
+        closeNestSubmenu();
+      }
+      if (!e.target.closest("#variant-panel") && !e.target.closest(".shortcut.has-variants .shortcut-link")) {
+        closeVariantPanel();
       }
       if (!e.target.closest("#group-menu") && !e.target.closest(".group-more-btn") && !e.target.closest(".sb-group-more")) {
         hideGroupMenu();
@@ -1990,6 +2254,7 @@
         closeModal(); hideMenu(); hideGroupMenu(); hideDeleteDialog();
         closeBgModal(); closeRcFilterMenu(); closeDomainPanel(); closeSettingsPanel();
         closeHistoryOverlay(); closeRestoreDropdown();
+        closeVariantPanel(); closeNestSubmenu();
         var sidebar = $("#sidebar");
         if (sidebar && sidebar.classList.contains("mobile-open")) toggleMobileSidebar();
       }
@@ -2006,6 +2271,30 @@
     hideMenu();
     activeMenu = { shortcutId: shortcutId, groupId: groupId };
     var menu = $("#shortcut-menu");
+    var group = findGroup(groupId);
+    var shortcut = group && group.shortcuts.find(function (s) { return s.id === shortcutId; });
+    var hasVariants = shortcut && shortcut.variants && shortcut.variants.length > 0;
+
+    // Toggle variant-specific menu items
+    var openDefault = $("#menu-open-default");
+    var manageVariants = $("#menu-manage-variants");
+    var ungroupBtn = $("#menu-ungroup");
+    var nestWith = $("#menu-nest-with");
+    var removeBtn = $("#menu-remove");
+
+    if (openDefault) openDefault.classList.toggle("hidden", !hasVariants);
+    if (manageVariants) manageVariants.classList.toggle("hidden", !hasVariants);
+    if (ungroupBtn) ungroupBtn.classList.toggle("hidden", !hasVariants);
+    if (nestWith) nestWith.classList.toggle("hidden", hasVariants);
+    if (removeBtn) {
+      // Update the text after the SVG
+      var textNodes = [];
+      removeBtn.childNodes.forEach(function (n) {
+        if (n.nodeType === 3 && n.textContent.trim()) textNodes.push(n);
+      });
+      if (textNodes.length) textNodes[0].textContent = hasVariants ? " Delete all" : " Remove";
+    }
+
     var rect = anchor.getBoundingClientRect();
     menu.style.top = (rect.bottom + 4) + "px";
     menu.style.left = rect.left + "px";
@@ -2022,6 +2311,7 @@
 
   function hideMenu() {
     $("#shortcut-menu").classList.add("hidden");
+    closeNestSubmenu();
     activeMenu = null;
   }
 
@@ -2068,13 +2358,27 @@
     if (!url || url === "https://") return;
 
     if (modalState.mode === "add") {
-      var newShortcut = {
-        url: url,
-        title: name || getDomain(url).replace(/^www\./, ""),
-        favicon: getFaviconUrl(url)
-      };
-      if (modalState.customFavicon) newShortcut.favicon = modalState.customFavicon;
-      await Storage.addShortcut(modalState.groupId, newShortcut);
+      // Check for domain match — offer to nest
+      var existingMatch = findDomainMatchInGroup(modalState.groupId, url);
+      if (existingMatch && confirm('A shortcut for "' + getBaseDomain(url) + '" already exists (' + (existingMatch.title || '') + '). Nest this as a variant?')) {
+        if (!existingMatch.variants) existingMatch.variants = [];
+        var variantTitle = name || generateVariantLabel(existingMatch.url, url, name, existingMatch.title);
+        existingMatch.variants.push({
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+          url: url,
+          title: variantTitle,
+          favicon: modalState.customFavicon || getFaviconUrl(url)
+        });
+        await Storage.saveAll(data);
+      } else {
+        var newShortcut = {
+          url: url,
+          title: name || getDomain(url).replace(/^www\./, ""),
+          favicon: getFaviconUrl(url)
+        };
+        if (modalState.customFavicon) newShortcut.favicon = modalState.customFavicon;
+        await Storage.addShortcut(modalState.groupId, newShortcut);
+      }
     } else if (modalState.mode === "edit" && modalState.shortcut) {
       var group = findGroup(modalState.groupId);
       var sc = group && group.shortcuts.find(function (s) { return s.id === modalState.shortcut.id; });
@@ -2381,10 +2685,17 @@
   function openAllInGroup(groupId) {
     var group = findGroup(groupId);
     if (!group || !group.shortcuts.length) return;
-    group.shortcuts.forEach(function (s, i) {
-      chrome.tabs.create({ url: s.url, active: i === 0 });
+    var urls = [];
+    group.shortcuts.forEach(function (s) {
+      urls.push(s.url);
+      if (s.variants) {
+        s.variants.forEach(function (v) { urls.push(v.url); });
+      }
     });
-    showOpenAllToast(group.shortcuts.length, group.name);
+    urls.forEach(function (url, i) {
+      chrome.tabs.create({ url: url, active: i === 0 });
+    });
+    showOpenAllToast(urls.length, group.name);
   }
 
   function showOpenAllToast(count, groupName) {

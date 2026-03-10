@@ -197,9 +197,38 @@ chrome.contextMenus.onClicked.addListener(async function (info, tab) {
       }
     }
 
-    targetGroup.shortcuts.push(shortcut);
+    // Auto-nest: check if a shortcut with the same domain already exists
+    var existingMatch = null;
+    targetGroup.shortcuts.forEach(function (s) {
+      if (!existingMatch) {
+        try {
+          if (new URL(s.url).hostname === domain) existingMatch = s;
+        } catch (e) {}
+      }
+    });
+
+    if (existingMatch) {
+      // Nest as variant under the existing shortcut
+      if (!existingMatch.variants) existingMatch.variants = [];
+      var variantTitle = shortcut.title;
+      // Try smart label
+      try {
+        var variantPath = new URL(url).pathname;
+        var accountMatch = variantPath.match(/\/u\/(\d+)/);
+        if (accountMatch) variantTitle = "Account " + (parseInt(accountMatch[1]) + 1);
+      } catch (e) {}
+      existingMatch.variants.push({
+        id: shortcut.id,
+        url: shortcut.url,
+        title: variantTitle,
+        favicon: shortcut.favicon
+      });
+      console.log("[LaunchPad] Auto-nested under", existingMatch.title, ":", shortcut.title);
+    } else {
+      targetGroup.shortcuts.push(shortcut);
+      console.log("[LaunchPad] Shortcut added to", targetGroup.name, ":", shortcut.title);
+    }
     await chrome.storage.local.set({ data: data });
-    console.log("[LaunchPad] Shortcut added to", targetGroup.name, ":", shortcut.title);
   } catch (err) {
     console.error("[LaunchPad] Failed to add shortcut:", err);
   }
@@ -239,6 +268,19 @@ chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
             }
           }
         } catch (e) {}
+        // Also update variants
+        if (shortcut.variants) {
+          shortcut.variants.forEach(function (v) {
+            try {
+              if (new URL(v.url).hostname === tabDomain) {
+                if (tab.favIconUrl !== v.favicon && !(v.favicon && v.favicon.startsWith("data:"))) {
+                  v.favicon = tab.favIconUrl;
+                  updated = true;
+                }
+              }
+            } catch (e) {}
+          });
+        }
       });
     });
 
