@@ -729,9 +729,12 @@
     }) || null;
   }
 
-  // ===== Variant Panel =====
+  // ===== Variant Radial Pop-Out =====
 
   var variantPanelState = null;
+  var variantBubbles = [];
+  var variantCloseTimers = [];
+  var variantCtxState = null;
 
   function showVariantPanel(shortcutId, groupId, anchorEl) {
     closeVariantPanel();
@@ -740,48 +743,307 @@
     var shortcut = group.shortcuts.find(function (s) { return s.id === shortcutId; });
     if (!shortcut || !shortcut.variants || !shortcut.variants.length) return;
 
-    variantPanelState = { shortcutId: shortcutId, groupId: groupId };
-    var panel = $("#variant-panel");
-    var domain = getBaseDomain(shortcut.url) || "";
+    variantPanelState = { shortcutId: shortcutId, groupId: groupId, anchorEl: anchorEl };
 
-    $(".variant-panel-header", panel).textContent = domain;
+    // Highlight parent icon
+    anchorEl.classList.add("variants-open");
 
-    // Build list: parent first, then variants
-    var items = [{ url: shortcut.url, title: shortcut.title || domain, favicon: getFaviconUrl(shortcut) }];
+    // Build items: parent + variants
+    var items = [{
+      id: "__parent__",
+      url: shortcut.url,
+      title: shortcut.title || getBaseDomain(shortcut.url) || "",
+      favicon: getFaviconUrl(shortcut),
+      isParent: true
+    }];
     shortcut.variants.forEach(function (v) {
-      var label = v.title || generateVariantLabel(shortcut.url, v.url, v.title, shortcut.title);
-      items.push({ url: v.url, title: label, favicon: getFaviconUrl(v) });
+      var label = v.customLabel || v.title || generateVariantLabel(shortcut.url, v.url, v.title, shortcut.title);
+      items.push({
+        id: v.id,
+        url: v.url,
+        title: label,
+        favicon: getFaviconUrl(v),
+        isParent: false
+      });
     });
 
-    $(".variant-panel-list", panel).innerHTML = items.map(function (item) {
-      return '<a href="' + esc(item.url) + '" class="variant-item" title="' + esc(item.url) + '">' +
-        '<img src="' + esc(item.favicon) + '" alt="" width="20" height="20">' +
-        '<span class="variant-item-label">' + esc(item.title) + '</span>' +
-      '</a>';
-    }).join("");
-
-    // Position to the right of the icon
+    // Calculate parent center
     var rect = anchorEl.getBoundingClientRect();
-    panel.classList.remove("hidden");
-    var panelWidth = 220;
-    var left = rect.right + 8;
-    if (left + panelWidth > window.innerWidth - 8) {
-      left = rect.left - panelWidth - 8;
-    }
-    panel.style.left = left + "px";
-    panel.style.top = rect.top + "px";
+    var cx = rect.left + rect.width / 2;
+    var cy = rect.top + rect.height / 2;
 
-    // Check bottom overflow
-    var panelRect = panel.getBoundingClientRect();
-    if (panelRect.bottom > window.innerHeight - 8) {
-      panel.style.top = Math.max(8, window.innerHeight - panelRect.height - 8) + "px";
+    // Edge detection — determine base angle direction
+    var radius = 80;
+    var totalItems = items.length;
+    var spreadAngle = Math.min(totalItems * 40, 180);
+    var baseAngle = -90; // default: fan upward-right
+
+    // If near top edge, fan downward
+    if (cy - radius - 30 < 0) baseAngle = 0;
+    // If near right edge, fan left
+    if (cx + radius + 30 > window.innerWidth) baseAngle = 180;
+    // If near bottom edge, fan upward
+    if (cy + radius + 60 > window.innerHeight) baseAngle = -90;
+    // If near left edge, fan right
+    if (cx - radius - 30 < 56) baseAngle = 0;
+
+    // Prefer right-side fan when there's room
+    if (baseAngle === -90 && cx + radius + 30 <= window.innerWidth) {
+      baseAngle = -60;
     }
+
+    var startAngle = baseAngle - spreadAngle / 2;
+
+    // Create backdrop
+    var backdrop = document.createElement("div");
+    backdrop.className = "variant-backdrop";
+    backdrop.addEventListener("click", function () { closeVariantPanel(); });
+    document.body.appendChild(backdrop);
+
+    var container = $("#variant-bubble-container");
+
+    // Create bubbles
+    items.forEach(function (item, index) {
+      var angle = totalItems === 1
+        ? baseAngle
+        : startAngle + (spreadAngle / (totalItems - 1)) * index;
+      var angleRad = angle * (Math.PI / 180);
+      var tx = Math.cos(angleRad) * radius;
+      var ty = Math.sin(angleRad) * radius;
+      var finalLeft = cx + tx - 20;
+      var finalTop = cy + ty - 20;
+
+      // Clamp to viewport
+      finalLeft = Math.max(4, Math.min(finalLeft, window.innerWidth - 44));
+      finalTop = Math.max(4, Math.min(finalTop, window.innerHeight - 64));
+
+      var bubble = document.createElement("div");
+      bubble.className = "variant-bubble";
+      bubble.dataset.variantId = item.id;
+      bubble.dataset.url = item.url;
+      bubble.dataset.isParent = item.isParent ? "true" : "false";
+      bubble.title = item.url;
+
+      var img = document.createElement("img");
+      img.src = item.favicon;
+      img.alt = "";
+      img.width = 24;
+      img.height = 24;
+      bubble.appendChild(img);
+
+      var label = document.createElement("span");
+      label.className = "variant-label";
+      label.textContent = item.title;
+      bubble.appendChild(label);
+
+      // Start at parent center
+      bubble.style.left = (cx - 20) + "px";
+      bubble.style.top = (cy - 20) + "px";
+      bubble.style.transition = "none";
+
+      container.appendChild(bubble);
+      variantBubbles.push({ el: bubble, finalLeft: finalLeft, finalTop: finalTop, item: item });
+
+      // Click handler
+      bubble.addEventListener("click", function (e) {
+        if (e.defaultPrevented) return;
+        chrome.tabs.update({ url: item.url });
+        closeVariantPanel();
+      });
+
+      // Double-click label to edit (only for variants, not parent)
+      if (!item.isParent) {
+        label.style.pointerEvents = "auto";
+        label.addEventListener("dblclick", function (e) {
+          e.stopPropagation();
+          startVariantLabelEdit(bubble, label, item, shortcutId, groupId);
+        });
+      }
+
+      // Right-click on variant (not parent)
+      if (!item.isParent) {
+        bubble.addEventListener("contextmenu", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          showVariantCtxMenu(e, item, shortcutId, groupId);
+        });
+      }
+    });
+
+    // Stagger open animation
+    variantBubbles.forEach(function (b, i) {
+      setTimeout(function () {
+        b.el.style.transition = "transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease, left 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.15s, background-color 0.15s";
+        b.el.style.left = b.finalLeft + "px";
+        b.el.style.top = b.finalTop + "px";
+        b.el.classList.add("open");
+      }, i * 50);
+    });
   }
 
   function closeVariantPanel() {
-    var panel = $("#variant-panel");
-    if (panel) panel.classList.add("hidden");
+    closeVariantCtxMenu();
+    if (!variantPanelState) return;
+
+    // Remove highlight from parent icon
+    if (variantPanelState.anchorEl) {
+      variantPanelState.anchorEl.classList.remove("variants-open");
+    }
+
+    // Get parent center for close animation
+    var cx = 0, cy = 0;
+    if (variantPanelState.anchorEl) {
+      var rect = variantPanelState.anchorEl.getBoundingClientRect();
+      cx = rect.left + rect.width / 2;
+      cy = rect.top + rect.height / 2;
+    }
+
+    // Clear any pending open timers
+    variantCloseTimers.forEach(function (t) { clearTimeout(t); });
+    variantCloseTimers = [];
+
+    // Reverse stagger close animation
+    var total = variantBubbles.length;
+    variantBubbles.forEach(function (b, i) {
+      var delay = (total - 1 - i) * 30;
+      var t = setTimeout(function () {
+        b.el.style.transition = "transform 0.15s ease-in, opacity 0.15s ease-in, left 0.15s ease-in, top 0.15s ease-in";
+        b.el.style.left = (cx - 20) + "px";
+        b.el.style.top = (cy - 20) + "px";
+        b.el.classList.remove("open");
+        b.el.classList.add("closing");
+      }, delay);
+      variantCloseTimers.push(t);
+    });
+
+    // Remove elements after animation
+    var cleanup = setTimeout(function () {
+      variantBubbles.forEach(function (b) { b.el.remove(); });
+      variantBubbles = [];
+      var backdrop = $(".variant-backdrop");
+      if (backdrop) backdrop.remove();
+    }, total * 30 + 200);
+    variantCloseTimers.push(cleanup);
+
     variantPanelState = null;
+  }
+
+  // ===== Variant Label Editing =====
+
+  function startVariantLabelEdit(bubble, labelEl, item, parentShortcutId, groupId) {
+    var currentText = labelEl.textContent;
+    labelEl.style.display = "none";
+
+    var input = document.createElement("input");
+    input.className = "variant-label-input";
+    input.value = currentText;
+    input.type = "text";
+    bubble.appendChild(input);
+    input.focus();
+    input.select();
+
+    var saved = false;
+    var save = function () {
+      if (saved) return;
+      saved = true;
+      var newLabel = input.value.trim() || currentText;
+      input.remove();
+      labelEl.style.display = "";
+      labelEl.textContent = newLabel;
+
+      // Save to storage
+      var group = findGroup(groupId);
+      if (!group) return;
+      var parent = group.shortcuts.find(function (s) { return s.id === parentShortcutId; });
+      if (!parent || !parent.variants) return;
+      var variant = parent.variants.find(function (v) { return v.id === item.id; });
+      if (variant) {
+        variant.customLabel = newLabel;
+        Storage.saveAll(data);
+        console.log("[LaunchPad] Variant label updated:", newLabel);
+      }
+    };
+
+    input.addEventListener("blur", save);
+    input.addEventListener("keydown", function (e) {
+      e.stopPropagation();
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { e.preventDefault(); input.value = currentText; input.blur(); }
+    });
+    input.addEventListener("click", function (e) { e.stopPropagation(); });
+  }
+
+  // ===== Variant Bubble Context Menu =====
+
+  function showVariantCtxMenu(e, item, parentShortcutId, groupId) {
+    closeVariantCtxMenu();
+    variantCtxState = { item: item, parentShortcutId: parentShortcutId, groupId: groupId };
+    var menu = $("#variant-ctx-menu");
+    menu.classList.remove("hidden");
+    menu.style.left = e.clientX + "px";
+    menu.style.top = e.clientY + "px";
+
+    // Ensure menu stays on screen
+    var mr = menu.getBoundingClientRect();
+    if (mr.right > window.innerWidth - 8) menu.style.left = (window.innerWidth - mr.width - 8) + "px";
+    if (mr.bottom > window.innerHeight - 8) menu.style.top = (window.innerHeight - mr.height - 8) + "px";
+  }
+
+  function closeVariantCtxMenu() {
+    var menu = $("#variant-ctx-menu");
+    if (menu) menu.classList.add("hidden");
+    variantCtxState = null;
+  }
+
+  async function handleVariantCtxAction(action) {
+    if (!variantCtxState) return;
+    var item = variantCtxState.item;
+    var parentId = variantCtxState.parentShortcutId;
+    var groupId = variantCtxState.groupId;
+    closeVariantCtxMenu();
+
+    if (action === "rename") {
+      // Find the bubble and trigger inline edit
+      var bubble = document.querySelector('.variant-bubble[data-variant-id="' + item.id + '"]');
+      if (bubble) {
+        var label = bubble.querySelector(".variant-label");
+        if (label) startVariantLabelEdit(bubble, label, item, parentId, groupId);
+      }
+    } else if (action === "ungroup") {
+      // Remove variant and make it standalone
+      var group = findGroup(groupId);
+      if (!group) return;
+      var parent = group.shortcuts.find(function (s) { return s.id === parentId; });
+      if (!parent || !parent.variants) return;
+      var vIdx = parent.variants.findIndex(function (v) { return v.id === item.id; });
+      if (vIdx === -1) return;
+      var removed = parent.variants.splice(vIdx, 1)[0];
+      if (!parent.variants.length) delete parent.variants;
+      // Add as standalone after parent
+      var pIdx = group.shortcuts.indexOf(parent);
+      group.shortcuts.splice(pIdx + 1, 0, {
+        id: removed.id,
+        url: removed.url,
+        title: removed.customLabel || removed.title,
+        favicon: removed.favicon,
+        addedAt: Date.now()
+      });
+      await Storage.saveAll(data);
+      closeVariantPanel();
+      data = await Storage.getAll();
+      render();
+    } else if (action === "delete") {
+      var group2 = findGroup(groupId);
+      if (!group2) return;
+      var parent2 = group2.shortcuts.find(function (s) { return s.id === parentId; });
+      if (!parent2 || !parent2.variants) return;
+      parent2.variants = parent2.variants.filter(function (v) { return v.id !== item.id; });
+      if (!parent2.variants.length) delete parent2.variants;
+      await Storage.saveAll(data);
+      closeVariantPanel();
+      data = await Storage.getAll();
+      render();
+    }
   }
 
   // ===== Nest Submenu =====
@@ -2128,13 +2390,10 @@
       hideMenu();
     });
 
-    // Variant panel item click
-    safeOn("#variant-panel", "click", function (e) {
-      var item = e.target.closest(".variant-item");
-      if (!item) return;
-      e.preventDefault();
-      chrome.tabs.update({ url: item.href });
-      closeVariantPanel();
+    // Variant bubble context menu actions
+    safeOn("#variant-ctx-menu", "click", function (e) {
+      var item = e.target.closest(".vctx-item");
+      if (item) handleVariantCtxAction(item.dataset.action);
     });
 
     // History section
@@ -2225,8 +2484,8 @@
         hideMenu();
         closeNestSubmenu();
       }
-      if (!e.target.closest("#variant-panel") && !e.target.closest(".shortcut.has-variants .shortcut-link")) {
-        closeVariantPanel();
+      if (!e.target.closest(".variant-bubble") && !e.target.closest("#variant-ctx-menu") && !e.target.closest(".shortcut.has-variants .shortcut-link")) {
+        closeVariantCtxMenu();
       }
       if (!e.target.closest("#group-menu") && !e.target.closest(".group-more-btn") && !e.target.closest(".sb-group-more")) {
         hideGroupMenu();
@@ -2254,14 +2513,16 @@
         closeModal(); hideMenu(); hideGroupMenu(); hideDeleteDialog();
         closeBgModal(); closeRcFilterMenu(); closeDomainPanel(); closeSettingsPanel();
         closeHistoryOverlay(); closeRestoreDropdown();
-        closeVariantPanel(); closeNestSubmenu();
+        closeVariantPanel(); closeVariantCtxMenu(); closeNestSubmenu();
         var sidebar = $("#sidebar");
         if (sidebar && sidebar.classList.contains("mobile-open")) toggleMobileSidebar();
       }
     });
 
     // Close menu on scroll
-    window.addEventListener("scroll", function () { hideMenu(); hideGroupMenu(); });
+    window.addEventListener("scroll", function () { hideMenu(); hideGroupMenu(); closeVariantPanel(); });
+    var gridArea = $("#shortcut-grid-area");
+    if (gridArea) gridArea.addEventListener("scroll", function () { closeVariantPanel(); });
 
   }
 
