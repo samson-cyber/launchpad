@@ -12,6 +12,8 @@
   var rcLoadedItems = [];
   var sidebarGroupObserver = null;
   var sidebarSortable = null;
+  var dragState = null;
+  var nestingTipTimer = null;
 
   var $ = function (s, p) { return (p || document).querySelector(s); };
   var $$ = function (s, p) { return [].slice.call((p || document).querySelectorAll(s)); };
@@ -1283,6 +1285,7 @@
     renderSidebarGroups();
     initSidebarSortable();
     initSidebarGroupObserver();
+    checkNestingTooltip();
   }
 
   function groupHTML(group, singleGroup) {
@@ -2318,6 +2321,15 @@
     // Right-click tip
     safeOn("#rc-tip-dismiss", "click", dismissRightClickTip);
 
+    // Nesting tooltip dismiss
+    safeOn("#nesting-tooltip .nest-tip-dismiss", "click", async function () {
+      hideNestingTooltip();
+      if (data && data.settings) {
+        data.settings.nestingTipDismissed = true;
+        await Storage.saveAll(data);
+      }
+    });
+
     // Delegated clicks on groups container
     safeOn("#groups", "click", function (e) {
       var el;
@@ -3008,23 +3020,297 @@
         dragClass: "sortable-drag",
         filter: ".shortcut-more, .add-tile, .grid-placeholder, .empty-group-hint",
         preventOnFilter: false,
-        onStart: function () {
+        onStart: function (evt) {
           $$(".shortcuts-grid").forEach(function (g) {
             g.classList.add("is-dragging");
           });
+          startDragNestTracking(evt);
         },
-        onEnd: async function () {
+        onMove: function (evt) {
+          updateDragNestTracking(evt);
+        },
+        onEnd: async function (evt) {
+          var nestResult = finishDragNestTracking(evt);
           $$(".shortcuts-grid").forEach(function (g) {
             g.classList.remove("is-dragging");
           });
           $$(".grid-placeholder").forEach(function (el) { el.remove(); });
-          await syncShortcutsFromDOM();
+
+          if (nestResult) {
+            // Nesting handled — revert SortableJS move by re-rendering
+            await nestResult;
+          } else {
+            await syncShortcutsFromDOM();
+          }
           ensureAllPlaceholders();
-          console.log("[LaunchPad] Shortcuts reordered via drag");
         }
       });
       sortables.push(s);
     });
+  }
+
+  // ===== Drag-to-Nest System =====
+
+  function startDragNestTracking(evt) {
+    var draggedEl = evt.item;
+    var draggedId = draggedEl.dataset.id;
+    var draggedShortcut = null;
+    var draggedGroupId = null;
+
+    // Find the dragged shortcut data
+    data.groups.forEach(function (g) {
+      g.shortcuts.forEach(function (s) {
+        if (s.id === draggedId) {
+          draggedShortcut = s;
+          draggedGroupId = g.id;
+        }
+      });
+    });
+
+    if (!draggedShortcut) return;
+
+    var draggedDomain = getBaseDomain(draggedShortcut.url);
+    var shiftHeld = false;
+
+    dragState = {
+      draggedId: draggedId,
+      draggedDomain: draggedDomain,
+      draggedGroupId: draggedGroupId,
+      hoveredTarget: null,
+      shiftHeld: shiftHeld
+    };
+
+    // Highlight matching domain shortcuts
+    highlightNestTargets(draggedId, draggedDomain, false);
+
+    // Listen for shift key
+    dragState._keyDown = function (e) {
+      if (e.key === "Shift" && dragState && !dragState.shiftHeld) {
+        dragState.shiftHeld = true;
+        highlightNestTargets(dragState.draggedId, dragState.draggedDomain, true);
+      }
+    };
+    dragState._keyUp = function (e) {
+      if (e.key === "Shift" && dragState && dragState.shiftHeld) {
+        dragState.shiftHeld = false;
+        highlightNestTargets(dragState.draggedId, dragState.draggedDomain, false);
+      }
+    };
+    document.addEventListener("keydown", dragState._keyDown);
+    document.addEventListener("keyup", dragState._keyUp);
+
+    // Track mouse position for drop detection
+    dragState._mouseMove = function (e) {
+      if (!dragState) return;
+      dragState.lastX = e.clientX;
+      dragState.lastY = e.clientY;
+      checkNestHover(e.clientX, e.clientY);
+    };
+    document.addEventListener("mousemove", dragState._mouseMove);
+
+    // Hide nesting tooltip during drag
+    hideNestingTooltip();
+  }
+
+  function highlightNestTargets(draggedId, draggedDomain, shiftMode) {
+    // Remove all existing highlights
+    $$(".shortcut-nest-target, .shortcut-nest-target-all").forEach(function (el) {
+      el.classList.remove("shortcut-nest-target", "shortcut-nest-target-all");
+    });
+
+    $$(".shortcut").forEach(function (el) {
+      if (el.dataset.id === draggedId) return;
+      if (shiftMode) {
+        el.classList.add("shortcut-nest-target-all");
+      } else if (draggedDomain) {
+        // Check if this shortcut has matching domain
+        var shortcut = findShortcutById(el.dataset.id);
+        if (shortcut) {
+          var targetDomain = getBaseDomain(shortcut.url);
+          if (targetDomain && targetDomain === draggedDomain) {
+            el.classList.add("shortcut-nest-target");
+          }
+        }
+      }
+    });
+  }
+
+  function checkNestHover(x, y) {
+    if (!dragState) return;
+    var dropLabel = $("#nest-drop-label");
+
+    var hovered = null;
+    $$(".shortcut").forEach(function (el) {
+      if (el.dataset.id === dragState.draggedId) return;
+      if (el.classList.contains("sortable-ghost")) return;
+      var iconEl = el.querySelector(".shortcut-icon");
+      if (!iconEl) return;
+      var rect = iconEl.getBoundingClientRect();
+      // Expand hit area slightly for easier targeting
+      var pad = 8;
+      if (x >= rect.left - pad && x <= rect.right + pad &&
+          y >= rect.top - pad && y <= rect.bottom + pad) {
+        var isTarget = el.classList.contains("shortcut-nest-target") ||
+                       el.classList.contains("shortcut-nest-target-all");
+        if (isTarget) {
+          hovered = el;
+        }
+      }
+    });
+
+    if (hovered !== dragState.hoveredTarget) {
+      // Remove previous highlight
+      if (dragState.hoveredTarget) {
+        dragState.hoveredTarget.querySelector(".shortcut-icon").classList.remove("variants-open");
+      }
+      dragState.hoveredTarget = hovered;
+      if (hovered) {
+        hovered.querySelector(".shortcut-icon").classList.add("variants-open");
+        var shortcut = findShortcutById(hovered.dataset.id);
+        if (shortcut && dropLabel) {
+          dropLabel.textContent = "Nest with " + (shortcut.title || "shortcut");
+          dropLabel.style.left = (x + 14) + "px";
+          dropLabel.style.top = (y - 8) + "px";
+          dropLabel.classList.add("visible");
+        }
+      } else if (dropLabel) {
+        dropLabel.classList.remove("visible");
+      }
+    }
+
+    // Update label position if hovering
+    if (dragState.hoveredTarget && dropLabel) {
+      dropLabel.style.left = (x + 14) + "px";
+      dropLabel.style.top = (y - 8) + "px";
+    }
+  }
+
+  function updateDragNestTracking(evt) {
+    // SortableJS onMove — check hover position
+    if (!dragState) return;
+    // The mousemove listener handles real-time tracking
+  }
+
+  function finishDragNestTracking(evt) {
+    if (!dragState) return null;
+
+    var state = dragState;
+    var targetEl = state.hoveredTarget;
+
+    // Cleanup
+    document.removeEventListener("keydown", state._keyDown);
+    document.removeEventListener("keyup", state._keyUp);
+    document.removeEventListener("mousemove", state._mouseMove);
+
+    $$(".shortcut-nest-target, .shortcut-nest-target-all").forEach(function (el) {
+      el.classList.remove("shortcut-nest-target", "shortcut-nest-target-all");
+    });
+
+    $$(".shortcut-icon.variants-open").forEach(function (el) {
+      el.classList.remove("variants-open");
+    });
+
+    var dropLabel = $("#nest-drop-label");
+    if (dropLabel) dropLabel.classList.remove("visible");
+
+    dragState = null;
+
+    // If hovering over a valid nest target, perform nesting
+    if (targetEl && targetEl.dataset.id !== state.draggedId) {
+      var targetId = targetEl.dataset.id;
+      // Find which group the target is in
+      var targetGroupId = null;
+      var gridEl = targetEl.closest(".shortcuts-grid");
+      if (gridEl) targetGroupId = gridEl.dataset.groupId;
+      if (!targetGroupId) targetGroupId = state.draggedGroupId;
+
+      // Need to find the dragged shortcut's current group (may have changed due to SortableJS cross-group)
+      var draggedGroupId = state.draggedGroupId;
+      var draggedEl = document.querySelector('.shortcut[data-id="' + state.draggedId + '"]');
+      if (draggedEl) {
+        var draggedGrid = draggedEl.closest(".shortcuts-grid");
+        if (draggedGrid) draggedGroupId = draggedGrid.dataset.groupId;
+      }
+
+      console.log("[LaunchPad] Drag-to-nest:", state.draggedId, "→", targetId);
+
+      // Perform nesting
+      return (async function () {
+        // First sync DOM so positions are correct
+        await syncShortcutsFromDOM();
+        // Now nest — the dragged shortcut should be in targetGroupId after SortableJS moved it
+        await nestShortcutWith(state.draggedId, targetId, targetGroupId);
+
+        // Auto-dismiss nesting tooltip
+        if (data.settings && !data.settings.nestingTipDismissed) {
+          data.settings.nestingTipDismissed = true;
+          await Storage.saveAll(data);
+        }
+      })();
+    }
+
+    return null;
+  }
+
+  function findShortcutById(id) {
+    var found = null;
+    data.groups.forEach(function (g) {
+      g.shortcuts.forEach(function (s) {
+        if (s.id === id) found = s;
+      });
+    });
+    return found;
+  }
+
+  // ===== Nesting Tooltip =====
+
+  function checkNestingTooltip() {
+    if (!data || !data.settings) return;
+    if (data.settings.nestingTipDismissed) return;
+
+    // Look for shortcuts with matching domains across groups
+    var match = null;
+    data.groups.forEach(function (g) {
+      if (match) return;
+      var domainMap = {};
+      g.shortcuts.forEach(function (s) {
+        if (match) return;
+        var domain = getBaseDomain(s.url);
+        if (!domain) return;
+        // Skip shortcuts that already have variants
+        if (s.variants && s.variants.length > 0) return;
+        if (domainMap[domain]) {
+          match = { domain: domain, first: domainMap[domain], second: s.title };
+        } else {
+          domainMap[domain] = s.title;
+        }
+      });
+    });
+
+    if (!match) return;
+
+    // Show tooltip after delay
+    if (nestingTipTimer) clearTimeout(nestingTipTimer);
+    nestingTipTimer = setTimeout(function () {
+      var tip = $("#nesting-tooltip");
+      if (!tip) return;
+      var text = tip.querySelector(".nest-tip-text");
+      if (text) {
+        text.textContent = "Drag \"" + match.second + "\" onto \"" + match.first + "\" to nest them — they share the same domain!";
+      }
+      tip.classList.add("visible");
+
+      // Auto-dismiss after 8 seconds
+      setTimeout(function () {
+        hideNestingTooltip();
+      }, 8000);
+    }, 2000);
+  }
+
+  function hideNestingTooltip() {
+    if (nestingTipTimer) { clearTimeout(nestingTipTimer); nestingTipTimer = null; }
+    var tip = $("#nesting-tooltip");
+    if (tip) tip.classList.remove("visible");
   }
 
   function destroySortables() {
