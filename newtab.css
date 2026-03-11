@@ -730,96 +730,151 @@ html.has-bg .variant-badge {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-/* ===== Variant Radial Pop-Out ===== */
+/* ===== Variant Dropdown ===== */
 
-.variant-backdrop {
+.variant-dropdown {
   position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.3);
-  z-index: 999;
+  z-index: 1100;
+  min-width: 200px;
+  max-width: 300px;
+  background: rgba(30, 30, 30, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  padding: 6px 0;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
 }
 
-.shortcut-icon.variants-open {
-  box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.4);
-  z-index: 1001;
+.variant-dropdown.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
-.variant-bubble {
-  position: fixed;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(40, 40, 40, 0.9);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 2px solid rgba(255, 255, 255, 0.15);
+.variant-dropdown-arrow {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.variant-dropdown-arrow::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 8px;
+  height: 8px;
+  background: rgba(30, 30, 30, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-right: none;
+  border-bottom: none;
+}
+
+.variant-dropdown-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.variant-dropdown-row {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 10px;
+  padding: 8px 12px;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  z-index: 1000;
-  transform: scale(0);
-  opacity: 0;
+  transition: background 0.1s;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-.variant-bubble.open {
-  transform: scale(1);
+.variant-dropdown-row:first-child {
+  border-radius: 8px 8px 0 0;
+}
+
+.variant-dropdown-row:last-child {
+  border-radius: 0 0 8px 8px;
+}
+
+.variant-dropdown-row:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.variant-dropdown-row img {
+  flex-shrink: 0;
+  border-radius: 4px;
+}
+
+.variant-dropdown-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: none;
+}
+
+.variant-dropdown-more {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 16px;
+  line-height: 1;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.1s, background 0.1s;
+}
+
+.variant-dropdown-row:hover .variant-dropdown-more {
   opacity: 1;
 }
 
-.variant-bubble.closing {
-  transform: scale(0);
-  opacity: 0;
-}
-
-.variant-bubble:hover {
-  transform: scale(1.15) !important;
-  border-color: rgba(255, 255, 255, 0.4);
-  background: rgba(60, 60, 60, 0.95);
-}
-
-.variant-bubble img {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  pointer-events: none;
-}
-
-.variant-label {
-  position: absolute;
-  top: 44px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 10px;
+.variant-dropdown-more:hover {
+  background: rgba(255, 255, 255, 0.15);
   color: rgba(255, 255, 255, 0.8);
-  white-space: nowrap;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-  max-width: 80px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: center;
-  pointer-events: none;
 }
 
-.variant-label-input {
-  position: absolute;
-  top: 44px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: #fff;
-  font-size: 10px;
-  text-align: center;
-  width: 80px;
-  border-radius: 4px;
-  padding: 2px 4px;
-  outline: none;
-  font-family: inherit;
+/* Non-background mode */
+html:not(.has-bg) .variant-dropdown {
+  background: rgba(255, 255, 255, 0.97);
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
 }
 
-/* ===== Variant Bubble Context Menu ===== */
+html:not(.has-bg) .variant-dropdown-arrow::after {
+  background: rgba(255, 255, 255, 0.97);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+html:not(.has-bg) .variant-dropdown-row {
+  color: rgba(0, 0, 0, 0.85);
+}
+
+html:not(.has-bg) .variant-dropdown-row:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+html:not(.has-bg) .variant-dropdown-more {
+  color: rgba(0, 0, 0, 0.3);
+}
+
+html:not(.has-bg) .variant-dropdown-more:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.6);
+}
+
+/* ===== Variant Context Menu ===== */
 
 #variant-ctx-menu {
   position: fixed;
@@ -830,7 +885,7 @@ html.has-bg .variant-badge {
   border-radius: 8px;
   padding: 4px 0;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  z-index: 1100;
+  z-index: 1200;
   min-width: 130px;
 }
 
@@ -928,11 +983,6 @@ html.has-bg .variant-badge {
 
 .vid-btn-primary:hover {
   background: rgba(78, 205, 196, 0.45);
-}
-
-/* Custom icon in bubbles — circular */
-.variant-bubble img.custom-icon {
-  border-radius: 50%;
 }
 
 /* ===== Nest Submenu ===== */
@@ -1238,19 +1288,15 @@ html.has-bg .modal-icon-btn:hover {
 /* ===== Drag & Drop ===== */
 
 .sortable-ghost {
-  opacity: 0.3;
-  border: 2px dashed var(--text-hint);
+  opacity: 0.15;
+  border: none;
   border-radius: 12px;
-  background: rgba(0, 0, 0, 0.03);
+  background: rgba(255, 255, 255, 0.06);
+  pointer-events: none;
 }
 
 .sortable-ghost > * {
   visibility: hidden;
-}
-
-html.has-bg .sortable-ghost {
-  border-color: rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.05);
 }
 
 .sortable-chosen {
@@ -1277,13 +1323,25 @@ html.has-bg .sortable-ghost {
 
 .grid-placeholder {
   display: none;
-  min-height: 80px;
+  min-height: 0;
+  height: 0;
   border: none;
   background: none;
+  padding: 0;
+  margin: 0;
+  pointer-events: none;
+  opacity: 0;
 }
 
 .shortcuts-grid.is-dragging .grid-placeholder {
   display: block;
+  max-height: 0;
+  min-height: 0;
+  height: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+  overflow: hidden;
 }
 
 /* ===== Bookmark Picker Modal ===== */
@@ -4596,19 +4654,7 @@ html.has-bg .settings-privacy {
   opacity: 1;
 }
 
-/* ===== Variant Bubble Drag-to-Ungroup ===== */
-
-.variant-bubble[draggable="true"] {
-  cursor: grab;
-}
-
-.variant-bubble[draggable="true"]:active {
-  cursor: grabbing;
-}
-
-.variant-bubble.bubble-dragging {
-  opacity: 0.4;
-}
+/* ===== Variant Drag-to-Ungroup ===== */
 
 #ungroup-drop-zone {
   position: fixed;

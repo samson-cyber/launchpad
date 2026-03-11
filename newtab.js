@@ -779,279 +779,173 @@
     }) || null;
   }
 
-  // ===== Variant Radial Pop-Out =====
+  // ===== Variant Dropdown =====
 
-  var variantPanelState = null;
-  var variantBubbles = [];
-  var variantCloseTimers = [];
+  var variantDropdownState = null;
+  var variantDropdownHoverTimer = null;
+  var variantDropdownCloseTimer = null;
   var variantCtxState = null;
 
-  function showVariantPanel(shortcutId, groupId, anchorEl) {
-    closeVariantPanel();
+  function showVariantDropdown(shortcutId, groupId, anchorEl) {
+    closeVariantDropdown();
     var group = findGroup(groupId);
     if (!group) return;
     var shortcut = group.shortcuts.find(function (s) { return s.id === shortcutId; });
     if (!shortcut || !shortcut.variants || !shortcut.variants.length) return;
 
-    variantPanelState = { shortcutId: shortcutId, groupId: groupId, anchorEl: anchorEl };
+    variantDropdownState = { shortcutId: shortcutId, groupId: groupId, anchorEl: anchorEl };
+    sidebarLocked = true;
 
-    // Highlight parent icon
-    anchorEl.classList.add("variants-open");
-
-    // Build items: parent + variants
-    var parentLabel = shortcut.customLabel || shortcut.title || getBaseDomain(shortcut.url) || "";
-    var parentIcon = shortcut.customIcon || getFaviconUrl(shortcut);
+    // Build items: parent first, then variants
     var items = [{
       id: "__parent__",
       url: shortcut.url,
-      title: parentLabel,
-      favicon: parentIcon,
-      customIcon: shortcut.customIcon || "",
+      title: shortcut.customLabel || shortcut.title || getBaseDomain(shortcut.url) || "",
+      favicon: shortcut.customIcon || getFaviconUrl(shortcut),
       isParent: true
     }];
     shortcut.variants.forEach(function (v) {
-      var label = v.customLabel || v.title || generateVariantLabel(shortcut.url, v.url, v.title, shortcut.title);
-      var icon = v.customIcon || getFaviconUrl(v);
       items.push({
         id: v.id,
         url: v.url,
-        title: label,
-        favicon: icon,
-        customIcon: v.customIcon || "",
+        title: v.customLabel || v.title || generateVariantLabel(shortcut.url, v.url, v.title, shortcut.title),
+        favicon: v.customIcon || getFaviconUrl(v),
         isParent: false
       });
     });
 
-    // Calculate parent center
-    var rect = anchorEl.getBoundingClientRect();
-    var cx = rect.left + rect.width / 2;
-    var cy = rect.top + rect.height / 2;
+    // Create dropdown element
+    var dropdown = document.createElement("div");
+    dropdown.className = "variant-dropdown";
+    dropdown.dataset.shortcutId = shortcutId;
+    dropdown.dataset.groupId = groupId;
+    dropdown.innerHTML = '<div class="variant-dropdown-arrow"></div><div class="variant-dropdown-list"></div>';
 
-    // Edge detection — determine base angle direction
-    var radius = 80;
-    var totalItems = items.length;
-    var spreadAngle = Math.min(totalItems * 40, 180);
-    var baseAngle = -90; // default: fan upward-right
+    var list = dropdown.querySelector(".variant-dropdown-list");
 
-    // If near top edge, fan downward
-    if (cy - radius - 30 < 0) baseAngle = 0;
-    // If near right edge, fan left
-    if (cx + radius + 30 > window.innerWidth) baseAngle = 180;
-    // If near bottom edge, fan upward
-    if (cy + radius + 60 > window.innerHeight) baseAngle = -90;
-    // If near left edge, fan right
-    if (cx - radius - 30 < 56) baseAngle = 0;
+    items.forEach(function (item) {
+      var row = document.createElement("div");
+      row.className = "variant-dropdown-row";
+      row.dataset.url = item.url;
+      row.dataset.variantId = item.id;
+      row.dataset.isParent = item.isParent ? "true" : "false";
 
-    // Prefer right-side fan when there's room
-    if (baseAngle === -90 && cx + radius + 30 <= window.innerWidth) {
-      baseAngle = -60;
-    }
-
-    var startAngle = baseAngle - spreadAngle / 2;
-
-    // Create backdrop
-    var backdrop = document.createElement("div");
-    backdrop.className = "variant-backdrop";
-    backdrop.addEventListener("click", function () { closeVariantPanel(); });
-    document.body.appendChild(backdrop);
-
-    var container = $("#variant-bubble-container");
-
-    // Create bubbles
-    items.forEach(function (item, index) {
-      var angle = totalItems === 1
-        ? baseAngle
-        : startAngle + (spreadAngle / (totalItems - 1)) * index;
-      var angleRad = angle * (Math.PI / 180);
-      var tx = Math.cos(angleRad) * radius;
-      var ty = Math.sin(angleRad) * radius;
-      var finalLeft = cx + tx - 20;
-      var finalTop = cy + ty - 20;
-
-      // Clamp to viewport
-      finalLeft = Math.max(4, Math.min(finalLeft, window.innerWidth - 44));
-      finalTop = Math.max(4, Math.min(finalTop, window.innerHeight - 64));
-
-      var bubble = document.createElement("div");
-      bubble.className = "variant-bubble";
-      bubble.dataset.variantId = item.id;
-      bubble.dataset.url = item.url;
-      bubble.dataset.isParent = item.isParent ? "true" : "false";
-      bubble.title = item.url;
+      // Make non-parent rows draggable for ungroup
+      if (!item.isParent) {
+        row.draggable = true;
+        row.addEventListener("dragstart", function (e) {
+          e.dataTransfer.setData("text/plain", JSON.stringify({
+            variantId: item.id,
+            parentId: shortcutId,
+            groupId: groupId,
+            title: item.title,
+            isParent: false
+          }));
+          e.dataTransfer.effectAllowed = "move";
+          var zone = $("#ungroup-drop-zone");
+          if (zone) zone.classList.add("visible");
+        });
+        row.addEventListener("dragend", function () {
+          var zone = $("#ungroup-drop-zone");
+          if (zone) zone.classList.remove("visible", "drag-over");
+        });
+      }
 
       var img = document.createElement("img");
       img.src = item.favicon;
+      img.width = 20;
+      img.height = 20;
       img.alt = "";
-      img.width = 24;
-      img.height = 24;
-      if (item.customIcon) img.classList.add("custom-icon");
-      bubble.appendChild(img);
+      row.appendChild(img);
 
       var label = document.createElement("span");
-      label.className = "variant-label";
+      label.className = "variant-dropdown-label";
       label.textContent = item.title;
-      bubble.appendChild(label);
+      row.appendChild(label);
 
-      // Start at parent center
-      bubble.style.left = (cx - 20) + "px";
-      bubble.style.top = (cy - 20) + "px";
-      bubble.style.transition = "none";
-
-      container.appendChild(bubble);
-      variantBubbles.push({ el: bubble, finalLeft: finalLeft, finalTop: finalTop, item: item });
-
-      // Make all bubbles draggable (parent and variants)
-      bubble.draggable = true;
-      bubble.addEventListener("dragstart", function (e) {
-        e.dataTransfer.setData("text/plain", JSON.stringify({
-          variantId: item.id,
-          parentId: shortcutId,
-          groupId: groupId,
-          title: item.title,
-          isParent: item.isParent
-        }));
-        e.dataTransfer.effectAllowed = "move";
-        bubble.classList.add("bubble-dragging");
-        var zone = $("#ungroup-drop-zone");
-        if (zone) zone.classList.add("visible");
-      });
-      bubble.addEventListener("dragend", function () {
-        bubble.classList.remove("bubble-dragging");
-        var zone = $("#ungroup-drop-zone");
-        if (zone) zone.classList.remove("visible", "drag-over");
-      });
-
-      // Click handler
-      bubble.addEventListener("click", function (e) {
-        if (e.defaultPrevented) return;
-        chrome.tabs.update({ url: item.url });
-        closeVariantPanel();
-      });
-
-      // Double-click label to edit (parent and variants)
-      label.style.pointerEvents = "auto";
-      label.addEventListener("dblclick", function (e) {
-        e.stopPropagation();
-        startVariantLabelEdit(bubble, label, item, shortcutId, groupId);
-      });
-
-      // Right-click context menu (parent and variants)
-      bubble.addEventListener("contextmenu", function (e) {
-        e.preventDefault();
+      var moreBtn = document.createElement("button");
+      moreBtn.className = "variant-dropdown-more";
+      moreBtn.title = "Options";
+      moreBtn.textContent = "\u22EE";
+      moreBtn.addEventListener("click", function (e) {
         e.stopPropagation();
         showVariantCtxMenu(e, item, shortcutId, groupId);
       });
+      row.appendChild(moreBtn);
+
+      // Click row to open URL
+      row.addEventListener("click", function (e) {
+        if (e.defaultPrevented) return;
+        chrome.tabs.update({ url: item.url });
+        closeVariantDropdown();
+      });
+
+      list.appendChild(row);
     });
 
-    // Stagger open animation
-    variantBubbles.forEach(function (b, i) {
-      setTimeout(function () {
-        b.el.style.transition = "transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease, left 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.15s, background-color 0.15s";
-        b.el.style.left = b.finalLeft + "px";
-        b.el.style.top = b.finalTop + "px";
-        b.el.classList.add("open");
-      }, i * 50);
+    document.body.appendChild(dropdown);
+
+    // Position centered below anchor
+    var rect = anchorEl.getBoundingClientRect();
+    var dropdownWidth = dropdown.offsetWidth;
+    var left = rect.left + rect.width / 2 - dropdownWidth / 2;
+    var top = rect.bottom + 8;
+
+    // Clamp to viewport
+    left = Math.max(8, Math.min(left, window.innerWidth - dropdownWidth - 8));
+    if (top + dropdown.offsetHeight > window.innerHeight - 8) {
+      top = rect.top - dropdown.offsetHeight - 8;
+      // Flip arrow
+      var arrow = dropdown.querySelector(".variant-dropdown-arrow");
+      arrow.style.top = "auto";
+      arrow.style.bottom = "-6px";
+      arrow.style.transform = "translateX(-50%) rotate(180deg)";
+    }
+
+    dropdown.style.left = left + "px";
+    dropdown.style.top = top + "px";
+
+    // Reposition arrow to point at icon center
+    var arrowLeft = rect.left + rect.width / 2 - left;
+    var arrowEl = dropdown.querySelector(".variant-dropdown-arrow");
+    arrowEl.style.left = arrowLeft + "px";
+
+    // Animate in
+    requestAnimationFrame(function () {
+      dropdown.classList.add("visible");
+    });
+
+    // Hover to keep open
+    dropdown.addEventListener("mouseenter", function () {
+      clearTimeout(variantDropdownCloseTimer);
+    });
+    dropdown.addEventListener("mouseleave", function () {
+      scheduleCloseVariantDropdown();
     });
   }
 
-  function closeVariantPanel() {
+  function closeVariantDropdown() {
     closeVariantCtxMenu();
     closeVariantIconDialog();
-    if (!variantPanelState) return;
-
-    // Remove highlight from parent icon
-    if (variantPanelState.anchorEl) {
-      variantPanelState.anchorEl.classList.remove("variants-open");
+    clearTimeout(variantDropdownHoverTimer);
+    clearTimeout(variantDropdownCloseTimer);
+    var existing = document.querySelector(".variant-dropdown");
+    if (existing) existing.remove();
+    if (variantDropdownState) {
+      var anchorEl = variantDropdownState.anchorEl;
+      if (anchorEl) anchorEl.classList.remove("variants-open");
+      variantDropdownState = null;
     }
-
-    // Get parent center for close animation
-    var cx = 0, cy = 0;
-    if (variantPanelState.anchorEl) {
-      var rect = variantPanelState.anchorEl.getBoundingClientRect();
-      cx = rect.left + rect.width / 2;
-      cy = rect.top + rect.height / 2;
-    }
-
-    // Clear any pending open timers
-    variantCloseTimers.forEach(function (t) { clearTimeout(t); });
-    variantCloseTimers = [];
-
-    // Reverse stagger close animation
-    var total = variantBubbles.length;
-    variantBubbles.forEach(function (b, i) {
-      var delay = (total - 1 - i) * 30;
-      var t = setTimeout(function () {
-        b.el.style.transition = "transform 0.15s ease-in, opacity 0.15s ease-in, left 0.15s ease-in, top 0.15s ease-in";
-        b.el.style.left = (cx - 20) + "px";
-        b.el.style.top = (cy - 20) + "px";
-        b.el.classList.remove("open");
-        b.el.classList.add("closing");
-      }, delay);
-      variantCloseTimers.push(t);
-    });
-
-    // Remove elements after animation
-    var cleanup = setTimeout(function () {
-      variantBubbles.forEach(function (b) { b.el.remove(); });
-      variantBubbles = [];
-      var backdrop = $(".variant-backdrop");
-      if (backdrop) backdrop.remove();
-    }, total * 30 + 200);
-    variantCloseTimers.push(cleanup);
-
-    variantPanelState = null;
+    sidebarLocked = false;
+    var sidebar = $("#sidebar");
+    if (sidebar && !sidebar.matches(":hover")) sidebar.classList.remove("expanded");
   }
 
-  // ===== Variant Label Editing =====
-
-  function startVariantLabelEdit(bubble, labelEl, item, parentShortcutId, groupId) {
-    var currentText = labelEl.textContent;
-    labelEl.style.display = "none";
-
-    var input = document.createElement("input");
-    input.className = "variant-label-input";
-    input.value = currentText;
-    input.type = "text";
-    bubble.appendChild(input);
-    input.focus();
-    input.select();
-
-    var saved = false;
-    var save = function () {
-      if (saved) return;
-      saved = true;
-      var newLabel = input.value.trim() || currentText;
-      input.remove();
-      labelEl.style.display = "";
-      labelEl.textContent = newLabel;
-
-      // Save to storage
-      var group = findGroup(groupId);
-      if (!group) return;
-      var parent = group.shortcuts.find(function (s) { return s.id === parentShortcutId; });
-      if (!parent) return;
-      if (item.isParent) {
-        // Save customLabel on parent shortcut (does NOT change main title)
-        parent.customLabel = newLabel;
-        Storage.saveAll(data);
-        console.log("[LaunchPad] Parent label updated:", newLabel);
-      } else if (parent.variants) {
-        var variant = parent.variants.find(function (v) { return v.id === item.id; });
-        if (variant) {
-          variant.customLabel = newLabel;
-          Storage.saveAll(data);
-          console.log("[LaunchPad] Variant label updated:", newLabel);
-        }
-      }
-    };
-
-    input.addEventListener("blur", save);
-    input.addEventListener("keydown", function (e) {
-      e.stopPropagation();
-      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
-      if (e.key === "Escape") { e.preventDefault(); input.value = currentText; input.blur(); }
-    });
-    input.addEventListener("click", function (e) { e.stopPropagation(); });
+  function scheduleCloseVariantDropdown() {
+    clearTimeout(variantDropdownCloseTimer);
+    variantDropdownCloseTimer = setTimeout(function () {
+      closeVariantDropdown();
+    }, 150);
   }
 
   // ===== Variant Bubble Context Menu =====
@@ -1092,16 +986,29 @@
     closeVariantCtxMenu();
 
     if (action === "rename") {
-      // Find the bubble and trigger inline edit
-      var bubble = document.querySelector('.variant-bubble[data-variant-id="' + item.id + '"]');
-      if (bubble) {
-        var label = bubble.querySelector(".variant-label");
-        if (label) startVariantLabelEdit(bubble, label, item, parentId, groupId);
+      // Prompt for new label
+      var currentLabel = item.title || "";
+      var newLabel = prompt("Rename variant:", currentLabel);
+      if (newLabel !== null && newLabel.trim()) {
+        var g = findGroup(groupId);
+        if (!g) return;
+        var p = g.shortcuts.find(function (s) { return s.id === parentId; });
+        if (!p) return;
+        if (item.isParent) {
+          p.customLabel = newLabel.trim();
+        } else if (p.variants) {
+          var v = p.variants.find(function (vv) { return vv.id === item.id; });
+          if (v) v.customLabel = newLabel.trim();
+        }
+        await Storage.saveAll(data);
+        closeVariantDropdown();
+        data = await Storage.getAll();
+        render();
       }
     } else if (action === "changeicon") {
-      // Show icon dialog near the bubble
-      var bubble = document.querySelector('.variant-bubble[data-variant-id="' + item.id + '"]');
-      if (bubble) showVariantIconDialog(bubble, item, parentId, groupId);
+      // Show icon dialog near the dropdown row
+      var row = document.querySelector('.variant-dropdown-row[data-variant-id="' + item.id + '"]');
+      if (row) showVariantIconDialog(row, item, parentId, groupId);
       return;
     } else if (action === "ungroup") {
       // Remove variant and make it standalone
@@ -1123,7 +1030,7 @@
         addedAt: Date.now()
       });
       await Storage.saveAll(data);
-      closeVariantPanel();
+      closeVariantDropdown();
       data = await Storage.getAll();
       render();
     } else if (action === "delete") {
@@ -1134,7 +1041,7 @@
       parent2.variants = parent2.variants.filter(function (v) { return v.id !== item.id; });
       if (!parent2.variants.length) delete parent2.variants;
       await Storage.saveAll(data);
-      closeVariantPanel();
+      closeVariantDropdown();
       data = await Storage.getAll();
       render();
     }
@@ -1271,22 +1178,33 @@
     });
 
     if (!shortcut || !target || shortcut === target) return;
+    // Extra guard: don't nest target into itself
+    if (shortcutId === targetId) return;
 
     var wasFirstNest = !target.variants || target.variants.length === 0;
 
     // Initialize variants array on target if needed
     if (!target.variants) target.variants = [];
 
-    // Do NOT add target as a variant of itself — only add the dragged shortcut
-    target.variants.push({
-      id: shortcut.id,
-      url: shortcut.url,
-      title: shortcut.title,
-      favicon: shortcut.favicon
+    // Guard: don't add duplicate variant (check by ID and URL)
+    var alreadyNested = target.variants.some(function (v) {
+      return v.id === shortcut.id || v.url === shortcut.url;
     });
+    if (!alreadyNested) {
+      // Do NOT add target as a variant of itself — only add the dragged shortcut
+      target.variants.push({
+        id: shortcut.id,
+        url: shortcut.url,
+        title: shortcut.title,
+        favicon: shortcut.favicon
+      });
+    }
 
-    // Remove the dragged shortcut from its group's shortcuts array
-    shortcutGroup.shortcuts = shortcutGroup.shortcuts.filter(function (s) { return s.id !== shortcutId; });
+    // Remove the dragged shortcut from ALL groups (not just shortcutGroup)
+    // SortableJS may have moved the DOM element cross-group before onEnd fires
+    data.groups.forEach(function (g) {
+      g.shortcuts = g.shortcuts.filter(function (s) { return s.id !== shortcutId; });
+    });
 
     await Storage.saveAll(data);
     data = await Storage.getAll();
@@ -2728,12 +2646,29 @@
         return;
       }
 
-      // Shortcut item — open URL
-      var shortcutItem = e.target.closest(".sidebar-shortcut-item");
-      if (shortcutItem && shortcutItem.dataset.url) {
+      // Shortcut item — if it has variants, toggle variant sub-list; otherwise open URL
+      var shortcutItem = e.target.closest(".sidebar-shortcut-item:not(.sidebar-variant-item)");
+      if (shortcutItem && shortcutItem.dataset.shortcutId) {
         e.preventDefault();
         e.stopPropagation();
-        chrome.tabs.update({ url: shortcutItem.dataset.url });
+        // Check if this shortcut has a variant sub-list
+        var listEl = shortcutItem.closest(".sidebar-shortcut-list");
+        var parentId = shortcutItem.dataset.shortcutId;
+        if (listEl) {
+          var variantList = listEl.querySelector('.sidebar-variant-list[data-parent-id="' + parentId + '"]');
+          var chevronEl = shortcutItem.querySelector(".sidebar-variant-chevron");
+          if (variantList) {
+            // Has variants — toggle expansion
+            var isOpen = variantList.classList.contains("expanded");
+            variantList.classList.toggle("expanded", !isOpen);
+            if (chevronEl) chevronEl.classList.toggle("expanded", !isOpen);
+            return;
+          }
+        }
+        // No variants — open the URL
+        if (shortcutItem.dataset.url) {
+          chrome.tabs.update({ url: shortcutItem.dataset.url });
+        }
         return;
       }
 
@@ -2853,7 +2788,7 @@
           }
 
           await Storage.saveAll(data);
-          closeVariantPanel();
+          closeVariantDropdown();
           data = await Storage.getAll();
           render();
           var toast = $("#open-all-toast");
@@ -3000,13 +2935,13 @@
       el = e.target.closest(".group-collapse-btn");
       if (el) { toggleGroupCollapse(el.dataset.groupId); return; }
 
-      // Nested shortcut — intercept click to show variant panel
+      // Nested shortcut — intercept click to show dropdown (or navigate to default URL)
       el = e.target.closest(".shortcut.has-variants .shortcut-link");
       if (el) {
         e.preventDefault();
         var tile = el.closest(".shortcut");
         var grid = tile.closest(".shortcuts-grid");
-        showVariantPanel(tile.dataset.id, grid.dataset.groupId, tile.querySelector(".shortcut-icon"));
+        showVariantDropdown(tile.dataset.id, grid.dataset.groupId, tile.querySelector(".shortcut-icon"));
         return;
       }
 
@@ -3127,7 +3062,7 @@
       if (!activeMenu) return;
       var tile = document.querySelector('.shortcut[data-id="' + activeMenu.shortcutId + '"]');
       if (tile) {
-        showVariantPanel(activeMenu.shortcutId, activeMenu.groupId, tile.querySelector(".shortcut-icon"));
+        showVariantDropdown(activeMenu.shortcutId, activeMenu.groupId, tile.querySelector(".shortcut-icon"));
       }
       hideMenu();
     });
@@ -3260,9 +3195,8 @@
         hideMenu();
         closeNestSubmenu();
       }
-      if (!e.target.closest(".variant-bubble") && !e.target.closest("#variant-ctx-menu") && !e.target.closest("#variant-icon-dialog") && !e.target.closest(".shortcut.has-variants .shortcut-link")) {
-        closeVariantCtxMenu();
-        closeVariantIconDialog();
+      if (!e.target.closest(".variant-dropdown") && !e.target.closest("#variant-ctx-menu") && !e.target.closest("#variant-icon-dialog") && !e.target.closest(".shortcut.has-variants")) {
+        closeVariantDropdown();
       }
       if (!e.target.closest("#group-menu") && !e.target.closest(".group-more-btn") && !e.target.closest(".sb-group-more")) {
         hideGroupMenu();
@@ -3290,16 +3224,50 @@
         closeModal(); hideMenu(); hideGroupMenu(); hideDeleteDialog();
         closeBgModal(); closeRcFilterMenu(); closeDomainPanel(); closeSettingsPanel();
         closeHistoryOverlay(); closeRestoreDropdown();
-        closeVariantPanel(); closeVariantCtxMenu(); closeVariantIconDialog(); closeNestSubmenu();
+        closeVariantDropdown(); closeVariantCtxMenu(); closeVariantIconDialog(); closeNestSubmenu();
         var sidebar = $("#sidebar");
         if (sidebar && sidebar.classList.contains("mobile-open")) toggleMobileSidebar();
       }
     });
 
     // Close menu on scroll
-    window.addEventListener("scroll", function () { hideMenu(); hideGroupMenu(); closeVariantPanel(); });
+    window.addEventListener("scroll", function () { hideMenu(); hideGroupMenu(); closeVariantDropdown(); });
     var gridArea = $("#shortcut-grid-area");
-    if (gridArea) gridArea.addEventListener("scroll", function () { closeVariantPanel(); });
+    if (gridArea) gridArea.addEventListener("scroll", function () { closeVariantDropdown(); });
+
+    // Hover to show variant dropdown
+    var contentArea = $("#content") || document.body;
+    contentArea.addEventListener("mouseover", function (e) {
+      var shortcutEl = e.target.closest(".shortcut.has-variants");
+      if (!shortcutEl) return;
+
+      // Don't open during drag
+      if (dragState) return;
+
+      clearTimeout(variantDropdownCloseTimer);
+
+      // If already showing for this shortcut, keep it open
+      if (variantDropdownState && variantDropdownState.shortcutId === shortcutEl.dataset.id) return;
+
+      clearTimeout(variantDropdownHoverTimer);
+      variantDropdownHoverTimer = setTimeout(function () {
+        var grid = shortcutEl.closest(".shortcuts-grid");
+        if (!grid) return;
+        showVariantDropdown(shortcutEl.dataset.id, grid.dataset.groupId, shortcutEl.querySelector(".shortcut-icon"));
+      }, 200);
+    });
+
+    contentArea.addEventListener("mouseout", function (e) {
+      var shortcutEl = e.target.closest(".shortcut.has-variants");
+      if (!shortcutEl) return;
+
+      // Check if we moved to the dropdown itself
+      var related = e.relatedTarget;
+      if (related && (related.closest(".variant-dropdown") || related.closest(".shortcut.has-variants"))) return;
+
+      clearTimeout(variantDropdownHoverTimer);
+      scheduleCloseVariantDropdown();
+    });
 
   }
 
@@ -3756,11 +3724,13 @@
     // Track mouse position for drop detection
     dragState._mouseMove = function (e) {
       if (!dragState) return;
+      // drag events sometimes fire with 0,0 coordinates — ignore those
+      if (e.clientX === 0 && e.clientY === 0) return;
       dragState.lastX = e.clientX;
       dragState.lastY = e.clientY;
       checkNestHover(e.clientX, e.clientY);
     };
-    document.addEventListener("mousemove", dragState._mouseMove);
+    document.addEventListener("drag", dragState._mouseMove);
 
     // Hide nesting tooltip during drag
     hideNestingTooltip();
@@ -3803,7 +3773,7 @@
       var iconEl = el.querySelector(".shortcut-icon");
       if (!iconEl) return;
       var rect = iconEl.getBoundingClientRect();
-      var pad = 10;
+      var pad = 18;
       if (x >= rect.left - pad && x <= rect.right + pad &&
           y >= rect.top - pad && y <= rect.bottom + pad) {
         hovered = el;
@@ -3846,43 +3816,85 @@
 
     var state = dragState;
 
-    // Final hover check at drop time using last known mouse position
+    // Final hover check
     if (state.lastX !== undefined && state.lastY !== undefined) {
       checkNestHover(state.lastX, state.lastY);
     }
 
     var targetEl = state.hoveredTarget;
+    console.log("[NEST DEBUG] hoveredTarget:", targetEl ? targetEl.dataset.id : "null");
+    console.log("[NEST DEBUG] lastX:", state.lastX, "lastY:", state.lastY);
+    console.log("[NEST DEBUG] draggedDomain:", state.draggedDomain);
 
-    // Also check: if SortableJS dropped onto a nest-target element, detect it
-    if (!targetEl && evt && evt.item) {
-      // Check if there's a nest target near the drop position
-      var dropX = state.lastX || 0;
-      var dropY = state.lastY || 0;
+    // Robust fallback: if hover tracking lost the target (common due to SortableJS
+    // moving DOM elements during animation), scan all shortcuts by coordinate proximity
+    if (!targetEl && state.lastX && state.lastY) {
+      var bestDist = Infinity;
+      var dropX = state.lastX;
+      var dropY = state.lastY;
+
       $$(".shortcut").forEach(function (el) {
-        if (targetEl) return;
         if (el.dataset.id === state.draggedId) return;
-        if (el.dataset.nestTarget !== "true") return;
+        if (el.classList.contains("sortable-ghost")) return;
+        if (el.classList.contains("sortable-drag")) return;
+
+        // Check domain match (or shift-mode was active)
+        var shortcut = findShortcutById(el.dataset.id);
+        if (!shortcut) return;
+        var targetKey = getMatchKey(shortcut.url);
+        if (!targetKey || (targetKey !== state.draggedDomain && !state.shiftHeld)) return;
+
         var iconEl = el.querySelector(".shortcut-icon");
         if (!iconEl) return;
         var rect = iconEl.getBoundingClientRect();
-        var pad = 14;
-        if (dropX >= rect.left - pad && dropX <= rect.right + pad &&
-            dropY >= rect.top - pad && dropY <= rect.bottom + pad) {
+        var cx = rect.left + rect.width / 2;
+        var cy = rect.top + rect.height / 2;
+        var dist = Math.sqrt((dropX - cx) * (dropX - cx) + (dropY - cy) * (dropY - cy));
+        console.log("[NEST DEBUG] candidate:", el.dataset.id, "key:", targetKey, "dist:", Math.round(dist));
+
+        // Must be within 60px of the icon center
+        if (dist < 60 && dist < bestDist) {
+          bestDist = dist;
           targetEl = el;
+        }
+      });
+      console.log("[NEST DEBUG] fallback result:", targetEl ? targetEl.dataset.id : "null");
+    }
+
+    // Also check SortableJS siblings as last resort
+    if (!targetEl && evt && evt.item) {
+      [evt.item.previousElementSibling, evt.item.nextElementSibling].forEach(function (adj) {
+        if (targetEl) return;
+        if (!adj || !adj.dataset || !adj.dataset.id) return;
+        if (adj.dataset.id === state.draggedId) return;
+        if (adj.classList.contains("sortable-ghost")) return;
+        var shortcut = findShortcutById(adj.dataset.id);
+        if (!shortcut) return;
+        var adjKey = getMatchKey(shortcut.url);
+        if (adjKey && adjKey === state.draggedDomain) {
+          var adjIcon = adj.querySelector(".shortcut-icon");
+          if (adjIcon && state.lastX && state.lastY) {
+            var adjRect = adjIcon.getBoundingClientRect();
+            var adjPad = 40;
+            if (state.lastX >= adjRect.left - adjPad && state.lastX <= adjRect.right + adjPad &&
+                state.lastY >= adjRect.top - adjPad && state.lastY <= adjRect.bottom + adjPad) {
+              targetEl = adj;
+            }
+          }
         }
       });
     }
 
-    // Cleanup
+    // Cleanup event listeners
     document.removeEventListener("keydown", state._keyDown);
     document.removeEventListener("keyup", state._keyUp);
-    document.removeEventListener("mousemove", state._mouseMove);
+    document.removeEventListener("drag", state._mouseMove);
 
+    // Remove visual highlights
     $$(".shortcut-nest-target, .shortcut-nest-target-all").forEach(function (el) {
       el.classList.remove("shortcut-nest-target", "shortcut-nest-target-all");
       delete el.dataset.nestTarget;
     });
-
     $$(".shortcut-nest-hover").forEach(function (el) {
       el.classList.remove("shortcut-nest-hover");
     });
@@ -3892,7 +3904,7 @@
 
     dragState = null;
 
-    // If hovering over a valid nest target, perform nesting
+    // If a valid nest target was found, perform nesting
     if (targetEl && targetEl.dataset.id !== state.draggedId) {
       var targetId = targetEl.dataset.id;
       var targetGroupId = null;
@@ -3900,25 +3912,15 @@
       if (gridEl) targetGroupId = gridEl.dataset.groupId;
       if (!targetGroupId) targetGroupId = state.draggedGroupId;
 
-      var draggedGroupId = state.draggedGroupId;
-      var draggedEl = document.querySelector('.shortcut[data-id="' + state.draggedId + '"]');
-      if (draggedEl) {
-        var draggedGrid = draggedEl.closest(".shortcuts-grid");
-        if (draggedGrid) draggedGroupId = draggedGrid.dataset.groupId;
-      }
-
       var draggedTitle = state.draggedTitle;
       var targetShortcut = findShortcutById(targetId);
       var targetTitle = targetShortcut ? targetShortcut.title : "";
 
       console.log("[LaunchPad] Drag-to-nest:", state.draggedId, "→", targetId);
 
-      // Perform nesting — do NOT sync DOM first, we want original data positions
       return (async function () {
         await nestShortcutWith(state.draggedId, targetId, targetGroupId);
 
-        // Show toast
-        showOpenAllToast(0, "");
         var toast = $("#open-all-toast");
         if (toast) {
           toast.textContent = "Grouped \"" + draggedTitle + "\" under \"" + targetTitle + "\"";
@@ -3927,7 +3929,6 @@
           toast._timer = setTimeout(function () { toast.classList.remove("visible"); }, 3000);
         }
 
-        // Auto-dismiss nesting tooltip
         if (data.settings && !data.settings.nestingTipDismissed) {
           data.settings.nestingTipDismissed = true;
           await Storage.saveAll(data);
@@ -3935,6 +3936,7 @@
       })();
     }
 
+    console.log("[NEST DEBUG] No nest target found, returning null");
     return null;
   }
 
