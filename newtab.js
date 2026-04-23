@@ -201,8 +201,8 @@
       }
     });
 
-    // Increment tab counter and check for promo toasts / right-click tip
-    incrementTabCounter();
+    // Check for promo toasts (delayed) and right-click tip
+    setTimeout(checkPromoToast, 2000);
     checkRightClickTip();
 
     console.log("[LaunchPad] Ready —", data.groups.length, "group(s),",
@@ -224,80 +224,95 @@
 
   // ===== Promo Toast (one-time BMC / Rate) =====
 
-  var promoToastTimer = null;
-
-  async function incrementTabCounter() {
-    var result = await chrome.storage.local.get(["tabOpenCount", "bmcToastDismissed", "rateToastDismissed"]);
-    var count = (result.tabOpenCount || 0) + 1;
-    await chrome.storage.local.set({ tabOpenCount: count });
-
-    // Check BMC toast (5th open)
-    if (count >= 5 && !result.bmcToastDismissed) {
-      showPromoToast("bmc");
-      return;
+  async function checkPromoToast() {
+    // One-time migration from old promo storage keys to promoState
+    var raw = await chrome.storage.local.get(["promoState", "tabOpenCount", "bmcToastDismissed", "rateToastDismissed"]);
+    if (!raw.promoState && (raw.tabOpenCount || raw.bmcToastDismissed || raw.rateToastDismissed)) {
+      var migrated = {
+        openCount: raw.tabOpenCount || 0,
+        lastPromo: null,
+        lastPromoOpen: 0
+      };
+      // Old schedule: BMC at count >= 5, Rate at count >= 12. If Rate was
+      // dismissed the user almost certainly saw BMC too; if only BMC was
+      // dismissed they were between 5 and 12. Set lastPromoOpen to the
+      // migrated openCount so the new alternating cadence (every 20) starts
+      // from now and the user is not immediately re-prompted.
+      if (raw.rateToastDismissed) {
+        migrated.lastPromo = "rate";
+        migrated.lastPromoOpen = migrated.openCount;
+      } else if (raw.bmcToastDismissed) {
+        migrated.lastPromo = "coffee";
+        migrated.lastPromoOpen = migrated.openCount;
+      }
+      await chrome.storage.local.set({ promoState: migrated });
+      await chrome.storage.local.remove(["tabOpenCount", "bmcToastDismissed", "rateToastDismissed"]);
+      raw.promoState = migrated;
     }
-    // Check Rate toast (12th open)
-    if (count >= 12 && !result.rateToastDismissed) {
-      showPromoToast("rate");
+
+    var promo = raw.promoState || { openCount: 0, lastPromo: null, lastPromoOpen: 0 };
+
+    promo.openCount = (promo.openCount || 0) + 1;
+
+    var showType = null;
+
+    if (promo.openCount === 3) {
+      showType = "rate";
+    } else if (promo.openCount === 8) {
+      showType = "coffee";
+    } else if (promo.openCount > 8 && promo.lastPromoOpen > 0 && (promo.openCount - promo.lastPromoOpen) >= 20) {
+      // Alternate: show whichever wasn't shown last
+      showType = (promo.lastPromo === "rate") ? "coffee" : "rate";
     }
+
+    if (showType) {
+      promo.lastPromo = showType;
+      promo.lastPromoOpen = promo.openCount;
+      showPromoToast(showType);
+    }
+
+    await chrome.storage.local.set({ promoState: promo });
   }
 
   function showPromoToast(type) {
-    var toast = $("#promo-toast");
-    if (!toast) return;
+    // Remove any existing promo toast first
+    var existing = document.querySelector(".promo-toast");
+    if (existing) existing.remove();
 
-    var icon = $("#promo-toast-icon");
-    var text = $("#promo-toast-text");
-    var cta = $("#promo-toast-cta");
-    var dismiss = $("#promo-toast-dismiss");
+    var toast = document.createElement("div");
+    toast.className = "promo-toast";
 
-    if (type === "bmc") {
-      icon.textContent = "\u2615";
-      text.textContent = "Enjoying LaunchPad? Consider buying me a coffee to support development!";
-      cta.textContent = "Support \u2615";
-      dismiss.textContent = "Maybe later";
-      toast.dataset.type = "bmc";
+    if (type === "rate") {
+      toast.innerHTML = '<span class="promo-toast-icon">\u2B50</span>' +
+        '<span class="promo-toast-text">Enjoying LaunchPad? Leave a quick rating!</span>' +
+        '<a href="https://chrome.google.com/webstore/detail/jfmmagapjdionoomkjmkfppcplkjilnp" target="_blank" class="promo-toast-action">Rate</a>' +
+        '<button class="promo-toast-dismiss" title="Dismiss">&times;</button>';
     } else {
-      icon.textContent = "\u2B50";
-      text.textContent = "Love LaunchPad? A quick rating on the Chrome Web Store helps others find it!";
-      cta.textContent = "Rate \u2B50";
-      dismiss.textContent = "Not now";
-      toast.dataset.type = "rate";
+      toast.innerHTML = '<span class="promo-toast-icon">\u2615</span>' +
+        '<span class="promo-toast-text">LaunchPad is free & ad-free. Support the dev?</span>' +
+        '<a href="https://buymeacoffee.com/cybersamwise" target="_blank" class="promo-toast-action">Buy me a coffee</a>' +
+        '<button class="promo-toast-dismiss" title="Dismiss">&times;</button>';
     }
 
-    toast.classList.remove("hidden");
-    // Trigger slide-in animation on next frame
+    document.body.appendChild(toast);
+
+    // Animate in
     requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        toast.classList.add("toast-visible");
-      });
+      toast.classList.add("visible");
     });
 
-    // Auto-dismiss after 15 seconds
-    promoToastTimer = setTimeout(function () {
-      dismissPromoToast();
-    }, 15000);
-  }
+    // Auto-dismiss after 6 seconds
+    var timer = setTimeout(function () {
+      toast.classList.remove("visible");
+      setTimeout(function () { toast.remove(); }, 300);
+    }, 6000);
 
-  function dismissPromoToast() {
-    var toast = $("#promo-toast");
-    if (!toast || toast.classList.contains("hidden")) return;
-
-    if (promoToastTimer) {
-      clearTimeout(promoToastTimer);
-      promoToastTimer = null;
-    }
-
-    var type = toast.dataset.type;
-    var flagKey = type === "bmc" ? "bmcToastDismissed" : "rateToastDismissed";
-    var obj = {};
-    obj[flagKey] = true;
-    chrome.storage.local.set(obj);
-
-    toast.classList.remove("toast-visible");
-    setTimeout(function () {
-      toast.classList.add("hidden");
-    }, 400);
+    // Manual dismiss
+    toast.querySelector(".promo-toast-dismiss").addEventListener("click", function () {
+      clearTimeout(timer);
+      toast.classList.remove("visible");
+      setTimeout(function () { toast.remove(); }, 300);
+    });
   }
 
   // ===== Right-Click Tip =====
@@ -305,8 +320,8 @@
   var rcTipTimer = null;
 
   async function checkRightClickTip() {
-    var result = await chrome.storage.local.get(["tabOpenCount", "rightClickTipShown"]);
-    var count = result.tabOpenCount || 0;
+    var result = await chrome.storage.local.get(["promoState", "rightClickTipShown"]);
+    var count = (result.promoState && result.promoState.openCount) || 0;
     // Show on 2nd tab open (not first — user is still in onboarding)
     if (count >= 2 && !result.rightClickTipShown) {
       showRightClickTip();
@@ -315,8 +330,7 @@
 
   function showRightClickTip() {
     // Don't show if a promo toast is already visible
-    var promoToast = $("#promo-toast");
-    if (promoToast && !promoToast.classList.contains("hidden")) return;
+    if (document.querySelector(".promo-toast")) return;
 
     var tip = $("#rc-tip");
     if (!tip) return;
@@ -519,7 +533,7 @@
         applyBackground(obSelectedBg);
       });
     } else {
-      Storage.saveBackground(null);
+      Storage.saveBackground("__none__");
       removeBackgroundVisual();
     }
     goToObStep(3);
@@ -782,8 +796,6 @@
   // ===== Variant Dropdown =====
 
   var variantDropdownState = null;
-  var variantDropdownHoverTimer = null;
-  var variantDropdownCloseTimer = null;
   var variantCtxState = null;
 
   function showVariantDropdown(shortcutId, groupId, anchorEl) {
@@ -915,20 +927,11 @@
       dropdown.classList.add("visible");
     });
 
-    // Hover to keep open
-    dropdown.addEventListener("mouseenter", function () {
-      clearTimeout(variantDropdownCloseTimer);
-    });
-    dropdown.addEventListener("mouseleave", function () {
-      scheduleCloseVariantDropdown();
-    });
   }
 
   function closeVariantDropdown() {
     closeVariantCtxMenu();
     closeVariantIconDialog();
-    clearTimeout(variantDropdownHoverTimer);
-    clearTimeout(variantDropdownCloseTimer);
     var existing = document.querySelector(".variant-dropdown");
     if (existing) existing.remove();
     if (variantDropdownState) {
@@ -939,13 +942,6 @@
     sidebarLocked = false;
     var sidebar = $("#sidebar");
     if (sidebar && !sidebar.matches(":hover")) sidebar.classList.remove("expanded");
-  }
-
-  function scheduleCloseVariantDropdown() {
-    clearTimeout(variantDropdownCloseTimer);
-    variantDropdownCloseTimer = setTimeout(function () {
-      closeVariantDropdown();
-    }, 150);
   }
 
   // ===== Variant Bubble Context Menu =====
@@ -1001,7 +997,12 @@
           if (v) v.customLabel = newLabel.trim();
         }
         await Storage.saveAll(data);
-        closeVariantDropdown();
+        // Update label in dropdown row without closing
+        var row = document.querySelector('.variant-dropdown-row[data-variant-id="' + item.id + '"]');
+        if (row) {
+          var labelEl = row.querySelector(".variant-dropdown-label");
+          if (labelEl) labelEl.textContent = newLabel.trim();
+        }
         data = await Storage.getAll();
         render();
       }
@@ -1410,6 +1411,9 @@
     var badge = hasVariants
       ? '<span class="variant-badge">' + (1 + s.variants.length) + '</span>'
       : '';
+    var displayName = hasVariants
+      ? esc(s.customLabel || s.title || getBaseDomain(s.url) || domain)
+      : esc(s.title || domain);
     return (
       '<div class="shortcut' + (hasVariants ? ' has-variants' : '') + '" data-id="' + s.id + '">' +
         '<a href="' + esc(s.url) + '" class="shortcut-link" title="' + esc(s.title || s.url) + '">' +
@@ -1417,7 +1421,7 @@
             '<img src="' + favicon + '" alt="" width="24" height="24" loading="lazy" data-url="' + esc(s.url) + '">' +
             badge +
           "</div>" +
-          '<span class="shortcut-name">' + esc(s.title || domain) + "</span>" +
+          '<span class="shortcut-name">' + displayName + "</span>" +
         "</a>" +
         '<button class="shortcut-more" title="More actions">' + MORE_SVG + "</button>" +
       "</div>"
@@ -1515,20 +1519,31 @@
       var variantBadge = hasVariants
         ? '<span class="sidebar-shortcut-variant-badge">' + (1 + s.variants.length) + '</span>'
         : '';
-      var html = '<div class="sidebar-shortcut-item" data-shortcut-id="' + s.id + '" data-url="' + esc(s.url) + '" title="' + esc(s.title || s.url) + '">' +
+      var sidebarDisplayName = hasVariants
+        ? esc(s.customLabel || s.title || getDomain(s.url))
+        : esc(s.title || getDomain(s.url));
+      var html = '<div class="sidebar-shortcut-item" data-shortcut-id="' + s.id + '"' +
+        (hasVariants ? '' : ' data-url="' + esc(s.url) + '"') +
+        ' title="' + esc(s.title || s.url) + '">' +
         '<span class="sidebar-shortcut-drag-handle" title="Drag to reorder">\u2807</span>' +
         chevron +
         '<img src="' + favicon + '" alt="" width="16" height="16">' +
-        '<span class="sidebar-shortcut-name">' + esc(s.title || getDomain(s.url)) + '</span>' +
+        '<span class="sidebar-shortcut-name">' + sidebarDisplayName + '</span>' +
         variantBadge +
       '</div>';
       if (hasVariants) {
         html += '<div class="sidebar-variant-list" data-parent-id="' + s.id + '">';
+        // Parent as first sub-item
+        html += '<div class="sidebar-variant-item sidebar-shortcut-item" data-variant-url="' + esc(s.url) + '" title="' + esc(s.title || s.url) + '">' +
+          '<img src="' + favicon + '" alt="" width="16" height="16">' +
+          '<span class="sidebar-shortcut-name">' + esc(s.title || getDomain(s.url)) + '</span>' +
+        '</div>';
+        // Then variants
         s.variants.forEach(function (v) {
           var vFavicon = v.favicon || getFaviconUrl(v);
           html += '<div class="sidebar-variant-item sidebar-shortcut-item" data-variant-url="' + esc(v.url) + '" title="' + esc(v.title || v.url) + '">' +
             '<img src="' + vFavicon + '" alt="" width="16" height="16">' +
-            '<span class="sidebar-shortcut-name">' + esc(v.title || v.url) + '</span>' +
+            '<span class="sidebar-shortcut-name">' + esc(v.customLabel || v.title || v.url) + '</span>' +
           '</div>';
         });
         html += '</div>';
@@ -2396,6 +2411,11 @@
 
   async function loadBackground() {
     var bgData = await Storage.getBackground();
+    if (bgData === "__none__") return;
+    if (!bgData && GALLERY_IMAGES.length > 0) {
+      bgData = GALLERY_IMAGES[0].url;
+      await Storage.saveBackground(bgData);
+    }
     if (bgData) {
       applyBackground(bgData);
     }
@@ -2556,7 +2576,7 @@
   }
 
   async function handleBgRemove() {
-    await Storage.saveBackground(null);
+    await Storage.saveBackground("__none__");
     removeBackgroundVisual();
     closeBgModal();
   }
@@ -2893,20 +2913,6 @@
       Bookmarks.showPicker();
     });
 
-    // Promo toast events
-    safeOn("#promo-toast-cta", "click", function () {
-      var toast = $("#promo-toast");
-      var type = toast ? toast.dataset.type : "";
-      if (type === "bmc") {
-        window.open("https://buymeacoffee.com/cybersamwise", "_blank");
-      } else {
-        window.open("https://chrome.google.com/webstore/detail/launchpad/EXTENSION_ID_HERE", "_blank");
-      }
-      dismissPromoToast();
-    });
-    safeOn("#promo-toast-dismiss", "click", function (e) { e.preventDefault(); dismissPromoToast(); });
-    safeOn("#promo-toast-close", "click", dismissPromoToast);
-
     // Right-click tip
     safeOn("#rc-tip-dismiss", "click", dismissRightClickTip);
 
@@ -2935,13 +2941,20 @@
       el = e.target.closest(".group-collapse-btn");
       if (el) { toggleGroupCollapse(el.dataset.groupId); return; }
 
-      // Nested shortcut — intercept click to show dropdown (or navigate to default URL)
-      el = e.target.closest(".shortcut.has-variants .shortcut-link");
-      if (el) {
+      // Nested shortcut — click to toggle variant dropdown
+      el = e.target.closest(".shortcut.has-variants");
+      if (el && !e.target.closest(".shortcut-more")) {
         e.preventDefault();
-        var tile = el.closest(".shortcut");
-        var grid = tile.closest(".shortcuts-grid");
-        showVariantDropdown(tile.dataset.id, grid.dataset.groupId, tile.querySelector(".shortcut-icon"));
+        e.stopPropagation();
+        var grid = el.closest(".shortcuts-grid");
+        if (!grid) return;
+        var sid = el.dataset.id;
+        // Toggle: if already open for this shortcut, close it
+        if (variantDropdownState && variantDropdownState.shortcutId === sid) {
+          closeVariantDropdown();
+        } else {
+          showVariantDropdown(sid, grid.dataset.groupId, el.querySelector(".shortcut-icon"));
+        }
         return;
       }
 
@@ -3170,7 +3183,7 @@
     safeOn("#ob-bg-next", "click", handleObBgNext);
     safeOn("#ob-skip-bg", "click", function (e) {
       e.preventDefault();
-      Storage.saveBackground(null);
+      Storage.saveBackground("__none__");
       removeBackgroundVisual();
       goToObStep(3);
     });
@@ -3235,38 +3248,18 @@
     var gridArea = $("#shortcut-grid-area");
     if (gridArea) gridArea.addEventListener("scroll", function () { closeVariantDropdown(); });
 
-    // Hover to show variant dropdown
-    var contentArea = $("#content") || document.body;
-    contentArea.addEventListener("mouseover", function (e) {
-      var shortcutEl = e.target.closest(".shortcut.has-variants");
-      if (!shortcutEl) return;
-
-      // Don't open during drag
-      if (dragState) return;
-
-      clearTimeout(variantDropdownCloseTimer);
-
-      // If already showing for this shortcut, keep it open
-      if (variantDropdownState && variantDropdownState.shortcutId === shortcutEl.dataset.id) return;
-
-      clearTimeout(variantDropdownHoverTimer);
-      variantDropdownHoverTimer = setTimeout(function () {
-        var grid = shortcutEl.closest(".shortcuts-grid");
-        if (!grid) return;
-        showVariantDropdown(shortcutEl.dataset.id, grid.dataset.groupId, shortcutEl.querySelector(".shortcut-icon"));
-      }, 200);
+    // Click outside to close variant dropdown
+    document.addEventListener("click", function (e) {
+      if (variantDropdownState && !e.target.closest(".variant-dropdown") && !e.target.closest(".shortcut.has-variants") && !e.target.closest("#variant-ctx-menu") && !e.target.closest("#variant-icon-dialog")) {
+        closeVariantDropdown();
+      }
     });
 
-    contentArea.addEventListener("mouseout", function (e) {
-      var shortcutEl = e.target.closest(".shortcut.has-variants");
-      if (!shortcutEl) return;
-
-      // Check if we moved to the dropdown itself
-      var related = e.relatedTarget;
-      if (related && (related.closest(".variant-dropdown") || related.closest(".shortcut.has-variants"))) return;
-
-      clearTimeout(variantDropdownHoverTimer);
-      scheduleCloseVariantDropdown();
+    // Escape to close variant dropdown
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && variantDropdownState) {
+        closeVariantDropdown();
+      }
     });
 
   }
