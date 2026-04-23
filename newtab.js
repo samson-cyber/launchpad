@@ -770,11 +770,16 @@
 
   async function exportBackup() {
     var raw = await chrome.storage.local.get(["data", "launchpad_background"]);
+    // Read raw to avoid silently exporting the default skeleton when there's
+    // real-but-unusual user data (Storage.getAll's fallback would mask that).
+    // BUT: on a fresh install raw.data is undefined, which JSON-stringifies to
+    // null and produces an unrestorable backup. Substitute the default skeleton
+    // in that one case so every export is a valid restorable envelope.
     var envelope = {
       launchpadBackup: true,
       version: 1,
       exportedAt: new Date().toISOString(),
-      data: raw.data || null,
+      data: raw.data || Storage.getDefaultData(),
       background: raw.launchpad_background || null
     };
     var json = JSON.stringify(envelope, null, 2);
@@ -790,15 +795,16 @@
     showToast("Backup downloaded");
   }
 
+  // Returns "ok", "not-launchpad", or "empty-or-corrupted"
   function validateBackup(envelope) {
-    if (!envelope || envelope.launchpadBackup !== true) return false;
-    if (typeof envelope.version !== "number") return false;
+    if (!envelope || envelope.launchpadBackup !== true) return "not-launchpad";
+    if (typeof envelope.version !== "number") return "not-launchpad";
     var d = envelope.data;
-    if (!d || typeof d !== "object") return false;
-    if (!Array.isArray(d.groups)) return false;
-    if (!Array.isArray(d.groupOrder)) return false;
-    if (!d.settings || typeof d.settings !== "object") return false;
-    return true;
+    if (!d || typeof d !== "object") return "empty-or-corrupted";
+    if (!Array.isArray(d.groups)) return "empty-or-corrupted";
+    if (!Array.isArray(d.groupOrder)) return "empty-or-corrupted";
+    if (!d.settings || typeof d.settings !== "object") return "empty-or-corrupted";
+    return "ok";
   }
 
   function handleBackupFile(file) {
@@ -812,8 +818,13 @@
         showToast("Invalid backup file");
         return;
       }
-      if (!validateBackup(envelope)) {
+      var status = validateBackup(envelope);
+      if (status === "not-launchpad") {
         showToast("This doesn't look like a LaunchPad backup file");
+        return;
+      }
+      if (status === "empty-or-corrupted") {
+        showToast("This backup file is empty or corrupted. Nothing to import.");
         return;
       }
       var dateStr = "an unknown date";
