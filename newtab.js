@@ -652,6 +652,7 @@
     showSidebarPanel();
 
     panel.classList.remove("hidden");
+    document.getElementById('settings-version').textContent = 'LaunchPad v' + chrome.runtime.getManifest().version;
     updateSettingsUI();
   }
 
@@ -949,6 +950,8 @@
   function showVariantCtxMenu(e, item, parentShortcutId, groupId) {
     closeVariantCtxMenu();
     closeVariantIconDialog();
+    hideMenu();
+    closeNestSubmenu();
     variantCtxState = { item: item, parentShortcutId: parentShortcutId, groupId: groupId };
     var menu = $("#variant-ctx-menu");
 
@@ -3244,9 +3247,21 @@
     });
 
     // Close menu on scroll
-    window.addEventListener("scroll", function () { hideMenu(); hideGroupMenu(); closeVariantDropdown(); });
+    window.addEventListener("scroll", function () {
+      hideMenu();
+      hideGroupMenu();
+      var ctxMenu = document.getElementById("variant-ctx-menu");
+      var iconDialog = document.getElementById("variant-icon-dialog");
+      if ((ctxMenu && !ctxMenu.classList.contains("hidden")) || (iconDialog && !iconDialog.classList.contains("hidden"))) return;
+      closeVariantDropdown();
+    });
     var gridArea = $("#shortcut-grid-area");
-    if (gridArea) gridArea.addEventListener("scroll", function () { closeVariantDropdown(); });
+    if (gridArea) gridArea.addEventListener("scroll", function () {
+      var ctxMenu = document.getElementById("variant-ctx-menu");
+      var iconDialog = document.getElementById("variant-icon-dialog");
+      if ((ctxMenu && !ctxMenu.classList.contains("hidden")) || (iconDialog && !iconDialog.classList.contains("hidden"))) return;
+      closeVariantDropdown();
+    });
 
     // Click outside to close variant dropdown
     document.addEventListener("click", function (e) {
