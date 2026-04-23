@@ -51,6 +51,30 @@
     { url: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=1920", thumb: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=400&h=250&fit=crop", label: "Northern lights" }
   ];
 
+  var DEFAULT_BG = "color:#f5f5f5";
+  var COLOR_PRESETS = [
+    { value: "color:#f5f5f5", label: "Light gray" },
+    { value: "color:#ffffff", label: "White" },
+    { value: "color:#2a2a2a", label: "Dark gray" },
+    { value: "color:#000000", label: "Black" },
+    { value: "color:#1e3a5f", label: "Soft blue" },
+    { value: "color:#3d2818", label: "Soft warm dark" }
+  ];
+  var currentBg = null;
+
+  function isColorBg(bgData) {
+    return typeof bgData === "string" && bgData.indexOf("color:") === 0;
+  }
+
+  function bgLuminance(hex) {
+    hex = hex.replace("#", "");
+    if (hex.length !== 6) return 1;
+    var r = parseInt(hex.slice(0, 2), 16);
+    var g = parseInt(hex.slice(2, 4), 16);
+    var b = parseInt(hex.slice(4, 6), 16);
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  }
+
   // ===== Favicon System =====
 
   var FAVICON_OVERRIDES = {
@@ -394,6 +418,7 @@
     });
     updateObDots();
     if (step === 2) {
+      renderObBgColors();
       renderObGallery();
     }
     // Show onboarding overlay if it was hidden (e.g. during bookmark import)
@@ -495,47 +520,44 @@
     observer.observe(el, { attributes: true, attributeFilter: ["class"] });
   }
 
+  function renderObBgColors() {
+    var grid = $("#ob-bg-color-grid");
+    if (!grid) return;
+    obSelectedBg = currentBg || DEFAULT_BG;
+    grid.innerHTML = COLOR_PRESETS.map(function (preset) {
+      var hex = preset.value.slice(6);
+      var isSelected = obSelectedBg === preset.value;
+      return '<button class="ob-bg-thumb ob-bg-color-swatch' + (isSelected ? ' selected' : '') + '" data-bg="' + preset.value + '" type="button" title="' + esc(preset.label) + '" style="background-color: ' + hex + ';">' +
+        '<span class="ob-bg-check">' + CHECK_SVG + '</span>' +
+        '</button>';
+    }).join("");
+  }
+
   function renderObGallery() {
     var grid = $("#ob-bg-grid");
     if (!grid) return;
-    var html = '<button class="ob-bg-thumb ob-bg-none selected" data-bg="" type="button">' +
-      '<span class="ob-bg-check">' + CHECK_SVG + '</span>' +
-      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
-      '<span>None</span></button>';
-    html += GALLERY_IMAGES.map(function (img) {
-      return '<button class="ob-bg-thumb" data-bg="' + img.url + '" type="button" title="' + esc(img.label) + '">' +
+    grid.innerHTML = GALLERY_IMAGES.map(function (img) {
+      var isSelected = obSelectedBg === img.url;
+      return '<button class="ob-bg-thumb' + (isSelected ? ' selected' : '') + '" data-bg="' + img.url + '" type="button" title="' + esc(img.label) + '">' +
         '<span class="ob-bg-check">' + CHECK_SVG + '</span>' +
         '<img src="' + img.thumb + '" alt="' + esc(img.label) + '" loading="lazy">' +
         '</button>';
     }).join("");
-    grid.innerHTML = html;
-    obSelectedBg = "";
   }
 
   function selectObBg(thumbEl) {
-    $$(".ob-bg-thumb", $("#ob-bg-grid")).forEach(function (el) {
-      el.classList.remove("selected");
-    });
+    $$(".ob-bg-thumb", $("#ob-bg-color-grid")).forEach(function (el) { el.classList.remove("selected"); });
+    $$(".ob-bg-thumb", $("#ob-bg-grid")).forEach(function (el) { el.classList.remove("selected"); });
     thumbEl.classList.add("selected");
     obSelectedBg = thumbEl.dataset.bg;
-    // Live preview
-    if (obSelectedBg) {
-      applyBackground(obSelectedBg);
-    } else {
-      removeBackgroundVisual();
-    }
+    applyBackground(obSelectedBg);
   }
 
   function handleObBgNext() {
-    // Save the selected background
-    if (obSelectedBg) {
-      Storage.saveBackground(obSelectedBg).then(function () {
-        applyBackground(obSelectedBg);
-      });
-    } else {
-      Storage.saveBackground("__none__");
-      removeBackgroundVisual();
-    }
+    var bg = obSelectedBg || DEFAULT_BG;
+    Storage.saveBackground(bg).then(function () {
+      applyBackground(bg);
+    });
     goToObStep(3);
   }
 
@@ -687,16 +709,19 @@
   function updateWallpaperThumb() {
     var thumb = $("#settings-wallpaper-thumb");
     if (!thumb) return;
-    var bgUrl = document.body.style.backgroundImage;
-    if (bgUrl && bgUrl !== "none") {
-      thumb.style.backgroundImage = bgUrl;
+    if (isColorBg(currentBg)) {
+      thumb.style.backgroundImage = "none";
+      thumb.style.backgroundColor = currentBg.slice(6);
+    } else if (currentBg) {
+      thumb.style.backgroundImage = "url('" + currentBg + "')";
+      thumb.style.backgroundColor = "";
     } else {
       thumb.style.backgroundImage = "none";
+      thumb.style.backgroundColor = "";
     }
-    // Show/hide remove button based on whether background exists
     var removeBtn = $("#settings-remove-wallpaper");
     if (removeBtn) {
-      removeBtn.style.display = (bgUrl && bgUrl !== "none") ? "" : "none";
+      removeBtn.style.display = (currentBg && currentBg !== DEFAULT_BG) ? "" : "none";
     }
   }
 
@@ -2414,38 +2439,43 @@
 
   async function loadBackground() {
     var bgData = await Storage.getBackground();
-    if (bgData === "__none__") return;
-    if (!bgData && GALLERY_IMAGES.length > 0) {
-      bgData = GALLERY_IMAGES[0].url;
+    if (!bgData || bgData === "__none__") {
+      bgData = DEFAULT_BG;
       await Storage.saveBackground(bgData);
     }
-    if (bgData) {
-      applyBackground(bgData);
+    applyBackground(bgData);
+  }
+
+  function applyBackground(bgData) {
+    var html = document.documentElement;
+    html.classList.remove("bg-image", "bg-light", "bg-dark");
+    if (isColorBg(bgData)) {
+      var hex = bgData.slice(6);
+      document.body.style.backgroundImage = "";
+      document.body.style.backgroundSize = "";
+      document.body.style.backgroundPosition = "";
+      document.body.style.backgroundRepeat = "";
+      document.body.style.backgroundAttachment = "";
+      document.body.style.backgroundColor = hex;
+      html.classList.add("has-bg");
+      html.classList.add(bgLuminance(hex) >= 0.5 ? "bg-light" : "bg-dark");
+    } else {
+      document.body.style.backgroundImage = "url('" + bgData + "')";
+      document.body.style.backgroundSize = "cover";
+      document.body.style.backgroundPosition = "center";
+      document.body.style.backgroundRepeat = "no-repeat";
+      document.body.style.backgroundAttachment = "fixed";
+      document.body.style.backgroundColor = "";
+      html.classList.add("has-bg", "bg-image");
     }
-  }
-
-  function applyBackground(bgUrl) {
-    document.body.style.backgroundImage = "url('" + bgUrl + "')";
-    document.body.style.backgroundSize = "cover";
-    document.body.style.backgroundPosition = "center";
-    document.body.style.backgroundRepeat = "no-repeat";
-    document.body.style.backgroundAttachment = "fixed";
-    document.documentElement.classList.add("has-bg");
-  }
-
-  function removeBackgroundVisual() {
-    document.body.style.backgroundImage = "";
-    document.body.style.backgroundSize = "";
-    document.body.style.backgroundPosition = "";
-    document.body.style.backgroundRepeat = "";
-    document.body.style.backgroundAttachment = "";
-    document.documentElement.classList.remove("has-bg");
+    currentBg = bgData;
   }
 
   function openBgModal() {
     $("#bg-overlay").classList.remove("hidden");
     $("#bg-url-input").value = "";
     hideBgError();
+    renderBgColors();
     renderBgGallery();
     switchBgTab("gallery");
   }
@@ -2456,22 +2486,28 @@
     updateWallpaperThumb();
   }
 
+  function renderBgColors() {
+    var grid = $("#bg-color-grid");
+    if (!grid) return;
+    grid.innerHTML = COLOR_PRESETS.map(function (preset) {
+      var hex = preset.value.slice(6);
+      var isSelected = currentBg === preset.value;
+      return '<button class="bg-gallery-thumb bg-color-swatch' + (isSelected ? ' selected' : '') + '" data-bg="' + preset.value + '" type="button" title="' + esc(preset.label) + '" style="background-color: ' + hex + ';">' +
+        '<span class="bg-check">' + CHECK_SVG + '</span>' +
+        '</button>';
+    }).join("");
+  }
+
   function renderBgGallery() {
     var grid = $("#bg-gallery-grid");
     if (!grid) return;
-    var currentBg = document.body.style.backgroundImage;
-    var html = '<button class="bg-gallery-thumb bg-gallery-none' + (!currentBg ? ' selected' : '') + '" data-bg="" type="button">' +
-      '<span class="bg-check">' + CHECK_SVG + '</span>' +
-      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
-      '<span>None</span></button>';
-    html += GALLERY_IMAGES.map(function (img) {
-      var isSelected = currentBg && currentBg.indexOf(img.url) !== -1;
+    grid.innerHTML = GALLERY_IMAGES.map(function (img) {
+      var isSelected = currentBg === img.url;
       return '<button class="bg-gallery-thumb' + (isSelected ? ' selected' : '') + '" data-bg="' + img.url + '" type="button" title="' + esc(img.label) + '">' +
         '<span class="bg-check">' + CHECK_SVG + '</span>' +
         '<img src="' + img.thumb + '" alt="' + esc(img.label) + '" loading="lazy">' +
         '</button>';
     }).join("");
-    grid.innerHTML = html;
   }
 
   function switchBgTab(tabName) {
@@ -2484,17 +2520,12 @@
   }
 
   function handleBgGalleryClick(thumbEl) {
-    var url = thumbEl.dataset.bg;
-    if (url) {
-      // Gallery image — store URL directly (saves space)
-      Storage.saveBackground(url).then(function () {
-        applyBackground(url);
-        closeBgModal();
-      });
-    } else {
-      // "None" selected — remove background
-      handleBgRemove();
-    }
+    var bg = thumbEl.dataset.bg;
+    if (!bg) return;
+    Storage.saveBackground(bg).then(function () {
+      applyBackground(bg);
+      closeBgModal();
+    });
   }
 
   function showBgError(msg) {
@@ -2579,8 +2610,8 @@
   }
 
   async function handleBgRemove() {
-    await Storage.saveBackground("__none__");
-    removeBackgroundVisual();
+    await Storage.saveBackground(DEFAULT_BG);
+    applyBackground(DEFAULT_BG);
     closeBgModal();
   }
 
@@ -3174,6 +3205,10 @@
       var thumb = e.target.closest(".bg-gallery-thumb");
       if (thumb) handleBgGalleryClick(thumb);
     });
+    safeOn("#bg-color-grid", "click", function (e) {
+      var thumb = e.target.closest(".bg-gallery-thumb");
+      if (thumb) handleBgGalleryClick(thumb);
+    });
 
     // Onboarding events
     safeOn("#ob-top-sites", "click", handleObTopSites);
@@ -3186,8 +3221,8 @@
     safeOn("#ob-bg-next", "click", handleObBgNext);
     safeOn("#ob-skip-bg", "click", function (e) {
       e.preventDefault();
-      Storage.saveBackground("__none__");
-      removeBackgroundVisual();
+      Storage.saveBackground(DEFAULT_BG);
+      applyBackground(DEFAULT_BG);
       goToObStep(3);
     });
     safeOn("#ob-upload-own", "click", handleObUploadOwn);
@@ -3201,6 +3236,10 @@
       if (item) toggleObPopularSite(parseInt(item.dataset.index));
     });
     safeOn("#ob-bg-grid", "click", function (e) {
+      var thumb = e.target.closest(".ob-bg-thumb");
+      if (thumb) selectObBg(thumb);
+    });
+    safeOn("#ob-bg-color-grid", "click", function (e) {
       var thumb = e.target.closest(".ob-bg-thumb");
       if (thumb) selectObBg(thumb);
     });
