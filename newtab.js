@@ -61,6 +61,7 @@
     { value: "color:#3d2818", label: "Soft warm dark" }
   ];
   var currentBg = null;
+  var previousBg = null;
 
   function isColorBg(bgData) {
     return typeof bgData === "string" && bgData.indexOf("color:") === 0;
@@ -2582,6 +2583,7 @@
   }
 
   function openBgModal() {
+    previousBg = currentBg;
     $("#bg-overlay").classList.remove("hidden");
     $("#bg-url-input").value = "";
     hideBgError();
@@ -2594,6 +2596,29 @@
     $("#bg-overlay").classList.add("hidden");
     hideBgError();
     updateWallpaperThumb();
+  }
+
+  function previewBg(bg) {
+    if (previousBg === null) return;
+    applyBackground(bg);
+    renderBgColors();
+    renderBgGallery();
+  }
+
+  async function commitBgPreview() {
+    if (currentBg !== previousBg) {
+      await Storage.saveBackground(currentBg);
+    }
+    previousBg = null;
+    closeBgModal();
+  }
+
+  function cancelBgPreview() {
+    if (previousBg !== null) {
+      if (previousBg !== currentBg) applyBackground(previousBg);
+      previousBg = null;
+    }
+    closeBgModal();
   }
 
   function renderBgColors() {
@@ -2631,11 +2656,7 @@
 
   function handleBgGalleryClick(thumbEl) {
     var bg = thumbEl.dataset.bg;
-    if (!bg) return;
-    Storage.saveBackground(bg).then(function () {
-      applyBackground(bg);
-      closeBgModal();
-    });
+    if (bg) previewBg(bg);
   }
 
   function showBgError(msg) {
@@ -2681,10 +2702,7 @@
           if (dataUrl.length > 5 * 1024 * 1024) {
             console.warn("[LaunchPad] Background image is large (" + Math.round(dataUrl.length / 1024 / 1024) + "MB)");
           }
-          Storage.saveBackground(dataUrl).then(function () {
-            applyBackground(dataUrl);
-            closeBgModal();
-          });
+          previewBg(dataUrl);
         });
       };
       img.src = reader.result;
@@ -2707,10 +2725,7 @@
     img.crossOrigin = "anonymous";
     img.onload = function () {
       resizeImage(img, function (dataUrl) {
-        Storage.saveBackground(dataUrl).then(function () {
-          applyBackground(dataUrl);
-          closeBgModal();
-        });
+        previewBg(dataUrl);
       });
     };
     img.onerror = function () {
@@ -2719,10 +2734,8 @@
     img.src = url;
   }
 
-  async function handleBgRemove() {
-    await Storage.saveBackground(DEFAULT_BG);
-    applyBackground(DEFAULT_BG);
-    closeBgModal();
+  function handleBgRemove() {
+    previewBg(DEFAULT_BG);
   }
 
   // ===== Events =====
@@ -3295,9 +3308,10 @@
 
     // Background modal
     safeOn("#bg-overlay", "click", function (e) {
-      if (e.target === e.currentTarget) closeBgModal();
+      if (e.target === e.currentTarget) cancelBgPreview();
     });
-    safeOn("#bg-cancel", "click", closeBgModal);
+    safeOn("#bg-cancel", "click", cancelBgPreview);
+    safeOn("#bg-save", "click", commitBgPreview);
     safeOn("#bg-upload-btn", "click", function () {
       var fi = $("#bg-file-input");
       if (fi) fi.click();
@@ -3396,7 +3410,7 @@
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") {
         closeModal(); hideMenu(); hideGroupMenu(); hideDeleteDialog();
-        closeBgModal(); closeRcFilterMenu(); closeDomainPanel(); closeSettingsPanel();
+        cancelBgPreview(); closeRcFilterMenu(); closeDomainPanel(); closeSettingsPanel();
         closeHistoryOverlay(); closeRestoreDropdown();
         closeVariantDropdown(); closeVariantCtxMenu(); closeVariantIconDialog(); closeNestSubmenu();
         var sidebar = $("#sidebar");

@@ -2168,6 +2168,27 @@ html.has-bg .rc-panel-item-meta {
   background: var(--bg-hover);
 }
 
+.bg-footer-actions-right {
+  display: flex;
+  gap: 8px;
+}
+
+#bg-save {
+  padding: 8px 24px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+#bg-save:hover {
+  opacity: 0.9;
+}
+
 /* ===== Background Active Overrides ===== */
 
 html.bg-image body::before {
