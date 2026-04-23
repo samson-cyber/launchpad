@@ -755,6 +755,105 @@
     }
   }
 
+  // ===== Backup / Restore =====
+
+  function showToast(message, durationMs) {
+    var toast = $("#open-all-toast");
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add("visible");
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(function () {
+      toast.classList.remove("visible");
+    }, durationMs || 3000);
+  }
+
+  async function exportBackup() {
+    var raw = await chrome.storage.local.get(["data", "launchpad_background"]);
+    var envelope = {
+      launchpadBackup: true,
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      data: raw.data || null,
+      background: raw.launchpad_background || null
+    };
+    var json = JSON.stringify(envelope, null, 2);
+    var blob = new Blob([json], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "launchpad-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Backup downloaded");
+  }
+
+  function validateBackup(envelope) {
+    if (!envelope || envelope.launchpadBackup !== true) return false;
+    if (typeof envelope.version !== "number") return false;
+    var d = envelope.data;
+    if (!d || typeof d !== "object") return false;
+    if (!Array.isArray(d.groups)) return false;
+    if (!Array.isArray(d.groupOrder)) return false;
+    if (!d.settings || typeof d.settings !== "object") return false;
+    return true;
+  }
+
+  function handleBackupFile(file) {
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = async function () {
+      var envelope;
+      try {
+        envelope = JSON.parse(reader.result);
+      } catch (err) {
+        showToast("Invalid backup file");
+        return;
+      }
+      if (!validateBackup(envelope)) {
+        showToast("This doesn't look like a LaunchPad backup file");
+        return;
+      }
+      var dateStr = "an unknown date";
+      if (envelope.exportedAt) {
+        try { dateStr = new Date(envelope.exportedAt).toLocaleDateString(); } catch (e) {}
+      }
+      var ok = confirm("This will replace all your current shortcuts and groups with the backup from " + dateStr + ". Your current data will be saved as a recovery backup. Continue?");
+      if (!ok) return;
+
+      // Save current state as recovery (envelope-like, full revertability)
+      var current = await chrome.storage.local.get(["data", "launchpad_background"]);
+      await chrome.storage.local.set({
+        data_pre_import_backup: {
+          data: current.data || null,
+          background: current.launchpad_background || null
+        }
+      });
+      // Apply imported envelope
+      await chrome.storage.local.set({ data: envelope.data });
+      if (envelope.hasOwnProperty("background")) {
+        await Storage.saveBackground(envelope.background);
+      }
+      // Close panel during the window where storage is updated but DOM not yet re-rendered
+      closeSettingsPanel();
+      // Re-init relevant subset of init()
+      data = await Storage.getAll();
+      if (!data.settings) data.settings = { columns: 6 };
+      if (!data.settings.collapsedGroups) data.settings.collapsedGroups = {};
+      await loadBackground();
+      applyIconSize(data.settings.iconSize || "medium");
+      refreshOldFavicons();
+      render();
+      showToast("Backup restored.");
+    };
+    reader.onerror = function () {
+      showToast("Could not read file");
+    };
+    reader.readAsText(file);
+  }
+
   // ===== Domain Alias Map =====
 
   var DOMAIN_ALIASES = {
@@ -2896,6 +2995,15 @@
     safeOn("#settings-import-bookmarks", "click", function () {
       closeSettingsPanel();
       Bookmarks.showPicker();
+    });
+    safeOn("#settings-export-backup", "click", exportBackup);
+    safeOn("#settings-import-backup", "click", function () {
+      var input = $("#settings-backup-file");
+      if (input) input.click();
+    });
+    safeOn("#settings-backup-file", "change", function () {
+      if (this.files && this.files[0]) handleBackupFile(this.files[0]);
+      this.value = "";
     });
     safeOn("#sidebar-hamburger", "click", toggleMobileSidebar);
     safeOn("#sidebar-backdrop", "click", toggleMobileSidebar);

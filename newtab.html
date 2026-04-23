@@ -177,6 +177,17 @@
           <button id="settings-import-bookmarks" type="button" class="settings-btn settings-btn-full">Import Chrome Bookmarks</button>
         </div>
       </div>
+      <div class="settings-section">
+        <h3 class="settings-section-title">Backup</h3>
+        <div class="settings-row">
+          <button id="settings-export-backup" type="button" class="settings-btn settings-btn-full">Export backup</button>
+        </div>
+        <div class="settings-row">
+          <button id="settings-import-backup" type="button" class="settings-btn settings-btn-full">Import backup</button>
+        </div>
+        <p class="settings-privacy">Backups include all your shortcuts, groups, settings, and background. Stored locally on your device only.</p>
+        <input type="file" id="settings-backup-file" accept=".json" class="hidden">
+      </div>
       <div class="settings-section settings-about">
         <h3 class="settings-section-title">About</h3>
         <p class="settings-version" id="settings-version"></p>
