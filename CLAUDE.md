@@ -118,7 +118,7 @@ Other projects in the same dev root: `reelabs`, `condence-ai`, `exhale-health`, 
 - `docs/ASANA.md` — Task tracking workflow between Claude Chat, Claude Code, and Asana.
 - `docs/ROADMAP.md` — What's in Pro v1, deferred to v2/v3, future considerations.
 - `docs/DECISIONS.md` — Architectural and product decisions with reasoning. Append-only log.
-- `docs/BUGS.md` — Living bug list (populated when bugs surface).
+- `docs/BUGS.md` — Audit checklist Claude Code runs at task completion, plus known limitations log.
 - `docs/HANDOVER.md` — Session handover document, updated when context limits approach.
 - `docs/SPECS/*.md` — Individual spec documents (UX, data model, tracking engine, etc.)
 
@@ -139,4 +139,6 @@ When starting a new Claude Code session:
 1. Confirm working directory is `C:\Dev\Git\launchpad`
 2. Verify `git status` shows clean working tree (or understood in-progress work)
 3. Read any Asana task ID provided in the prompt
-4. Proceed with the requested change
+4. Review the relevant sections of `docs/BUGS.md` that apply to the task's scope
+5. Proceed with the requested change
+6. Before moving the task to Needs Review, run the BUGS.md audit and include a one-line AUDIT summary in the IMPLEMENTATION comment
