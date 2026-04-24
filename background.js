@@ -1,4 +1,6 @@
-/* global chrome */
+/* global chrome, importScripts */
+
+importScripts('tracking-prototype.js');
 
 var DOMAIN_ALIASES = {
   'outlook.live.com': 'microsoft-mail',
