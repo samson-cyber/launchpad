@@ -32,7 +32,7 @@ Paid tier. Pricing: **$4.99/mo or $39/year** (annual ~$3.25/mo). Lifetime option
 ### Pro v1 scope (committed)
 
 #### Foundation
-- Workspaces: Work + Personal (2 hardcoded initially), with UI switcher
+- Workspaces: generic user-managed containers (free = 1 "Main" workspace, Pro = unlimited). Switcher, add/rename/reorder/delete from Pro Settings.
 - Pro settings panel (separate from free Settings)
 - Pro upgrade flow (billing provider TBD — LemonSqueezy / Paddle / Stripe)
 - License key system (local verification + server-side abuse check)
@@ -63,10 +63,8 @@ Paid tier. Pricing: **$4.99/mo or $39/year** (annual ~$3.25/mo). Lifetime option
 - Non-invasive UI — small Achievements section in Pro settings
 - No celebration fanfare on the main grid
 
-#### Work + Personal Tracking
-- Both workspaces track by default (opt-in per workspace)
-- Marketing leads with Work (productivity tool)
-- Personal secondarily serves habit tracking (YouTube, social, etc.) with per-domain opt-in
+#### Cross-workspace tracking
+- All workspaces track domain + tag time by default. Combined analytics toggle (opt-in, default off) shows totals across all workspaces in Dashboard. Marketing positions Pro as "unlimited contexts" — Work, clients, projects, side gigs. Personal/habit-tracking emerges as a user-discovered use case.
 
 #### Free-tier additions shipping alongside Pro v1 launch
 - Tab bar UI with greyed Pro tabs for free users (spec: `docs/SPECS/pro-tab-architecture.md`)
@@ -87,7 +85,6 @@ Per DECISIONS.md "Ship Pro and free tab-bar update as one release", these free-t
 
 Items worth building but out of scope for v1 to keep the 10-week build shippable.
 
-- Custom workspaces beyond Work/Personal (user can create named workspaces)
 - Per-shortcut / per-domain time tracking within a workspace
 - Richer analytics: time trends, categories, deep-work detection patterns
 - Manual workspace switching keyboard shortcut
