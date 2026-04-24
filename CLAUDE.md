@@ -115,12 +115,12 @@ Other projects in the same dev root: `reelabs`, `condence-ai`, `exhale-health`, 
 
 ## Related Documents
 
-- `ASANA.md` — Task tracking workflow between Claude Chat, Claude Code, and Asana.
-- `ROADMAP.md` — What's in Pro v1, deferred to v2/v3, future considerations.
-- `DECISIONS.md` — Architectural and product decisions with reasoning. Append-only log.
-- `BUGS.md` — Living bug list (populated when bugs surface).
-- `HANDOVER.md` — Session handover document, updated when context limits approach.
-- `SPECS/*.md` — Individual spec documents (UX, data model, tracking engine, etc.)
+- `docs/ASANA.md` — Task tracking workflow between Claude Chat, Claude Code, and Asana.
+- `docs/ROADMAP.md` — What's in Pro v1, deferred to v2/v3, future considerations.
+- `docs/DECISIONS.md` — Architectural and product decisions with reasoning. Append-only log.
+- `docs/BUGS.md` — Living bug list (populated when bugs surface).
+- `docs/HANDOVER.md` — Session handover document, updated when context limits approach.
+- `docs/SPECS/*.md` — Individual spec documents (UX, data model, tracking engine, etc.)
 
 ---
 
@@ -129,7 +129,7 @@ Other projects in the same dev root: `reelabs`, `condence-ai`, `exhale-health`, 
 When starting a new Claude Chat session on LaunchPad:
 
 1. Read this `CLAUDE.md` file
-2. Skim `ROADMAP.md` for current priorities
+2. Skim `docs/ROADMAP.md` for current priorities
 3. Check Asana (`LaunchPad Pro - Development Log` project) for active tasks
 4. Check recent commits in `C:\Dev\Git\launchpad` via `git log --oneline -10`
 5. Proceed with the user's request
