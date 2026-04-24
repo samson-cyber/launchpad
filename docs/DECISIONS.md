@@ -153,3 +153,164 @@ Never rewrite historical entries. If a decision is later reversed, add a new ent
 - Every shipped version of the extension must correspond to a git commit, so it can be audited and rebuilt.
 - A "commit before ship" habit is reliable; a "remember to commit after shipping" habit is not.
 - One extra `git commit` is cheap insurance against another day-long recovery session.
+
+---
+
+## 2026-04-24 — Ship Pro and free tab-bar update as one release
+
+**Context:** Pro v1 introduces a tab bar in the new-tab UI (Home, Tasks, Dashboard, Insights). Question was whether to ship the free-tier tab-bar UI change (Home as default, greyed/locked Pro tabs visible to free users) separately as a v1.0.5 before Pro launches, or as part of the Pro launch itself.
+
+**Alternatives considered:**
+- Staged v1.0.5 with free-only tab-bar UI, then Pro launch weeks later
+- Single release containing free tab-bar update + Pro features gated by license
+
+**Outcome:** Free tab bar + Pro features ship in the same release. No intermediate v1.0.5.
+
+**Reasoning:**
+- One unified launch narrative instead of two disconnected announcements.
+- No prolonged transition period where free users see a half-changed UI without the payoff.
+- Testing is concentrated on one release day, not spread across two windows.
+- The free-tier tab bar on its own has no standalone value for users — it only makes sense as the entry point to Pro.
+
+---
+
+## 2026-04-24 — Pro tabs: Home, Tasks, Dashboard, Insights (4 tabs)
+
+**Context:** Pro's new-tab UI needed a tab structure. Candidates included separate tabs for each major surface (Tasks, Dashboard, Insights, Achievements, Day Recap, etc.). Achievement badges were initially considered for their own tab.
+
+**Alternatives considered:**
+- 3 tabs (Home, Tasks, Dashboard) with Insights folded into Dashboard
+- 4 tabs (Home, Tasks, Dashboard, Insights) with Achievements as a subsection inside Insights
+- 5 tabs (Home, Tasks, Dashboard, Insights, Achievements)
+- 6+ tabs including Day Recap, Start of Day as separate surfaces
+
+**Outcome:** 4 tabs — Home, Tasks, Dashboard, Insights. Achievement badges live inside Insights as a subsection alongside long-term trends.
+
+**Reasoning:**
+- Pro v1 ships with ~7 achievement badges. A dedicated tab for 7 items feels thin and invites comparison to gamified competitors (which is the wrong positioning).
+- Insights is framed as "the longer view" — trends, patterns, milestones. Achievements (milestones you've hit) naturally belong there alongside tab-time trends and deep-work history.
+- 4 tabs fits comfortably in the tab bar without scrolling or crowding.
+- Dashboard = "today"; Insights = "over time". Clean mental model.
+
+---
+
+## 2026-04-24 — Dodo Payments as billing provider
+
+**Context:** Pro needs a billing provider for subscriptions ($4.99/mo, $39/year), lifetime purchases ($59), license key generation, and tax compliance across international buyers.
+
+**Alternatives considered:**
+- Stripe (industry standard, most flexible)
+- LemonSqueezy (Merchant of Record, popular with indie SaaS)
+- Paddle (Merchant of Record, enterprise-leaning)
+- Dodo Payments (newer Merchant of Record, launched 2025)
+- Gumroad (simpler but weaker subscription tooling)
+
+**Outcome:** Dodo Payments is the billing provider for Pro v1.
+
+**Reasoning:**
+- Merchant of Record model = Dodo handles tax compliance across 220+ countries; Samson doesn't register for VAT/GST/sales tax anywhere. Stripe would require registering in every jurisdiction with threshold crossings — unsustainable for a solo dev.
+- Built-in license key management means no custom license-server code needed.
+- Fees are lower than LemonSqueezy (4% + 40¢ vs 5% + 50¢) which compounds on $4.99/mo subscriptions.
+- Risk acknowledged: Dodo is newer (2025 launch) with a smaller community than Stripe/LemonSqueezy. If Dodo has reliability or support issues, the plan is to swap providers.
+- Mitigation: build a clean billing abstraction layer in LaunchPad so the provider is swappable in 1-2 days without touching feature code.
+
+---
+
+## 2026-04-24 — Free trial: no card required, auto-downgrade at day 7, no emails
+
+**Context:** Pro needs a free trial mechanic to let users try Work Mode, tracking, and Day Recap before paying. Standard industry options range from card-required 14-day trials with email reminders to card-less short trials with in-app nudges.
+
+**Alternatives considered:**
+- Card required up front, 14-day trial, auto-billed after trial
+- Card required, 7-day trial, cancellation email reminders
+- No card, 7-day trial, email reminders + final conversion email
+- No card, 7-day trial, auto-downgrade at end, in-extension reminders only (no email)
+
+**Outcome:** No card required. 7-day free trial. At day 7, account auto-downgrades to free. In-extension reminders only — no email notifications at any point.
+
+**Reasoning:**
+- "No card required" removes the biggest friction point in trial signup and matches the "no boss watching" brand positioning.
+- Auto-downgrade (rather than auto-charge) maintains user trust — no surprise charges, no "I forgot to cancel" complaints.
+- In-extension messaging (day 5 trial-ending banner, day 7 trial-end modal, 48-hour post-end reactivation toast offering 30% discount) reaches users where they already are, without requiring email permission.
+- Skipping email entirely keeps LaunchPad's privacy-first story consistent and avoids an entire class of integration (ESP account, list management, unsubscribe flows, GDPR, deliverability).
+- Acknowledged trade-off: conversion rate will be lower than industry benchmark (card-required trials convert ~30%; no-card card-less trials convert ~10-15%). Accepted in exchange for word-of-mouth strength, brand consistency, and operational simplicity.
+
+---
+
+## 2026-04-24 — Personal workspace default off, opt-in via Pro Settings
+
+**Context:** Pro supports two workspaces (Work and Personal). Question was whether Personal should be enabled by default on Pro activation or require explicit opt-in.
+
+**Alternatives considered:**
+- Both workspaces enabled by default on Pro activation
+- Only Work enabled by default; Personal opt-in from Pro Settings
+- User prompted to choose during Pro onboarding
+
+**Outcome:** Work is enabled by default. Personal workspace is default off and requires opt-in via Pro Settings.
+
+**Reasoning:**
+- Marketing leads with Work as the primary productivity use case. First impression should be "this is a tool for my work day."
+- Personal is a secondary habit-tracking / doomscroll-limiting use case discovered by users who want it — not the headline value prop.
+- Avoids the "why is this tracking my YouTube?" reaction at first launch, which would undercut trust even though tracking is scoped to the workspace.
+- Users who want Personal tracking will find it; users who don't won't have it sprung on them.
+- Opt-in is consistent with the privacy-respecting positioning established in the earlier "Work + Personal both get tracking" decision — that decision established the capability exists; this decision establishes the default.
+
+---
+
+## 2026-04-24 — Tags: auto-created from goals, inherited by child tasks, bookmarks taggable separately
+
+**Context:** Pro's task system supports tags for cross-cutting organization (e.g., "#client-x" across goals and tasks). Needed to decide when tags get created, what inherits them, and whether bookmarks participate.
+
+**Alternatives considered:**
+- Every task and bookmark auto-tagged on creation
+- Tags manually created by user, no auto-creation
+- Tags auto-created from goals only, inherited by child tasks, bookmarks tagged separately
+- Separate tag namespaces for tasks vs bookmarks
+
+**Outcome:** Creating a goal auto-creates a tag with the goal's name. Child tasks under a goal inherit the tag. Standalone tasks (no parent goal) do not auto-tag. Bookmarks are tagged separately via right-click or from the Goal detail view.
+
+**Reasoning:**
+- Auto-tagging every task produces 40+ tags per week of normal use — the tag picker becomes unusable and tag sprawl destroys the feature's value.
+- Goal-anchored tags keep the tag namespace close to the user's mental model of "projects I care about."
+- Inheritance from goal to child tasks is a natural default that avoids repetitive tagging.
+- Standalone tasks (quick todos) don't need tags — forcing them would just be noise.
+- Bookmarks benefit from tags for cross-goal retrieval ("show me all reference links for client-x"), but need explicit user action so the tag set stays curated.
+
+---
+
+## 2026-04-24 — Work workspace gets tags + domain tracking; Personal workspace gets domain-only
+
+**Context:** Tracking semantics should differ between Work and Personal workspaces because the use cases differ. Needed to decide whether tags apply to Personal and whether domain tracking applies to both.
+
+**Alternatives considered:**
+- Both workspaces get full tag + domain tracking (symmetric)
+- Work gets tags + domain; Personal gets domain-only
+- Work gets tags + domain; Personal gets tags-only
+- Work-only tracking of any kind (deferred Personal tracking to v2)
+
+**Outcome:** Work gets tags (goal-based) plus domain tracking. Personal gets domain-only tracking — no tags. Optional combined analytics toggle lets users see one number across both if they opt in.
+
+**Reasoning:**
+- Work is framed as productivity: "how much focused time on goal X this week?" Tags are the mechanism for that answer.
+- Personal is framed as awareness: "how much time on YouTube / Reddit / news sites this week?" Domain is the natural unit; tagging personal browsing would be overengineering a casual use case.
+- Asymmetric design keeps Personal lightweight — the user adopts Personal if they want a gentle habit mirror, not another spreadsheet to maintain.
+- Combined analytics toggle is opt-in for users who specifically want a unified view ("my total deep-focus time across everything"). Default off to avoid implying the two workspaces should be conflated.
+
+---
+
+## 2026-04-24 — Always reset to Home tab on every new-tab open
+
+**Context:** With Pro introducing a tab bar (Home, Tasks, Dashboard, Insights), needed to decide whether the last-selected tab persists across new-tab opens.
+
+**Alternatives considered:**
+- Persist last-selected tab (user ends up on whatever they viewed last)
+- Always reset to Home
+- User-configurable default tab
+
+**Outcome:** Every new-tab open starts on the Home tab. No persistence of tab selection across new-tab-opens.
+
+**Reasoning:**
+- "New tab = my launchpad" is the consistent mental model Home reinforces — shortcuts, search, everything users associate with the free extension.
+- Landing on Tasks or Dashboard when the user just wanted to search for something would be disorienting.
+- Simpler rule to implement and explain; no edge cases around first-open vs subsequent-open state.
+- Users who want the Dashboard can click one tab — one click is a small cost for the consistency payoff.
