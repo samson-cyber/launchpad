@@ -68,6 +68,12 @@ Paid tier. Pricing: **$4.99/mo or $39/year** (annual ~$3.25/mo). Lifetime option
 - Marketing leads with Work (productivity tool)
 - Personal secondarily serves habit tracking (YouTube, social, etc.) with per-domain opt-in
 
+#### Free-tier additions shipping alongside Pro v1 launch
+- Tab bar UI with greyed Pro tabs for free users (spec: `docs/SPECS/pro-tab-architecture.md`)
+- Universal trash bin / soft delete (bookmarks, groups, goals, tasks, tags) — 30-day auto-purge, sidebar icon, spec: `docs/SPECS/trash-bin.md`
+
+Per DECISIONS.md "Ship Pro and free tab-bar update as one release", these free-tier enhancements ship in the same release as Pro launch rather than a separate v1.0.5.
+
 ### Pro v1 UI principles
 
 - Minimal. Lightly pulsing "what's on for today" button is the only persistent Pro indicator on the grid.
