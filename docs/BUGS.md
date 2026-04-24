@@ -133,6 +133,12 @@ Accepted bugs and constraints we're not planning to fix. Format: date, area, des
 **Description:** Original spec called for 10-second flush cadence. Chrome's `chrome.alarms` API has a minimum repeating period of 30 seconds (`periodInMinutes: 0.5`). Buffer approach was scrapped entirely in favor of write-per-event; this note is here as historical reference for why the initial spec couldn't be followed literally.
 **Status:** Superseded — write-per-event architecture doesn't use alarms at all.
 
+### 2026-04-24 — Tracking Prototype — unbounded `chrome.storage.local` growth during validation
+
+**Area:** Prototype (tracking)
+**Description:** The write-per-event architecture (commit 7ff8af8) appends one record to `chrome.storage.local["tracking_prototype"]` on every tab switch, active-tab URL update, window focus change, and idle state transition, with no pruning. Over the 3–5 day validation window this accumulates without bound. Default `chrome.storage.local` quota is 10 MB; rough estimate for normal work is well under that, but heavy activity or a longer run could approach it.
+**Status:** Accepted for validation scope. Mitigation: `chrome.storage.local.getBytesInUse("tracking_prototype")` sampled during review; the prototype is retired (or wiped with `chrome.storage.local.remove("tracking_prototype")`) once validation concludes. The production Tracking Engine will implement per-day aggregation and pruning instead of raw event retention.
+
 ### 2026-04-24 — Free Tier — Settings panel stays dark glass on light backgrounds
 
 **Area:** Polish (free tier)
