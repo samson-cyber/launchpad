@@ -111,6 +111,29 @@ Why: Asana is the output log (what was built, what needs review, what was fixed)
 - Copy-paste blocks intended for Claude Code
 - Code snippets (unless necessary for review discussion)
 
+### Comment Formatting — Plain Text Only
+
+All Asana comments (from Claude Chat AND Claude Code) must be posted as **plain text** using the `text` parameter of the `add_comment` API — **never** `html_text`.
+
+Reasons:
+- Plain text is readable in the Asana UI, in API responses, in copy-paste, and in downstream review
+- HTML comments with `<strong>`, `<code>`, `<ul>` tags etc. render as formatted output in Asana but become visually dense and noisy
+- Plain text eliminates any risk of mismatched tags or unsupported elements
+- Samson prefers to scan comments quickly; formatting discipline beats formatting density
+
+Conventions for readability in plain text:
+
+- **Section headers** at the top of a comment use all-caps or a clear label: `IMPLEMENTATION —` / `PLAN —` / `REVIEW —` / `RESOLVED —`
+- **Blank lines** separate logical sections within a comment
+- **Bulleted lists** use `-` or `•` (lowercase, sentence case content)
+- **Inline references** to files, commits, functions use plain backticks only if context demands it; otherwise just the name (e.g., `tracking-prototype.js`, commit 713508e, `trackingExport()`). Asana renders nothing special for backticks in plain text, but reviewers recognize them
+- **Numeric lists** use `1.` / `2.` / `3.`
+- **No HTML tags**. Not `<strong>`, not `<code>`, not `<br>`, not `<ul>/<li>`. If you find yourself wanting to bold something, rewrite the sentence so the important point stands alone on its own line
+
+This rule applies to PLAN, IMPLEMENTATION, REVIEW, RESOLVED, and any other comment type.
+
+Asana task descriptions use Markdown-style headers (## Context, ## What was done) that render as plain text — this is acceptable because the format is consistent and stable.
+
 ---
 
 ## Workflow Loop
@@ -255,11 +278,11 @@ These rules exist because tasks have repeatedly drifted out of project membershi
 > 1. Look for the Asana Task ID at the top of the prompt
 > 2. UPDATE THAT EXISTING TASK description — do not create a new task for the summary
 > 3. PRESERVE the existing "## Context" section. Fill in or update: What was done, Files affected, Dependencies, Issues encountered, Next steps
-> 4. ADD A COMMENT prefixed with "IMPLEMENTATION —" summarizing: what was built, key decisions, what reviewer should check
+> 4. ADD A COMMENT prefixed with "IMPLEMENTATION —" summarizing: what was built, key decisions, what reviewer should check. **Use the `text` parameter of add_comment, NEVER `html_text`. Plain text only — no `<strong>`, `<code>`, `<ul>` or any HTML tags.** See the Comment Formatting section of ASANA.md.
 > 5. Move task to "Needs Review" using `add_projects` with project_id `1214252324886224` and section_id `1214252324886229`
 > 6. Assign to me
 > 7. If bugs found, create separate NEW tasks in "Bugs / Issues" — use `add_projects` with project_id `1214252324886224` and section_id `1214252324886231`. Name: "Bug: [Area] — [description]"
-> 8. When fixing a previously logged bug: update description with fix, add RESOLVED — comment, mark completed, move to "Fixed Bugs / Issues" using `add_projects` with project_id `1214252324886224` and section_id `1214252324886232`
+> 8. When fixing a previously logged bug: update description with fix, add RESOLVED — comment (plain text), mark completed, move to "Fixed Bugs / Issues" using `add_projects` with project_id `1214252324886224` and section_id `1214252324886232`
 >
 > **CRITICAL PROJECT RULES:**
 > - NEVER use `remove_projects`. Tasks must ALWAYS remain in project `1214252324886224`.
