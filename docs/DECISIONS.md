@@ -367,3 +367,33 @@ Never rewrite historical entries. If a decision is later reversed, add a new ent
 - "Work workspace gets tags + domain tracking; Personal workspace gets domain-only" (2026-04-24) — replaced with "All workspaces have symmetric feature sets; combined analytics toggle still applies across all workspaces in Dashboard"
 
 Full spec: `docs/SPECS/workspaces-data-model.md` (v2). Asana spec task: GID `1214257173070934`.
+
+---
+
+## 2026-04-24 — Tasks/Goals architecture: flat hierarchy, auto-tagging from goals, paused task is sacred
+
+**Context:** Tasks/Goals is the core productivity layer of Pro. Scoping session needed to settle several structural decisions: how goals and tasks relate, how tagging works across entities, what the active-task experience feels like, which advanced features land in v1 vs v2.
+
+**Alternatives considered:**
+- Nested goals (goal → sub-goal → tasks) vs flat (goal → tasks)
+- Auto-tag every task on creation vs goal-level tagging only
+- Task dependencies in v1 vs deferred
+- Advanced template field interpolation in v1 vs basic templates only
+- Idle detection as the only pause mechanism vs explicit pause button
+
+**Outcome:**
+- Flat hierarchy: Goal → Tasks only, no sub-goals in v1
+- Tags auto-create from goals; child tasks inherit; standalone tasks don't auto-tag; bookmarks/groups taggable separately
+- Task dependencies (blocking relationships) deferred to v2
+- Basic goal templates in v1 (name + task list + priorities); advanced field interpolation deferred
+- Explicit pause button added to active-task widget; idle detection runs silently in parallel but manual pause is sacred
+- Task due dates with hierarchy rule: child task cannot exceed parent goal deadline without confirmation modal; goal deadline cannot move earlier than any existing child task without blocking
+
+**Reasoning:**
+- Flat hierarchy avoids rabbit-hole feature creep (sub-goals invite Gantt, critical path, etc.)
+- Auto-tagging every task would create 40+ tags per week and destroy tag picker usability
+- Dependencies look good on feature lists but get minimal use in solo productivity tools; positioning is "no boss watching" which implies informal workflows
+- Explicit pause respects user agency; idle detection is honest but invisible; having both covers "I'm stepping away" and "I never wondered if it was still tracking"
+- Due-date hierarchy prevents the silent surprise of a child outlasting its parent; modal makes the trade-off explicit rather than magical-in-a-bad-way
+
+Full spec: `docs/SPECS/tasks-and-goals.md`. Asana spec task: GID `1214260169431711`.
