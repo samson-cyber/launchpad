@@ -6,6 +6,16 @@
  * viable. It is loaded via importScripts() from background.js and runs
  * alongside the free-tier extension without touching any of its code paths.
  *
+ * Architecture:
+ *   Every tracked Chrome event (tabs.onActivated, tabs.onUpdated with
+ *   changeInfo.url on the active tab, windows.onFocusChanged,
+ *   idle.onStateChanged) writes a single event record directly to
+ *   chrome.storage.local["tracking_prototype"] via a read-modify-write.
+ *   There is NO in-memory buffer — the MV3 service worker can suspend after
+ *   ~30 s of idle and anything held in module-level state would be lost.
+ *   Writes are serialized through a module-level promise chain so concurrent
+ *   events cannot race the read-modify-write.
+ *
  * Before shipping any release build:
  *   - Remove the `importScripts('tracking-prototype.js')` line at the top of
  *     background.js.
@@ -14,13 +24,14 @@
  *     in that list.
  *
  * Storage:
- *   chrome.storage.local["tracking_prototype"] accumulates events across all
- *   days (not pruned). The key is disposable — to wipe it during development:
+ *   chrome.storage.local["tracking_prototype"] = { startedAt, events }
+ *   accumulates events across all days (not pruned). The key is disposable —
+ *   to wipe it during development:
  *     chrome.storage.local.remove("tracking_prototype")
  *
  * Debug helpers exposed on the service-worker global scope
  * (DevTools → chrome://extensions → "Inspect views: service worker"):
- *   trackingExport()    — flush + print summary + raw events, return events.
+ *   trackingExport()    — print summary + raw events, return events.
  *   trackingAggregate() — walk today's events, return per-URL/per-domain
  *                         active-minute totals plus idle/focus minutes.
  */
@@ -31,37 +42,28 @@
   "use strict";
 
   const STORAGE_KEY = "tracking_prototype";
-  const ALARM_NAME = "tracking-prototype-flush";
   const IDLE_THRESHOLD_SEC = 60;
 
-  // In-memory event buffer. Note: MV3 service workers reset global scope
-  // between wakes, so this buffer only coalesces events within a single wake.
-  let pendingEvents = [];
-  let flushing = false;
+  // Serialized write chain. Each event handler appends its write onto this
+  // promise so the read-modify-write cycle cannot race itself under bursts.
+  // The .catch after each enqueue swallows failures so one bad write does
+  // not poison the chain for all subsequent events.
+  let writeChain = Promise.resolve();
 
-  function record(evt) {
-    pendingEvents.push(evt);
+  async function doWrite(evt) {
+    const result = await chrome.storage.local.get(STORAGE_KEY);
+    const store = result[STORAGE_KEY] || { startedAt: null, events: [] };
+    if (!store.startedAt) store.startedAt = evt.ts;
+    store.events = (store.events || []).concat(evt);
+    await chrome.storage.local.set({ [STORAGE_KEY]: store });
   }
 
-  async function flush() {
-    if (flushing) return;
-    if (!pendingEvents.length) return;
-    flushing = true;
-    const batch = pendingEvents;
-    pendingEvents = [];
-    try {
-      const result = await chrome.storage.local.get(STORAGE_KEY);
-      const store = result[STORAGE_KEY] || { startedAt: null, events: [] };
-      if (!store.startedAt) store.startedAt = batch[0].ts;
-      store.events = (store.events || []).concat(batch);
-      await chrome.storage.local.set({ [STORAGE_KEY]: store });
-    } catch (err) {
-      // Requeue the batch so we try again next flush.
-      pendingEvents = batch.concat(pendingEvents);
-      console.error("[tracking-prototype] flush failed:", err);
-    } finally {
-      flushing = false;
-    }
+  function enqueueWrite(evt) {
+    writeChain = writeChain
+      .then(function () { return doWrite(evt); })
+      .catch(function (err) {
+        console.error("[tracking-prototype] write failed:", err);
+      });
   }
 
   // Idle detection threshold. Safe to call on every SW wake (idempotent).
@@ -71,61 +73,66 @@
     console.error("[tracking-prototype] setDetectionInterval failed:", e);
   }
 
-  // Periodic flush. Chrome's minimum alarm periodInMinutes is 0.5 (30 s), so
-  // "every 10 seconds" is not achievable via chrome.alarms; 30 s is the
-  // closest. Called out in the Asana review notes.
-  chrome.alarms.create(ALARM_NAME, { periodInMinutes: 0.5, delayInMinutes: 0.5 });
-
-  chrome.alarms.onAlarm.addListener(function (alarm) {
-    if (alarm.name === ALARM_NAME) flush();
-  });
-
   chrome.tabs.onActivated.addListener(function (info) {
-    record({
-      ts: Date.now(),
-      type: "tab_activated",
-      tabId: info.tabId,
-      url: null,
-      windowId: info.windowId,
-      idleState: null
-    });
+    try {
+      enqueueWrite({
+        ts: Date.now(),
+        type: "tab_activated",
+        tabId: info.tabId,
+        url: null,
+        windowId: info.windowId,
+        idleState: null
+      });
+    } catch (err) {
+      console.error("[tracking-prototype] onActivated handler failed:", err);
+    }
   });
 
   chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
-    if (!changeInfo.url) return;
-    if (!tab || tab.active !== true) return;
-    record({
-      ts: Date.now(),
-      type: "tab_updated",
-      tabId: tabId,
-      url: changeInfo.url,
-      windowId: tab.windowId != null ? tab.windowId : null,
-      idleState: null
-    });
+    try {
+      if (!changeInfo.url) return;
+      if (!tab || tab.active !== true) return;
+      enqueueWrite({
+        ts: Date.now(),
+        type: "tab_updated",
+        tabId: tabId,
+        url: changeInfo.url,
+        windowId: tab.windowId != null ? tab.windowId : null,
+        idleState: null
+      });
+    } catch (err) {
+      console.error("[tracking-prototype] onUpdated handler failed:", err);
+    }
   });
 
   chrome.windows.onFocusChanged.addListener(function (windowId) {
-    record({
-      ts: Date.now(),
-      type: "window_focus",
-      tabId: null,
-      url: null,
-      windowId: windowId,
-      idleState: null
-    });
+    try {
+      enqueueWrite({
+        ts: Date.now(),
+        type: "window_focus",
+        tabId: null,
+        url: null,
+        windowId: windowId,
+        idleState: null
+      });
+    } catch (err) {
+      console.error("[tracking-prototype] onFocusChanged handler failed:", err);
+    }
   });
 
   chrome.idle.onStateChanged.addListener(function (newState) {
-    record({
-      ts: Date.now(),
-      type: "idle_state",
-      tabId: null,
-      url: null,
-      windowId: null,
-      idleState: newState
-    });
-    // Flush on every idle transition per spec.
-    flush();
+    try {
+      enqueueWrite({
+        ts: Date.now(),
+        type: "idle_state",
+        tabId: null,
+        url: null,
+        windowId: null,
+        idleState: newState
+      });
+    } catch (err) {
+      console.error("[tracking-prototype] onStateChanged handler failed:", err);
+    }
   });
 
   function msToMinutes(ms) {
@@ -137,7 +144,8 @@
   }
 
   async function trackingExport() {
-    await flush();
+    // Wait for any in-flight writes to land before reading.
+    await writeChain;
     const result = await chrome.storage.local.get(STORAGE_KEY);
     const store = result[STORAGE_KEY] || { startedAt: null, events: [] };
     const events = store.events || [];
@@ -171,7 +179,7 @@
   }
 
   async function trackingAggregate() {
-    await flush();
+    await writeChain;
     const result = await chrome.storage.local.get(STORAGE_KEY);
     const store = result[STORAGE_KEY] || { events: [] };
     const allEvents = store.events || [];
