@@ -335,3 +335,35 @@ Never rewrite historical entries. If a decision is later reversed, add a new ent
 - Free-tier status reinforces LaunchPad's "we respect your data" brand without creating dependency on Pro for basic safety.
 - Batch sweep via a single daily `chrome.alarms` fire is simpler than per-item timers and scales to any trash size.
 - Full spec: `docs/SPECS/trash-bin.md`. Asana spec task: GID `1214257389471009`.
+
+---
+
+## 2026-04-24 — Workspaces as generic user-managed containers (reframe)
+
+**Context:** Original Pro design (documented earlier in DECISIONS.md) assumed two fixed workspaces, Work and Personal, with asymmetric feature sets — Work got full task/tag tracking, Personal got domain-only. On reflection during the Tasks/Goals scoping session, the two-workspace design felt limiting for the portfolio-worker persona who might want one workspace per client, per job context, or per project. The asymmetry also complicated UX (two sets of rules) and marketing copy.
+
+**Alternatives considered:**
+- Fixed Work + Personal with asymmetric features (original design)
+- Fixed Work + Personal with symmetric features (compromise)
+- Generic user-managed workspaces, unlimited count, all symmetric (this decision)
+
+**Outcome:** Workspaces are generic user-managed containers. Free tier gets 1 workspace (default name "Main"). Pro gets unlimited workspaces, all with identical feature sets (goals, tasks, tags, tracking). Users can name, reorder, and organize workspaces however they want — per client, per context, work vs personal, etc. "Work" and "Personal" become example use cases, not product structure.
+
+**Reasoning:**
+- Better fit for the portfolio-worker persona (client workspaces)
+- Simpler mental model: one concept, one feature set
+- More compelling Pro value prop (unlimited contexts vs "one extra workspace")
+- Easier marketing copy
+- Extensible array-of-workspaces data model from the original spec already supports this — no schema rework needed
+
+**Free / Pro boundary:**
+- Free: 1 workspace, default name "Main", renameable
+- Pro: unlimited workspaces, create/rename/reorder/delete
+- Pro downgrade with N workspaces: all preserved, first workspace is editable, others become read-only (isReadOnly = true). User can view but not edit.
+- Pro re-upgrade: restores full editability across all workspaces immediately
+
+**Supersedes:**
+- "Personal workspace default off, opt-in via Pro Settings" (2026-04-24) — replaced with "Pro users create workspaces as needed from Pro Settings; free tier has 1 renameable workspace"
+- "Work workspace gets tags + domain tracking; Personal workspace gets domain-only" (2026-04-24) — replaced with "All workspaces have symmetric feature sets; combined analytics toggle still applies across all workspaces in Dashboard"
+
+Full spec: `docs/SPECS/workspaces-data-model.md` (v2). Asana spec task: GID `1214257173070934`.
