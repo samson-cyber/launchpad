@@ -314,3 +314,24 @@ Never rewrite historical entries. If a decision is later reversed, add a new ent
 - Landing on Tasks or Dashboard when the user just wanted to search for something would be disorienting.
 - Simpler rule to implement and explain; no edge cases around first-open vs subsequent-open state.
 - Users who want the Dashboard can click one tab — one click is a small cost for the consistency payoff.
+
+---
+
+## 2026-04-24 — Universal trash bin with 30-day auto-purge (free tier)
+
+**Context:** The existing backup/export system (v1.0.4) handles catastrophic data loss scenarios but doesn't address the far more common "oh shit I didn't mean to delete that" moment. Users who accidentally delete a bookmark shouldn't need to restore an entire JSON export to recover it.
+
+**Alternatives considered:**
+- Goals/tasks-only trash (inconsistent — why can I undo deleting a task but not a bookmark?)
+- Manual-only purge with no auto-cleanup (unbounded storage growth, trash becomes a graveyard)
+- Pro-gated trash bin (adds friction to a trust feature; punishes free users for accidents)
+- Per-item expiration timers (doesn't scale, no benefit over batch sweep)
+
+**Outcome:** Universal soft-delete system covering bookmarks, groups, goals, tasks, and tags. Deleted items remain in a Trash Bin for 30 days, then are permanently removed by a daily auto-purge (`chrome.alarms`). Accessible via an icon adjacent to the Settings cog in the sidebar. Shipped as a free-tier feature.
+
+**Reasoning:**
+- Applying the pattern uniformly to bookmarks, groups, goals, tasks, and tags keeps the UX consistent — users don't have to remember which things are recoverable.
+- 30-day retention matches industry norms (Gmail, Drive, Dropbox) and keeps storage bounded (~250 KB worst case, negligible).
+- Free-tier status reinforces LaunchPad's "we respect your data" brand without creating dependency on Pro for basic safety.
+- Batch sweep via a single daily `chrome.alarms` fire is simpler than per-item timers and scales to any trash size.
+- Full spec: `docs/SPECS/trash-bin.md`. Asana spec task: GID `1214257389471009`.
