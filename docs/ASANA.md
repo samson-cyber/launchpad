@@ -64,9 +64,7 @@ LaunchPad Pro v1 work is grouped into these areas. Use as the `[Area]` prefix in
 | Spec | `Spec: [doc name]` | `Spec: Day Recap UX and behaviors` |
 | Standalone fix | `Fix: [description]` | `Fix: Task completion animation timing` |
 
-**Versioning:** Work items get a sequential version prefix `[X.Y.Z]` indicating execution order across the project. `1.0.0` is the first task to action, `1.0.1` the second, and so on. Specs, bugs, and standalone fixes do not get versioned — only work items. Versions are assigned at task creation. If a new task needs to be inserted mid-stream between existing versions, either renumber downstream tasks or use a decimal sub-version (e.g., `[1.0.3.1]`) — renumbering preferred unless the downstream queue is large.
-
-**Due dates:** Every work task must have a `due_on` date set at creation. Due dates are estimates that account for task size and sequencing; they can slip without penalty but should be updated when they do.
+**Versioning:** Work items get a sequential version prefix `[X.Y.Z]` indicating execution order across the project. `1.0.0` is the first task to action, `1.0.1` the second, and so on. Specs, bugs, and standalone fixes do not get versioned. Versions are assigned at task creation and every work task gets a `due_on` date. If a new task needs to be inserted mid-stream between existing versions, renumber downstream tasks rather than using decimals — unless the downstream queue is long enough that a decimal sub-version (e.g., `[1.0.3.1]`) is less work.
 
 ---
 
