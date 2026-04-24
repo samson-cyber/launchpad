@@ -30,6 +30,7 @@ Everything else follows the reelabs pattern.
 | Section | GID | Purpose |
 |---------|-----|---------|
 | Specs & Decisions | `1214252324886227` | Spec documents and architectural decisions — reference material, not actively worked |
+| Backlog | `1214252324886233` | Scoped-but-not-started work. Tasks move to In Progress when actively worked on by Claude Code. |
 | In Progress | `1214252324886228` | Work currently being executed in Claude Code |
 | Needs Review | `1214252324886229` | Claude Code output awaiting review in Claude Chat |
 | Completed | `1214252324886230` | Reviewed and confirmed work |
@@ -141,11 +142,11 @@ Asana task descriptions use Markdown-style headers (## Context, ## What was done
 ```
 1. PLAN (Claude Chat)
    - Discuss feature, architecture, or fix
-   - Write prompt for Claude Code
-   - Create "In Progress" task in Asana, assigned to Samson
+   - Create task in Asana "Backlog" section by default when scoped, assigned to Samson
    - Record task ID
    - Add PLAN — comment summarizing scope
-   - Include task ID at top of Claude Code prompt:
+   - Task moves from Backlog to "In Progress" only when Claude Code is about to execute on it
+   - When ready to execute, write prompt for Claude Code and include task ID at top:
      "Asana Task ID: 1234567890 - Update this task when complete."
 
 2. EXECUTE (Claude Code)
@@ -252,14 +253,14 @@ These rules exist because tasks have repeatedly drifted out of project membershi
 
 > We are building LaunchPad Pro (paid tier of LaunchPad Chrome extension). Asana project: "LaunchPad Pro - Development Log" (ID: `1214252324886224`).
 >
-> **Sections:** Specs & Decisions (`1214252324886227`), In Progress (`1214252324886228`), Needs Review (`1214252324886229`), Completed (`1214252324886230`), Bugs / Issues (`1214252324886231`), Fixed Bugs / Issues (`1214252324886232`).
+> **Sections:** Specs & Decisions (`1214252324886227`), Backlog (`1214252324886233`), In Progress (`1214252324886228`), Needs Review (`1214252324886229`), Completed (`1214252324886230`), Bugs / Issues (`1214252324886231`), Fixed Bugs / Issues (`1214252324886232`).
 >
 > **Work areas:** Prototype, Foundation, Tasks, Tracking, Experience, Infrastructure, Polish.
 >
 > **Task naming:** Work items = "[Area]: [Task]". Bugs = "Bug: [Area] — [description]". Specs = "Spec: [name]". Fixes = "Fix: [description]".
 >
 > **Workflow:**
-> - When planning work, create a task in "In Progress" assigned to me. Note the task ID. Add a PLAN — comment summarizing scope.
+> - When planning work, create a task in "Backlog" by default, assigned to me. Note the task ID. Add a PLAN — comment summarizing scope. Tasks move to "In Progress" only when Claude Code is about to execute on them.
 > - When writing a Claude Code prompt, include the Asana task ID at the top: "Asana Task ID: [ID] - Update this task when complete and move to Needs Review."
 > - When I say "check Asana" or "review", pull the task from "Needs Review", read description AND comments, review against plan, add a REVIEW — comment.
 > - If confirmed, move to Completed. If issues, discuss fixes and write next Claude Code prompt with SAME task ID.
