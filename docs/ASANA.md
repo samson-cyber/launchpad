@@ -278,11 +278,12 @@ These rules exist because tasks have repeatedly drifted out of project membershi
 > 1. Look for the Asana Task ID at the top of the prompt
 > 2. UPDATE THAT EXISTING TASK description — do not create a new task for the summary
 > 3. PRESERVE the existing "## Context" section. Fill in or update: What was done, Files affected, Dependencies, Issues encountered, Next steps
-> 4. ADD A COMMENT prefixed with "IMPLEMENTATION —" summarizing: what was built, key decisions, what reviewer should check. **Use the `text` parameter of add_comment, NEVER `html_text`. Plain text only — no `<strong>`, `<code>`, `<ul>` or any HTML tags.** See the Comment Formatting section of ASANA.md.
-> 5. Move task to "Needs Review" using `add_projects` with project_id `1214252324886224` and section_id `1214252324886229`
-> 6. Assign to me
-> 7. If bugs found, create separate NEW tasks in "Bugs / Issues" — use `add_projects` with project_id `1214252324886224` and section_id `1214252324886231`. Name: "Bug: [Area] — [description]"
-> 8. When fixing a previously logged bug: update description with fix, add RESOLVED — comment (plain text), mark completed, move to "Fixed Bugs / Issues" using `add_projects` with project_id `1214252324886224` and section_id `1214252324886232`
+> 4. **Run the BUGS.md audit** — open `docs/BUGS.md`, identify which audit sections apply to what this task touched (Chrome extension / free-tier regression / release hygiene / codebase conventions / data integrity / Asana workflow / security / prototype discipline), and run through those sections. Fix any regressions you introduced. File separate Asana bug tasks for pre-existing bugs you discover. Add any new accepted limitations to BUGS.md "Known Limitations" section.
+> 5. ADD A COMMENT prefixed with "IMPLEMENTATION —" summarizing: what was built, key decisions, what reviewer should check. Include a single-line `AUDIT —` summary inside the comment: "AUDIT — Checked: [sections run]. Findings: [clean, or list of issues]." **Use the `text` parameter of add_comment, NEVER `html_text`. Plain text only — no `<strong>`, `<code>`, `<ul>` or any HTML tags.** See the Comment Formatting section of ASANA.md.
+> 6. Move task to "Needs Review" using `add_projects` with project_id `1214252324886224` and section_id `1214252324886229`
+> 7. Assign to me
+> 8. If bugs found, create separate NEW tasks in "Bugs / Issues" — use `add_projects` with project_id `1214252324886224` and section_id `1214252324886231`. Name: "Bug: [Area] — [description]"
+> 9. When fixing a previously logged bug: update description with fix, add RESOLVED — comment (plain text), mark completed, move to "Fixed Bugs / Issues" using `add_projects` with project_id `1214252324886224` and section_id `1214252324886232`
 >
 > **CRITICAL PROJECT RULES:**
 > - NEVER use `remove_projects`. Tasks must ALWAYS remain in project `1214252324886224`.
