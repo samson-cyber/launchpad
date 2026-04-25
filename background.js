@@ -29,31 +29,62 @@ function getMatchKeyBg(url) {
   } catch (e) { return null; }
 }
 
-async function buildContextMenu() {
-  try {
-    await chrome.contextMenus.removeAll();
+// Debounced context menu rebuild.
+//
+// Rapid storage writes (e.g. during onboarding) used to fire many overlapping
+// rebuilds, which raced inside chrome.contextMenus and surfaced as
+// "Cannot create item with duplicate id". The wrapper collapses bursts into a
+// single rebuild and reads storage fresh when the timer fires — the last
+// caller's data always wins. setTimeout is ~75ms, well under the SW idle
+// suspend threshold so it is safe per BUGS.md A2.
+var CONTEXT_MENU_REBUILD_DELAY_MS = 75;
+var contextMenuRebuildTimer = null;
 
-    var data = await Storage.getAll();
-    var ws = Storage.getActiveWorkspace(data);
-    var groups = (ws && ws.groups) || [];
-    var groupOrder = (ws && ws.groupOrder) || [];
-    var groupMap = {};
-    groups.forEach(function (g) { groupMap[g.id] = g; });
+function requestContextMenuRebuild() {
+  if (contextMenuRebuildTimer) clearTimeout(contextMenuRebuildTimer);
+  contextMenuRebuildTimer = setTimeout(function () {
+    contextMenuRebuildTimer = null;
+    rebuildContextMenuNow();
+  }, CONTEXT_MENU_REBUILD_DELAY_MS);
+}
+
+async function rebuildContextMenuNow() {
+  var data;
+  try {
+    data = await Storage.getAll();
+  } catch (err) {
+    console.error("[LaunchPad] Failed to load data for context menu:", err);
+    return;
+  }
+
+  var ws = Storage.getActiveWorkspace(data);
+  var groups = (ws && ws.groups) || [];
+  var groupOrder = (ws && ws.groupOrder) || [];
+  var groupMap = {};
+  groups.forEach(function (g) { groupMap[g.id] = g; });
+
+  var ordered = groupOrder
+    .map(function (id) { return groupMap[id]; })
+    .filter(Boolean);
+
+  groups.forEach(function (g) {
+    if (!ordered.find(function (o) { return o.id === g.id; })) {
+      ordered.push(g);
+    }
+  });
+
+  // Use the callback form of removeAll: creates run only after Chrome has
+  // fully torn the previous menu down, eliminating the duplicate-id race.
+  chrome.contextMenus.removeAll(function () {
+    if (chrome.runtime.lastError) {
+      console.error("[LaunchPad] contextMenus.removeAll failed:", chrome.runtime.lastError.message);
+      return;
+    }
 
     chrome.contextMenus.create({
       id: "add-to-launchpad",
       title: "Add to LaunchPad",
       contexts: ["page", "link"]
-    });
-
-    var ordered = groupOrder
-      .map(function (id) { return groupMap[id]; })
-      .filter(Boolean);
-
-    groups.forEach(function (g) {
-      if (!ordered.find(function (o) { return o.id === g.id; })) {
-        ordered.push(g);
-      }
     });
 
     ordered.forEach(function (group) {
@@ -79,10 +110,13 @@ async function buildContextMenu() {
       contexts: ["page", "link"]
     });
 
+    if (chrome.runtime.lastError) {
+      console.error("[LaunchPad] contextMenus.create failed:", chrome.runtime.lastError.message);
+      return;
+    }
+
     console.log("[LaunchPad] Context menu rebuilt with", ordered.length, "group(s)");
-  } catch (err) {
-    console.error("[LaunchPad] Failed to build context menu:", err);
-  }
+  });
 }
 
 // ===== Session Saving System =====
@@ -147,12 +181,12 @@ async function pruneOldSessions() {
 }
 
 chrome.runtime.onInstalled.addListener(function () {
-  buildContextMenu();
+  requestContextMenuRebuild();
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
   saveCurrentSession();
 });
 chrome.runtime.onStartup.addListener(function () {
-  buildContextMenu();
+  requestContextMenuRebuild();
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
   saveCurrentSession();
   pruneOldSessions();
@@ -160,7 +194,7 @@ chrome.runtime.onStartup.addListener(function () {
 
 chrome.storage.onChanged.addListener(function (changes) {
   if (changes.data) {
-    buildContextMenu();
+    requestContextMenuRebuild();
   }
 });
 
