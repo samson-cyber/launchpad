@@ -31,6 +31,14 @@
     </button>
     <div class="sb-separator"></div>
     <div id="sidebar-bottom">
+      <div class="sb-pro-settings-row">
+        <button id="sb-pro-settings" class="sb-item sb-pro-only hidden" type="button" title="Pro Settings">
+          <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2l1.8 5.4L19 9l-4.4 3.2L16 18l-4-3-4 3 1.4-5.8L5 9l5.2-1.6L12 2z"/>
+          </svg>
+          <span class="sb-label">Pro Settings</span>
+        </button>
+      </div>
       <div class="sb-settings-row">
         <button id="sb-settings" class="sb-item" type="button" title="Settings">
           <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -220,6 +228,69 @@
         <h3 class="settings-section-title">About</h3>
         <p class="settings-version" id="settings-version"></p>
         <p class="settings-privacy">All data stored locally. No tracking.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="pro-settings-panel" class="hidden" role="dialog" aria-labelledby="pro-settings-title" aria-modal="false">
+    <div class="settings-header">
+      <span id="pro-settings-title">Pro Settings</span>
+      <button id="pro-settings-close" type="button" title="Close">&times;</button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-section">
+        <h3 class="settings-section-title">Subscription</h3>
+        <div id="pro-sub-content"></div>
+        <div class="settings-row pro-sub-actions">
+          <button class="settings-btn" type="button" disabled title="Available with Pro launch">Cancel subscription</button>
+          <button class="settings-btn" type="button" disabled title="Available with Pro launch">Reactivate</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3 class="settings-section-title">License key</h3>
+        <div id="pro-license-current"></div>
+        <div class="settings-row pro-license-input-row">
+          <input type="text" id="pro-license-input" placeholder="Enter license key" autocomplete="off" spellcheck="false">
+          <button id="pro-license-apply" type="button" class="settings-btn">Apply</button>
+        </div>
+        <div class="settings-row">
+          <button id="pro-license-clear" type="button" class="settings-btn settings-btn-danger">Clear license</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3 class="settings-section-title">Workspaces</h3>
+        <p class="pro-section-subtitle">Coming in v1.0.6 &mdash; workspace management</p>
+        <ul id="pro-workspace-list" class="pro-workspace-list"></ul>
+        <div class="settings-row">
+          <button class="settings-btn" type="button" disabled title="Coming in v1.0.6">Add workspace</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3 class="settings-section-title">Analytics</h3>
+        <p class="pro-section-subtitle">Coming with Dashboard</p>
+        <label class="pro-toggle-row">
+          <input type="checkbox" id="pro-analytics-toggle" disabled>
+          <span>Show combined analytics across all workspaces</span>
+        </label>
+      </div>
+      <div class="settings-section">
+        <h3 class="settings-section-title">Pomodoro timer</h3>
+        <p class="pro-section-subtitle">Coming in v1.0.18</p>
+        <ul class="pro-readonly-list">
+          <li><span>Work</span><span>25 min</span></li>
+          <li><span>Break</span><span>5 min</span></li>
+          <li><span>Long break</span><span>15 min</span></li>
+          <li><span>Cycles before long break</span><span>4</span></li>
+        </ul>
+      </div>
+      <div class="settings-section">
+        <h3 class="settings-section-title">Achievements</h3>
+        <p class="pro-section-subtitle">Coming in v1.0.23</p>
+      </div>
+      <div class="settings-section settings-about">
+        <h3 class="settings-section-title">About</h3>
+        <p class="settings-version" id="pro-settings-version"></p>
+        <p class="settings-privacy"><a id="pro-settings-privacy-link" href="https://samson-cyber.github.io/launchpad/privacy-policy.html" target="_blank" rel="noopener noreferrer">Privacy policy</a></p>
       </div>
     </div>
   </div>

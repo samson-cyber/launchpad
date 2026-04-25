@@ -6,6 +6,8 @@ Related: `workspaces-data-model.md`, `pro-value-proposition.md`, `billing-and-li
 
 > Updated 2026-04-25 to reflect the implementation decision in [1.0.2]: no top header strip, tab bar lives directly under the existing logo. The original top-strip layout was reconsidered to preserve the Google-new-tab-page familiarity that existing free users associate with LaunchPad. See DECISIONS.md entry "Tab bar lives directly under the logo, no top header strip in v1" for the full rationale.
 
+> Updated 2026-04-25 ([1.0.3]): Pro Settings entry point in v1 is a sidebar item placed above the existing Settings cog, visible only to users with Pro access. The originally-specified entry points (gear icon on Pro tabs, Pro badge in top-right header) are deferred — those UIs don't exist in v1 per the tab-bar-under-logo decision and the deferred upgrade-CTA decision. Future iterations may add additional entry points. See DECISIONS.md entry "Pro Settings v1 entry point is sidebar-only, hidden for free users" for the full rationale.
+
 ---
 
 ## What and Why

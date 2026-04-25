@@ -424,3 +424,29 @@ Full spec: `docs/SPECS/tasks-and-goals.md`. Asana spec task: GID `12142601694317
 - Keyboard shortcuts dropped from v1 — Ctrl+1..4 conflicts with Chrome's reserved tab-switching shortcuts. Click-only navigation. Revisit if user feedback requests it.
 
 Spec updated: `docs/SPECS/pro-tab-architecture.md` (revision note added at top, Tab Bar Layout / Workspace Switcher / Pulsing Upgrade CTA / Keyboard Accessibility sections revised).
+
+---
+
+## 2026-04-25 — Pro Settings v1 entry point is sidebar-only, hidden for free users
+
+**Context:** The Pro tab architecture spec called for two Pro Settings entry points: a gear icon on the Pro tabs themselves, and a Pro badge in the top-right header. Neither UI exists in v1 — the top header strip was dropped in [1.0.2], and the upgrade CTA / Pro badge placement is deferred to [1.0.5]. The [1.0.3] task needed to land a Pro Settings panel anyway (so license entry, subscription status, and future Workspaces/Pomodoro/Achievements management have somewhere to live), so an interim entry point was required.
+
+**Alternatives considered:**
+- Merge free Settings + Pro Settings into a single panel with greyed sections for Pro features (rejected — Settings panels are "I came to change a setting" UIs; half-disabled sections are more frustrating than discovery-inducing, and the existing free panel's character would be diluted)
+- Separate Pro Settings panel with a sidebar entry hidden for free users (chosen)
+- Separate Pro Settings panel with a sidebar entry visible-but-disabled for free users (rejected — broken upgrade routing has no destination yet, and a disabled sidebar entry advertises "you don't have this" without a path forward)
+- Separate Pro Settings panel reachable only via a gear icon on Pro tabs (rejected for v1 — the gear icon UI hasn't been built; sidebar is the simplest interim path)
+
+**Outcome:** A separate Pro Settings panel with the same frosted-glass treatment as the existing free Settings panel. Entry is a new sidebar item placed directly above the existing Settings cog, hidden via `display: none` for users at access levels `free` and `expired`. Visible for `trialing` / `active` / `grace`. Visibility is re-derived from `ProAccess.getProAccessLevel(data)` on every storage change, so license toggles propagate within ~1s without a reload.
+
+**Reasoning:**
+- Clean separation of free and Pro UIs preserves the existing Settings panel's character (no half-disabled sections, no "Pro" tooltips cluttering everyday settings interactions).
+- The chicken-and-egg problem (a free user with an existing license has no UI route to enter it) is acceptable in v1 because (a) testing happens via console snippets while Dodo integration is unbuilt, and (b) [1.0.5]'s upgrade flow will provide an "Already have a license?" affordance that opens the panel after applying access.
+- Hiding rather than disabling the sidebar entry avoids the "tease and frustrate" anti-pattern.
+
+**Implications:**
+- [1.0.5] upgrade-CTA task should include an "Apply existing license" affordance that elevates a free user's access state and reveals the Pro Settings entry.
+- Future Polish work could revisit additional entry points (gear-on-Pro-tabs, header badge) once those UIs land. The sidebar entry stays regardless — it's the canonical home for Pro Settings.
+- The Workspaces / Combined analytics / Pomodoro / Achievements sections inside Pro Settings are placeholders in [1.0.3]; their corresponding feature tasks ([1.0.6], Dashboard area, [1.0.18], [1.0.23]) fill them in.
+
+Spec updated: `docs/SPECS/pro-tab-architecture.md` (second revision note added at top).

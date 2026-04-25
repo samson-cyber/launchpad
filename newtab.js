@@ -218,16 +218,31 @@
     });
   }
 
-  function applyTabAccessLevel() {
-    var level = (typeof ProAccess !== "undefined" && data)
-      ? ProAccess.getProAccessLevel(data)
-      : "free";
-    var hasPro = isProAccessibleLevel(level);
+  function applyTabAccessLevel(hasPro) {
     PRO_TAB_IDS.forEach(function (t) {
       var btn = document.querySelector('.tab[data-tab="' + t + '"]');
       if (btn) btn.classList.toggle("gated", !hasPro);
       renderTabPlaceholder(t, hasPro);
     });
+  }
+
+  function applySidebarProEntryVisibility(hasPro) {
+    var entry = $("#sb-pro-settings");
+    if (!entry) return;
+    entry.classList.toggle("hidden", !hasPro);
+  }
+
+  function applyAccessLevelUI() {
+    var level = (typeof ProAccess !== "undefined" && data)
+      ? ProAccess.getProAccessLevel(data)
+      : "free";
+    var hasPro = isProAccessibleLevel(level);
+    applyTabAccessLevel(hasPro);
+    applySidebarProEntryVisibility(hasPro);
+    if ($("#pro-settings-panel") && !$("#pro-settings-panel").classList.contains("hidden")) {
+      renderProSubscriptionSection();
+      renderProLicenseSection();
+    }
   }
 
   var LOCK_PLACEHOLDER_SVG = '<svg class="tab-placeholder-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
@@ -250,6 +265,182 @@
           '<div class="tab-placeholder-text">Tasks, Dashboard, and Insights are part of LaunchPad Pro. Preview coming soon.</div>' +
         '</div>';
     }
+  }
+
+  // ===== Pro Settings Panel =====
+
+  var DAY_MS_LOCAL = 24 * 60 * 60 * 1000;
+
+  function bindProSettings() {
+    safeOn("#sb-pro-settings", "click", function (e) {
+      e.stopPropagation();
+      openProSettingsPanel();
+    });
+    safeOn("#pro-settings-close", "click", closeProSettingsPanel);
+    safeOn("#pro-license-apply", "click", handleLicenseApply);
+    safeOn("#pro-license-clear", "click", handleLicenseClear);
+    var input = $("#pro-license-input");
+    if (input) {
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          handleLicenseApply();
+        }
+      });
+    }
+  }
+
+  function openProSettingsPanel() {
+    var panel = $("#pro-settings-panel");
+    if (!panel) return;
+    if (!panel.classList.contains("hidden")) { closeProSettingsPanel(); return; }
+
+    closeRestoreDropdown();
+    hideGroupMenu();
+    closeSettingsPanel();
+
+    sidebarLocked = true;
+    var sidebar = $("#sidebar");
+    if (sidebar) {
+      sidebar.classList.add("sidebar-locked");
+      sidebar.classList.add("expanded");
+    }
+    showSidebarPanel();
+
+    panel.classList.remove("hidden");
+    var versionEl = $("#pro-settings-version");
+    if (versionEl) versionEl.textContent = "LaunchPad v" + chrome.runtime.getManifest().version;
+    renderProSubscriptionSection();
+    renderProLicenseSection();
+    renderProWorkspaceList();
+    renderProAnalyticsToggle();
+  }
+
+  function closeProSettingsPanel() {
+    var panel = $("#pro-settings-panel");
+    if (!panel || panel.classList.contains("hidden")) return;
+    panel.classList.add("hidden");
+
+    sidebarLocked = false;
+    var sidebar = $("#sidebar");
+    if (sidebar) {
+      sidebar.classList.remove("sidebar-locked");
+      if (!sidebar.matches(":hover")) {
+        sidebar.classList.remove("expanded");
+        hideSidebarPanel();
+      }
+    }
+  }
+
+  function planLabelForLevel(level) {
+    if (level === "trialing") return "Plan: Trial";
+    if (level === "active") return "Plan: Pro";
+    if (level === "grace") return "Plan: Pro (grace)";
+    return "Plan: Free";
+  }
+
+  function renderProSubscriptionSection() {
+    var host = $("#pro-sub-content");
+    if (!host) return;
+    var level = ProAccess.getProAccessLevel(data);
+    var html = '<p class="pro-sub-line">' + escapeHtml(planLabelForLevel(level)) + '</p>';
+
+    if (level === "trialing") {
+      var days = ProAccess.trialDaysRemaining(data);
+      html += '<p class="pro-sub-line pro-sub-meta">Trial ends in ' + days + ' day' + (days === 1 ? '' : 's') + '.</p>';
+    } else if (level === "active" || level === "grace") {
+      var lastVerified = (data.pro && data.pro.lastVerifiedAt) || 0;
+      if (lastVerified) {
+        var diff = Date.now() - lastVerified;
+        var daysAgo = Math.floor(diff / DAY_MS_LOCAL);
+        var label = daysAgo <= 0 ? "today" : (daysAgo + " day" + (daysAgo === 1 ? "" : "s") + " ago");
+        html += '<p class="pro-sub-line pro-sub-meta">Last verified: ' + label + '.</p>';
+      } else {
+        html += '<p class="pro-sub-line pro-sub-meta">Last verified: never.</p>';
+      }
+    }
+
+    if (level === "grace") {
+      html += '<span class="pro-warning">Verification overdue &mdash; reconnect to keep access.</span>';
+    }
+
+    host.innerHTML = html;
+  }
+
+  function renderProLicenseSection() {
+    var host = $("#pro-license-current");
+    if (!host) return;
+    var key = (data.pro && data.pro.licenseKey) || null;
+    if (key) {
+      host.classList.remove("pro-license-empty");
+      host.textContent = "Active license: " + key;
+    } else {
+      host.classList.add("pro-license-empty");
+      host.textContent = "No license applied.";
+    }
+  }
+
+  function renderProWorkspaceList() {
+    var host = $("#pro-workspace-list");
+    if (!host) return;
+    var workspaces = (data && data.workspaces) || [];
+    host.innerHTML = workspaces.map(function (ws) {
+      return '<li>' + escapeHtml(ws.name || ws.id) + '</li>';
+    }).join("");
+  }
+
+  function renderProAnalyticsToggle() {
+    var toggle = $("#pro-analytics-toggle");
+    if (!toggle) return;
+    var enabled = !!(data && data.settings && data.settings.combinedAnalyticsEnabled);
+    toggle.checked = enabled;
+  }
+
+  async function handleLicenseApply() {
+    var input = $("#pro-license-input");
+    if (!input) return;
+    var key = (input.value || "").trim();
+    if (!key) {
+      showToast("Enter a license key first.");
+      return;
+    }
+    var ok = ProAccess.applyLicenseKey(data, key);
+    if (!ok) {
+      showToast("License key not recognized.");
+      return;
+    }
+    await Storage.saveAll(data);
+    input.value = "";
+    showToast("License applied. Pro features now active.");
+    renderProSubscriptionSection();
+    renderProLicenseSection();
+    applyTabAccessLevel(true);
+    applySidebarProEntryVisibility(true);
+  }
+
+  async function handleLicenseClear() {
+    if (!data.pro || !data.pro.licenseKey) {
+      showToast("No license to clear.");
+      return;
+    }
+    var ok = window.confirm("Remove this license? You'll lose Pro access until you re-enter a valid key.");
+    if (!ok) return;
+    ProAccess.clearLicense(data);
+    await Storage.saveAll(data);
+    showToast("License cleared.");
+    renderProSubscriptionSection();
+    renderProLicenseSection();
+    // Sidebar entry visibility / tab gating handled by storage.onChanged listener.
+  }
+
+  function escapeHtml(s) {
+    if (s == null) return "";
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   // ===== Init =====
@@ -306,7 +497,8 @@
     refreshOldFavicons();
     bindEvents();
     bindTabBar();
-    applyTabAccessLevel();
+    bindProSettings();
+    applyAccessLevelUI();
     Bookmarks.bindEvents(function (newData) {
       data = newData;
       hideFirstRunToast();
@@ -325,7 +517,7 @@
         data = changes.data.newValue || Storage.getDefaultData();
         if (!data.settings) data.settings = { columns: 6 };
         render();
-        applyTabAccessLevel();
+        applyAccessLevelUI();
       }
     });
 
@@ -3544,6 +3736,9 @@
       if (!e.target.closest("#settings-panel") && !e.target.closest("#sb-settings")) {
         closeSettingsPanel();
       }
+      if (!e.target.closest("#pro-settings-panel") && !e.target.closest("#sb-pro-settings")) {
+        closeProSettingsPanel();
+      }
     });
 
     // Escape key
@@ -3551,6 +3746,7 @@
       if (e.key === "Escape") {
         closeModal(); hideMenu(); hideGroupMenu(); hideDeleteDialog();
         cancelBgPreview(); closeRcFilterMenu(); closeDomainPanel(); closeSettingsPanel();
+        closeProSettingsPanel();
         closeHistoryOverlay(); closeRestoreDropdown();
         closeVariantDropdown(); closeVariantCtxMenu(); closeVariantIconDialog(); closeNestSubmenu();
         var sidebar = $("#sidebar");
