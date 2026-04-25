@@ -59,12 +59,35 @@ LaunchPad Pro v1 work is grouped into these areas. Use as the `[Area]` prefix in
 
 | Type | Format | Example |
 |------|--------|---------|
-| Work item | `[X.Y.Z] [Area]: [Task]` | `[1.0.2] Foundation: Tab bar scaffold with Home as default` |
+| Work item | `[X.Y.Z] [Area]: [Task]` | `[1.0.0] Foundation: Storage schema migration` |
 | Bug | `Bug: [Area] — [what's wrong]` | `Bug: Tracking — idle state not detected on laptop sleep` |
 | Spec | `Spec: [doc name]` | `Spec: Day Recap UX and behaviors` |
 | Standalone fix | `Fix: [description]` | `Fix: Task completion animation timing` |
 
-**Versioning:** Work items get a sequential version prefix `[X.Y.Z]` indicating execution order across the project. `1.0.0` is the first task to action, `1.0.1` the second, and so on. Specs, bugs, and standalone fixes do not get versioned. Versions are assigned at task creation and every work task gets a `due_on` date. If a new task needs to be inserted mid-stream between existing versions, renumber downstream tasks rather than using decimals — unless the downstream queue is long enough that a decimal sub-version (e.g., `[1.0.3.1]`) is less work.
+Bugs, specs, and standalone fixes remain unversioned — only work items take the [X.Y.Z] prefix.
+
+---
+
+## Task Versioning
+
+Work items use a [X.Y.Z] prefix in the task name to indicate execution order. The format is:
+- X = major area or epoch (currently always 1)
+- Y = sub-area increment
+- Z = task increment within the sub-area
+
+Format: `[X.Y.Z] [Area]: [Task]`
+
+Example: `[1.0.0] Foundation: Storage schema migration to workspace-aware shape`
+
+Versioning rules:
+
+- Work items are versioned. Specs, bugs, and standalone fixes are NOT versioned.
+- Every versioned work item must have a `due_on` date set at creation.
+- Versions reflect the order Claude Code will execute the tasks. Sequential execution is the default.
+- When inserting a new task between existing versions:
+  - First preference: renumber downstream tasks to keep the sequence flat. Example: inserting between [1.0.4] and [1.0.5] means the new task becomes [1.0.5] and existing [1.0.5] through [1.0.18] all shift up by one.
+  - Decimal sub-versioning (e.g. [1.0.4.1]) is acceptable when the queue is long and renumbering would touch many tasks.
+- Versions are not reused. If a task is deleted, its version retires with it.
 
 ---
 
