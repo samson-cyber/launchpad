@@ -1,5 +1,6 @@
-/* global chrome, importScripts */
+/* global chrome, importScripts, Storage */
 
+importScripts('storage.js');
 importScripts('tracking-prototype.js');
 
 var DOMAIN_ALIASES = {
@@ -28,37 +29,28 @@ function getMatchKeyBg(url) {
   } catch (e) { return null; }
 }
 
-function getDefaultData() {
-  return {
-    groups: [{ id: "ungrouped", name: "Ungrouped", shortcuts: [] }],
-    groupOrder: ["ungrouped"],
-    settings: { columns: 6 }
-  };
-}
-
 async function buildContextMenu() {
   try {
     await chrome.contextMenus.removeAll();
 
-    var result = await chrome.storage.local.get("data");
-    var data = result.data || getDefaultData();
+    var data = await Storage.getAll();
+    var ws = Storage.getActiveWorkspace(data);
+    var groups = (ws && ws.groups) || [];
+    var groupOrder = (ws && ws.groupOrder) || [];
     var groupMap = {};
-    (data.groups || []).forEach(function (g) { groupMap[g.id] = g; });
+    groups.forEach(function (g) { groupMap[g.id] = g; });
 
-    // Parent item
     chrome.contextMenus.create({
       id: "add-to-launchpad",
       title: "Add to LaunchPad",
       contexts: ["page", "link"]
     });
 
-    // Child items for each group, in groupOrder
-    var ordered = (data.groupOrder || [])
+    var ordered = groupOrder
       .map(function (id) { return groupMap[id]; })
       .filter(Boolean);
 
-    // Also include any groups not in groupOrder (safety net)
-    (data.groups || []).forEach(function (g) {
+    groups.forEach(function (g) {
       if (!ordered.find(function (o) { return o.id === g.id; })) {
         ordered.push(g);
       }
@@ -73,7 +65,6 @@ async function buildContextMenu() {
       });
     });
 
-    // Separator + New Group
     chrome.contextMenus.create({
       id: "add-to-group_separator",
       parentId: "add-to-launchpad",
@@ -142,7 +133,6 @@ async function pruneOldSessions() {
   try {
     var result = await chrome.storage.local.get("savedSessions");
     var saved = result.savedSessions || {};
-    // Remove legacy keys
     delete saved.current;
     delete saved.previous;
     var keys = Object.keys(saved).sort().reverse();
@@ -156,7 +146,6 @@ async function pruneOldSessions() {
   }
 }
 
-// Build on install / startup
 chrome.runtime.onInstalled.addListener(function () {
   buildContextMenu();
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
@@ -169,14 +158,12 @@ chrome.runtime.onStartup.addListener(function () {
   pruneOldSessions();
 });
 
-// Rebuild when storage changes (groups added/renamed/deleted)
 chrome.storage.onChanged.addListener(function (changes) {
   if (changes.data) {
     buildContextMenu();
   }
 });
 
-// Handle clicks
 chrome.contextMenus.onClicked.addListener(async function (info, tab) {
   var menuId = info.menuItemId;
   if (typeof menuId !== "string" || !menuId.startsWith("add-to-group_")) return;
@@ -195,7 +182,6 @@ chrome.contextMenus.onClicked.addListener(async function (info, tab) {
     var domain;
     try { domain = new URL(url).hostname; } catch (e) { domain = url; }
 
-    // Use Chrome's real favicon when adding via page context; Google API for links
     var favicon;
     if (!info.linkUrl && tab && tab.favIconUrl && !tab.favIconUrl.startsWith("chrome://")) {
       favicon = tab.favIconUrl;
@@ -208,35 +194,37 @@ chrome.contextMenus.onClicked.addListener(async function (info, tab) {
       url: url,
       title: title,
       favicon: favicon,
-      addedAt: Date.now()
+      addedAt: Date.now(),
+      deletedAt: null
     };
 
-    var result = await chrome.storage.local.get("data");
-    var data = result.data || getDefaultData();
+    var data = await Storage.getAll();
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) {
+      console.warn("[LaunchPad] No active workspace; cannot add shortcut");
+      return;
+    }
 
     var targetGroupId = menuId.replace("add-to-group_", "");
     var targetGroup;
 
     if (targetGroupId === "new") {
-      // Create a new group
       var newId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-      targetGroup = { id: newId, name: "New Group", shortcuts: [] };
-      data.groups.push(targetGroup);
-      data.groupOrder.push(newId);
+      targetGroup = { id: newId, name: "New Group", shortcuts: [], deletedAt: null };
+      ws.groups.push(targetGroup);
+      ws.groupOrder.push(newId);
     } else {
-      targetGroup = data.groups.find(function (g) { return g.id === targetGroupId; });
+      targetGroup = ws.groups.find(function (g) { return g.id === targetGroupId; });
       if (!targetGroup) {
-        // Fallback to ungrouped
-        targetGroup = data.groups.find(function (g) { return g.id === "ungrouped"; });
+        targetGroup = ws.groups.find(function (g) { return g.id === "ungrouped"; });
         if (!targetGroup) {
-          targetGroup = { id: "ungrouped", name: "Ungrouped", shortcuts: [] };
-          data.groups.push(targetGroup);
-          data.groupOrder.push("ungrouped");
+          targetGroup = { id: "ungrouped", name: "Ungrouped", shortcuts: [], deletedAt: null };
+          ws.groups.push(targetGroup);
+          ws.groupOrder.push("ungrouped");
         }
       }
     }
 
-    // Auto-nest: check if a shortcut with the same domain/alias already exists
     var matchKey = getMatchKeyBg(url);
     var existingMatch = null;
     targetGroup.shortcuts.forEach(function (s) {
@@ -247,10 +235,8 @@ chrome.contextMenus.onClicked.addListener(async function (info, tab) {
     });
 
     if (existingMatch) {
-      // Nest as variant under the existing shortcut
       if (!existingMatch.variants) existingMatch.variants = [];
       var variantTitle = shortcut.title;
-      // Try smart label
       try {
         var variantPath = new URL(url).pathname;
         var accountMatch = variantPath.match(/\/u\/(\d+)/);
@@ -260,71 +246,73 @@ chrome.contextMenus.onClicked.addListener(async function (info, tab) {
         id: shortcut.id,
         url: shortcut.url,
         title: variantTitle,
-        favicon: shortcut.favicon
+        favicon: shortcut.favicon,
+        deletedAt: null
       });
       console.log("[LaunchPad] Auto-nested under", existingMatch.title, ":", shortcut.title);
     } else {
       targetGroup.shortcuts.push(shortcut);
       console.log("[LaunchPad] Shortcut added to", targetGroup.name, ":", shortcut.title);
     }
-    await chrome.storage.local.set({ data: data });
+    await Storage.saveAll(data);
   } catch (err) {
     console.error("[LaunchPad] Failed to add shortcut:", err);
   }
 });
 
-// Save session periodically via alarm
 chrome.alarms.onAlarm.addListener(function (alarm) {
   if (alarm.name === "save-session") {
     saveCurrentSession();
   }
 });
 
-// Save session when a window closes
 chrome.windows.onRemoved.addListener(function () {
   saveCurrentSession();
 });
 
 // Refresh stored favicon when user visits a bookmarked site
-chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
+chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
   if (changeInfo.status !== "complete" || !tab.favIconUrl || !tab.url) return;
   if (tab.favIconUrl.startsWith("chrome://")) return;
 
-  chrome.storage.local.get("data", function (result) {
-    var data = result.data;
-    if (!data || !data.groups) return;
+  try {
+    var data = await Storage.getAll();
+    if (!data || !Array.isArray(data.workspaces)) return;
     var tabDomain;
     try { tabDomain = new URL(tab.url).hostname; } catch (e) { return; }
 
     var updated = false;
-    data.groups.forEach(function (group) {
-      group.shortcuts.forEach(function (shortcut) {
-        try {
-          if (new URL(shortcut.url).hostname === tabDomain) {
-            if (tab.favIconUrl !== shortcut.favicon && !(shortcut.favicon && shortcut.favicon.startsWith("data:"))) {
-              shortcut.favicon = tab.favIconUrl;
-              updated = true;
-            }
-          }
-        } catch (e) {}
-        // Also update variants
-        if (shortcut.variants) {
-          shortcut.variants.forEach(function (v) {
-            try {
-              if (new URL(v.url).hostname === tabDomain) {
-                if (tab.favIconUrl !== v.favicon && !(v.favicon && v.favicon.startsWith("data:"))) {
-                  v.favicon = tab.favIconUrl;
-                  updated = true;
-                }
+    data.workspaces.forEach(function (ws) {
+      (ws.groups || []).forEach(function (group) {
+        (group.shortcuts || []).forEach(function (shortcut) {
+          try {
+            if (new URL(shortcut.url).hostname === tabDomain) {
+              if (tab.favIconUrl !== shortcut.favicon && !(shortcut.favicon && shortcut.favicon.startsWith("data:"))) {
+                shortcut.favicon = tab.favIconUrl;
+                updated = true;
               }
-            } catch (e) {}
-          });
-        }
+            }
+          } catch (e) {}
+          if (shortcut.variants) {
+            shortcut.variants.forEach(function (v) {
+              try {
+                if (new URL(v.url).hostname === tabDomain) {
+                  if (tab.favIconUrl !== v.favicon && !(v.favicon && v.favicon.startsWith("data:"))) {
+                    v.favicon = tab.favIconUrl;
+                    updated = true;
+                  }
+                }
+              } catch (e) {}
+            });
+          }
+        });
       });
     });
 
     if (updated) {
-      chrome.storage.local.set({ data: data });
+      await Storage.saveAll(data);
     }
-  });
+  } catch (err) {
+    console.error("[LaunchPad] Failed to refresh favicon from tab:", err);
+  }
 });

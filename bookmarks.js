@@ -92,6 +92,11 @@ var Bookmarks = (function () {
     checked.forEach(function (cb) { selectedIds[cb.value] = true; });
 
     var data = await Storage.getAll();
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) {
+      hidePicker();
+      return data;
+    }
 
     for (var i = 0; i < folders.length; i++) {
       var folder = folders[i];
@@ -104,12 +109,13 @@ var Bookmarks = (function () {
           url: bm.url,
           title: bm.title || getDomain(bm.url),
           favicon: "",
-          addedAt: Date.now()
+          addedAt: Date.now(),
+          deletedAt: null
         };
       });
 
-      data.groups.push({ id: groupId, name: folder.title, shortcuts: shortcuts });
-      data.groupOrder.push(groupId);
+      ws.groups.push({ id: groupId, name: folder.title, shortcuts: shortcuts, deletedAt: null });
+      ws.groupOrder.push(groupId);
     }
 
     await Storage.saveAll(data);
@@ -121,11 +127,14 @@ var Bookmarks = (function () {
   // ===== Check if first run =====
 
   function isFirstRun(data) {
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return true;
+    var groups = ws.groups || [];
     var totalShortcuts = 0;
-    for (var i = 0; i < data.groups.length; i++) {
-      totalShortcuts += data.groups[i].shortcuts.length;
+    for (var i = 0; i < groups.length; i++) {
+      totalShortcuts += (groups[i].shortcuts || []).length;
     }
-    return data.groups.length <= 1 && totalShortcuts === 0;
+    return groups.length <= 1 && totalShortcuts === 0;
   }
 
   // ===== Bind events =====

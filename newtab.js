@@ -111,8 +111,10 @@
   }
 
   function refreshOldFavicons() {
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return;
     var changed = false;
-    data.groups.forEach(function (g) {
+    ws.groups.forEach(function (g) {
       g.shortcuts.forEach(function (s) {
         if (!s.url) return;
         if (s.favicon && s.favicon.indexOf("data:") === 0) return;
@@ -175,18 +177,21 @@
 
     // One-time cleanup: remove any variant that duplicates the parent URL
     var cleaned = false;
-    data.groups.forEach(function (g) {
-      g.shortcuts.forEach(function (s) {
-        if (s.variants && s.variants.length > 0) {
-          var before = s.variants.length;
-          s.variants = s.variants.filter(function (v) {
-            return v.url !== s.url;
-          });
-          if (s.variants.length < before) cleaned = true;
-          if (s.variants.length === 0) delete s.variants;
-        }
+    var initWs = Storage.getActiveWorkspace(data);
+    if (initWs) {
+      initWs.groups.forEach(function (g) {
+        g.shortcuts.forEach(function (s) {
+          if (s.variants && s.variants.length > 0) {
+            var before = s.variants.length;
+            s.variants = s.variants.filter(function (v) {
+              return v.url !== s.url;
+            });
+            if (s.variants.length < before) cleaned = true;
+            if (s.variants.length === 0) delete s.variants;
+          }
+        });
       });
-    });
+    }
     if (cleaned) {
       await Storage.saveAll(data);
       console.log("[LaunchPad] Cleaned up duplicate variants");
@@ -230,8 +235,10 @@
     setTimeout(checkPromoToast, 2000);
     checkRightClickTip();
 
-    console.log("[LaunchPad] Ready —", data.groups.length, "group(s),",
-      data.groups.reduce(function (n, g) { return n + g.shortcuts.length; }, 0), "shortcut(s)");
+    var readyWs = Storage.getActiveWorkspace(data);
+    var readyGroups = (readyWs && readyWs.groups) || [];
+    console.log("[LaunchPad] Ready —", readyGroups.length, "group(s),",
+      readyGroups.reduce(function (n, g) { return n + g.shortcuts.length; }, 0), "shortcut(s)");
   }
 
   // ===== First-Run Toast =====
@@ -463,11 +470,17 @@
           id: Date.now().toString(36) + i.toString(36) + Math.random().toString(36).slice(2, 7),
           url: site.url,
           title: site.title || getDomain(site.url),
-          addedAt: Date.now()
+          addedAt: Date.now(),
+          deletedAt: null
         };
       });
-      data.groups.push({ id: groupId, name: "Top Sites", shortcuts: shortcuts });
-      data.groupOrder.push(groupId);
+      var topSitesWs = Storage.getActiveWorkspace(data);
+      if (!topSitesWs) {
+        if (callback) callback();
+        return;
+      }
+      topSitesWs.groups.push({ id: groupId, name: "Top Sites", shortcuts: shortcuts, deletedAt: null });
+      topSitesWs.groupOrder.push(groupId);
       Storage.saveAll(data).then(function () {
         render();
         console.log("[LaunchPad] Imported", shortcuts.length, "top sites");
@@ -637,17 +650,20 @@
         id: Date.now().toString(36) + idx.toString(36) + Math.random().toString(36).slice(2, 7),
         url: site.url,
         title: site.title,
-        addedAt: Date.now()
+        addedAt: Date.now(),
+        deletedAt: null
       };
     });
+    var popularWs = Storage.getActiveWorkspace(data);
+    if (!popularWs) return;
     // Add to "Ungrouped" group or create "Quick Start"
-    var ungrouped = data.groups.find(function (g) { return g.id === "ungrouped"; });
+    var ungrouped = popularWs.groups.find(function (g) { return g.id === "ungrouped"; });
     if (ungrouped) {
       ungrouped.shortcuts = ungrouped.shortcuts.concat(shortcuts);
     } else {
       var groupId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-      data.groups.push({ id: groupId, name: "Quick Start", shortcuts: shortcuts });
-      data.groupOrder.push(groupId);
+      popularWs.groups.push({ id: groupId, name: "Quick Start", shortcuts: shortcuts, deletedAt: null });
+      popularWs.groupOrder.push(groupId);
     }
     await Storage.saveAll(data);
     obSelectedPopular = {};
@@ -802,9 +818,15 @@
     if (typeof envelope.version !== "number") return "not-launchpad";
     var d = envelope.data;
     if (!d || typeof d !== "object") return "empty-or-corrupted";
+    if (!d.settings || typeof d.settings !== "object") return "empty-or-corrupted";
+    if (Array.isArray(d.workspaces)) {
+      // New (workspace-aware) shape
+      if (!d.workspaces.length) return "empty-or-corrupted";
+      return "ok";
+    }
+    // Legacy flat shape (pre-migration backup)
     if (!Array.isArray(d.groups)) return "empty-or-corrupted";
     if (!Array.isArray(d.groupOrder)) return "empty-or-corrupted";
-    if (!d.settings || typeof d.settings !== "object") return "empty-or-corrupted";
     return "ok";
   }
 
@@ -1167,7 +1189,8 @@
         url: removed.url,
         title: removed.customLabel || removed.title,
         favicon: removed.favicon,
-        addedAt: Date.now()
+        addedAt: Date.now(),
+        deletedAt: null
       });
       await Storage.saveAll(data);
       closeVariantDropdown();
@@ -1310,7 +1333,9 @@
     var target = null;
     var targetGroup = null;
 
-    data.groups.forEach(function (g) {
+    var nestWs = Storage.getActiveWorkspace(data);
+    if (!nestWs) return;
+    nestWs.groups.forEach(function (g) {
       g.shortcuts.forEach(function (s) {
         if (s.id === shortcutId) { shortcut = s; shortcutGroup = g; }
         if (s.id === targetId) { target = s; targetGroup = g; }
@@ -1336,13 +1361,14 @@
         id: shortcut.id,
         url: shortcut.url,
         title: shortcut.title,
-        favicon: shortcut.favicon
+        favicon: shortcut.favicon,
+        deletedAt: null
       });
     }
 
     // Remove the dragged shortcut from ALL groups (not just shortcutGroup)
     // SortableJS may have moved the DOM element cross-group before onEnd fires
-    data.groups.forEach(function (g) {
+    nestWs.groups.forEach(function (g) {
       g.shortcuts = g.shortcuts.filter(function (s) { return s.id !== shortcutId; });
     });
 
@@ -1446,7 +1472,8 @@
         url: v.url,
         title: v.title,
         favicon: v.favicon,
-        addedAt: Date.now()
+        addedAt: Date.now(),
+        deletedAt: null
       };
     });
 
@@ -1492,10 +1519,13 @@
   function render() {
     destroySortables();
     var container = $("#groups");
+    var ws = Storage.getActiveWorkspace(data);
+    var groups = (ws && ws.groups) || [];
+    var groupOrder = (ws && ws.groupOrder) || [];
     var groupMap = {};
-    data.groups.forEach(function (g) { groupMap[g.id] = g; });
-    var singleGroup = data.groupOrder.length <= 1;
-    container.innerHTML = data.groupOrder
+    groups.forEach(function (g) { groupMap[g.id] = g; });
+    var singleGroup = groupOrder.length <= 1;
+    container.innerHTML = groupOrder
       .map(function (id) { return groupMap[id]; })
       .filter(Boolean)
       .map(function (g) { return groupHTML(g, singleGroup); })
@@ -1622,9 +1652,12 @@
   function renderSidebarGroups() {
     var list = $("#sb-group-list");
     if (!list) return;
+    var ws = Storage.getActiveWorkspace(data);
+    var groups = (ws && ws.groups) || [];
+    var groupOrder = (ws && ws.groupOrder) || [];
     var groupMap = {};
-    data.groups.forEach(function (g) { groupMap[g.id] = g; });
-    list.innerHTML = data.groupOrder
+    groups.forEach(function (g) { groupMap[g.id] = g; });
+    list.innerHTML = groupOrder
       .map(function (id) { return groupMap[id]; })
       .filter(Boolean)
       .map(function (g) {
@@ -1703,14 +1736,16 @@
       filter: ".sb-group-more, .sidebar-shortcut-list",
       preventOnFilter: false,
       onEnd: async function () {
-        data.groupOrder = $$("#sb-group-list > .sb-group-wrapper").map(function (el) { return el.dataset.groupId; });
+        var ws = Storage.getActiveWorkspace(data);
+        if (!ws) return;
+        ws.groupOrder = $$("#sb-group-list > .sb-group-wrapper").map(function (el) { return el.dataset.groupId; });
         await Storage.saveAll(data);
         // Re-render main page to match new order
         var container = $("#groups");
         var groupMap = {};
-        data.groups.forEach(function (g) { groupMap[g.id] = g; });
-        var singleGroup = data.groupOrder.length <= 1;
-        container.innerHTML = data.groupOrder
+        ws.groups.forEach(function (g) { groupMap[g.id] = g; });
+        var singleGroup = ws.groupOrder.length <= 1;
+        container.innerHTML = ws.groupOrder
           .map(function (id) { return groupMap[id]; })
           .filter(Boolean)
           .map(function (g) { return groupHTML(g, singleGroup); })
@@ -1718,7 +1753,7 @@
         ensureAllPlaceholders();
         initSortables();
         initSidebarGroupObserver();
-        console.log("[LaunchPad] Groups reordered via sidebar drag:", data.groupOrder);
+        console.log("[LaunchPad] Groups reordered via sidebar drag:", ws.groupOrder);
       }
     });
   }
@@ -1764,10 +1799,13 @@
   function renderMainGrid() {
     destroySortables();
     var container = $("#groups");
+    var ws = Storage.getActiveWorkspace(data);
+    var groups = (ws && ws.groups) || [];
+    var groupOrder = (ws && ws.groupOrder) || [];
     var groupMap = {};
-    data.groups.forEach(function (g) { groupMap[g.id] = g; });
-    var singleGroup = data.groupOrder.length <= 1;
-    container.innerHTML = data.groupOrder
+    groups.forEach(function (g) { groupMap[g.id] = g; });
+    var singleGroup = groupOrder.length <= 1;
+    container.innerHTML = groupOrder
       .map(function (id) { return groupMap[id]; })
       .filter(Boolean)
       .map(function (g) { return groupHTML(g, singleGroup); })
@@ -2918,7 +2956,8 @@
                 url: onlyVariant.url,
                 title: onlyVariant.customLabel || onlyVariant.title,
                 favicon: onlyVariant.favicon,
-                addedAt: Date.now()
+                addedAt: Date.now(),
+                deletedAt: null
               };
               delete parent.variants;
               delete parent.customLabel;
@@ -2932,7 +2971,8 @@
                 url: parent.url,
                 title: parent.customLabel || parent.title,
                 favicon: parent.favicon,
-                addedAt: Date.now()
+                addedAt: Date.now(),
+                deletedAt: null
               };
               // Replace parent in-place with new parent
               group.shortcuts[parentIdx] = {
@@ -2941,7 +2981,8 @@
                 title: newParentData.customLabel || newParentData.title,
                 favicon: newParentData.favicon,
                 variants: remainingVariants,
-                addedAt: Date.now()
+                addedAt: Date.now(),
+                deletedAt: null
               };
               // Add old parent as standalone after new parent
               group.shortcuts.splice(parentIdx + 1, 0, oldParentStandalone);
@@ -2959,7 +3000,8 @@
               url: variant.url,
               title: variant.title,
               favicon: variant.favicon,
-              addedAt: Date.now()
+              addedAt: Date.now(),
+              deletedAt: null
             };
             group.shortcuts.splice(parentIdx2 + 1, 0, standalone);
           }
@@ -3553,7 +3595,8 @@
           id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
           url: url,
           title: variantTitle,
-          favicon: modalState.customFavicon || getFaviconUrl(url)
+          favicon: modalState.customFavicon || getFaviconUrl(url),
+          deletedAt: null
         });
         await Storage.saveAll(data);
       } else {
@@ -3748,7 +3791,9 @@
       msgEl.textContent = "This group has " + count + " shortcut" + (count !== 1 ? "s" : "") + ". You can move them to another group or delete everything.";
       moveCount.textContent = count;
       // Build dropdown of other groups
-      moveTarget.innerHTML = data.groups
+      var moveWs = Storage.getActiveWorkspace(data);
+      var moveGroups = (moveWs && moveWs.groups) || [];
+      moveTarget.innerHTML = moveGroups
         .filter(function (g) { return g.id !== groupId; })
         .map(function (g) { return '<option value="' + g.id + '">' + esc(g.name) + '</option>'; })
         .join("");
@@ -3860,7 +3905,9 @@
     var draggedGroupId = null;
 
     // Find the dragged shortcut data
-    data.groups.forEach(function (g) {
+    var dragWs = Storage.getActiveWorkspace(data);
+    var dragGroups = (dragWs && dragWs.groups) || [];
+    dragGroups.forEach(function (g) {
       g.shortcuts.forEach(function (s) {
         if (s.id === draggedId) {
           draggedShortcut = s;
@@ -4121,8 +4168,10 @@
   }
 
   function findShortcutById(id) {
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return null;
     var found = null;
-    data.groups.forEach(function (g) {
+    ws.groups.forEach(function (g) {
       g.shortcuts.forEach(function (s) {
         if (s.id === id) found = s;
       });
@@ -4135,10 +4184,12 @@
   function checkNestingTooltip() {
     if (!data || !data.settings) return;
     if (data.settings.nestingTipDismissed) return;
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return;
 
     // Look for shortcuts with matching domains across groups
     var match = null;
-    data.groups.forEach(function (g) {
+    ws.groups.forEach(function (g) {
       if (match) return;
       var keyMap = {};
       g.shortcuts.forEach(function (s) {
@@ -4190,8 +4241,10 @@
   }
 
   async function syncShortcutsFromDOM() {
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return;
     var allShortcuts = new Map();
-    data.groups.forEach(function (g) {
+    ws.groups.forEach(function (g) {
       g.shortcuts.forEach(function (s) { allShortcuts.set(s.id, s); });
     });
 
@@ -4239,7 +4292,9 @@
   // ===== Utilities =====
 
   function findGroup(id) {
-    return data.groups.find(function (g) { return g.id === id; });
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return undefined;
+    return ws.groups.find(function (g) { return g.id === id; });
   }
 
   function esc(str) {
