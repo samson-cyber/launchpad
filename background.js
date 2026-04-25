@@ -1,7 +1,24 @@
-/* global chrome, importScripts, Storage */
+/* global chrome, importScripts, Storage, ProAccess */
 
 importScripts('storage.js');
+importScripts('pro-access.js');
 importScripts('tracking-prototype.js');
+
+var PRO_RECONCILE_ALARM = "launchpad-pro-reconcile";
+var PRO_RECONCILE_PERIOD_MINUTES = 360; // 6 hours, well above the 30s minimum
+
+async function runProReconcile() {
+  try {
+    var data = await Storage.getAll();
+    var changed = ProAccess.reconcileProState(data);
+    if (changed) {
+      await Storage.saveAll(data);
+      console.log("[LaunchPad] Pro state reconciled:", data.pro.subscriptionStatus);
+    }
+  } catch (err) {
+    console.error("[LaunchPad] Pro reconcile failed:", err);
+  }
+}
 
 var DOMAIN_ALIASES = {
   'outlook.live.com': 'microsoft-mail',
@@ -183,13 +200,17 @@ async function pruneOldSessions() {
 chrome.runtime.onInstalled.addListener(function () {
   requestContextMenuRebuild();
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
+  chrome.alarms.create(PRO_RECONCILE_ALARM, { periodInMinutes: PRO_RECONCILE_PERIOD_MINUTES });
   saveCurrentSession();
+  runProReconcile();
 });
 chrome.runtime.onStartup.addListener(function () {
   requestContextMenuRebuild();
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
+  chrome.alarms.create(PRO_RECONCILE_ALARM, { periodInMinutes: PRO_RECONCILE_PERIOD_MINUTES });
   saveCurrentSession();
   pruneOldSessions();
+  runProReconcile();
 });
 
 chrome.storage.onChanged.addListener(function (changes) {
@@ -297,6 +318,8 @@ chrome.contextMenus.onClicked.addListener(async function (info, tab) {
 chrome.alarms.onAlarm.addListener(function (alarm) {
   if (alarm.name === "save-session") {
     saveCurrentSession();
+  } else if (alarm.name === PRO_RECONCILE_ALARM) {
+    runProReconcile();
   }
 });
 

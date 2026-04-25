@@ -157,6 +157,27 @@
   var obSelectedPopular = {};
 
 
+  // ===== Pro state debug helper =====
+
+  // Exposed on window for the new-tab Console. Logs the full data.pro block,
+  // current access level, trial days remaining, reactivation-offer status,
+  // and timestamps in a human-readable form. No mutations.
+  window.proStatusDebug = async function () {
+    var d = await Storage.getAll();
+    var pro = d.pro || {};
+    var fmt = function (ts) { return ts ? new Date(ts).toLocaleString() : "(null)"; };
+    console.log("[LaunchPad] Pro status:");
+    console.log("  subscriptionStatus:", pro.subscriptionStatus || "(unset)");
+    console.log("  licenseKey:", pro.licenseKey || "(null)");
+    console.log("  trialStartedAt:", fmt(pro.trialStartedAt));
+    console.log("  trialEndedAt:", fmt(pro.trialEndedAt));
+    console.log("  lastVerifiedAt:", fmt(pro.lastVerifiedAt));
+    console.log("  → access level:", ProAccess.getProAccessLevel(d));
+    console.log("  → trial days remaining:", ProAccess.trialDaysRemaining(d));
+    console.log("  → reactivation offer active:", ProAccess.isReactivationOfferActive(d));
+    return pro;
+  };
+
   // ===== Init =====
 
   document.addEventListener("DOMContentLoaded", init);

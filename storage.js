@@ -1,4 +1,4 @@
-/* global chrome */
+/* global chrome, ProAccess */
 
 var Storage = (function () {
   "use strict";
@@ -248,6 +248,15 @@ var Storage = (function () {
     }
   }
 
+  async function getProAccessLevel() {
+    if (typeof ProAccess === "undefined") {
+      console.warn("[LaunchPad] ProAccess module not loaded");
+      return "free";
+    }
+    var data = await getAll();
+    return ProAccess.getProAccessLevel(data);
+  }
+
   async function getOnboardingComplete() {
     try {
       var result = await chrome.storage.local.get("launchpad_onboarding");
@@ -281,6 +290,7 @@ var Storage = (function () {
     reorderGroups: reorderGroups,
     getBackground: getBackground,
     saveBackground: saveBackground,
+    getProAccessLevel: getProAccessLevel,
     getOnboardingComplete: getOnboardingComplete,
     setOnboardingComplete: setOnboardingComplete
   };
