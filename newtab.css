@@ -61,8 +61,116 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   user-select: none;
+}
+
+/* ===== Tab Bar ===== */
+
+#tab-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(30, 30, 30, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15);
+  z-index: 2;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  opacity: 0.7;
+  transition: background-color 0.15s, opacity 0.15s;
+}
+
+.tab:hover {
+  opacity: 1;
+}
+
+.tab.active {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.tab .tab-lock {
+  display: none;
+  flex-shrink: 0;
+}
+
+.tab.gated {
+  opacity: 0.35;
+}
+
+.tab.gated:hover {
+  opacity: 0.5;
+}
+
+.tab.gated .tab-lock {
+  display: inline-block;
+}
+
+/* ===== Tab Panels ===== */
+
+.tab-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#tab-home #search-form {
+  padding-top: 16px;
+}
+
+.tab-placeholder {
+  margin: 96px auto 0;
+  max-width: 460px;
+  padding: 32px 32px 28px;
+  border-radius: 12px;
+  background: rgba(30, 30, 30, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.tab-placeholder-icon {
+  display: block;
+  margin: 0 auto 14px;
+  opacity: 0.75;
+  color: #fff;
+}
+
+.tab-placeholder-title {
+  font-size: 17px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.tab-placeholder-text {
+  font-size: 13px;
+  line-height: 1.55;
+  opacity: 0.85;
 }
 
 .brand-icon {

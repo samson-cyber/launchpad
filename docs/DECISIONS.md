@@ -397,3 +397,30 @@ Full spec: `docs/SPECS/workspaces-data-model.md` (v2). Asana spec task: GID `121
 - Due-date hierarchy prevents the silent surprise of a child outlasting its parent; modal makes the trade-off explicit rather than magical-in-a-bad-way
 
 Full spec: `docs/SPECS/tasks-and-goals.md`. Asana spec task: GID `1214260169431711`.
+
+---
+
+## 2026-04-25 — Tab bar lives directly under the logo, no top header strip in v1
+
+**Context:** The original Pro tab architecture spec (`pro-tab-architecture.md` v1) called for a top header strip with brand, workspace switcher, and pulsing upgrade CTA, with the tab bar living below it. While implementing the [1.0.2] tab bar scaffold, the layout was reconsidered. The free-tier visual identity is anchored on the centered Google-new-tab-page logo + search bar — moving the brand into a top strip would change the first impression for the existing install base, even though the change is subtle.
+
+**Alternatives considered:**
+- Top header strip with brand + workspace switcher + upgrade CTA, tab bar below (original spec)
+- Tab bar inside the sidebar's middle area
+- Tab bar between the search bar and the grid (under the search field)
+- Tab bar directly under the existing centered logo, above the search bar (this decision)
+
+**Outcome:** Tab bar lives directly under the existing centered LaunchPad logo and above the search bar. Logo, search bar, and grid stay where they are today. No top header strip is added in v1.
+
+**Reasoning:**
+- Preserves the Google-new-tab-page familiarity that existing free-tier users associate with LaunchPad. The eye flow — logo, then search, then grid — is intact.
+- The sidebar's middle area is reserved for the active task widget per `tasks-and-goals.md`, so it can't host the tab bar without crowding.
+- Placing the tab bar between the search bar and the grid would visually divorce two elements that feel like one unit.
+- Putting the tab bar under the logo is the smallest possible disruption to the existing layout while still making Pro tabs discoverable.
+
+**Implications:**
+- Workspace switcher placement TBD in [1.0.6] when the switcher is built. Likely sidebar (top or middle), but the decision is deferred until the widget exists in code.
+- Upgrade CTA placement TBD in [1.0.5]. Visual states and behavior remain per the existing pulsing-CTA spec.
+- Keyboard shortcuts dropped from v1 — Ctrl+1..4 conflicts with Chrome's reserved tab-switching shortcuts. Click-only navigation. Revisit if user feedback requests it.
+
+Spec updated: `docs/SPECS/pro-tab-architecture.md` (revision note added at top, Tab Bar Layout / Workspace Switcher / Pulsing Upgrade CTA / Keyboard Accessibility sections revised).

@@ -4,6 +4,8 @@ Status: Draft (v1, 2026-04-24)
 Owner: Samson
 Related: `workspaces-data-model.md`, `pro-value-proposition.md`, `billing-and-license.md`
 
+> Updated 2026-04-25 to reflect the implementation decision in [1.0.2]: no top header strip, tab bar lives directly under the existing logo. The original top-strip layout was reconsidered to preserve the Google-new-tab-page familiarity that existing free users associate with LaunchPad. See DECISIONS.md entry "Tab bar lives directly under the logo, no top header strip in v1" for the full rationale.
+
 ---
 
 ## What and Why
@@ -29,8 +31,11 @@ See DECISIONS.md for reasoning.
 
 ## Tab Bar Layout
 
-Position: Top of the new tab page, below a thin top strip (brand + upgrade
-CTA + workspace switcher on the left). Above the search bar and grid.
+Position: Directly below the existing centered LaunchPad logo. No top header
+strip in v1 — the logo, search bar, and grid stay where they are today, and
+the tab bar slips between the logo and the Home tab content. Workspace
+switcher and upgrade CTA are deferred to later releases (see those sections
+below).
 
 Tabs (left to right):
 
@@ -108,7 +113,8 @@ No risk of demo data leaking into the user's real state.
 
 ## Pulsing Upgrade CTA
 
-Location: Top-right of the header strip, fixed position across all tabs.
+Placement TBD — decided in [1.0.5]. Visual states and behavior spec is
+unchanged from below.
 
 Appearance:
 - Small button, text: "Upgrade to Pro" (or "Start free trial" if user
@@ -138,7 +144,9 @@ Click behavior:
 
 ## Workspace Switcher (on the tab bar)
 
-Position: Far-left of the header strip, before the LaunchPad logo.
+Placement TBD — decided in [1.0.6] when the switcher widget is built.
+Candidate locations include the sidebar (top or middle) or the existing
+logo area.
 
 See `workspaces-data-model.md` for full behavior. On this spec, scope:
 
@@ -165,12 +173,9 @@ Chrome).
 
 ## Keyboard Accessibility
 
-- Tab key cycles through tabs in order (Home → Tasks → Dashboard → Insights)
-- Enter/Space activates a tab
-- Arrow keys (left/right) move between tabs when focus is on tab bar
-- `Ctrl/Cmd + 1..4` jumps to tab 1..4 (Home, Tasks, Dashboard, Insights)
-
-These shortcuts also function in Preview Mode for free users.
+Keyboard shortcuts deferred. Click-only navigation in v1. Chrome reserves
+Ctrl+1..8 for browser tab switching, so a different shortcut would be
+needed if added later.
 
 ---
 

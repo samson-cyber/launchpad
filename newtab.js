@@ -14,6 +14,11 @@
   var sidebarSortable = null;
   var dragState = null;
   var nestingTipTimer = null;
+  var activeTab = "home";
+
+  var TAB_IDS = ["home", "tasks", "dashboard", "insights"];
+  var PRO_TAB_IDS = ["tasks", "dashboard", "insights"];
+  var TAB_LABELS = { home: "Home", tasks: "Tasks", dashboard: "Dashboard", insights: "Insights" };
 
   var $ = function (s, p) { return (p || document).querySelector(s); };
   var $$ = function (s, p) { return [].slice.call((p || document).querySelectorAll(s)); };
@@ -178,6 +183,75 @@
     return pro;
   };
 
+  // ===== Tab Bar =====
+
+  function isProAccessibleLevel(level) {
+    return level === "trialing" || level === "active" || level === "grace";
+  }
+
+  function bindTabBar() {
+    var bar = $("#tab-bar");
+    if (!bar) return;
+    bar.addEventListener("click", function (e) {
+      var btn = e.target.closest ? e.target.closest(".tab") : null;
+      if (!btn) return;
+      var id = btn.getAttribute("data-tab");
+      if (!id) return;
+      setActiveTab(id);
+    });
+  }
+
+  function setActiveTab(id) {
+    if (TAB_IDS.indexOf(id) === -1) id = "home";
+    activeTab = id;
+    TAB_IDS.forEach(function (t) {
+      var btn = document.querySelector('.tab[data-tab="' + t + '"]');
+      var panel = document.getElementById("tab-" + t);
+      var isActive = (t === id);
+      if (btn) {
+        btn.classList.toggle("active", isActive);
+        btn.setAttribute("aria-selected", isActive ? "true" : "false");
+      }
+      if (panel) {
+        panel.classList.toggle("hidden", !isActive);
+      }
+    });
+  }
+
+  function applyTabAccessLevel() {
+    var level = (typeof ProAccess !== "undefined" && data)
+      ? ProAccess.getProAccessLevel(data)
+      : "free";
+    var hasPro = isProAccessibleLevel(level);
+    PRO_TAB_IDS.forEach(function (t) {
+      var btn = document.querySelector('.tab[data-tab="' + t + '"]');
+      if (btn) btn.classList.toggle("gated", !hasPro);
+      renderTabPlaceholder(t, hasPro);
+    });
+  }
+
+  var LOCK_PLACEHOLDER_SVG = '<svg class="tab-placeholder-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+
+  function renderTabPlaceholder(id, hasPro) {
+    var panel = document.getElementById("tab-" + id);
+    if (!panel) return;
+    var label = TAB_LABELS[id] || id;
+    if (hasPro) {
+      panel.innerHTML =
+        '<div class="tab-placeholder">' +
+          '<div class="tab-placeholder-title">' + label + '</div>' +
+          '<div class="tab-placeholder-text">Coming soon.</div>' +
+        '</div>';
+    } else {
+      panel.innerHTML =
+        '<div class="tab-placeholder tab-placeholder-gated">' +
+          LOCK_PLACEHOLDER_SVG +
+          '<div class="tab-placeholder-title">Pro feature</div>' +
+          '<div class="tab-placeholder-text">Tasks, Dashboard, and Insights are part of LaunchPad Pro. Preview coming soon.</div>' +
+        '</div>';
+    }
+  }
+
   // ===== Init =====
 
   document.addEventListener("DOMContentLoaded", init);
@@ -231,6 +305,8 @@
     render();
     refreshOldFavicons();
     bindEvents();
+    bindTabBar();
+    applyTabAccessLevel();
     Bookmarks.bindEvents(function (newData) {
       data = newData;
       hideFirstRunToast();
@@ -249,6 +325,7 @@
         data = changes.data.newValue || Storage.getDefaultData();
         if (!data.settings) data.settings = { columns: 6 };
         render();
+        applyTabAccessLevel();
       }
     });
 

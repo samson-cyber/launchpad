@@ -73,6 +73,33 @@
         </svg>
         <span class="brand-text">LaunchPad</span>
       </div>
+      <nav id="tab-bar" role="tablist" aria-label="LaunchPad sections">
+        <button class="tab active" type="button" role="tab" data-tab="home" aria-selected="true" aria-controls="tab-home">
+          <span class="tab-label">Home</span>
+        </button>
+        <button class="tab" type="button" role="tab" data-tab="tasks" aria-selected="false" aria-controls="tab-tasks">
+          <span class="tab-label">Tasks</span>
+          <svg class="tab-lock" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </button>
+        <button class="tab" type="button" role="tab" data-tab="dashboard" aria-selected="false" aria-controls="tab-dashboard">
+          <span class="tab-label">Dashboard</span>
+          <svg class="tab-lock" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </button>
+        <button class="tab" type="button" role="tab" data-tab="insights" aria-selected="false" aria-controls="tab-insights">
+          <span class="tab-label">Insights</span>
+          <svg class="tab-lock" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </button>
+      </nav>
+    </div>
+
+    <!-- TAB PANELS -->
+    <div id="tab-home" class="tab-panel" role="tabpanel">
       <form id="search-form" autocomplete="off">
         <div id="search-bar">
           <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -81,12 +108,13 @@
           <input type="text" id="search-input" placeholder="Search or type a URL" autofocus>
         </div>
       </form>
+      <div id="shortcut-grid-area">
+        <div id="groups"></div>
+      </div>
     </div>
-
-    <!-- SCROLLABLE GRID AREA -->
-    <div id="shortcut-grid-area">
-      <div id="groups"></div>
-    </div>
+    <div id="tab-tasks" class="tab-panel hidden" role="tabpanel"></div>
+    <div id="tab-dashboard" class="tab-panel hidden" role="tabpanel"></div>
+    <div id="tab-insights" class="tab-panel hidden" role="tabpanel"></div>
   </main>
 
   <div id="history-overlay" class="hidden">
