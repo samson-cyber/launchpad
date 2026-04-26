@@ -218,11 +218,12 @@
     });
   }
 
-  function applyTabAccessLevel(hasPro) {
+  function applyTabAccessLevel(level) {
+    var hasPro = isProAccessibleLevel(level);
     PRO_TAB_IDS.forEach(function (t) {
       var btn = document.querySelector('.tab[data-tab="' + t + '"]');
       if (btn) btn.classList.toggle("gated", !hasPro);
-      renderTabPlaceholder(t, hasPro);
+      renderTabPlaceholder(t, level);
     });
   }
 
@@ -237,7 +238,7 @@
       ? ProAccess.getProAccessLevel(data)
       : "free";
     var hasPro = isProAccessibleLevel(level);
-    applyTabAccessLevel(hasPro);
+    applyTabAccessLevel(level);
     applySidebarProEntryVisibility(hasPro);
     if ($("#pro-settings-panel") && !$("#pro-settings-panel").classList.contains("hidden")) {
       renderProSubscriptionSection();
@@ -245,25 +246,375 @@
     }
   }
 
-  var LOCK_PLACEHOLDER_SVG = '<svg class="tab-placeholder-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
-
-  function renderTabPlaceholder(id, hasPro) {
+  function renderTabPlaceholder(id, level) {
     var panel = document.getElementById("tab-" + id);
     if (!panel) return;
     var label = TAB_LABELS[id] || id;
-    if (hasPro) {
+    if (isProAccessibleLevel(level)) {
       panel.innerHTML =
         '<div class="tab-placeholder">' +
           '<div class="tab-placeholder-title">' + label + '</div>' +
           '<div class="tab-placeholder-text">Coming soon.</div>' +
         '</div>';
     } else {
-      panel.innerHTML =
-        '<div class="tab-placeholder tab-placeholder-gated">' +
-          LOCK_PLACEHOLDER_SVG +
-          '<div class="tab-placeholder-title">Pro feature</div>' +
-          '<div class="tab-placeholder-text">Tasks, Dashboard, and Insights are part of LaunchPad Pro. Preview coming soon.</div>' +
+      renderProPreview(id, panel, data);
+    }
+  }
+
+  // ===== Pro Preview Mode =====
+  //
+  // Free / expired users see a Preview Mode UI when they click a Pro tab:
+  // the feature's actual layout shell rendered with hard-coded demo data,
+  // plus a thin banner explaining the preview state. NOTHING here writes
+  // to chrome.storage; demo data lives in JS constants only.
+  //
+  // Trialing / active / grace users keep the existing "Coming soon"
+  // placeholder until each Pro tab's real implementation lands.
+
+  var DEMO_TAG_PALETTE = {
+    shipQ3:    { id: "demo-tag-q3",        name: "ship-q3-report",   color: "#4A90E2" },
+    learnTs:   { id: "demo-tag-ts",        name: "learn-typescript", color: "#50C878" },
+    ungrouped: { id: "demo-tag-ungrouped", name: "ungrouped",        color: "#9b9b9b" },
+    research:  { id: "demo-tag-research",  name: "research",         color: "#E08E4A" },
+    admin:     { id: "demo-tag-admin",     name: "admin",            color: "#A569BD" }
+  };
+
+  var DEMO_TASKS_DATA = {
+    goals: [
+      {
+        id: "demo-goal-1",
+        name: "Ship Q3 report",
+        tag: DEMO_TAG_PALETTE.shipQ3,
+        deadline: "May 31",
+        tasks: [
+          { id: "demo-task-1", name: "Draft executive summary",       priority: "high",   active: false, completed: false },
+          { id: "demo-task-2", name: "Pull regional revenue numbers", priority: "medium", active: true,  completed: false, elapsed: "00:23:15" }
+        ]
+      },
+      {
+        id: "demo-goal-2",
+        name: "Learn TypeScript",
+        tag: DEMO_TAG_PALETTE.learnTs,
+        deadline: "Jun 14",
+        tasks: [
+          { id: "demo-task-3", name: "Finish generics chapter", priority: null,  active: false, completed: false },
+          { id: "demo-task-4", name: "Build a tiny todo app",   priority: "low", active: false, completed: false }
+        ]
+      }
+    ]
+  };
+
+  var DEMO_DASHBOARD_DATA = {
+    recap: {
+      deepWorkText: "3h 42m",
+      tasksCompleted: 4,
+      goalsProgressed: 1,
+      goalsTotal: 2,
+      longestStretch: "47m",
+      tagBreakdown: [
+        { tag: DEMO_TAG_PALETTE.shipQ3,    durationText: "1h 50m" },
+        { tag: DEMO_TAG_PALETTE.learnTs,   durationText: "1h 10m" },
+        { tag: DEMO_TAG_PALETTE.ungrouped, durationText: "42m" }
+      ]
+    },
+    weekly: {
+      todayIndex: 4, // Friday
+      days: [
+        { label: "Mon", hours: 2.1 },
+        { label: "Tue", hours: 3.5 },
+        { label: "Wed", hours: 4.2 },
+        { label: "Thu", hours: 1.8 },
+        { label: "Fri", hours: 3.7 },
+        { label: "Sat", hours: 0.5 },
+        { label: "Sun", hours: 0   }
+      ]
+    }
+  };
+
+  var DEMO_INSIGHTS_DATA = {
+    trend30: {
+      todayIndex: 29,
+      // Hours per day for the last 30 days, gentle upward trend with light noise.
+      days: [
+        1.2, 1.0, 1.5, 0.8, 1.4, 1.7, 2.0, 1.3, 1.8, 2.1,
+        1.9, 2.3, 2.0, 2.5, 2.2, 2.7, 2.4, 2.9, 2.6, 3.1,
+        2.8, 3.3, 3.0, 3.4, 3.2, 3.6, 3.4, 3.7, 3.5, 3.8
+      ]
+    },
+    donut: {
+      centerLabel: "32h",
+      segments: [
+        { tag: DEMO_TAG_PALETTE.shipQ3,    hours: 12 },
+        { tag: DEMO_TAG_PALETTE.learnTs,   hours: 9  },
+        { tag: DEMO_TAG_PALETTE.ungrouped, hours: 6  },
+        { tag: DEMO_TAG_PALETTE.research,  hours: 3  },
+        { tag: DEMO_TAG_PALETTE.admin,     hours: 2  }
+      ]
+    },
+    badges: [
+      { id: "first-week",   title: "First Week",   desc: "Used LaunchPad 7 days running",          unlocked: true,  glyph: "calendar" },
+      { id: "goal-crusher", title: "Goal Crusher", desc: "Completed 5 goals",                      unlocked: true,  glyph: "target"   },
+      { id: "deep-diver",   title: "Deep Diver",   desc: "Single 2-hour focus block",              unlocked: true,  glyph: "compass"  },
+      { id: "variety",      title: "Variety",      desc: "5 different tags in a week",             unlocked: false, glyph: "layers"   },
+      { id: "consistency",  title: "Consistency",  desc: "Deep work every weekday for 2 weeks",    unlocked: false, glyph: "trend"    },
+      { id: "marathoner",   title: "Marathoner",   desc: "8-hour deep work day",                   unlocked: false, glyph: "clock"    },
+      { id: "curator",      title: "Curator",      desc: "50+ shortcuts organized",                unlocked: false, glyph: "bookmark" }
+    ]
+  };
+
+  function previewBannerHtml(d) {
+    var trialUsed = !!(d && d.pro && d.pro.trialStartedAt);
+    var ctaText = trialUsed ? "Upgrade" : "Start free trial";
+    return '<div class="pro-preview-banner">' +
+      '<span class="pro-preview-banner-text">Preview mode. Upgrade to Pro to use this feature with your data.</span>' +
+      '<a href="#" class="pro-preview-banner-cta" data-pro-preview-cta>' + ctaText + '</a>' +
+    '</div>';
+  }
+
+  function priorityClass(p) {
+    if (p === "urgent") return "pp-prio pp-prio-urgent";
+    if (p === "high")   return "pp-prio pp-prio-high";
+    if (p === "medium") return "pp-prio pp-prio-medium";
+    if (p === "low")    return "pp-prio pp-prio-low";
+    return "pp-prio-none";
+  }
+
+  function renderTagPill(tag) {
+    return '<span class="pp-tag-pill" style="background:' + tag.color + '">' + escapeHtml(tag.name) + '</span>';
+  }
+
+  function renderTasksPreview() {
+    var goalsHtml = DEMO_TASKS_DATA.goals.map(function (g) {
+      var doneCount = g.tasks.filter(function (t) { return t.completed; }).length;
+      var totalCount = g.tasks.length;
+      var pct = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
+      var tasksHtml = g.tasks.map(function (t) {
+        var activeBadge = t.active
+          ? '<span class="pp-active-badge"><span class="pp-active-dot"></span>active &middot; ' + escapeHtml(t.elapsed || "") + '</span>'
+          : '';
+        return '<div class="pp-task-row ' + priorityClass(t.priority) + '">' +
+            '<input type="checkbox" class="pp-task-check" disabled>' +
+            '<span class="pp-task-name">' + escapeHtml(t.name) + '</span>' +
+            renderTagPill(g.tag) +
+            activeBadge +
+          '</div>';
+      }).join("");
+      return '<div class="pp-goal-card">' +
+          '<div class="pp-goal-header">' +
+            '<div class="pp-goal-header-left">' +
+              '<span class="pp-goal-name">' + escapeHtml(g.name) + '</span>' +
+              renderTagPill(g.tag) +
+            '</div>' +
+            '<div class="pp-goal-header-right">' +
+              '<span class="pp-goal-deadline">' + escapeHtml(g.deadline) + '</span>' +
+              '<button class="pp-icon-btn" type="button" disabled aria-label="Goal options">' + THREE_DOT_SM_SVG + '</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="pp-progress">' +
+            '<div class="pp-progress-bar"><div class="pp-progress-fill" style="width:' + pct + '%"></div></div>' +
+            '<span class="pp-progress-text">' + doneCount + '/' + totalCount + '</span>' +
+          '</div>' +
+          '<div class="pp-task-list">' + tasksHtml + '</div>' +
+          '<button class="pp-add-task-btn" type="button" disabled>+ Add task</button>' +
         '</div>';
+    }).join("");
+
+    return '<div class="pp-tasks-header">' +
+        '<div class="pp-filter-chips">' +
+          '<span class="pp-filter-chip">Priority</span>' +
+          '<span class="pp-filter-chip">Tag</span>' +
+          '<span class="pp-filter-chip">Status</span>' +
+        '</div>' +
+        '<div class="pp-sort-dropdown">Sort by: creation date</div>' +
+      '</div>' +
+      '<div class="pp-section-header">Active Goals</div>' +
+      '<div class="pp-goal-list">' + goalsHtml + '</div>' +
+      '<div class="pp-section-header">Standalone</div>' +
+      '<div class="pp-empty-state">No standalone tasks</div>' +
+      '<div class="pp-section-header">Recurring</div>' +
+      '<div class="pp-empty-state">No recurring tasks</div>' +
+      '<div class="pp-section-header pp-section-header-collapsible">' +
+        '<span class="pp-collapse-chevron">' + CHEVRON_RIGHT_SVG + '</span>' +
+        'Completed (0)' +
+      '</div>';
+  }
+
+  function renderDashboardPreview() {
+    var d = DEMO_DASHBOARD_DATA;
+    var recap = d.recap;
+
+    var tagBreakdownHtml = recap.tagBreakdown.map(function (e) {
+      return '<div class="pp-tag-breakdown-item">' +
+          renderTagPill(e.tag) +
+          '<span class="pp-tag-breakdown-dur">' + escapeHtml(e.durationText) + '</span>' +
+        '</div>';
+    }).join("");
+
+    var emojis = ["😞", "😐", "🙂", "😊", "🎉"];
+    var emojiHtml = emojis.map(function (em) {
+      return '<button class="pp-emoji" type="button" disabled>' + em + '</button>';
+    }).join("");
+
+    // Weekly bar chart (inline SVG)
+    var w = 380, h = 170, padX = 28, padTop = 28, padBottom = 36;
+    var bars = d.weekly.days;
+    var maxH = Math.max.apply(null, bars.map(function (b) { return b.hours; })) || 1;
+    var step = (w - 2 * padX) / bars.length;
+    var barW = step * 0.55;
+    var chartH = h - padTop - padBottom;
+    var barsSvg = bars.map(function (b, i) {
+      var x = padX + step * i + (step - barW) / 2;
+      var bh = chartH * (b.hours / maxH);
+      var y = h - padBottom - bh;
+      var cls = (i === d.weekly.todayIndex) ? "pp-bar pp-bar-today" : "pp-bar";
+      return '<rect class="' + cls + '" x="' + x + '" y="' + y + '" width="' + barW + '" height="' + Math.max(bh, 1) + '" rx="3" />' +
+        '<text class="pp-bar-label" x="' + (x + barW / 2) + '" y="' + (h - padBottom + 16) + '">' + b.label + '</text>';
+    }).join("");
+    var weekSvg = '<svg class="pp-week-chart" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="Deep work hours this week">' +
+        '<line class="pp-axis" x1="' + padX + '" y1="' + (h - padBottom) + '" x2="' + (w - padX) + '" y2="' + (h - padBottom) + '" />' +
+        barsSvg +
+        '<text class="pp-axis-label" x="' + padX + '" y="' + (padTop - 10) + '">hours of deep work</text>' +
+      '</svg>';
+
+    var goalsPct = Math.round((recap.goalsProgressed / recap.goalsTotal) * 100);
+
+    return '<div class="pp-dash-grid">' +
+        '<div class="pp-dash-card pp-dash-card-recap">' +
+          '<div class="pp-dash-card-title">Today’s Recap</div>' +
+          '<div class="pp-recap-big">' +
+            '<span class="pp-recap-big-num">' + escapeHtml(recap.deepWorkText) + '</span>' +
+            '<span class="pp-recap-big-label">deep work</span>' +
+          '</div>' +
+          '<div class="pp-recap-row"><span class="pp-recap-num">' + recap.tasksCompleted + '</span> tasks completed</div>' +
+          '<div class="pp-recap-row pp-recap-row-stack">' +
+            '<div><span class="pp-recap-num">' + recap.goalsProgressed + ' of ' + recap.goalsTotal + '</span> goals making progress</div>' +
+            '<div class="pp-progress-bar pp-progress-bar-sm"><div class="pp-progress-fill" style="width:' + goalsPct + '%"></div></div>' +
+          '</div>' +
+          '<div class="pp-recap-row">Longest focus stretch: <span class="pp-recap-num">' + escapeHtml(recap.longestStretch) + '</span></div>' +
+          '<div class="pp-tag-breakdown">' + tagBreakdownHtml + '</div>' +
+          '<div class="pp-mood-row">' +
+            '<div class="pp-mood-q">How did today feel?</div>' +
+            '<div class="pp-mood-emojis">' + emojiHtml + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="pp-dash-card pp-dash-card-week">' +
+          '<div class="pp-dash-card-title">This week</div>' +
+          weekSvg +
+        '</div>' +
+      '</div>';
+  }
+
+  function renderInsightsPreview() {
+    var d = DEMO_INSIGHTS_DATA;
+
+    // 30-day trend bars
+    var w = 560, h = 190, padX = 32, padTop = 28, padBottom = 32;
+    var days = d.trend30.days;
+    var maxH = Math.max.apply(null, days) || 1;
+    var step = (w - 2 * padX) / days.length;
+    var barW = step * 0.6;
+    var chartH = h - padTop - padBottom;
+    var barsSvg = days.map(function (hours, i) {
+      var x = padX + step * i + (step - barW) / 2;
+      var bh = chartH * (hours / maxH);
+      var y = h - padBottom - bh;
+      var cls = (i === d.trend30.todayIndex) ? "pp-bar pp-bar-today" : "pp-bar";
+      return '<rect class="' + cls + '" x="' + x + '" y="' + y + '" width="' + barW + '" height="' + Math.max(bh, 1) + '" rx="2" />';
+    }).join("");
+    var trendSvg = '<svg class="pp-trend-chart" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="Deep work trend over the last 30 days">' +
+        '<line class="pp-axis" x1="' + padX + '" y1="' + (h - padBottom) + '" x2="' + (w - padX) + '" y2="' + (h - padBottom) + '" />' +
+        barsSvg +
+        '<text class="pp-axis-label" x="' + padX + '" y="' + (padTop - 10) + '">hours / day</text>' +
+        '<text class="pp-axis-label-sub" x="' + padX + '" y="' + (h - padBottom + 16) + '" text-anchor="start">30 days ago</text>' +
+        '<text class="pp-axis-label-sub" x="' + (w - padX) + '" y="' + (h - padBottom + 16) + '" text-anchor="end">today</text>' +
+      '</svg>';
+
+    // Donut chart
+    var totalH = d.donut.segments.reduce(function (a, s) { return a + s.hours; }, 0) || 1;
+    var donutR = 60, donutCx = 80, donutCy = 80, donutCirc = 2 * Math.PI * donutR;
+    var donutOffset = 0;
+    var donutSegSvg = d.donut.segments.map(function (s) {
+      var frac = s.hours / totalH;
+      var dash = donutCirc * frac;
+      var gap = donutCirc - dash;
+      var seg = '<circle class="pp-donut-seg" cx="' + donutCx + '" cy="' + donutCy + '" r="' + donutR + '"' +
+        ' stroke="' + s.tag.color + '"' +
+        ' stroke-dasharray="' + dash + ' ' + gap + '"' +
+        ' stroke-dashoffset="' + (-donutOffset) + '"' +
+      '/>';
+      donutOffset += dash;
+      return seg;
+    }).join("");
+    var donutSvg = '<svg class="pp-donut" viewBox="0 0 160 160" role="img" aria-label="Time by tag, last 30 days">' +
+        '<g transform="rotate(-90 ' + donutCx + ' ' + donutCy + ')">' + donutSegSvg + '</g>' +
+        '<text class="pp-donut-center" x="' + donutCx + '" y="' + donutCy + '" text-anchor="middle" dominant-baseline="middle">' + escapeHtml(d.donut.centerLabel) + '</text>' +
+      '</svg>';
+    var donutLegend = d.donut.segments.map(function (s) {
+      return '<div class="pp-donut-legend-row">' +
+          '<span class="pp-donut-legend-swatch" style="background:' + s.tag.color + '"></span>' +
+          '<span class="pp-donut-legend-name">' + escapeHtml(s.tag.name) + '</span>' +
+          '<span class="pp-donut-legend-hrs">' + s.hours + 'h</span>' +
+        '</div>';
+    }).join("");
+
+    // Achievement badges
+    var badgesHtml = d.badges.map(function (b) {
+      var lockedCls = b.unlocked ? "" : " pp-badge-locked";
+      var glyph = renderBadgeGlyph(b.glyph);
+      var subtitle = b.unlocked ? escapeHtml(b.desc) : "Locked";
+      return '<div class="pp-badge' + lockedCls + '">' +
+          '<div class="pp-badge-icon">' + glyph + '</div>' +
+          '<div class="pp-badge-title">' + escapeHtml(b.title) + '</div>' +
+          '<div class="pp-badge-sub">' + subtitle + '</div>' +
+        '</div>';
+    }).join("");
+
+    return '<div class="pp-insights-card">' +
+        '<div class="pp-dash-card-title">Deep Work — last 30 days</div>' +
+        trendSvg +
+      '</div>' +
+      '<div class="pp-insights-card">' +
+        '<div class="pp-dash-card-title">Time by tag — last 30 days</div>' +
+        '<div class="pp-donut-row">' + donutSvg + '<div class="pp-donut-legend">' + donutLegend + '</div></div>' +
+      '</div>' +
+      '<div class="pp-insights-card">' +
+        '<div class="pp-dash-card-title">Achievements</div>' +
+        '<div class="pp-badge-grid">' + badgesHtml + '</div>' +
+      '</div>';
+  }
+
+  function renderBadgeGlyph(glyph) {
+    var icons = {
+      calendar: '<rect x="4" y="6" width="20" height="18" rx="2" ry="2"/><line x1="4" y1="11" x2="24" y2="11"/><line x1="9" y1="3" x2="9" y2="8"/><line x1="19" y1="3" x2="19" y2="8"/>',
+      target:   '<circle cx="14" cy="14" r="11"/><circle cx="14" cy="14" r="7"/><circle cx="14" cy="14" r="3"/>',
+      compass:  '<circle cx="14" cy="14" r="11"/><polygon points="18 10 16 16 10 18 12 12"/>',
+      layers:   '<polygon points="14 3 26 9 14 15 2 9"/><polyline points="2 14 14 20 26 14"/><polyline points="2 19 14 25 26 19"/>',
+      trend:    '<polyline points="3 22 10 14 14 18 25 6"/><polyline points="19 6 25 6 25 12"/>',
+      clock:    '<circle cx="14" cy="14" r="11"/><polyline points="14 7 14 14 19 17"/>',
+      bookmark: '<path d="M21 25l-7-5-7 5V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>'
+    };
+    var inner = icons[glyph] || icons.target;
+    return '<svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+  }
+
+  function renderProPreview(id, panel, d) {
+    var bodyHtml = "";
+    if (id === "tasks")          bodyHtml = renderTasksPreview();
+    else if (id === "dashboard") bodyHtml = renderDashboardPreview();
+    else if (id === "insights")  bodyHtml = renderInsightsPreview();
+
+    panel.innerHTML =
+      '<div class="pro-preview" data-tab="' + id + '">' +
+        previewBannerHtml(d) +
+        '<div class="pro-preview-content">' + bodyHtml + '</div>' +
+      '</div>';
+
+    var cta = panel.querySelector('[data-pro-preview-cta]');
+    if (cta) {
+      cta.addEventListener("click", function (e) {
+        e.preventDefault();
+        showToast("Upgrade flow coming soon");
+      });
     }
   }
 
@@ -414,7 +765,7 @@
     showToast("License applied. Pro features now active.");
     renderProSubscriptionSection();
     renderProLicenseSection();
-    applyTabAccessLevel(true);
+    applyTabAccessLevel("active");
     applySidebarProEntryVisibility(true);
   }
 
