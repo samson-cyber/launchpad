@@ -1089,6 +1089,15 @@
   }
 
   function closeWorkspaceDropdown() {
+    // No-op when nothing is open. openWorkspaceDropdown calls this
+    // preventatively at the top of its body — without this guard, the
+    // sidebarLocked = true that bindWorkspaceSwitcher's click handler just
+    // set would be clobbered back to false before the dropdown renders, and
+    // a subsequent mouseleave would collapse the sidebar to 48px while the
+    // dropdown stays anchored to the now-orphan switcher position.
+    if (!workspaceDropdownEl && !workspaceDropdownEscapeHandler && !workspaceDropdownOutsideHandler) {
+      return;
+    }
     if (workspaceDropdownEscapeHandler) {
       document.removeEventListener("keydown", workspaceDropdownEscapeHandler);
       workspaceDropdownEscapeHandler = null;
@@ -2522,6 +2531,10 @@
     closeVariantCtxMenu();
     closeVariantIconDialog();
     var existing = document.querySelector(".variant-dropdown");
+    // No-op when nothing is open. Otherwise this clobbers sidebarLocked any
+    // time it's called by the generic outside-click handler — including for
+    // clicks on inputs in unrelated panels (Pro Settings, etc.).
+    if (!existing && !variantDropdownState) return;
     if (existing) existing.remove();
     if (variantDropdownState) {
       var anchorEl = variantDropdownState.anchorEl;
