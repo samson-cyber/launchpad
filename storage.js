@@ -274,6 +274,280 @@ var Storage = (function () {
     }
   }
 
+  // ===== Goals =====
+  //
+  // Goal CRUD on the Storage namespace, per docs/SPECS/tasks-and-goals.md.
+  // No UI surface in [1.0.7]; the Tasks tab UI ([1.0.10]) hooks these later.
+  // Verification path: console-callable via Storage.* (matches the
+  // ProAccess.applyLicenseKey console pattern).
+  //
+  // Mutating helpers take the full `data` storage object plus an optional
+  // workspaceId override (defaults to the active workspace). They persist
+  // via saveAll before resolving. Read helpers take a workspace directly so
+  // callers can iterate across workspaces without re-resolving.
+  //
+  // Soft-delete via deletedAt from day one — the Trash Bin UI lands later
+  // and immediately has things to display. Goals with deletedAt !== null are
+  // filtered out of every read function.
+  //
+  // Cascade hooks present but no-op until [1.0.8] / [1.0.9] populate the
+  // tasks and tags slots. deleteGoal already iterates workspace.tasks and
+  // workspace.tags looking for child records to soft-delete with the same
+  // timestamp; once those data types exist, cascade activates without
+  // touching this file.
+
+  function genGoalId() {
+    return "goal_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  function resolveWorkspaceFromData(data, workspaceId) {
+    if (!data || !Array.isArray(data.workspaces)) return null;
+    if (workspaceId) {
+      return data.workspaces.find(function (w) { return w.id === workspaceId; }) || null;
+    }
+    return getActiveWorkspace(data);
+  }
+
+  function ensureGoalsArray(workspace) {
+    if (!workspace) return null;
+    if (!Array.isArray(workspace.goals)) workspace.goals = [];
+    return workspace.goals;
+  }
+
+  function findLiveGoal(workspace, goalId) {
+    var goals = ensureGoalsArray(workspace);
+    if (!goals) return null;
+    var goal = goals.find(function (g) { return g.id === goalId; });
+    if (!goal) return null;
+    if (goal.deletedAt) return null;
+    return goal;
+  }
+
+  function nextDisplayOrder(goals) {
+    var max = 0;
+    goals.forEach(function (g) {
+      if (typeof g.displayOrder === "number" && g.displayOrder > max) max = g.displayOrder;
+    });
+    return max + 1;
+  }
+
+  /**
+   * Create a goal in the (optionally specified) workspace.
+   * @param {object} data — full storage object
+   * @param {object} fields — { name (required, trimmed, non-empty), description?, deadlineAt?, autoTagId? }
+   * @param {string} [workspaceId] — defaults to the active workspace
+   * @returns {Promise<object|null>} the created goal, or null on validation failure
+   */
+  async function createGoal(data, fields, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws) {
+      console.warn("[LaunchPad] createGoal: workspace not found");
+      return null;
+    }
+    var f = fields || {};
+    var name = typeof f.name === "string" ? f.name.trim() : "";
+    if (!name) {
+      console.warn("[LaunchPad] createGoal: name is required and must be non-empty after trim");
+      return null;
+    }
+    var deadlineAt = (f.deadlineAt === null || f.deadlineAt === undefined) ? null : f.deadlineAt;
+    if (deadlineAt !== null && typeof deadlineAt !== "number") {
+      console.warn("[LaunchPad] createGoal: deadlineAt must be a number or null");
+      return null;
+    }
+    var autoTagId = (f.autoTagId === undefined) ? null : f.autoTagId;
+    if (autoTagId !== null && typeof autoTagId !== "string") {
+      console.warn("[LaunchPad] createGoal: autoTagId must be a string or null");
+      return null;
+    }
+    var description = (f.description === undefined || f.description === null) ? "" : String(f.description);
+
+    var goals = ensureGoalsArray(ws);
+    var goal = {
+      id: genGoalId(),
+      name: name,
+      description: description,
+      deadlineAt: deadlineAt,
+      status: "active",
+      autoTagId: autoTagId,
+      isCollapsed: false,
+      createdAt: Date.now(),
+      completedAt: null,
+      deletedAt: null,
+      displayOrder: nextDisplayOrder(goals)
+    };
+    goals.push(goal);
+    await saveAll(data);
+    return goal;
+  }
+
+  /**
+   * Rename a goal. No-op + null return on empty / missing.
+   * @returns {Promise<object|null>}
+   */
+  async function renameGoal(data, goalId, newName, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var goal = findLiveGoal(ws, goalId);
+    if (!goal) return null;
+    var name = typeof newName === "string" ? newName.trim() : "";
+    if (!name) {
+      console.warn("[LaunchPad] renameGoal: newName must be non-empty after trim");
+      return null;
+    }
+    if (goal.name === name) return goal;
+    goal.name = name;
+    await saveAll(data);
+    return goal;
+  }
+
+  /**
+   * Update a goal's description. Coerces to string. Empty string allowed.
+   * @returns {Promise<object|null>}
+   */
+  async function updateGoalDescription(data, goalId, newDescription, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var goal = findLiveGoal(ws, goalId);
+    if (!goal) return null;
+    var desc = (newDescription === undefined || newDescription === null) ? "" : String(newDescription);
+    if (goal.description === desc) return goal;
+    goal.description = desc;
+    await saveAll(data);
+    return goal;
+  }
+
+  /**
+   * Update a goal's deadline. Pass null to clear.
+   * @returns {Promise<object|null>}
+   */
+  async function updateGoalDeadline(data, goalId, newDeadlineAt, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var goal = findLiveGoal(ws, goalId);
+    if (!goal) return null;
+    if (newDeadlineAt !== null && newDeadlineAt !== undefined && typeof newDeadlineAt !== "number") {
+      console.warn("[LaunchPad] updateGoalDeadline: newDeadlineAt must be a number or null");
+      return null;
+    }
+    var v = (newDeadlineAt === undefined) ? null : newDeadlineAt;
+    if (goal.deadlineAt === v) return goal;
+    goal.deadlineAt = v;
+    await saveAll(data);
+    return goal;
+  }
+
+  /**
+   * Mark a goal complete. Idempotent if already completed.
+   * Called from [1.0.8]'s task-completion handler (when last incomplete child
+   * finishes) or directly for manual "Mark complete" actions.
+   * @returns {Promise<object|null>}
+   */
+  async function completeGoal(data, goalId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var goal = findLiveGoal(ws, goalId);
+    if (!goal) return null;
+    if (goal.status === "completed") return goal;
+    goal.status = "completed";
+    goal.completedAt = Date.now();
+    await saveAll(data);
+    return goal;
+  }
+
+  /**
+   * Reactivate a completed goal. Idempotent if already active.
+   * @returns {Promise<object|null>}
+   */
+  async function reactivateGoal(data, goalId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var goal = findLiveGoal(ws, goalId);
+    if (!goal) return null;
+    if (goal.status === "active") return goal;
+    goal.status = "active";
+    goal.completedAt = null;
+    await saveAll(data);
+    return goal;
+  }
+
+  /**
+   * Soft-delete a goal via deletedAt. Returns metadata about cascaded child
+   * records so callers can show "X tasks moved to trash" toasts in [1.0.10].
+   *
+   * Cascade hooks present but no-op in [1.0.7]: workspace.tasks and
+   * workspace.tags don't have records yet. When [1.0.8] / [1.0.9] populate
+   * those types, the same timestamp soft-deletes child tasks (goalId match)
+   * and the auto-tag (autoGeneratedFromGoalId match) without further code
+   * changes here.
+   *
+   * @returns {Promise<{ goal: object, cascadedTaskIds: string[], cascadedTagId: string|null }|null>}
+   */
+  async function deleteGoal(data, goalId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var goal = findLiveGoal(ws, goalId);
+    if (!goal) return null;
+    var now = Date.now();
+    goal.deletedAt = now;
+
+    var cascadedTaskIds = [];
+    if (Array.isArray(ws.tasks)) {
+      ws.tasks.forEach(function (t) {
+        if (t && t.goalId === goalId && !t.deletedAt) {
+          t.deletedAt = now;
+          cascadedTaskIds.push(t.id);
+        }
+      });
+    }
+
+    var cascadedTagId = null;
+    if (goal.autoTagId && Array.isArray(ws.tags)) {
+      var tag = ws.tags.find(function (t) { return t && t.id === goal.autoTagId; });
+      if (tag && !tag.deletedAt) {
+        tag.deletedAt = now;
+        cascadedTagId = tag.id;
+      }
+    }
+
+    await saveAll(data);
+    return { goal: goal, cascadedTaskIds: cascadedTaskIds, cascadedTagId: cascadedTagId };
+  }
+
+  /**
+   * Active goals: deletedAt === null && status === 'active'.
+   * Order preserved as stored (caller sorts by displayOrder if it cares).
+   */
+  function getActiveGoals(workspace) {
+    var goals = ensureGoalsArray(workspace);
+    if (!goals) return [];
+    return goals.filter(function (g) { return !g.deletedAt && g.status === "active"; });
+  }
+
+  /**
+   * Completed goals: deletedAt === null && status === 'completed'.
+   */
+  function getCompletedGoals(workspace) {
+    var goals = ensureGoalsArray(workspace);
+    if (!goals) return [];
+    return goals.filter(function (g) { return !g.deletedAt && g.status === "completed"; });
+  }
+
+  /**
+   * All non-deleted goals (active + completed).
+   */
+  function getAllGoals(workspace) {
+    var goals = ensureGoalsArray(workspace);
+    if (!goals) return [];
+    return goals.filter(function (g) { return !g.deletedAt; });
+  }
+
+  /**
+   * Lookup by id. Returns null if the goal is missing OR soft-deleted.
+   * Returns the goal even if completed.
+   */
+  function getGoalById(workspace, goalId) {
+    var goals = ensureGoalsArray(workspace);
+    if (!goals) return null;
+    var goal = goals.find(function (g) { return g.id === goalId; });
+    if (!goal || goal.deletedAt) return null;
+    return goal;
+  }
+
   return {
     getDefaultData: getDefaultData,
     getAll: getAll,
@@ -292,6 +566,18 @@ var Storage = (function () {
     saveBackground: saveBackground,
     getProAccessLevel: getProAccessLevel,
     getOnboardingComplete: getOnboardingComplete,
-    setOnboardingComplete: setOnboardingComplete
+    setOnboardingComplete: setOnboardingComplete,
+    // Goals (Pro tasks layer — see docs/SPECS/tasks-and-goals.md)
+    createGoal: createGoal,
+    renameGoal: renameGoal,
+    updateGoalDescription: updateGoalDescription,
+    updateGoalDeadline: updateGoalDeadline,
+    completeGoal: completeGoal,
+    reactivateGoal: reactivateGoal,
+    deleteGoal: deleteGoal,
+    getActiveGoals: getActiveGoals,
+    getCompletedGoals: getCompletedGoals,
+    getAllGoals: getAllGoals,
+    getGoalById: getGoalById
   };
 })();
