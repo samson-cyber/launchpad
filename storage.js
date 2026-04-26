@@ -548,6 +548,406 @@ var Storage = (function () {
     return goal;
   }
 
+  // ===== Tasks =====
+  //
+  // Task CRUD on the Storage namespace, mirroring the [1.0.7] goal CRUD shape.
+  // No UI surface in [1.0.8]; the Tasks tab UI ([1.0.10]) hooks these later.
+  // Verification path: console-callable via Storage.* (matches the
+  // ProAccess.applyLicenseKey console pattern).
+  //
+  // Soft-delete via deletedAt from day one — every read filters out tombstoned
+  // tasks. Cascade activation: [1.0.7]'s deleteGoal already iterates
+  // workspace.tasks looking for matching goalId records; with tasks now
+  // populated, that cascade activates organically without touching deleteGoal.
+  //
+  // Auto-completion: completeTask flips the parent goal to 'completed' inline
+  // when the last incomplete sibling task in the same goal completes
+  // (avoiding a double saveAll vs calling Storage.completeGoal). Symmetric
+  // auto-reactivation: reactivateTask flips a 'completed' parent goal back
+  // to 'active' so the system never sits in the awkward
+  // "goal completed but has an incomplete child" state. completeTask and
+  // reactivateTask return rich shapes (task + goal-flip metadata) so
+  // [1.0.10]'s UI can fire goal-completion celebration animations without
+  // re-querying state.
+  //
+  // Stub-but-stored fields: priority (no visual treatment until [1.0.12]),
+  // tagIds (no auto-tag inheritance until [1.0.9]), isRecurringInstance +
+  // recurringTemplateId (defaults; [1.0.14] populates). Data model is
+  // complete from day one even though enforcement / UI lands later.
+  //
+  // Active task selection (data.activeTask top-level) is entirely [1.0.16]'s
+  // territory — no Storage.setActiveTask here.
+
+  var VALID_PRIORITIES = ["low", "medium", "high", "urgent"];
+
+  function genTaskId() {
+    return "task_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  function ensureTasksArray(workspace) {
+    if (!workspace) return null;
+    if (!Array.isArray(workspace.tasks)) workspace.tasks = [];
+    return workspace.tasks;
+  }
+
+  function findLiveTask(workspace, taskId) {
+    var tasks = ensureTasksArray(workspace);
+    if (!tasks) return null;
+    var task = tasks.find(function (t) { return t.id === taskId; });
+    if (!task || task.deletedAt) return null;
+    return task;
+  }
+
+  function nextTaskDisplayOrder(tasks) {
+    var max = 0;
+    tasks.forEach(function (t) {
+      if (typeof t.displayOrder === "number" && t.displayOrder > max) max = t.displayOrder;
+    });
+    return max + 1;
+  }
+
+  function isValidPriority(p) {
+    return p === null || VALID_PRIORITIES.indexOf(p) !== -1;
+  }
+
+  /**
+   * Create a task in the (optionally specified) workspace.
+   * @param {object} data
+   * @param {object} fields — { name (required), description?, goalId?, dueAt?, priority?, tagIds? }
+   * @param {string} [workspaceId]
+   * @returns {Promise<object|null>}
+   */
+  async function createTask(data, fields, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws) {
+      console.warn("[LaunchPad] createTask: workspace not found");
+      return null;
+    }
+    var f = fields || {};
+    var name = typeof f.name === "string" ? f.name.trim() : "";
+    if (!name) {
+      console.warn("[LaunchPad] createTask: name is required and must be non-empty after trim");
+      return null;
+    }
+
+    var goalId = (f.goalId === undefined) ? null : f.goalId;
+    if (goalId !== null) {
+      if (typeof goalId !== "string") {
+        console.warn("[LaunchPad] createTask: goalId must be a string or null");
+        return null;
+      }
+      if (!findLiveGoal(ws, goalId)) {
+        console.warn("[LaunchPad] createTask: goalId does not reference a live goal:", goalId);
+        return null;
+      }
+    }
+
+    var dueAt = (f.dueAt === undefined) ? null : f.dueAt;
+    if (dueAt !== null && typeof dueAt !== "number") {
+      console.warn("[LaunchPad] createTask: dueAt must be a number or null");
+      return null;
+    }
+
+    var priority = (f.priority === undefined) ? null : f.priority;
+    if (!isValidPriority(priority)) {
+      console.warn("[LaunchPad] createTask: priority must be one of 'low'|'medium'|'high'|'urgent'|null");
+      return null;
+    }
+
+    var tagIds = [];
+    if (f.tagIds !== undefined && f.tagIds !== null) {
+      if (!Array.isArray(f.tagIds)) {
+        console.warn("[LaunchPad] createTask: tagIds must be an array of strings");
+        return null;
+      }
+      var allStrings = f.tagIds.every(function (t) { return typeof t === "string"; });
+      if (!allStrings) {
+        console.warn("[LaunchPad] createTask: tagIds must contain only strings");
+        return null;
+      }
+      tagIds = f.tagIds.slice();
+    }
+
+    var description = (f.description === undefined || f.description === null) ? "" : String(f.description);
+
+    var tasks = ensureTasksArray(ws);
+    var task = {
+      id: genTaskId(),
+      name: name,
+      description: description,
+      goalId: goalId,
+      dueAt: dueAt,
+      priority: priority,
+      tagIds: tagIds,
+      completed: false,
+      completedAt: null,
+      createdAt: Date.now(),
+      deletedAt: null,
+      displayOrder: nextTaskDisplayOrder(tasks),
+      isRecurringInstance: false,
+      recurringTemplateId: null
+    };
+    tasks.push(task);
+    await saveAll(data);
+    return task;
+  }
+
+  /**
+   * Rename a task. Returns null if missing / soft-deleted / empty name.
+   * @returns {Promise<object|null>}
+   */
+  async function renameTask(data, taskId, newName, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var task = findLiveTask(ws, taskId);
+    if (!task) return null;
+    var name = typeof newName === "string" ? newName.trim() : "";
+    if (!name) {
+      console.warn("[LaunchPad] renameTask: newName must be non-empty after trim");
+      return null;
+    }
+    if (task.name === name) return task;
+    task.name = name;
+    await saveAll(data);
+    return task;
+  }
+
+  /**
+   * Update a task's description. Coerces to string. Empty allowed.
+   * @returns {Promise<object|null>}
+   */
+  async function updateTaskDescription(data, taskId, newDescription, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var task = findLiveTask(ws, taskId);
+    if (!task) return null;
+    var desc = (newDescription === undefined || newDescription === null) ? "" : String(newDescription);
+    if (task.description === desc) return task;
+    task.description = desc;
+    await saveAll(data);
+    return task;
+  }
+
+  /**
+   * Update a task's due date. Pass null to clear.
+   * @returns {Promise<object|null>}
+   */
+  async function updateTaskDueAt(data, taskId, newDueAt, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var task = findLiveTask(ws, taskId);
+    if (!task) return null;
+    if (newDueAt !== null && newDueAt !== undefined && typeof newDueAt !== "number") {
+      console.warn("[LaunchPad] updateTaskDueAt: newDueAt must be a number or null");
+      return null;
+    }
+    var v = (newDueAt === undefined) ? null : newDueAt;
+    if (task.dueAt === v) return task;
+    task.dueAt = v;
+    await saveAll(data);
+    return task;
+  }
+
+  /**
+   * Update a task's priority. Accepts 'low'|'medium'|'high'|'urgent'|null.
+   * @returns {Promise<object|null>}
+   */
+  async function updateTaskPriority(data, taskId, newPriority, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var task = findLiveTask(ws, taskId);
+    if (!task) return null;
+    if (!isValidPriority(newPriority)) {
+      console.warn("[LaunchPad] updateTaskPriority: newPriority must be one of 'low'|'medium'|'high'|'urgent'|null");
+      return null;
+    }
+    if (task.priority === newPriority) return task;
+    task.priority = newPriority;
+    await saveAll(data);
+    return task;
+  }
+
+  /**
+   * Complete a task. If this completes the last incomplete sibling under an
+   * active parent goal, the goal flips to 'completed' inline (same timestamp,
+   * single saveAll). Idempotent: re-calling on a completed task returns the
+   * task with goalAutoCompleted=false.
+   *
+   * @returns {Promise<{ task: object, goalAutoCompleted: boolean, autoCompletedGoal: object|null }|null>}
+   */
+  async function completeTask(data, taskId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var task = findLiveTask(ws, taskId);
+    if (!task) return null;
+    if (task.completed) {
+      return { task: task, goalAutoCompleted: false, autoCompletedGoal: null };
+    }
+    var now = Date.now();
+    task.completed = true;
+    task.completedAt = now;
+
+    var goalAutoCompleted = false;
+    var autoCompletedGoal = null;
+    if (task.goalId) {
+      var goal = findLiveGoal(ws, task.goalId);
+      if (goal && goal.status === "active") {
+        var siblings = (ws.tasks || []).filter(function (t) {
+          return t.goalId === task.goalId && !t.deletedAt;
+        });
+        var allComplete = siblings.length > 0 && siblings.every(function (t) { return t.completed; });
+        if (allComplete) {
+          goal.status = "completed";
+          goal.completedAt = now;
+          goalAutoCompleted = true;
+          autoCompletedGoal = goal;
+        }
+      }
+    }
+
+    await saveAll(data);
+    return { task: task, goalAutoCompleted: goalAutoCompleted, autoCompletedGoal: autoCompletedGoal };
+  }
+
+  /**
+   * Reactivate a completed task. If the parent goal is currently 'completed',
+   * the goal flips back to 'active' inline (single saveAll). Symmetric
+   * inverse of auto-completion. Idempotent on already-active tasks.
+   *
+   * @returns {Promise<{ task: object, goalAutoReactivated: boolean, autoReactivatedGoal: object|null }|null>}
+   */
+  async function reactivateTask(data, taskId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var task = findLiveTask(ws, taskId);
+    if (!task) return null;
+    if (!task.completed) {
+      return { task: task, goalAutoReactivated: false, autoReactivatedGoal: null };
+    }
+    task.completed = false;
+    task.completedAt = null;
+
+    var goalAutoReactivated = false;
+    var autoReactivatedGoal = null;
+    if (task.goalId) {
+      var goal = findLiveGoal(ws, task.goalId);
+      if (goal && goal.status === "completed") {
+        goal.status = "active";
+        goal.completedAt = null;
+        goalAutoReactivated = true;
+        autoReactivatedGoal = goal;
+      }
+    }
+
+    await saveAll(data);
+    return { task: task, goalAutoReactivated: goalAutoReactivated, autoReactivatedGoal: autoReactivatedGoal };
+  }
+
+  /**
+   * Duplicate a task as a "(copy)" variant. Preserves description, goalId,
+   * dueAt, priority, tagIds. Resets completion state, timestamps, and
+   * recurring-instance fields. Returns the new task.
+   *
+   * @returns {Promise<object|null>}
+   */
+  async function duplicateTask(data, taskId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var orig = findLiveTask(ws, taskId);
+    if (!orig) return null;
+    var tasks = ensureTasksArray(ws);
+    var copy = {
+      id: genTaskId(),
+      name: orig.name + " (copy)",
+      description: orig.description,
+      goalId: orig.goalId,
+      dueAt: orig.dueAt,
+      priority: orig.priority,
+      tagIds: Array.isArray(orig.tagIds) ? orig.tagIds.slice() : [],
+      completed: false,
+      completedAt: null,
+      createdAt: Date.now(),
+      deletedAt: null,
+      displayOrder: nextTaskDisplayOrder(tasks),
+      isRecurringInstance: false,
+      recurringTemplateId: null
+    };
+    tasks.push(copy);
+    await saveAll(data);
+    return copy;
+  }
+
+  /**
+   * Soft-delete a task via deletedAt. No cascade — tasks don't have children.
+   * @returns {Promise<object|null>}
+   */
+  async function deleteTask(data, taskId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var task = findLiveTask(ws, taskId);
+    if (!task) return null;
+    task.deletedAt = Date.now();
+    await saveAll(data);
+    return task;
+  }
+
+  /**
+   * Move a task to a different goal, or to standalone (newGoalIdOrNull = null).
+   * Validates the target goal is live when non-null.
+   *
+   * @returns {Promise<object|null>}
+   */
+  async function moveTaskToGoal(data, taskId, newGoalIdOrNull, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var task = findLiveTask(ws, taskId);
+    if (!task) return null;
+    var target = (newGoalIdOrNull === undefined) ? null : newGoalIdOrNull;
+    if (target !== null) {
+      if (typeof target !== "string") {
+        console.warn("[LaunchPad] moveTaskToGoal: newGoalId must be a string or null");
+        return null;
+      }
+      if (!findLiveGoal(ws, target)) {
+        console.warn("[LaunchPad] moveTaskToGoal: target goal not found or soft-deleted:", target);
+        return null;
+      }
+    }
+    if (task.goalId === target) return task;
+    task.goalId = target;
+    await saveAll(data);
+    return task;
+  }
+
+  /**
+   * Active tasks: !deletedAt && !completed.
+   */
+  function getActiveTasks(workspace) {
+    var tasks = ensureTasksArray(workspace);
+    if (!tasks) return [];
+    return tasks.filter(function (t) { return !t.deletedAt && !t.completed; });
+  }
+
+  /**
+   * Completed tasks: !deletedAt && completed.
+   */
+  function getCompletedTasks(workspace) {
+    var tasks = ensureTasksArray(workspace);
+    if (!tasks) return [];
+    return tasks.filter(function (t) { return !t.deletedAt && t.completed; });
+  }
+
+  /**
+   * All non-deleted tasks (active + completed).
+   */
+  function getAllTasks(workspace) {
+    var tasks = ensureTasksArray(workspace);
+    if (!tasks) return [];
+    return tasks.filter(function (t) { return !t.deletedAt; });
+  }
+
+  /**
+   * Lookup by id. Returns null if missing OR soft-deleted.
+   */
+  function getTaskById(workspace, taskId) {
+    var tasks = ensureTasksArray(workspace);
+    if (!tasks) return null;
+    var task = tasks.find(function (t) { return t.id === taskId; });
+    if (!task || task.deletedAt) return null;
+    return task;
+  }
+
   return {
     getDefaultData: getDefaultData,
     getAll: getAll,
@@ -578,6 +978,21 @@ var Storage = (function () {
     getActiveGoals: getActiveGoals,
     getCompletedGoals: getCompletedGoals,
     getAllGoals: getAllGoals,
-    getGoalById: getGoalById
+    getGoalById: getGoalById,
+    // Tasks (Pro tasks layer — see docs/SPECS/tasks-and-goals.md)
+    createTask: createTask,
+    renameTask: renameTask,
+    updateTaskDescription: updateTaskDescription,
+    updateTaskDueAt: updateTaskDueAt,
+    updateTaskPriority: updateTaskPriority,
+    completeTask: completeTask,
+    reactivateTask: reactivateTask,
+    duplicateTask: duplicateTask,
+    deleteTask: deleteTask,
+    moveTaskToGoal: moveTaskToGoal,
+    getActiveTasks: getActiveTasks,
+    getCompletedTasks: getCompletedTasks,
+    getAllTasks: getAllTasks,
+    getTaskById: getTaskById
   };
 })();
