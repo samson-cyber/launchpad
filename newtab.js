@@ -5521,9 +5521,6 @@
     }
 
     var targetEl = state.hoveredTarget;
-    console.log("[NEST DEBUG] hoveredTarget:", targetEl ? targetEl.dataset.id : "null");
-    console.log("[NEST DEBUG] lastX:", state.lastX, "lastY:", state.lastY);
-    console.log("[NEST DEBUG] draggedDomain:", state.draggedDomain);
 
     // Robust fallback: if hover tracking lost the target (common due to SortableJS
     // moving DOM elements during animation), scan all shortcuts by coordinate proximity
@@ -5549,7 +5546,6 @@
         var cx = rect.left + rect.width / 2;
         var cy = rect.top + rect.height / 2;
         var dist = Math.sqrt((dropX - cx) * (dropX - cx) + (dropY - cy) * (dropY - cy));
-        console.log("[NEST DEBUG] candidate:", el.dataset.id, "key:", targetKey, "dist:", Math.round(dist));
 
         // Must be within 60px of the icon center
         if (dist < 60 && dist < bestDist) {
@@ -5557,7 +5553,6 @@
           targetEl = el;
         }
       });
-      console.log("[NEST DEBUG] fallback result:", targetEl ? targetEl.dataset.id : "null");
     }
 
     // Also check SortableJS siblings as last resort
@@ -5635,7 +5630,6 @@
       })();
     }
 
-    console.log("[NEST DEBUG] No nest target found, returning null");
     return null;
   }
 
