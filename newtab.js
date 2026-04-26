@@ -827,8 +827,10 @@
     document.addEventListener("keydown", upgradeEscapeHandler);
 
     upgradeOutsideHandler = function (e) {
-      if (!upgradePopoverEl) return;
-      if (upgradePopoverEl.contains(e.target)) return;
+      var pop = document.getElementById("upgrade-popover");
+      if (!pop) return;
+      if (!e.target.isConnected) return;
+      if (pop.contains(e.target)) return;
       // Allow re-clicking the CTA pill / banner anchor to toggle without instantly
       // reopening; the anchor's own click handler runs after this and decides.
       if (anchorEl && anchorEl.contains(e.target)) return;
@@ -980,8 +982,14 @@
     document.addEventListener("keydown", workspaceDropdownEscapeHandler);
 
     workspaceDropdownOutsideHandler = function (e) {
-      if (!workspaceDropdownEl) return;
-      if (workspaceDropdownEl.contains(e.target)) return;
+      // Re-query the live dropdown so a stale closure reference can't make
+      // contains() falsely return false. If the click target was detached
+      // during its own handler, treat it as in-flight DOM mutation, not an
+      // outside click.
+      var dd = document.getElementById("workspace-dropdown");
+      if (!dd) return;
+      if (!e.target.isConnected) return;
+      if (dd.contains(e.target)) return;
       if (anchorEl && anchorEl.contains(e.target)) return;
       closeWorkspaceDropdown();
     };
@@ -4848,6 +4856,12 @@
 
     // Close menus on outside click
     document.addEventListener("click", function (e) {
+      // If the click target was synchronously detached during the target's
+      // own click handler (e.g. inline rename's replaceWith, or the workspace
+      // dropdown's "Add workspace" innerHTML rebuild), .closest() walks an
+      // empty parent chain and returns null for everything — which would
+      // falsely match "outside the panel" for every check below. Bail.
+      if (!e.target.isConnected) return;
       if (!e.target.closest("#shortcut-menu") && !e.target.closest(".shortcut-more") && !e.target.closest("#nest-submenu")) {
         hideMenu();
         closeNestSubmenu();
