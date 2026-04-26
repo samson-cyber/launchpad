@@ -156,9 +156,11 @@ label updates without a reload.
 Click behavior:
 - States A–D: opens the upgrade popover anchored below the CTA, right
   edge aligned to the CTA's right edge
-- State E: opens the upgrade popover with a "Manage subscription" primary
-  button
-- State F: opens Pro Settings panel directly (no popover)
+- States E and F: open the Pro Settings panel directly (no popover).
+  Trialing users already have an account context — a popover with a
+  stub "Manage subscription" button would be a worse interim experience
+  than landing in Subscription. See DECISIONS.md 2026-04-26 entry
+  "Trialing user CTA click bypasses popover".
 
 The same upgrade popover is opened by the [1.0.4] preview-banner trial
 link, anchored to the link itself.

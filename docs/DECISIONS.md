@@ -480,3 +480,19 @@ Spec updated: `docs/SPECS/pro-tab-architecture.md` (second revision note added a
 - Trial countdown updates every 60s via a page-scope setInterval — page-scope is fine here (service worker not involved); the alarm overhead is negligible.
 
 Spec updated: `docs/SPECS/pro-tab-architecture.md` (third revision note added at top, Pulsing Upgrade CTA section rewritten).
+
+---
+
+## 2026-04-26 — Trialing user CTA click bypasses popover
+
+**Context:** [1.0.5] initially routed all non-Pro states (A–E) through the upgrade popover, which for trialing users would surface a "Manage subscription" primary button stubbed to toast "Upgrade flow coming soon" until [1.0.5.1] lands real Dodo integration. Review on 2026-04-26 flagged this as a worse interim experience than just opening the Pro Settings panel.
+
+**Outcome:** Trialing (E) joins active / grace (F) — CTA click opens Pro Settings panel directly, no popover. Free / expired states (A–D) still open the upgrade popover. Apply-license affordance remains in the popover for free / expired users; trialing users don't need it (they already have access).
+
+**Reasoning:**
+- Trialing users have account context and want subscription information, not a generic upgrade pitch with a non-functional button.
+- Pro Settings already shows trial days remaining, last-verified status, and the license-key entry row — strictly more useful than the popover for someone in trial.
+- Avoids shipping a known-bad interim flow that we'd just have to redesign when [1.0.5.1] adds the real checkout.
+- Routing change is one-line in the click handler; popover construction is unchanged.
+
+Spec updated: `docs/SPECS/pro-tab-architecture.md` (Pulsing Upgrade CTA section's click-behavior list amended; no new top-of-file revision note — this is a minor correction).

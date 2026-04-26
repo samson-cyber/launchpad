@@ -696,7 +696,11 @@
     cta.addEventListener("click", function (e) {
       e.stopPropagation();
       var level = ProAccess.getProAccessLevel(data);
-      if (level === "active" || level === "grace") {
+      // Trialing / active / grace go straight to Pro Settings — they already have
+      // an account context, so the upgrade popover would just be a stub-laden
+      // detour. See DECISIONS.md 2026-04-26 "Trialing user CTA click bypasses
+      // popover".
+      if (level === "trialing" || level === "active" || level === "grace") {
         closeUpgradePopover();
         openProSettingsPanel();
         return;
@@ -730,14 +734,10 @@
   }
 
   function popoverCopyForState(d) {
-    var level = ProAccess.getProAccessLevel(d);
     var trialUsed = !!(d && d.pro && d.pro.trialStartedAt);
-    if (level === "trialing") {
-      var n = ProAccess.trialDaysRemaining(d);
-      var trialTitle = (n <= 0) ? "Trial ends today" :
-                       (n === 1 ? "Trial · 1 day left" : "Trial · " + n + " days left");
-      return { title: trialTitle, primary: "Manage subscription" };
-    }
+    // Trialing / active / grace levels never reach the popover (CTA opens Pro
+    // Settings directly per the 2026-04-26 routing decision), so only the
+    // free / expired branches need copy here.
     if (trialUsed) return { title: "Upgrade to LaunchPad Pro", primary: "Upgrade" };
     return { title: "Try LaunchPad Pro free for 7 days", primary: "Start free trial" };
   }
