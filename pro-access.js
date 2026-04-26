@@ -125,6 +125,10 @@
     var elapsed = Date.now() - pro.trialStartedAt;
     var remaining = TRIAL_DURATION_MS - elapsed;
     if (remaining <= 0) return 0;
+    // Final 24 hours collapse to 0 so callers can render "Trial ends today".
+    // Past 24h, ceil rounds up so 24h+1ms reads "2 days left", matching how
+    // users count remaining days inclusively.
+    if (remaining < DAY_MS) return 0;
     return Math.ceil(remaining / DAY_MS);
   }
 

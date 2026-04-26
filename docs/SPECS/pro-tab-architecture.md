@@ -146,8 +146,10 @@ shift, driven by a CSS @keyframes (`pp-cta-pulse`) toggled by the
 `.is-pulsing` class. Honors `prefers-reduced-motion: reduce` (no animation).
 
 State E label edge cases:
-- N === 1 → singular "Trial · 1 day left"
-- N === 0 → "Trial ends today"
+- N === 1 → singular "Trial · 1 day left" (between 24h and 48h remaining)
+- N === 0 → "Trial ends today" (final 24 hours of the trial; once the
+  trial actually expires, `getProAccessLevel` demotes to free / expired
+  and the CTA flips to "Upgrade")
 - Narrow viewports (<1024px) collapse to "Trial · 5d" / "1d" / "Today"
 
 Trial countdown re-derives every 60s via a page-scope setInterval so the

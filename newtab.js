@@ -806,6 +806,9 @@
       // storage.onChanged listener will refresh CTA + sidebar Pro entry within ~1s.
       // Eagerly update visible UI so it feels instant.
       applyCtaState(data);
+      // Toast is sufficient confirmation; the popover's body is now stale
+      // (showed free-tier copy) and would re-anchor where the CTA used to be.
+      closeUpgradePopover();
     }
 
     applyBtn.addEventListener("click", applyLicenseFromPopover);
@@ -950,7 +953,10 @@
 
     if (level === "trialing") {
       var days = ProAccess.trialDaysRemaining(data);
-      html += '<p class="pro-sub-line pro-sub-meta">Trial ends in ' + days + ' day' + (days === 1 ? '' : 's') + '.</p>';
+      var trialMeta = (days <= 0)
+        ? "Trial ends today."
+        : "Trial ends in " + days + " day" + (days === 1 ? "" : "s") + ".";
+      html += '<p class="pro-sub-line pro-sub-meta">' + escapeHtml(trialMeta) + '</p>';
     } else if (level === "active" || level === "grace") {
       var lastVerified = (data.pro && data.pro.lastVerifiedAt) || 0;
       if (lastVerified) {

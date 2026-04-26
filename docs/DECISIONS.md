@@ -496,3 +496,19 @@ Spec updated: `docs/SPECS/pro-tab-architecture.md` (third revision note added at
 - Routing change is one-line in the click handler; popover construction is unchanged.
 
 Spec updated: `docs/SPECS/pro-tab-architecture.md` (Pulsing Upgrade CTA section's click-behavior list amended; no new top-of-file revision note — this is a minor correction).
+
+---
+
+## 2026-04-26 — Trial-ends-today copy displays during final 24 hours
+
+**Context:** [1.0.5] revision 1 added a "Trial ends today" branch in both the CTA pill and Pro Settings copy. Manual verification revealed it was unreachable: `trialDaysRemaining` returned 1 for everything from 24h down to 1ms remaining, and `getProAccessLevel` demoted the trial to free the moment the 7-day window closed — so the 0 branch only fired on an exact-millisecond boundary that no user would ever observe.
+
+**Outcome:** `trialDaysRemaining` returns 0 for any positive remaining time under 24 hours (instead of only at exact expiry). The "Trial ends today" copy now displays continuously during the final day of the trial, ending only when the level itself demotes to free / expired and the CTA naturally flips to "Upgrade".
+
+**Reasoning:**
+- The 0 branch existed for a UX moment that the math made impossible — pure dead code in the previous shape.
+- Inclusive day-counting matches how users think about deadlines ("the trial ends today" is true any time within the final 24 hours, not just at the stroke of midnight).
+- `Math.ceil` for >=24h still rounds up, so 24h+1ms reads "Trial · 2 days left" — preserves the "you have at least one full day plus part of another" reading.
+- Single-source-of-truth: both the CTA pill and `renderProSubscriptionSection` consume the same function, so the behavior change is consistent across surfaces.
+
+Spec updated: `docs/SPECS/pro-tab-architecture.md` (state E edge-case list clarified). No new top-of-file revision note — same minor-correction precedent as the previous trialing-routing entry.
