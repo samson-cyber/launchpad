@@ -216,6 +216,10 @@
         panel.classList.toggle("hidden", !isActive);
       }
     });
+    // Tab switch is treated as a navigation change — close any open popover and
+    // re-derive the CTA state (pulse depends on whether we're on a Pro tab).
+    closeUpgradePopover();
+    applyCtaState(data);
   }
 
   function applyTabAccessLevel(level) {
@@ -240,6 +244,7 @@
     var hasPro = isProAccessibleLevel(level);
     applyTabAccessLevel(level);
     applySidebarProEntryVisibility(hasPro);
+    applyCtaState(data);
     if ($("#pro-settings-panel") && !$("#pro-settings-panel").classList.contains("hidden")) {
       renderProSubscriptionSection();
       renderProLicenseSection();
@@ -613,9 +618,256 @@
     if (cta) {
       cta.addEventListener("click", function (e) {
         e.preventDefault();
-        showToast("Upgrade flow coming soon");
+        openUpgradePopover(cta, data);
       });
     }
+  }
+
+  // ===== Pro Upgrade CTA =====
+  //
+  // A fifth element on the right side of the tab bar pill. Its label,
+  // visual treatment, and click destination derive from the user's access
+  // level + active tab + trial-used state. Free / expired users on a Pro
+  // tab get a 2s pulse via a CSS @keyframes class (no JS animation).
+  //
+  // Click routing:
+  //   - Pro user (active / grace) -> Pro Settings panel directly.
+  //   - Everyone else -> upgrade popover anchored to the CTA pill.
+  //   The same popover opens from the [1.0.4] preview banner trial link.
+  //
+  // The trial countdown text is re-derived every 60s by a page-scope
+  // setInterval so the label updates without a reload.
+
+  var ctaCountdownTimer = null;
+  var CHECK_PRO_SVG = '<svg class="tab-cta-pro-check" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
+
+  function applyCtaState(d) {
+    var cta = $("#tab-cta");
+    if (!cta) return;
+    var labelEl = cta.querySelector(".tab-cta-label");
+    if (!labelEl) return;
+
+    var level = (typeof ProAccess !== "undefined" && d) ? ProAccess.getProAccessLevel(d) : "free";
+    var trialUsed = !!(d && d.pro && d.pro.trialStartedAt);
+    var onProTab = PRO_TAB_IDS.indexOf(activeTab) !== -1;
+
+    cta.classList.remove("hidden", "is-pulsing", "tab-cta-trial", "tab-cta-pro");
+
+    var labelHtml, ariaLabel;
+
+    if (level === "active" || level === "grace") {
+      // State F — Pro badge
+      cta.classList.add("tab-cta-pro");
+      labelHtml = CHECK_PRO_SVG + '<span>Pro</span>';
+      ariaLabel = "Open Pro Settings";
+    } else if (level === "trialing") {
+      // State E — trial countdown
+      cta.classList.add("tab-cta-trial");
+      var n = ProAccess.trialDaysRemaining(d);
+      var fullText, shortText;
+      if (n <= 0) {
+        fullText = "Trial ends today";
+        shortText = "Today";
+      } else if (n === 1) {
+        fullText = "Trial · 1 day left";
+        shortText = "1d";
+      } else {
+        fullText = "Trial · " + n + " days left";
+        shortText = n + "d";
+      }
+      labelHtml = '<span class="tab-cta-trial-text-full">' + fullText + '</span>' +
+                  '<span class="tab-cta-trial-text-short">' + shortText + '</span>';
+      ariaLabel = fullText;
+    } else {
+      // States A-D — free or expired upgrade CTA
+      var ctaText = trialUsed ? "Upgrade" : "Start free trial";
+      labelHtml = '<span>' + ctaText + '</span>';
+      ariaLabel = ctaText;
+      if (onProTab) cta.classList.add("is-pulsing");
+    }
+
+    labelEl.innerHTML = labelHtml;
+    cta.setAttribute("aria-label", ariaLabel);
+  }
+
+  function bindUpgradeCta() {
+    var cta = $("#tab-cta");
+    if (!cta) return;
+    cta.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var level = ProAccess.getProAccessLevel(data);
+      if (level === "active" || level === "grace") {
+        closeUpgradePopover();
+        openProSettingsPanel();
+        return;
+      }
+      if (isUpgradePopoverOpen()) {
+        closeUpgradePopover();
+      } else {
+        openUpgradePopover(cta, data);
+      }
+    });
+  }
+
+  function startCtaCountdown() {
+    if (ctaCountdownTimer) {
+      clearInterval(ctaCountdownTimer);
+      ctaCountdownTimer = null;
+    }
+    ctaCountdownTimer = setInterval(function () {
+      applyCtaState(data);
+    }, 60 * 1000);
+  }
+
+  // ----- Upgrade popover -----
+
+  var upgradePopoverEl = null;
+  var upgradeEscapeHandler = null;
+  var upgradeOutsideHandler = null;
+
+  function isUpgradePopoverOpen() {
+    return !!upgradePopoverEl && document.body.contains(upgradePopoverEl);
+  }
+
+  function popoverCopyForState(d) {
+    var level = ProAccess.getProAccessLevel(d);
+    var trialUsed = !!(d && d.pro && d.pro.trialStartedAt);
+    if (level === "trialing") {
+      var n = ProAccess.trialDaysRemaining(d);
+      var trialTitle = (n <= 0) ? "Trial ends today" :
+                       (n === 1 ? "Trial · 1 day left" : "Trial · " + n + " days left");
+      return { title: trialTitle, primary: "Manage subscription" };
+    }
+    if (trialUsed) return { title: "Upgrade to LaunchPad Pro", primary: "Upgrade" };
+    return { title: "Try LaunchPad Pro free for 7 days", primary: "Start free trial" };
+  }
+
+  function openUpgradePopover(anchorEl, d) {
+    closeUpgradePopover();
+    if (!anchorEl) return;
+    var copy = popoverCopyForState(d);
+
+    var pop = document.createElement("div");
+    pop.id = "upgrade-popover";
+    pop.innerHTML =
+      '<div class="up-header">' +
+        '<div class="up-title">' + escapeHtml(copy.title) + '</div>' +
+        '<button type="button" class="up-close" aria-label="Close">&times;</button>' +
+      '</div>' +
+      '<div class="up-subhead">Workspaces, tasks, time tracking, and more.</div>' +
+      // TODO: replaced by [1.0.5.1] Dodo integration
+      '<button type="button" class="up-primary">' + escapeHtml(copy.primary) + '</button>' +
+      '<div class="up-divider"></div>' +
+      '<button type="button" class="up-license-toggle">Already have a license?</button>' +
+      '<div class="up-license-row hidden">' +
+        '<input type="text" class="up-license-input" placeholder="Enter license key" autocomplete="off" spellcheck="false">' +
+        '<button type="button" class="up-license-apply">Apply</button>' +
+      '</div>';
+
+    document.body.appendChild(pop);
+    upgradePopoverEl = pop;
+    positionUpgradePopover(anchorEl);
+
+    pop.addEventListener("click", function (e) { e.stopPropagation(); });
+
+    pop.querySelector(".up-close").addEventListener("click", closeUpgradePopover);
+
+    pop.querySelector(".up-primary").addEventListener("click", function () {
+      // TODO: replaced by [1.0.5.1] Dodo integration
+      showToast("Upgrade flow coming soon");
+    });
+
+    var toggle = pop.querySelector(".up-license-toggle");
+    var row = pop.querySelector(".up-license-row");
+    var input = pop.querySelector(".up-license-input");
+    var applyBtn = pop.querySelector(".up-license-apply");
+
+    toggle.addEventListener("click", function () {
+      row.classList.remove("hidden");
+      toggle.classList.add("hidden");
+      input.focus();
+      positionUpgradePopover(anchorEl);
+    });
+
+    async function applyLicenseFromPopover() {
+      var key = (input.value || "").trim();
+      if (!key) {
+        showToast("Enter a license key first.");
+        return;
+      }
+      var ok = ProAccess.applyLicenseKey(data, key);
+      if (!ok) {
+        showToast("License key not recognized.");
+        return;
+      }
+      await Storage.saveAll(data);
+      input.value = "";
+      showToast("License applied. Pro features now active.");
+      // storage.onChanged listener will refresh CTA + sidebar Pro entry within ~1s.
+      // Eagerly update visible UI so it feels instant.
+      applyCtaState(data);
+    }
+
+    applyBtn.addEventListener("click", applyLicenseFromPopover);
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        applyLicenseFromPopover();
+      }
+    });
+
+    upgradeEscapeHandler = function (e) {
+      if (e.key === "Escape") closeUpgradePopover();
+    };
+    document.addEventListener("keydown", upgradeEscapeHandler);
+
+    upgradeOutsideHandler = function (e) {
+      if (!upgradePopoverEl) return;
+      if (upgradePopoverEl.contains(e.target)) return;
+      // Allow re-clicking the CTA pill / banner anchor to toggle without instantly
+      // reopening; the anchor's own click handler runs after this and decides.
+      if (anchorEl && anchorEl.contains(e.target)) return;
+      closeUpgradePopover();
+    };
+    // Defer attaching outside-click so the same click that opened it doesn't immediately close it.
+    setTimeout(function () {
+      document.addEventListener("click", upgradeOutsideHandler, true);
+    }, 0);
+  }
+
+  function positionUpgradePopover(anchorEl) {
+    if (!upgradePopoverEl || !anchorEl) return;
+    var rect = anchorEl.getBoundingClientRect();
+    // Popover sits below the anchor, right-aligned to the anchor's right edge
+    // so it doesn't overflow the viewport on standard layouts.
+    var top = rect.bottom + 8;
+    var popWidth = upgradePopoverEl.offsetWidth || 320;
+    var right = window.innerWidth - rect.right;
+    var leftCandidate = rect.right - popWidth;
+    if (leftCandidate < 8) {
+      // Anchor is too close to the left edge — left-align to the anchor's left edge instead.
+      upgradePopoverEl.style.left = Math.max(8, rect.left) + "px";
+      upgradePopoverEl.style.right = "";
+    } else {
+      upgradePopoverEl.style.right = Math.max(8, right) + "px";
+      upgradePopoverEl.style.left = "";
+    }
+    upgradePopoverEl.style.top = top + "px";
+  }
+
+  function closeUpgradePopover() {
+    if (upgradeEscapeHandler) {
+      document.removeEventListener("keydown", upgradeEscapeHandler);
+      upgradeEscapeHandler = null;
+    }
+    if (upgradeOutsideHandler) {
+      document.removeEventListener("click", upgradeOutsideHandler, true);
+      upgradeOutsideHandler = null;
+    }
+    if (upgradePopoverEl && upgradePopoverEl.parentNode) {
+      upgradePopoverEl.parentNode.removeChild(upgradePopoverEl);
+    }
+    upgradePopoverEl = null;
   }
 
   // ===== Pro Settings Panel =====
@@ -767,6 +1019,7 @@
     renderProLicenseSection();
     applyTabAccessLevel("active");
     applySidebarProEntryVisibility(true);
+    applyCtaState(data);
   }
 
   async function handleLicenseClear() {
@@ -849,7 +1102,9 @@
     bindEvents();
     bindTabBar();
     bindProSettings();
+    bindUpgradeCta();
     applyAccessLevelUI();
+    startCtaCountdown();
     Bookmarks.bindEvents(function (newData) {
       data = newData;
       hideFirstRunToast();

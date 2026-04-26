@@ -8,6 +8,8 @@ Related: `workspaces-data-model.md`, `pro-value-proposition.md`, `billing-and-li
 
 > Updated 2026-04-25 ([1.0.3]): Pro Settings entry point in v1 is a sidebar item placed above the existing Settings cog, visible only to users with Pro access. The originally-specified entry points (gear icon on Pro tabs, Pro badge in top-right header) are deferred — those UIs don't exist in v1 per the tab-bar-under-logo decision and the deferred upgrade-CTA decision. Future iterations may add additional entry points. See DECISIONS.md entry "Pro Settings v1 entry point is sidebar-only, hidden for free users" for the full rationale.
 
+> Updated 2026-04-26 ([1.0.5]): Upgrade CTA placement settled on the right side of the tab bar pill (a fifth element after the four tab buttons), not a top header. Five visual states now defined (Start free trial / Upgrade / Trial · N days left / Pro badge), each with explicit copy and pulse rules. Click routes through a small upgrade popover anchored to the CTA; the popover includes an "Already have a license?" affordance that calls `ProAccess.applyLicenseKey`. The trial / checkout flow itself is stubbed in [1.0.5] (toast placeholder) — real Dodo Payments integration lands in [1.0.5.1]. See DECISIONS.md entry "Pulsing CTA placement: right side of tab bar pill" for the full rationale.
+
 ---
 
 ## What and Why
@@ -115,32 +117,75 @@ No risk of demo data leaking into the user's real state.
 
 ## Pulsing Upgrade CTA
 
-Placement TBD — decided in [1.0.5]. Visual states and behavior spec is
-unchanged from below.
+Placement: a fifth element on the right side of the tab bar pill, after
+the four tab buttons (Home / Tasks / Dashboard / Insights). Same vertical
+band as the tabs, separated by a thin vertical divider. See DECISIONS.md
+"Pulsing CTA placement: right side of tab bar pill" for the rationale and
+the alternatives that were considered.
 
 Appearance:
-- Small button, text: "Upgrade to Pro" (or "Start free trial" if user
-  hasn't started one yet)
-- Accent color fill, not outline
-- Slight drop shadow
+- Small pill, text content per state below
+- Accent gradient fill (#4a90e2 → #6fb1ff) for the upgrade states; muted
+  amber outline for the trial countdown state; transparent + accent
+  outline for the Pro badge state
+- Slight drop shadow on the upgrade-state fill; outline-only on others
 
-Pulse behavior:
-- **Free user on Home tab**: button visible but NOT pulsing. Calm,
-  non-intrusive.
-- **Free user on Pro tab (preview mode)**: button pulses. Slow breathing
-  animation (2s cycle, 8-10% scale variation, subtle opacity shift).
-  Intent: "you're exploring a Pro feature — here's the door."
-- **Pro user**: button replaced with a small checkmark icon or user's
-  status (e.g., "Pro" text badge). No upgrade prompt for paying users.
-- **Free user in trial**: button shows "Trial: 5 days left" (counts down).
-  Changes to "Upgrade" on trial end.
+Five visual states (derived from access level + trial-used + active tab):
+
+| State | Condition                                    | Label                  | Pulse | Visual         |
+|-------|----------------------------------------------|------------------------|-------|----------------|
+| A     | free/expired, no trial used, on Home         | "Start free trial"     | No    | Accent fill    |
+| B     | free/expired, no trial used, on Pro tab      | "Start free trial"     | Yes   | Accent fill    |
+| C     | free/expired, trial used, on Home            | "Upgrade"              | No    | Accent fill    |
+| D     | free/expired, trial used, on Pro tab         | "Upgrade"              | Yes   | Accent fill    |
+| E     | trialing                                     | "Trial · N days left"  | No    | Amber outline  |
+| F     | active / grace                               | "✓ Pro"                | No    | Accent outline |
+
+Pulse animation: 2s breathing cycle, ~8% scale variation + subtle opacity
+shift, driven by a CSS @keyframes (`pp-cta-pulse`) toggled by the
+`.is-pulsing` class. Honors `prefers-reduced-motion: reduce` (no animation).
+
+State E label edge cases:
+- N === 1 → singular "Trial · 1 day left"
+- N === 0 → "Trial ends today"
+- Narrow viewports (<1024px) collapse to "Trial · 5d" / "1d" / "Today"
+
+Trial countdown re-derives every 60s via a page-scope setInterval so the
+label updates without a reload.
 
 Click behavior:
-- If not in trial and no card: starts 7-day free trial flow (Dodo checkout,
-  email capture, no card required)
-- If trial has ended: opens upgrade / subscribe flow (Dodo Payments
-  checkout)
-- If Pro user: opens Pro Settings → Subscription
+- States A–D: opens the upgrade popover anchored below the CTA, right
+  edge aligned to the CTA's right edge
+- State E: opens the upgrade popover with a "Manage subscription" primary
+  button
+- State F: opens Pro Settings panel directly (no popover)
+
+The same upgrade popover is opened by the [1.0.4] preview-banner trial
+link, anchored to the link itself.
+
+### Upgrade popover
+
+Frosted-glass panel matching Pro Settings (rgba(30,30,30,0.92) +
+backdrop-filter blur 14px). Light-wallpaper luminance overrides apply.
+Closes on X button, Escape, click outside.
+
+Contents:
+1. Header with state-specific title + close (×)
+2. Subhead: "Workspaces, tasks, time tracking, and more."
+3. Primary CTA button: matches the state's call-to-action ("Start free
+   trial" / "Upgrade" / "Manage subscription"). Click is stubbed in
+   [1.0.5] (`showToast("Upgrade flow coming soon")`); real Dodo Payments
+   integration lands in [1.0.5.1].
+4. Divider
+5. "Already have a license?" text link → expands inline to reveal an
+   `<input>` + `<button>Apply</button>` row. Apply calls
+   `ProAccess.applyLicenseKey(data, key)` + `Storage.saveAll(data)`.
+   Toast on success / failure. Storage-change listener flips the CTA to
+   the Pro badge within ~1s.
+
+This affordance is the canonical free-tier path for entering a license
+during the [1.0.5] → [1.0.5.1] gap (the Pro Settings panel itself is
+hidden from free users per [1.0.3]).
 
 ---
 

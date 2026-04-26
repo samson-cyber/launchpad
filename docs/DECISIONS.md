@@ -450,3 +450,33 @@ Spec updated: `docs/SPECS/pro-tab-architecture.md` (revision note added at top, 
 - The Workspaces / Combined analytics / Pomodoro / Achievements sections inside Pro Settings are placeholders in [1.0.3]; their corresponding feature tasks ([1.0.6], Dashboard area, [1.0.18], [1.0.23]) fill them in.
 
 Spec updated: `docs/SPECS/pro-tab-architecture.md` (second revision note added at top).
+
+---
+
+## 2026-04-26 — Pulsing CTA placement: right side of tab bar pill
+
+**Context:** The Pro tab architecture spec originally placed the pulsing upgrade CTA in a top-right header strip. That header strip was dropped in [1.0.2] (the "Tab bar lives directly under the logo, no top header strip in v1" decision), which left the CTA placement open. [1.0.5] needed to settle it. Constraints: must be persistently visible, must adapt across five states (Start free trial / Upgrade / Trial countdown / Pro badge), must be able to pulse subtly when a free user is on a Pro tab without nagging on Home.
+
+**Alternatives considered:**
+- Top-right viewport corner — independent of any other UI, maximally visible
+- Right side of the tab bar pill, as a fifth element after the four tab buttons (this decision)
+- Sidebar item placed above the existing Pro Settings entry
+- Banner-only — surface the CTA only inside the [1.0.4] preview banner on Pro tabs, no persistent global element
+
+**Outcome:** The CTA is a fifth element on the right side of the tab bar pill, separated from the four tab buttons by a thin vertical divider. Sized and styled to feel like part of the same frosted-glass band but visually distinct (accent gradient fill versus the tabs' transparent text). The pulse activates only when access level is `free` or `expired` AND the active tab is one of the three Pro tabs.
+
+**Reasoning:**
+- Symmetry with the tabs: the upgrade door belongs next to the doors it unlocks. Putting it in the same pill makes the relationship spatial, not conceptual.
+- Contextual adjacency to the gated Pro tabs: when a user clicks Tasks / Dashboard / Insights and sees Preview Mode, the CTA is right there in the same horizontal band — the eye flow from a gated tab label to the upgrade pill is a few pixels.
+- Top-right viewport corner felt nag-y and competed with Chrome's own toolbar zone; it also implied a top header strip that we've decided not to ship.
+- Sidebar placement would hide the CTA when the sidebar is collapsed, which is most of the time. The pulse would be invisible exactly when discovery matters.
+- Banner-only would skip Home entirely, which is the wrong default — a free user who never clicks a Pro tab should still see a calm static CTA.
+- The thin divider preserves the tab bar's existing visual rhythm; the gradient fill prevents the CTA from being mistaken for a fifth tab.
+
+**Implications:**
+- Trial-flow / checkout click handling is stubbed in [1.0.5] with `showToast("Upgrade flow coming soon")`. Real Dodo Payments integration lands in [1.0.5.1] (Backlog GID `1214293491924982`).
+- Apply-license affordance ("Already have a license?") in the popover gives free users a path to enter a key, which the Pro Settings panel can't provide because that panel is hidden from free users per the [1.0.3] decision.
+- Tab bar minimum width grows by the CTA's footprint (~120px at default copy); narrow viewport (<1024px) collapses the trial-countdown copy from "Trial · 5 days left" to "Trial · 5d" via CSS.
+- Trial countdown updates every 60s via a page-scope setInterval — page-scope is fine here (service worker not involved); the alarm overhead is negligible.
+
+Spec updated: `docs/SPECS/pro-tab-architecture.md` (third revision note added at top, Pulsing Upgrade CTA section rewritten).
