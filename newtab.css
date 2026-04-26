@@ -5182,6 +5182,475 @@ html.has-bg #nesting-tooltip {
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
+/* ===== Workspaces ===== */
+
+.sb-workspace-switcher {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 10px;
+  gap: 12px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  position: relative;
+  white-space: nowrap;
+  transition: background-color 0.15s;
+  flex-shrink: 0;
+}
+
+.sb-workspace-switcher:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sb-ws-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  position: relative;
+}
+
+.sb-ws-chip.is-readonly::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(20, 20, 20, 0.85);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='11' width='18' height='11' rx='2' ry='2'/><path d='M7 11V7a5 5 0 0 1 10 0v4'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 8px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.sb-ws-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sb-ws-chevron {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 150ms ease 0ms;
+}
+
+#sidebar.expanded .sb-ws-chevron,
+#sidebar.sidebar-locked .sb-ws-chevron {
+  opacity: 0.7;
+  transition-delay: 100ms;
+}
+
+.sb-ws-lock-inline {
+  flex-shrink: 0;
+  opacity: 0.7;
+  margin-left: -4px;
+}
+
+/* Workspace dropdown — anchored via JS getBoundingClientRect */
+
+#workspace-dropdown {
+  position: fixed;
+  width: 244px;
+  max-width: calc(100vw - 16px);
+  padding: 6px;
+  border-radius: 10px;
+  background: rgba(30, 30, 30, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  z-index: 250;
+}
+
+.ws-dd-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #fff;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+}
+
+.ws-dd-row:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ws-dd-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ws-dd-check {
+  flex-shrink: 0;
+  opacity: 0.85;
+  color: #6fb1ff;
+}
+
+.ws-dd-lock {
+  flex-shrink: 0;
+  opacity: 0.65;
+}
+
+.ws-dd-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 4px 6px;
+}
+
+.ws-dd-add {
+  color: #6fb1ff;
+  font-weight: 500;
+}
+
+.ws-dd-add-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px dashed rgba(111, 177, 255, 0.5);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.ws-dd-input-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px 6px 6px;
+}
+
+.ws-dd-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.ws-dd-input:focus {
+  border-color: #6fb1ff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ws-dd-create {
+  padding: 6px 12px;
+  border: 1px solid rgba(111, 177, 255, 0.5);
+  border-radius: 6px;
+  background: rgba(111, 177, 255, 0.18);
+  color: #6fb1ff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ws-dd-create:hover {
+  background: rgba(111, 177, 255, 0.28);
+}
+
+/* Pro Settings Workspaces section — full CRUD */
+
+.pro-workspace-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pro-workspace-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 13px;
+}
+
+.pws-drag-handle {
+  flex-shrink: 0;
+  width: 14px;
+  color: rgba(255, 255, 255, 0.35);
+  cursor: grab;
+  user-select: none;
+  font-size: 14px;
+  line-height: 1;
+  text-align: center;
+}
+
+.pro-workspace-row:hover .pws-drag-handle {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.pro-workspace-row.is-readonly .pws-drag-handle {
+  cursor: not-allowed;
+  color: rgba(255, 255, 255, 0.18);
+}
+
+.pws-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  position: relative;
+}
+
+.pws-chip.is-readonly::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: rgba(20, 20, 20, 0.9);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='9' height='9' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='11' width='18' height='11' rx='2' ry='2'/><path d='M7 11V7a5 5 0 0 1 10 0v4'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 7px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.pws-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.pro-workspace-row.is-readonly .pws-name {
+  cursor: default;
+}
+
+.pws-name:hover:not(.is-readonly) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.pws-name-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid #6fb1ff;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  color: #fff;
+  font: inherit;
+  outline: none;
+}
+
+.pws-delete {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  font-size: 16px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+}
+
+.pws-delete:hover {
+  color: #ff7e7e;
+  background: rgba(255, 126, 126, 0.1);
+}
+
+.pws-delete.is-disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.pws-delete.is-disabled:hover {
+  color: rgba(255, 255, 255, 0.55);
+  background: transparent;
+}
+
+.pws-add-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.pws-add-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.pws-add-input:focus {
+  border-color: #6fb1ff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.pws-section-subtitle {
+  font-size: 11px;
+  opacity: 0.6;
+  margin: 0 0 8px;
+}
+
+/* Read-only banner above the home grid */
+
+.workspace-readonly-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto 16px;
+  padding: 8px 20px;
+  min-height: 38px;
+  background: rgba(30, 30, 30, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 214, 110, 0.3);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  opacity: 0.95;
+}
+
+.workspace-readonly-banner-text {
+  opacity: 0.92;
+}
+
+.workspace-readonly-banner-cta {
+  color: #6fb1ff;
+  text-decoration: underline;
+  font-weight: 500;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: opacity 0.15s;
+}
+
+.workspace-readonly-banner-cta:hover {
+  opacity: 1;
+}
+
+/* Read-only edit gating — when active workspace is read-only, hide edit affordances */
+body.workspace-readonly #sb-add-group,
+body.workspace-readonly .add-tile,
+body.workspace-readonly .empty-group-hint {
+  display: none !important;
+}
+
+body.workspace-readonly .group-more-btn {
+  visibility: hidden;
+}
+
+/* Switch animation */
+
+#tab-home {
+  transition: opacity 150ms ease;
+}
+
+#tab-home.is-swapping {
+  opacity: 0;
+}
+
+/* Light-wallpaper luminance overrides */
+
+html.has-bg.bg-light #workspace-dropdown {
+  background: rgba(255, 255, 255, 0.95);
+  color: #222;
+  text-shadow: none;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+html.has-bg.bg-light .ws-dd-row,
+html.has-bg.bg-light .ws-dd-add {
+  color: #222;
+}
+
+html.has-bg.bg-light .ws-dd-add {
+  color: #1e6fc9;
+}
+
+html.has-bg.bg-light .ws-dd-divider {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+html.has-bg.bg-light .ws-dd-input {
+  background: rgba(0, 0, 0, 0.04);
+  color: #222;
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+html.has-bg.bg-light .pws-name,
+html.has-bg.bg-light .pws-name-input,
+html.has-bg.bg-light .pws-add-input {
+  color: #222;
+}
+
+html.has-bg.bg-light .workspace-readonly-banner {
+  background: rgba(255, 255, 255, 0.92);
+  color: #333;
+  text-shadow: none;
+  border-color: rgba(184, 134, 11, 0.4);
+}
+
 /* ===== Pro Upgrade CTA ===== */
 
 .tab-cta {

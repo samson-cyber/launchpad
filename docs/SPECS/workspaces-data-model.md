@@ -6,6 +6,8 @@ Related: `pro-value-proposition.md`, `pro-tab-architecture.md`
 
 v2 note: This spec was reframed mid-scoping-session from a fixed two-workspace (Work + Personal) design to a generic N-workspace user-managed model. See DECISIONS.md entry "Workspaces as generic user-managed containers (reframe)" for context. v1 of this file assumed Work/Personal defaults; v2 generalizes.
 
+> Updated 2026-04-26 ([1.0.6]): Workspace switcher placement is now sidebar-top (above the History entry), not the header strip — the [1.0.2] decision dropped the header strip from v1, and sidebar placement matches workspaces' role as a navigation primitive. Keyboard shortcuts (Ctrl+1..9) are dropped per the same [1.0.2] decision (Chrome reserves Ctrl+1..8 for browser tabs). The "Workspace Switcher UI" and "Managing Workspaces" sections were rewritten to reflect the implementation. Workspace deletion is hard-delete via window.confirm in v1, not a soft-delete via the trash-bin system — see the trash-bin coupling sub-section. See DECISIONS.md entry "Workspace switcher placement: sidebar top" for the placement rationale.
+
 ---
 
 ## What and Why
@@ -135,22 +137,60 @@ All existing items receive `deletedAt: null` during migration (per trash-bin.md)
 
 ## Workspace Switcher UI
 
-Location: Top-left of header strip, before the LaunchPad logo.
+Location: Sidebar top, above the existing History entry. Hidden entirely
+for free / expired users; visible for trialing / active / grace.
 
-States:
+Two visual modes mirror the sidebar's collapsed / expanded states:
 
-- **Free user:** Switcher not visible. The single workspace displays as LaunchPad's main view; the user doesn't see or need to think about the workspace concept.
-- **Pro user with 1 workspace:** Switcher visible showing workspace name + chevron. Dropdown shows current workspace + "Add workspace" entry at bottom.
-- **Pro user with 2+ workspaces:** Switcher shows active workspace name + chevron. Dropdown lists all workspaces with checkmark on active, plus "Add workspace" at bottom. Keyboard shortcuts Ctrl+1..9 jump to workspaces 1-9.
-- **Pro → free downgrade with N workspaces:** Switcher remains visible and usable. First workspace is fully editable; others are read-only with a small lock icon next to their name in the dropdown and in the header when active.
+- **Collapsed (sidebar 48px wide):** A 28×28 circular chip showing the
+  active workspace's first letter (uppercase) on a deterministic palette
+  color derived from the workspace's index in `workspaceOrder` (8-color
+  rotation).
+- **Expanded (sidebar 260px wide):** Chip + workspace name + chevron.
+
+If the active workspace has `isReadOnly === true`, a small lock badge
+overlays the chip in both modes.
+
+Click handler: locks the sidebar expanded (`sidebarLocked = true`),
+opens a frosted-glass dropdown anchored below the switcher widget via
+`getBoundingClientRect()` (position: fixed). Dropdown contents:
+
+- One row per workspace in `workspaceOrder` order: chip + name +
+  checkmark on the active row + lock badge if `isReadOnly`
+- Divider
+- "Add workspace" entry that, when clicked, replaces itself inline with
+  an input + Create button (no separate dialog)
+
+Close: click outside (capture-phase), Escape, or selection of a row.
+Closing releases the sidebar lock; mouseleave then collapses the
+sidebar via existing handlers.
+
+No keyboard shortcuts. Ctrl+1..8 conflicts with Chrome's reserved tab
+shortcuts; revisit only if user feedback requests it.
 
 Animation on switch:
-- 150ms fade-out of current grid
-- Swap `activeWorkspaceId`
-- 150ms fade-in of new grid
-- Sidebar also updates to show new workspace's groups
+- 150ms fade-out of `#tab-home` grid (CSS `is-swapping` class)
+- Swap `activeWorkspaceId`, persist via `Storage.saveAll`
+- Re-render grid + sidebar groups
+- Fade-in via `requestAnimationFrame` removing `is-swapping`
 
-Deferred: visual distinction between workspaces (per-workspace wallpaper or color tint). Data model supports it via per-workspace `settings` field if needed later; not in v1.
+Sidebar group list re-renders synchronously inside `render()`; only
+the grid fade is animated.
+
+Deferred: visual distinction between workspaces (per-workspace
+wallpaper or color tint). Data model supports it via per-workspace
+`settings` field if needed later; not in v1.
+
+### Read-only banner on the grid
+
+When `activeWorkspace.isReadOnly === true`, a thin banner renders above
+the shortcut grid: "This workspace is read-only. Upgrade to Pro to
+edit." with a trailing "Upgrade" link that opens the same upgrade
+popover from [1.0.5] anchored to the link. Edit affordances are gated:
+`#sb-add-group` and `.add-tile` placeholders hide via a body-class
+toggle (`workspace-readonly`); the shortcut context menu suppresses
+itself entirely; SortableJS instances on the grid and sidebar group
+list are constructed with `disabled: true`.
 
 ---
 
@@ -158,15 +198,28 @@ Deferred: visual distinction between workspaces (per-workspace wallpaper or colo
 
 The Workspaces section of Pro Settings lists all workspaces with these controls:
 
-- **Drag handle** — reorder via drag, updates `workspaceOrder`
-- **Inline rename** — click name, type, Enter to save
-- **Delete button** — per-workspace; shows confirmation modal "Delete [name]? Data moves to trash and auto-purges in 30 days." Respects the trash-bin system.
-- **"Add workspace" button** — at bottom of list. Opens small dialog: name input + "Create" button. Creates an empty workspace, adds to `workspaces` array, adds id to `workspaceOrder`, switches `activeWorkspaceId` to the new workspace.
+- **Drag handle** (☰) — reorder via SortableJS, updates `workspaceOrder`. Disabled cursor on read-only rows.
+- **Colored chip** — same palette + first-letter treatment as the sidebar switcher.
+- **Inline rename** — click the name span, an input replaces it, Enter or blur commits, Escape restores. Empty input restores the original name (no save).
+- **Delete button** (×) — per-row. Confirms via `window.confirm` (hard delete in v1; see trash-bin coupling below). Disabled when only one workspace remains, with a tooltip "You need at least one workspace."
+- **Add workspace row** — input + Add button at the bottom of the list, separate from the dropdown's add affordance. Both call the same `createWorkspace` internally.
 
 Edge cases:
-- User cannot delete their last remaining workspace (delete button hidden or disabled with tooltip "You need at least one workspace").
-- Deleting the active workspace switches active to the next workspace in order.
-- Read-only workspaces (downgrade state) cannot be renamed or reordered; delete is still permitted.
+- User cannot delete their last remaining workspace (delete button visibly disabled, JS guard double-checks).
+- Deleting the active workspace switches `activeWorkspaceId` to `workspaceOrder[0]`.
+- Read-only workspaces (downgrade state) cannot be renamed or reordered; delete is still permitted (so users can clean up after downgrade).
+
+### Trash-bin coupling
+
+Workspace deletion in v1 is a hard delete via `window.confirm`, not a
+soft delete via the universal trash-bin system. Reasoning: the trash-
+bin spec (`trash-bin.md`) explicitly excludes workspaces from its
+scope, and adding workspace-level soft-delete semantics (tombstoning
+30 days of bookmarks / groups / goals / tasks / tags as a single
+restorable unit) is a meaningfully larger design problem than item-
+level trash. If user feedback shows accidental workspace deletes are a
+real failure mode, revisit by either bringing workspaces under the
+trash-bin or adding a workspace-specific recovery affordance.
 
 ---
 

@@ -245,9 +245,11 @@
     applyTabAccessLevel(level);
     applySidebarProEntryVisibility(hasPro);
     applyCtaState(data);
+    applyWorkspaceSwitcherState(data);
     if ($("#pro-settings-panel") && !$("#pro-settings-panel").classList.contains("hidden")) {
       renderProSubscriptionSection();
       renderProLicenseSection();
+      renderProWorkspaceList();
     }
   }
 
@@ -873,7 +875,361 @@
     upgradePopoverEl = null;
   }
 
-  // ===== Pro Settings Panel =====
+  // ===== Workspaces =====
+  //
+  // The switcher widget at the top of the sidebar lets Pro / trialing /
+  // grace users move between workspaces. Free / expired users don't see
+  // it at all (their data lives in a single workspace). The Pro Settings
+  // panel hosts the full Add / Rename / Reorder / Delete CRUD; this
+  // section also handles read-only state rendering after a Pro -> free
+  // downgrade with multiple workspaces.
+
+  var WORKSPACE_PALETTE = [
+    "#4A90E2", "#50C878", "#E08E4A", "#A569BD",
+    "#E74C3C", "#F1C40F", "#1ABC9C", "#FF7AC6"
+  ];
+  var workspaceDropdownEl = null;
+  var workspaceDropdownEscapeHandler = null;
+  var workspaceDropdownOutsideHandler = null;
+  var workspaceSortable = null;
+
+  function workspaceColorForIndex(i) {
+    return WORKSPACE_PALETTE[((i % WORKSPACE_PALETTE.length) + WORKSPACE_PALETTE.length) % WORKSPACE_PALETTE.length];
+  }
+
+  function workspaceFirstLetter(name) {
+    var s = (name || "").trim();
+    if (!s) return "?";
+    return s.charAt(0).toUpperCase();
+  }
+
+  function workspaceIndexInOrder(d, id) {
+    if (!d || !Array.isArray(d.workspaceOrder)) return 0;
+    var idx = d.workspaceOrder.indexOf(id);
+    return idx === -1 ? 0 : idx;
+  }
+
+  function genWorkspaceId() {
+    return "ws-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  function applyWorkspaceSwitcherState(d) {
+    var btn = $("#sb-workspace-switcher");
+    if (!btn) return;
+    var level = (typeof ProAccess !== "undefined" && d) ? ProAccess.getProAccessLevel(d) : "free";
+    var visible = isProAccessibleLevel(level);
+    btn.classList.toggle("hidden", !visible);
+    if (!visible) {
+      closeWorkspaceDropdown();
+      return;
+    }
+    var ws = Storage.getActiveWorkspace(d);
+    if (!ws) return;
+    var chip = btn.querySelector(".sb-ws-chip");
+    var name = btn.querySelector(".sb-ws-name");
+    var idx = workspaceIndexInOrder(d, ws.id);
+    if (chip) {
+      chip.style.background = workspaceColorForIndex(idx);
+      chip.textContent = workspaceFirstLetter(ws.name);
+      chip.classList.toggle("is-readonly", !!ws.isReadOnly);
+    }
+    if (name) name.textContent = ws.name || ws.id;
+    btn.setAttribute("title", "Workspace: " + (ws.name || ws.id));
+  }
+
+  function bindWorkspaceSwitcher() {
+    var btn = $("#sb-workspace-switcher");
+    if (!btn) return;
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (isWorkspaceDropdownOpen()) {
+        closeWorkspaceDropdown();
+        return;
+      }
+      // Lock + expand sidebar so the dropdown anchors to a known layout.
+      sidebarLocked = true;
+      var sidebar = $("#sidebar");
+      if (sidebar) {
+        sidebar.classList.add("sidebar-locked");
+        sidebar.classList.add("expanded");
+      }
+      showSidebarPanel();
+      openWorkspaceDropdown(btn);
+    });
+  }
+
+  function isWorkspaceDropdownOpen() {
+    return !!workspaceDropdownEl && document.body.contains(workspaceDropdownEl);
+  }
+
+  function openWorkspaceDropdown(anchorEl) {
+    closeWorkspaceDropdown();
+    if (!anchorEl) return;
+    var dd = document.createElement("div");
+    dd.id = "workspace-dropdown";
+    dd.appendChild(buildWorkspaceDropdownBody(false));
+    document.body.appendChild(dd);
+    workspaceDropdownEl = dd;
+    positionWorkspaceDropdown(anchorEl);
+
+    dd.addEventListener("click", function (e) { e.stopPropagation(); });
+
+    workspaceDropdownEscapeHandler = function (e) {
+      if (e.key === "Escape") closeWorkspaceDropdown();
+    };
+    document.addEventListener("keydown", workspaceDropdownEscapeHandler);
+
+    workspaceDropdownOutsideHandler = function (e) {
+      if (!workspaceDropdownEl) return;
+      if (workspaceDropdownEl.contains(e.target)) return;
+      if (anchorEl && anchorEl.contains(e.target)) return;
+      closeWorkspaceDropdown();
+    };
+    setTimeout(function () {
+      document.addEventListener("click", workspaceDropdownOutsideHandler, true);
+    }, 0);
+  }
+
+  function buildWorkspaceDropdownBody(showAddInput) {
+    var frag = document.createDocumentFragment();
+    var order = (data && data.workspaceOrder) || [];
+    var byId = {};
+    (data && data.workspaces || []).forEach(function (w) { byId[w.id] = w; });
+
+    order.forEach(function (id, idx) {
+      var ws = byId[id];
+      if (!ws) return;
+      var row = document.createElement("button");
+      row.type = "button";
+      row.className = "ws-dd-row";
+      row.dataset.workspaceId = id;
+      var color = workspaceColorForIndex(idx);
+      var lockHtml = ws.isReadOnly
+        ? '<svg class="ws-dd-lock" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
+        : '';
+      var checkHtml = (ws.id === data.activeWorkspaceId)
+        ? '<svg class="ws-dd-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>'
+        : '';
+      row.innerHTML =
+        '<span class="sb-ws-chip' + (ws.isReadOnly ? ' is-readonly' : '') + '" style="background:' + color + '">' + escapeHtml(workspaceFirstLetter(ws.name)) + '</span>' +
+        '<span class="ws-dd-name">' + escapeHtml(ws.name || ws.id) + '</span>' +
+        lockHtml + checkHtml;
+      row.addEventListener("click", function () {
+        switchWorkspace(id);
+      });
+      frag.appendChild(row);
+    });
+
+    var divider = document.createElement("div");
+    divider.className = "ws-dd-divider";
+    frag.appendChild(divider);
+
+    if (showAddInput) {
+      var inputRow = document.createElement("div");
+      inputRow.className = "ws-dd-input-row";
+      inputRow.innerHTML =
+        '<input type="text" class="ws-dd-input" placeholder="Workspace name" autocomplete="off" spellcheck="false" maxlength="48">' +
+        '<button type="button" class="ws-dd-create">Create</button>';
+      var input = inputRow.querySelector(".ws-dd-input");
+      var createBtn = inputRow.querySelector(".ws-dd-create");
+      var submit = function () {
+        var name = (input.value || "").trim();
+        if (!name) {
+          showToast("Workspace name required");
+          input.focus();
+          return;
+        }
+        createWorkspace(name);
+      };
+      createBtn.addEventListener("click", submit);
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); submit(); }
+        if (e.key === "Escape") { e.preventDefault(); refreshWorkspaceDropdown(false); }
+      });
+      frag.appendChild(inputRow);
+      // Defer focus until after appendChild
+      setTimeout(function () { input.focus(); }, 0);
+    } else {
+      var addRow = document.createElement("button");
+      addRow.type = "button";
+      addRow.className = "ws-dd-row ws-dd-add";
+      addRow.innerHTML =
+        '<span class="ws-dd-add-glyph">+</span>' +
+        '<span class="ws-dd-name">Add workspace</span>';
+      addRow.addEventListener("click", function () {
+        refreshWorkspaceDropdown(true);
+      });
+      frag.appendChild(addRow);
+    }
+    return frag;
+  }
+
+  function refreshWorkspaceDropdown(showAddInput) {
+    if (!workspaceDropdownEl) return;
+    workspaceDropdownEl.innerHTML = "";
+    workspaceDropdownEl.appendChild(buildWorkspaceDropdownBody(!!showAddInput));
+    var anchor = $("#sb-workspace-switcher");
+    if (anchor) positionWorkspaceDropdown(anchor);
+  }
+
+  function positionWorkspaceDropdown(anchorEl) {
+    if (!workspaceDropdownEl || !anchorEl) return;
+    var rect = anchorEl.getBoundingClientRect();
+    workspaceDropdownEl.style.top = (rect.bottom + 4) + "px";
+    // Sidebar is at left, so dropdown sits aligned with the switcher's left edge.
+    workspaceDropdownEl.style.left = Math.max(8, rect.left) + "px";
+  }
+
+  function closeWorkspaceDropdown() {
+    if (workspaceDropdownEscapeHandler) {
+      document.removeEventListener("keydown", workspaceDropdownEscapeHandler);
+      workspaceDropdownEscapeHandler = null;
+    }
+    if (workspaceDropdownOutsideHandler) {
+      document.removeEventListener("click", workspaceDropdownOutsideHandler, true);
+      workspaceDropdownOutsideHandler = null;
+    }
+    if (workspaceDropdownEl && workspaceDropdownEl.parentNode) {
+      workspaceDropdownEl.parentNode.removeChild(workspaceDropdownEl);
+    }
+    workspaceDropdownEl = null;
+    // Release the sidebar lock the switcher acquired on open. Mouseleave
+    // on the sidebar will then collapse it via existing handlers.
+    sidebarLocked = false;
+    var sidebar = $("#sidebar");
+    if (sidebar) {
+      sidebar.classList.remove("sidebar-locked");
+      if (!sidebar.matches(":hover")) {
+        sidebar.classList.remove("expanded");
+        hideSidebarPanel();
+      }
+    }
+  }
+
+  async function switchWorkspace(workspaceId) {
+    if (!workspaceId || workspaceId === data.activeWorkspaceId) {
+      closeWorkspaceDropdown();
+      return;
+    }
+    var exists = (data.workspaces || []).some(function (w) { return w.id === workspaceId; });
+    if (!exists) {
+      closeWorkspaceDropdown();
+      return;
+    }
+    var grid = document.getElementById("tab-home");
+    if (grid) grid.classList.add("is-swapping");
+    closeWorkspaceDropdown();
+    setTimeout(async function () {
+      data.activeWorkspaceId = workspaceId;
+      await Storage.saveAll(data);
+      render();
+      applyWorkspaceSwitcherState(data);
+      requestAnimationFrame(function () {
+        if (grid) grid.classList.remove("is-swapping");
+      });
+    }, 150);
+  }
+
+  async function createWorkspace(name) {
+    var trimmed = (name || "").trim();
+    if (!trimmed) {
+      showToast("Workspace name required");
+      return;
+    }
+    var id = genWorkspaceId();
+    if (!Array.isArray(data.workspaces)) data.workspaces = [];
+    if (!Array.isArray(data.workspaceOrder)) data.workspaceOrder = [];
+    data.workspaces.push({
+      id: id,
+      name: trimmed,
+      createdAt: Date.now(),
+      isReadOnly: false,
+      groupOrder: ["ungrouped"],
+      groups: [{ id: "ungrouped", name: "Ungrouped", shortcuts: [], deletedAt: null }],
+      goals: [],
+      tasks: [],
+      tags: [],
+      tracking: {}
+    });
+    data.workspaceOrder.push(id);
+    data.activeWorkspaceId = id;
+    await Storage.saveAll(data);
+    render();
+    applyWorkspaceSwitcherState(data);
+    closeWorkspaceDropdown();
+    if ($("#pro-settings-panel") && !$("#pro-settings-panel").classList.contains("hidden")) {
+      renderProWorkspaceList();
+    }
+    showToast("Workspace created");
+  }
+
+  async function renameWorkspace(id, newName) {
+    var trimmed = (newName || "").trim();
+    if (!trimmed) return false;
+    var ws = (data.workspaces || []).find(function (w) { return w.id === id; });
+    if (!ws) return false;
+    if (ws.isReadOnly) return false;
+    if (ws.name === trimmed) return true;
+    ws.name = trimmed;
+    await Storage.saveAll(data);
+    applyWorkspaceSwitcherState(data);
+    return true;
+  }
+
+  async function deleteWorkspace(id) {
+    var ws = (data.workspaces || []).find(function (w) { return w.id === id; });
+    if (!ws) return;
+    if ((data.workspaces || []).length <= 1) {
+      showToast("You need at least one workspace");
+      return;
+    }
+    var ok = window.confirm("Delete workspace \"" + ws.name + "\"? This cannot be undone.");
+    if (!ok) return;
+    data.workspaces = data.workspaces.filter(function (w) { return w.id !== id; });
+    data.workspaceOrder = data.workspaceOrder.filter(function (wid) { return wid !== id; });
+    if (data.activeWorkspaceId === id) {
+      data.activeWorkspaceId = data.workspaceOrder[0];
+    }
+    await Storage.saveAll(data);
+    render();
+    applyWorkspaceSwitcherState(data);
+    renderProWorkspaceList();
+    showToast("Workspace deleted");
+  }
+
+  async function reorderWorkspaces(orderedIds) {
+    if (!Array.isArray(orderedIds)) return;
+    data.workspaceOrder = orderedIds.slice();
+    await Storage.saveAll(data);
+    applyWorkspaceSwitcherState(data);
+  }
+
+  function renderReadOnlyBanner() {
+    var existing = document.getElementById("workspace-readonly-banner");
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws || !ws.isReadOnly) return;
+    var grid = document.getElementById("shortcut-grid-area");
+    if (!grid) return;
+    var banner = document.createElement("div");
+    banner.id = "workspace-readonly-banner";
+    banner.className = "workspace-readonly-banner";
+    banner.innerHTML =
+      '<span class="workspace-readonly-banner-text">This workspace is read-only. Upgrade to Pro to edit.</span>' +
+      '<a href="#" class="workspace-readonly-banner-cta" data-readonly-cta>Upgrade</a>';
+    grid.insertBefore(banner, grid.firstChild);
+    var cta = banner.querySelector("[data-readonly-cta]");
+    if (cta) {
+      cta.addEventListener("click", function (e) {
+        e.preventDefault();
+        if (typeof openUpgradePopover === "function") {
+          openUpgradePopover(cta, data);
+        } else {
+          showToast("Upgrade flow coming soon");
+        }
+      });
+    }
+  }
 
   var DAY_MS_LOCAL = 24 * 60 * 60 * 1000;
 
@@ -992,10 +1348,173 @@
   function renderProWorkspaceList() {
     var host = $("#pro-workspace-list");
     if (!host) return;
+    if (workspaceSortable) { workspaceSortable.destroy(); workspaceSortable = null; }
+
     var workspaces = (data && data.workspaces) || [];
-    host.innerHTML = workspaces.map(function (ws) {
-      return '<li>' + escapeHtml(ws.name || ws.id) + '</li>';
-    }).join("");
+    var order = (data && data.workspaceOrder) || workspaces.map(function (w) { return w.id; });
+    var byId = {};
+    workspaces.forEach(function (w) { byId[w.id] = w; });
+
+    var rows = order
+      .map(function (id) { return byId[id]; })
+      .filter(Boolean)
+      .map(function (ws) {
+        var idx = workspaceIndexInOrder(data, ws.id);
+        var color = workspaceColorForIndex(idx);
+        var isLast = workspaces.length === 1;
+        var deleteCls = "pws-delete" + (isLast ? " is-disabled" : "");
+        var deleteTitle = isLast ? "You need at least one workspace." : "Delete workspace";
+        var roCls = ws.isReadOnly ? " is-readonly" : "";
+        return '<li class="pro-workspace-row' + roCls + '" data-workspace-id="' + escapeHtml(ws.id) + '">' +
+          '<span class="pws-drag-handle" title="Drag to reorder">☰</span>' +
+          '<span class="pws-chip' + (ws.isReadOnly ? ' is-readonly' : '') + '" style="background:' + color + '">' + escapeHtml(workspaceFirstLetter(ws.name)) + '</span>' +
+          '<span class="pws-name' + roCls + '">' + escapeHtml(ws.name || ws.id) + '</span>' +
+          '<button type="button" class="' + deleteCls + '" title="' + escapeHtml(deleteTitle) + '" aria-label="Delete workspace">×</button>' +
+        '</li>';
+      })
+      .join("");
+    host.innerHTML = rows;
+
+    // Inline rename
+    host.querySelectorAll(".pws-name").forEach(function (nameEl) {
+      nameEl.addEventListener("click", function () {
+        if (nameEl.classList.contains("is-readonly")) return;
+        startWorkspaceRename(nameEl);
+      });
+    });
+
+    // Delete
+    host.querySelectorAll(".pws-delete").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (btn.classList.contains("is-disabled")) {
+          showToast("You need at least one workspace");
+          return;
+        }
+        var row = btn.closest(".pro-workspace-row");
+        if (!row) return;
+        deleteWorkspace(row.dataset.workspaceId);
+      });
+    });
+
+    // Drag-to-reorder
+    if (typeof Sortable !== "undefined") {
+      workspaceSortable = new Sortable(host, {
+        animation: 200,
+        handle: ".pws-drag-handle",
+        ghostClass: "sortable-ghost",
+        chosenClass: "sortable-chosen",
+        dragClass: "sortable-drag",
+        filter: ".pro-workspace-row.is-readonly .pws-drag-handle",
+        onEnd: async function () {
+          var ids = [].slice.call(host.querySelectorAll(".pro-workspace-row")).map(function (li) {
+            return li.dataset.workspaceId;
+          });
+          await reorderWorkspaces(ids);
+        }
+      });
+    }
+
+    var addBtnRow = $("#pro-workspace-add-row");
+    if (!addBtnRow) {
+      var section = host.parentNode;
+      addBtnRow = document.createElement("div");
+      addBtnRow.id = "pro-workspace-add-row";
+      addBtnRow.className = "settings-row pws-add-row";
+      addBtnRow.innerHTML =
+        '<input type="text" id="pro-workspace-add-input" class="pws-add-input" placeholder="New workspace name" autocomplete="off" spellcheck="false" maxlength="48">' +
+        '<button type="button" id="pro-workspace-add-btn" class="settings-btn">Add workspace</button>';
+      // Insert directly after the workspace list
+      if (host.nextSibling) {
+        section.insertBefore(addBtnRow, host.nextSibling);
+      } else {
+        section.appendChild(addBtnRow);
+      }
+      var input = addBtnRow.querySelector("#pro-workspace-add-input");
+      var btn = addBtnRow.querySelector("#pro-workspace-add-btn");
+      var submit = function () {
+        var name = (input.value || "").trim();
+        if (!name) {
+          showToast("Workspace name required");
+          input.focus();
+          return;
+        }
+        input.value = "";
+        createWorkspace(name);
+      };
+      btn.addEventListener("click", submit);
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); submit(); }
+      });
+    }
+
+    // Drop the [1.0.3] "Coming in v1.0.6" subtitle now that this section is live.
+    var subtitle = host.parentNode && host.parentNode.querySelector(".pro-section-subtitle");
+    if (subtitle) {
+      subtitle.textContent = workspaces.length + " workspace" + (workspaces.length === 1 ? "" : "s");
+    }
+
+    // Drop the placeholder "Add workspace" button from [1.0.3] (it carries
+    // the "Coming in v1.0.6" tooltip and is wired to nothing).
+    var legacyBtn = host.parentNode && host.parentNode.querySelector(".settings-row .settings-btn[disabled]");
+    if (legacyBtn && legacyBtn.parentNode) {
+      var parentRow = legacyBtn.parentNode;
+      if (parentRow.classList.contains("settings-row") && !parentRow.id) {
+        parentRow.parentNode.removeChild(parentRow);
+      }
+    }
+  }
+
+  function startWorkspaceRename(nameEl) {
+    var row = nameEl.closest(".pro-workspace-row");
+    if (!row) return;
+    var id = row.dataset.workspaceId;
+    var current = nameEl.textContent;
+    var input = document.createElement("input");
+    input.type = "text";
+    input.className = "pws-name-input";
+    input.value = current;
+    input.maxLength = 48;
+    nameEl.replaceWith(input);
+    input.focus();
+    input.select();
+
+    var done = false;
+    var commit = async function () {
+      if (done) return;
+      done = true;
+      var newName = (input.value || "").trim();
+      if (!newName) {
+        // Restore original
+        var span = document.createElement("span");
+        span.className = "pws-name";
+        span.textContent = current;
+        span.addEventListener("click", function () { startWorkspaceRename(span); });
+        input.replaceWith(span);
+        return;
+      }
+      var ok = await renameWorkspace(id, newName);
+      var span2 = document.createElement("span");
+      span2.className = "pws-name";
+      span2.textContent = ok ? newName : current;
+      span2.addEventListener("click", function () { startWorkspaceRename(span2); });
+      input.replaceWith(span2);
+    };
+    var cancel = function () {
+      if (done) return;
+      done = true;
+      var span = document.createElement("span");
+      span.className = "pws-name";
+      span.textContent = current;
+      span.addEventListener("click", function () { startWorkspaceRename(span); });
+      input.replaceWith(span);
+    };
+
+    input.addEventListener("blur", commit);
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); commit(); }
+      if (e.key === "Escape") { e.preventDefault(); cancel(); }
+    });
   }
 
   function renderProAnalyticsToggle() {
@@ -1109,6 +1628,7 @@
     bindTabBar();
     bindProSettings();
     bindUpgradeCta();
+    bindWorkspaceSwitcher();
     applyAccessLevelUI();
     startCtaCountdown();
     Bookmarks.bindEvents(function (newData) {
@@ -2427,6 +2947,7 @@
     var groupMap = {};
     groups.forEach(function (g) { groupMap[g.id] = g; });
     var singleGroup = groupOrder.length <= 1;
+    document.body.classList.toggle("workspace-readonly", !!(ws && ws.isReadOnly));
     container.innerHTML = groupOrder
       .map(function (id) { return groupMap[id]; })
       .filter(Boolean)
@@ -2438,6 +2959,7 @@
     initSidebarSortable();
     initSidebarGroupObserver();
     checkNestingTooltip();
+    renderReadOnlyBanner();
   }
 
   function groupHTML(group, singleGroup) {
@@ -2630,8 +3152,11 @@
     if (sidebarSortable) { sidebarSortable.destroy(); sidebarSortable = null; }
     var list = $("#sb-group-list");
     if (!list || typeof Sortable === "undefined") return;
+    var ws = Storage.getActiveWorkspace(data);
+    var readOnly = !!(ws && ws.isReadOnly);
     sidebarSortable = new Sortable(list, {
       animation: 150,
+      disabled: readOnly,
       draggable: ".sb-group-wrapper",
       ghostClass: "sb-group-ghost",
       handle: ".sidebar-drag-handle",
@@ -4402,6 +4927,12 @@
   // ===== Context Menu =====
 
   function showMenu(shortcutId, groupId, anchor) {
+    var ws = Storage.getActiveWorkspace(data);
+    if (ws && ws.isReadOnly) {
+      // Read-only workspaces suppress the edit menu entirely.
+      hideMenu();
+      return;
+    }
     hideMenu();
     activeMenu = { shortcutId: shortcutId, groupId: groupId };
     var menu = $("#shortcut-menu");
@@ -4537,6 +5068,11 @@
   // ===== Group Operations =====
 
   async function addGroup() {
+    var ws = Storage.getActiveWorkspace(data);
+    if (ws && ws.isReadOnly) {
+      showToast("This workspace is read-only.");
+      return;
+    }
     var name = prompt("Group name:");
     if (!name || !name.trim()) return;
     await Storage.addGroup(name.trim());
@@ -4762,11 +5298,14 @@
       console.warn("[LaunchPad] SortableJS not loaded — drag-and-drop disabled");
       return;
     }
+    var ws = Storage.getActiveWorkspace(data);
+    var readOnly = !!(ws && ws.isReadOnly);
 
     $$(".shortcuts-grid").forEach(function (grid) {
       var s = new Sortable(grid, {
         group: "shortcuts",
         animation: 200,
+        disabled: readOnly,
         draggable: ".shortcut",
         ghostClass: "sortable-ghost",
         chosenClass: "sortable-chosen",

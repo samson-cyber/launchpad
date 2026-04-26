@@ -512,3 +512,31 @@ Spec updated: `docs/SPECS/pro-tab-architecture.md` (Pulsing Upgrade CTA section'
 - Single-source-of-truth: both the CTA pill and `renderProSubscriptionSection` consume the same function, so the behavior change is consistent across surfaces.
 
 Spec updated: `docs/SPECS/pro-tab-architecture.md` (state E edge-case list clarified). No new top-of-file revision note — same minor-correction precedent as the previous trialing-routing entry.
+
+---
+
+## 2026-04-26 — Workspace switcher placement: sidebar top
+
+**Context:** The original `workspaces-data-model.md` v1 placed the workspace switcher "top-left of header strip, before the LaunchPad logo." That placement is no longer viable: the [1.0.2] decision dropped the top header strip from v1 entirely. [1.0.6] needed to settle the actual placement before implementation. Constraints: must be visible to Pro users only, must show active workspace identity at a glance, must not crowd the existing free-tier UI for free users (who never see it).
+
+**Alternatives considered:**
+- Sidebar top, above the History entry (this decision)
+- Right side of the tab bar pill, far-left counterpart to the [1.0.5] upgrade CTA
+- Its own row between the LaunchPad logo and the tab bar
+- Top-left viewport float, independent of any other UI
+
+**Outcome:** The switcher lives at the top of the sidebar, above the existing History entry. Two visual modes mirror the sidebar's collapsed (28×28 chip) and expanded (chip + name + chevron) states. Hidden via the existing `.hidden` class for free / expired users; visible for trialing / active / grace. Click locks the sidebar expanded and opens a frosted-glass dropdown anchored via `getBoundingClientRect`.
+
+**Reasoning:**
+- Workspaces are a navigation primitive (which set of bookmarks / groups / goals / tasks am I in?). The sidebar is LaunchPad's navigation surface. They belong together.
+- The sidebar already handles the collapsed / expanded real-estate constraint via the existing hover + lock pattern. Reusing it for the switcher means no new UI primitive — chip in collapsed mode, full row in expanded mode, same as every other sidebar entry.
+- Tab bar pill placement would crowd the [1.0.5] upgrade CTA on the right and visually compete with the four tab buttons; it would also be invisible to free users who don't see the switcher, leaving an asymmetric pill.
+- Own-row placement would push the search bar and grid further down the viewport for Pro users, regressing the layout.
+- Top-left viewport float would float over the sidebar and create overlapping z-index concerns.
+
+**Implications:**
+- No keyboard shortcuts in v1 (Ctrl+1..8 conflict with Chrome's reserved tab shortcuts). Revisit only on user demand.
+- The dropdown reuses the `getBoundingClientRect` + `position: fixed` anchoring pattern from the [1.0.5] upgrade popover and the [1.0.4] preview banner — third use of the same mechanic, suggests a future shared helper if a fourth case appears.
+- Workspace deletion is hard-delete via `window.confirm` in v1; the trash-bin spec explicitly excludes workspaces. Spec updated with a "Trash-bin coupling" sub-section documenting the tension and the revisit trigger.
+
+Spec updated: `docs/SPECS/workspaces-data-model.md` (top-of-file revision note added; "Workspace Switcher UI" and "Managing Workspaces" sections rewritten; new "Read-only banner on the grid" and "Trash-bin coupling" sub-sections).
