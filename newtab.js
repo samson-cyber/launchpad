@@ -119,7 +119,7 @@
     var ws = Storage.getActiveWorkspace(data);
     if (!ws) return;
     var changed = false;
-    ws.groups.forEach(function (g) {
+    (ws.groups || []).forEach(function (g) {
       g.shortcuts.forEach(function (s) {
         if (!s.url) return;
         if (s.favicon && s.favicon.indexOf("data:") === 0) return;
@@ -1611,7 +1611,7 @@
     var cleaned = false;
     var initWs = Storage.getActiveWorkspace(data);
     if (initWs) {
-      initWs.groups.forEach(function (g) {
+      (initWs.groups || []).forEach(function (g) {
         g.shortcuts.forEach(function (s) {
           if (s.variants && s.variants.length > 0) {
             var before = s.variants.length;
@@ -2778,7 +2778,7 @@
 
     var nestWs = Storage.getActiveWorkspace(data);
     if (!nestWs) return;
-    nestWs.groups.forEach(function (g) {
+    (nestWs.groups || []).forEach(function (g) {
       g.shortcuts.forEach(function (s) {
         if (s.id === shortcutId) { shortcut = s; shortcutGroup = g; }
         if (s.id === targetId) { target = s; targetGroup = g; }
@@ -2811,7 +2811,7 @@
 
     // Remove the dragged shortcut from ALL groups (not just shortcutGroup)
     // SortableJS may have moved the DOM element cross-group before onEnd fires
-    nestWs.groups.forEach(function (g) {
+    (nestWs.groups || []).forEach(function (g) {
       g.shortcuts = g.shortcuts.filter(function (s) { return s.id !== shortcutId; });
     });
 
@@ -3191,7 +3191,7 @@
         // Re-render main page to match new order
         var container = $("#groups");
         var groupMap = {};
-        ws.groups.forEach(function (g) { groupMap[g.id] = g; });
+        (ws.groups || []).forEach(function (g) { groupMap[g.id] = g; });
         var singleGroup = ws.groupOrder.length <= 1;
         container.innerHTML = ws.groupOrder
           .map(function (id) { return groupMap[id]; })
@@ -5637,7 +5637,7 @@
     var ws = Storage.getActiveWorkspace(data);
     if (!ws) return null;
     var found = null;
-    ws.groups.forEach(function (g) {
+    (ws.groups || []).forEach(function (g) {
       g.shortcuts.forEach(function (s) {
         if (s.id === id) found = s;
       });
@@ -5655,7 +5655,7 @@
 
     // Look for shortcuts with matching domains across groups
     var match = null;
-    ws.groups.forEach(function (g) {
+    (ws.groups || []).forEach(function (g) {
       if (match) return;
       var keyMap = {};
       g.shortcuts.forEach(function (s) {
@@ -5710,7 +5710,7 @@
     var ws = Storage.getActiveWorkspace(data);
     if (!ws) return;
     var allShortcuts = new Map();
-    ws.groups.forEach(function (g) {
+    (ws.groups || []).forEach(function (g) {
       g.shortcuts.forEach(function (s) { allShortcuts.set(s.id, s); });
     });
 
