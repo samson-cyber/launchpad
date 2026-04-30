@@ -1,4 +1,4 @@
-/* global self, window */
+/* global self, window, chrome */
 
 // ProAccess — canonical license / subscription state derivation for LaunchPad Pro.
 //
@@ -15,12 +15,18 @@
   var OFFLINE_GRACE_MS = 7 * DAY_MS;
   var REACTIVATION_OFFER_MS = 48 * 60 * 60 * 1000;
 
+  // Dev-only override: the dev license key is only honored when running an
+  // unpacked extension. update_url is undefined for unpacked installs and
+  // populated for store-packaged builds, so this evaluates to false in
+  // production and DEV_LICENSE_KEYS is empty for shipped users.
+  var IS_UNPACKED = !chrome.runtime.getManifest().update_url;
+
   // Stub Dodo Payments verification. Real verification (HTTP call to Dodo's
   // license API) lands in the Infrastructure area. Until then a single dev
   // key unlocks Pro for testing.
-  var DEV_LICENSE_KEYS = {
-    "LAUNCHPAD-DEV-LIFETIME": true
-  };
+  var DEV_LICENSE_KEYS = IS_UNPACKED
+    ? { "LAUNCHPAD-DEV-LIFETIME": true }
+    : {};
 
   function defaultProBlock() {
     return {
