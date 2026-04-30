@@ -5610,6 +5610,11 @@ html.has-bg #nesting-tooltip {
   cursor: text;
   padding: 2px 4px;
   border-radius: 4px;
+  color: var(--text-primary);
+}
+
+html.has-bg .pro-tag-name {
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .pro-tag-name:hover {
