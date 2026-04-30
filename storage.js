@@ -1301,6 +1301,7 @@ var Storage = (function () {
     getAllTasks: getAllTasks,
     getTaskById: getTaskById,
     // Tags (Pro tasks layer — see docs/SPECS/tasks-and-goals.md)
+    TAG_PALETTE: TAG_PALETTE,
     createTag: createTag,
     renameTag: renameTag,
     updateTagColor: updateTagColor,
@@ -1308,6 +1309,7 @@ var Storage = (function () {
     getActiveTags: getActiveTags,
     getAllTags: getAllTags,
     getTagById: getTagById,
-    getTagByName: getTagByName
+    getTagByName: getTagByName,
+    nextAutoTagColor: nextAutoTagColor
   };
 })();

@@ -5548,6 +5548,183 @@ html.has-bg #nesting-tooltip {
   margin: 0 0 8px;
 }
 
+/* Pro Settings — Tags section ([1.0.9.1]) */
+
+.pro-tags-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pro-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  position: relative;
+}
+
+.pro-tag-row.archived {
+  opacity: 0.5;
+  font-style: italic;
+  cursor: default;
+}
+
+.pro-tag-row.archived .pro-tag-name {
+  pointer-events: none;
+}
+
+.pro-tag-row.archived .pro-tag-color-swatch {
+  pointer-events: none;
+  cursor: default;
+}
+
+.pro-tag-row.archived .pro-tag-delete {
+  display: none;
+}
+
+.pro-tag-color-swatch {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  padding: 0;
+}
+
+.pro-tag-color-swatch:hover {
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+.pro-tag-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.pro-tag-name:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.pro-tag-name-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid #6fb1ff;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  color: #fff;
+  font: inherit;
+  outline: none;
+}
+
+.pro-tag-archived-label {
+  flex-shrink: 0;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.pro-tag-delete {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+}
+
+.pro-tag-delete:hover {
+  color: #ff7e7e;
+  background: rgba(255, 126, 126, 0.1);
+}
+
+.pro-tag-delete.confirming {
+  color: #ff7e7e;
+  background: rgba(255, 126, 126, 0.18);
+}
+
+.pro-tag-palette {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.pro-tag-palette-popover {
+  position: fixed;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  background: rgba(30, 30, 30, 0.96);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 6px;
+  z-index: 10000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.pro-tag-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  border: 2px solid transparent;
+  transition: border-color 0.12s;
+}
+
+.pro-tag-swatch.selected {
+  border-color: #fff;
+}
+
+.pro-tag-swatch:hover {
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+.pro-tag-create-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(111, 177, 255, 0.08);
+  border: 1px solid rgba(111, 177, 255, 0.3);
+  flex-wrap: wrap;
+}
+
+.pro-tag-create-form.hidden {
+  display: none;
+}
+
+.pro-tag-add-row {
+  margin-top: 6px;
+}
+
+.pro-tags-empty {
+  font-size: 12px;
+  opacity: 0.6;
+  margin: 6px 0 0;
+}
+
+.pro-tags-empty.hidden {
+  display: none;
+}
+
 /* Read-only banner above the home grid */
 
 .workspace-readonly-banner {

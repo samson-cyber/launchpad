@@ -249,6 +249,7 @@
     if ($("#pro-settings-panel") && !$("#pro-settings-panel").classList.contains("hidden")) {
       renderProSubscriptionSection();
       renderProLicenseSection();
+      renderProTagsSection();
       renderProWorkspaceList();
     }
   }
@@ -1267,6 +1268,7 @@
         }
       });
     }
+    bindProTagsControls();
   }
 
   function openProSettingsPanel() {
@@ -1291,6 +1293,7 @@
     if (versionEl) versionEl.textContent = "LaunchPad v" + chrome.runtime.getManifest().version;
     renderProSubscriptionSection();
     renderProLicenseSection();
+    renderProTagsSection();
     renderProWorkspaceList();
     renderProAnalyticsToggle();
   }
@@ -1299,6 +1302,10 @@
     var panel = $("#pro-settings-panel");
     if (!panel || panel.classList.contains("hidden")) return;
     panel.classList.add("hidden");
+
+    closeTagPalettePopover();
+    clearPendingTagDelete();
+    closeTagCreateForm();
 
     sidebarLocked = false;
     var sidebar = $("#sidebar");
@@ -1539,6 +1546,284 @@
     if (!toggle) return;
     var enabled = !!(data && data.settings && data.settings.combinedAnalyticsEnabled);
     toggle.checked = enabled;
+  }
+
+  // ===== Pro Settings: Tags section ([1.0.9.1]) =====
+  //
+  // Manual tag CRUD UI. Lists workspace tags (active + archived) sorted by
+  // createdAt asc, supports inline create / rename / recolor / soft-delete
+  // through the Storage namespace. Archived tags are read-only and dimmed
+  // — Restore lives in the future Trash view per trash-bin.md.
+  // All workspace.tags reads go through Storage.getAllTags / getTagById; no
+  // direct workspace.tags access in this section.
+
+  var pendingTagDeleteId = null;
+  var pendingTagDeleteTimer = null;
+  var openTagPalettePopover = null; // current popover element when recolor open
+  var tagPaletteOutsideHandler = null;
+
+  function bindProTagsControls() {
+    safeOn("#pro-tag-new-btn", "click", openTagCreateForm);
+    safeOn("#pro-tag-create-cancel", "click", closeTagCreateForm);
+    safeOn("#pro-tag-create-save", "click", commitTagCreate);
+    var nameInput = $("#pro-tag-create-name");
+    if (nameInput) {
+      nameInput.addEventListener("input", function () {
+        var saveBtn = $("#pro-tag-create-save");
+        if (saveBtn) saveBtn.disabled = !(nameInput.value || "").trim();
+      });
+      nameInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); commitTagCreate(); }
+        if (e.key === "Escape") { e.preventDefault(); closeTagCreateForm(); }
+      });
+    }
+  }
+
+  function renderProTagsSection() {
+    var listHost = $("#pro-tags-list");
+    if (!listHost) return;
+    closeTagPalettePopover();
+    clearPendingTagDelete();
+
+    var ws = Storage.getActiveWorkspace(data);
+    var tags = ws ? Storage.getAllTags(ws) : [];
+    tags = tags.slice().sort(function (a, b) {
+      return (a.createdAt || 0) - (b.createdAt || 0);
+    });
+
+    var subtitle = document.querySelector(".pro-tags-subtitle");
+    var activeCount = tags.filter(function (t) { return !t.deletedAt; }).length;
+    if (subtitle) {
+      if (tags.length === 0) {
+        subtitle.textContent = "";
+      } else {
+        var archivedCount = tags.length - activeCount;
+        subtitle.textContent = activeCount + " active tag" + (activeCount === 1 ? "" : "s") +
+          (archivedCount > 0 ? " · " + archivedCount + " in trash" : "");
+      }
+    }
+
+    var emptyEl = document.querySelector(".pro-tags-empty");
+    if (emptyEl) {
+      if (tags.length === 0) emptyEl.classList.remove("hidden");
+      else emptyEl.classList.add("hidden");
+    }
+
+    listHost.innerHTML = tags.map(function (tag) {
+      var archived = !!tag.deletedAt;
+      var rowCls = "pro-tag-row" + (archived ? " archived" : "");
+      var rowTitle = archived ? ' title="Restore via Trash (coming soon)."' : "";
+      return '<li class="' + rowCls + '" data-tag-id="' + escapeHtml(tag.id) + '"' + rowTitle + '>' +
+        '<button class="pro-tag-color-swatch" type="button" style="background:' + escapeHtml(tag.color) + '" aria-label="Change color"></button>' +
+        '<span class="pro-tag-name">' + escapeHtml(tag.name) + '</span>' +
+        (archived ? '<span class="pro-tag-archived-label">in trash</span>' : '') +
+        '<button class="pro-tag-delete" type="button" aria-label="Delete tag" title="Delete tag">🗑</button>' +
+      '</li>';
+    }).join("");
+
+    listHost.querySelectorAll(".pro-tag-row").forEach(function (row) {
+      if (row.classList.contains("archived")) return;
+      var tagId = row.dataset.tagId;
+      var nameEl = row.querySelector(".pro-tag-name");
+      var swatchEl = row.querySelector(".pro-tag-color-swatch");
+      var deleteEl = row.querySelector(".pro-tag-delete");
+      if (nameEl) nameEl.addEventListener("click", function () { startTagRename(nameEl, tagId); });
+      if (swatchEl) swatchEl.addEventListener("click", function (e) {
+        e.stopPropagation();
+        openTagPalette(swatchEl, tagId);
+      });
+      if (deleteEl) deleteEl.addEventListener("click", function (e) {
+        e.stopPropagation();
+        handleTagDeleteClick(deleteEl, tagId);
+      });
+    });
+  }
+
+  function tagPaletteSwatchHTML(color, selected) {
+    var cls = "pro-tag-swatch" + (selected ? " selected" : "");
+    return '<button type="button" class="' + cls + '" style="background:' + escapeHtml(color) + '" data-color="' + escapeHtml(color) + '" aria-label="Color ' + escapeHtml(color) + '"></button>';
+  }
+
+  function openTagCreateForm() {
+    var form = $("#pro-tag-create-form");
+    var addRow = document.querySelector(".pro-tag-add-row");
+    var nameInput = $("#pro-tag-create-name");
+    var paletteHost = $("#pro-tag-create-palette");
+    var saveBtn = $("#pro-tag-create-save");
+    if (!form || !nameInput || !paletteHost) return;
+
+    var ws = Storage.getActiveWorkspace(data);
+    var defaultColor = ws ? Storage.nextAutoTagColor(ws) : (Storage.TAG_PALETTE && Storage.TAG_PALETTE[0]);
+    var palette = Storage.TAG_PALETTE || [];
+    paletteHost.innerHTML = palette.map(function (c) {
+      return tagPaletteSwatchHTML(c, c === defaultColor);
+    }).join("");
+    paletteHost.dataset.selected = defaultColor;
+    paletteHost.querySelectorAll(".pro-tag-swatch").forEach(function (sw) {
+      sw.addEventListener("click", function () {
+        paletteHost.querySelectorAll(".pro-tag-swatch").forEach(function (s) { s.classList.remove("selected"); });
+        sw.classList.add("selected");
+        paletteHost.dataset.selected = sw.dataset.color;
+      });
+    });
+
+    nameInput.value = "";
+    if (saveBtn) saveBtn.disabled = true;
+    form.classList.remove("hidden");
+    if (addRow) addRow.style.display = "none";
+    setTimeout(function () { nameInput.focus(); }, 0);
+  }
+
+  function closeTagCreateForm() {
+    var form = $("#pro-tag-create-form");
+    var addRow = document.querySelector(".pro-tag-add-row");
+    if (form) form.classList.add("hidden");
+    if (addRow) addRow.style.display = "";
+  }
+
+  async function commitTagCreate() {
+    var nameInput = $("#pro-tag-create-name");
+    var paletteHost = $("#pro-tag-create-palette");
+    if (!nameInput) return;
+    var name = (nameInput.value || "").trim();
+    if (!name) return;
+    var color = (paletteHost && paletteHost.dataset.selected) || null;
+    var fields = { name: name };
+    if (color) fields.color = color;
+    var tag = await Storage.createTag(data, fields);
+    if (!tag) {
+      showToast("Could not create tag.");
+      return;
+    }
+    closeTagCreateForm();
+    renderProTagsSection();
+  }
+
+  function startTagRename(nameEl, tagId) {
+    var current = nameEl.textContent;
+    var input = document.createElement("input");
+    input.type = "text";
+    input.className = "pro-tag-name-input";
+    input.value = current;
+    input.maxLength = 48;
+    nameEl.replaceWith(input);
+    input.focus();
+    input.select();
+
+    var done = false;
+    var revert = function (text) {
+      var span = document.createElement("span");
+      span.className = "pro-tag-name";
+      span.textContent = text;
+      span.addEventListener("click", function () { startTagRename(span, tagId); });
+      input.replaceWith(span);
+    };
+    var commit = async function () {
+      if (done) return;
+      done = true;
+      var newName = (input.value || "").trim();
+      if (!newName || newName === current) {
+        revert(current);
+        return;
+      }
+      var result = await Storage.renameTag(data, tagId, newName);
+      revert(result ? newName : current);
+    };
+    var cancel = function () {
+      if (done) return;
+      done = true;
+      revert(current);
+    };
+    input.addEventListener("blur", commit);
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); commit(); }
+      if (e.key === "Escape") { e.preventDefault(); cancel(); }
+    });
+  }
+
+  function openTagPalette(anchorEl, tagId) {
+    closeTagPalettePopover();
+    var ws = Storage.getActiveWorkspace(data);
+    var tag = ws ? Storage.getTagById(ws, tagId) : null;
+    if (!tag) return;
+    var palette = Storage.TAG_PALETTE || [];
+    var pop = document.createElement("div");
+    pop.className = "pro-tag-palette-popover";
+    pop.innerHTML = palette.map(function (c) {
+      return tagPaletteSwatchHTML(c, c === tag.color);
+    }).join("");
+    var panel = $("#pro-settings-panel");
+    (panel || document.body).appendChild(pop);
+
+    var rect = anchorEl.getBoundingClientRect();
+    pop.style.left = Math.round(rect.left) + "px";
+    pop.style.top = Math.round(rect.bottom + 4) + "px";
+
+    pop.querySelectorAll(".pro-tag-swatch").forEach(function (sw) {
+      sw.addEventListener("click", async function (e) {
+        e.stopPropagation();
+        var newColor = sw.dataset.color;
+        closeTagPalettePopover();
+        if (newColor && newColor !== tag.color) {
+          await Storage.updateTagColor(data, tagId, newColor);
+          renderProTagsSection();
+        }
+      });
+    });
+
+    openTagPalettePopover = pop;
+    tagPaletteOutsideHandler = function (e) {
+      if (!pop.contains(e.target) && e.target !== anchorEl) {
+        closeTagPalettePopover();
+      }
+    };
+    setTimeout(function () {
+      document.addEventListener("click", tagPaletteOutsideHandler);
+    }, 0);
+  }
+
+  function closeTagPalettePopover() {
+    if (openTagPalettePopover && openTagPalettePopover.parentNode) {
+      openTagPalettePopover.parentNode.removeChild(openTagPalettePopover);
+    }
+    openTagPalettePopover = null;
+    if (tagPaletteOutsideHandler) {
+      document.removeEventListener("click", tagPaletteOutsideHandler);
+      tagPaletteOutsideHandler = null;
+    }
+  }
+
+  function clearPendingTagDelete() {
+    if (pendingTagDeleteTimer) {
+      clearTimeout(pendingTagDeleteTimer);
+      pendingTagDeleteTimer = null;
+    }
+    if (pendingTagDeleteId) {
+      var prev = document.querySelector('.pro-tag-row[data-tag-id="' + pendingTagDeleteId + '"] .pro-tag-delete');
+      if (prev) {
+        prev.classList.remove("confirming");
+        prev.title = "Delete tag";
+        prev.textContent = "🗑";
+      }
+      pendingTagDeleteId = null;
+    }
+  }
+
+  async function handleTagDeleteClick(btn, tagId) {
+    if (pendingTagDeleteId === tagId) {
+      // Second click — confirm.
+      clearPendingTagDelete();
+      await Storage.deleteTag(data, tagId);
+      renderProTagsSection();
+      return;
+    }
+    // First click — switch to confirm state. Auto-revert after 3s.
+    clearPendingTagDelete();
+    pendingTagDeleteId = tagId;
+    btn.classList.add("confirming");
+    btn.title = "Click again to confirm — restore from Trash within 30 days.";
+    btn.textContent = "Delete?";
+    pendingTagDeleteTimer = setTimeout(function () { clearPendingTagDelete(); }, 3000);
   }
 
   async function handleLicenseApply() {
