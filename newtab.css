@@ -6769,7 +6769,11 @@ html.has-bg.bg-light .pro-preview-banner-text {
 /* ===== [1.0.9.2] Tag pills + tag submenu + tag create popover ===== */
 
 /* Tag submenu (right-click → Add tag → list of workspace tags). Mirrors
-   #nest-submenu but lists tag entries with color swatches and toggle state. */
+   #nest-submenu but lists tag entries with color swatches and toggle state.
+   z-index 10001 sits above #sidebar-shortcut-ctx-menu (10000) and #group-menu
+   (2100) so the tag submenu remains visible when openTagSubmenu's right-edge
+   overflow check flips the panel to the LEFT of the parent menu (which would
+   otherwise hide it under the parent on narrower viewports). */
 #tag-submenu {
   position: fixed;
   width: 220px;
@@ -6778,7 +6782,7 @@ html.has-bg.bg-light .pro-preview-banner-text {
   border-radius: 8px;
   padding: 4px 0;
   box-shadow: 0 2px 8px var(--shadow-color);
-  z-index: 1100;
+  z-index: 10001;
   max-height: 300px;
   overflow-y: auto;
   font-family: inherit;
@@ -6924,7 +6928,10 @@ html.has-bg .tag-submenu-swatch {
   border-radius: 8px;
   padding: 12px;
   box-shadow: 0 4px 16px var(--shadow-color);
-  z-index: 1100;
+  /* Same reasoning as #tag-submenu: 10001 keeps this above the parent menu it
+     anchors against (#tag-submenu itself, also 10001) and the sidebar/group
+     menus underneath. */
+  z-index: 10001;
   display: flex;
   flex-direction: column;
   gap: 8px;

@@ -4323,7 +4323,13 @@
   }
 
   function hideSidebarPanel() {
-    if (sidebarLocked) return;
+    // Defensive lock check: sidebarLocked is the primary signal, but any
+    // ctx-menu-or-popover that was opened from the sidebar also relies on
+    // the panel staying visible. Including their state objects in the guard
+    // prevents the panel from collapsing during async re-render windows
+    // (e.g., toggleItemTag's `await Storage.saveAll(data)`) where the lock
+    // variable might appear out-of-sync from the open menus.
+    if (sidebarLocked || sidebarCtxState || tagSubmenuContext || tagCreateContext) return;
     var panel = $("#sidebar-panel");
     if (panel) panel.classList.remove("visible");
   }
@@ -4934,16 +4940,26 @@
         showSidebarShortcutCtxMenu(e, shortcutItem.dataset.shortcutId, listEl.dataset.groupId);
         return;
       }
-      // Group row right-click → open the same #group-menu the .sb-group-more
-      // 3-dot button opens. Anchor on the 3-dot button when present (it stays
-      // in the DOM with opacity-driven hover visibility), else fall back to
-      // the row itself for positioning.
+      // Group row right-click → open #group-menu near the cursor (NOT at the
+      // .sb-group-more 3-dot button position, which sits at the far right of
+      // the row and visually disconnects the menu from the click point).
+      // Synthesize an anchor with a 1x1 rect at the cursor coords; delegate
+      // closest() to the actual DOM element so showGroupMenu's
+      // anchor.closest("#sidebar") sidebar-detection still resolves correctly
+      // (this anchor IS inside #sidebar, so groupMenuFromSidebar=true and the
+      // sidebar lock engages as expected).
       var groupItem = e.target.closest(".sb-group-item");
       if (groupItem && groupItem.dataset.groupId) {
-        var sbMoreBtn = groupItem.querySelector(".sb-group-more");
         e.preventDefault();
         e.stopPropagation();
-        showGroupMenu(groupItem.dataset.groupId, sbMoreBtn || groupItem);
+        var cx = e.clientX, cy = e.clientY;
+        var cursorAnchor = {
+          getBoundingClientRect: function () {
+            return { left: cx, top: cy, right: cx + 1, bottom: cy + 1, width: 1, height: 1 };
+          },
+          closest: function (sel) { return groupItem.closest(sel); }
+        };
+        showGroupMenu(groupItem.dataset.groupId, cursorAnchor);
       }
     });
 
@@ -5130,9 +5146,15 @@
     });
     safeOn("#sidebar", "mouseleave", function () {
       var sidebar = $("#sidebar");
-      if (sidebar && !sidebarLocked) sidebar.classList.remove("expanded");
+      // Same defensive lock check as hideSidebarPanel: any open ctx menu /
+      // tag submenu / tag create popover keeps the sidebar expanded so the
+      // user can finish their interaction. sidebarLocked alone is enough in
+      // theory; the additional state checks guard against any window where
+      // the lock variable could be out-of-sync with the actually-open UI.
+      var keepOpen = sidebarLocked || sidebarCtxState || tagSubmenuContext || tagCreateContext;
+      if (sidebar && !keepOpen) sidebar.classList.remove("expanded");
       hideSidebarPanel();
-      if (sidebarLocked) return;
+      if (keepOpen) return;
       hideGroupMenu();
       closeRestoreDropdown();
     });
@@ -5253,17 +5275,27 @@
         showMenu(tile.dataset.id, grid.dataset.groupId, tile);
         return;
       }
-      // Group header right-click → group menu. Anchor on the 3-dot button
-      // when present (opacity-driven hover visibility leaves it in the DOM
-      // with valid bounds), else fall back to the header for positioning.
+      // Group header right-click → group menu near the cursor (NOT at the
+      // .group-more-btn 3-dot button, which sits far right of the header
+      // and visually disconnects the menu from the click). Synthesize a
+      // cursor anchor; delegate closest() to the actual header element so
+      // showGroupMenu's anchor.closest("#sidebar") sidebar-detection still
+      // resolves correctly (header is in main grid → returns null →
+      // groupMenuFromSidebar=false → no sidebar lock).
       var groupHeader = e.target.closest(".group-header");
       if (groupHeader) {
         var groupSection = groupHeader.closest(".group");
         if (!groupSection || !groupSection.dataset.groupId) return;
-        var moreBtn = groupHeader.querySelector(".group-more-btn");
         e.preventDefault();
         e.stopPropagation();
-        showGroupMenu(groupSection.dataset.groupId, moreBtn || groupHeader);
+        var cx = e.clientX, cy = e.clientY;
+        var cursorAnchor = {
+          getBoundingClientRect: function () {
+            return { left: cx, top: cy, right: cx + 1, bottom: cy + 1, width: 1, height: 1 };
+          },
+          closest: function (sel) { return groupHeader.closest(sel); }
+        };
+        showGroupMenu(groupSection.dataset.groupId, cursorAnchor);
       }
     });
 
