@@ -166,6 +166,24 @@ var Storage = (function () {
     shortcut.id = shortcut.id || genId();
     shortcut.addedAt = shortcut.addedAt || Date.now();
     if (!Object.prototype.hasOwnProperty.call(shortcut, "deletedAt")) shortcut.deletedAt = null;
+
+    // [1.0.9.2] Q3/Q5: group-inherit hook. New bookmark added to a tagged group
+    // inherits the group's tagIds, merged with any tagIds the bookmark already
+    // carries (union, dedup, preserving order: bookmark's own first, then
+    // group's). Add-time only — drag-between-groups (handled in
+    // syncShortcutsFromDOM) intentionally does not trigger inheritance, and
+    // tagging a group later does not retroactively apply to existing
+    // bookmarks. See storage.js shortcut-tag inheritance reasoning.
+    var groupTagIds = ensureTagIdsArray(group);
+    if (groupTagIds.length) {
+      var existingTagIds = ensureTagIdsArray(shortcut);
+      var merged = existingTagIds.slice();
+      groupTagIds.forEach(function (tid) {
+        if (merged.indexOf(tid) === -1) merged.push(tid);
+      });
+      shortcut.tagIds = merged;
+    }
+
     group.shortcuts.push(shortcut);
     await saveAll(data);
     console.log("[LaunchPad] Shortcut added to", groupId, ":", shortcut.title || shortcut.url);
@@ -352,6 +370,17 @@ var Storage = (function () {
     if (!workspace) return null;
     if (!Array.isArray(workspace.taskTemplates)) workspace.taskTemplates = [];
     return workspace.taskTemplates;
+  }
+
+  // Item-level helper: bookmarks (shortcuts) and groups both carry a tagIds
+  // array under the [1.0.9.2] tag-on-item model. Distinct from the
+  // workspace-level helpers above — this normalizes a single record, not a
+  // workspace-scoped collection. Lazy-init so legacy records (pre-[1.0.9.2])
+  // that never had tagIds set continue to work without a migration sweep.
+  function ensureTagIdsArray(item) {
+    if (!item) return null;
+    if (!Array.isArray(item.tagIds)) item.tagIds = [];
+    return item.tagIds;
   }
 
   function ensureGoalsArray(workspace) {
@@ -1324,6 +1353,8 @@ var Storage = (function () {
     ensureWorkspaceOrderArray: ensureWorkspaceOrderArray,
     ensureRecurringTemplatesArray: ensureRecurringTemplatesArray,
     ensureGoalTemplatesArray: ensureGoalTemplatesArray,
+    // Item-level helper (bookmarks + groups, [1.0.9.2])
+    ensureTagIdsArray: ensureTagIdsArray,
     // Goals (Pro tasks layer — see docs/SPECS/tasks-and-goals.md)
     createGoal: createGoal,
     renameGoal: renameGoal,

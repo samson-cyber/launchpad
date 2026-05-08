@@ -6766,3 +6766,338 @@ html.has-bg.bg-light .pro-preview-banner-text {
   display: none !important;
 }
 
+/* ===== [1.0.9.2] Tag pills + tag submenu + tag create popover ===== */
+
+/* Tag submenu (right-click → Add tag → list of workspace tags). Mirrors
+   #nest-submenu but lists tag entries with color swatches and toggle state. */
+#tag-submenu {
+  position: fixed;
+  width: 220px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 0;
+  box-shadow: 0 2px 8px var(--shadow-color);
+  z-index: 1100;
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: inherit;
+}
+
+.tag-submenu-header {
+  padding: 6px 12px;
+  font-size: 11px;
+  color: var(--text-hint);
+  font-weight: 500;
+}
+
+.tag-submenu-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.tag-submenu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.tag-submenu-item:hover {
+  background: var(--bg-hover);
+}
+
+.tag-submenu-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.tag-submenu-item .tag-submenu-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-submenu-check {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--text-hint);
+  visibility: hidden;
+}
+
+.tag-submenu-item.attached .tag-submenu-check {
+  visibility: visible;
+  color: var(--text-primary);
+}
+
+.tag-submenu-empty {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-hint);
+  font-style: italic;
+}
+
+.tag-submenu-separator {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+.tag-submenu-create {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.tag-submenu-create:hover {
+  background: var(--bg-hover);
+}
+
+html.has-bg #tag-submenu {
+  background: rgba(30, 30, 30, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+html.has-bg .tag-submenu-header {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+html.has-bg .tag-submenu-item,
+html.has-bg .tag-submenu-create {
+  color: #fff;
+}
+
+html.has-bg .tag-submenu-item:hover,
+html.has-bg .tag-submenu-create:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+html.has-bg .tag-submenu-separator {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+html.has-bg .tag-submenu-check {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+html.has-bg .tag-submenu-item.attached .tag-submenu-check {
+  color: #fff;
+}
+
+html.has-bg .tag-submenu-swatch {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Tag create popover (invoked from tag submenu's "Create new tag..."). Pattern
+   mirrors the existing #pro-tag-create-form scaffolding but as a floating
+   popover anchored to the right-click flow rather than embedded in Pro
+   Settings. */
+#tag-create-popover {
+  position: fixed;
+  width: 260px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 4px 16px var(--shadow-color);
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: inherit;
+}
+
+.tag-create-title {
+  font-size: 12px;
+  color: var(--text-hint);
+  font-weight: 500;
+}
+
+.tag-create-palette {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+}
+
+.tag-create-input {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.tag-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.tag-create-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.tag-create-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.tag-create-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tag-create-btn-primary {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+
+.tag-create-btn-primary:hover:not(:disabled) {
+  background: var(--accent);
+  filter: brightness(1.1);
+}
+
+html.has-bg #tag-create-popover {
+  background: rgba(30, 30, 30, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+html.has-bg .tag-create-title {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+html.has-bg .tag-create-input {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+html.has-bg .tag-create-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+html.has-bg .tag-create-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Tag pills — three sizes for three surfaces. All share base. Archived
+   variant dims to opacity 0.4 to signal soft-deleted-but-still-attached. */
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  background: var(--tag-pill-color, #6fb1ff);
+  color: #fff;
+  font-weight: 500;
+  font-family: inherit;
+  vertical-align: middle;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tag-pill.archived {
+  opacity: 0.4;
+}
+
+/* Bookmark pills: small dots overlaid on the icon. Color-only, no text. */
+.shortcut-tag-pills {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 44px;
+  pointer-events: none;
+}
+
+.shortcut-tag-pills .tag-pill {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--bg);
+  padding: 0;
+  font-size: 0;
+}
+
+/* Group-header pills (main grid): larger, name-bearing chips next to the
+   group name. */
+.group-tag-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.group-tag-pills .tag-pill {
+  height: 18px;
+  padding: 0 8px;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+/* Sidebar group pills: small color dots next to the group name. */
+.sb-group-tag-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 150ms ease 0ms;
+}
+
+#sidebar.expanded .sb-group-tag-pills,
+#sidebar.sidebar-locked .sb-group-tag-pills {
+  opacity: 1;
+  transition-delay: 100ms;
+}
+
+.sb-group-tag-pills .tag-pill {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  font-size: 0;
+}
+

@@ -3056,6 +3056,243 @@
     if (panel) panel.classList.add("hidden");
   }
 
+  // ===== [1.0.9.2] Tag attach submenu + inline create popover =====
+  //
+  // The submenu is shared between the bookmark right-click menu, the group
+  // right-click menu, and the sidebar shortcut right-click menu. A single
+  // `tagSubmenuContext` captures which item the user opened it on; the same
+  // submenu DOM is repopulated each time. The "Create new tag..." entry at
+  // the bottom opens an inline popover that creates + attaches in one step.
+
+  var tagSubmenuContext = null;
+  var tagSubmenuFromSidebar = false;
+  var tagCreateContext = null;
+  var tagCreatePopoverSelectedColor = null;
+
+  function findItemByContext(ctx) {
+    if (!ctx) return null;
+    if (ctx.type === "group") {
+      return findGroup(ctx.groupId) || null;
+    }
+    if (ctx.type === "shortcut") {
+      var group = findGroup(ctx.groupId);
+      if (!group) return null;
+      return group.shortcuts.find(function (s) { return s.id === ctx.shortcutId; }) || null;
+    }
+    return null;
+  }
+
+  function openTagSubmenu(anchorEl, context) {
+    closeTagSubmenu();
+    if (!context) return;
+    var item = findItemByContext(context);
+    if (!item) return;
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return;
+
+    tagSubmenuContext = context;
+    tagSubmenuFromSidebar = !!context.fromSidebar;
+    if (tagSubmenuFromSidebar) {
+      sidebarLocked = true;
+      var sidebar = $("#sidebar");
+      if (sidebar) sidebar.classList.add("sidebar-locked", "expanded");
+      showSidebarPanel();
+    }
+
+    var panel = $("#tag-submenu");
+    if (!panel) return;
+    var listEl = panel.querySelector(".tag-submenu-list");
+    if (!listEl) return;
+
+    var attachedIds = Storage.ensureTagIdsArray(item);
+    var attachedSet = {};
+    attachedIds.forEach(function (tid) { attachedSet[tid] = true; });
+
+    var activeTags = Storage.getActiveTags(ws);
+    var headerEl = panel.querySelector(".tag-submenu-header");
+    var separatorEl = panel.querySelector(".tag-submenu-separator");
+
+    if (!activeTags.length) {
+      // Per [1.0.9.2] edge case: empty tag list shows only the "Create new tag..."
+      // entry, no list / header / separator.
+      listEl.innerHTML = "";
+      if (headerEl) headerEl.classList.add("hidden");
+      if (separatorEl) separatorEl.classList.add("hidden");
+    } else {
+      if (headerEl) headerEl.classList.remove("hidden");
+      if (separatorEl) separatorEl.classList.remove("hidden");
+      listEl.innerHTML = activeTags.map(function (tag) {
+        var color = (typeof tag.color === "string" && /^#[0-9a-fA-F]{6}$/.test(tag.color)) ? tag.color : "#6fb1ff";
+        var attached = !!attachedSet[tag.id];
+        return '<button class="tag-submenu-item' + (attached ? " attached" : "") + '" data-tag-id="' + esc(tag.id) + '" type="button">' +
+          '<span class="tag-submenu-swatch" style="background:' + color + '"></span>' +
+          '<span class="tag-submenu-name">' + esc(tag.name) + '</span>' +
+          '<svg class="tag-submenu-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
+        '</button>';
+      }).join("");
+    }
+
+    var rect = anchorEl.getBoundingClientRect();
+    panel.classList.remove("hidden");
+    panel.style.top = rect.top + "px";
+    panel.style.left = (rect.right + 4) + "px";
+
+    var panelRect = panel.getBoundingClientRect();
+    if (panelRect.right > window.innerWidth - 8) {
+      panel.style.left = (rect.left - panelRect.width - 4) + "px";
+    }
+    if (panelRect.bottom > window.innerHeight - 8) {
+      panel.style.top = Math.max(8, window.innerHeight - panelRect.height - 8) + "px";
+    }
+  }
+
+  function closeTagSubmenu() {
+    var panel = $("#tag-submenu");
+    if (!panel || panel.classList.contains("hidden")) {
+      tagSubmenuContext = null;
+      tagSubmenuFromSidebar = false;
+      return;
+    }
+    panel.classList.add("hidden");
+    tagSubmenuContext = null;
+    if (tagSubmenuFromSidebar) {
+      tagSubmenuFromSidebar = false;
+      sidebarLocked = false;
+      var sidebar = $("#sidebar");
+      if (sidebar) {
+        sidebar.classList.remove("sidebar-locked");
+        if (!sidebar.matches(":hover")) {
+          sidebar.classList.remove("expanded");
+          hideSidebarPanel();
+        }
+      }
+    }
+  }
+
+  async function toggleItemTag(context, tagId) {
+    var item = findItemByContext(context);
+    if (!item || !tagId) return;
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return;
+    var liveTag = Storage.getTagById(ws, tagId);
+    if (!liveTag) return; // tag was deleted between submenu open and click
+    var tagIds = Storage.ensureTagIdsArray(item);
+    var idx = tagIds.indexOf(tagId);
+    if (idx === -1) {
+      tagIds.push(tagId);
+    } else {
+      tagIds.splice(idx, 1);
+    }
+    await Storage.saveAll(data);
+
+    // Update submenu visual without closing — user may want to toggle multiple tags.
+    var btn = document.querySelector('#tag-submenu .tag-submenu-item[data-tag-id="' + tagId + '"]');
+    if (btn) btn.classList.toggle("attached", idx === -1);
+
+    // Re-render the affected surfaces so pills appear/disappear immediately.
+    // Sidebar shortcut entries do not render pills in [1.0.9.2] (only sidebar
+    // GROUP entries do), so the shortcut path skips the sidebar refresh.
+    if (context.type === "shortcut") {
+      renderMainGrid();
+    } else if (context.type === "group") {
+      renderMainGrid();
+      renderSidebarGroups();
+    }
+  }
+
+  function openTagCreatePopover(anchorEl, context) {
+    closeTagCreatePopover();
+    if (!context) return;
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return;
+
+    tagCreateContext = context;
+    var pop = $("#tag-create-popover");
+    if (!pop) return;
+    var nameInput = $("#tag-create-popover-name");
+    var paletteHost = $("#tag-create-popover-palette");
+    var saveBtn = $("#tag-create-popover-save");
+
+    var palette = Storage.TAG_PALETTE || [];
+    var defaultColor = (typeof Storage.nextAutoTagColor === "function") ? Storage.nextAutoTagColor(ws) : palette[0];
+    tagCreatePopoverSelectedColor = defaultColor;
+
+    paletteHost.innerHTML = palette.map(function (c) {
+      var selected = c === defaultColor;
+      return '<button type="button" class="pro-tag-swatch' + (selected ? " selected" : "") + '" data-color="' + c + '" style="background:' + c + '"></button>';
+    }).join("");
+
+    paletteHost.querySelectorAll(".pro-tag-swatch").forEach(function (sw) {
+      sw.addEventListener("click", function () {
+        paletteHost.querySelectorAll(".pro-tag-swatch").forEach(function (s) { s.classList.remove("selected"); });
+        sw.classList.add("selected");
+        tagCreatePopoverSelectedColor = sw.dataset.color;
+      });
+    });
+
+    nameInput.value = "";
+    if (saveBtn) saveBtn.disabled = true;
+
+    pop.classList.remove("hidden");
+
+    var rect = anchorEl.getBoundingClientRect();
+    pop.style.left = rect.left + "px";
+    pop.style.top = (rect.bottom + 6) + "px";
+
+    var popRect = pop.getBoundingClientRect();
+    if (popRect.right > window.innerWidth - 8) {
+      pop.style.left = (window.innerWidth - popRect.width - 8) + "px";
+    }
+    if (popRect.bottom > window.innerHeight - 8) {
+      pop.style.top = Math.max(8, rect.top - popRect.height - 6) + "px";
+    }
+
+    setTimeout(function () { nameInput.focus(); }, 0);
+  }
+
+  function closeTagCreatePopover() {
+    var pop = $("#tag-create-popover");
+    if (!pop || pop.classList.contains("hidden")) {
+      tagCreateContext = null;
+      return;
+    }
+    pop.classList.add("hidden");
+    tagCreateContext = null;
+    tagCreatePopoverSelectedColor = null;
+  }
+
+  async function commitTagCreatePopover() {
+    if (!tagCreateContext) return;
+    var nameInput = $("#tag-create-popover-name");
+    if (!nameInput) return;
+    var name = (nameInput.value || "").trim();
+    if (!name) return;
+    var fields = { name: name };
+    if (tagCreatePopoverSelectedColor) fields.color = tagCreatePopoverSelectedColor;
+    var tag = await Storage.createTag(data, fields);
+    if (!tag) {
+      showToast("Could not create tag.");
+      return;
+    }
+    // Immediately attach the new tag to the originating item.
+    var ctx = tagCreateContext;
+    var item = findItemByContext(ctx);
+    if (item) {
+      var tagIds = Storage.ensureTagIdsArray(item);
+      if (tagIds.indexOf(tag.id) === -1) {
+        tagIds.push(tag.id);
+        await Storage.saveAll(data);
+      }
+    }
+    closeTagCreatePopover();
+    closeTagSubmenu();
+    hideMenu();
+    hideGroupMenu();
+    closeSidebarShortcutCtxMenu();
+    renderMainGrid();
+    renderSidebarGroups();
+  }
+
   async function nestShortcutWith(shortcutId, targetId, groupId) {
     // Find the shortcut and target across all groups (dragged may have moved cross-group)
     var shortcut = null;
@@ -3284,12 +3521,14 @@
     var emptyHint = shortcutCount === 0
       ? '<span class="empty-group-hint">or right-click any page \u2192 Add to LaunchPad</span>'
       : '';
+    var groupTagPills = tagPillsHTML(group, Storage.getActiveWorkspace(data), "group-tag-pills");
     return (
       '<section class="' + groupClass + '" data-group-id="' + group.id + '">' +
         '<div class="group-header">' +
           '<div class="group-header-left" data-group-id="' + group.id + '">' +
             '<button class="group-collapse-btn" data-group-id="' + group.id + '" title="' + (collapsed ? "Expand" : "Collapse") + '">' + CHEVRON_DOWN_SVG + "</button>" +
             '<h2 class="group-name" data-group-id="' + group.id + '">' + esc(group.name) + "</h2>" +
+            groupTagPills +
             countBadge +
           "</div>" +
           '<div class="group-header-actions">' +
@@ -3316,18 +3555,52 @@
     var displayName = hasVariants
       ? esc(s.customLabel || s.title || getBaseDomain(s.url) || domain)
       : esc(s.title || domain);
+    var tagPills = tagPillsHTML(s, Storage.getActiveWorkspace(data), "shortcut-tag-pills");
     return (
       '<div class="shortcut' + (hasVariants ? ' has-variants' : '') + '" data-id="' + s.id + '">' +
         '<a href="' + esc(s.url) + '" class="shortcut-link" title="' + esc(s.title || s.url) + '">' +
           '<div class="shortcut-icon">' +
             '<img src="' + favicon + '" alt="" width="24" height="24" loading="lazy" data-url="' + esc(s.url) + '">' +
             badge +
+            tagPills +
           "</div>" +
           '<span class="shortcut-name">' + displayName + "</span>" +
         "</a>" +
         '<button class="shortcut-more" title="More actions">' + MORE_SVG + "</button>" +
       "</div>"
     );
+  }
+
+  // ===== [1.0.9.2] Tag pill rendering =====
+  //
+  // Renders a row of colored pills for the item's tagIds. Three call sites
+  // pass different `sizeClass` values to swap the visual: bookmarks use
+  // dot-only "shortcut-tag-pills", group headers use name-bearing
+  // "group-tag-pills", sidebar group entries use dot-only "sb-group-tag-pills".
+  // Soft-deleted tags (tag.deletedAt set) render dimmed via the `.archived`
+  // modifier class — per spec, the association persists until day-30 trash
+  // auto-purge cleans up the tag ID from items.
+  function tagPillsHTML(item, ws, sizeClass) {
+    if (!ws || !item) return "";
+    var tagIds = Storage.ensureTagIdsArray(item);
+    if (!tagIds.length) return "";
+    var tags = ws.tags || [];
+    var tagMap = {};
+    tags.forEach(function (t) { tagMap[t.id] = t; });
+    var nameInPill = sizeClass === "group-tag-pills";
+    var pills = [];
+    tagIds.forEach(function (tid) {
+      var tag = tagMap[tid];
+      if (!tag) return; // tag was hard-deleted (e.g. day-30 sweep) — no pill to render
+      var archived = !!tag.deletedAt;
+      var color = (typeof tag.color === "string" && /^#[0-9a-fA-F]{6}$/.test(tag.color)) ? tag.color : "#6fb1ff";
+      var label = nameInPill ? esc(tag.name) : "";
+      var classes = "tag-pill" + (archived ? " archived" : "");
+      var titleAttr = nameInPill ? "" : ' title="' + esc(tag.name) + (archived ? " (archived)" : "") + '"';
+      pills.push('<span class="' + classes + '" style="background:' + color + '"' + titleAttr + '>' + label + "</span>");
+    });
+    if (!pills.length) return "";
+    return '<span class="' + sizeClass + '">' + pills.join("") + "</span>";
   }
 
   function addTileHTML(groupId) {
@@ -3394,12 +3667,14 @@
       .map(function (id) { return groupMap[id]; })
       .filter(Boolean)
       .map(function (g) {
+        var sbTagPills = tagPillsHTML(g, ws, "sb-group-tag-pills");
         return '<div class="sb-group-wrapper" data-group-id="' + g.id + '">' +
           '<div class="sb-group-item" data-group-id="' + g.id + '" title="' + esc(g.name) + '">' +
             '<span class="sidebar-drag-handle" title="Drag to reorder">\u2807</span>' +
             '<span class="sb-group-expand-chevron">' + CHEVRON_RIGHT_SVG + '</span>' +
             FOLDER_SVG +
             '<span class="sb-group-name">' + esc(g.name) + '</span>' +
+            sbTagPills +
             '<span class="sb-group-count">' + g.shortcuts.length + '</span>' +
             '<button class="sb-group-more" data-group-id="' + g.id + '" type="button" title="Group options">' + THREE_DOT_SM_SVG + '</button>' +
           '</div>' +
@@ -3619,6 +3894,22 @@
     if (!group) { closeSidebarShortcutCtxMenu(); return; }
     var shortcut = group.shortcuts.find(function (s) { return s.id === shortcutId; });
     if (!shortcut) { closeSidebarShortcutCtxMenu(); return; }
+
+    // [1.0.9.2] Add-tag from sidebar shortcut menu — anchor on the menu, then
+    // close it and reopen tag submenu with sidebar-lock preserved. Same
+    // capture-rect-then-close-then-reopen ordering as the group-menu path.
+    if (action === "add-tag") {
+      var ctxMenuEl = $("#sidebar-shortcut-ctx-menu");
+      var anchorRect = ctxMenuEl ? ctxMenuEl.getBoundingClientRect() : null;
+      closeSidebarShortcutCtxMenu();
+      if (anchorRect) {
+        openTagSubmenu(
+          { getBoundingClientRect: function () { return anchorRect; } },
+          { type: "shortcut", shortcutId: shortcutId, groupId: groupId, fromSidebar: true }
+        );
+      }
+      return;
+    }
 
     closeSidebarShortcutCtxMenu();
 
@@ -5045,6 +5336,47 @@
       hideMenu();
     });
 
+    // [1.0.9.2] Add-tag submenu invocation from the bookmark right-click menu.
+    safeOn("#menu-add-tag", "click", function () {
+      if (!activeMenu) return;
+      var menuEl = $("#shortcut-menu");
+      openTagSubmenu(menuEl, { type: "shortcut", shortcutId: activeMenu.shortcutId, groupId: activeMenu.groupId });
+    });
+
+    // [1.0.9.2] Tag submenu interaction — toggle attach/detach OR open create popover.
+    safeOn("#tag-submenu", "click", async function (e) {
+      var createBtn = e.target.closest(".tag-submenu-create");
+      if (createBtn) {
+        var ctxForCreate = tagSubmenuContext;
+        var anchor = $("#tag-submenu");
+        closeTagSubmenu();
+        openTagCreatePopover(anchor, ctxForCreate);
+        return;
+      }
+      var item = e.target.closest(".tag-submenu-item");
+      if (!item || !tagSubmenuContext) return;
+      var tagId = item.dataset.tagId;
+      await toggleItemTag(tagSubmenuContext, tagId);
+    });
+
+    // [1.0.9.2] Tag create popover wiring (save / cancel / input state / keys).
+    safeOn("#tag-create-popover-save", "click", commitTagCreatePopover);
+    safeOn("#tag-create-popover-cancel", "click", function () { closeTagCreatePopover(); });
+    safeOn("#tag-create-popover-name", "input", function (e) {
+      var saveBtn = $("#tag-create-popover-save");
+      if (saveBtn) saveBtn.disabled = !((e.target.value || "").trim());
+    });
+    safeOn("#tag-create-popover-name", "keydown", function (e) {
+      e.stopPropagation();
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if ((e.target.value || "").trim()) commitTagCreatePopover();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        closeTagCreatePopover();
+      }
+    });
+
     // Variant bubble context menu actions
     safeOn("#variant-ctx-menu", "click", function (e) {
       var item = e.target.closest(".vctx-item");
@@ -5164,9 +5496,16 @@
       // empty parent chain and returns null for everything — which would
       // falsely match "outside the panel" for every check below. Bail.
       if (!e.target.isConnected) return;
-      if (!e.target.closest("#shortcut-menu") && !e.target.closest(".shortcut-more") && !e.target.closest("#nest-submenu")) {
+      if (!e.target.closest("#shortcut-menu") && !e.target.closest(".shortcut-more") && !e.target.closest("#nest-submenu") && !e.target.closest("#tag-submenu") && !e.target.closest("#tag-create-popover")) {
         hideMenu();
         closeNestSubmenu();
+      }
+      // Close tag submenu when click is outside both the submenu and any
+      // open create popover (which is its child flow).
+      if (!e.target.closest("#tag-submenu") && !e.target.closest("#tag-create-popover") &&
+          !e.target.closest("#menu-add-tag") && !e.target.closest('[data-action="add-tag"]')) {
+        closeTagSubmenu();
+        closeTagCreatePopover();
       }
       if (!e.target.closest(".variant-dropdown") && !e.target.closest("#variant-ctx-menu") && !e.target.closest("#variant-icon-dialog") && !e.target.closest(".shortcut.has-variants")) {
         closeVariantDropdown();
@@ -5202,6 +5541,7 @@
         closeProSettingsPanel();
         closeHistoryOverlay(); closeRestoreDropdown();
         closeVariantDropdown(); closeVariantCtxMenu(); closeVariantIconDialog(); closeNestSubmenu();
+        closeTagSubmenu(); closeTagCreatePopover();
         var sidebar = $("#sidebar");
         if (sidebar && sidebar.classList.contains("mobile-open")) toggleMobileSidebar();
       }
@@ -5293,6 +5633,7 @@
   function hideMenu() {
     $("#shortcut-menu").classList.add("hidden");
     closeNestSubmenu();
+    closeTagSubmenu();
     activeMenu = null;
   }
 
@@ -5503,6 +5844,25 @@
 
   function handleGroupMenuAction(action) {
     var groupId = activeGroupMenu;
+
+    // [1.0.9.2] Add-tag opens the tag submenu anchored to where the group
+    // menu was. Capture the rect + sidebar flag BEFORE hideGroupMenu, then
+    // hide (which unlocks the sidebar), then openTagSubmenu (which re-locks
+    // the sidebar if needed). Order matters: reversing it would let
+    // hideGroupMenu clobber the submenu's lock.
+    if (action === "add-tag") {
+      if (!groupId) { hideGroupMenu(); return; }
+      var groupMenuEl = $("#group-menu");
+      var anchorRect = groupMenuEl.getBoundingClientRect();
+      var fromSb = groupMenuFromSidebar;
+      hideGroupMenu();
+      openTagSubmenu(
+        { getBoundingClientRect: function () { return anchorRect; } },
+        { type: "group", groupId: groupId, fromSidebar: fromSb }
+      );
+      return;
+    }
+
     hideGroupMenu();
     if (!groupId) return;
 
@@ -5998,6 +6358,11 @@
   }
 
   async function syncShortcutsFromDOM() {
+    // Per [1.0.9.2] Q4: drag is reorganization, not tagging; tagIds preserved
+    // unchanged. The map below holds the full shortcut object reference per
+    // id, so when this function reassigns group.shortcuts based on DOM order
+    // it preserves every field on each record (including tagIds). No tag
+    // mutation happens here, by construction.
     var ws = Storage.getActiveWorkspace(data);
     if (!ws) return;
     var allShortcuts = new Map();
