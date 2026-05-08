@@ -5216,6 +5216,24 @@
       }
     });
 
+    // Right-click on a main-grid shortcut tile opens the same #shortcut-menu the
+    // 3-dot button does. Mirrors the sidebar's existing #sb-group-list contextmenu
+    // pattern; previously the only way to open the menu on the main grid was to
+    // hover and click the 3-dot button, which surprised users right-clicking by
+    // analogy with the sidebar. The 3-dot click path stays as the primary entry.
+    safeOn("#groups", "contextmenu", function (e) {
+      var tile = e.target.closest(".shortcut");
+      if (!tile) return;
+      // Don't intercept right-click on the 3-dot button itself or on add-tile.
+      if (e.target.closest(".shortcut-more")) return;
+      if (e.target.closest(".add-tile")) return;
+      var grid = tile.closest(".shortcuts-grid");
+      if (!grid) return;
+      e.preventDefault();
+      e.stopPropagation();
+      showMenu(tile.dataset.id, grid.dataset.groupId, tile);
+    });
+
     // Enter key on group header triggers Open All
     document.addEventListener("keydown", function (e) {
       if (e.key !== "Enter") return;
@@ -5631,9 +5649,15 @@
   }
 
   function hideMenu() {
+    // Note: do NOT call closeTagSubmenu() here. The document-level outside-click
+    // handler calls hideMenu() any time a click lands outside #shortcut-menu —
+    // including legitimate add-tag clicks in the SIDEBAR ctx menu, which open
+    // the tag submenu just before the document handler fires. If hideMenu
+    // closed the tag submenu, the submenu would be closed in the same tick it
+    // was opened. Tag submenu close is owned by its own outside-click branch
+    // and the Escape handler.
     $("#shortcut-menu").classList.add("hidden");
     closeNestSubmenu();
-    closeTagSubmenu();
     activeMenu = null;
   }
 
