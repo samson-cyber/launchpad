@@ -3653,6 +3653,19 @@
   function renderSidebarGroups() {
     var list = $("#sb-group-list");
     if (!list) return;
+
+    // Snapshot expanded group IDs before the innerHTML rewrite. Sidebar group
+    // expansion state lives entirely as DOM classes (sb-expanded on the
+    // wrapper, expanded on the chevron) plus an inline max-height:200px on
+    // the .sidebar-shortcut-list set by toggleSidebarGroup. Without this
+    // snapshot, every renderSidebarGroups call (including the one fired by
+    // chrome.storage.onChanged after Storage.saveAll, e.g. during a tag
+    // toggle) collapses every expanded group. See [1.0.9.2] round 5 fix.
+    var expandedSet = {};
+    $$(".sb-group-wrapper.sb-expanded", list).forEach(function (w) {
+      if (w.dataset.groupId) expandedSet[w.dataset.groupId] = true;
+    });
+
     var ws = Storage.getActiveWorkspace(data);
     var groups = (ws && ws.groups) || [];
     var groupOrder = (ws && ws.groupOrder) || [];
@@ -3663,17 +3676,21 @@
       .filter(Boolean)
       .map(function (g) {
         var sbTagPills = tagPillsHTML(g, ws, "sb-group-tag-pills");
-        return '<div class="sb-group-wrapper" data-group-id="' + g.id + '">' +
+        var wasExpanded = !!expandedSet[g.id];
+        var wrapperClass = "sb-group-wrapper" + (wasExpanded ? " sb-expanded" : "");
+        var chevronClass = "sb-group-expand-chevron" + (wasExpanded ? " expanded" : "");
+        var listStyle = wasExpanded ? ' style="max-height:200px"' : '';
+        return '<div class="' + wrapperClass + '" data-group-id="' + g.id + '">' +
           '<div class="sb-group-item" data-group-id="' + g.id + '" title="' + esc(g.name) + '">' +
             '<span class="sidebar-drag-handle" title="Drag to reorder">\u2807</span>' +
-            '<span class="sb-group-expand-chevron">' + CHEVRON_RIGHT_SVG + '</span>' +
+            '<span class="' + chevronClass + '">' + CHEVRON_RIGHT_SVG + '</span>' +
             FOLDER_SVG +
             '<span class="sb-group-name">' + esc(g.name) + '</span>' +
             sbTagPills +
             '<span class="sb-group-count">' + g.shortcuts.length + '</span>' +
             '<button class="sb-group-more" data-group-id="' + g.id + '" type="button" title="Group options">' + THREE_DOT_SM_SVG + '</button>' +
           '</div>' +
-          '<div class="sidebar-shortcut-list" data-group-id="' + g.id + '">' +
+          '<div class="sidebar-shortcut-list" data-group-id="' + g.id + '"' + listStyle + '>' +
             sidebarShortcutListHTML(g) +
           '</div>' +
         '</div>';
