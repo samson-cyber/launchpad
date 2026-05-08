@@ -308,6 +308,52 @@ var Storage = (function () {
     return getActiveWorkspace(data);
   }
 
+  // ===== Workspace-shape array helpers =====
+  //
+  // Centralized lazy-init for workspace-shape arrays. Older workspace records
+  // pre-date a given field and may have it missing or non-array. Each helper
+  // guarantees the target field exists as an array on the passed object and
+  // returns the array reference, so callers can read/iterate without the
+  // scattered `(ws.foo || []).forEach(...)` defensive pattern that the
+  // 2026-05-08 audit replaced.
+  //
+  // Shape mirrors ensureGoalsArray (the [1.0.7] pattern source): null-safe on
+  // a missing object, lazy-init when the field is absent or non-array, return
+  // the array reference. Same return semantics across all helpers — no
+  // behavioral divergence beyond the target field name.
+
+  function ensureGroupsArray(workspace) {
+    if (!workspace) return null;
+    if (!Array.isArray(workspace.groups)) workspace.groups = [];
+    return workspace.groups;
+  }
+
+  function ensureWorkspaceOrderArray(data) {
+    if (!data) return null;
+    if (!Array.isArray(data.workspaceOrder)) data.workspaceOrder = [];
+    return data.workspaceOrder;
+  }
+
+  // Forward-looking stub for [1.0.14] (recurring task templates per
+  // docs/SPECS/tasks-and-goals.md). Field landed early so the helper exists
+  // before the feature does — saves a follow-up touch when [1.0.14] wires
+  // template generation.
+  function ensureRecurringTemplatesArray(workspace) {
+    if (!workspace) return null;
+    if (!Array.isArray(workspace.recurringTemplates)) workspace.recurringTemplates = [];
+    return workspace.recurringTemplates;
+  }
+
+  // Forward-looking stub for [1.0.15] (goal/task templates per
+  // docs/SPECS/tasks-and-goals.md). Targets `taskTemplates` per the spec's
+  // workspace data model — same field referenced in the free-tier downgrade
+  // and storage-migration notes.
+  function ensureGoalTemplatesArray(workspace) {
+    if (!workspace) return null;
+    if (!Array.isArray(workspace.taskTemplates)) workspace.taskTemplates = [];
+    return workspace.taskTemplates;
+  }
+
   function ensureGoalsArray(workspace) {
     if (!workspace) return null;
     if (!Array.isArray(workspace.goals)) workspace.goals = [];
@@ -1273,6 +1319,11 @@ var Storage = (function () {
     getProAccessLevel: getProAccessLevel,
     getOnboardingComplete: getOnboardingComplete,
     setOnboardingComplete: setOnboardingComplete,
+    // Workspace-shape array helpers (lazy-init on read)
+    ensureGroupsArray: ensureGroupsArray,
+    ensureWorkspaceOrderArray: ensureWorkspaceOrderArray,
+    ensureRecurringTemplatesArray: ensureRecurringTemplatesArray,
+    ensureGoalTemplatesArray: ensureGoalTemplatesArray,
     // Goals (Pro tasks layer — see docs/SPECS/tasks-and-goals.md)
     createGoal: createGoal,
     renameGoal: renameGoal,
