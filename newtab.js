@@ -3092,12 +3092,14 @@
 
     tagSubmenuContext = context;
     tagSubmenuFromSidebar = !!context.fromSidebar;
-    if (tagSubmenuFromSidebar) {
-      sidebarLocked = true;
-      var sidebar = $("#sidebar");
-      if (sidebar) sidebar.classList.add("sidebar-locked", "expanded");
-      showSidebarPanel();
-    }
+    // Note: do NOT touch sidebarLocked or sidebar classes here. The parent
+    // menu (group menu / sidebar shortcut ctx menu) is the lock owner — it
+    // sets the lock when it opens and releases it when it closes. The tag
+    // submenu opens as a sibling popover beside the still-visible parent;
+    // dual ownership of `sidebarLocked` would race the parent's release on
+    // outside-click and prematurely collapse the sidebar while the parent
+    // menu is still showing. The fromSidebar flag is retained only so close
+    // logic can know the original context if needed.
 
     var panel = $("#tag-submenu");
     if (!panel) return;
@@ -3155,18 +3157,11 @@
     }
     panel.classList.add("hidden");
     tagSubmenuContext = null;
-    if (tagSubmenuFromSidebar) {
-      tagSubmenuFromSidebar = false;
-      sidebarLocked = false;
-      var sidebar = $("#sidebar");
-      if (sidebar) {
-        sidebar.classList.remove("sidebar-locked");
-        if (!sidebar.matches(":hover")) {
-          sidebar.classList.remove("expanded");
-          hideSidebarPanel();
-        }
-      }
-    }
+    tagSubmenuFromSidebar = false;
+    // Note: do NOT release the sidebar lock here. The parent menu (group
+    // menu / sidebar shortcut ctx menu) owns the lock and releases it when
+    // its own close runs. Releasing here while the parent menu is still
+    // visible would collapse the sidebar mid-flow.
   }
 
   async function toggleItemTag(context, tagId) {
@@ -3895,16 +3890,18 @@
     var shortcut = group.shortcuts.find(function (s) { return s.id === shortcutId; });
     if (!shortcut) { closeSidebarShortcutCtxMenu(); return; }
 
-    // [1.0.9.2] Add-tag from sidebar shortcut menu — anchor on the menu, then
-    // close it and reopen tag submenu with sidebar-lock preserved. Same
-    // capture-rect-then-close-then-reopen ordering as the group-menu path.
+    // [1.0.9.2 round 3] Add-tag opens tag submenu as a sibling popover and
+    // KEEPS the sidebar ctx menu visible (Finder-style). The previous
+    // capture-then-close-then-reopen pattern was needed only because tag
+    // submenu was managing the sidebar lock itself — that's now owned solely
+    // by the parent menu, so we can leave the parent open. Outside-click
+    // handlers exempt #tag-submenu and #tag-create-popover so a click in the
+    // tag submenu doesn't dismiss the ctx menu.
     if (action === "add-tag") {
       var ctxMenuEl = $("#sidebar-shortcut-ctx-menu");
-      var anchorRect = ctxMenuEl ? ctxMenuEl.getBoundingClientRect() : null;
-      closeSidebarShortcutCtxMenu();
-      if (anchorRect) {
+      if (ctxMenuEl) {
         openTagSubmenu(
-          { getBoundingClientRect: function () { return anchorRect; } },
+          ctxMenuEl,
           { type: "shortcut", shortcutId: shortcutId, groupId: groupId, fromSidebar: true }
         );
       }
@@ -4924,13 +4921,30 @@
       }
     });
 
-    // Right-click on sidebar shortcuts
+    // Right-click on sidebar shortcuts AND on sidebar group rows. Both
+    // dispatch through this single delegated listener on the stable parent
+    // (#sb-group-list never re-renders; renderSidebarGroups rewrites only
+    // its innerHTML, so the listener survives every render lifecycle).
     safeOn("#sb-group-list", "contextmenu", function (e) {
+      // Shortcut row right-click
       var shortcutItem = e.target.closest(".sidebar-shortcut-item");
-      if (!shortcutItem || !shortcutItem.dataset.shortcutId) return;
-      var listEl = shortcutItem.closest(".sidebar-shortcut-list");
-      if (!listEl) return;
-      showSidebarShortcutCtxMenu(e, shortcutItem.dataset.shortcutId, listEl.dataset.groupId);
+      if (shortcutItem && shortcutItem.dataset.shortcutId) {
+        var listEl = shortcutItem.closest(".sidebar-shortcut-list");
+        if (!listEl) return;
+        showSidebarShortcutCtxMenu(e, shortcutItem.dataset.shortcutId, listEl.dataset.groupId);
+        return;
+      }
+      // Group row right-click → open the same #group-menu the .sb-group-more
+      // 3-dot button opens. Anchor on the 3-dot button when present (it stays
+      // in the DOM with opacity-driven hover visibility), else fall back to
+      // the row itself for positioning.
+      var groupItem = e.target.closest(".sb-group-item");
+      if (groupItem && groupItem.dataset.groupId) {
+        var sbMoreBtn = groupItem.querySelector(".sb-group-more");
+        e.preventDefault();
+        e.stopPropagation();
+        showGroupMenu(groupItem.dataset.groupId, sbMoreBtn || groupItem);
+      }
     });
 
     // Sidebar shortcut context menu actions
@@ -4939,9 +4953,15 @@
       if (opt) handleSidebarCtxAction(opt.dataset.action);
     });
 
-    // Close sidebar ctx menu on outside click and escape
+    // Close sidebar ctx menu on outside click and escape. Exempt the tag
+    // submenu and create popover so a click inside either of them (a tag
+    // toggle, "Create new tag...", or the create-form input) doesn't dismiss
+    // the parent ctx menu — Finder-style nesting per [1.0.9.2 round 3].
     document.addEventListener("click", function (e) {
-      if (sidebarCtxState && !e.target.closest("#sidebar-shortcut-ctx-menu")) {
+      if (sidebarCtxState
+          && !e.target.closest("#sidebar-shortcut-ctx-menu")
+          && !e.target.closest("#tag-submenu")
+          && !e.target.closest("#tag-create-popover")) {
         closeSidebarShortcutCtxMenu();
       }
     });
@@ -5216,22 +5236,35 @@
       }
     });
 
-    // Right-click on a main-grid shortcut tile opens the same #shortcut-menu the
-    // 3-dot button does. Mirrors the sidebar's existing #sb-group-list contextmenu
-    // pattern; previously the only way to open the menu on the main grid was to
-    // hover and click the 3-dot button, which surprised users right-clicking by
-    // analogy with the sidebar. The 3-dot click path stays as the primary entry.
+    // Right-click on main-grid shortcut tiles AND on group headers. Both
+    // dispatch through this single delegated listener on #groups (the stable
+    // parent that never re-renders; renderMainGrid rewrites only its
+    // innerHTML, so the listener survives every render lifecycle).
     safeOn("#groups", "contextmenu", function (e) {
+      // Shortcut tile right-click → bookmark menu.
       var tile = e.target.closest(".shortcut");
-      if (!tile) return;
-      // Don't intercept right-click on the 3-dot button itself or on add-tile.
-      if (e.target.closest(".shortcut-more")) return;
-      if (e.target.closest(".add-tile")) return;
-      var grid = tile.closest(".shortcuts-grid");
-      if (!grid) return;
-      e.preventDefault();
-      e.stopPropagation();
-      showMenu(tile.dataset.id, grid.dataset.groupId, tile);
+      if (tile) {
+        if (e.target.closest(".shortcut-more")) return;
+        if (e.target.closest(".add-tile")) return;
+        var grid = tile.closest(".shortcuts-grid");
+        if (!grid) return;
+        e.preventDefault();
+        e.stopPropagation();
+        showMenu(tile.dataset.id, grid.dataset.groupId, tile);
+        return;
+      }
+      // Group header right-click → group menu. Anchor on the 3-dot button
+      // when present (opacity-driven hover visibility leaves it in the DOM
+      // with valid bounds), else fall back to the header for positioning.
+      var groupHeader = e.target.closest(".group-header");
+      if (groupHeader) {
+        var groupSection = groupHeader.closest(".group");
+        if (!groupSection || !groupSection.dataset.groupId) return;
+        var moreBtn = groupHeader.querySelector(".group-more-btn");
+        e.preventDefault();
+        e.stopPropagation();
+        showGroupMenu(groupSection.dataset.groupId, moreBtn || groupHeader);
+      }
     });
 
     // Enter key on group header triggers Open All
@@ -5528,7 +5561,8 @@
       if (!e.target.closest(".variant-dropdown") && !e.target.closest("#variant-ctx-menu") && !e.target.closest("#variant-icon-dialog") && !e.target.closest(".shortcut.has-variants")) {
         closeVariantDropdown();
       }
-      if (!e.target.closest("#group-menu") && !e.target.closest(".group-more-btn") && !e.target.closest(".sb-group-more")) {
+      if (!e.target.closest("#group-menu") && !e.target.closest(".group-more-btn") && !e.target.closest(".sb-group-more")
+          && !e.target.closest("#tag-submenu") && !e.target.closest("#tag-create-popover")) {
         hideGroupMenu();
       }
       if (!e.target.closest("#rc-filter-btn") && !e.target.closest("#rc-filter-menu")) {
@@ -5869,21 +5903,23 @@
   function handleGroupMenuAction(action) {
     var groupId = activeGroupMenu;
 
-    // [1.0.9.2] Add-tag opens the tag submenu anchored to where the group
-    // menu was. Capture the rect + sidebar flag BEFORE hideGroupMenu, then
-    // hide (which unlocks the sidebar), then openTagSubmenu (which re-locks
-    // the sidebar if needed). Order matters: reversing it would let
-    // hideGroupMenu clobber the submenu's lock.
+    // [1.0.9.2 round 3] Add-tag opens tag submenu as a sibling popover and
+    // KEEPS the group menu visible (Finder-style). The previous
+    // capture-then-close-then-reopen pattern was needed only because tag
+    // submenu was managing the sidebar lock itself — that's now owned solely
+    // by the parent menu, so we leave the parent open. groupMenuFromSidebar
+    // continues to track the lock; it'll be released by hideGroupMenu when
+    // the user dismisses the parent menu via outside-click or Escape.
+    // Outside-click handlers exempt #tag-submenu and #tag-create-popover.
     if (action === "add-tag") {
       if (!groupId) { hideGroupMenu(); return; }
       var groupMenuEl = $("#group-menu");
-      var anchorRect = groupMenuEl.getBoundingClientRect();
-      var fromSb = groupMenuFromSidebar;
-      hideGroupMenu();
-      openTagSubmenu(
-        { getBoundingClientRect: function () { return anchorRect; } },
-        { type: "group", groupId: groupId, fromSidebar: fromSb }
-      );
+      if (groupMenuEl) {
+        openTagSubmenu(
+          groupMenuEl,
+          { type: "group", groupId: groupId, fromSidebar: groupMenuFromSidebar }
+        );
+      }
       return;
     }
 
