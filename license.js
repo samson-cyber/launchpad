@@ -71,7 +71,7 @@ var LicenseClient = (function () {
     }
     var raw = null;
     try { raw = await resp.json(); } catch (e) { raw = null; }
-    return { status: resp.status, networkError: false, raw: raw, errorMessage: null };
+    return { status: resp.status, ok: resp.ok, networkError: false, raw: raw, errorMessage: null };
   }
 
   // Map a non-200 result to { error, message }. Dodo's structured errors
@@ -102,7 +102,9 @@ var LicenseClient = (function () {
   async function activate(licenseKey) {
     var name = await deriveInstanceName();
     var result = await postJson('/licenses/activate', { license_key: licenseKey, name: name });
-    if (result.status === 200 && result.raw && typeof result.raw.id === 'string') {
+    // Dodo returns 201 Created on activate (the canonical REST status for
+    // resource creation). Accept any 2xx with a body.id rather than strict 200.
+    if (result.ok && result.raw && typeof result.raw.id === 'string') {
       return { ok: true, instanceId: result.raw.id, instanceName: name, raw: result.raw };
     }
     var classified = classifyError(result);
@@ -111,7 +113,10 @@ var LicenseClient = (function () {
 
   async function validate(licenseKey) {
     var result = await postJson('/licenses/validate', { license_key: licenseKey });
-    if (result.status === 200 && result.raw && typeof result.raw.valid === 'boolean') {
+    // Defensive consistency with activate/deactivate — accept any 2xx with
+    // a boolean valid field. Dodo's validate has been observed at 200 to
+    // date, but the relaxed check protects against future status changes.
+    if (result.ok && result.raw && typeof result.raw.valid === 'boolean') {
       return { ok: true, valid: result.raw.valid, raw: result.raw };
     }
     var classified = classifyError(result);
@@ -123,7 +128,8 @@ var LicenseClient = (function () {
       license_key: licenseKey,
       license_key_instance_id: instanceId
     });
-    if (result.status === 200) {
+    // Accept any 2xx — Dodo may return 200 or 204 No Content for deactivate.
+    if (result.ok) {
       return { ok: true, raw: result.raw };
     }
     var classified = classifyError(result);
