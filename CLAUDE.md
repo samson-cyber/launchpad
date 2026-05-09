@@ -110,6 +110,7 @@ Other projects in the same dev root: `reelabs`, `condence-ai`, `exhale-health`, 
 - Stay focused during back-and-forth — no rambling on one point.
 - Brainstorming: wide net first, then narrow down.
 - If unsure about something, say so. Don't fabricate confidence.
+- Prefer console-based verification over manual UI testing whenever console verification yields the same accurate outcome. Faster, more reproducible, less ambiguous than UI walkthroughs and screenshots. For storage-layer or non-UI changes, default to writing a console snippet that exercises the code paths and asserts results.
 
 ---
 

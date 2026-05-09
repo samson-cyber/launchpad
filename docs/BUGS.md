@@ -136,6 +136,12 @@ Run when the task touched any of the following — these change types CANNOT shi
 
 The originating data point for this section is the [1.0.9.2] right-click-tag-attach saga (Asana 1214425856049640): five rounds of follow-up commits were needed because each round's audit was based on code-reading and missed regressions that live verification immediately surfaced. The pattern was consistent — handlers attached to wrong containers, render flow wiping DOM-only state, sidebar locks not propagating across the parent-menu / submenu boundary, and one focus-mismatch that needed a synthesized cursor anchor. None of these were detectable by reading the diff; all five were detectable in a 30-second Chrome session. Section I exists so future tasks in these change types do not repeat the saga.
 
+Console-based verification fully satisfies these gates when the snippet exercises the same code paths a UI walkthrough would. When the relevant change is in a storage-layer or pre-UI module, console verification is the preferred form. Two procedural notes:
+
+- Always reload the extension via chrome://extensions before running verification snippets, so the running code matches the latest commit. Function.toString() reads the live source; if it disagrees with source on disk, the extension was loaded before the most recent build, not that the commit is missing logic. Confirm reload state before suspecting a commit-vs-build divergence.
+
+- Storage methods that internally call saveAll often use a closure-captured local reference, not Storage.saveAll. Reassigning Storage.saveAll in a test snippet does NOT prevent persistence. To run truly in-memory tests, either accept the persistence and add a cleanup step, or work directly on a JSON-cloned data object that's never passed to a method that calls saveAll.
+
 ---
 
 ## Known Limitations
