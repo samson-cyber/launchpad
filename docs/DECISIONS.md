@@ -616,3 +616,50 @@ This contract exists because two callers invoke close functions speculatively. T
 - Decisions 4 and 5 (backend hosting platform, backend storage): dissolved — not needed.
 
 Linked Asana tasks: [1.0.5.1] (planning) GID 1214293491924982, [1.0.5.2] (build) GID 1214627520649678.
+
+---
+
+## 2026-05-09 — Variants are not taggable in [1.0.9.2]
+
+**Context:** [1.0.9.2] introduced `tagIds` on top-level shortcut and group records, with right-click attach UIs and pill rendering. Variants (the child entries inside a parent shortcut's `s.variants` array, surfaced via the dropdown UI) do not participate. The question came up during the round 6 architecture review: should variants get their own tagIds slot, mirroring shortcuts?
+
+**Outcome:** Out of scope for v1. `tagIds` lives on top-level shortcuts and groups only. Variants inherit nothing from the parent shortcut's tagIds (the parent's pills are not visually re-emitted on the variant dropdown rows) and have no independent tag-attach affordance.
+
+**Reasoning:**
+- A future "tag variants" feature requires a schema additive on `s.variants` entries and a new render pass for the variant dropdown UI (which today shows only title + favicon + URL, no metadata pills).
+- The right-click contextmenu surface for variants doesn't exist as a separate path — variants are surfaced inside the parent shortcut's dropdown, not as standalone shortcut elements with their own contextmenu binding.
+- The mental model "tags attach to bookmarks and groups" stays simple. Adding a third taggable entity (variants) without a strong driving use case would just expand the surface area of the tag system without delivering equivalent value.
+- Reversible: nothing in the [1.0.9.2] design prevents adding variant tagging later. The tagIds field is a per-record additive, so variants getting their own tagIds is purely additive on top.
+- Not planned for v1. Revisit if a Pro user explicitly asks for it after Pro launch.
+
+---
+
+## 2026-05-09 — Sidebar shortcut entries do not render tag pills
+
+**Context:** [1.0.9.2] surfaces tag pills on three places per the original plan: main-grid bookmarks, main-grid group headers, and sidebar group rows. Sidebar shortcut entries (the individual bookmark rows inside an expanded sidebar group) intentionally do not render pills. Round 6 review re-questioned this: would surfacing pills there give users a more complete tag picture across the sidebar?
+
+**Outcome:** Sidebar shortcut entries stay minimal — no pill rendering. The three pill surfaces from the original plan are preserved as-is.
+
+**Reasoning:**
+- The sidebar is horizontally constrained. Adding pills next to favicon + title + URL hint would either truncate the title earlier or wrap to a second line, both of which regress the sidebar's information density.
+- The sidebar's role is fast navigation — users scan it for a bookmark by title or favicon, not by tag. The main-grid surfaces (bookmark thumbnails, group headers) are where tag-driven discovery happens.
+- Tags are visible on the parent group row in the sidebar, which gives the user the "this group is tagged" signal without crowding individual entries.
+- Reversible if user feedback indicates the omission causes confusion. The decision is a defaults / UX call, not a constraint imposed by the data model — the rendering function for sidebar shortcut rows can opt in to pills with a one-screen change.
+- Aligns with the [1.0.9.2] plan's explicit pill-surface list: main-grid bookmarks, main-grid group headers, sidebar group rows. The plan picked those three deliberately and the round 6 review didn't surface a new reason to expand the list.
+
+---
+
+## 2026-05-09 — Pre-existing missing wire-ups can be bundled with in-flight tasks
+
+**Context:** [1.0.9.2] rounds 2 and 3 surfaced two pre-existing missing wire-ups — the `#groups` container had no `contextmenu` listener (so the main-grid right-click menu was relying on event bubbling from item handlers, which broke in empty-cell areas), and the sidebar's "Add tag" menu item dispatched to a function that never propagated through the menu close lifecycle. Both predated the [1.0.9.2] changes but were uncovered by the new tag attach paths exercising those code paths more aggressively. The question: file a separate Bug task and revert the in-flight scope, or fix both inline as part of the in-flight task?
+
+**Outcome:** Bundling is acceptable when (i) the missing wire-up is in the same surface area as the in-flight work, (ii) the fix is small and surgical (single function or single listener attachment), and (iii) the IMPLEMENTATION comment explicitly notes the bundling and identifies which commit fixes which pre-existing issue. Otherwise file a separate Bug task in the Asana Bugs / Issues section.
+
+**Reasoning:**
+- Splitting tightly-coupled fixes creates artificial review surface area. A reviewer auditing "right-click tag attach" naturally walks the entire contextmenu path; making them open a second task to verify the related fix doubles the cognitive cost without any traceability gain.
+- The "same surface area" guard prevents this from becoming a blank cheque to fix anything tangentially related. A round-2 fix to the contextmenu listener is in scope for a round-1 contextmenu-touching task. A round-2 fix to drag-and-drop is not.
+- Surgical fixes (one listener, one missing classList toggle, one missing close call) are low-risk to bundle. Anything that touches more than ~10 lines or crosses module boundaries deserves its own Bug task with its own audit cycle.
+- The IMPLEMENTATION comment requirement makes the bundling auditable — the next reviewer can see at a glance "this commit also fixed pre-existing issue X" rather than discovering the unrelated change while git-blaming a regression.
+- Aligns with the existing F1 rule (Context section is preserved) by keeping the conversation history honest: the original plan didn't include the wire-up fix, so the IMPLEMENTATION comment explicitly notes the scope expansion rather than silently broadening the task.
+
+Originating data point: [1.0.9.2] rounds 2 (`3dfcd04`) and 3 (`5e277d4`).

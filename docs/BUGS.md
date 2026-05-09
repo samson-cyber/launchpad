@@ -21,11 +21,14 @@ After completing a task and before moving it to Needs Review:
 2. **If the audit finds a bug you introduced in this task**: fix it before moving to Needs Review. Re-audit.
 3. **If the audit finds a pre-existing bug** unrelated to this task: create a separate task in Asana "Bugs / Issues" section. Do not try to fix it in this task's scope. Reference the originating area in the bug name.
 4. **If you discover a new accepted limitation**: add it to the "Known Limitations" section of this file and note it in your IMPLEMENTATION comment.
-5. **Include audit results in your IMPLEMENTATION comment** on the Asana task. Format:
+5. **Include audit results in your IMPLEMENTATION comment** on the Asana task. Format depends on whether the audit was driven by live verification or code-reading only:
    ```
-   AUDIT — Checked: [sections run]. Findings: [clean, or list of issues].
+   AUDIT clean — Checked: [sections run]. Findings: [clean, or list of issues].
    ```
-   If the audit was clean, a single line is sufficient. No separate comment needed.
+   ```
+   AUDIT (code-reading only; live verification required) — Checked: [sections run]. Findings: [clean, or list of issues].
+   ```
+   The "clean" wording is reserved for audits where Claude Code (or a human) actually loaded the extension in Chrome and exercised the affected paths. When the agent environment cannot drive a Chrome session (the common case), the second form makes the gap explicit so the reviewer knows live verification is still pending. Sections under **Section I: Live Verification Gates** must use the second form unless the audit was actually live-verified — code-reading alone is insufficient evidence for those change types. If the audit was clean, a single line is sufficient. No separate comment needed.
 
 The audit takes minutes, not hours. Skip sections that don't apply. Don't pad.
 
@@ -120,6 +123,18 @@ Run when the task touched: `tracking-prototype.js` or any other experimental / p
 - **H2. Prototype is gitignored from release ZIP** via `build.sh` allowlist, OR the `importScripts` line must be commented out / removed before the next release build. Flag this in Next Steps of the task.
 - **H3. Prototype storage keys are disposable.** A prototype uses its own storage key (e.g., `tracking_prototype`). The user can wipe it at any time without affecting production data.
 - **H4. Prototype does not add user-facing UI** unless the task explicitly calls for it. Prototypes live in the service worker, in debug helpers, and in console output.
+
+### Section I: Live Verification Gates
+
+Run when the task touched any of the following — these change types CANNOT ship to Needs Review on code-reading alone. The IMPLEMENTATION comment must use the `AUDIT (code-reading only; live verification required) — ...` wording, and the task notes must call out a manual live-verification pass as a Needs Review prerequisite.
+
+- **I1. Event handler attachment and lifecycle.** Adding / removing / re-binding `addEventListener`, `chrome.contextMenus.create`, delegated event handlers, or any handler that participates in the open/close lifecycle of a panel or menu. Code-reading misses race conditions between handler attach and first event, double-binding across re-renders, and handlers attached to elements that get replaced by `innerHTML` rewrites.
+- **I2. Render flow changes.** Anything that mutates the order or conditions of `render()`, `renderMainGrid()`, `renderSidebarGroups()`, `renderProTagsSection()`, or other top-level render functions. Code-reading misses subtle DOM-state loss when an outer container is rewritten (e.g., expansion classes, focus, scroll position, contextmenu state).
+- **I3. Contextmenu / focus / hover behavior.** Changes to right-click menu construction, the outside-click close pattern, focus management across menu transitions, or hover-driven UI like the sidebar expansion. Code-reading misses Chrome's actual focus / blur / pointer event sequence — these only surface in a live browser.
+- **I4. Sidebar lock state.** Anything that reads, writes, or guards `sidebarLocked`, `sidebarCtxState`, `tagSubmenuContext`, `tagCreateContext`, or other lock flags that gate the sidebar's `mouseleave`-driven collapse. Code-reading misses the "lock leaks across feature interactions" class of regression — the [1.0.9.2] sidebar / tag submenu interactions hit this multiple times.
+- **I5. Drag-and-drop integration.** SortableJS callbacks, `onEnd` / `onAdd` / `onUpdate` handlers, and any code path that mutates storage in response to drag events. Code-reading misses SortableJS's event ordering quirks and the divergence between expected and actual DOM state when `onEnd` fires.
+
+The originating data point for this section is the [1.0.9.2] right-click-tag-attach saga (Asana 1214425856049640): five rounds of follow-up commits were needed because each round's audit was based on code-reading and missed regressions that live verification immediately surfaced. The pattern was consistent — handlers attached to wrong containers, render flow wiping DOM-only state, sidebar locks not propagating across the parent-menu / submenu boundary, and one focus-mismatch that needed a synthesized cursor anchor. None of these were detectable by reading the diff; all five were detectable in a 30-second Chrome session. Section I exists so future tasks in these change types do not repeat the saga.
 
 ---
 

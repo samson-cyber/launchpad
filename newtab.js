@@ -1572,12 +1572,28 @@
       nameInput.addEventListener("input", function () {
         var saveBtn = $("#pro-tag-create-save");
         if (saveBtn) saveBtn.disabled = !(nameInput.value || "").trim();
+        clearProTagCreateError();
       });
       nameInput.addEventListener("keydown", function (e) {
         if (e.key === "Enter") { e.preventDefault(); commitTagCreate(); }
         if (e.key === "Escape") { e.preventDefault(); closeTagCreateForm(); }
       });
     }
+  }
+
+  function clearProTagCreateError() {
+    var errorEl = $("#pro-tag-create-error");
+    if (errorEl && !errorEl.classList.contains("hidden")) {
+      errorEl.classList.add("hidden");
+      errorEl.textContent = "";
+    }
+  }
+
+  function showProTagCreateError(message) {
+    var errorEl = $("#pro-tag-create-error");
+    if (!errorEl) return;
+    errorEl.textContent = message;
+    errorEl.classList.remove("hidden");
   }
 
   function renderProTagsSection() {
@@ -1670,6 +1686,7 @@
 
     nameInput.value = "";
     if (saveBtn) saveBtn.disabled = true;
+    clearProTagCreateError();
     form.classList.remove("hidden");
     if (addRow) addRow.style.display = "none";
     setTimeout(function () { nameInput.focus(); }, 0);
@@ -1680,19 +1697,29 @@
     var addRow = document.querySelector(".pro-tag-add-row");
     if (form) form.classList.add("hidden");
     if (addRow) addRow.style.display = "";
+    clearProTagCreateError();
   }
 
   async function commitTagCreate() {
     var nameInput = $("#pro-tag-create-name");
     var paletteHost = $("#pro-tag-create-palette");
     if (!nameInput) return;
+    clearProTagCreateError();
     var name = (nameInput.value || "").trim();
     if (!name) return;
     var color = (paletteHost && paletteHost.dataset.selected) || null;
     var fields = { name: name };
     if (color) fields.color = color;
-    var tag = await Storage.createTag(data, fields);
-    if (!tag) {
+    var result = await Storage.createTag(data, fields);
+    // [1.0.9.2] round 6: surface duplicate-name conflict inline; keep form
+    // open and refocus the input so the user can correct without re-opening.
+    if (result && result.err === "duplicate") {
+      showProTagCreateError(result.message);
+      nameInput.focus();
+      nameInput.select();
+      return;
+    }
+    if (!result) {
       showToast("Could not create tag.");
       return;
     }
@@ -1707,7 +1734,18 @@
     input.className = "pro-tag-name-input";
     input.value = current;
     input.maxLength = 48;
-    nameEl.replaceWith(input);
+
+    // [1.0.9.2] round 6: wrap input + error in a flex column so the duplicate
+    // -name error sits below the input without breaking the row's
+    // align-items: center flex layout. Wrapper inherits flex: 1 so the input
+    // takes the same width the bare span did.
+    var wrap = document.createElement("span");
+    wrap.className = "pro-tag-rename-wrap";
+    var errorEl = document.createElement("span");
+    errorEl.className = "pro-tag-rename-error hidden";
+    wrap.appendChild(input);
+    wrap.appendChild(errorEl);
+    nameEl.replaceWith(wrap);
     input.focus();
     input.select();
 
@@ -1717,17 +1755,35 @@
       span.className = "pro-tag-name";
       span.textContent = text;
       span.addEventListener("click", function () { startTagRename(span, tagId); });
-      input.replaceWith(span);
+      wrap.replaceWith(span);
+    };
+    var clearError = function () {
+      if (!errorEl.classList.contains("hidden")) {
+        errorEl.classList.add("hidden");
+        errorEl.textContent = "";
+      }
     };
     var commit = async function () {
       if (done) return;
-      done = true;
       var newName = (input.value || "").trim();
       if (!newName || newName === current) {
+        done = true;
         revert(current);
         return;
       }
       var result = await Storage.renameTag(data, tagId, newName);
+      // [1.0.9.2] round 6: surface duplicate-name conflict inline; keep edit
+      // open with the input focused so the user can correct without losing
+      // their typed value. blur-triggered commits also re-focus here, which
+      // means the user has to explicitly Escape to abandon a duplicate.
+      if (result && result.err === "duplicate") {
+        errorEl.textContent = result.message;
+        errorEl.classList.remove("hidden");
+        input.focus();
+        input.select();
+        return;
+      }
+      done = true;
       revert(result ? newName : current);
     };
     var cancel = function () {
@@ -1735,6 +1791,7 @@
       done = true;
       revert(current);
     };
+    input.addEventListener("input", clearError);
     input.addEventListener("blur", commit);
     input.addEventListener("keydown", function (e) {
       if (e.key === "Enter") { e.preventDefault(); commit(); }
@@ -3227,6 +3284,7 @@
 
     nameInput.value = "";
     if (saveBtn) saveBtn.disabled = true;
+    clearTagCreatePopoverError();
 
     pop.classList.remove("hidden");
 
@@ -3254,21 +3312,48 @@
     pop.classList.add("hidden");
     tagCreateContext = null;
     tagCreatePopoverSelectedColor = null;
+    clearTagCreatePopoverError();
+  }
+
+  function clearTagCreatePopoverError() {
+    var errorEl = $("#tag-create-popover-error");
+    if (errorEl && !errorEl.classList.contains("hidden")) {
+      errorEl.classList.add("hidden");
+      errorEl.textContent = "";
+    }
+  }
+
+  function showTagCreatePopoverError(message) {
+    var errorEl = $("#tag-create-popover-error");
+    if (!errorEl) return;
+    errorEl.textContent = message;
+    errorEl.classList.remove("hidden");
   }
 
   async function commitTagCreatePopover() {
     if (!tagCreateContext) return;
     var nameInput = $("#tag-create-popover-name");
     if (!nameInput) return;
+    clearTagCreatePopoverError();
     var name = (nameInput.value || "").trim();
     if (!name) return;
     var fields = { name: name };
     if (tagCreatePopoverSelectedColor) fields.color = tagCreatePopoverSelectedColor;
-    var tag = await Storage.createTag(data, fields);
-    if (!tag) {
+    var result = await Storage.createTag(data, fields);
+    // [1.0.9.2] round 6: surface duplicate-name conflict inline; keep popover
+    // open and refocus the input. Same shape as the Pro Settings create form
+    // so the UX is consistent regardless of where the user creates the tag.
+    if (result && result.err === "duplicate") {
+      showTagCreatePopoverError(result.message);
+      nameInput.focus();
+      nameInput.select();
+      return;
+    }
+    if (!result) {
       showToast("Could not create tag.");
       return;
     }
+    var tag = result;
     // Immediately attach the new tag to the originating item.
     var ctx = tagCreateContext;
     var item = findItemByContext(ctx);
@@ -5465,6 +5550,7 @@
     safeOn("#tag-create-popover-name", "input", function (e) {
       var saveBtn = $("#tag-create-popover-save");
       if (saveBtn) saveBtn.disabled = !((e.target.value || "").trim());
+      clearTagCreatePopoverError();
     });
     safeOn("#tag-create-popover-name", "keydown", function (e) {
       e.stopPropagation();
