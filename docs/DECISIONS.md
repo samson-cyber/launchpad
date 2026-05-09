@@ -694,3 +694,31 @@ Originating data point: [1.0.9.2] rounds 2 (`3dfcd04`) and 3 (`5e277d4`).
 - Bypass via direct push: any future code that pushes to `workspace.tags` directly (without calling `Storage.createTag` or going through `createGoal`'s auto-tag block) bypasses both the round 6 manual-name guard and the round 7 auto-tag dedup. The round 6 IMPLEMENTATION already noted this for auto-tags; round 7 widens the note to all direct pushes. If a third path appears, the dedup logic should be extracted into a single helper.
 
 Originating data point: round 6 IMPLEMENTATION comment on Asana 1214425856049640, which flagged the auto-tag bypass as a known limitation of the round 6 fix.
+
+---
+
+## 2026-05-09 — Dodo license flow: activate then validate (two-step), client-side, no backend
+
+**Context:** [1.0.5.3] PLAN-stage empirical testing surfaced two corrections to the verified specs from [1.0.5.1]. (a) `test.api.dodopayments.com` does not resolve (DNS failure); the actual hostnames are `https://test.dodopayments.com` (returns `{valid:true}` for test license keys) and `https://live.dodopayments.com`. (b) Dodo's License Keys API is a TWO-step flow per the official docs at `https://docs.dodopayments.com/features/license-keys` (last modified 2026-05-07): activate consumes one of the configured activation slots and returns an `instance_id`; validate is the runtime check that returns `{valid: boolean}`; deactivate frees a slot. All three endpoints are public (no Bearer token), specifically designed for client-side calls. The 2026-05-08 "Dodo integration architecture: client-side polling, no backend" decision already established no backend; this entry locks the two-step shape on top of that.
+
+**Alternatives considered:**
+- Validate-only flow (rejected — Dodo's API does require activation before validation will succeed against a fresh license key from a fresh install; without activate, validate would either silently fail or require us to set the product's activation limit to "unlimited" to bypass).
+- Validate-only with Dodo activation limit set to "unlimited" (rejected — defeats the deliberate 3-activation-limit configured in [1.0.5.1], which exists to gate license sharing across more than 3 devices per purchase. Removing the limit would erase a built-in anti-sharing mechanism in exchange for one less HTTP call per install).
+- Activate-then-validate canonical (chosen) — matches Dodo's documented happy path, preserves the activation limit, gives the Dodo dashboard meaningful per-install activation records for support diagnostics.
+
+**Outcome:** Two-step flow. On first encounter of a license key per Chrome install, `LicenseClient.activate(licenseKey)` is called with `{license_key, name}` where name is `"LaunchPad on {OS}"` derived from `chrome.runtime.getPlatformInfo()`. The returned `instance_id` is stored as `data.pro.instanceId` for later `/licenses/deactivate` calls. Subsequent runs hit `LicenseClient.validate(licenseKey)` directly with a 24-hour debounce on `data.pro.lastVerifiedAt`. One of the 3 per-product activation slots is consumed per Chrome install. `LicenseClient.ensureValidated(data, licenseKey, opts)` is the high-level orchestrator — activate-if-needed, debounce-check, validate, mutate `data.pro` in place.
+
+**Reasoning:**
+- Preserves the deliberate 3-activation-limit from [1.0.5.1]. The limit exists as a built-in anti-sharing mechanism — a user who shares a license key with more than 3 devices hits a hard wall via Dodo's API rather than relying on us to detect and act on it.
+- Dodo's dashboard surfaces per-install activation records (instance_id, name, created_at). Useful for support: when a user reports "Pro stopped working," we can ask for their email, look up their license, see which 3 devices have active slots, and identify a recent install that consumed the last slot.
+- `instance_id` enables /licenses/deactivate from the user-facing customer portal that [1.0.5.4] will wire into Pro Settings. Self-serve slot recovery without our involvement.
+- The asymmetric error handling in `ensureValidated` (network / 5xx / unknown 200-with-bad-shape preserves grace; 4xx and Dodo-structured errors flip to invalid) maintains the "Dodo outage extends grace window rather than punishing paying users" property from the 2026-05-08 decision. The 24h validate debounce + 7d offline grace are unchanged from that decision.
+
+**Implications:**
+- Extension reinstall consumes a slot. The new install has no prior `data.pro.instanceId` (Chrome storage cleared on reinstall), so `ensureValidated` re-runs activate. The user has 3 reinstalls per product before hitting `activation_limit_reached`. [1.0.5.4] surfaces this error explicitly with a customer portal link so the user can deactivate the dead slot.
+- [1.0.5.4] wires Dodo's customer portal URL into Pro Settings as the canonical self-serve path for activation slot management — we don't build our own UI for it.
+- `DODO_API_BASE` is a hardcoded constant in `license.js` with an explicit "SWAP TO live.dodopayments.com IN [pre-launch Dodo Live Mode] TASK" comment. No runtime mode flag — keeping the swap point as a single grep target avoids the "did I forget to flip the env var?" failure mode that killed prior projects.
+- `host_permissions` in `manifest.json` includes `https://test.dodopayments.com/*` and `https://mylaunchpad.me/*` for [1.0.5.3]. Live mode adds `https://live.dodopayments.com/*` in the pre-launch task, then test.dodopayments.com can be removed if we want a clean live-only build (or kept for in-house QA — TBD at launch time).
+- `data.pro` schema gained `instanceId`, `instanceName`, `email` (additive, default null) on top of the existing `licenseKey`, `subscriptionStatus`, `lastVerifiedAt`, `trialStartedAt`, `trialEndedAt` from [1.0.1].
+
+**Originating data points:** Dodo License Keys docs at `https://docs.dodopayments.com/features/license-keys` (last modified 2026-05-07); PLAN-stage empirical testing on 2026-05-09 (DNS-failure observation against `test.api.dodopayments.com`; successful direct fetch against `test.dodopayments.com` and `live.dodopayments.com`). Test license keys captured during [1.0.5.1] smoke tests are reusable for `validate()` integration testing without making new test purchases.

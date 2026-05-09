@@ -30,6 +30,9 @@ var Storage = (function () {
       settings: { columns: 6, collapsedGroups: {}, combinedAnalyticsEnabled: false },
       pro: {
         licenseKey: null,
+        instanceId: null,
+        instanceName: null,
+        email: null,
         trialStartedAt: null,
         trialEndedAt: null,
         subscriptionStatus: "free",
@@ -83,6 +86,9 @@ var Storage = (function () {
       settings: migratedSettings,
       pro: {
         licenseKey: null,
+        instanceId: null,
+        instanceName: null,
+        email: null,
         trialStartedAt: null,
         trialEndedAt: null,
         subscriptionStatus: "free",

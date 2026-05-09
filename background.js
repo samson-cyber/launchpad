@@ -1,7 +1,8 @@
-/* global chrome, importScripts, Storage, ProAccess */
+/* global chrome, importScripts, Storage, ProAccess, LicenseClient */
 
 importScripts('storage.js');
 importScripts('pro-access.js');
+importScripts('license.js');
 importScripts('tracking-prototype.js');
 
 var PRO_RECONCILE_ALARM = "launchpad-pro-reconcile";
@@ -326,6 +327,69 @@ chrome.alarms.onAlarm.addListener(function (alarm) {
 chrome.windows.onRemoved.addListener(function () {
   saveCurrentSession();
 });
+
+// [1.0.5.3] Dodo checkout return URL handler. Dodo redirects to
+// https://mylaunchpad.me/checkout-return.html?license_key=...&email=...
+// after a successful purchase (one-time and subscription products both
+// land here; product-type-specific fields like payment_id / subscription_id
+// are ignored — entitlement state comes from LicenseClient.ensureValidated).
+//
+// Top-level listener (registered on every SW wake; same listener function
+// reference each time so Chrome dedups). Filters on changeInfo.url so it
+// only does work for matching URLs. Closes the tab unconditionally — the
+// license key is persisted regardless of the validate outcome so the user
+// has a path to retry validation from Pro Settings later if the network
+// call failed.
+chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
+  if (!changeInfo.url) return;
+  if (!changeInfo.url.startsWith('https://mylaunchpad.me/checkout-return.html')) return;
+  await handleCheckoutReturn(tabId, changeInfo.url);
+});
+
+async function handleCheckoutReturn(tabId, url) {
+  try {
+    var parsed;
+    try { parsed = new URL(url); } catch (e) {
+      console.warn("[LaunchPad] Checkout return: invalid URL", url);
+      return;
+    }
+    var rawKey = parsed.searchParams.get('license_key');
+    if (!rawKey) {
+      console.warn("[LaunchPad] Checkout return: missing license_key");
+      return;
+    }
+    // Some Dodo flows comma-separate multi-key responses. Take the first.
+    var firstKey = rawKey.split(',')[0].trim();
+    if (!firstKey) {
+      console.warn("[LaunchPad] Checkout return: empty license_key after split");
+      return;
+    }
+    var email = parsed.searchParams.get('email');
+
+    var data = await Storage.getAll();
+    if (!data.pro || typeof data.pro !== 'object') data.pro = {};
+    data.pro.licenseKey = firstKey;
+    if (email) data.pro.email = email;
+    await Storage.saveAll(data);
+
+    var result = await LicenseClient.ensureValidated(data, firstKey);
+    await Storage.saveAll(data);
+
+    if (result && result.ok) {
+      console.log("[LaunchPad] Checkout return: license activated/validated", result.status || "(cached)");
+    } else {
+      console.warn("[LaunchPad] Checkout return: ensureValidated failed", result && result.stage, result && result.error, result && result.message);
+    }
+  } catch (err) {
+    console.error("[LaunchPad] Checkout return handler failed:", err);
+  } finally {
+    try {
+      await chrome.tabs.remove(tabId);
+    } catch (closeErr) {
+      console.warn("[LaunchPad] Checkout return: tab close failed", closeErr && closeErr.message);
+    }
+  }
+}
 
 // Refresh stored favicon when user visits a bookmarked site
 chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
