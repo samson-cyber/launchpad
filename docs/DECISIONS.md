@@ -722,3 +722,31 @@ Originating data point: round 6 IMPLEMENTATION comment on Asana 1214425856049640
 - `data.pro` schema gained `instanceId`, `instanceName`, `email` (additive, default null) on top of the existing `licenseKey`, `subscriptionStatus`, `lastVerifiedAt`, `trialStartedAt`, `trialEndedAt` from [1.0.1].
 
 **Originating data points:** Dodo License Keys docs at `https://docs.dodopayments.com/features/license-keys` (last modified 2026-05-07); PLAN-stage empirical testing on 2026-05-09 (DNS-failure observation against `test.api.dodopayments.com`; successful direct fetch against `test.dodopayments.com` and `live.dodopayments.com`). Test license keys captured during [1.0.5.1] smoke tests are reusable for `validate()` integration testing without making new test purchases.
+
+---
+
+## 2026-05-09 — Dodo activation limit: unlimited (revises 3-limit assumption from earlier same day)
+
+**Context:** The same-day "Dodo license flow: activate then validate (two-step), client-side, no backend" entry (above) included reasoning that referenced "the deliberate 3-activation-limit from [1.0.5.1]" and listed "extension reinstall consumes a slot" as an implication. After round 1 of [1.0.5.3] landed and live verification began, Samson switched the activation limit on all three Dodo entitlements (Monthly Pro, Annual Pro, Lifetime Pro) from 3 to "unlimited". The two-step FLOW is unchanged and still correct — activate registers per-device support diagnostics in Dodo's dashboard, validate enforces runtime checks, deactivate stays callable. Only the Dodo-side limit setting changed. Filing as a separate entry rather than rewriting the prior one because the prior entry's flow rationale is still load-bearing — only the limit-related reasoning is superseded.
+
+**Alternatives considered:**
+- Keep limit at 3 and ship an "activation limit reached" UI in [1.0.5.4] before launch (rejected — adds critical-path UI work and creates real friction for legitimate reinstallers, who are common: Chrome profile switches, storage clears, no-sync moves between machines all consume slots without anti-sharing intent).
+- Drop the activate flow entirely and switch to validate-only (rejected — loses Dodo dashboard diagnostics for support, and removes the customer-portal-deactivation surface that's a natural future affordance).
+- Keep activate+validate flow; raise Dodo's limit to unlimited (chosen) — keeps the diagnostics + portal value, removes the scarcity-induced friction at the $5/mo / $59 lifetime tier where the cost-of-friction outweighs the revenue-protection-by-limit.
+
+**Outcome:** All three license entitlements (Monthly Pro, Annual Pro, Lifetime Pro) configured with Activations Limit: unlimited on the Dodo dashboard. license.js code unchanged: activate still runs on first encounter per install and stores `instance_id`; validate still runs daily; deactivate still callable. The unlimited setting is purely a Dodo-side configuration change — no extension-side code touched.
+
+**Reasoning:**
+- Chrome extension reinstall realities (profile switches, storage clears, no-sync moves between machines, fresh-install onboarding flows) are common enough that the 3-limit would create steady support burden and user friction without proportional revenue protection at the $5/mo / $59 lifetime tier. The "shared license across 4+ devices" abuse case the limit was protecting against is a low-volume edge case relative to the legitimate-reinstall-tripping-the-limit case.
+- The activate flow still earns its keep without the limit: per-install diagnostics in the Dodo dashboard for support investigations ("user reports Pro stopped working" → look up by email → see 5 active instances → identify which one corresponds to the reporting user's current install via instance_name), customer-portal-driven deactivation if [1.0.5.4] surfaces it, and a graceful re-tightening path if license sharing turns out to matter post-launch.
+- The earlier PLAN treated the flow and the limit as a package; they aren't. Limit is a runtime tunable on Dodo's dashboard with no code dependency; flow is the architectural choice that determines what code we ship. Decoupling them lets us tune the limit empirically post-launch without code changes.
+- Round 1 milestone testing surfaced a phantom-activation friction mode: failed activate calls (e.g., the round 2 201-vs-200 bug, or transient network errors) could still consume slots on Dodo's side while the local code captured no `instance_id` — leaving the user with one fewer slot and no client-side knowledge of the consumption. Unlimited removes the user-visible failure mode entirely. Re-tightening the limit later (if needed) would also need a "reconcile slots from Dodo" code path to surface phantom consumption to the user; that work is now deferred along with the limit re-tightening.
+
+**Implications:**
+- [1.0.5.4]'s scope shrinks: the "activation limit reached" error UI and customer-portal-link in Pro Settings become nice-to-have rather than launch-critical. The customer-portal link still belongs in Pro Settings as a user-facing entry point, but it's no longer the primary recovery path for an error users will frequently hit.
+- License-sharing detection is deferred to post-launch monitoring. Dodo dashboard activation counts per key remain visible to support, so a "this key has 47 active instances" pattern is detectable manually if it shows up.
+- Re-enabling the limit later is a one-toggle change on the Dodo entitlement configuration; no code change needed on the extension side. If we go that route post-launch, the re-tightening work also needs a phantom-activation reconcile (see Reasoning above).
+- The prior entry's "extension reinstall consumes a slot" implication is superseded — reinstall still triggers an activate call (so a fresh `instance_id` lands in Dodo's dashboard) but no slot scarcity exists.
+- The prior entry's "preserves the deliberate 3-activation-limit from [1.0.5.1]" reasoning point for choosing activate-then-validate over validate-only is superseded — the activate-then-validate choice now stands on the diagnostics + portal-deactivation arguments alone, both of which remain valid.
+
+**Originating data points:** round 1 milestone activation friction (Asana 1214627520649678 round 1 + round 2 IMPLEMENTATION comments); subsequent Dodo dashboard config switch on 2026-05-09.
