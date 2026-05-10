@@ -776,6 +776,9 @@
       : '<li class="tt-task-empty">No tasks yet.</li>';
 
     var isCompleted = goal.status === "completed";
+    // Strict equality so legacy goals (pre-[1.0.11], no isCollapsed field)
+    // and `false` both render as expanded.
+    var isCollapsed = goal.isCollapsed === true;
     // [1.0.10.1] Completed-section goals render their card read-only — no
     // three-dot menu, no "+ Add task". Inline name edit is also gated on
     // !isCompleted in the click handler. Reactivation lives in [1.0.10.2+]
@@ -789,10 +792,16 @@
         '<button type="button" class="tt-add-task-save">Add</button>' +
         '<button type="button" class="tt-add-task-cancel">Cancel</button>' +
       '</div>';
+    // [1.0.11] When collapsed, the body (child task list + "+ Add task") is
+    // omitted entirely. Header (name, auto-tag, deadline + overdue, progress
+    // bar) stays visible so the user still sees the goal's at-a-glance state.
+    var bodyHtml = isCollapsed ? "" :
+      '<ul class="tt-goal-tasks">' + tasksListHtml + '</ul>' + addTaskBlockHtml;
 
-    return '<article class="tt-goal-card' + (isCompleted ? ' is-completed' : '') + '" data-goal-id="' + escapeHtml(goal.id) + '">' +
+    return '<article class="tt-goal-card' + (isCompleted ? ' is-completed' : '') + '" data-goal-id="' + escapeHtml(goal.id) + '" data-collapsed="' + (isCollapsed ? "true" : "false") + '">' +
       '<header class="tt-goal-header">' +
         '<div class="tt-goal-header-left">' +
+          '<span class="tt-goal-chevron" aria-label="Toggle goal collapse">' + CHEVRON_RIGHT_SVG + '</span>' +
           '<span class="tt-goal-name" data-goal-id="' + escapeHtml(goal.id) + '">' + escapeHtml(goal.name) + '</span>' +
           tagPillHtml(workspace, goal.autoTagId) +
         '</div>' +
@@ -805,8 +814,7 @@
         '<div class="tt-progress-bar"><div class="tt-progress-fill" style="width:' + pct + '%"></div></div>' +
         '<span class="tt-progress-text">' + doneCount + ' of ' + totalCount + ' task' + (totalCount === 1 ? "" : "s") + ' complete</span>' +
       '</div>' +
-      '<ul class="tt-goal-tasks">' + tasksListHtml + '</ul>' +
-      addTaskBlockHtml +
+      bodyHtml +
     '</article>';
   }
 
@@ -985,9 +993,35 @@
       renderTasksTab(panel, data);
     });
 
-    panel.addEventListener("click", function (e) {
+    panel.addEventListener("click", async function (e) {
       var target = e.target;
       if (!target) return;
+
+      // [1.0.11] Goal card chevron — toggle goal.isCollapsed in storage,
+      // then eager-render. stopPropagation so the click does not bubble to
+      // future drag handles ([1.0.11.1]) or the goal-name inline-edit /
+      // three-dot handlers below in this same delegation; the early `return`
+      // already prevents the latter two within this listener, but
+      // stopPropagation also covers any non-delegated parent listeners.
+      var goalChevron = target.closest && target.closest(".tt-goal-chevron");
+      if (goalChevron) {
+        e.stopPropagation();
+        var goalCard = goalChevron.closest(".tt-goal-card");
+        if (!goalCard) return;
+        var goalCardId = goalCard.getAttribute("data-goal-id");
+        if (!goalCardId) return;
+        var currentlyCollapsed = goalCard.getAttribute("data-collapsed") === "true";
+        try {
+          await Storage.updateGoalCollapsed(data, goalCardId, !currentlyCollapsed);
+        } catch (err) {
+          console.error("[LaunchPad] Tasks tab: goal collapse toggle failed", err);
+        }
+        // Eager re-render — same convention as the task-checkbox handler in
+        // the change listener above. The storage.onChanged round-trip
+        // re-render that follows is harmless (same data).
+        renderTasksTab(panel, data);
+        return;
+      }
 
       // Completed section chevron toggle.
       var toggleBtn = target.closest && target.closest(".tt-completed-toggle");

@@ -587,6 +587,27 @@ var Storage = (function () {
   }
 
   /**
+   * Toggle the goal's collapse state. Used by the [1.0.11] Tasks tab goal
+   * card chevron — when true, the UI hides the goal's child task list and
+   * the "+ Add task" affordance, leaving the header (name, auto-tag pill,
+   * deadline + overdue badge, progress bar) visible. Persisted to storage
+   * so the state survives reloads and syncs across tabs via storage.onChanged.
+   * Existing goals (pre-[1.0.11]) without the field render as expanded via
+   * the render-time `goal.isCollapsed === true` strict check — no migration.
+   * @returns {Promise<object|null>}
+   */
+  async function updateGoalCollapsed(data, goalId, isCollapsed, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var goal = findLiveGoal(ws, goalId);
+    if (!goal) return null;
+    var v = !!isCollapsed;
+    if (goal.isCollapsed === v) return goal;
+    goal.isCollapsed = v;
+    await saveAll(data);
+    return goal;
+  }
+
+  /**
    * Update a goal's deadline. Pass null to clear.
    * @returns {Promise<object|null>}
    */
@@ -1735,6 +1756,7 @@ var Storage = (function () {
     renameGoal: renameGoal,
     updateGoalDescription: updateGoalDescription,
     updateGoalDeadline: updateGoalDeadline,
+    updateGoalCollapsed: updateGoalCollapsed,
     completeGoal: completeGoal,
     reactivateGoal: reactivateGoal,
     deleteGoal: deleteGoal,

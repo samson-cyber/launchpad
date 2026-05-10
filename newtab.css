@@ -7241,6 +7241,27 @@ html.has-bg.bg-light .pro-preview-banner-text {
   text-overflow: ellipsis;
 }
 
+/* [1.0.11] Goal card chevron — same rotation convention as the Completed
+   section chevron below: data-collapsed="true" leaves the chevron in its
+   default right-pointing position; data-collapsed="false" rotates 90deg to
+   point down. Inline padding gives the small SVG a reasonable hit target;
+   the negative margin compensates so the chevron visually aligns with the
+   header's left edge instead of indenting the whole row. */
+.tt-goal-chevron {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 4px;
+  margin-left: -4px;
+  cursor: pointer;
+  vertical-align: middle;
+  flex-shrink: 0;
+  transition: transform 100ms ease;
+}
+
+.tt-goal-card[data-collapsed="false"] .tt-goal-chevron {
+  transform: rotate(90deg);
+}
+
 /* Completed section */
 .tt-completed-toggle {
   background: transparent;
