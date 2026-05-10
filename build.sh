@@ -16,6 +16,8 @@ powershell.exe -NoProfile -Command "
     'newtab.css',
     'background.js',
     'bookmarks.js',
+    'license.js',
+    'pro-access.js',
     'storage.js',
     'privacy-policy.html',
     'package.json',
