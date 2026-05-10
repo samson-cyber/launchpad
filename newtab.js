@@ -775,14 +775,30 @@
       ? children.map(function (t) { return taskRowHtml(workspace, t); }).join("")
       : '<li class="tt-task-empty">No tasks yet.</li>';
 
-    return '<article class="tt-goal-card" data-goal-id="' + escapeHtml(goal.id) + '">' +
+    var isCompleted = goal.status === "completed";
+    // [1.0.10.1] Completed-section goals render their card read-only — no
+    // three-dot menu, no "+ Add task". Inline name edit is also gated on
+    // !isCompleted in the click handler. Reactivation lives in [1.0.10.2+]
+    // per spec; this just makes the read-only intent visible.
+    var menuBtnHtml = isCompleted ? "" :
+      '<button type="button" class="tt-goal-menu-btn" data-goal-id="' + escapeHtml(goal.id) + '" aria-label="Goal options" title="Goal options">' + THREE_DOT_SM_SVG + '</button>';
+    var addTaskBlockHtml = isCompleted ? "" :
+      '<button type="button" class="tt-goal-add-task" data-goal-id="' + escapeHtml(goal.id) + '">+ Add task</button>' +
+      '<div class="tt-add-task-inline hidden" data-goal-id="' + escapeHtml(goal.id) + '">' +
+        '<input type="text" class="tt-add-task-input" placeholder="Task name" maxlength="200" autocomplete="off" spellcheck="false">' +
+        '<button type="button" class="tt-add-task-save">Add</button>' +
+        '<button type="button" class="tt-add-task-cancel">Cancel</button>' +
+      '</div>';
+
+    return '<article class="tt-goal-card' + (isCompleted ? ' is-completed' : '') + '" data-goal-id="' + escapeHtml(goal.id) + '">' +
       '<header class="tt-goal-header">' +
         '<div class="tt-goal-header-left">' +
-          '<span class="tt-goal-name">' + escapeHtml(goal.name) + '</span>' +
+          '<span class="tt-goal-name" data-goal-id="' + escapeHtml(goal.id) + '">' + escapeHtml(goal.name) + '</span>' +
           tagPillHtml(workspace, goal.autoTagId) +
         '</div>' +
         '<div class="tt-goal-header-right">' +
           deadlineHtml +
+          menuBtnHtml +
         '</div>' +
       '</header>' +
       '<div class="tt-goal-progress">' +
@@ -790,6 +806,7 @@
         '<span class="tt-progress-text">' + doneCount + ' of ' + totalCount + ' task' + (totalCount === 1 ? "" : "s") + ' complete</span>' +
       '</div>' +
       '<ul class="tt-goal-tasks">' + tasksListHtml + '</ul>' +
+      addTaskBlockHtml +
     '</article>';
   }
 
@@ -939,7 +956,17 @@
 
     panel.addEventListener("change", async function (e) {
       var target = e.target;
-      if (!target || !target.classList || !target.classList.contains("tt-task-check")) return;
+      if (!target || !target.classList) return;
+
+      // Filter dropdowns — logic deferred to [1.0.12]; keep the noop log so
+      // the user sees the placeholder until that ships.
+      if (target.closest && target.closest(".tasks-filter")) {
+        console.log("[1.0.10] noop — filter logic in 1.0.12 (" + target.getAttribute("data-filter") + ")");
+        return;
+      }
+
+      // Task complete / reactivate via row checkbox.
+      if (!target.classList.contains("tt-task-check")) return;
       var taskId = target.getAttribute("data-task-id");
       if (!taskId) return;
       var willComplete = target.checked;
@@ -951,8 +978,6 @@
         }
       } catch (err) {
         console.error("[LaunchPad] Tasks tab: task toggle failed", err);
-        // Roll the visual back to match the storage state since we're going
-        // to re-render below from authoritative data.
       }
       // Eager re-render so the user sees the new progress bar / completion
       // styling without waiting for the storage.onChanged round-trip. The
@@ -964,6 +989,7 @@
       var target = e.target;
       if (!target) return;
 
+      // Completed section chevron toggle.
       var toggleBtn = target.closest && target.closest(".tt-completed-toggle");
       if (toggleBtn) {
         var section = toggleBtn.closest(".tt-completed");
@@ -976,26 +1002,796 @@
         return;
       }
 
+      // Goal three-dot menu button — open context menu anchored at the button.
+      var menuBtn = target.closest && target.closest(".tt-goal-menu-btn");
+      if (menuBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var goalId = menuBtn.getAttribute("data-goal-id");
+        var rect = menuBtn.getBoundingClientRect();
+        openGoalContextMenu(rect.right, rect.bottom + 4, goalId);
+        return;
+      }
+
+      // "+ Add task" button inside a goal card — reveal inline form.
+      var addTaskBtn = target.closest && target.closest(".tt-goal-add-task");
+      if (addTaskBtn) {
+        var card = addTaskBtn.closest(".tt-goal-card");
+        if (card) revealAddTaskInline(card);
+        return;
+      }
+
+      // Inline add-task save / cancel buttons.
+      var addSave = target.closest && target.closest(".tt-add-task-save");
+      if (addSave) {
+        var card2 = addSave.closest(".tt-goal-card");
+        if (card2) commitAddTaskInline(card2);
+        return;
+      }
+      var addCancel = target.closest && target.closest(".tt-add-task-cancel");
+      if (addCancel) {
+        var card3 = addCancel.closest(".tt-goal-card");
+        if (card3) hideAddTaskInline(card3);
+        return;
+      }
+
+      // Inline rename for goal name.
+      var goalNameSpan = target.closest && target.closest(".tt-goal-name");
+      if (goalNameSpan && goalNameSpan.tagName === "SPAN") {
+        var card4 = goalNameSpan.closest(".tt-goal-card");
+        // Read-only on completed-section goals — match the menu/add-task
+        // suppression in goalCardHtml.
+        if (card4 && card4.classList.contains("is-completed")) return;
+        var gid = goalNameSpan.getAttribute("data-goal-id");
+        if (gid) startGoalNameEdit(goalNameSpan, gid);
+        return;
+      }
+
+      // Inline rename for task name.
+      var taskNameSpan = target.closest && target.closest(".tt-task-name");
+      if (taskNameSpan && taskNameSpan.tagName === "SPAN") {
+        var taskRow = taskNameSpan.closest(".tt-task-row");
+        var tid = taskRow && taskRow.getAttribute("data-task-id");
+        if (tid) startTaskNameEdit(taskNameSpan, tid);
+        return;
+      }
+
+      // Header action buttons → create modals.
       var actionBtn = target.closest && target.closest(".tasks-action");
       if (actionBtn) {
         var action = actionBtn.getAttribute("data-action");
-        console.log("[1.0.10] noop — modal in 1.0.10.1 (" + action + ")");
+        if (action === "new-goal") openNewGoalModal();
+        else if (action === "new-task") openNewTaskModal();
+        else if (action === "new-recurring") openNewRecurringModal();
         return;
       }
 
+      // Templates link → empty-state panel.
       var templatesLink = target.closest && target.closest(".tasks-templates-link");
       if (templatesLink) {
         e.preventDefault();
-        console.log("[1.0.10] noop — Templates panel in 1.0.10.1");
+        openTemplatesPanel();
         return;
       }
     });
 
-    panel.addEventListener("change", function (e) {
-      var sel = e.target && e.target.closest && e.target.closest(".tasks-filter");
-      if (!sel) return;
-      console.log("[1.0.10] noop — filter logic in 1.0.12 (" + sel.getAttribute("data-filter") + ")");
+    // Right-click on goal card opens the context menu. The handler ignores
+    // events that originate inside a text input so native browser context
+    // menus on inline-edit / add-task inputs continue to work.
+    panel.addEventListener("contextmenu", function (e) {
+      if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
+      var card = e.target && e.target.closest && e.target.closest(".tt-goal-card");
+      if (!card) return;
+      // Completed-section cards are read-only; let the native menu through.
+      if (card.classList.contains("is-completed")) return;
+      var goalId = card.getAttribute("data-goal-id");
+      if (!goalId) return;
+      e.preventDefault();
+      openGoalContextMenu(e.clientX, e.clientY, goalId);
     });
+
+    // Inline add-task input keys: Enter commits, Escape cancels.
+    panel.addEventListener("keydown", function (e) {
+      var input = e.target && e.target.closest && e.target.closest(".tt-add-task-input");
+      if (!input) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        var card = input.closest(".tt-goal-card");
+        if (card) commitAddTaskInline(card);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        var card2 = input.closest(".tt-goal-card");
+        if (card2) hideAddTaskInline(card2);
+      }
+    });
+  }
+
+  // ===== Tasks tab interactivity helpers ([1.0.10.1]) =====
+  //
+  // Modal helper, context menu, inline edit, and inline add-task all live
+  // here. State (which modal is open, which context menu is open) lives in
+  // module-scope variables so close() reliably reaches into the same DOM
+  // the open() created. Re-renders driven by Storage.* don't touch these
+  // overlays — they mount to document.body via append, not into #tab-tasks,
+  // so an innerHTML wipe of the panel doesn't blow them away.
+
+  var tasksModalEl = null;
+  var tasksModalEscapeHandler = null;
+  var tasksContextMenuEl = null;
+  var tasksContextMenuOutsideHandler = null;
+  var tasksContextMenuEscapeHandler = null;
+
+  function closeTasksModal() {
+    if (tasksModalEscapeHandler) {
+      document.removeEventListener("keydown", tasksModalEscapeHandler);
+      tasksModalEscapeHandler = null;
+    }
+    if (tasksModalEl && tasksModalEl.parentNode) {
+      tasksModalEl.parentNode.removeChild(tasksModalEl);
+    }
+    tasksModalEl = null;
+  }
+
+  // Single open-at-a-time modal. opts:
+  //   title         — header copy
+  //   bodyHtml      — innerHTML of the body region
+  //   primaryLabel  — label on the primary button (default "Save")
+  //   dangerous     — true => primary button gets the danger style
+  //   defaultFocus  — "primary" | "cancel" | "first-input" (default "first-input")
+  //   onMounted(el) — called after append (wire input handlers, prefill, etc.)
+  //   onPrimary(el) — called on primary click; return false to keep modal open
+  //                   (e.g., validation failure surfaces an inline error)
+  //   onCancel()    — called on cancel / backdrop / Escape (optional)
+  function openTasksModal(opts) {
+    closeTasksModal();
+    var overlay = document.createElement("div");
+    overlay.className = "tt-modal-overlay";
+    var titleHtml = opts.title ? '<div class="tt-modal-title">' + escapeHtml(opts.title) + '</div>' : "";
+    var primaryLabel = opts.primaryLabel || "Save";
+    var primaryClass = "tt-modal-btn tt-modal-primary" + (opts.dangerous ? " tt-modal-btn-danger" : " tt-modal-btn-primary-fill");
+    overlay.innerHTML =
+      '<div class="tt-modal" role="dialog" aria-modal="true">' +
+        '<header class="tt-modal-header">' +
+          titleHtml +
+          '<button type="button" class="tt-modal-close" aria-label="Close">&times;</button>' +
+        '</header>' +
+        '<div class="tt-modal-body">' + (opts.bodyHtml || "") + '</div>' +
+        '<footer class="tt-modal-footer">' +
+          '<button type="button" class="tt-modal-btn tt-modal-cancel">Cancel</button>' +
+          '<button type="button" class="' + primaryClass + '">' + escapeHtml(primaryLabel) + '</button>' +
+        '</footer>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    tasksModalEl = overlay;
+
+    function doCancel() {
+      if (typeof opts.onCancel === "function") opts.onCancel();
+      closeTasksModal();
+    }
+
+    overlay.addEventListener("click", function (e) {
+      if (e.target === overlay) doCancel();
+    });
+    overlay.querySelector(".tt-modal-close").addEventListener("click", doCancel);
+    overlay.querySelector(".tt-modal-cancel").addEventListener("click", doCancel);
+
+    var primaryBtn = overlay.querySelector(".tt-modal-primary");
+    primaryBtn.addEventListener("click", async function () {
+      if (typeof opts.onPrimary === "function") {
+        var result = await opts.onPrimary(overlay);
+        if (result === false) return;
+      }
+      closeTasksModal();
+    });
+
+    tasksModalEscapeHandler = function (e) {
+      if (e.key === "Escape") doCancel();
+    };
+    document.addEventListener("keydown", tasksModalEscapeHandler);
+
+    if (typeof opts.onMounted === "function") {
+      opts.onMounted(overlay);
+    }
+
+    var focusTarget = null;
+    if (opts.defaultFocus === "cancel") {
+      focusTarget = overlay.querySelector(".tt-modal-cancel");
+    } else if (opts.defaultFocus === "primary") {
+      focusTarget = primaryBtn;
+    } else {
+      focusTarget = overlay.querySelector(".tt-modal-body input, .tt-modal-body textarea, .tt-modal-body select");
+    }
+    if (focusTarget) {
+      try { focusTarget.focus(); } catch (e2) {}
+      if (focusTarget.tagName === "INPUT" && focusTarget.type === "text") {
+        try { focusTarget.select(); } catch (e3) {}
+      }
+    }
+
+    return overlay;
+  }
+
+  // Confirmation modal. Default focus is on Cancel per PLAN D5 — Enter on
+  // the focused Cancel button activates Cancel; Delete requires explicit
+  // click or Tab+Enter. Prevents accidental deletes from Enter-spam.
+  function openTasksConfirmModal(opts) {
+    return openTasksModal({
+      title: opts.title,
+      bodyHtml: '<p class="tt-modal-message">' + escapeHtml(opts.message || "") + '</p>',
+      primaryLabel: opts.confirmLabel || "Confirm",
+      dangerous: !!opts.dangerous,
+      defaultFocus: "cancel",
+      onPrimary: opts.onConfirm
+    });
+  }
+
+  // ----- Goal create / edit modal -----
+  //
+  // Shared form between New Goal and Edit Goal. New mode shows the
+  // template-source dropdown stub and the auto-tag toggle (default ON);
+  // Edit mode hides both — auto-tag toggle change post-creation would
+  // require create-or-delete tag plumbing that's out of scope here, and
+  // template instantiation only applies at creation time. Edit mode just
+  // edits name + deadline.
+  function openGoalModal(mode, existingGoal) {
+    var isEdit = mode === "edit" && existingGoal;
+    var nameValue = isEdit ? existingGoal.name : "";
+    var deadlineValue = "";
+    if (isEdit && typeof existingGoal.deadlineAt === "number") {
+      deadlineValue = ymdFromTs(existingGoal.deadlineAt);
+    }
+    var autoTagBlock = isEdit ? "" :
+      '<label class="tt-modal-row tt-modal-checkbox-row">' +
+        '<input type="checkbox" class="tt-goal-autotag" checked>' +
+        '<span>Auto-create tag from goal name</span>' +
+      '</label>';
+    var templateBlock = isEdit ? "" :
+      '<div class="tt-modal-row">' +
+        '<label class="tt-modal-label">From template</label>' +
+        '<select class="tt-goal-template" disabled>' +
+          '<option>(Templates available in 1.0.15)</option>' +
+        '</select>' +
+      '</div>';
+
+    openTasksModal({
+      title: isEdit ? "Edit goal" : "New goal",
+      primaryLabel: isEdit ? "Save" : "Create",
+      bodyHtml:
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-goal-name-input">Name</label>' +
+          '<input type="text" id="tt-goal-name-input" class="tt-goal-name-input" maxlength="200" placeholder="Goal name" autocomplete="off" spellcheck="false" value="' + escapeHtml(nameValue) + '">' +
+        '</div>' +
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-goal-deadline-input">Deadline</label>' +
+          '<input type="date" id="tt-goal-deadline-input" class="tt-goal-deadline-input" value="' + escapeHtml(deadlineValue) + '">' +
+        '</div>' +
+        autoTagBlock +
+        templateBlock +
+        '<div class="tt-modal-error hidden" role="alert"></div>',
+      onMounted: function (overlay) {
+        var nameInput = overlay.querySelector(".tt-goal-name-input");
+        nameInput.addEventListener("keydown", function (e) {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            overlay.querySelector(".tt-modal-primary").click();
+          }
+        });
+      },
+      onPrimary: async function (overlay) {
+        var nameInput = overlay.querySelector(".tt-goal-name-input");
+        var deadlineInput = overlay.querySelector(".tt-goal-deadline-input");
+        var autoTagInput = overlay.querySelector(".tt-goal-autotag");
+        var errorEl = overlay.querySelector(".tt-modal-error");
+        var name = (nameInput.value || "").trim();
+        if (!name) {
+          showModalError(errorEl, "Name is required.");
+          nameInput.focus();
+          return false;
+        }
+        var deadlineAt = parseDateInputToTs(deadlineInput.value);
+        if (deadlineInput.value && deadlineAt === null) {
+          showModalError(errorEl, "Deadline is not a valid date.");
+          return false;
+        }
+        if (isEdit) {
+          var renamed = await Storage.renameGoal(data, existingGoal.id, name);
+          if (!renamed) { showModalError(errorEl, "Could not rename goal."); return false; }
+          await Storage.updateGoalDeadline(data, existingGoal.id, deadlineAt);
+        } else {
+          var fields = { name: name, deadlineAt: deadlineAt, autoCreateTag: !!(autoTagInput && autoTagInput.checked) };
+          var created = await Storage.createGoal(data, fields);
+          if (!created) { showModalError(errorEl, "Could not create goal."); return false; }
+        }
+        var panel = document.getElementById("tab-tasks");
+        if (panel) renderTasksTab(panel, data);
+      }
+    });
+  }
+
+  function openNewGoalModal() { openGoalModal("new"); }
+  function openEditGoalModal(goal) { openGoalModal("edit", goal); }
+
+  // ----- New Task modal (standalone) -----
+  function openNewTaskModal() {
+    var workspace = Storage.getActiveWorkspace(data);
+    var availableTags = workspace ? Storage.getActiveTags(workspace) : [];
+    var tagOptionsHtml = availableTags.map(function (tag) {
+      return '<label class="tt-modal-checkbox-row tt-modal-tag-option">' +
+        '<input type="checkbox" class="tt-task-tag" value="' + escapeHtml(tag.id) + '">' +
+        '<span class="tt-tag-pill" style="background:' + escapeHtml(tag.color) + '">' + escapeHtml(tag.name) + '</span>' +
+      '</label>';
+    }).join("");
+    var tagsBlock = availableTags.length
+      ? '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label">Tags</label>' +
+          '<div class="tt-modal-tag-list">' + tagOptionsHtml + '</div>' +
+        '</div>'
+      : "";
+
+    openTasksModal({
+      title: "New task",
+      primaryLabel: "Create",
+      bodyHtml:
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-task-name-input">Name</label>' +
+          '<input type="text" id="tt-task-name-input" class="tt-task-name-input" maxlength="200" placeholder="Task name" autocomplete="off" spellcheck="false">' +
+        '</div>' +
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-task-priority-select">Priority</label>' +
+          '<select id="tt-task-priority-select" class="tt-task-priority-select">' +
+            '<option value="">None</option>' +
+            '<option value="low">Low</option>' +
+            '<option value="medium">Medium</option>' +
+            '<option value="high">High</option>' +
+            '<option value="urgent">Urgent</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-task-due-input">Due date</label>' +
+          '<input type="date" id="tt-task-due-input" class="tt-task-due-input">' +
+        '</div>' +
+        tagsBlock +
+        '<div class="tt-modal-error hidden" role="alert"></div>',
+      onMounted: function (overlay) {
+        var nameInput = overlay.querySelector(".tt-task-name-input");
+        nameInput.addEventListener("keydown", function (e) {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            overlay.querySelector(".tt-modal-primary").click();
+          }
+        });
+      },
+      onPrimary: async function (overlay) {
+        var nameInput = overlay.querySelector(".tt-task-name-input");
+        var priorityInput = overlay.querySelector(".tt-task-priority-select");
+        var dueInput = overlay.querySelector(".tt-task-due-input");
+        var errorEl = overlay.querySelector(".tt-modal-error");
+        var name = (nameInput.value || "").trim();
+        if (!name) {
+          showModalError(errorEl, "Name is required.");
+          nameInput.focus();
+          return false;
+        }
+        var dueAt = parseDateInputToTs(dueInput.value);
+        if (dueInput.value && dueAt === null) {
+          showModalError(errorEl, "Due date is not a valid date.");
+          return false;
+        }
+        var priority = priorityInput.value || null;
+        var tagIds = [].slice.call(overlay.querySelectorAll(".tt-task-tag:checked")).map(function (cb) { return cb.value; });
+        var fields = { name: name, priority: priority, dueAt: dueAt, tagIds: tagIds };
+        // Standalone — explicit goalId: null per PLAN.
+        fields.goalId = null;
+        var created = await Storage.createTask(data, fields);
+        if (!created) { showModalError(errorEl, "Could not create task."); return false; }
+        var panel = document.getElementById("tab-tasks");
+        if (panel) renderTasksTab(panel, data);
+      }
+    });
+  }
+
+  // ----- New Recurring modal -----
+  //
+  // Conditional fields per frequency: weekly → 7 day-of-week toggles
+  // (at least one required), monthly → day-of-month input. timeOfDay
+  // defaults to '09:00' per the 2026-05-10 DECISIONS.md entry. The
+  // conditional region is wrapped in a single .tt-recur-conditional
+  // container that's swapped on frequency change.
+  function openNewRecurringModal() {
+    var DOW_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    var DOW_VALUES = [1, 2, 3, 4, 5, 6, 0];
+
+    function conditionalHtml(frequency) {
+      if (frequency === "weekly") {
+        var togglesHtml = DOW_LABELS.map(function (label, i) {
+          return '<label class="tt-modal-dow-toggle">' +
+            '<input type="checkbox" class="tt-recur-dow" value="' + DOW_VALUES[i] + '">' +
+            '<span>' + label + '</span>' +
+          '</label>';
+        }).join("");
+        return '<div class="tt-modal-row">' +
+            '<label class="tt-modal-label">Days of week</label>' +
+            '<div class="tt-modal-dow-row">' + togglesHtml + '</div>' +
+          '</div>';
+      }
+      if (frequency === "monthly") {
+        return '<div class="tt-modal-row">' +
+            '<label class="tt-modal-label" for="tt-recur-dom-input">Day of month</label>' +
+            '<input type="number" id="tt-recur-dom-input" class="tt-recur-dom-input" min="1" max="31" value="1">' +
+          '</div>';
+      }
+      return "";
+    }
+
+    openTasksModal({
+      title: "New recurring task",
+      primaryLabel: "Create",
+      bodyHtml:
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-recur-name-input">Name</label>' +
+          '<input type="text" id="tt-recur-name-input" class="tt-recur-name-input" maxlength="200" placeholder="Recurring task name" autocomplete="off" spellcheck="false">' +
+        '</div>' +
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-recur-freq-select">Frequency</label>' +
+          '<select id="tt-recur-freq-select" class="tt-recur-freq-select">' +
+            '<option value="daily">Daily</option>' +
+            '<option value="weekly">Weekly</option>' +
+            '<option value="monthly">Monthly</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="tt-recur-conditional"></div>' +
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-recur-time-input">Time of day</label>' +
+          '<input type="time" id="tt-recur-time-input" class="tt-recur-time-input" value="09:00">' +
+        '</div>' +
+        '<label class="tt-modal-row tt-modal-checkbox-row">' +
+          '<input type="checkbox" class="tt-recur-active" checked>' +
+          '<span>Active</span>' +
+        '</label>' +
+        '<div class="tt-modal-error hidden" role="alert"></div>',
+      onMounted: function (overlay) {
+        var freqSelect = overlay.querySelector(".tt-recur-freq-select");
+        var conditional = overlay.querySelector(".tt-recur-conditional");
+        // Initial state: daily → no conditional fields.
+        conditional.innerHTML = conditionalHtml("daily");
+        freqSelect.addEventListener("change", function () {
+          conditional.innerHTML = conditionalHtml(freqSelect.value);
+        });
+        var nameInput = overlay.querySelector(".tt-recur-name-input");
+        nameInput.addEventListener("keydown", function (e) {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            overlay.querySelector(".tt-modal-primary").click();
+          }
+        });
+      },
+      onPrimary: async function (overlay) {
+        var nameInput = overlay.querySelector(".tt-recur-name-input");
+        var freqSelect = overlay.querySelector(".tt-recur-freq-select");
+        var timeInput = overlay.querySelector(".tt-recur-time-input");
+        var activeInput = overlay.querySelector(".tt-recur-active");
+        var errorEl = overlay.querySelector(".tt-modal-error");
+        var name = (nameInput.value || "").trim();
+        if (!name) {
+          showModalError(errorEl, "Name is required.");
+          nameInput.focus();
+          return false;
+        }
+        var frequency = freqSelect.value;
+        var fields = {
+          name: name,
+          frequency: frequency,
+          timeOfDay: timeInput.value || "09:00",
+          isActive: !!activeInput.checked,
+          tagIds: []
+        };
+        if (frequency === "weekly") {
+          var checked = [].slice.call(overlay.querySelectorAll(".tt-recur-dow:checked"));
+          if (checked.length === 0) {
+            showModalError(errorEl, "Pick at least one day of the week.");
+            return false;
+          }
+          fields.daysOfWeek = checked.map(function (cb) { return parseInt(cb.value, 10); });
+        } else if (frequency === "monthly") {
+          var domInput = overlay.querySelector(".tt-recur-dom-input");
+          var dom = parseInt(domInput.value, 10);
+          if (!dom || dom < 1 || dom > 31) {
+            showModalError(errorEl, "Day of month must be between 1 and 31.");
+            return false;
+          }
+          fields.dayOfMonth = dom;
+        }
+        var created = await Storage.createRecurringTemplate(data, fields);
+        if (!created || (created && created.err)) {
+          showModalError(errorEl, (created && created.message) || "Could not create recurring task.");
+          return false;
+        }
+        var panel = document.getElementById("tab-tasks");
+        if (panel) renderTasksTab(panel, data);
+      }
+    });
+  }
+
+  // ----- Templates panel (stub) -----
+  function openTemplatesPanel() {
+    openTasksModal({
+      title: "Goal templates",
+      bodyHtml:
+        '<div class="tt-templates-empty">' +
+          '<div class="tt-templates-empty-title">No templates yet</div>' +
+          '<div class="tt-templates-empty-sub">Save a goal as a template to get started. Full templates management lands in 1.0.15.</div>' +
+        '</div>',
+      primaryLabel: "Close",
+      defaultFocus: "primary",
+      onPrimary: function () { /* close */ }
+    });
+  }
+
+  // ----- Goal context menu -----
+  function closeGoalContextMenu() {
+    if (tasksContextMenuOutsideHandler) {
+      document.removeEventListener("click", tasksContextMenuOutsideHandler, true);
+      tasksContextMenuOutsideHandler = null;
+    }
+    if (tasksContextMenuEscapeHandler) {
+      document.removeEventListener("keydown", tasksContextMenuEscapeHandler);
+      tasksContextMenuEscapeHandler = null;
+    }
+    if (tasksContextMenuEl && tasksContextMenuEl.parentNode) {
+      tasksContextMenuEl.parentNode.removeChild(tasksContextMenuEl);
+    }
+    tasksContextMenuEl = null;
+  }
+
+  function openGoalContextMenu(x, y, goalId) {
+    closeGoalContextMenu();
+    if (!goalId) return;
+    var menu = document.createElement("div");
+    menu.className = "tt-context-menu";
+    menu.innerHTML =
+      '<button type="button" class="tt-ctx-item" data-action="edit">Edit</button>' +
+      '<button type="button" class="tt-ctx-item" data-action="save-template">Save as template</button>' +
+      '<button type="button" class="tt-ctx-item" data-action="complete">Mark complete</button>' +
+      '<div class="tt-ctx-separator"></div>' +
+      '<button type="button" class="tt-ctx-item tt-ctx-danger" data-action="delete">Delete</button>';
+    document.body.appendChild(menu);
+
+    // Position with viewport overflow guard. offsetWidth/Height read after
+    // append.
+    var w = menu.offsetWidth;
+    var h = menu.offsetHeight;
+    var px = Math.max(8, Math.min(x, window.innerWidth - w - 8));
+    var py = Math.max(8, Math.min(y, window.innerHeight - h - 8));
+    menu.style.left = px + "px";
+    menu.style.top = py + "px";
+
+    tasksContextMenuEl = menu;
+
+    menu.addEventListener("click", async function (e) {
+      var btn = e.target && e.target.closest && e.target.closest(".tt-ctx-item");
+      if (!btn) return;
+      var action = btn.getAttribute("data-action");
+      closeGoalContextMenu();
+      var workspace = Storage.getActiveWorkspace(data);
+      var goal = workspace && Storage.getGoalById(workspace, goalId);
+      if (!goal) return;
+      var panel = document.getElementById("tab-tasks");
+      if (action === "edit") {
+        openEditGoalModal(goal);
+      } else if (action === "save-template") {
+        showToast("Templates in 1.0.15");
+      } else if (action === "complete") {
+        await Storage.completeGoal(data, goalId);
+        if (panel) renderTasksTab(panel, data);
+      } else if (action === "delete") {
+        var children = (workspace.tasks || []).filter(function (t) {
+          return t.goalId === goalId && !t.deletedAt;
+        });
+        var msg = 'Delete goal "' + goal.name + '"?';
+        if (children.length > 0) {
+          msg += ' This will also remove its ' + children.length + ' task' + (children.length === 1 ? "" : "s") + '.';
+        }
+        openTasksConfirmModal({
+          title: "Delete goal?",
+          message: msg,
+          confirmLabel: "Delete",
+          dangerous: true,
+          onConfirm: async function () {
+            await Storage.deleteGoal(data, goalId);
+            if (panel) renderTasksTab(panel, data);
+          }
+        });
+      }
+    });
+
+    // Outside click closes the menu (delayed so the same click that opened
+    // it doesn't immediately close it).
+    tasksContextMenuOutsideHandler = function (e) {
+      if (!menu.contains(e.target)) closeGoalContextMenu();
+    };
+    setTimeout(function () {
+      document.addEventListener("click", tasksContextMenuOutsideHandler, true);
+    }, 0);
+
+    tasksContextMenuEscapeHandler = function (e) {
+      if (e.key === "Escape") closeGoalContextMenu();
+    };
+    document.addEventListener("keydown", tasksContextMenuEscapeHandler);
+  }
+
+  // ----- Inline name edit (goal + task) -----
+  //
+  // Click-to-edit input swap. Blur OR Enter commits via the matching
+  // Storage.rename* CRUD (which validates non-empty and case-distinct from
+  // current). Escape cancels and reverts to display. The done flag prevents
+  // a blur event firing after Enter from double-committing.
+
+  function startGoalNameEdit(span, goalId) {
+    if (span.dataset.editing === "1") return;
+    span.dataset.editing = "1";
+    var current = span.textContent;
+    var input = document.createElement("input");
+    input.type = "text";
+    input.className = "tt-name-input";
+    input.value = current;
+    input.maxLength = 200;
+    span.replaceWith(input);
+    input.focus();
+    input.select();
+
+    var done = false;
+    function revertOrRerender() {
+      var panel = document.getElementById("tab-tasks");
+      if (panel) renderTasksTab(panel, data);
+    }
+    var commit = async function () {
+      if (done) return;
+      done = true;
+      var newName = (input.value || "").trim();
+      if (!newName || newName === current) {
+        revertOrRerender();
+        return;
+      }
+      var result = await Storage.renameGoal(data, goalId, newName);
+      if (!result) { revertOrRerender(); return; }
+      revertOrRerender();
+    };
+    var cancel = function () {
+      if (done) return;
+      done = true;
+      revertOrRerender();
+    };
+    input.addEventListener("blur", commit);
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); commit(); }
+      if (e.key === "Escape") { e.preventDefault(); cancel(); }
+    });
+  }
+
+  function startTaskNameEdit(span, taskId) {
+    if (span.dataset.editing === "1") return;
+    span.dataset.editing = "1";
+    var current = span.textContent;
+    var input = document.createElement("input");
+    input.type = "text";
+    input.className = "tt-name-input";
+    input.value = current;
+    input.maxLength = 200;
+    span.replaceWith(input);
+    input.focus();
+    input.select();
+
+    var done = false;
+    function rerender() {
+      var panel = document.getElementById("tab-tasks");
+      if (panel) renderTasksTab(panel, data);
+    }
+    var commit = async function () {
+      if (done) return;
+      done = true;
+      var newName = (input.value || "").trim();
+      if (!newName || newName === current) {
+        rerender();
+        return;
+      }
+      var result = await Storage.renameTask(data, taskId, newName);
+      if (!result) { rerender(); return; }
+      rerender();
+    };
+    var cancel = function () {
+      if (done) return;
+      done = true;
+      rerender();
+    };
+    input.addEventListener("blur", commit);
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); commit(); }
+      if (e.key === "Escape") { e.preventDefault(); cancel(); }
+    });
+  }
+
+  // ----- + Add task inline -----
+  function revealAddTaskInline(card) {
+    // Hide any other open inline form first — only one card at a time.
+    document.querySelectorAll(".tt-add-task-inline:not(.hidden)").forEach(function (el) {
+      if (el !== card.querySelector(".tt-add-task-inline")) {
+        el.classList.add("hidden");
+        var prevBtn = el.parentNode && el.parentNode.querySelector(".tt-goal-add-task");
+        if (prevBtn) prevBtn.classList.remove("hidden");
+      }
+    });
+    var inline = card.querySelector(".tt-add-task-inline");
+    var btn = card.querySelector(".tt-goal-add-task");
+    if (!inline) return;
+    inline.classList.remove("hidden");
+    if (btn) btn.classList.add("hidden");
+    var input = inline.querySelector(".tt-add-task-input");
+    if (input) {
+      input.value = "";
+      input.focus();
+    }
+  }
+
+  function hideAddTaskInline(card) {
+    var inline = card.querySelector(".tt-add-task-inline");
+    var btn = card.querySelector(".tt-goal-add-task");
+    if (inline) inline.classList.add("hidden");
+    if (btn) btn.classList.remove("hidden");
+    var input = inline && inline.querySelector(".tt-add-task-input");
+    if (input) input.value = "";
+  }
+
+  async function commitAddTaskInline(card) {
+    var inline = card.querySelector(".tt-add-task-inline");
+    var input = inline && inline.querySelector(".tt-add-task-input");
+    if (!input) return;
+    var name = (input.value || "").trim();
+    var goalId = card.getAttribute("data-goal-id");
+    if (!name || !goalId) {
+      hideAddTaskInline(card);
+      return;
+    }
+    var created = await Storage.createTask(data, { name: name, goalId: goalId });
+    if (!created) {
+      console.warn("[LaunchPad] Tasks tab: createTask failed");
+    }
+    var panel = document.getElementById("tab-tasks");
+    if (panel) renderTasksTab(panel, data);
+  }
+
+  // ----- Small helpers -----
+  function showModalError(errorEl, msg) {
+    if (!errorEl) return;
+    errorEl.textContent = msg;
+    errorEl.classList.remove("hidden");
+  }
+
+  // Date input <-> epoch ms helpers. <input type="date"> reads/writes
+  // YYYY-MM-DD. We persist as UTC midnight epoch ms so the same date
+  // surfaces consistently across timezones in the goal/task storage.
+  function ymdFromTs(ts) {
+    if (typeof ts !== "number") return "";
+    try {
+      var d = new Date(ts);
+      var y = d.getUTCFullYear();
+      var m = String(d.getUTCMonth() + 1).padStart(2, "0");
+      var day = String(d.getUTCDate()).padStart(2, "0");
+      return y + "-" + m + "-" + day;
+    } catch (e) {
+      return "";
+    }
+  }
+  function parseDateInputToTs(value) {
+    if (!value) return null;
+    var parts = value.split("-");
+    if (parts.length !== 3) return null;
+    var y = parseInt(parts[0], 10);
+    var m = parseInt(parts[1], 10);
+    var d = parseInt(parts[2], 10);
+    if (!y || !m || !d) return null;
+    var ts = Date.UTC(y, m - 1, d);
+    if (isNaN(ts)) return null;
+    return ts;
   }
 
   // ===== Pro Upgrade CTA =====
