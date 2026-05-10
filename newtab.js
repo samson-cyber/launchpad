@@ -395,7 +395,7 @@
   }
 
   function renderTagPill(tag) {
-    return '<span class="pp-tag-pill" style="background:' + tag.color + '">' + escapeHtml(tag.name) + '</span>';
+    return '<span class="pp-tag-pill" style="background:' + tag.color + ';color:' + tagTextColorFor(tag.color) + '">' + escapeHtml(tag.name) + '</span>';
   }
 
   function renderTasksPreview() {
@@ -679,7 +679,7 @@
     if (!tagId) return "";
     var tag = Storage.getTagById(workspace, tagId);
     if (!tag) return "";
-    return '<span class="tt-tag-pill" style="background:' + escapeHtml(tag.color) + '">' +
+    return '<span class="tt-tag-pill" style="background:' + escapeHtml(tag.color) + ';color:' + tagTextColorFor(tag.color) + '">' +
       escapeHtml(tag.name) +
     '</span>';
   }
@@ -1318,7 +1318,7 @@
     var tagOptionsHtml = availableTags.map(function (tag) {
       return '<label class="tt-modal-checkbox-row tt-modal-tag-option">' +
         '<input type="checkbox" class="tt-task-tag" value="' + escapeHtml(tag.id) + '">' +
-        '<span class="tt-tag-pill" style="background:' + escapeHtml(tag.color) + '">' + escapeHtml(tag.name) + '</span>' +
+        '<span class="tt-tag-pill" style="background:' + escapeHtml(tag.color) + ';color:' + tagTextColorFor(tag.color) + '">' + escapeHtml(tag.name) + '</span>' +
       '</label>';
     }).join("");
     var tagsBlock = availableTags.length
@@ -1764,6 +1764,32 @@
     if (!errorEl) return;
     errorEl.textContent = msg;
     errorEl.classList.remove("hidden");
+  }
+
+  // hex -> relative luminance in [0, 1]. Simplified Rec 601 weights —
+  // sufficient for tag pill contrast decisions and avoids the sRGB
+  // gamma-correction code path. Storage validates 6-char hex via
+  // /^#[0-9A-Fa-f]{6}$/, but the helper accepts 3-char too (and a missing
+  // leading #) so a future caller passing CSS shorthand still works.
+  // Returns 0 for missing/malformed input — that maps to white text via
+  // tagTextColorFor, preserving pre-fix behavior for unrecognized colors.
+  function getLuminance(hex) {
+    if (typeof hex !== "string") return 0;
+    var h = hex.charAt(0) === "#" ? hex.slice(1) : hex;
+    if (h.length === 3) {
+      h = h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2);
+    }
+    if (!/^[0-9a-fA-F]{6}$/.test(h)) return 0;
+    var r = parseInt(h.slice(0, 2), 16);
+    var g = parseInt(h.slice(2, 4), 16);
+    var b = parseInt(h.slice(4, 6), 16);
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  }
+
+  // Threshold 0.55 (slightly above the 0.5 midpoint) so borderline pills
+  // err toward dark text — the safer accessibility failure mode.
+  function tagTextColorFor(hex) {
+    return getLuminance(hex) > 0.55 ? "#1a1a1a" : "#ffffff";
   }
 
   // Date input <-> epoch ms helpers. <input type="date"> reads/writes
@@ -5045,7 +5071,7 @@
       var label = nameInPill ? esc(tag.name) : "";
       var classes = "tag-pill" + (archived ? " archived" : "");
       var titleAttr = nameInPill ? "" : ' title="' + esc(tag.name) + (archived ? " (archived)" : "") + '"';
-      pills.push('<span class="' + classes + '" style="background:' + color + '"' + titleAttr + '>' + label + "</span>");
+      pills.push('<span class="' + classes + '" style="background:' + color + ';color:' + tagTextColorFor(color) + '"' + titleAttr + '>' + label + "</span>");
     });
     if (!pills.length) return "";
     return '<span class="' + sizeClass + '">' + pills.join("") + "</span>";
