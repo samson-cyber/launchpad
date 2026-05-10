@@ -806,9 +806,16 @@
     // window without persisting subscriptionStatus = 'free' anywhere; the
     // demotion at trial end is handled at read-time by getProAccessLevel
     // (DECISIONS.md 2026-05-09 PLAN comment, D3).
+    //
+    // Defense-in-depth guard: popoverTitleForState's !trialUsed branch is
+    // what currently keeps this button from rendering when a trial has
+    // already been used, but the click handler also bails if trialStartedAt
+    // is set — protects against future surfaces that route here without the
+    // gate. Rev 1 of [1.0.5.4] (commit fe18493 review).
     var primary = pop.querySelector(".up-primary");
     if (primary) {
       primary.addEventListener("click", async function () {
+        if (data.pro && data.pro.trialStartedAt) return;
         if (!data.pro || typeof data.pro !== "object") data.pro = {};
         var now = Date.now();
         data.pro.trialStartedAt = now;
@@ -871,6 +878,15 @@
     // new key flows through activate() rather than skipping it (which would
     // leave the new key unregistered on Dodo's side — round 1 review note
     // from [1.0.5.3]).
+    //
+    // Snapshot-and-restore: the pre-clear of instanceId / instanceName /
+    // lastVerifiedAt / subscriptionStatus mutates data.pro IN MEMORY before
+    // the network call. If validation then fails, any concurrent code path
+    // that triggers Storage.saveAll (bookmark add, storage.onChanged
+    // round-trip) would persist the corrupted state and silently strip the
+    // user's Pro access. Capture the four fields up-front and restore them
+    // on both the structured-failure (else) and thrown-failure (catch)
+    // paths. Rev 1 of [1.0.5.4] (commit fe18493 review).
     async function applyLicenseFromPopover() {
       var key = (input.value || "").trim();
       clearLicenseError();
@@ -888,9 +904,16 @@
       var oldText = applyBtn.textContent;
       applyBtn.textContent = "Checking...";
 
+      var snapshot = null;
       try {
         if (!data.pro || typeof data.pro !== "object") data.pro = {};
         if (data.pro.licenseKey && data.pro.licenseKey !== key) {
+          snapshot = {
+            instanceId: data.pro.instanceId,
+            instanceName: data.pro.instanceName,
+            lastVerifiedAt: data.pro.lastVerifiedAt,
+            subscriptionStatus: data.pro.subscriptionStatus
+          };
           data.pro.instanceId = null;
           data.pro.instanceName = null;
           data.pro.lastVerifiedAt = null;
@@ -901,17 +924,18 @@
           await Storage.saveAll(data);
           input.value = "";
           closeUpgradePopover();
+          // applyAccessLevelUI re-renders the Pro Settings sections when the
+          // panel is visible (newtab.js:250-255), so no explicit re-render
+          // is needed here.
           applyAccessLevelUI();
-          if ($("#pro-settings-panel") && !$("#pro-settings-panel").classList.contains("hidden")) {
-            renderProSubscriptionSection();
-            renderProLicenseSection();
-          }
           showToast("License applied. Pro features now active.");
         } else {
+          if (snapshot) Object.assign(data.pro, snapshot);
           var msg = (result && result.message) || "Could not validate license.";
           showLicenseError(msg);
         }
       } catch (err) {
+        if (snapshot) Object.assign(data.pro, snapshot);
         showLicenseError((err && err.message) || "Unexpected error validating license.");
       } finally {
         input.disabled = false;
@@ -2129,10 +2153,17 @@
     // subscriptionStatus. The 24h debounce inside ensureValidated short-
     // circuits most calls (one timestamp comparison, no network). Only fires
     // when a license key is set; trial users skip this entirely.
+    //
+    // Skip Storage.saveAll when ensureValidated returns cached:true — the
+    // debounce path doesn't mutate data.pro, so persisting would just
+    // re-write unchanged bytes on every newtab open within the 24h window.
+    // Rev 1 of [1.0.5.4] (commit fe18493 review).
     if (data.pro && data.pro.licenseKey && typeof LicenseClient !== "undefined") {
       try {
-        await LicenseClient.ensureValidated(data, data.pro.licenseKey);
-        await Storage.saveAll(data);
+        var result = await LicenseClient.ensureValidated(data, data.pro.licenseKey);
+        if (!result || !result.cached) {
+          await Storage.saveAll(data);
+        }
       } catch (err) {
         console.error("[LaunchPad] ensureValidated startup call failed:", err);
       }
