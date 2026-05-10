@@ -7241,6 +7241,24 @@ html.has-bg.bg-light .pro-preview-banner-text {
   text-overflow: ellipsis;
 }
 
+/* [1.0.11.1] Goal drag — Sortable handle is .tt-goal-header. Show grab
+   cursor on the header bar so the affordance is visible; switch to grabbing
+   while a drag is active (Sortable adds .sortable-chosen to the dragged
+   item). The chevron, goal-name span, three-dot menu, and tag pill within
+   the header keep their own click handlers — handle gates drag-init on
+   mouse-MOVE, not mouse-down. .sortable-ghost / .sortable-chosen /
+   .sortable-drag visual treatment is inherited from the generic
+   "Drag & Drop" block earlier in this file (originally tuned for the
+   shortcut grid; reads fine on goal cards too). */
+.tt-goal-header {
+  cursor: grab;
+}
+
+.tt-goal-card.sortable-chosen .tt-goal-header,
+.tt-goal-card.sortable-drag .tt-goal-header {
+  cursor: grabbing;
+}
+
 /* [1.0.11] Goal card chevron — same rotation convention as the Completed
    section chevron below: data-collapsed="true" leaves the chevron in its
    default right-pointing position; data-collapsed="false" rotates 90deg to

@@ -869,6 +869,14 @@
 
   function renderTasksTab(panel, d) {
     if (!panel) return;
+    // [1.0.11.1] Mid-drag re-render suppression. Sortable's drag state lives
+    // in the live DOM elements; if onChanged from another tab fires while a
+    // local goal-drag is in progress, a renderTasksTab call would destroy
+    // those elements and break the drag. The flag is set in the goal-list
+    // Sortable's onStart and cleared in onEnd (see bindTasksTabSortables).
+    // Centralised here so every caller — eager click handlers, modal
+    // commits, and the cross-tab onChanged path — observes the same gate.
+    if (panel.dataset.tasksDragActive === "true") return;
     var workspace = Storage.getActiveWorkspace(d);
     if (!workspace) {
       panel.innerHTML = '<div class="tasks-tab-empty">No active workspace.</div>';
@@ -951,6 +959,7 @@
       '</div>';
 
     bindTasksTabEvents(panel);
+    bindTasksTabSortables(panel, d);
   }
 
   function bindTasksTabEvents(panel) {
@@ -1136,6 +1145,71 @@
         e.preventDefault();
         var card2 = input.closest(".tt-goal-card");
         if (card2) hideAddTaskInline(card2);
+      }
+    });
+  }
+
+  // [1.0.11.1] Bind a SortableJS instance to the Active Goals .tt-goal-list
+  // for drag-to-reorder. Called at the end of every renderTasksTab so the
+  // instance always points at the freshly-rendered DOM. The previous
+  // instance (if any) is destroyed first to avoid stacking. Per the
+  // [1.0.11] IMPLEMENTATION's surfaced concern, this picks option (a) —
+  // registry-based destroy/rebind — for the [1.0.11.x] family. The same
+  // panel-scoped registry shape (panel._sortables) and the panel.dataset
+  // .tasksDragActive flag will be reused for task-level Sortable instances
+  // in [1.0.11.2].
+  function bindTasksTabSortables(panel, d) {
+    if (!panel) return;
+    panel._sortables = panel._sortables || {};
+    if (panel._sortables.goalList) {
+      panel._sortables.goalList.destroy();
+      panel._sortables.goalList = null;
+    }
+    if (typeof Sortable === "undefined") {
+      console.warn("[LaunchPad] SortableJS not loaded — Tasks tab drag disabled");
+      return;
+    }
+    var listEl = panel.querySelector(".tt-goal-list");
+    if (!listEl) return; // No active goals section in DOM (e.g., empty workspace).
+
+    panel._sortables.goalList = new Sortable(listEl, {
+      animation: 150,
+      draggable: ".tt-goal-card",
+      // Drag handle is the goal header bar. Per PLAN D3, the handle gates
+      // drag-start on mousedown+movement; a click without movement still
+      // passes through to chevron / three-dot menu / inline-edit handlers.
+      handle: ".tt-goal-header",
+      // Defensive: never start a drag from inside a text input — the user
+      // may be mid-edit on the goal name ([1.0.10.1] inline rename).
+      filter: ".tt-name-input",
+      preventOnFilter: false,
+      ghostClass: "sortable-ghost",
+      chosenClass: "sortable-chosen",
+      dragClass: "sortable-drag",
+      onStart: function () {
+        panel.dataset.tasksDragActive = "true";
+      },
+      onEnd: function () {
+        delete panel.dataset.tasksDragActive;
+      },
+      // onUpdate fires only when the order actually changed (not on a
+      // pure click or a drag that ended in the same slot). Persist via
+      // Storage.reorderGoals; the storage.onChanged round-trip then
+      // re-renders Tasks tab and rebinds this Sortable. No eager
+      // renderTasksTab here — Sortable already mutated the DOM into the
+      // new order, so an immediate rebuild would only churn identical
+      // content.
+      onUpdate: async function () {
+        try {
+          var ws = Storage.getActiveWorkspace(d);
+          if (!ws) return;
+          var ids = [].slice.call(listEl.querySelectorAll(".tt-goal-card")).map(function (el) {
+            return el.getAttribute("data-goal-id");
+          }).filter(Boolean);
+          await Storage.reorderGoals(d, ids, ws.id);
+        } catch (err) {
+          console.error("[LaunchPad] Tasks tab: goal reorder failed", err);
+        }
       }
     });
   }

@@ -608,6 +608,61 @@ var Storage = (function () {
   }
 
   /**
+   * Renumber active goals' displayOrder values to match the order of the
+   * provided id list. Used by the [1.0.11.1] Tasks tab goal drag-to-reorder
+   * — Sortable's onUpdate handler reads the new DOM order, then this method
+   * persists by mapping each id to its index (0, 1, 2, ...). Single saveAll
+   * for the whole batch.
+   *
+   * Validation rejects the call (returns null without writing) if:
+   *   - orderedGoalIds is not an array of strings,
+   *   - any id is missing from the workspace's goals,
+   *   - any id refers to a soft-deleted goal (deletedAt set), or
+   *   - any id refers to a non-active goal (status !== "active").
+   *
+   * Goals NOT in orderedGoalIds keep their existing displayOrder. Callers
+   * are expected to pass the full active set so the resulting indexes are
+   * dense; otherwise the omitted goals will collide with the new indexes.
+   * @returns {Promise<object[]|null>} the workspace's goals array on success
+   */
+  async function reorderGoals(data, orderedGoalIds, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws) return null;
+    if (!Array.isArray(orderedGoalIds)) {
+      console.warn("[LaunchPad] reorderGoals: orderedGoalIds must be an array");
+      return null;
+    }
+    var goals = ensureGoalsArray(ws);
+    var goalById = {};
+    goals.forEach(function (g) { goalById[g.id] = g; });
+    for (var i = 0; i < orderedGoalIds.length; i++) {
+      var id = orderedGoalIds[i];
+      if (typeof id !== "string") {
+        console.warn("[LaunchPad] reorderGoals: every id must be a string");
+        return null;
+      }
+      var g = goalById[id];
+      if (!g) {
+        console.warn("[LaunchPad] reorderGoals: id not found in workspace: " + id);
+        return null;
+      }
+      if (g.deletedAt) {
+        console.warn("[LaunchPad] reorderGoals: id refers to a soft-deleted goal: " + id);
+        return null;
+      }
+      if (g.status !== "active") {
+        console.warn("[LaunchPad] reorderGoals: id refers to a non-active goal: " + id);
+        return null;
+      }
+    }
+    for (var j = 0; j < orderedGoalIds.length; j++) {
+      goalById[orderedGoalIds[j]].displayOrder = j;
+    }
+    await saveAll(data);
+    return goals;
+  }
+
+  /**
    * Update a goal's deadline. Pass null to clear.
    * @returns {Promise<object|null>}
    */
@@ -1757,6 +1812,7 @@ var Storage = (function () {
     updateGoalDescription: updateGoalDescription,
     updateGoalDeadline: updateGoalDeadline,
     updateGoalCollapsed: updateGoalCollapsed,
+    reorderGoals: reorderGoals,
     completeGoal: completeGoal,
     reactivateGoal: reactivateGoal,
     deleteGoal: deleteGoal,
