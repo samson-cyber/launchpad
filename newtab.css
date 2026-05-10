@@ -6108,6 +6108,62 @@ html.has-bg.bg-light .workspace-readonly-banner {
   background: rgba(111, 177, 255, 0.3);
 }
 
+/* [1.0.5.4] Tier buttons + or-divider + license error */
+.up-or-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.6;
+}
+
+.up-or-divider::before,
+.up-or-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.up-tier-row {
+  display: flex;
+  gap: 8px;
+}
+
+.up-tier {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 8px;
+  border: 1px solid rgba(111, 177, 255, 0.5);
+  border-radius: 8px;
+  background: rgba(111, 177, 255, 0.08);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.up-tier:hover {
+  background: rgba(111, 177, 255, 0.18);
+  border-color: rgba(111, 177, 255, 0.85);
+}
+
+.up-license-error {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(208, 2, 27, 0.16);
+  border: 1px solid rgba(208, 2, 27, 0.4);
+  color: #ff8a8a;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 /* Light-wallpaper luminance overrides */
 html.has-bg.bg-light .tab-cta-trial {
   color: #b8860b;
@@ -6144,6 +6200,28 @@ html.has-bg.bg-light #upgrade-popover .up-divider {
 html.has-bg.bg-light #upgrade-popover .up-license-toggle,
 html.has-bg.bg-light #upgrade-popover .up-license-apply {
   color: #1e6fc9;
+}
+
+html.has-bg.bg-light #upgrade-popover .up-tier {
+  color: #1e6fc9;
+  background: rgba(30, 111, 201, 0.06);
+  border-color: rgba(30, 111, 201, 0.5);
+}
+
+html.has-bg.bg-light #upgrade-popover .up-tier:hover {
+  background: rgba(30, 111, 201, 0.14);
+  border-color: rgba(30, 111, 201, 0.85);
+}
+
+html.has-bg.bg-light #upgrade-popover .up-or-divider::before,
+html.has-bg.bg-light #upgrade-popover .up-or-divider::after {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+html.has-bg.bg-light #upgrade-popover .up-license-error {
+  color: #b00020;
+  background: rgba(208, 2, 27, 0.08);
+  border-color: rgba(208, 2, 27, 0.3);
 }
 
 /* ===== Pro Preview Mode ===== */

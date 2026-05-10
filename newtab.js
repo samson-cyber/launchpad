@@ -737,36 +737,62 @@
     return !!upgradePopoverEl && document.body.contains(upgradePopoverEl);
   }
 
-  function popoverCopyForState(d) {
+  // [1.0.5.4] Dodo Test Mode product IDs and checkout host. Live mode swap
+  // (DODO_API_BASE in license.js, manifest host_permissions, and these
+  // constants) is a pre-launch task. test.checkout.* is the customer-facing
+  // checkout host; test.dodopayments.com is the API base used by
+  // LicenseClient. Both swap to live.* together.
+  var DODO_PRODUCT_IDS = {
+    monthly:  "pdt_0NeMmDtVpQQBAmjBhsNuE",
+    annual:   "pdt_0NeMmvRkRY7z1b1jL3AaJ",
+    lifetime: "pdt_0NeMo1X5TaL65hhFsgmPH"
+  };
+  var DODO_CHECKOUT_BASE = "https://test.checkout.dodopayments.com/buy/";
+
+  function popoverTitleForState(d) {
     var trialUsed = !!(d && d.pro && d.pro.trialStartedAt);
     // Trialing / active / grace levels never reach the popover (CTA opens Pro
     // Settings directly per the 2026-04-26 routing decision), so only the
     // free / expired branches need copy here.
-    if (trialUsed) return { title: "Upgrade to LaunchPad Pro", primary: "Upgrade" };
-    return { title: "Try LaunchPad Pro free for 7 days", primary: "Start free trial" };
+    return trialUsed
+      ? "Upgrade to LaunchPad Pro"
+      : "Try LaunchPad Pro free for 7 days";
   }
 
   function openUpgradePopover(anchorEl, d) {
     closeUpgradePopover();
     if (!anchorEl) return;
-    var copy = popoverCopyForState(d);
+    var title = popoverTitleForState(d);
+    var trialUsed = !!(d && d.pro && d.pro.trialStartedAt);
+
+    // Trial primary stack only renders when the user hasn't started a trial.
+    // Once the trial has been used (active or expired), the popover collapses
+    // to "tier buttons + Already have a license?".
+    var trialBlock = trialUsed ? "" :
+      '<button type="button" class="up-primary">Start free trial</button>' +
+      '<div class="up-or-divider"><span>or upgrade now</span></div>';
 
     var pop = document.createElement("div");
     pop.id = "upgrade-popover";
     pop.innerHTML =
       '<div class="up-header">' +
-        '<div class="up-title">' + escapeHtml(copy.title) + '</div>' +
+        '<div class="up-title">' + escapeHtml(title) + '</div>' +
         '<button type="button" class="up-close" aria-label="Close">&times;</button>' +
       '</div>' +
       '<div class="up-subhead">Workspaces, tasks, time tracking, and more.</div>' +
-      // TODO: replaced by [1.0.5.1] Dodo integration
-      '<button type="button" class="up-primary">' + escapeHtml(copy.primary) + '</button>' +
+      trialBlock +
+      '<div class="up-tier-row">' +
+        '<button type="button" class="up-tier" data-tier="monthly">Monthly</button>' +
+        '<button type="button" class="up-tier" data-tier="annual">Annual</button>' +
+        '<button type="button" class="up-tier" data-tier="lifetime">Lifetime</button>' +
+      '</div>' +
       '<div class="up-divider"></div>' +
       '<button type="button" class="up-license-toggle">Already have a license?</button>' +
       '<div class="up-license-row hidden">' +
         '<input type="text" class="up-license-input" placeholder="Enter license key" autocomplete="off" spellcheck="false">' +
         '<button type="button" class="up-license-apply">Apply</button>' +
-      '</div>';
+      '</div>' +
+      '<div class="up-license-error hidden" role="alert"></div>';
 
     document.body.appendChild(pop);
     upgradePopoverEl = pop;
@@ -776,15 +802,59 @@
 
     pop.querySelector(".up-close").addEventListener("click", closeUpgradePopover);
 
-    pop.querySelector(".up-primary").addEventListener("click", function () {
-      // TODO: replaced by [1.0.5.1] Dodo integration
-      showToast("Upgrade flow coming soon");
+    // [1.0.5.4] Section E — Start free trial click handler. Sets the trial
+    // window without persisting subscriptionStatus = 'free' anywhere; the
+    // demotion at trial end is handled at read-time by getProAccessLevel
+    // (DECISIONS.md 2026-05-09 PLAN comment, D3).
+    var primary = pop.querySelector(".up-primary");
+    if (primary) {
+      primary.addEventListener("click", async function () {
+        if (!data.pro || typeof data.pro !== "object") data.pro = {};
+        var now = Date.now();
+        data.pro.trialStartedAt = now;
+        data.pro.trialEndedAt = now + 7 * 24 * 60 * 60 * 1000;
+        data.pro.subscriptionStatus = "trialing";
+        await Storage.saveAll(data);
+        closeUpgradePopover();
+        applyAccessLevelUI();
+        showToast("Trial started. Pro features unlocked for 7 days.");
+      });
+    }
+
+    // [1.0.5.4] Section F — tier button → Dodo hosted checkout. Per-product
+    // return_url is configured in the Dodo dashboard; do NOT pass redirect_url
+    // as a query param. Background.js's onUpdated listener picks up the
+    // license_key when checkout returns to mylaunchpad.me/checkout-return.html.
+    pop.querySelectorAll(".up-tier").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var tier = btn.dataset.tier;
+        var pdtId = DODO_PRODUCT_IDS[tier];
+        if (!pdtId) return;
+        chrome.tabs.create({
+          url: DODO_CHECKOUT_BASE + pdtId + "?quantity=1"
+        });
+        closeUpgradePopover();
+      });
     });
 
     var toggle = pop.querySelector(".up-license-toggle");
     var row = pop.querySelector(".up-license-row");
     var input = pop.querySelector(".up-license-input");
     var applyBtn = pop.querySelector(".up-license-apply");
+    var errorEl = pop.querySelector(".up-license-error");
+
+    function showLicenseError(msg) {
+      if (!errorEl) return;
+      errorEl.textContent = msg;
+      errorEl.classList.remove("hidden");
+    }
+    function clearLicenseError() {
+      if (!errorEl) return;
+      if (!errorEl.classList.contains("hidden")) {
+        errorEl.classList.add("hidden");
+        errorEl.textContent = "";
+      }
+    }
 
     toggle.addEventListener("click", function () {
       row.classList.remove("hidden");
@@ -793,26 +863,61 @@
       positionUpgradePopover(anchorEl);
     });
 
+    input.addEventListener("input", clearLicenseError);
+
+    // [1.0.5.4] Section B — Apply existing license form. Real ensureValidated
+    // flow replacing the [1.0.5] stub. When the user pastes a different key
+    // over an existing one, stale activation state is cleared first so the
+    // new key flows through activate() rather than skipping it (which would
+    // leave the new key unregistered on Dodo's side — round 1 review note
+    // from [1.0.5.3]).
     async function applyLicenseFromPopover() {
       var key = (input.value || "").trim();
+      clearLicenseError();
       if (!key) {
-        showToast("Enter a license key first.");
+        showLicenseError("Enter a license key.");
+        input.focus();
         return;
       }
-      var ok = ProAccess.applyLicenseKey(data, key);
-      if (!ok) {
-        showToast("License key not recognized.");
+      if (typeof LicenseClient === "undefined") {
+        showLicenseError("License module unavailable. Reload the page and try again.");
         return;
       }
-      await Storage.saveAll(data);
-      input.value = "";
-      showToast("License applied. Pro features now active.");
-      // storage.onChanged listener will refresh CTA + sidebar Pro entry within ~1s.
-      // Eagerly update visible UI so it feels instant.
-      applyCtaState(data);
-      // Toast is sufficient confirmation; the popover's body is now stale
-      // (showed free-tier copy) and would re-anchor where the CTA used to be.
-      closeUpgradePopover();
+      input.disabled = true;
+      applyBtn.disabled = true;
+      var oldText = applyBtn.textContent;
+      applyBtn.textContent = "Checking...";
+
+      try {
+        if (!data.pro || typeof data.pro !== "object") data.pro = {};
+        if (data.pro.licenseKey && data.pro.licenseKey !== key) {
+          data.pro.instanceId = null;
+          data.pro.instanceName = null;
+          data.pro.lastVerifiedAt = null;
+          data.pro.subscriptionStatus = "free";
+        }
+        var result = await LicenseClient.ensureValidated(data, key, { force: true });
+        if (result && result.ok) {
+          await Storage.saveAll(data);
+          input.value = "";
+          closeUpgradePopover();
+          applyAccessLevelUI();
+          if ($("#pro-settings-panel") && !$("#pro-settings-panel").classList.contains("hidden")) {
+            renderProSubscriptionSection();
+            renderProLicenseSection();
+          }
+          showToast("License applied. Pro features now active.");
+        } else {
+          var msg = (result && result.message) || "Could not validate license.";
+          showLicenseError(msg);
+        }
+      } catch (err) {
+        showLicenseError((err && err.message) || "Unexpected error validating license.");
+      } finally {
+        input.disabled = false;
+        applyBtn.disabled = false;
+        applyBtn.textContent = oldText;
+      }
     }
 
     applyBtn.addEventListener("click", applyLicenseFromPopover);
@@ -1260,6 +1365,7 @@
     safeOn("#pro-settings-close", "click", closeProSettingsPanel);
     safeOn("#pro-license-apply", "click", handleLicenseApply);
     safeOn("#pro-license-clear", "click", handleLicenseClear);
+    safeOn("#pro-license-check", "click", handleLicenseCheckNow);
     var input = $("#pro-license-input");
     if (input) {
       input.addEventListener("keydown", function (e) {
@@ -1368,6 +1474,10 @@
       host.classList.add("pro-license-empty");
       host.textContent = "No license applied.";
     }
+    // [1.0.5.4] Section C — Check license status now button is only meaningful
+    // when a license key is set. Hide it for the empty state.
+    var checkRow = $("#pro-license-check-row");
+    if (checkRow) checkRow.classList.toggle("hidden", !key);
   }
 
   function renderProWorkspaceList() {
@@ -1907,6 +2017,47 @@
     applyCtaState(data);
   }
 
+  // [1.0.5.4] Section C — Force a license validation against Dodo. opts.force
+  // bypasses the 24h debounce in LicenseClient.ensureValidated. Used by Pro
+  // users who paid mid-session and want to confirm their entitlement without
+  // waiting for the next-day passive refresh.
+  async function handleLicenseCheckNow() {
+    var btn = $("#pro-license-check");
+    if (!btn) return;
+    if (!data.pro || !data.pro.licenseKey) {
+      showToast("No license to check.");
+      return;
+    }
+    if (typeof LicenseClient === "undefined") {
+      showToast("License module unavailable. Reload the page and try again.");
+      return;
+    }
+    var oldText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Checking...";
+    try {
+      var result = await LicenseClient.ensureValidated(data, data.pro.licenseKey, { force: true });
+      await Storage.saveAll(data);
+      renderProSubscriptionSection();
+      renderProLicenseSection();
+      applyCtaState(data);
+      if (result && result.ok) {
+        var status = data.pro.subscriptionStatus;
+        if (status === "active") showToast("License active.");
+        else if (status === "invalid") showToast("License expired.");
+        else showToast("License status: " + (status || "unknown") + ".");
+      } else {
+        var msg = (result && result.message) || "Could not validate license.";
+        showToast(msg);
+      }
+    } catch (err) {
+      showToast((err && err.message) || "Unexpected error validating license.");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = oldText;
+    }
+  }
+
   async function handleLicenseClear() {
     if (!data.pro || !data.pro.licenseKey) {
       showToast("No license to clear.");
@@ -1971,6 +2122,20 @@
     if (cleaned) {
       await Storage.saveAll(data);
       console.log("[LaunchPad] Cleaned up duplicate variants");
+    }
+
+    // [1.0.5.4] Section A — Per-newtab ensureValidated trigger. Runs before
+    // the first render so applyAccessLevelUI consumes the freshest
+    // subscriptionStatus. The 24h debounce inside ensureValidated short-
+    // circuits most calls (one timestamp comparison, no network). Only fires
+    // when a license key is set; trial users skip this entirely.
+    if (data.pro && data.pro.licenseKey && typeof LicenseClient !== "undefined") {
+      try {
+        await LicenseClient.ensureValidated(data, data.pro.licenseKey);
+        await Storage.saveAll(data);
+      } catch (err) {
+        console.error("[LaunchPad] ensureValidated startup call failed:", err);
+      }
     }
 
     await loadBackground();
