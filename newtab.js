@@ -884,9 +884,13 @@
     // the network call. If validation then fails, any concurrent code path
     // that triggers Storage.saveAll (bookmark add, storage.onChanged
     // round-trip) would persist the corrupted state and silently strip the
-    // user's Pro access. Capture the four fields up-front and restore them
-    // on both the structured-failure (else) and thrown-failure (catch)
-    // paths. Rev 1 of [1.0.5.4] (commit fe18493 review).
+    // user's Pro access. Capture the five fields license.js can mutate
+    // (licenseKey + the four pre-cleared fields — activate() writes
+    // licenseKey on success, so the activate-succeeds / validate-fails path
+    // also needs it restored) and restore them on both the structured-
+    // failure (else) and thrown-failure (catch) paths. Rev 1 of [1.0.5.4]
+    // (commit fe18493 review); rev 2 added licenseKey to the snapshot
+    // (commit 9a9a499 review).
     async function applyLicenseFromPopover() {
       var key = (input.value || "").trim();
       clearLicenseError();
@@ -909,6 +913,7 @@
         if (!data.pro || typeof data.pro !== "object") data.pro = {};
         if (data.pro.licenseKey && data.pro.licenseKey !== key) {
           snapshot = {
+            licenseKey: data.pro.licenseKey,
             instanceId: data.pro.instanceId,
             instanceName: data.pro.instanceName,
             lastVerifiedAt: data.pro.lastVerifiedAt,
