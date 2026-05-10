@@ -6879,6 +6879,444 @@ html.has-bg.bg-light .pro-preview-banner-text {
   display: none !important;
 }
 
+/* ===== [1.0.10] Tasks tab ===== */
+/* Read-only "looks finished" pass — frosted-glass panels matching Pro
+   Settings (rgba(30,30,30,0.85) + backdrop-filter blur(12px)). Inline
+   editing, modals, the goal context menu, "+ Add task", filter logic and
+   the Templates panel ship in [1.0.10.1] / [1.0.12]. */
+
+.tasks-tab {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  align-self: stretch;
+  padding: 24px 28px 40px;
+  gap: 20px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  overflow-y: auto;
+}
+
+.tasks-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.tasks-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.tasks-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.tasks-filter-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tasks-filter {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 6px 24px 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  background: rgba(30, 30, 30, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, rgba(255, 255, 255, 0.7) 50%),
+                    linear-gradient(135deg, rgba(255, 255, 255, 0.7) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.tasks-filter:focus {
+  outline: none;
+  border-color: #6fb1ff;
+}
+
+.tasks-filter option {
+  background: #2a2a2a;
+  color: #fff;
+}
+
+.tasks-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tasks-action {
+  padding: 7px 12px;
+  border: 1px solid rgba(111, 177, 255, 0.5);
+  border-radius: 6px;
+  background: rgba(111, 177, 255, 0.12);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.tasks-action:hover {
+  background: rgba(111, 177, 255, 0.22);
+  border-color: rgba(111, 177, 255, 0.85);
+}
+
+.tasks-templates-link {
+  margin-left: 4px;
+  color: #6fb1ff;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.tasks-templates-link:hover { opacity: 0.85; }
+
+.tasks-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.tt-section {
+  background: rgba(30, 30, 30, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+
+.tt-section-title {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.78;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tt-section-count {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.tt-empty-state {
+  padding: 14px 4px;
+  font-size: 13px;
+  opacity: 0.62;
+  font-style: italic;
+}
+
+/* Goal cards */
+.tt-goal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tt-goal-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.tt-goal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.tt-goal-header-left,
+.tt-goal-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tt-goal-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.tt-goal-deadline {
+  font-size: 12px;
+  opacity: 0.78;
+}
+
+.tt-overdue-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(245, 166, 35, 0.18);
+  border: 1px solid rgba(245, 166, 35, 0.5);
+  color: #f5a623;
+  text-shadow: none;
+}
+
+.tt-goal-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.tt-progress-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.tt-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4a90e2 0%, #6fb1ff 100%);
+  transition: width 0.25s ease;
+}
+
+.tt-progress-text {
+  font-size: 12px;
+  opacity: 0.78;
+  white-space: nowrap;
+}
+
+.tt-goal-tasks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Standalone + completed share the same row treatment */
+.tt-task-row,
+.tt-recurring-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+
+.tt-task-row:hover,
+.tt-recurring-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tt-task-check {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #4a90e2;
+}
+
+.tt-task-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.tt-task-row.is-completed .tt-task-name {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
+.tt-task-empty {
+  list-style: none;
+  padding: 6px 8px;
+  font-size: 12px;
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.tt-standalone-list,
+.tt-recurring-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tt-standalone-list-completed {
+  margin-top: 12px;
+}
+
+/* Recurring rows */
+.tt-recurring-icon {
+  font-size: 13px;
+  opacity: 0.7;
+  width: 16px;
+  text-align: center;
+}
+
+.tt-recurring-name {
+  font-weight: 500;
+}
+
+.tt-recurring-hint {
+  flex: 1;
+  font-size: 12px;
+  opacity: 0.62;
+}
+
+.tt-recurring-paused {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  text-shadow: none;
+}
+
+/* Tag pills (consistent with the spec — colored solid background, white text) */
+.tt-tag-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: none;
+  white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Completed section */
+.tt-completed-toggle {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tt-completed-chevron {
+  display: inline-flex;
+  transition: transform 0.18s ease;
+}
+
+.tt-completed[data-collapsed="false"] .tt-completed-chevron {
+  transform: rotate(90deg);
+}
+
+.tt-completed-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+/* Light-wallpaper luminance overrides — same pattern as the Pro Settings
+   panel and upgrade popover. */
+html.has-bg.bg-light .tasks-tab {
+  color: #1f1f1f;
+  text-shadow: none;
+}
+
+html.has-bg.bg-light .tt-section {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #1f1f1f;
+}
+
+html.has-bg.bg-light .tasks-filter {
+  background: rgba(255, 255, 255, 0.82);
+  color: #1f1f1f;
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+html.has-bg.bg-light .tasks-filter option {
+  background: #fff;
+  color: #1f1f1f;
+}
+
+html.has-bg.bg-light .tasks-action {
+  color: #1e6fc9;
+  background: rgba(30, 111, 201, 0.08);
+  border-color: rgba(30, 111, 201, 0.5);
+}
+
+html.has-bg.bg-light .tasks-action:hover {
+  background: rgba(30, 111, 201, 0.16);
+}
+
+html.has-bg.bg-light .tasks-templates-link {
+  color: #1e6fc9;
+}
+
+html.has-bg.bg-light .tt-goal-card {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+html.has-bg.bg-light .tt-progress-bar {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+html.has-bg.bg-light .tt-overdue-badge {
+  color: #b8860b;
+  background: rgba(184, 134, 11, 0.1);
+  border-color: rgba(184, 134, 11, 0.4);
+}
+
+html.has-bg.bg-light .tt-recurring-paused {
+  background: rgba(0, 0, 0, 0.08);
+  color: #1f1f1f;
+}
+
+@media (max-width: 720px) {
+  .tasks-header { flex-direction: column; align-items: stretch; }
+  .tasks-header-right { justify-content: flex-start; }
+}
+
 /* ===== [1.0.9.2] Tag pills + tag submenu + tag create popover ===== */
 
 /* Tag submenu (right-click → Add tag → list of workspace tags). Mirrors

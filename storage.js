@@ -1428,6 +1428,282 @@ var Storage = (function () {
     return found || null;
   }
 
+  // ===== Recurring Task Templates =====
+  //
+  // Schema-only landing in [1.0.10] per the PLAN (D2). The Tasks tab in
+  // [1.0.10] consumes getAllRecurringTemplates / getActiveRecurringTemplates
+  // for read-only rendering of the Recurring section. The chrome.alarms
+  // sweep that materializes instances into workspace.tasks lands in [1.0.14]
+  // and reads nextScheduledAt; nothing here touches alarms.
+  //
+  // Per-workspace, mirroring goals / tasks / tags. ensureRecurringTemplatesArray
+  // already exists upstream as a forward-looking stub; this section gives it
+  // its first real consumer. Soft-delete via deletedAt from day one — same
+  // pattern as Goal/Task CRUD, ready for the Trash Bin UI.
+  //
+  // Schema follows the PLAN's recurring template definition: name, frequency
+  // ('daily'|'weekly'|'monthly'), daysOfWeek (only for weekly), dayOfMonth
+  // (only for monthly), timeOfDay (HH:mm 24-hour), nextScheduledAt
+  // (populated by [1.0.14]), isActive, tagIds, plus the standard
+  // createdAt / updatedAt / deletedAt fields. workspaceId is implicit via the
+  // workspace.recurringTemplates collection — no FK field needed.
+
+  var VALID_RECURRING_FREQUENCIES = ["daily", "weekly", "monthly"];
+  var TIME_OF_DAY_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+  function genRecurringTemplateId() {
+    return "rtmpl_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  function findLiveRecurringTemplate(workspace, templateId) {
+    var arr = ensureRecurringTemplatesArray(workspace);
+    if (!arr) return null;
+    var t = arr.find(function (x) { return x.id === templateId; });
+    if (!t || t.deletedAt) return null;
+    return t;
+  }
+
+  function isValidTimeOfDay(s) {
+    return typeof s === "string" && TIME_OF_DAY_REGEX.test(s);
+  }
+
+  // Validates the frequency-specific fields together so the caller can't end
+  // up with a 'weekly' template missing daysOfWeek or a 'monthly' template
+  // missing dayOfMonth. Returns null on success, an { err, message } shape
+  // on failure (matching the createTag duplicate-name return pattern).
+  function validateRecurringPattern(frequency, daysOfWeek, dayOfMonth) {
+    if (VALID_RECURRING_FREQUENCIES.indexOf(frequency) === -1) {
+      return { err: "invalid_frequency", message: "frequency must be 'daily', 'weekly', or 'monthly'." };
+    }
+    if (frequency === "weekly") {
+      if (!Array.isArray(daysOfWeek) || daysOfWeek.length === 0) {
+        return { err: "weekly_requires_days", message: "Weekly templates require at least one day-of-week." };
+      }
+      for (var i = 0; i < daysOfWeek.length; i++) {
+        var d = daysOfWeek[i];
+        if (typeof d !== "number" || d < 0 || d > 6 || (d | 0) !== d) {
+          return { err: "invalid_day_of_week", message: "daysOfWeek values must be integers 0-6." };
+        }
+      }
+    } else if (frequency === "monthly") {
+      if (typeof dayOfMonth !== "number" || dayOfMonth < 1 || dayOfMonth > 31 || (dayOfMonth | 0) !== dayOfMonth) {
+        return { err: "invalid_day_of_month", message: "Monthly templates require dayOfMonth as an integer 1-31." };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Create a recurring template in the (optionally specified) workspace.
+   *
+   * @param {object} data — full storage object
+   * @param {object} fields — { name (required), frequency (required), daysOfWeek?, dayOfMonth?, timeOfDay? (default "09:00"), isActive? (default true), tagIds? (default []), nextScheduledAt? (default null) }
+   * @param {string} [workspaceId] — defaults to active workspace
+   * @returns {Promise<object|{err:string,message:string}|null>}
+   */
+  async function createRecurringTemplate(data, fields, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws) {
+      console.warn("[LaunchPad] createRecurringTemplate: workspace not found");
+      return null;
+    }
+    var f = fields || {};
+    var name = typeof f.name === "string" ? f.name.trim() : "";
+    if (!name) {
+      console.warn("[LaunchPad] createRecurringTemplate: name is required and must be non-empty after trim");
+      return null;
+    }
+
+    var frequency = f.frequency;
+    var daysOfWeek = (f.daysOfWeek === undefined) ? null : f.daysOfWeek;
+    var dayOfMonth = (f.dayOfMonth === undefined) ? null : f.dayOfMonth;
+    var patternErr = validateRecurringPattern(frequency, daysOfWeek, dayOfMonth);
+    if (patternErr) {
+      console.warn("[LaunchPad] createRecurringTemplate:", patternErr.message);
+      return patternErr;
+    }
+
+    // timeOfDay defaults to 09:00. [1.0.14]'s alarm sweep needs a time-of-day
+    // anchor to compute the next scheduled occurrence; null would force every
+    // caller to default it themselves.
+    var timeOfDay = (f.timeOfDay === undefined || f.timeOfDay === null) ? "09:00" : f.timeOfDay;
+    if (!isValidTimeOfDay(timeOfDay)) {
+      console.warn("[LaunchPad] createRecurringTemplate: timeOfDay must match HH:mm 24-hour");
+      return null;
+    }
+
+    var isActive = (f.isActive === undefined) ? true : !!f.isActive;
+
+    var tagIds;
+    if (f.tagIds === undefined || f.tagIds === null) {
+      tagIds = [];
+    } else if (!Array.isArray(f.tagIds) || !f.tagIds.every(function (t) { return typeof t === "string"; })) {
+      console.warn("[LaunchPad] createRecurringTemplate: tagIds must be an array of strings");
+      return null;
+    } else {
+      tagIds = f.tagIds.slice();
+    }
+
+    var nextScheduledAt = (f.nextScheduledAt === undefined) ? null : f.nextScheduledAt;
+    if (nextScheduledAt !== null && typeof nextScheduledAt !== "number") {
+      console.warn("[LaunchPad] createRecurringTemplate: nextScheduledAt must be a number or null");
+      return null;
+    }
+
+    var arr = ensureRecurringTemplatesArray(ws);
+    var now = Date.now();
+    // Normalize the off-frequency fields so a 'daily' template doesn't carry
+    // a stale daysOfWeek and a 'weekly' template doesn't carry a stale
+    // dayOfMonth. Keeps the stored shape stable for downstream code in
+    // [1.0.14] reading these fields without a frequency check.
+    var template = {
+      id: genRecurringTemplateId(),
+      name: name,
+      frequency: frequency,
+      daysOfWeek: frequency === "weekly" ? daysOfWeek.slice() : null,
+      dayOfMonth: frequency === "monthly" ? dayOfMonth : null,
+      timeOfDay: timeOfDay,
+      nextScheduledAt: nextScheduledAt,
+      isActive: isActive,
+      tagIds: tagIds,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null
+    };
+    arr.push(template);
+    await saveAll(data);
+    return template;
+  }
+
+  /**
+   * Patch an existing recurring template. Only the fields present on the
+   * `updates` object are applied; everything else preserved. Frequency-related
+   * fields validated together when frequency is touched.
+   *
+   * @returns {Promise<object|{err:string,message:string}|null>}
+   */
+  async function updateRecurringTemplate(data, templateId, updates, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var template = findLiveRecurringTemplate(ws, templateId);
+    if (!template) return null;
+    var u = updates || {};
+
+    if (Object.prototype.hasOwnProperty.call(u, "name")) {
+      var name = typeof u.name === "string" ? u.name.trim() : "";
+      if (!name) {
+        console.warn("[LaunchPad] updateRecurringTemplate: name must be non-empty after trim");
+        return null;
+      }
+      template.name = name;
+    }
+
+    // Frequency / daysOfWeek / dayOfMonth re-validate together: re-resolve
+    // each field from the update or fall back to the stored value, then run
+    // the joint pattern validator. Caller can change frequency without
+    // re-supplying the off-frequency fields (we just clear them).
+    var touchedPattern =
+      Object.prototype.hasOwnProperty.call(u, "frequency") ||
+      Object.prototype.hasOwnProperty.call(u, "daysOfWeek") ||
+      Object.prototype.hasOwnProperty.call(u, "dayOfMonth");
+    if (touchedPattern) {
+      var freq = Object.prototype.hasOwnProperty.call(u, "frequency") ? u.frequency : template.frequency;
+      var dow = Object.prototype.hasOwnProperty.call(u, "daysOfWeek")
+        ? u.daysOfWeek
+        : template.daysOfWeek;
+      var dom = Object.prototype.hasOwnProperty.call(u, "dayOfMonth")
+        ? u.dayOfMonth
+        : template.dayOfMonth;
+      var patternErr = validateRecurringPattern(freq, dow, dom);
+      if (patternErr) {
+        console.warn("[LaunchPad] updateRecurringTemplate:", patternErr.message);
+        return patternErr;
+      }
+      template.frequency = freq;
+      template.daysOfWeek = freq === "weekly" ? dow.slice() : null;
+      template.dayOfMonth = freq === "monthly" ? dom : null;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(u, "timeOfDay")) {
+      if (!isValidTimeOfDay(u.timeOfDay)) {
+        console.warn("[LaunchPad] updateRecurringTemplate: timeOfDay must match HH:mm 24-hour");
+        return null;
+      }
+      template.timeOfDay = u.timeOfDay;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(u, "isActive")) {
+      template.isActive = !!u.isActive;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(u, "tagIds")) {
+      if (u.tagIds === null) {
+        template.tagIds = [];
+      } else if (!Array.isArray(u.tagIds) || !u.tagIds.every(function (t) { return typeof t === "string"; })) {
+        console.warn("[LaunchPad] updateRecurringTemplate: tagIds must be an array of strings");
+        return null;
+      } else {
+        template.tagIds = u.tagIds.slice();
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(u, "nextScheduledAt")) {
+      if (u.nextScheduledAt !== null && typeof u.nextScheduledAt !== "number") {
+        console.warn("[LaunchPad] updateRecurringTemplate: nextScheduledAt must be a number or null");
+        return null;
+      }
+      template.nextScheduledAt = u.nextScheduledAt;
+    }
+
+    template.updatedAt = Date.now();
+    await saveAll(data);
+    return template;
+  }
+
+  /**
+   * Soft-delete a recurring template. Existing instances already materialized
+   * into workspace.tasks remain untouched (per spec: "Deleting template
+   * trashes the template. Existing instances remain as individual tasks.").
+   *
+   * @returns {Promise<object|null>}
+   */
+  async function deleteRecurringTemplate(data, templateId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var template = findLiveRecurringTemplate(ws, templateId);
+    if (!template) return null;
+    template.deletedAt = Date.now();
+    await saveAll(data);
+    return template;
+  }
+
+  /**
+   * Active recurring templates: !deletedAt && isActive.
+   */
+  function getActiveRecurringTemplates(workspace) {
+    var arr = ensureRecurringTemplatesArray(workspace);
+    if (!arr) return [];
+    return arr.filter(function (t) { return !t.deletedAt && t.isActive; });
+  }
+
+  /**
+   * All non-deleted recurring templates (active + paused).
+   */
+  function getAllRecurringTemplates(workspace) {
+    var arr = ensureRecurringTemplatesArray(workspace);
+    if (!arr) return [];
+    return arr.filter(function (t) { return !t.deletedAt; });
+  }
+
+  /**
+   * Lookup by id. Returns null if missing OR soft-deleted.
+   */
+  function getRecurringTemplateById(workspace, templateId) {
+    var arr = ensureRecurringTemplatesArray(workspace);
+    if (!arr) return null;
+    var t = arr.find(function (x) { return x.id === templateId; });
+    if (!t || t.deletedAt) return null;
+    return t;
+  }
+
   return {
     getDefaultData: getDefaultData,
     getAll: getAll,
@@ -1491,6 +1767,14 @@ var Storage = (function () {
     getAllTags: getAllTags,
     getTagById: getTagById,
     getTagByName: getTagByName,
-    nextAutoTagColor: nextAutoTagColor
+    nextAutoTagColor: nextAutoTagColor,
+    // Recurring task templates ([1.0.10] schema landing; [1.0.14] adds
+    // alarm-driven instance materialization)
+    createRecurringTemplate: createRecurringTemplate,
+    updateRecurringTemplate: updateRecurringTemplate,
+    deleteRecurringTemplate: deleteRecurringTemplate,
+    getActiveRecurringTemplates: getActiveRecurringTemplates,
+    getAllRecurringTemplates: getAllRecurringTemplates,
+    getRecurringTemplateById: getRecurringTemplateById
   };
 })();

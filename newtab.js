@@ -260,6 +260,12 @@
     if (!panel) return;
     var label = TAB_LABELS[id] || id;
     if (isProAccessibleLevel(level)) {
+      // [1.0.10] Tasks tab gets a real layout; other Pro tabs stay on the
+      // Coming-soon placeholder until their own [1.0.x] tasks land.
+      if (id === "tasks") {
+        renderTasksTab(panel, data);
+        return;
+      }
       panel.innerHTML =
         '<div class="tab-placeholder">' +
           '<div class="tab-placeholder-title">' + label + '</div>' +
@@ -625,6 +631,371 @@
         openUpgradePopover(cta, data);
       });
     }
+  }
+
+  // ===== Tasks Tab ([1.0.10]) =====
+  //
+  // Read-only "looks finished" pass per the PLAN's D1 split. Renders the
+  // four sections (Active Goals / Standalone / Recurring / Completed), each
+  // section's empty state, and the goal-card layout (name, auto-tag pill,
+  // deadline + overdue badge, progress bar, child task rows). The only
+  // interactivity is the task checkbox toggle and the Completed-section
+  // chevron. Inline editing, modals for the action buttons, the goal
+  // context menu, "+ Add task", the Templates link panel, and filter-bar
+  // logic all defer to [1.0.10.1].
+  //
+  // Data sources (existing in storage.js):
+  //   Storage.getActiveGoals(ws), getCompletedGoals(ws), getActiveTasks(ws),
+  //   getCompletedTasks(ws), getActiveRecurringTemplates(ws), getTagById(ws,id)
+  //
+  // Re-render trigger:
+  //   - Initial render via applyTabAccessLevel → renderTabPlaceholder
+  //   - chrome.storage.onChanged path runs applyAccessLevelUI which re-calls
+  //     renderTabPlaceholder ([init's onChanged listener]); checkbox toggles
+  //     also call renderTasksTab eagerly so the user sees the new state
+  //     before the round-trip lands.
+
+  // Short month/day formatter for goal deadlines and recurring "next" hints.
+  // Locale-respecting via toLocaleDateString without relying on a heavier
+  // formatter; the Tasks tab is a Pro surface and the user's browser locale
+  // is the right default.
+  function fmtShortDate(ts) {
+    if (!ts || typeof ts !== "number") return "";
+    try {
+      return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function isOverdue(deadlineAt) {
+    return typeof deadlineAt === "number" && deadlineAt < Date.now();
+  }
+
+  // Auto-tag pill / standalone tag pills resolve through Storage.getTagById,
+  // which returns null for archived tags so deleted-tag IDs render as
+  // nothing rather than a broken pill.
+  function tagPillHtml(workspace, tagId) {
+    if (!tagId) return "";
+    var tag = Storage.getTagById(workspace, tagId);
+    if (!tag) return "";
+    return '<span class="tt-tag-pill" style="background:' + escapeHtml(tag.color) + '">' +
+      escapeHtml(tag.name) +
+    '</span>';
+  }
+
+  // Stable display order for goals: by displayOrder asc, then by createdAt asc
+  // as a tiebreaker. Mirrors the Goal CRUD's nextDisplayOrder + createdAt
+  // semantics so the rendered order matches what the user would see in any
+  // hand-walked iteration.
+  function sortedByDisplayOrder(items) {
+    return items.slice().sort(function (a, b) {
+      var ao = typeof a.displayOrder === "number" ? a.displayOrder : 0;
+      var bo = typeof b.displayOrder === "number" ? b.displayOrder : 0;
+      if (ao !== bo) return ao - bo;
+      return (a.createdAt || 0) - (b.createdAt || 0);
+    });
+  }
+
+  function tasksHeaderHtml() {
+    // Filter bar dropdowns rendered with their default option labels per the
+    // PLAN — no logic, no actual filter state. Same with the action buttons
+    // and Templates link, all noop until [1.0.10.1].
+    return '<header class="tasks-header">' +
+        '<div class="tasks-header-left">' +
+          '<h1 class="tasks-title">Tasks</h1>' +
+          '<div class="tasks-filter-bar" role="toolbar" aria-label="Task filters">' +
+            '<select class="tasks-filter" data-filter="priority" aria-label="Priority filter">' +
+              '<option value="">Priority</option>' +
+              '<option value="urgent">Urgent</option>' +
+              '<option value="high">High</option>' +
+              '<option value="medium">Medium</option>' +
+              '<option value="low">Low</option>' +
+            '</select>' +
+            '<select class="tasks-filter" data-filter="tag" aria-label="Tag filter">' +
+              '<option value="">Tag</option>' +
+            '</select>' +
+            '<select class="tasks-filter" data-filter="status" aria-label="Status filter">' +
+              '<option value="active">Active</option>' +
+              '<option value="completed">Completed</option>' +
+              '<option value="all">All</option>' +
+            '</select>' +
+            '<select class="tasks-filter" data-filter="sort" aria-label="Sort by">' +
+              '<option value="created">Sort: created</option>' +
+              '<option value="due">Sort: due</option>' +
+              '<option value="priority">Sort: priority</option>' +
+              '<option value="name">Sort: name</option>' +
+            '</select>' +
+          '</div>' +
+        '</div>' +
+        '<div class="tasks-header-right">' +
+          '<button class="tasks-action" data-action="new-goal" type="button">+ New Goal</button>' +
+          '<button class="tasks-action" data-action="new-task" type="button">+ New Task</button>' +
+          '<button class="tasks-action" data-action="new-recurring" type="button">+ New Recurring</button>' +
+          '<a class="tasks-templates-link" data-action="templates" href="#">Templates</a>' +
+        '</div>' +
+      '</header>';
+  }
+
+  // Single child task row — read-only name + working checkbox. Priority
+  // visual treatment (left border) lands in [1.0.12].
+  function taskRowHtml(workspace, task) {
+    var checked = task.completed ? " checked" : "";
+    var completedCls = task.completed ? " is-completed" : "";
+    var tagHtml = "";
+    var tagIds = Array.isArray(task.tagIds) ? task.tagIds : [];
+    for (var i = 0; i < tagIds.length; i++) {
+      tagHtml += tagPillHtml(workspace, tagIds[i]);
+    }
+    return '<li class="tt-task-row' + completedCls + '" data-task-id="' + escapeHtml(task.id) + '">' +
+      '<input type="checkbox" class="tt-task-check" data-task-id="' + escapeHtml(task.id) + '"' + checked + ' aria-label="Toggle task complete">' +
+      '<span class="tt-task-name">' + escapeHtml(task.name) + '</span>' +
+      tagHtml +
+    '</li>';
+  }
+
+  function goalCardHtml(workspace, goal, allTasks) {
+    var children = allTasks.filter(function (t) {
+      return t.goalId === goal.id && !t.deletedAt;
+    });
+    var doneCount = children.filter(function (t) { return t.completed; }).length;
+    var totalCount = children.length;
+    var pct = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
+
+    var deadlineHtml = "";
+    if (typeof goal.deadlineAt === "number") {
+      var overdue = isOverdue(goal.deadlineAt) && goal.status !== "completed";
+      deadlineHtml = '<span class="tt-goal-deadline">' + escapeHtml(fmtShortDate(goal.deadlineAt)) + '</span>';
+      if (overdue) {
+        deadlineHtml += '<span class="tt-overdue-badge">Overdue</span>';
+      }
+    }
+
+    var tasksListHtml = children.length
+      ? children.map(function (t) { return taskRowHtml(workspace, t); }).join("")
+      : '<li class="tt-task-empty">No tasks yet.</li>';
+
+    return '<article class="tt-goal-card" data-goal-id="' + escapeHtml(goal.id) + '">' +
+      '<header class="tt-goal-header">' +
+        '<div class="tt-goal-header-left">' +
+          '<span class="tt-goal-name">' + escapeHtml(goal.name) + '</span>' +
+          tagPillHtml(workspace, goal.autoTagId) +
+        '</div>' +
+        '<div class="tt-goal-header-right">' +
+          deadlineHtml +
+        '</div>' +
+      '</header>' +
+      '<div class="tt-goal-progress">' +
+        '<div class="tt-progress-bar"><div class="tt-progress-fill" style="width:' + pct + '%"></div></div>' +
+        '<span class="tt-progress-text">' + doneCount + ' of ' + totalCount + ' task' + (totalCount === 1 ? "" : "s") + ' complete</span>' +
+      '</div>' +
+      '<ul class="tt-goal-tasks">' + tasksListHtml + '</ul>' +
+    '</article>';
+  }
+
+  function recurringRowHtml(workspace, template) {
+    // Pattern hint mirrors the spec's "Weekly review • every Monday" copy.
+    // Daily prints just the time-of-day; weekly prints the day-of-week list;
+    // monthly prints the day-of-month.
+    var DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    var hint = "";
+    if (template.frequency === "daily") {
+      hint = "Daily at " + (template.timeOfDay || "09:00");
+    } else if (template.frequency === "weekly") {
+      var days = (template.daysOfWeek || []).map(function (d) { return DOW_LABELS[d] || ""; }).filter(Boolean);
+      hint = "Weekly on " + (days.join(", ") || "—") + " at " + (template.timeOfDay || "09:00");
+    } else if (template.frequency === "monthly") {
+      hint = "Monthly on day " + (template.dayOfMonth || "—") + " at " + (template.timeOfDay || "09:00");
+    }
+    var pausedBadge = template.isActive ? "" : '<span class="tt-recurring-paused">Paused</span>';
+    var tagHtml = "";
+    var tagIds = Array.isArray(template.tagIds) ? template.tagIds : [];
+    for (var i = 0; i < tagIds.length; i++) {
+      tagHtml += tagPillHtml(workspace, tagIds[i]);
+    }
+    return '<li class="tt-recurring-row" data-template-id="' + escapeHtml(template.id) + '">' +
+      '<span class="tt-recurring-icon" aria-hidden="true">↻</span>' +
+      '<span class="tt-recurring-name">' + escapeHtml(template.name) + '</span>' +
+      '<span class="tt-recurring-hint">' + escapeHtml(hint) + '</span>' +
+      tagHtml +
+      pausedBadge +
+    '</li>';
+  }
+
+  // Completed section bundles two streams: completed goals (with their child
+  // tasks rendered read-only beneath, matching the Active card layout sans
+  // the progress bar) and completed standalone tasks. Recurring instances
+  // can also be completed; until [1.0.14] generates them, this stream is
+  // just spec-aligned scaffolding.
+  function completedBodyHtml(workspace, completedGoals, completedStandalone, allTasks) {
+    var goalsHtml = completedGoals.map(function (g) {
+      return goalCardHtml(workspace, g, allTasks);
+    }).join("");
+    var standaloneHtml = completedStandalone.length
+      ? '<ul class="tt-standalone-list tt-standalone-list-completed">' +
+          completedStandalone.map(function (t) { return taskRowHtml(workspace, t); }).join("") +
+        '</ul>'
+      : "";
+    if (!goalsHtml && !standaloneHtml) {
+      return '<div class="tt-empty-state">Nothing completed yet.</div>';
+    }
+    return goalsHtml + standaloneHtml;
+  }
+
+  function renderTasksTab(panel, d) {
+    if (!panel) return;
+    var workspace = Storage.getActiveWorkspace(d);
+    if (!workspace) {
+      panel.innerHTML = '<div class="tasks-tab-empty">No active workspace.</div>';
+      return;
+    }
+
+    var activeGoals = sortedByDisplayOrder(Storage.getActiveGoals(workspace));
+    var completedGoals = sortedByDisplayOrder(Storage.getCompletedGoals(workspace));
+    var allActiveTasks = Storage.getActiveTasks(workspace);
+    var allCompletedTasks = Storage.getCompletedTasks(workspace);
+    // Standalone = goalId === null AND not a recurring instance (per PLAN's
+    // milestone definition). Recurring instances surface in their own
+    // Recurring section once [1.0.14] generates them; for [1.0.10] we keep
+    // them out of Standalone defensively even though no instances exist yet.
+    var standaloneActive = allActiveTasks.filter(function (t) {
+      return t.goalId === null && !t.isRecurringInstance;
+    });
+    var standaloneCompleted = allCompletedTasks.filter(function (t) {
+      return t.goalId === null && !t.isRecurringInstance;
+    });
+    // For goal cards' child task lists we need both completed and active
+    // children together so the progress bar counts work.
+    var allTasksForGoals = (Storage.getAllTasks(workspace) || []);
+
+    var recurringTemplates = Storage.getAllRecurringTemplates(workspace);
+    // Stable sort: createdAt asc, mirroring the createTag sort in
+    // renderProTagsSection.
+    recurringTemplates = recurringTemplates.slice().sort(function (a, b) {
+      return (a.createdAt || 0) - (b.createdAt || 0);
+    });
+
+    var activeGoalsHtml = activeGoals.length
+      ? activeGoals.map(function (g) { return goalCardHtml(workspace, g, allTasksForGoals); }).join("")
+      : '<div class="tt-empty-state">No active goals — create your first goal.</div>';
+
+    var standaloneHtml = standaloneActive.length
+      ? '<ul class="tt-standalone-list">' +
+          standaloneActive.map(function (t) { return taskRowHtml(workspace, t); }).join("") +
+        '</ul>'
+      : '<div class="tt-empty-state">No standalone tasks.</div>';
+
+    var recurringHtml = recurringTemplates.length
+      ? '<ul class="tt-recurring-list">' +
+          recurringTemplates.map(function (t) { return recurringRowHtml(workspace, t); }).join("") +
+        '</ul>'
+      : '<div class="tt-empty-state">No recurring tasks.</div>';
+
+    var completedCount = completedGoals.length + standaloneCompleted.length;
+
+    panel.innerHTML =
+      '<div class="tasks-tab" data-tab="tasks">' +
+        tasksHeaderHtml() +
+        '<div class="tasks-body">' +
+          '<section class="tt-section" data-section="active-goals">' +
+            '<h2 class="tt-section-title">Active Goals</h2>' +
+            '<div class="tt-goal-list">' + activeGoalsHtml + '</div>' +
+          '</section>' +
+          '<section class="tt-section" data-section="standalone">' +
+            '<h2 class="tt-section-title">Standalone</h2>' +
+            standaloneHtml +
+          '</section>' +
+          '<section class="tt-section" data-section="recurring">' +
+            '<h2 class="tt-section-title">Recurring' +
+              (recurringTemplates.length ? ' <span class="tt-section-count">' + recurringTemplates.length + '</span>' : '') +
+            '</h2>' +
+            recurringHtml +
+          '</section>' +
+          '<section class="tt-section tt-completed" data-section="completed" data-collapsed="true">' +
+            '<h2 class="tt-section-title">' +
+              '<button class="tt-completed-toggle" type="button" aria-expanded="false">' +
+                '<span class="tt-completed-chevron">' + CHEVRON_RIGHT_SVG + '</span>' +
+                '<span>Completed' + (completedCount ? ' (' + completedCount + ')' : '') + '</span>' +
+              '</button>' +
+            '</h2>' +
+            '<div class="tt-completed-body hidden">' +
+              completedBodyHtml(workspace, completedGoals, standaloneCompleted, allTasksForGoals) +
+            '</div>' +
+          '</section>' +
+        '</div>' +
+      '</div>';
+
+    bindTasksTabEvents(panel);
+  }
+
+  function bindTasksTabEvents(panel) {
+    // Bind once per panel — the listeners attach to the panel container,
+    // not to its inner DOM, so re-renders that wipe innerHTML don't drop
+    // them. A simple flag on the panel element prevents stacking N listeners
+    // after N re-renders. Event delegation via target.closest() keeps the
+    // handlers working against the freshly-rendered children.
+    if (panel.dataset.tasksTabBound === "1") return;
+    panel.dataset.tasksTabBound = "1";
+
+    panel.addEventListener("change", async function (e) {
+      var target = e.target;
+      if (!target || !target.classList || !target.classList.contains("tt-task-check")) return;
+      var taskId = target.getAttribute("data-task-id");
+      if (!taskId) return;
+      var willComplete = target.checked;
+      try {
+        if (willComplete) {
+          await Storage.completeTask(data, taskId);
+        } else {
+          await Storage.reactivateTask(data, taskId);
+        }
+      } catch (err) {
+        console.error("[LaunchPad] Tasks tab: task toggle failed", err);
+        // Roll the visual back to match the storage state since we're going
+        // to re-render below from authoritative data.
+      }
+      // Eager re-render so the user sees the new progress bar / completion
+      // styling without waiting for the storage.onChanged round-trip. The
+      // round-trip's re-render that follows is harmless (same data).
+      renderTasksTab(panel, data);
+    });
+
+    panel.addEventListener("click", function (e) {
+      var target = e.target;
+      if (!target) return;
+
+      var toggleBtn = target.closest && target.closest(".tt-completed-toggle");
+      if (toggleBtn) {
+        var section = toggleBtn.closest(".tt-completed");
+        if (!section) return;
+        var collapsed = section.getAttribute("data-collapsed") !== "false";
+        section.setAttribute("data-collapsed", collapsed ? "false" : "true");
+        toggleBtn.setAttribute("aria-expanded", collapsed ? "true" : "false");
+        var body = section.querySelector(".tt-completed-body");
+        if (body) body.classList.toggle("hidden", !collapsed);
+        return;
+      }
+
+      var actionBtn = target.closest && target.closest(".tasks-action");
+      if (actionBtn) {
+        var action = actionBtn.getAttribute("data-action");
+        console.log("[1.0.10] noop — modal in 1.0.10.1 (" + action + ")");
+        return;
+      }
+
+      var templatesLink = target.closest && target.closest(".tasks-templates-link");
+      if (templatesLink) {
+        e.preventDefault();
+        console.log("[1.0.10] noop — Templates panel in 1.0.10.1");
+        return;
+      }
+    });
+
+    panel.addEventListener("change", function (e) {
+      var sel = e.target && e.target.closest && e.target.closest(".tasks-filter");
+      if (!sel) return;
+      console.log("[1.0.10] noop — filter logic in 1.0.12 (" + sel.getAttribute("data-filter") + ")");
+    });
   }
 
   // ===== Pro Upgrade CTA =====
