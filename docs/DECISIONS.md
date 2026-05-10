@@ -750,3 +750,24 @@ Originating data point: round 6 IMPLEMENTATION comment on Asana 1214425856049640
 - The prior entry's "preserves the deliberate 3-activation-limit from [1.0.5.1]" reasoning point for choosing activate-then-validate over validate-only is superseded — the activate-then-validate choice now stands on the diagnostics + portal-deactivation arguments alone, both of which remain valid.
 
 **Originating data points:** round 1 milestone activation friction (Asana 1214627520649678 round 1 + round 2 IMPLEMENTATION comments); subsequent Dodo dashboard config switch on 2026-05-09.
+
+---
+
+## 2026-05-10 — timeOfDay required-with-default on recurring task templates
+
+**Context:** [1.0.10] commit 2f00d01 landed `Storage.createRecurringTemplate` as part of the Tasks tab layout pass. The PLAN comment for that task specified the recurring template's `timeOfDay` field as a required string. The originating spec doc `docs/SPECS/tasks-and-goals.md` says nullable. The discrepancy surfaced during implementation; this entry locks the chosen reading.
+
+**Outcome:** `timeOfDay` is a required string in `'HH:mm'` 24-hour format. When omitted on `Storage.createRecurringTemplate`, default `'09:00'` is applied at create time. Validation regex `/^([01]\d|2[0-3]):[0-5]\d$/` rejects malformed strings on both create and update.
+
+**Reasoning:**
+- The PLAN for [1.0.10] specified `timeOfDay` as required-string. The spec doc `docs/SPECS/tasks-and-goals.md` says nullable.
+- [1.0.14]'s alarm sweep needs a time anchor — null would force every downstream consumer to default it themselves, which scatters the default across the codebase.
+- Centralizing the default at create time (`Storage.createRecurringTemplate`) keeps validation simple and makes [1.0.14] simpler to implement.
+- Required-with-default is a strict superset of nullable — any code expecting a non-null `timeOfDay` continues to work; no caller is forced to handle null.
+
+**Implications:**
+- `docs/SPECS/tasks-and-goals.md`'s recurring template schema section should be updated to match (required-with-default, not nullable). Track this as a pre-work item for [1.0.14], or do a one-line spec doc edit before then.
+- [1.0.10.1]'s "+ New Recurring" modal can omit a "no time" affordance entirely — the field is always populated, defaulting to a sensible morning anchor.
+- Tests / verification snippets that consume recurring templates can rely on `timeOfDay` always being a non-null `HH:mm` string.
+
+**Originating data points:** [1.0.10] commit 2f00d01 (`storage.js` recurring template CRUD; `newtab.js` recurring row rendering); PLAN comment on Asana task GID 1214260745064524.
