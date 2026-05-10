@@ -82,7 +82,7 @@ Run when the task touched the main extension code (not docs, not workflow).
 - **D2. Search uses `chrome.search.query`**, not a custom URL dictionary. Custom search URLs were removed in v1.0.2 for Chrome Web Store "single purpose" policy compliance. Re-adding them will cause rejection.
 - **D3. Domain alias map** (Outlook Personal vs Growve, Gmail vs GSuite, etc.) preserved if you touched the nesting/variants logic. See `DOMAIN_ALIASES` constant.
 - **D4. Favicon fallback chain intact.** Google S2 favicon API → curated override → placeholder SVG. Breaking this causes missing icons all over the grid.
-- **D5. Frosted glass styling.** All panels use `backdrop-filter: blur(12px); background: rgba(30,30,30,0.85);`. If you added a new panel, match the style.
+- **D5. Frosted glass styling.** New frosted surfaces MUST reference the tier CSS variables defined in `newtab.css :root` — `--pro-frost-card-{bg,blur}` (panels/sections/cards), `--pro-frost-floater-{bg,blur}` (modals/popovers/dropdowns), or `--pro-frost-menu-{bg,blur}` (context menus). Never reintroduce a literal `rgba(30,30,30,…)` or literal `blur(…)` on a tier surface — those drift. Banners/pills with intentionally different alpha (e.g. `#tab-bar`, `.pro-preview-banner`) sit outside the tier system. CLAUDE.md "Style and Pattern Constants" lists the tier values.
 - **D6. Text shadow on all text over backgrounds.** `text-shadow: 0 1px 3px rgba(0,0,0,0.5);`. Critical for wallpaper readability.
 - **D7. No secrets committed.** No Firebase config, no API keys, no tokens, no passwords in source files. `.env` file gitignored.
 
