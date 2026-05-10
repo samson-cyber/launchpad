@@ -771,3 +771,23 @@ Originating data point: round 6 IMPLEMENTATION comment on Asana 1214425856049640
 - Tests / verification snippets that consume recurring templates can rely on `timeOfDay` always being a non-null `HH:mm` string.
 
 **Originating data points:** [1.0.10] commit 2f00d01 (`storage.js` recurring template CRUD; `newtab.js` recurring row rendering); PLAN comment on Asana task GID 1214260745064524.
+
+---
+
+## 2026-05-10 — Auto-tag name remains decoupled from goal rename (re-affirmed)
+
+**Context:** [1.0.10.1] commit 71eafe0's PLAN comment was authored under the [1.0.9] semantic assumption — that an auto-tag's name follows the goal it was created from. The actual rule, locked in DECISIONS 2026-04-27 ("Tag name decoupling rule") and re-affirmed in DECISIONS 2026-05-09 ("renameGoal intentionally does NOT participate"), is that the auto-tag's name is frozen at goal-creation time. CC's [1.0.10.1] implementation correctly followed the existing rule rather than the PLAN, and surfaced the drift in its IMPLEMENTATION comment. This entry exists so the next task that reads back through recent history sees the resolution at the top, rather than re-litigating it.
+
+**Outcome:** Auto-tag name is fixed at goal-creation time. `Storage.renameGoal` repaints the goal card (the displayed pill text re-reads from the live tag store, so it reflects whatever the tag is currently called) but does NOT update the auto-tag's `name` field. Users can manually rename the auto-tag via Pro Settings if they want it aligned with the goal's new name.
+
+**Reasoning:**
+- The rule is already established by DECISIONS 2026-04-27 round 7 and DECISIONS 2026-05-09 round 7. Reversing it in [1.0.10.1] would have re-introduced cascading rename surprises across bookmarks, groups, and tasks that share the auto-tag.
+- PLAN-vs-implementation drift typically resolves by following the PLAN; in this case, the existing rule is the source of truth and the PLAN was a misread of that rule. The IMPLEMENTATION comment correctly chose the rule.
+- The 2026-04-27 rationale ("tags attach to bookmarks and groups too — silently rebroadcasting a tag rename when the user just wanted to rename the goal would be a surprising side effect") still applies verbatim. Nothing in [1.0.10.1]'s scope (Tasks tab interactivity) gives a reason to revisit it.
+
+**Implications:**
+- Renaming a goal "Fitness" → "Health" leaves the auto-tag's stored name as "Fitness". The goal card pill renders "Fitness" until the user separately renames the tag.
+- Future PLAN comments that touch goal/tag interaction should reference the 2026-04-27 + 2026-05-09 entries directly rather than relying on a remembered description of the rule.
+- If a future spec wants rename propagation (opt-in toggle, feature flag, etc.), it must be added as a new explicit feature — not as a silent reversal of the decoupling.
+
+**Originating data points:** [1.0.10.1] commit 71eafe0 IMPLEMENTATION comment (where the PLAN-vs-implementation drift was flagged); DECISIONS 2026-04-27 ("Tag CRUD with auto-creation on goal + inheritance on task; tag name decoupled from goal name after creation"); DECISIONS 2026-05-09 ("renameGoal intentionally does NOT participate" within the auto-tag dedup entry); Asana task GID 1214681339623264.
