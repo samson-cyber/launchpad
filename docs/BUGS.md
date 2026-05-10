@@ -142,6 +142,45 @@ Console-based verification fully satisfies these gates when the snippet exercise
 
 - Storage methods that internally call saveAll often use a closure-captured local reference, not Storage.saveAll. Reassigning Storage.saveAll in a test snippet does NOT prevent persistence. To run truly in-memory tests, either accept the persistence and add a cleanup step, or work directly on a JSON-cloned data object that's never passed to a method that calls saveAll.
 
+### Section J: Verification Snippet Anti-Patterns
+
+Run before publishing any console-based verification snippet (the kind written for Section I gates or any pre-Needs-Review verification).
+
+- **J1. Stub, do not spy.** When isolating `Storage.saveAll` for a verification snippet, replace it with a no-op stub. Never wrap it with a forwarding spy that still calls the original.
+
+  ```
+  // CORRECT — stub. Returns undefined, blocks the saveAll write path entirely.
+  Storage.saveAll = async () => {};
+
+  // ANTI-PATTERN — spy. Forwards to real saveAll, persists fixtures to chrome.storage.local.
+  Storage.saveAll = async (...args) => { saveCount++; return _origSaveAll.apply(Storage, args); };
+  ```
+
+  The spy looks helpful (it gives you a call count) but every call still writes to `chrome.storage.local`. Verification snippets must leave storage exactly as they found it. The spy's intermediate writes pollute real state even if a final cleanup tries to restore — and the [1.0.10] / [1.0.10.1] verification snippets shipped this anti-pattern twice despite explicit "stub Storage.saveAll" instruction in their PLANs. Spy patterns are appropriate for production telemetry; never for verification snippets.
+
+- **J2. Stubbing alone is not sufficient.** At least one persistence path bypasses `Storage.saveAll`. During [1.0.10] Phase A verification, the renderer's `[LaunchPad] Storage changed externally, refreshing` log fired multiple times during the snippet despite `Storage.saveAll` being stubbed — meaning a CRUD method, debounced flush, or direct `chrome.storage.local.set()` is sidestepping the `saveAll` choke point. Treat the stub as the primary mechanism, not a complete one.
+
+- **J3. Canonical safe pattern.** The combination — stub + full-data backup at the start + always-restore in a `finally` — is the only reliably-clean snippet shape:
+
+  ```
+  const _origSaveAll = Storage.saveAll;
+  Storage.saveAll = async () => {};
+  const _backup = JSON.parse(JSON.stringify((await chrome.storage.local.get('data')).data));
+
+  try {
+    // ... verification operations ...
+  } finally {
+    Storage.saveAll = _origSaveAll;
+    await chrome.storage.local.set({ data: _backup });
+  }
+  ```
+
+  Either the stub or the backup-restore alone is incomplete. The stub blocks the primary write path during the snippet; the backup-restore catches anything that bypasses it. The `finally` ensures restoration even if the verification body throws. The spy pattern is still wrong even when wrapped in this safe shape — the backup-restore catches the pollution at the end, but the spy unnecessarily writes intermediate fixtures along the way (which can fire renderer side effects and skew the very behavior the snippet is trying to verify).
+
+- **J4. Cleanup is non-negotiable.** Whichever pattern is used, the snippet must restore the original `Storage.saveAll` at the end. Leaving `Storage.saveAll = async () => {}` dangling in a live tab silently breaks all subsequent CRUD until the page reloads.
+
+Originating data points: [1.0.10] commit 2f00d01 and [1.0.10.1] commit 71eafe0 — both shipped verification snippets that used the spy pattern despite explicit "stub `Storage.saveAll`" instruction in their PLANs. The "Storage changed externally" observation in J2 surfaced during [1.0.10] Phase A verification on 2026-05-10 and forced the broader stub-plus-backup pattern as the canonical answer.
+
 ---
 
 ## Known Limitations
