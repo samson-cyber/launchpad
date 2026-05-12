@@ -3506,7 +3506,20 @@
     });
 
     // Listen for external storage changes (e.g. context menu adds a shortcut)
+    //
+    // [1.0.11.2] Write-provenance gate. Storage.saveAll tags every same-page
+    // write with TAB_INSTANCE_ID + a writeId in the __lastWrite metadata key
+    // (atomic with the data write). If this event corresponds to one of our
+    // own pending writes, skip render() — the user action that triggered the
+    // write already updated the DOM, and a full render wipes DOM-only state
+    // (sidebar group expansion, focus, etc.). Foreign writes (other newtab
+    // tabs, the background service worker's context-menu adds) still render.
     chrome.storage.onChanged.addListener(function (changes) {
+      var meta = changes.__lastWrite && changes.__lastWrite.newValue;
+      if (meta && meta.tab === Storage.TAB_INSTANCE_ID && Storage._pendingWriteIds.has(meta.writeId)) {
+        Storage._pendingWriteIds.delete(meta.writeId);
+        return;
+      }
       if (changes.data) {
         console.log("[LaunchPad] Storage changed externally, refreshing");
         data = changes.data.newValue || Storage.getDefaultData();

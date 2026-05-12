@@ -3,6 +3,25 @@
 var Storage = (function () {
   "use strict";
 
+  // [1.0.11.2] Write-provenance: same-page storage writes tag themselves so the
+  // newtab onChanged listener can skip its full render() for our OWN writes
+  // (the user action that triggered the write already updated the DOM
+  // optimistically; re-rendering wipes DOM-only state like sidebar expansion).
+  // TAB_INSTANCE_ID identifies this page; _pendingWriteIds holds writeIds we
+  // emitted but the listener has not yet acknowledged. Listener compares both,
+  // and only writes that match THIS tab AND a known writeId are suppressed.
+  // See newtab.js chrome.storage.onChanged for the gate.
+  var TAB_INSTANCE_ID = (typeof crypto !== "undefined" && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : (Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+  var _pendingWriteIds = new Set();
+
+  function genWriteId() {
+    return (typeof crypto !== "undefined" && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : (Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+  }
+
   function emptyTrackingState() {
     return {};
   }
@@ -154,7 +173,16 @@ var Storage = (function () {
 
   async function saveAll(data) {
     try {
-      await chrome.storage.local.set({ data: data });
+      // [1.0.11.2] Tag this write so the newtab's onChanged listener can
+      // distinguish OWN writes from foreign ones (other tab, service worker).
+      // Both keys land in the same chrome.storage.local.set call so they
+      // arrive atomically in a single onChanged event.
+      var writeId = genWriteId();
+      _pendingWriteIds.add(writeId);
+      await chrome.storage.local.set({
+        data: data,
+        __lastWrite: { tab: TAB_INSTANCE_ID, writeId: writeId, ts: Date.now() }
+      });
     } catch (err) {
       console.error("[LaunchPad] Storage write failed:", err);
     }
@@ -1781,6 +1809,9 @@ var Storage = (function () {
   }
 
   return {
+    // [1.0.11.2] Write-provenance hooks — see saveAll() above.
+    TAB_INSTANCE_ID: TAB_INSTANCE_ID,
+    _pendingWriteIds: _pendingWriteIds,
     getDefaultData: getDefaultData,
     getAll: getAll,
     saveAll: saveAll,
