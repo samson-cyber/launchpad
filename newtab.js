@@ -3603,6 +3603,16 @@
         render();
         applyAccessLevelUI();
       }
+      // [1.0.11.9] Wallpaper lives under a separate storage key
+      // (launchpad_background) and Storage.saveBackground bypasses
+      // Storage.saveAll entirely — so the data branch above never fires
+      // for wallpaper-only edits in another tab. Pick those up directly.
+      // loadBackground re-reads the key and runs applyBackground; same
+      // tab gets a harmless re-apply (the source already applied it via
+      // the preview path), foreign tab gets the actual cross-tab sync.
+      if (changes.launchpad_background) {
+        loadBackground();
+      }
     });
 
     // Check for promo toasts (delayed) and right-click tip
@@ -5177,6 +5187,14 @@
     initSidebarGroupObserver();
     checkNestingTooltip();
     renderReadOnlyBanner();
+    // [1.0.11.9] Re-apply document-root settings so a foreign-write render
+    // also surfaces wallpaper + icon-size changes (previously one-time init
+    // only). Idempotent — applyBackground / applyIconSize replace classes
+    // and inline styles wholesale, so a re-run with unchanged values is a
+    // visual no-op. loadBackground is async fire-and-forget; the brief
+    // delay before background-image lands is acceptable for foreign sync.
+    loadBackground();
+    applyIconSize((data && data.settings && data.settings.iconSize) || "medium");
   }
 
   function groupHTML(group, singleGroup) {
