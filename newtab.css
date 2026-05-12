@@ -4968,6 +4968,345 @@ html.has-bg .settings-privacy {
   color: rgba(255, 255, 255, 0.4);
 }
 
+/* --- Settings / Pro Settings / History / Restore: bg-light mode ---
+   Mirrors the sidebar bg-light pattern (lines 3830-3888) so panel chrome
+   and text read correctly when the wallpaper is a light color. The
+   floater tier variable already flips the panel backdrop to white-tinted
+   under html.bg-light; these rules invert the text + borders + control
+   surfaces that the html.has-bg block above sets to white. Specificity
+   matches the has-bg rules (both 0-2-1); these are placed after them
+   in source order so they win on bg-light.
+   Danger red is intentionally swapped to the default-theme #d93025
+   rather than #ff6b6b — same hue, picked for contrast on a light backdrop.
+   Context-menu surfaces (.settings-dropdown-menu, .pro-tag-palette-popover)
+   intentionally stay dark on bg-light via the --pro-frost-menu-bg tier;
+   their existing has-bg rules cover both light and dark wallpapers. */
+
+html.bg-light #settings-panel,
+html.bg-light #pro-settings-panel {
+  border-left-color: rgba(0, 0, 0, 0.08);
+}
+
+html.bg-light .settings-header {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+html.bg-light .settings-header span {
+  color: var(--text-primary);
+}
+
+html.bg-light #settings-close,
+html.bg-light #pro-settings-close {
+  color: var(--text-hint);
+}
+
+html.bg-light #settings-close:hover,
+html.bg-light #pro-settings-close:hover {
+  color: var(--text-primary);
+}
+
+html.bg-light .settings-section + .settings-section {
+  border-top-color: rgba(0, 0, 0, 0.08);
+}
+
+html.bg-light .settings-section-title {
+  color: var(--text-hint);
+}
+
+html.bg-light .settings-label {
+  color: var(--text-secondary);
+}
+
+html.bg-light .settings-segmented {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+html.bg-light .seg-btn {
+  color: var(--text-secondary);
+}
+
+html.bg-light .seg-btn:hover {
+  color: var(--text-primary);
+}
+
+html.bg-light .seg-btn.active {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+html.bg-light .settings-dropdown-btn {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: var(--text-primary);
+}
+
+html.bg-light .settings-dropdown-btn:hover {
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+html.bg-light .settings-btn {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: var(--text-primary);
+}
+
+html.bg-light .settings-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+html.bg-light .settings-btn-danger {
+  color: #d93025;
+  border-color: rgba(217, 48, 37, 0.3);
+}
+
+html.bg-light .settings-btn-danger:hover {
+  background: rgba(217, 48, 37, 0.08);
+  border-color: #d93025;
+}
+
+html.bg-light .settings-wallpaper-thumb {
+  border-color: rgba(0, 0, 0, 0.08);
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+html.bg-light .settings-version {
+  color: var(--text-secondary);
+}
+
+html.bg-light .settings-privacy {
+  color: var(--text-hint);
+}
+
+/* Pro Settings — section-specific */
+
+html.bg-light .pro-section-subtitle {
+  color: var(--text-hint);
+}
+
+html.bg-light .pro-sub-line {
+  color: var(--text-primary);
+}
+
+html.bg-light .pro-sub-line.pro-sub-meta {
+  color: var(--text-hint);
+}
+
+html.bg-light .pro-warning {
+  color: #b06b00;
+  background: rgba(255, 176, 32, 0.15);
+  border-color: rgba(255, 176, 32, 0.45);
+}
+
+html.bg-light .pro-license-current {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-primary);
+}
+
+html.bg-light .pro-license-current.pro-license-empty {
+  color: var(--text-hint);
+}
+
+html.bg-light #pro-license-input {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: var(--text-primary);
+}
+
+html.bg-light #pro-license-input::placeholder {
+  color: var(--text-hint);
+}
+
+html.bg-light .pro-workspace-list li {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-primary);
+}
+
+html.bg-light .pro-workspace-row {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+html.bg-light .pws-drag-handle {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+html.bg-light .pro-workspace-row:hover .pws-drag-handle {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+html.bg-light .pro-workspace-row.is-readonly .pws-drag-handle {
+  color: rgba(0, 0, 0, 0.18);
+}
+
+html.bg-light .pws-name:hover:not(.is-readonly) {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+html.bg-light .pws-name-input {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-primary);
+}
+
+html.bg-light .pws-delete {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+html.bg-light .pws-add-input {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: var(--text-primary);
+}
+
+html.bg-light .pro-toggle-row {
+  color: var(--text-secondary);
+}
+
+html.bg-light .pro-readonly-list li {
+  color: var(--text-secondary);
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+/* Pro Settings — Tags */
+
+html.bg-light .pro-tag-row {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+html.bg-light .pro-tag-name {
+  color: var(--text-primary);
+}
+
+html.bg-light .pro-tag-name:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+html.bg-light .pro-tag-name-input {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-primary);
+}
+
+html.bg-light .pro-tag-color-swatch {
+  border-color: rgba(0, 0, 0, 0.18);
+}
+
+html.bg-light .pro-tag-color-swatch:hover {
+  border-color: rgba(0, 0, 0, 0.45);
+}
+
+html.bg-light .pro-tag-delete {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+html.bg-light #pro-settings-privacy-link {
+  color: var(--accent);
+}
+
+/* History panel + Restore Session dropdown */
+
+html.bg-light #history-panel {
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+html.bg-light .history-panel-header {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+html.bg-light .history-panel-header h2 {
+  color: var(--text-primary);
+}
+
+html.bg-light #history-panel-close {
+  color: var(--text-hint);
+}
+
+html.bg-light #history-panel-close:hover {
+  color: var(--text-primary);
+}
+
+html.bg-light #restore-dropdown {
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+html.bg-light .restore-header {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+html.bg-light .restore-header span {
+  color: var(--text-primary);
+}
+
+html.bg-light #restore-date-bar {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+html.bg-light #restore-date-btn {
+  color: var(--text-secondary);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+html.bg-light #restore-date-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+html.bg-light #restore-session-info {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+html.bg-light #restore-tab-count {
+  color: var(--text-hint);
+}
+
+html.bg-light .restore-tab-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+html.bg-light .restore-tab-title {
+  color: var(--text-primary);
+}
+
+html.bg-light .restore-tab-domain {
+  color: var(--text-hint);
+}
+
+html.bg-light #restore-empty {
+  color: var(--text-hint);
+}
+
+/* rc-domain-panel — per-domain recently-closed modal, same gap */
+
+html.bg-light #rc-domain-panel {
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+html.bg-light .rc-panel-header {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+html.bg-light .rc-panel-title {
+  color: var(--text-primary);
+}
+
+html.bg-light #rc-panel-close {
+  color: var(--text-hint);
+}
+
+html.bg-light #rc-panel-close:hover {
+  color: var(--text-primary);
+}
+
+html.bg-light .rc-panel-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+html.bg-light .rc-panel-item-title {
+  color: var(--text-primary);
+}
+
+html.bg-light .rc-panel-item-meta {
+  color: var(--text-hint);
+}
+
 /* --- Icon Size Variants --- */
 
 .icon-size-small .shortcuts-grid {
