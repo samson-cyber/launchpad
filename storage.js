@@ -830,6 +830,24 @@ var Storage = (function () {
     return goal;
   }
 
+  /**
+   * [1.0.11.14] Auto-tag resolution for a goal in the active workspace.
+   * Pure function over `data`. Returns the goal's autoTagId string or
+   * null if the goal is missing, soft-deleted, or has no auto-tag bound.
+   * Used by reassignTaskToGoal's auto-tag swap math. Defensive: returns
+   * null on any missing input rather than throwing, so callers can
+   * treat "source goal deleted mid-drag" as "no source auto-tag to
+   * remove" without branching.
+   */
+  function getGoalAutoTagId(data, goalId) {
+    if (goalId === null || goalId === undefined) return null;
+    var ws = resolveWorkspaceFromData(data);
+    if (!ws) return null;
+    var goal = getGoalById(ws, goalId);
+    if (!goal) return null;
+    return goal.autoTagId || null;
+  }
+
   // ===== Tasks =====
   //
   // Task CRUD on the Storage namespace, mirroring the [1.0.7] goal CRUD shape.
@@ -1206,6 +1224,136 @@ var Storage = (function () {
     }
     if (task.goalId === target) return task;
     task.goalId = target;
+    await saveAll(data);
+    return task;
+  }
+
+  // [1.0.11.14] Cross-goal drag support for Tasks tab. The storage layer
+  // for [1.0.11.2] Commit 1 — the SortableJS wiring and the name-collision
+  // modal land in Commit 2. Three functions here:
+  //   - hasTaskNameCollision: pure predicate, used by the modal to decide
+  //     whether to prompt and used by reassignTaskToGoal to validate any
+  //     resolved name still doesn't collide.
+  //   - generateUniqueTaskName: pure, "name", "name (2)", "name (3)" walk;
+  //     bumps an existing trailing " (N)" rather than appending a fresh
+  //     " (2)". Used by callers that want auto-resolve without prompting.
+  //   - reassignTaskToGoal: atomic mutation — goalId, tagIds (auto-tag
+  //     swap), optional rename — followed by a single saveAll(). Throws
+  //     on invalid input (rather than the warn+null pattern moveTaskToGoal
+  //     uses) so the drag-end handler in Commit 2 surfaces problems
+  //     loudly instead of silently no-op'ing on a typo.
+  //
+  // moveTaskToGoal stays as-is for callers that only need goalId
+  // mutation without the auto-tag swap.
+
+  /**
+   * Trim-and-compare-case-sensitive collision check.
+   * targetGoalId === null scopes to standalone tasks (task.goalId === null).
+   * excludeTaskId is omitted from the search (so the dragged task does
+   * not collide with itself).
+   * Returns false when the active workspace has no tasks array.
+   */
+  function hasTaskNameCollision(data, name, targetGoalId, excludeTaskId) {
+    if (typeof name !== "string") return false;
+    var trimmed = name.trim();
+    if (!trimmed) return false;
+    var ws = resolveWorkspaceFromData(data);
+    if (!ws) return false;
+    var tasks = ensureTasksArray(ws);
+    if (!tasks) return false;
+    var scope = (targetGoalId === undefined) ? null : targetGoalId;
+    return tasks.some(function (t) {
+      if (!t || t.deletedAt) return false;
+      if (excludeTaskId && t.id === excludeTaskId) return false;
+      if (t.goalId !== scope) return false;
+      return (typeof t.name === "string") && t.name.trim() === trimmed;
+    });
+  }
+
+  /**
+   * "name", "name (2)", "name (3)" suffix walk. Returns baseName
+   * unchanged when no collision. If baseName already ends in " (N)",
+   * increments N rather than appending a fresh " (2)".
+   * Bounded by the finite number of tasks in the workspace.
+   */
+  function generateUniqueTaskName(data, baseName, targetGoalId, excludeTaskId) {
+    if (typeof baseName !== "string") return baseName;
+    var trimmed = baseName.trim();
+    if (!trimmed) return baseName;
+    if (!hasTaskNameCollision(data, trimmed, targetGoalId, excludeTaskId)) return trimmed;
+    var match = trimmed.match(/^(.*?) \((\d+)\)$/);
+    var root, n;
+    if (match) {
+      root = match[1];
+      n = parseInt(match[2], 10) + 1;
+    } else {
+      root = trimmed;
+      n = 2;
+    }
+    while (true) {
+      var candidate = root + " (" + n + ")";
+      if (!hasTaskNameCollision(data, candidate, targetGoalId, excludeTaskId)) return candidate;
+      n++;
+    }
+  }
+
+  /**
+   * Atomic cross-goal task reassignment.
+   *
+   * - newGoalId === null moves the task to the standalone bucket.
+   * - opts.newName, when present, renames the task in the same write.
+   *
+   * Auto-tag swap: removes the source goal's autoTagId (if any) and
+   * adds the destination goal's autoTagId (if any). Set semantics
+   * handle the edge cases:
+   *   - source and target share the same auto-tag → delete-then-add
+   *     leaves the tag present (only goalId changes).
+   *   - task already carries the target auto-tag → Set.add is idempotent.
+   *   - source goal soft-deleted mid-drag → getGoalAutoTagId returns
+   *     null, delete is a no-op.
+   *
+   * Single Storage.saveAll() at the end — the [1.0.11.2] own-write
+   * provenance gate handles the resulting onChanged correctly.
+   *
+   * Throws (rather than returning null) on invalid input so the
+   * Commit 2 drag-end handler surfaces problems loudly:
+   *   - taskId not found / soft-deleted in the active workspace
+   *   - newGoalId non-null but not a string OR not a live goal
+   *   - opts.newName present but not a non-empty trimmed string
+   *
+   * @returns {Promise<object>} the updated task
+   */
+  async function reassignTaskToGoal(data, taskId, newGoalId, opts) {
+    var options = opts || {};
+    var ws = resolveWorkspaceFromData(data);
+    if (!ws) throw new Error("reassignTaskToGoal: active workspace not found");
+    var task = findLiveTask(ws, taskId);
+    if (!task) throw new Error("reassignTaskToGoal: task not found: " + taskId);
+    if (newGoalId !== null) {
+      if (typeof newGoalId !== "string") {
+        throw new Error("reassignTaskToGoal: newGoalId must be a string or null");
+      }
+      if (!findLiveGoal(ws, newGoalId)) {
+        throw new Error("reassignTaskToGoal: target goal not found or soft-deleted: " + newGoalId);
+      }
+    }
+    if (options.newName !== undefined) {
+      if (typeof options.newName !== "string" || options.newName.trim().length === 0) {
+        throw new Error("reassignTaskToGoal: opts.newName must be a non-empty string");
+      }
+    }
+
+    var sourceAutoTagId = getGoalAutoTagId(data, task.goalId);
+    var targetAutoTagId = getGoalAutoTagId(data, newGoalId);
+
+    var newTags = new Set(Array.isArray(task.tagIds) ? task.tagIds : []);
+    if (sourceAutoTagId) newTags.delete(sourceAutoTagId);
+    if (targetAutoTagId) newTags.add(targetAutoTagId);
+
+    task.goalId = newGoalId;
+    task.tagIds = Array.from(newTags);
+    if (options.newName !== undefined) task.name = options.newName.trim();
+
     await saveAll(data);
     return task;
   }
@@ -1851,6 +1999,7 @@ var Storage = (function () {
     getCompletedGoals: getCompletedGoals,
     getAllGoals: getAllGoals,
     getGoalById: getGoalById,
+    getGoalAutoTagId: getGoalAutoTagId,
     // Tasks (Pro tasks layer — see docs/SPECS/tasks-and-goals.md)
     createTask: createTask,
     renameTask: renameTask,
@@ -1862,6 +2011,9 @@ var Storage = (function () {
     duplicateTask: duplicateTask,
     deleteTask: deleteTask,
     moveTaskToGoal: moveTaskToGoal,
+    reassignTaskToGoal: reassignTaskToGoal,
+    hasTaskNameCollision: hasTaskNameCollision,
+    generateUniqueTaskName: generateUniqueTaskName,
     getActiveTasks: getActiveTasks,
     getCompletedTasks: getCompletedTasks,
     getAllTasks: getAllTasks,
