@@ -244,6 +244,15 @@ body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  /* [1.0.11.13] Disable browser scroll anchoring so layout reflows
+     elsewhere (notably sidebar group max-height animations on
+     expand/collapse and expand-all) cannot auto-shift this scroll
+     container by a few pixels. LaunchPad never inserts content above
+     the current viewport in this area — groups append at the bottom
+     and any structural change goes through render() which we control —
+     so the anchoring feature has no useful work to do and only adds
+     spurious shifts. */
+  overflow-anchor: none;
   scroll-behavior: smooth;
   max-width: 1100px;
   width: 100%;

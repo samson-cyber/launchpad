@@ -5833,11 +5833,6 @@
     }
   }
 
-  function scrollToGroup(groupId) {
-    var el = document.querySelector('.group[data-group-id="' + groupId + '"]');
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
   // [1.0.11.3] DOM-mutation helpers split out so toggleSidebarGroup, expand-all,
   // and collapse-all share the same animation contract. State (the Set) is
   // managed by the callers; these helpers only touch the DOM.
@@ -6827,12 +6822,17 @@
         return;
       }
 
-      // Group row — toggle expand and scroll to group
+      // Group row — toggle expand only. [1.0.11.13] Removed the
+      // scrollToGroup(groupId) call: it forced the main grid to align
+      // the clicked group at the top of #shortcut-grid-area, producing
+      // a few-pixel scroll shift whenever the group was already
+      // partially or fully visible. The expansion itself is the user's
+      // intent here; navigation to the group is available via clicking
+      // a bookmark in the sidebar (which actually opens a URL).
       var groupItem = e.target.closest(".sb-group-item");
       if (groupItem) {
         var groupId = groupItem.dataset.groupId;
         toggleSidebarGroup(groupId);
-        scrollToGroup(groupId);
       }
     });
 
