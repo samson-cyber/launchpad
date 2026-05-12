@@ -2597,14 +2597,15 @@
     closeWorkspaceDropdown();
     setTimeout(async function () {
       data.activeWorkspaceId = workspaceId;
-      // [1.0.11.4] Synchronous prune against the destination workspace's
-      // groupOrder. Live verification showed renderSidebarGroups' own prune
-      // call did not reliably remove IDs that exist in the source workspace
-      // but not the destination on the first switch — symptom traced in
-      // Asana 1214727120397164 follow-up. Pruning here, before the await /
-      // render chain, makes the invariant "Set contains only IDs in the
-      // active workspace" hold regardless of any downstream ordering.
-      pruneSidebarExpandedGroupIds();
+      // [1.0.11.5] Workspace switch is a context reset, not a prune. Each
+      // workspace is its own sidebar context, so expansion does not carry
+      // across switches — even for groups whose IDs happen to exist in
+      // both workspaces (notably "ungrouped", which lives in every
+      // workspace with the same ID and would otherwise survive a groupOrder
+      // prune). Full clear here; pruneSidebarExpandedGroupIds() in
+      // renderSidebarGroups still handles the group-delete case where an
+      // ID outlives its group within a single workspace.
+      sidebarExpandedGroupIds.clear();
       await Storage.saveAll(data);
       render();
       applyWorkspaceSwitcherState(data);
@@ -2637,10 +2638,9 @@
     });
     data.workspaceOrder.push(id);
     data.activeWorkspaceId = id;
-    // [1.0.11.4] Symmetric with switchWorkspace — destination is a brand-new
-    // workspace whose only group is "ungrouped", so any IDs in the Set from
-    // the previously-active workspace need to drop now.
-    pruneSidebarExpandedGroupIds();
+    // [1.0.11.5] Symmetric with switchWorkspace — workspace transition is a
+    // context reset (see comment there). Clear, not prune.
+    sidebarExpandedGroupIds.clear();
     await Storage.saveAll(data);
     render();
     applyWorkspaceSwitcherState(data);
@@ -2675,12 +2675,16 @@
     if (!ok) return;
     data.workspaces = data.workspaces.filter(function (w) { return w.id !== id; });
     data.workspaceOrder = data.workspaceOrder.filter(function (wid) { return wid !== id; });
-    if (data.activeWorkspaceId === id) {
+    var activeChanged = (data.activeWorkspaceId === id);
+    if (activeChanged) {
       data.activeWorkspaceId = data.workspaceOrder[0];
     }
-    // [1.0.11.4] Symmetric with switchWorkspace. No-op when the deleted
-    // workspace wasn't active; correct prune when it was.
-    pruneSidebarExpandedGroupIds();
+    // [1.0.11.5] When the active workspace itself is being deleted, treat
+    // it like a workspace switch — full context reset. When a non-active
+    // workspace is deleted, the active sidebar state is untouched and the
+    // Set stays as the user left it; renderSidebarGroups' prune on the
+    // next render is sufficient if anything went stale.
+    if (activeChanged) sidebarExpandedGroupIds.clear();
     await Storage.saveAll(data);
     render();
     applyWorkspaceSwitcherState(data);
@@ -5287,12 +5291,16 @@
 
   // ===== Sidebar Functions =====
 
-  // [1.0.11.4] Extracted from renderSidebarGroups so workspace-transition
-  // sites can invoke it synchronously the instant data.activeWorkspaceId
-  // changes — before any await / setTimeout / render() chain that could
-  // surface stale workspace state in renderSidebarGroups' own prune call.
-  // Reads the current module-level `data` to determine the destination
-  // workspace; the caller must have already assigned the new activeWorkspaceId.
+  // [1.0.11.5] Drop IDs that no longer correspond to extant groups in the
+  // active workspace's groupOrder — i.e. groups that were deleted while
+  // their entry in the Set lingered. Called by renderSidebarGroups as a
+  // safety net for the group-delete case. NOT used for workspace switches:
+  // each workspace is its own sidebar context, so workspace-transition
+  // sites (switchWorkspace, createWorkspace, deleteWorkspace when active)
+  // clear the Set entirely rather than prune against groupOrder. Note
+  // "ungrouped" exists in every workspace with the same ID, so a prune
+  // would incorrectly preserve it across a switch — see [1.0.11.5]
+  // call-site comments for the reasoning.
   function pruneSidebarExpandedGroupIds() {
     var ws = Storage.getActiveWorkspace(data);
     var validIds = new Set((ws && ws.groupOrder) || []);
@@ -5311,11 +5319,12 @@
     var groupMap = {};
     groups.forEach(function (g) { groupMap[g.id] = g; });
 
-    // [1.0.11.3] Belt: prune stale IDs against the active workspace.
-    // [1.0.11.4] Suspenders: workspace-transition sites (switchWorkspace,
-    // createWorkspace, deleteWorkspace) also call pruneSidebarExpandedGroupIds()
-    // synchronously the moment they assign data.activeWorkspaceId, in case any
-    // timing weirdness lets render() arrive here with the wrong ws snapshot.
+    // [1.0.11.5] Safety net for the group-delete case: drop any IDs that
+    // outlived their group. Workspace transitions are handled at the
+    // transition sites themselves (full Set clear in switchWorkspace /
+    // createWorkspace / deleteWorkspace-when-active) — by the time render
+    // reaches here on a switch, the Set is already empty and this call is
+    // a no-op. See pruneSidebarExpandedGroupIds() comment for the split.
     pruneSidebarExpandedGroupIds();
 
     list.innerHTML = groupOrder
