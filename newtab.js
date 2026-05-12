@@ -15,6 +15,12 @@
   var dragState = null;
   var nestingTipTimer = null;
   var activeTab = "home";
+  // [1.0.11.3] Authoritative state for sidebar group expansion. Multi-expand
+  // model: any subset of group IDs may be expanded simultaneously. Lives
+  // in-memory only (DOM-only by contract — never persisted). renderSidebarGroups
+  // reads from this Set; toggleSidebarGroup / expand-all button mutate it.
+  // Replaces the previous accordion (DOM-class-as-state) model.
+  var sidebarExpandedGroupIds = new Set();
 
   var TAB_IDS = ["home", "tasks", "dashboard", "insights"];
   var PRO_TAB_IDS = ["tasks", "dashboard", "insights"];
@@ -35,6 +41,8 @@
   var RC_FALLBACK_SVG = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>';
   var CHEVRON_RIGHT_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
   var CHEVRON_DOWN_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+  var CHEVRONS_DOWN_SVG = '<svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>';
+  var CHEVRONS_UP_SVG = '<svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>';
   var FOLDER_SVG = '<svg class="sb-group-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
   var THREE_DOT_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>';
   var THREE_DOT_SM_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>';
@@ -162,6 +170,20 @@
   ];
   var obSelectedPopular = {};
 
+
+  // ===== Sidebar expand-state debug hooks =====
+  //
+  // [1.0.11.3] Exposed on window so verification snippets can drive the
+  // multi-expand state and the expand-all toggle from DevTools without
+  // reaching into the IIFE closure. Read-only inspection (.state) returns
+  // the live Set reference; mutating it directly bypasses DOM sync and is
+  // not recommended outside debugging.
+  window.sidebarExpandDebug = {
+    get state() { return sidebarExpandedGroupIds; },
+    toggleGroup: function (groupId) { toggleSidebarGroup(groupId); },
+    toggleAll: function () { toggleAllSidebarGroups(); },
+    refreshIcon: function () { updateSidebarExpandAllIcon(); }
+  };
 
   // ===== Pro state debug helper =====
 
@@ -5254,29 +5276,27 @@
     var list = $("#sb-group-list");
     if (!list) return;
 
-    // Snapshot expanded group IDs before the innerHTML rewrite. Sidebar group
-    // expansion state lives entirely as DOM classes (sb-expanded on the
-    // wrapper, expanded on the chevron) plus an inline max-height:200px on
-    // the .sidebar-shortcut-list set by toggleSidebarGroup. Without this
-    // snapshot, every renderSidebarGroups call (including the one fired by
-    // chrome.storage.onChanged after Storage.saveAll, e.g. during a tag
-    // toggle) collapses every expanded group. See [1.0.9.2] round 5 fix.
-    var expandedSet = {};
-    $$(".sb-group-wrapper.sb-expanded", list).forEach(function (w) {
-      if (w.dataset.groupId) expandedSet[w.dataset.groupId] = true;
-    });
-
     var ws = Storage.getActiveWorkspace(data);
     var groups = (ws && ws.groups) || [];
     var groupOrder = (ws && ws.groupOrder) || [];
     var groupMap = {};
     groups.forEach(function (g) { groupMap[g.id] = g; });
+
+    // [1.0.11.3] Prune stale IDs (e.g. after workspace switch or group delete)
+    // so the Set doesn't grow unbounded and never holds non-existent groups.
+    var validIds = new Set(groupOrder);
+    sidebarExpandedGroupIds.forEach(function (id) {
+      if (!validIds.has(id)) sidebarExpandedGroupIds.delete(id);
+    });
+
     list.innerHTML = groupOrder
       .map(function (id) { return groupMap[id]; })
       .filter(Boolean)
       .map(function (g) {
         var sbTagPills = tagPillsHTML(g, ws, "sb-group-tag-pills");
-        var wasExpanded = !!expandedSet[g.id];
+        // [1.0.11.3] Set is authoritative — replaces the previous DOM-snapshot
+        // pattern that read sb-expanded classes off the wrapper.
+        var wasExpanded = sidebarExpandedGroupIds.has(g.id);
         var wrapperClass = "sb-group-wrapper" + (wasExpanded ? " sb-expanded" : "");
         var chevronClass = "sb-group-expand-chevron" + (wasExpanded ? " expanded" : "");
         var listStyle = wasExpanded ? ' style="max-height:200px"' : '';
@@ -5296,6 +5316,7 @@
         '</div>';
       }).join("");
     initSidebarShortcutSortables();
+    updateSidebarExpandAllIcon();
   }
 
   function sidebarShortcutListHTML(group) {
@@ -5642,48 +5663,87 @@
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function toggleSidebarGroup(groupId) {
-    var wrapper = document.querySelector('.sb-group-wrapper[data-group-id="' + groupId + '"]');
+  // [1.0.11.3] DOM-mutation helpers split out so toggleSidebarGroup, expand-all,
+  // and collapse-all share the same animation contract. State (the Set) is
+  // managed by the callers; these helpers only touch the DOM.
+  function expandSidebarGroupDom(wrapper) {
     if (!wrapper) return;
     var shortcutList = wrapper.querySelector(".sidebar-shortcut-list");
     var chevron = wrapper.querySelector(".sb-group-expand-chevron");
     if (!shortcutList) return;
+    if (wrapper.classList.contains("sb-expanded")) return;
+    wrapper.classList.add("sb-expanded");
+    if (chevron) chevron.classList.add("expanded");
+    shortcutList.style.maxHeight = shortcutList.scrollHeight + "px";
+    var onTransEnd = function () {
+      shortcutList.style.maxHeight = "200px";
+      shortcutList.removeEventListener("transitionend", onTransEnd);
+    };
+    shortcutList.addEventListener("transitionend", onTransEnd);
+  }
 
-    var isExpanded = wrapper.classList.contains("sb-expanded");
+  function collapseSidebarGroupDom(wrapper) {
+    if (!wrapper) return;
+    var shortcutList = wrapper.querySelector(".sidebar-shortcut-list");
+    var chevron = wrapper.querySelector(".sb-group-expand-chevron");
+    if (!shortcutList) return;
+    if (!wrapper.classList.contains("sb-expanded")) return;
+    shortcutList.style.maxHeight = shortcutList.scrollHeight + "px";
+    shortcutList.offsetHeight; // force reflow
+    shortcutList.style.maxHeight = "0";
+    wrapper.classList.remove("sb-expanded");
+    if (chevron) chevron.classList.remove("expanded");
+  }
 
-    if (isExpanded) {
-      // Collapse
-      shortcutList.style.maxHeight = shortcutList.scrollHeight + "px";
-      shortcutList.offsetHeight; // force reflow
-      shortcutList.style.maxHeight = "0";
-      wrapper.classList.remove("sb-expanded");
-      if (chevron) chevron.classList.remove("expanded");
+  function toggleSidebarGroup(groupId) {
+    var wrapper = document.querySelector('.sb-group-wrapper[data-group-id="' + groupId + '"]');
+    if (!wrapper) return;
+
+    // [1.0.11.3] Multi-expand: the Set is authoritative. add/delete this ID;
+    // no longer auto-collapse other expanded groups (former accordion model).
+    if (sidebarExpandedGroupIds.has(groupId)) {
+      sidebarExpandedGroupIds.delete(groupId);
+      collapseSidebarGroupDom(wrapper);
     } else {
-      // Collapse any other expanded group (accordion behavior)
-      $$(".sb-group-wrapper.sb-expanded").forEach(function (other) {
-        if (other === wrapper) return;
-        var otherList = other.querySelector(".sidebar-shortcut-list");
-        var otherChevron = other.querySelector(".sb-group-expand-chevron");
-        if (otherList) {
-          otherList.style.maxHeight = otherList.scrollHeight + "px";
-          otherList.offsetHeight;
-          otherList.style.maxHeight = "0";
-        }
-        other.classList.remove("sb-expanded");
-        if (otherChevron) otherChevron.classList.remove("expanded");
-      });
-
-      // Expand
-      wrapper.classList.add("sb-expanded");
-      if (chevron) chevron.classList.add("expanded");
-      shortcutList.style.maxHeight = shortcutList.scrollHeight + "px";
-      // After transition, allow natural overflow for internal scrolling
-      var onTransEnd = function () {
-        shortcutList.style.maxHeight = "200px";
-        shortcutList.removeEventListener("transitionend", onTransEnd);
-      };
-      shortcutList.addEventListener("transitionend", onTransEnd);
+      sidebarExpandedGroupIds.add(groupId);
+      expandSidebarGroupDom(wrapper);
     }
+    updateSidebarExpandAllIcon();
+  }
+
+  // [1.0.11.3] Expand-all / collapse-all toggle button. Icon flips based on
+  // whether any group is currently expanded. Click is a no-op while
+  // sidebarLocked is true (a panel/menu owns the sidebar) — matches the
+  // "lock-respecting" convention used elsewhere.
+  function updateSidebarExpandAllIcon() {
+    var btn = $("#sb-expand-all");
+    if (!btn) return;
+    var iconSlot = btn.querySelector(".sb-expand-all-icon");
+    var labelEl = btn.querySelector(".sb-label");
+    var allCollapsed = sidebarExpandedGroupIds.size === 0;
+    if (iconSlot) iconSlot.innerHTML = allCollapsed ? CHEVRONS_DOWN_SVG : CHEVRONS_UP_SVG;
+    if (labelEl) labelEl.textContent = allCollapsed ? "Expand all" : "Collapse all";
+    btn.setAttribute("title", allCollapsed ? "Expand all groups" : "Collapse all groups");
+    btn.setAttribute("aria-label", allCollapsed ? "Expand all groups" : "Collapse all groups");
+  }
+
+  function toggleAllSidebarGroups() {
+    if (sidebarLocked) return;
+    var wrappers = $$("#sb-group-list > .sb-group-wrapper");
+    if (sidebarExpandedGroupIds.size === 0) {
+      // Expand all
+      wrappers.forEach(function (w) {
+        var gid = w.dataset.groupId;
+        if (!gid) return;
+        sidebarExpandedGroupIds.add(gid);
+        expandSidebarGroupDom(w);
+      });
+    } else {
+      // Collapse all
+      sidebarExpandedGroupIds.clear();
+      wrappers.forEach(collapseSidebarGroupDom);
+    }
+    updateSidebarExpandAllIcon();
   }
 
   function initSidebarGroupObserver() {
@@ -6469,6 +6529,7 @@
       restoreCloseTimer = setTimeout(closeRestoreDropdown, 400);
     });
     safeOn("#sb-add-group", "click", addGroup);
+    safeOn("#sb-expand-all", "click", toggleAllSidebarGroups);
     safeOn("#sb-group-list", "click", function (e) {
       // Three-dot menu button
       var moreBtn = e.target.closest(".sb-group-more");

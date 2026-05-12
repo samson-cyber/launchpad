@@ -3202,6 +3202,24 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
   background: rgba(255, 255, 255, 0.12);
 }
 
+/* [1.0.11.3] Sidebar expand-all/collapse-all toggle button. Sits between the
+   top separator and the group list. Uses .sb-item base for consistent
+   row sizing + label-hide-when-collapsed behavior. Icon swapped by JS
+   (CHEVRONS_DOWN_SVG when all collapsed, CHEVRONS_UP_SVG when any expanded). */
+.sb-expand-all-btn {
+  flex-shrink: 0;
+}
+
+.sb-expand-all-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  color: var(--text-secondary);
+}
+
 #sb-group-list {
   flex: 1;
   overflow-y: auto;
