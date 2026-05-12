@@ -941,6 +941,18 @@
     // Centralised here so every caller — eager click handlers, modal
     // commits, and the cross-tab onChanged path — observes the same gate.
     if (panel.dataset.tasksDragActive === "true") return;
+
+    // [1.0.11.17] D4 v2 — scroll position survival across panel rebuild.
+    // The panel.innerHTML below replaces the old .tasks-tab element with a
+    // new one whose scrollTop starts at 0. overflow-anchor: none (added
+    // in [1.0.11.16]) only addresses the in-place anchor heuristic; it does
+    // nothing for full DOM replacement. Capture the current scroll position
+    // from the OLD .tasks-tab before the rewrite, restore on the NEW one
+    // after. Defensive: optional-chain via `?` since pre-first-render the
+    // panel has no .tasks-tab yet.
+    var prevScroller = panel.querySelector(".tasks-tab");
+    var savedScrollTop = prevScroller ? prevScroller.scrollTop : 0;
+
     var workspace = Storage.getActiveWorkspace(d);
     if (!workspace) {
       panel.innerHTML = '<div class="tasks-tab-empty">No active workspace.</div>';
@@ -1024,6 +1036,15 @@
 
     bindTasksTabEvents(panel);
     bindTasksTabSortables(panel, d);
+
+    // [1.0.11.17] D4 v2 — restore scrollTop on the fresh .tasks-tab. If the
+    // saved value exceeds the new scrollHeight (e.g., a tab with fewer items
+    // after the change), the browser clamps automatically, which is the
+    // desired behavior.
+    var newScroller = panel.querySelector(".tasks-tab");
+    if (newScroller && savedScrollTop) {
+      newScroller.scrollTop = savedScrollTop;
+    }
   }
 
   function bindTasksTabEvents(panel) {
@@ -1239,6 +1260,14 @@
     panel._sortables.goalList = new Sortable(listEl, {
       animation: 150,
       draggable: ".tt-goal-card",
+      // [1.0.11.17] Explicit isolated group. Pre-[1.0.11.17] this Sortable
+      // had no group option, relying on Sortable's anonymous-group default
+      // to isolate it from the task Sortables (group: "tasks"). In practice
+      // a goal card dragged over a .tt-goal-tasks list could nest into it
+      // (filed and verified as bug 1214733591439504). Setting an explicit
+      // name plus pull/put: false forces full isolation — goal cards can
+      // only reorder within this list, nothing else can drop in.
+      group: { name: "tt-goals", pull: false, put: false },
       // Drag handle is the goal header bar. Per PLAN D3, the handle gates
       // drag-start on mousedown+movement; a click without movement still
       // passes through to chevron / three-dot menu / inline-edit handlers.
@@ -1251,7 +1280,12 @@
       // of opening the menu because Sortable started tracking on a mousedown
       // inside the handle area, and a slight cursor twitch crossed the drag
       // threshold before the click registered.
-      filter: ".tt-name-input, .tt-goal-menu-btn",
+      // [1.0.11.17] Chevron added to the filter — same root cause as
+      // .tt-goal-menu-btn; cursor twitch on click crossed drag threshold and
+      // initiated drag instead of toggling collapse. [1.0.11.16] left it
+      // unfiltered on the theory that the click handler would beat drag
+      // threshold; re-verification proved that too optimistic for real users.
+      filter: ".tt-name-input, .tt-goal-menu-btn, .tt-goal-chevron",
       preventOnFilter: false,
       ghostClass: "sortable-ghost",
       chosenClass: "sortable-chosen",
