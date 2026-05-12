@@ -811,7 +811,15 @@
     for (var i = 0; i < tagIds.length; i++) {
       tagHtml += tagPillHtml(workspace, tagIds[i]);
     }
+    // [1.0.11.18] Dedicated drag handle as the leftmost element. Mirrors
+    // the sidebar shortcut grab-dots pattern (.sidebar-shortcut-drag-handle
+    // at newtab.css:3384 using the same ⠇ braille character). The
+    // task Sortables (bindTasksTabSortables) only initiate drag on this
+    // element via `handle: ".tt-task-handle"`, so checkbox clicks and
+    // future task-name interactions reach their handlers without Sortable
+    // interception. aria-hidden so screen readers skip the decorative dots.
     return '<li class="tt-task-row' + completedCls + '" data-task-id="' + escapeHtml(task.id) + '">' +
+      '<span class="tt-task-handle" aria-hidden="true" title="Drag to reorder">⠇</span>' +
       '<input type="checkbox" class="tt-task-check" data-task-id="' + escapeHtml(task.id) + '"' + checked + ' aria-label="Toggle task complete">' +
       '<span class="tt-task-name">' + escapeHtml(task.name) + '</span>' +
       tagHtml +
@@ -1358,12 +1366,17 @@
         // the object form documents intent at the call site.
         group: { name: "tasks", pull: true, put: true },
         draggable: ".tt-task-row",
-        // Block drag-init on the checkbox so toggling complete still works,
-        // and on the empty-state placeholder ("No tasks yet.") which is
-        // visual filler not a real row. preventOnFilter: false keeps click
-        // events propagating normally for the checkbox.
-        filter: ".tt-task-check, .tt-task-empty",
-        preventOnFilter: false,
+        // [1.0.11.18] Drag is initiated ONLY from the explicit grab handle
+        // (.tt-task-handle) prepended to every .tt-task-row by taskRowHtml.
+        // The previous filter approach (".tt-task-check, .tt-task-empty"
+        // with preventOnFilter: false) made the entire row draggable except
+        // those two surfaces; this was awkward in practice — the row body
+        // is also the editable task name, so click-and-drag on the name
+        // conflated drag-init with edit-init. The empty-state placeholder
+        // .tt-task-empty is a different <li> class anyway and is naturally
+        // excluded by draggable: ".tt-task-row", so no extra filter is
+        // needed.
+        handle: ".tt-task-handle",
         ghostClass: "sortable-ghost",
         chosenClass: "sortable-chosen",
         dragClass: "sortable-drag",

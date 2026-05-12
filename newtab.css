@@ -7587,6 +7587,40 @@ html.has-bg.bg-light .pro-preview-banner-text {
   background: rgba(255, 255, 255, 0.04);
 }
 
+/* [1.0.11.18] Task row drag handle. Mirrors .sidebar-shortcut-drag-handle
+   (newtab.css:3384) — opacity 0 by default, fades in on row hover, dimmed
+   muted color that brightens on its own hover. Kept visible during the
+   drag itself via .sortable-chosen / .sortable-drag overrides so the user
+   sees what they grabbed even after Sortable swaps cursor classes. */
+.tt-task-handle {
+  flex-shrink: 0;
+  opacity: 0;
+  cursor: grab;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 2px;
+  user-select: none;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.tt-task-row:hover .tt-task-handle {
+  opacity: 1;
+}
+
+.tt-task-handle:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.tt-task-handle:active {
+  cursor: grabbing;
+}
+
+.tt-task-row.sortable-chosen .tt-task-handle,
+.tt-task-row.sortable-drag .tt-task-handle {
+  opacity: 1;
+}
+
 .tt-task-check {
   width: 16px;
   height: 16px;
@@ -7795,6 +7829,16 @@ html.has-bg.bg-light .tt-overdue-badge {
 html.has-bg.bg-light .tt-recurring-paused {
   background: rgba(0, 0, 0, 0.08);
   color: #1f1f1f;
+}
+
+/* [1.0.11.18] Task drag handle on light wallpaper — flip from white-tinted
+   to black-tinted so the dots remain visible on the light panel surface. */
+html.has-bg.bg-light .tt-task-handle {
+  color: rgba(0, 0, 0, 0.3);
+}
+
+html.has-bg.bg-light .tt-task-handle:hover {
+  color: rgba(0, 0, 0, 0.6);
 }
 
 @media (max-width: 720px) {
