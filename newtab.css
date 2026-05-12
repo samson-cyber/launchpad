@@ -3887,6 +3887,58 @@ html.bg-light #sb-rate:hover {
   opacity: 1;
 }
 
+/* [1.0.11.11] Sidebar shortcut/bookmark items inside expanded group lists.
+   The base rules at lines 3333-3449 hardcode rgba(255,255,255,...) text
+   which reads correctly on dark wallpapers but is invisible on light
+   ones. The original sidebar bg-light block above only covered the
+   sidebar CHROME (sb-item / sb-group-item / footer links) — the
+   bookmark rows themselves had no light-mode treatment. Mirroring the
+   html:not(.has-bg) values at lines 3531-3604 (same dark-on-light intent). */
+
+html.bg-light .sidebar-shortcut-item {
+  color: var(--text-secondary);
+}
+
+html.bg-light .sidebar-shortcut-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+html.bg-light .sidebar-shortcut-empty {
+  color: var(--text-hint);
+}
+
+html.bg-light .sidebar-shortcut-drag-handle {
+  color: var(--text-hint);
+}
+
+html.bg-light .sidebar-shortcut-drag-handle:hover {
+  color: var(--text-secondary);
+}
+
+html.bg-light .sidebar-shortcut-variant-badge {
+  background: var(--icon-bg);
+  color: var(--text-hint);
+}
+
+html.bg-light .sidebar-variant-chevron {
+  color: var(--text-hint);
+}
+
+html.bg-light .sidebar-variant-chevron:hover {
+  color: var(--text-secondary);
+}
+
+/* Variant sub-items' base rules use !important, so the override must too. */
+html.bg-light .sidebar-variant-item {
+  color: var(--text-hint) !important;
+}
+
+html.bg-light .sidebar-variant-item:hover {
+  color: var(--text-secondary) !important;
+  background: var(--bg-hover) !important;
+}
+
 /* --- Sidebar hamburger (mobile) --- */
 
 #sidebar-hamburger {
