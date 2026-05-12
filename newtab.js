@@ -198,6 +198,13 @@
     // without requiring the caller to synthesize HTML5 drag events.
     simulateDragHover: function (groupId) { return autoExpandHoveredGroup(groupId); },
     get dragHoverState() { return { groupId: dragHoverGroupId, hasTimer: dragHoverTimer !== null }; },
+    // [1.0.11.12] Sidebar panel mutex verification hooks.
+    // openPanel(name) routes through the same mutex helper the click
+    // handlers use; getCurrentOpenPanel returns the name of the
+    // currently-open chain panel (or null). name is "settings",
+    // "pro-settings", or "restore-session".
+    openPanel: function (name) { return openPanel(name); },
+    get currentOpenPanel() { return getCurrentOpenPanel(); },
     // [1.0.11.7] Cross-list drop sync verification hook. Rebuilds the
     // group's shortcuts array from the given list element's direct
     // children (any .shortcuts-grid or .sidebar-shortcut-list works).
@@ -2064,7 +2071,7 @@
       // popover".
       if (level === "trialing" || level === "active" || level === "grace") {
         closeUpgradePopover();
-        openProSettingsPanel();
+        openPanel("pro-settings");
         return;
       }
       if (isUpgradePopoverOpen()) {
@@ -2766,9 +2773,9 @@
   function bindProSettings() {
     safeOn("#sb-pro-settings", "click", function (e) {
       e.stopPropagation();
-      openProSettingsPanel();
+      openPanel("pro-settings");
     });
-    safeOn("#pro-settings-close", "click", closeProSettingsPanel);
+    safeOn("#pro-settings-close", "click", function () { closeProSettingsPanel(); });
     safeOn("#pro-license-apply", "click", handleLicenseApply);
     safeOn("#pro-license-clear", "click", handleLicenseClear);
     safeOn("#pro-license-check", "click", handleLicenseCheckNow);
@@ -2789,9 +2796,10 @@
     if (!panel) return;
     if (!panel.classList.contains("hidden")) { closeProSettingsPanel(); return; }
 
-    closeRestoreDropdown();
+    // [1.0.11.12] Cross-panel mutual exclusion is handled by openPanel().
+    // hideGroupMenu is kept here because it is orthogonal to the sidebar
+    // panel chain (group-context-menu vs. sidebar panel).
     hideGroupMenu();
-    closeSettingsPanel();
 
     sidebarLocked = true;
     var sidebar = $("#sidebar");
@@ -2811,7 +2819,7 @@
     renderProAnalyticsToggle();
   }
 
-  function closeProSettingsPanel() {
+  function closeProSettingsPanel(opts) {
     var panel = $("#pro-settings-panel");
     if (!panel || panel.classList.contains("hidden")) return;
     panel.classList.add("hidden");
@@ -2819,6 +2827,13 @@
     closeTagPalettePopover();
     clearPendingTagDelete();
     closeTagCreateForm();
+
+    // [1.0.11.12] silent close — used by openPanel() during a panel swap
+    // to keep sidebarLocked = true throughout. Without this, closing the
+    // outgoing panel unsets the lock and the incoming open immediately
+    // re-sets it, briefly flickering the sidebar's expanded/locked
+    // classes and potentially racing against the mouseleave collapse path.
+    if (opts && opts.silent) return;
 
     sidebarLocked = false;
     var sidebar = $("#sidebar");
@@ -4054,6 +4069,62 @@
     console.log("[LaunchPad] Added", shortcuts.length, "popular sites");
   }
 
+  // ===== Sidebar Panel Mutual Exclusion =====
+  //
+  // [1.0.11.12] The Settings panel, Pro Settings panel, and Restore Session
+  // dropdown all lock the sidebar (sidebarLocked = true, sidebar-locked +
+  // expanded classes). They are mutually exclusive — opening any one should
+  // close any other that is already open. Without coordination, e.g. opening
+  // Pro Settings while Settings is open leaves both panels visible stacked.
+  //
+  // openPanel(name) is the single entry point that callers (sidebar button
+  // click handlers, programmatic opens like the Pro CTA) route through.
+  // It walks the registry, silently closes any other open chain panel
+  // (silent: true keeps sidebarLocked = true across the swap to avoid
+  // toggling the lock off/on which can race the sidebar mouseleave path),
+  // then calls the target's open function — which still preserves its own
+  // toggle behaviour (already-open + same target → close).
+  //
+  // History overlay (#history-overlay) is intentionally NOT in this chain:
+  // it is a fullscreen modal that does not touch sidebarLocked, so it
+  // composes orthogonally over any sidebar panel. The wallpaper picker
+  // (#bg-overlay) is launched from Settings via an explicit closeSettings
+  // → openBgModal pair (see settings-change-wallpaper handler) and stays
+  // outside this registry.
+  var SIDEBAR_PANEL_CHAIN = [
+    { name: "settings",         selector: "#settings-panel",     open: function () { openSettingsPanel(); },     close: function (opts) { closeSettingsPanel(opts); } },
+    { name: "pro-settings",     selector: "#pro-settings-panel", open: function () { openProSettingsPanel(); },  close: function (opts) { closeProSettingsPanel(opts); } },
+    { name: "restore-session",  selector: "#restore-dropdown",   open: function () { openRestoreDropdown(); },   close: function (opts) { closeRestoreDropdown(opts); } }
+  ];
+
+  function isPanelOpen(panel) {
+    var el = $(panel.selector);
+    return !!(el && !el.classList.contains("hidden"));
+  }
+
+  function getCurrentOpenPanel() {
+    for (var i = 0; i < SIDEBAR_PANEL_CHAIN.length; i++) {
+      if (isPanelOpen(SIDEBAR_PANEL_CHAIN[i])) return SIDEBAR_PANEL_CHAIN[i].name;
+    }
+    return null;
+  }
+
+  function openPanel(name) {
+    var target = null;
+    for (var i = 0; i < SIDEBAR_PANEL_CHAIN.length; i++) {
+      if (SIDEBAR_PANEL_CHAIN[i].name === name) { target = SIDEBAR_PANEL_CHAIN[i]; break; }
+    }
+    if (!target) return;
+    // Close every OTHER chain panel that's currently open, silently so the
+    // sidebar lock stays on for the incoming open. If the target is already
+    // open, fall through — target.open()'s own toggle path will close it.
+    SIDEBAR_PANEL_CHAIN.forEach(function (p) {
+      if (p === target) return;
+      if (isPanelOpen(p)) p.close({ silent: true });
+    });
+    target.open();
+  }
+
   // ===== Settings Panel =====
 
   function openSettingsPanel() {
@@ -4061,8 +4132,8 @@
     if (!panel) return;
     if (!panel.classList.contains("hidden")) { closeSettingsPanel(); return; }
 
-    // Close other panels first
-    closeRestoreDropdown();
+    // [1.0.11.12] Cross-panel mutual exclusion is handled by openPanel().
+    // hideGroupMenu kept here (orthogonal to the sidebar panel chain).
     hideGroupMenu();
 
     // Lock sidebar open and force expanded
@@ -4079,10 +4150,13 @@
     updateSettingsUI();
   }
 
-  function closeSettingsPanel() {
+  function closeSettingsPanel(opts) {
     var panel = $("#settings-panel");
     if (!panel || panel.classList.contains("hidden")) return;
     panel.classList.add("hidden");
+
+    // [1.0.11.12] silent close — see closeProSettingsPanel for rationale.
+    if (opts && opts.silent) return;
 
     sidebarLocked = false;
     var sidebar = $("#sidebar");
@@ -5957,13 +6031,16 @@
     loadRestoreSessions();
   }
 
-  function closeRestoreDropdown() {
+  function closeRestoreDropdown(opts) {
     if (restoreCloseTimer) { clearTimeout(restoreCloseTimer); restoreCloseTimer = null; }
     closeRestoreDateMenu();
     var dd = $("#restore-dropdown");
     // Only unlock sidebar if the dropdown was actually open
     if (!dd || dd.classList.contains("hidden")) return;
     dd.classList.add("hidden");
+
+    // [1.0.11.12] silent close — see closeProSettingsPanel for rationale.
+    if (opts && opts.silent) return;
 
     sidebarLocked = false;
     var sidebar = $("#sidebar");
@@ -6646,7 +6723,7 @@
     });
     safeOn("#sb-restore", "click", function (e) {
       e.stopPropagation();
-      openRestoreDropdown();
+      openPanel("restore-session");
     });
     safeOn("#restore-date-btn", "click", function (e) {
       e.stopPropagation();
@@ -6933,10 +7010,10 @@
     safeOn("#group-delete-overlay", "click", function (e) {
       if (e.target === e.currentTarget) hideDeleteDialog();
     });
-    safeOn("#sb-settings", "click", function (e) { e.stopPropagation(); openSettingsPanel(); });
+    safeOn("#sb-settings", "click", function (e) { e.stopPropagation(); openPanel("settings"); });
 
     // Settings panel events
-    safeOn("#settings-close", "click", closeSettingsPanel);
+    safeOn("#settings-close", "click", function () { closeSettingsPanel(); });
     safeOn("#settings-icon-size", "click", function (e) {
       var btn = e.target.closest(".seg-btn");
       if (!btn) return;
