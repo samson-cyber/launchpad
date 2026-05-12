@@ -7920,13 +7920,15 @@
             // syncShortcutsFromDOM (which only walks .shortcuts-grid) would
             // miss the sidebar destination.
             await syncAfterShortcutDrop(evt);
-            // If the destination is a sidebar list the dropped .shortcut
-            // element is now a class-mismatched child of .sidebar-shortcut-list;
-            // a full render restores the proper element types. Within-main-grid
-            // moves already have consistent DOM and skip the render.
-            if (evt.to !== evt.from && evt.to.classList.contains("sidebar-shortcut-list")) {
-              render();
-            }
+            // [1.0.11.8] Always render. The main grid's own DOM was already
+            // mutated correctly by SortableJS for within-main-grid moves, but
+            // the sidebar mirrors the same data and the [1.0.11.2] write-
+            // provenance gate suppresses its onChanged-triggered refresh for
+            // our own writes — without an explicit render the sidebar
+            // continues to show the bookmark in its old group. Symmetric
+            // with sidebar-source onEnd, which has rendered unconditionally
+            // since [1.0.11.7].
+            render();
           }
           ensureAllPlaceholders();
         }
