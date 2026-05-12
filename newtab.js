@@ -819,9 +819,9 @@
   }
 
   function goalCardHtml(workspace, goal, allTasks) {
-    var children = allTasks.filter(function (t) {
+    var children = sortedByDisplayOrder(allTasks.filter(function (t) {
       return t.goalId === goal.id && !t.deletedAt;
-    });
+    }));
     var doneCount = children.filter(function (t) { return t.completed; }).length;
     var totalCount = children.length;
     var pct = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
@@ -955,12 +955,12 @@
     // milestone definition). Recurring instances surface in their own
     // Recurring section once [1.0.14] generates them; for [1.0.10] we keep
     // them out of Standalone defensively even though no instances exist yet.
-    var standaloneActive = allActiveTasks.filter(function (t) {
+    var standaloneActive = sortedByDisplayOrder(allActiveTasks.filter(function (t) {
       return t.goalId === null && !t.isRecurringInstance;
-    });
-    var standaloneCompleted = allCompletedTasks.filter(function (t) {
+    }));
+    var standaloneCompleted = sortedByDisplayOrder(allCompletedTasks.filter(function (t) {
       return t.goalId === null && !t.isRecurringInstance;
-    });
+    }));
     // For goal cards' child task lists we need both completed and active
     // children together so the progress bar counts work.
     var allTasksForGoals = (Storage.getAllTasks(workspace) || []);
@@ -1276,6 +1276,216 @@
         }
       }
     });
+
+    // [1.0.11.15] Task list Sortables — cross-goal drag + standalone + name
+    // collision modal. The storage layer (Storage.reassignTaskToGoal,
+    // hasTaskNameCollision, generateUniqueTaskName) landed in [1.0.11.14];
+    // this commit wires the UI side. One Sortable per active goal's
+    // .tt-goal-tasks UL plus one on the active .tt-standalone-list. All share
+    // group:'tasks' so drops are symmetric across all four directions
+    // (goal→goal, goal→standalone, standalone→goal, within-list reorder).
+    // Completed cards (.tt-goal-card.is-completed) and the completed
+    // standalone list (.tt-standalone-list-completed) are excluded — those
+    // sections are read-only by design; their task rows render in goalCardHtml
+    // / completedBodyHtml but no Sortable binds to them.
+    if (Array.isArray(panel._sortables.taskLists)) {
+      panel._sortables.taskLists.forEach(function (s) { try { s.destroy(); } catch (e) {} });
+    }
+    panel._sortables.taskLists = [];
+
+    var taskListEls = [];
+    [].forEach.call(panel.querySelectorAll(".tt-goal-card:not(.is-completed) .tt-goal-tasks"), function (ul) {
+      taskListEls.push(ul);
+    });
+    var standaloneList = panel.querySelector(".tt-standalone-list:not(.tt-standalone-list-completed)");
+    if (standaloneList) taskListEls.push(standaloneList);
+
+    taskListEls.forEach(function (taskListEl) {
+      var s = new Sortable(taskListEl, {
+        animation: 150,
+        // Symmetric pull/put across all task lists in the panel — supports
+        // goal↔goal, goal↔standalone, and within-list reorder. The string
+        // form `group: "tasks"` would also work (default pull/put true) but
+        // the object form documents intent at the call site.
+        group: { name: "tasks", pull: true, put: true },
+        draggable: ".tt-task-row",
+        // Block drag-init on the checkbox so toggling complete still works,
+        // and on the empty-state placeholder ("No tasks yet.") which is
+        // visual filler not a real row. preventOnFilter: false keeps click
+        // events propagating normally for the checkbox.
+        filter: ".tt-task-check, .tt-task-empty",
+        preventOnFilter: false,
+        ghostClass: "sortable-ghost",
+        chosenClass: "sortable-chosen",
+        dragClass: "sortable-drag",
+        onStart: function () { panel.dataset.tasksDragActive = "true"; },
+        onEnd: async function (evt) {
+          // Clear the drag-active flag BEFORE the async drop sequence so
+          // the render() at the end (which checks this flag) actually runs.
+          delete panel.dataset.tasksDragActive;
+          await handleTaskDrop(evt, d, panel);
+        }
+      });
+      panel._sortables.taskLists.push(s);
+    });
+  }
+
+  // [1.0.11.15] Resolve the goalId for a Sortable container element.
+  // Active task lists are either inside .tt-goal-card[data-goal-id] (goal
+  // task list) or have class .tt-standalone-list (standalone bucket).
+  // Returns null for standalone or when no card ancestor is found.
+  function taskListGoalId(listEl) {
+    if (!listEl) return null;
+    if (listEl.classList && listEl.classList.contains("tt-standalone-list")) return null;
+    var card = listEl.closest && listEl.closest(".tt-goal-card");
+    return card ? card.getAttribute("data-goal-id") : null;
+  }
+
+  // [1.0.11.15] Rebuild displayOrder for the tasks visible in a single list
+  // element. Walks the LI .tt-task-row direct descendants (children of
+  // .tt-goal-tasks or .tt-standalone-list), looks each up in ws.tasks, and
+  // assigns displayOrder = index. In-memory mutation only — the caller is
+  // responsible for the subsequent Storage.saveAll. Idempotent on a list
+  // whose visual order matches its data order (no-op assignments).
+  function rebuildTaskDisplayOrderFromList(listEl, d) {
+    if (!listEl) return;
+    var ws = Storage.getActiveWorkspace(d);
+    if (!ws || !Array.isArray(ws.tasks)) return;
+    var taskById = {};
+    ws.tasks.forEach(function (t) { taskById[t.id] = t; });
+    var liEls = listEl.querySelectorAll(".tt-task-row");
+    for (var i = 0; i < liEls.length; i++) {
+      var tid = liEls[i].getAttribute("data-task-id");
+      var t = taskById[tid];
+      if (t) t.displayOrder = i;
+    }
+  }
+
+  // [1.0.11.15] Undo a SortableJS drop's DOM mutation. Used by the
+  // collision-modal cancel path and the standalone-disallow path so the
+  // visual state matches the unchanged data. Sortable has already moved
+  // evt.item into evt.to at evt.newIndex; we remove it and reinsert into
+  // evt.from at evt.oldIndex. No event fires from this manual mutation
+  // (we're outside Sortable's drag lifecycle by onEnd).
+  function revertSortableDrop(evt) {
+    if (!evt || !evt.item) return;
+    if (evt.item.parentNode) evt.item.parentNode.removeChild(evt.item);
+    var oldIndex = (typeof evt.oldIndex === "number") ? evt.oldIndex : 0;
+    if (oldIndex < evt.from.children.length) {
+      evt.from.insertBefore(evt.item, evt.from.children[oldIndex]);
+    } else {
+      evt.from.appendChild(evt.item);
+    }
+  }
+
+  // [1.0.11.15] onEnd sequencer for the four drop cases.
+  //
+  // Case 1 — Intra-list reorder (evt.from === evt.to): just rebuild
+  // displayOrder for that list, single saveAll, render.
+  //
+  // Case 2 / 4 — Cross-list with goal target: check collision via
+  // Storage.hasTaskNameCollision. If clear, await reassignTaskToGoal +
+  // rebuild displayOrder + saveAll + render. If collision, openTasksConfirmModal
+  // suggesting the next-unique name; the user accepts (rename + reassign +
+  // rebuild + save + render) or cancels (revert DOM, no write).
+  //
+  // Case 3 — Cross-list with standalone target: per the task description
+  // Q5 = option C, DISALLOW on collision — revert DOM, showToast, no write.
+  // No-collision drops to standalone go through the same reassignTaskToGoal
+  // path as goal targets.
+  //
+  // Any thrown error from reassignTaskToGoal reverts the DOM and surfaces
+  // a console.error — the storage method's defensive throws (Commit 1)
+  // catch stale IDs / soft-deleted goals immediately, so the drag handler
+  // doesn't silently no-op.
+  async function handleTaskDrop(evt, d, panel) {
+    if (!evt || !evt.item) return;
+    var taskId = evt.item.getAttribute("data-task-id");
+    if (!taskId) return;
+
+    var fromList = evt.from;
+    var toList = evt.to;
+    var isCrossList = fromList !== toList;
+
+    var ws = Storage.getActiveWorkspace(d);
+    var task = ws ? Storage.getTaskById(ws, taskId) : null;
+    if (!task) {
+      // Task no longer in storage — likely deleted in another tab mid-drag.
+      revertSortableDrop(evt);
+      return;
+    }
+
+    if (!isCrossList) {
+      // Case 1 — intra-list reorder. No goalId change, no collision check.
+      rebuildTaskDisplayOrderFromList(toList, d);
+      try {
+        await Storage.saveAll(d);
+      } catch (err) {
+        console.error("[LaunchPad] Tasks: intra-list reorder save failed", err);
+        return;
+      }
+      if (panel) renderTasksTab(panel, d);
+      return;
+    }
+
+    var targetGoalId = taskListGoalId(toList);
+    var taskName = task.name;
+
+    var collides = Storage.hasTaskNameCollision(d, taskName, targetGoalId, taskId);
+
+    if (collides && targetGoalId === null) {
+      // Case 3 collision — standalone destination DISALLOWS the drop.
+      revertSortableDrop(evt);
+      showToast('A standalone task named "' + taskName + '" already exists.');
+      return;
+    }
+
+    if (collides && targetGoalId !== null) {
+      // Case 2 / 4 collision — goal destination prompts the user.
+      var suggested = Storage.generateUniqueTaskName(d, taskName, targetGoalId, taskId);
+      openTasksConfirmModal({
+        title: "Name conflict",
+        message: 'A task named "' + taskName + '" already exists in this goal. Rename to "' + suggested + '" or cancel?',
+        confirmLabel: "Rename and add",
+        onConfirm: async function () {
+          // Defensive re-check on commit — another tab may have removed
+          // the conflicting task in the meantime, in which case we don't
+          // need to rename. Recompute the suggested name fresh either way
+          // so a concurrent rename can't poison the displayed suggestion.
+          var liveCollision = Storage.hasTaskNameCollision(d, taskName, targetGoalId, taskId);
+          var opts = {};
+          if (liveCollision) {
+            opts.newName = Storage.generateUniqueTaskName(d, taskName, targetGoalId, taskId);
+          }
+          try {
+            await Storage.reassignTaskToGoal(d, taskId, targetGoalId, opts);
+            rebuildTaskDisplayOrderFromList(toList, d);
+            rebuildTaskDisplayOrderFromList(fromList, d);
+            await Storage.saveAll(d);
+            if (panel) renderTasksTab(panel, d);
+          } catch (err) {
+            console.error("[LaunchPad] Tasks: cross-list reassign (with rename) failed", err);
+            revertSortableDrop(evt);
+          }
+        },
+        onCancel: function () {
+          revertSortableDrop(evt);
+        }
+      });
+      return;
+    }
+
+    // No collision — direct reassignment.
+    try {
+      await Storage.reassignTaskToGoal(d, taskId, targetGoalId);
+      rebuildTaskDisplayOrderFromList(toList, d);
+      rebuildTaskDisplayOrderFromList(fromList, d);
+      await Storage.saveAll(d);
+      if (panel) renderTasksTab(panel, d);
+    } catch (err) {
+      console.error("[LaunchPad] Tasks: cross-list reassign failed", err);
+      revertSortableDrop(evt);
+    }
   }
 
   // ===== Tasks tab interactivity helpers ([1.0.10.1]) =====
