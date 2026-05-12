@@ -21,6 +21,15 @@
   // reads from this Set; toggleSidebarGroup / expand-all button mutate it.
   // Replaces the previous accordion (DOM-class-as-state) model.
   var sidebarExpandedGroupIds = new Set();
+  // [1.0.11.6] Drag-to-nest auto-expand: a collapsed sidebar group expands
+  // when the user hovers a drag over its row for HOVER_EXPAND_DELAY_MS ms.
+  // Standard tree-view pattern (Finder, Notion, VS Code file tree). State
+  // is tracked across a single delegated dragover listener on #sidebar so
+  // re-renders don't invalidate per-group bindings. No drag-active flag —
+  // dragover only fires during an active drag.
+  var dragHoverGroupId = null;
+  var dragHoverTimer = null;
+  var HOVER_EXPAND_DELAY_MS = 600;
 
   var TAB_IDS = ["home", "tasks", "dashboard", "insights"];
   var PRO_TAB_IDS = ["tasks", "dashboard", "insights"];
@@ -182,7 +191,13 @@
     get state() { return sidebarExpandedGroupIds; },
     toggleGroup: function (groupId) { toggleSidebarGroup(groupId); },
     toggleAll: function () { toggleAllSidebarGroups(); },
-    refreshIcon: function () { updateSidebarExpandAllIcon(); }
+    refreshIcon: function () { updateSidebarExpandAllIcon(); },
+    // [1.0.11.6] Drag-to-nest auto-expand verification hooks.
+    // simulateDragHover runs the same expand-if-eligible logic the
+    // 600ms timer would invoke (still-collapsed + wrapper-exists checks)
+    // without requiring the caller to synthesize HTML5 drag events.
+    simulateDragHover: function (groupId) { return autoExpandHoveredGroup(groupId); },
+    get dragHoverState() { return { groupId: dragHoverGroupId, hasTimer: dragHoverTimer !== null }; }
   };
 
   // ===== Pro state debug helper =====
@@ -5784,6 +5799,56 @@
     updateSidebarExpandAllIcon();
   }
 
+  // [1.0.11.6] Auto-expand a single sidebar group, with the same DOM-sync
+  // contract as toggleSidebarGroup's expand branch. Re-checks the
+  // "still collapsed" invariant first — the caller's check may be stale
+  // by the time we run (timer callback, debug-namespace call from the
+  // console). Returns true if an expand actually happened. Intentionally
+  // does NOT gate on sidebarLocked: the lock guards against stray
+  // stationary clicks, but a drag-in-progress is a deliberate user
+  // gesture that should not be silently swallowed because some
+  // unrelated panel happens to be open.
+  function autoExpandHoveredGroup(targetGroupId) {
+    if (!targetGroupId) return false;
+    if (sidebarExpandedGroupIds.has(targetGroupId)) return false;
+    var wrapper = document.querySelector('.sb-group-wrapper[data-group-id="' + targetGroupId + '"]');
+    if (!wrapper) return false;
+    sidebarExpandedGroupIds.add(targetGroupId);
+    expandSidebarGroupDom(wrapper);
+    updateSidebarExpandAllIcon();
+    return true;
+  }
+
+  // [1.0.11.6] Single delegated dragover handler bound at #sidebar in
+  // bindEvents. Tracks the currently-hovered collapsed group and starts
+  // a HOVER_EXPAND_DELAY_MS timer; if the cursor stays put long enough,
+  // autoExpandHoveredGroup fires. Cursor moving to a different group
+  // restarts the timer; cursor leaving any group row (or moving onto an
+  // already-expanded group) cancels it.
+  function handleSidebarDragover(e) {
+    var item = e.target.closest(".sb-group-item");
+    var groupId = item ? item.dataset.groupId : null;
+    if (!groupId || sidebarExpandedGroupIds.has(groupId)) {
+      dragHoverGroupId = null;
+      if (dragHoverTimer) { clearTimeout(dragHoverTimer); dragHoverTimer = null; }
+      return;
+    }
+    if (groupId !== dragHoverGroupId) {
+      if (dragHoverTimer) clearTimeout(dragHoverTimer);
+      dragHoverGroupId = groupId;
+      var captured = groupId;
+      dragHoverTimer = setTimeout(function () {
+        dragHoverTimer = null;
+        // Bail if the cursor moved to a different group (or off any
+        // group) while the timer was pending. autoExpandHoveredGroup's
+        // own "still collapsed" check covers the case where some other
+        // path expanded this group in the meantime.
+        if (dragHoverGroupId !== captured) return;
+        autoExpandHoveredGroup(captured);
+      }, HOVER_EXPAND_DELAY_MS);
+    }
+  }
+
   function initSidebarGroupObserver() {
     if (sidebarGroupObserver) sidebarGroupObserver.disconnect();
   }
@@ -6568,6 +6633,9 @@
     });
     safeOn("#sb-add-group", "click", addGroup);
     safeOn("#sb-expand-all", "click", toggleAllSidebarGroups);
+    // [1.0.11.6] Drag-to-nest auto-expand. Single delegated handler at the
+    // sidebar root — survives every renderSidebarGroups innerHTML rewrite.
+    safeOn("#sidebar", "dragover", handleSidebarDragover);
     safeOn("#sb-group-list", "click", function (e) {
       // Three-dot menu button
       var moreBtn = e.target.closest(".sb-group-more");
