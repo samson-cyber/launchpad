@@ -1245,7 +1245,13 @@
       handle: ".tt-goal-header",
       // Defensive: never start a drag from inside a text input — the user
       // may be mid-edit on the goal name ([1.0.10.1] inline rename).
-      filter: ".tt-name-input",
+      // [1.0.11.16] Also exclude the three-dot menu button (.tt-goal-menu-btn,
+      // [1.0.10.1] D6 fix); pre-existing [1.0.11.1] gap surfaced during
+      // [1.0.11.15] verification — clicking the button initiated drag instead
+      // of opening the menu because Sortable started tracking on a mousedown
+      // inside the handle area, and a slight cursor twitch crossed the drag
+      // threshold before the click registered.
+      filter: ".tt-name-input, .tt-goal-menu-btn",
       preventOnFilter: false,
       ghostClass: "sortable-ghost",
       chosenClass: "sortable-chosen",
@@ -1300,6 +1306,15 @@
     var standaloneList = panel.querySelector(".tt-standalone-list:not(.tt-standalone-list-completed)");
     if (standaloneList) taskListEls.push(standaloneList);
 
+    // [1.0.11.16] Resolve the scroll container ONCE so all four task
+    // Sortables share the same explicit reference. SortableJS's scroll
+    // auto-detect walks up parents looking for overflow:auto/scroll, but
+    // the path here (.tt-goal-tasks → .tt-goal-card → .tt-goal-list →
+    // .tt-active-goals-section → .tasks-tab) was not reliably picked up
+    // during D8 verification — auto-scroll near the viewport edge did not
+    // fire. Passing the .tasks-tab element directly bypasses detection.
+    var scrollContainerEl = panel.querySelector(".tasks-tab");
+
     taskListEls.forEach(function (taskListEl) {
       var s = new Sortable(taskListEl, {
         animation: 150,
@@ -1318,12 +1333,18 @@
         ghostClass: "sortable-ghost",
         chosenClass: "sortable-chosen",
         dragClass: "sortable-drag",
+        // [1.0.11.16] Explicit scroll container + slightly more sensitive
+        // edge detection. Defaults (true / 30 / 10) failed to trigger
+        // auto-scroll during D8 verification on the .tasks-tab container.
+        scroll: scrollContainerEl || true,
+        scrollSensitivity: 40,
+        scrollSpeed: 12,
         onStart: function () { panel.dataset.tasksDragActive = "true"; },
         onEnd: async function (evt) {
           // Clear the drag-active flag BEFORE the async drop sequence so
-          // the render() at the end (which checks this flag) actually runs.
+          // the renderTasksTab at the end (which checks this flag) runs.
           delete panel.dataset.tasksDragActive;
-          await handleTaskDrop(evt, d, panel);
+          await handleTaskDrop(evt);
         }
       });
       panel._sortables.taskLists.push(s);
@@ -1398,7 +1419,15 @@
   // a console.error — the storage method's defensive throws (Commit 1)
   // catch stale IDs / soft-deleted goals immediately, so the drag handler
   // doesn't silently no-op.
-  async function handleTaskDrop(evt, d, panel) {
+  // [1.0.11.16] Use module-level `data` and a fresh document.getElementById
+  // lookup for the panel instead of closed-over references from
+  // bindTasksTabSortables. The +New Task modal in [1.0.10.1] follows the
+  // same pattern (newtab.js around line 1769). Across an async modal wait
+  // a foreign-write listener can reassign the module-level `data`; the
+  // closed-over `d` would then point to the prior data object and our
+  // mutation/render would operate on stale state. Re-resolving here keeps
+  // the drop applied to whatever data is current at commit time.
+  async function handleTaskDrop(evt) {
     if (!evt || !evt.item) return;
     var taskId = evt.item.getAttribute("data-task-id");
     if (!taskId) return;
@@ -1407,7 +1436,12 @@
     var toList = evt.to;
     var isCrossList = fromList !== toList;
 
-    var ws = Storage.getActiveWorkspace(d);
+    function refreshPanel() {
+      var panel = document.getElementById("tab-tasks");
+      if (panel) renderTasksTab(panel, data);
+    }
+
+    var ws = Storage.getActiveWorkspace(data);
     var task = ws ? Storage.getTaskById(ws, taskId) : null;
     if (!task) {
       // Task no longer in storage — likely deleted in another tab mid-drag.
@@ -1417,21 +1451,21 @@
 
     if (!isCrossList) {
       // Case 1 — intra-list reorder. No goalId change, no collision check.
-      rebuildTaskDisplayOrderFromList(toList, d);
+      rebuildTaskDisplayOrderFromList(toList, data);
       try {
-        await Storage.saveAll(d);
+        await Storage.saveAll(data);
       } catch (err) {
         console.error("[LaunchPad] Tasks: intra-list reorder save failed", err);
         return;
       }
-      if (panel) renderTasksTab(panel, d);
+      refreshPanel();
       return;
     }
 
     var targetGoalId = taskListGoalId(toList);
     var taskName = task.name;
 
-    var collides = Storage.hasTaskNameCollision(d, taskName, targetGoalId, taskId);
+    var collides = Storage.hasTaskNameCollision(data, taskName, targetGoalId, taskId);
 
     if (collides && targetGoalId === null) {
       // Case 3 collision — standalone destination DISALLOWS the drop.
@@ -1442,7 +1476,7 @@
 
     if (collides && targetGoalId !== null) {
       // Case 2 / 4 collision — goal destination prompts the user.
-      var suggested = Storage.generateUniqueTaskName(d, taskName, targetGoalId, taskId);
+      var suggested = Storage.generateUniqueTaskName(data, taskName, targetGoalId, taskId);
       openTasksConfirmModal({
         title: "Name conflict",
         message: 'A task named "' + taskName + '" already exists in this goal. Rename to "' + suggested + '" or cancel?',
@@ -1452,17 +1486,17 @@
           // the conflicting task in the meantime, in which case we don't
           // need to rename. Recompute the suggested name fresh either way
           // so a concurrent rename can't poison the displayed suggestion.
-          var liveCollision = Storage.hasTaskNameCollision(d, taskName, targetGoalId, taskId);
+          var liveCollision = Storage.hasTaskNameCollision(data, taskName, targetGoalId, taskId);
           var opts = {};
           if (liveCollision) {
-            opts.newName = Storage.generateUniqueTaskName(d, taskName, targetGoalId, taskId);
+            opts.newName = Storage.generateUniqueTaskName(data, taskName, targetGoalId, taskId);
           }
           try {
-            await Storage.reassignTaskToGoal(d, taskId, targetGoalId, opts);
-            rebuildTaskDisplayOrderFromList(toList, d);
-            rebuildTaskDisplayOrderFromList(fromList, d);
-            await Storage.saveAll(d);
-            if (panel) renderTasksTab(panel, d);
+            await Storage.reassignTaskToGoal(data, taskId, targetGoalId, opts);
+            rebuildTaskDisplayOrderFromList(toList, data);
+            rebuildTaskDisplayOrderFromList(fromList, data);
+            await Storage.saveAll(data);
+            refreshPanel();
           } catch (err) {
             console.error("[LaunchPad] Tasks: cross-list reassign (with rename) failed", err);
             revertSortableDrop(evt);
@@ -1477,11 +1511,11 @@
 
     // No collision — direct reassignment.
     try {
-      await Storage.reassignTaskToGoal(d, taskId, targetGoalId);
-      rebuildTaskDisplayOrderFromList(toList, d);
-      rebuildTaskDisplayOrderFromList(fromList, d);
-      await Storage.saveAll(d);
-      if (panel) renderTasksTab(panel, d);
+      await Storage.reassignTaskToGoal(data, taskId, targetGoalId);
+      rebuildTaskDisplayOrderFromList(toList, data);
+      rebuildTaskDisplayOrderFromList(fromList, data);
+      await Storage.saveAll(data);
+      refreshPanel();
     } catch (err) {
       console.error("[LaunchPad] Tasks: cross-list reassign failed", err);
       revertSortableDrop(evt);

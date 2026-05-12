@@ -7334,6 +7334,15 @@ html.has-bg.bg-light .pro-preview-banner-text {
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   overflow-y: auto;
+  /* [1.0.11.16] D4 fix — disable browser scroll anchoring on the Tasks tab
+     scroll container. The drop's DOM mutation + same-tab render rebuild
+     can shift the layout enough that the browser's anchor-keeping heuristic
+     resets scroll to the top. LaunchPad never inserts content above the
+     viewport in this container (renderTasksTab is full-rebuild, top-down),
+     so anchoring has no useful work to do here. Precedent: [1.0.11.13]
+     applied the same fix on #shortcut-grid-area for the sidebar-expand
+     scroll-shift bug. */
+  overflow-anchor: none;
 }
 
 .tasks-header {
