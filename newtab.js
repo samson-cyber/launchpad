@@ -197,7 +197,27 @@
     // 600ms timer would invoke (still-collapsed + wrapper-exists checks)
     // without requiring the caller to synthesize HTML5 drag events.
     simulateDragHover: function (groupId) { return autoExpandHoveredGroup(groupId); },
-    get dragHoverState() { return { groupId: dragHoverGroupId, hasTimer: dragHoverTimer !== null }; }
+    get dragHoverState() { return { groupId: dragHoverGroupId, hasTimer: dragHoverTimer !== null }; },
+    // [1.0.11.7] Cross-list drop sync verification hook. Rebuilds the
+    // group's shortcuts array from the given list element's direct
+    // children (any .shortcuts-grid or .sidebar-shortcut-list works).
+    // Does NOT save — caller can inspect data.workspaces[...].shortcuts
+    // synchronously and then trigger Storage.saveAll if they want to
+    // persist. Returns the new shortcuts array length, or null if the
+    // list element lacks data-group-id or the group cannot be resolved.
+    syncListFromDOM: function (listEl) {
+      if (!listEl || !listEl.dataset || !listEl.dataset.groupId) return null;
+      var ws = Storage.getActiveWorkspace(data);
+      if (!ws) return null;
+      Storage.ensureGroupsArray(ws);
+      var allShortcuts = new Map();
+      ws.groups.forEach(function (g) {
+        g.shortcuts.forEach(function (s) { allShortcuts.set(s.id, s); });
+      });
+      rebuildGroupFromListElement(listEl, allShortcuts);
+      var rebuilt = findGroup(listEl.dataset.groupId);
+      return rebuilt ? rebuilt.shortcuts.length : null;
+    }
   };
 
   // ===== Pro state debug helper =====
@@ -5461,28 +5481,38 @@
   function initSidebarShortcutSortables() {
     destroySidebarShortcutSortables();
     if (typeof Sortable === "undefined") return;
+    var ws = Storage.getActiveWorkspace(data);
+    var readOnly = !!(ws && ws.isReadOnly);
     $$(".sidebar-shortcut-list").forEach(function (listEl) {
       var groupId = listEl.dataset.groupId;
       if (!groupId) return;
       var s = new Sortable(listEl, {
         animation: 150,
+        // [1.0.11.7] Join the main-grid Sortable group so a bookmark can be
+        // dragged between any sidebar group and any main-grid group, plus
+        // sidebar↔sidebar. Default pull/put semantics are symmetric.
+        group: "shortcuts",
+        // [1.0.11.7] Honor the read-only flag. Previously the sidebar
+        // Sortable mutated data even in read-only workspaces — pre-existing
+        // bug surfaced because adding the "shortcuts" group above would
+        // otherwise extend that mutation across all groups.
+        disabled: readOnly,
         draggable: ".sidebar-shortcut-item",
         ghostClass: "sb-shortcut-ghost",
         handle: ".sidebar-shortcut-drag-handle",
         filter: ".sidebar-shortcut-empty",
         preventOnFilter: false,
-        onEnd: async function () {
-          var group = findGroup(groupId);
-          if (!group) return;
-          var allShortcuts = {};
-          group.shortcuts.forEach(function (sc) { allShortcuts[sc.id] = sc; });
-          var newOrder = $$(".sidebar-shortcut-item", listEl)
-            .map(function (el) { return allShortcuts[el.dataset.shortcutId]; })
-            .filter(Boolean);
-          group.shortcuts = newOrder;
-          await Storage.saveAll(data);
-          renderMainGrid();
-          console.log("[LaunchPad] Shortcuts reordered via sidebar in group:", groupId);
+        onEnd: async function (evt) {
+          await syncAfterShortcutDrop(evt);
+          // Always re-render after a sidebar-sourced drop. Even within-list
+          // reorder needs render() because the variant sub-list (a sibling
+          // of its parent .sidebar-shortcut-item) does not move with the
+          // parent in SortableJS — it would orphan otherwise. Cross-list
+          // additionally has a class-mismatched element (e.g. a sidebar
+          // item now sitting inside a main-grid .shortcuts-grid); render
+          // rebuilds with the correct element type for the destination.
+          render();
+          console.log("[LaunchPad] Shortcut drag (sidebar source):", { from: evt.from.dataset.groupId, to: evt.to.dataset.groupId });
         }
       });
       sidebarShortcutSortables.push(s);
@@ -7885,7 +7915,18 @@
             // Nesting handled — revert SortableJS move by re-rendering
             await nestResult;
           } else {
-            await syncShortcutsFromDOM();
+            // [1.0.11.7] Use the generalized sync so a drop into a sidebar
+            // list (cross-class element) also updates that group's data.
+            // syncShortcutsFromDOM (which only walks .shortcuts-grid) would
+            // miss the sidebar destination.
+            await syncAfterShortcutDrop(evt);
+            // If the destination is a sidebar list the dropped .shortcut
+            // element is now a class-mismatched child of .sidebar-shortcut-list;
+            // a full render restores the proper element types. Within-main-grid
+            // moves already have consistent DOM and skip the render.
+            if (evt.to !== evt.from && evt.to.classList.contains("sidebar-shortcut-list")) {
+              render();
+            }
           }
           ensureAllPlaceholders();
         }
@@ -8257,6 +8298,48 @@
         .filter(Boolean);
     });
 
+    await Storage.saveAll(data);
+  }
+
+  // [1.0.11.7] Direct-children walker that works on both .shortcuts-grid
+  // (main grid) and .sidebar-shortcut-list (sidebar). Pulls shortcut IDs
+  // from data-id (main-grid item) OR data-shortcut-id (sidebar item),
+  // skipping everything else (.add-tile, .grid-placeholder, .empty-group-hint,
+  // .sidebar-variant-list, .sidebar-shortcut-empty). Used by cross-list
+  // drop sync so source and destination can be either container type.
+  // Direct children only — variants nested under their parent's
+  // .sidebar-variant-list intentionally do not contribute.
+  function rebuildGroupFromListElement(listEl, allShortcuts) {
+    if (!listEl) return;
+    var groupId = listEl.dataset.groupId;
+    if (!groupId) return;
+    var group = findGroup(groupId);
+    if (!group) return;
+    var directChildren = Array.prototype.slice.call(listEl.children);
+    group.shortcuts = directChildren
+      .map(function (el) {
+        var id = el.dataset.id || el.dataset.shortcutId;
+        return id ? allShortcuts.get(id) : null;
+      })
+      .filter(Boolean);
+  }
+
+  // [1.0.11.7] Generalized post-drop sync for shortcut drags. Rebuilds the
+  // destination group from evt.to and (for cross-list drops) also the
+  // source group from evt.from, then saves. Works transparently across
+  // sidebar↔sidebar, sidebar↔main-grid, and within-list reorders.
+  async function syncAfterShortcutDrop(evt) {
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return;
+    Storage.ensureGroupsArray(ws);
+    var allShortcuts = new Map();
+    ws.groups.forEach(function (g) {
+      g.shortcuts.forEach(function (s) { allShortcuts.set(s.id, s); });
+    });
+    rebuildGroupFromListElement(evt.to, allShortcuts);
+    if (evt.from !== evt.to) {
+      rebuildGroupFromListElement(evt.from, allShortcuts);
+    }
     await Storage.saveAll(data);
   }
 
