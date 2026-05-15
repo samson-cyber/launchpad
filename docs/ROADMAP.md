@@ -81,6 +81,16 @@ Per DECISIONS.md "Ship Pro and free tab-bar update as one release", these free-t
 
 ---
 
+## v1.1.0 — Notes (standalone)
+
+Pro-only feature. Sticky-note-styled grid for quick capture, with promote-to-task and promote-to-goal integration, drag positioning, search/filter, and a Notes-specific trash can UI. 5 Asana tasks scoped: [1.1.0] through [1.1.4]. Target release: ~4-6 weeks post v1.0 launch.
+
+## v1.2.0 — Notebooks
+
+Organizational layer on top of standalone notes. Master-detail layout with left notebook column. Drag-to-combine creates notebooks; drag-out returns notes to standalone. Asana tasks not yet scoped — to be created after v1.1.0 ships and we have usage signal. Target release: ~6-8 weeks after v1.1.0.
+
+---
+
 ## Deferred: Pro v2
 
 Items worth building but out of scope for v1 to keep the 10-week build shippable.

@@ -791,3 +791,34 @@ Originating data point: round 6 IMPLEMENTATION comment on Asana 1214425856049640
 - If a future spec wants rename propagation (opt-in toggle, feature flag, etc.), it must be added as a new explicit feature — not as a silent reversal of the decoupling.
 
 **Originating data points:** [1.0.10.1] commit 71eafe0 IMPLEMENTATION comment (where the PLAN-vs-implementation drift was flagged); DECISIONS 2026-04-27 ("Tag CRUD with auto-creation on goal + inheritance on task; tag name decoupled from goal name after creation"); DECISIONS 2026-05-09 ("renameGoal intentionally does NOT participate" within the auto-tag dedup entry); Asana task GID 1214681339623264.
+
+---
+
+## 2026-05-15 — Notes feature design locked (v1.1 + v1.2)
+
+Decisions made during scoping session for the Notes feature, captured here as the canonical record for future cross-task continuity:
+
+1. **Tier**: Pro-only feature, with free-user Preview Mode (greyed-out tab opens hardcoded demo, non-interactive). Justification: notes reinforce productivity narrative; mixing free notes dilutes Pro positioning.
+
+2. **Release split**: v1.1.0 ships standalone notes. v1.2.0 ships notebooks (organizational layer). Justification: faster v1.1, gives real usage signal before committing to notebook UX, smaller releases easier to ship clean.
+
+3. **Aesthetic**: nostalgic-realistic sticky notes (paper texture, slight rotation, soft shadows, paper color palette, curl effect). Trade-off accepted: style will age with the rest of the UI but provides strong brand identity and instant metaphor recognition. Visual layer can be re-themed later without touching data model.
+
+4. **Layout - v1.1**: full-grid standalone notes. No left column. Notes are absolutely positioned via stored {x,y} coordinates with light grid snap.
+
+5. **Layout - v1.2**: master-detail with left notebook column (1/5) + right content area (4/5). "Standalone Notes" item at top of left column returns to the standalone grid. Persistent "+" drop target at bottom of left column for drag-to-create-notebook.
+
+6. **Notebook deletion**: confirmation modal with two options ("Move notes to standalone" default, vs "Delete notebook and all notes" cascade). Restoration of cascade-deleted notebook restores all child notes inside it.
+
+7. **Trash UI**: Notes tab includes its own trash can icon in the bottom-right corner, acting as the visual surface for the Notes portion of the universal trash bin. Click opens trash view with Restore + Delete Permanently + Empty Trash actions. 30-day auto-purge handled by universal trash-bin spec.
+
+8. **Drag interactions**:
+   - Drag note → reposition on grid (or within a notebook)
+   - Drag standalone note onto "+" empty target → create new notebook with that note
+   - Drag standalone note onto existing notebook → add to that notebook
+   - Drag note from notebook view onto "Standalone Notes" item → remove from notebook
+   - Drag note onto trash can icon → soft-delete
+
+9. **Promote-to-task / Promote-to-goal**: act as copy by default, with secondary "and delete note" menu option for move semantics.
+
+10. **Task versioning**: Notes work tasks use [1.1.x] versioning, matching the release version directly (overriding earlier [2.0.x] proposal).
