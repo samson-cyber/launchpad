@@ -62,7 +62,7 @@ note = {
   position: { x: number, y: number },  // grid coordinates
   rotation: number,  // -2 to +2 degrees, assigned at creation
   notebookId: string | null,  // null for v1.1 (always standalone); v1.2 introduces optional notebook association
-  tags: [string],  // tag ids, integrates with existing tag system
+  tagIds: [string],  // tag ids, integrates with existing tag system
   createdAt: ISO timestamp,
   updatedAt: ISO timestamp,
   deletedAt: ISO timestamp | null  // for soft-delete, matches universal trash-bin pattern
@@ -80,7 +80,7 @@ note = {
 
 ### Promote-to-task
 
-Right-click note - "Promote to task" opens the existing task creation modal with note content pre-filled (first ~80 chars - task name, full content - description). User picks target goal or "Standalone" from existing dropdown. On confirm, task is created; note remains untouched (promote = copy, not move). Secondary menu option "Promote and delete note" does the same but soft-deletes the note after task creation.
+Right-click note - "Promote to task" opens the existing task creation modal with note content pre-filled (first ~80 chars - task name, full content - description). If note content is shorter than 80 chars, the entire content becomes both task name and description; user can edit either in the modal before confirming. User picks target goal or "Standalone" from existing dropdown. On confirm, task is created; note remains untouched (promote = copy, not move). Secondary menu option "Promote and delete note" does the same but soft-deletes the note after task creation.
 
 ### Promote-to-goal
 
@@ -117,6 +117,8 @@ The Notes tab area splits into two columns:
 - Right 4/5: content area - swaps between standalone notes grid (default) and a notebook's contents (when a notebook is selected)
 
 The "Standalone Notes" item at the top of the left column is always visible, always clickable, and returns the right pane to the standalone grid when clicked. Acts as the "home" of the Notes tab.
+
+On v1.2 upgrade, any note whose stored x-coordinate falls outside the new right-pane width is clamped to fit; rotation and y are preserved.
 
 ### Notebook data model
 

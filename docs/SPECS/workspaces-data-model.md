@@ -49,7 +49,9 @@ New shape (Pro-capable):
       "goals": [],
       "tasks": [],
       "tags": [],
-      "tracking": { ... }
+      "tracking": { ... },
+      "notes": [],         // Notes feature (v1.1.0)
+      "notebooks": []      // Notebooks feature (v1.2.0)
     }
   ],
   "workspaceOrder": ["main"],
@@ -79,6 +81,7 @@ Key choices:
 - **`isReadOnly` flag per workspace.** Set to true for non-first workspaces after a Pro → free downgrade. UI disables editing actions on read-only workspaces.
 - **`settings` stays global.** Column count, icon size, theme are user preferences. `combinedAnalyticsEnabled` toggles a "show time across all workspaces" view in Dashboard.
 - **`pro` block tracks license state.** See `billing-and-license.md`.
+- **Notes and notebooks live per-workspace.** Notes ship in v1.1.0; notebooks ship in v1.2.0.
 
 ---
 

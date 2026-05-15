@@ -25,6 +25,8 @@ Trash Bin is a **free-tier feature**. Consistent with LaunchPad's "we respect yo
 - Goals (Pro feature; trash logic applies uniformly, restore requires active Pro after downgrade)
 - Tasks (Pro, same downgrade rules as goals)
 - Tags (Pro, same downgrade rules)
+- Notes (Pro, same downgrade rules as goals)
+- Notebooks (Pro, same downgrade rules as goals)
 
 ### Out of scope
 
