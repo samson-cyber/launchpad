@@ -213,8 +213,5 @@ Not v1 goals:
 
 These are documented in `DECISIONS.md` as they get resolved.
 
-- Billing provider: LemonSqueezy vs Paddle vs Stripe (decision due Week 4-5)
-- License key verification: local-only or server-checked on install (Week 5-6)
 - Beta acceptance criteria: how do we select 20-50 first users (Week 9)
-- Whether to add a free trial (likely 14-day trial; confirm Week 9)
 - Day Recap trigger: fixed time (5pm?) or user-set? (Week 7-8 UX spec)
