@@ -21,8 +21,7 @@
 var LicenseClient = (function () {
   "use strict";
 
-  // SWAP TO https://live.dodopayments.com IN [pre-launch Dodo Live Mode] TASK
-  var DODO_API_BASE = 'https://test.dodopayments.com';
+  var DODO_API_BASE = 'https://live.dodopayments.com';
   var VALIDATE_DEBOUNCE_MS = 24 * 60 * 60 * 1000;  // 24h
   var OFFLINE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;  // 7d
 

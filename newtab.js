@@ -2393,17 +2393,11 @@
     return !!upgradePopoverEl && document.body.contains(upgradePopoverEl);
   }
 
-  // [1.0.5.4] Dodo Test Mode product IDs and checkout host. Live mode swap
-  // (DODO_API_BASE in license.js, manifest host_permissions, and these
-  // constants) is a pre-launch task. test.checkout.* is the customer-facing
-  // checkout host; test.dodopayments.com is the API base used by
-  // LicenseClient. Both swap to live.* together.
   var DODO_PRODUCT_IDS = {
-    monthly:  "pdt_0NeMmDtVpQQBAmjBhsNuE",
-    annual:   "pdt_0NeMmvRkRY7z1b1jL3AaJ",
-    lifetime: "pdt_0NeMo1X5TaL65hhFsgmPH"
+    monthly: "pdt_0NewHftUJ9dSIcJcl38Hd",
+    annual:  "pdt_0NewPBLmMizbcr3Sif8cr"
   };
-  var DODO_CHECKOUT_BASE = "https://test.checkout.dodopayments.com/buy/";
+  var DODO_CHECKOUT_BASE = "https://checkout.dodopayments.com/buy/";
 
   function popoverTitleForState(d) {
     var trialUsed = !!(d && d.pro && d.pro.trialStartedAt);
