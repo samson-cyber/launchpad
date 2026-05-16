@@ -2434,7 +2434,6 @@
       '<div class="up-tier-row">' +
         '<button type="button" class="up-tier" data-tier="monthly">Monthly</button>' +
         '<button type="button" class="up-tier" data-tier="annual">Annual</button>' +
-        '<button type="button" class="up-tier" data-tier="lifetime">Lifetime</button>' +
       '</div>' +
       '<div class="up-divider"></div>' +
       '<button type="button" class="up-license-toggle">Already have a license?</button>' +

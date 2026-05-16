@@ -6,7 +6,6 @@
   "permissions": ["storage", "bookmarks", "contextMenus", "history", "topSites", "tabs", "alarms", "search", "idle"],
   "host_permissions": [
     "https://live.dodopayments.com/*",
-    "https://checkout.dodopayments.com/*",
     "https://mylaunchpad.me/*"
   ],
   "content_security_policy": {
