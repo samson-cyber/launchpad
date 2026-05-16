@@ -27,14 +27,14 @@ The free LaunchPad Chrome extension, live on the Chrome Web Store.
 
 ## In Progress: Pro v1 (target 10 weeks)
 
-Paid tier. Pricing: **$4.99/mo or $39/year** (annual ~$3.25/mo). Lifetime option: **$59 one-time**. See `SPECS/pro-value-proposition.md` for positioning.
+Paid tier. Pricing: **$4.99/mo or $39/year** (annual ~$3.25/mo). See `SPECS/pro-value-proposition.md` for positioning.
 
 ### Pro v1 scope (committed)
 
 #### Foundation
 - Workspaces: generic user-managed containers (free = 1 "Main" workspace, Pro = unlimited). Switcher, add/rename/reorder/delete from Pro Settings.
 - Pro settings panel (separate from free Settings)
-- Pro upgrade flow (billing provider TBD — LemonSqueezy / Paddle / Stripe)
+- Pro upgrade flow via Dodo Payments (KYC + Live Mode verified 2026-05-15; see `docs/DECISIONS.md` 2026-04-24)
 - License key system (local verification + server-side abuse check)
 
 #### Task / Goal System

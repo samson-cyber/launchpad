@@ -822,3 +822,30 @@ Decisions made during scoping session for the Notes feature, captured here as th
 9. **Promote-to-task / Promote-to-goal**: act as copy by default, with secondary "and delete note" menu option for move semantics.
 
 10. **Task versioning**: Notes work tasks use [1.1.x] versioning, matching the release version directly (overriding earlier [2.0.x] proposal).
+
+---
+
+## 2026-05-15 — Drop lifetime tier: pricing simplified to monthly + yearly only
+
+**Context:** Earlier pricing structure (set 2026-04-24) included a $59 lifetime tier alongside $4.99/mo and $39/year. Reconsidered as billing infrastructure became real (Dodo KYC + Live Mode verified 2026-05-15, payment endpoint configuration about to start). The lifetime tier creates a permanent ongoing-support obligation for a solo dev with no offsetting recurring revenue — asymmetric for an indie-hobbyist project not dependent on launch cash flow.
+
+**Alternatives considered:**
+- Keep $59 lifetime as-is (rejected — permanent support tail; undervalued ratio of 1.5x annual cannibalizes yearly conversions disproportionately).
+- Time-limited founder lifetime cohort, e.g. first N buyers or first X weeks (rejected — adds tracking/communication overhead at solo-dev scale without launch-cash justification).
+- Version-scoped lifetime ("lifetime to Pro v1" with major versions sold separately) (rejected — explicit scoping addresses the obligation tail but adds complexity to license tier definitions and marketing copy; not worth it without a strong reason to keep lifetime in the kit).
+- Reprice lifetime upward to industry-standard 3-5x annual ratio ($120-195) to filter buyers (rejected — same underlying obligation issue at smaller scale).
+
+**Outcome:** Pro v1 ships with two tiers only: $4.99/month and $39/year. Lifetime tier dropped entirely. No lifetime tier was ever announced or sold publicly (decision made pre-launch).
+
+**Reasoning:**
+- Solo-dev sustainability: subscriber churn is a feature, not a bug — users who stop using LaunchPad stop being a support obligation. Lifetime holders keep the obligation indefinitely.
+- No launch cash flow dependency: indie-hobbyist project; the launch-revenue argument for lifetime doesn't apply here.
+- Browser extension support tail is real: Manifest version transitions, Chrome API deprecations, and browser update breakage are inevitable cost events. Subscription churn naturally bounds the user base carrying those cost events for paid tiers; lifetime would have left that bound unset.
+- Simpler tier structure: cleaner economics, less Dodo configuration overhead, simpler marketing copy.
+- The original $59 ratio was undervalued (1.5x annual vs the industry-standard 3-5x), which would have cannibalized yearly conversions disproportionately while still leaving each lifetime sale priced below its long-term obligation cost.
+
+**Supersedes:**
+- Lifetime tier references in the 2026-04-24 "Dodo Payments as billing provider" entry's Context section ("lifetime purchases ($59)"). The Dodo entry's core decision is unchanged — Dodo remains the billing provider; only the lifetime-tier portion of its pricing context is superseded.
+- The "$5/mo / $59 lifetime tier" framing used in the 2026-04-24 activations-limit entry reasoning. Limit decision itself (unlimited activations on the Dodo dashboard) unchanged.
+
+**Dodo configuration impact (manual, owner action):** The Lifetime Pro entitlement on the Dodo dashboard should be deactivated or archived. Monthly Pro and Annual Pro entitlements unchanged. License.js code unchanged (no lifetime-specific code paths in the extension).

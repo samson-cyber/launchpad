@@ -77,7 +77,7 @@ People with ADHD (diagnosed or not) who struggle with time perception. They look
 
 University students, bootcamp learners, people self-teaching skills. Track study time for accountability and progress.
 
-**Market size:** Millions globally, budget-conscious. Lifetime pricing serves this group well.
+**Market size:** Millions globally, budget-conscious. Annual tier at effective ~$3.25/mo fits this group's price sensitivity.
 
 **Why LaunchPad Pro fits:** Tagging time by subject, weekly review showing progress, "I actually studied 12 hours this week" confidence.
 
@@ -101,7 +101,6 @@ Balancing paid work with caregiving. Work happens in fragments.
 
 - **$4.99/month** — standard monthly
 - **$39/year** (effective ~$3.25/mo) — 35% discount for annual commitment
-- **$59 lifetime** — one-time purchase for subscription-averse users
 
 Positioned below competitors (RescueTime $9, Toggl $10, Rize $10, Motion $19+) but not bargain-bin. Feels professional.
 
@@ -109,11 +108,11 @@ Positioned below competitors (RescueTime $9, Toggl $10, Rize $10, Motion $19+) b
 
 - $4.99 is low enough that portfolio workers expense without thinking. High enough to signal real product.
 - Annual discount incentivizes commitment; reduces churn accounting load.
-- Lifetime option serves the "I hate subscriptions" segment (large and passionate). $59 feels generous vs paying $60/year.
+- No lifetime tier: as a solo-dev indie project, lifetime creates an unbounded support obligation without offsetting recurring revenue. See `docs/DECISIONS.md` (2026-05-15) for full reasoning.
 
 ### Billing provider
 
-To be decided during Infrastructure work. Leaning toward **LemonSqueezy** or **Paddle** as Merchant of Record handling global VAT / GST / sales tax (important since dev is Indonesia-based, users are global). 5% fee on top of Stripe-equivalent is worth avoiding tax compliance headaches as a solo dev.
+**Dodo Payments** — Merchant of Record handling global tax compliance across 220+ countries. Chosen 2026-04-24 (see `docs/DECISIONS.md`). KYC + Live Mode verified 2026-05-15. Fees: 4% + 40¢, lower than the LemonSqueezy / Paddle alternatives considered. Built-in license key management means no custom license-server code needed. Risk mitigation: billing abstraction layer in the extension keeps the provider swappable in 1-2 days if Dodo has reliability issues post-launch.
 
 ---
 
