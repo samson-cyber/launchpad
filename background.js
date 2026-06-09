@@ -334,6 +334,18 @@ chrome.windows.onRemoved.addListener(function () {
 // land here; product-type-specific fields like payment_id / subscription_id
 // are ignored — entitlement state comes from LicenseClient.ensureValidated).
 //
+// Cloudflare Pages 307-redirects /checkout-return.html -> /checkout-return
+// (clean-URL convention), so the committed tab URL has NO .html. Match both
+// the clean and .html paths, host-scoped, tolerating a trailing slash.
+function isCheckoutReturnUrl(rawUrl) {
+  if (!rawUrl) return false;
+  var u;
+  try { u = new URL(rawUrl); } catch (e) { return false; }
+  if (u.hostname !== 'mylaunchpad.me') return false;
+  var path = u.pathname.replace(/\/+$/, '');   // tolerate trailing slash
+  return path === '/checkout-return' || path === '/checkout-return.html';
+}
+
 // Top-level listener (registered on every SW wake; same listener function
 // reference each time so Chrome dedups). Filters on changeInfo.url so it
 // only does work for matching URLs. Closes the tab unconditionally — the
@@ -342,7 +354,7 @@ chrome.windows.onRemoved.addListener(function () {
 // call failed.
 chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
   if (!changeInfo.url) return;
-  if (!changeInfo.url.startsWith('https://mylaunchpad.me/checkout-return.html')) return;
+  if (!isCheckoutReturnUrl(changeInfo.url)) return;
   await handleCheckoutReturn(tabId, changeInfo.url);
 });
 
