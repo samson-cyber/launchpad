@@ -106,6 +106,12 @@ Other projects in the same dev root: `reelabs`, `condence-ai`, `exhale-health`, 
 
 ---
 
+## Cross-repo couplings
+
+- **launchpad-website routing ↔ extension URL matcher:** `background.js` (`isCheckoutReturnUrl` / `handleCheckoutReturn`) matches `https://mylaunchpad.me/checkout-return` with or without `.html`. The website serves this via Cloudflare clean-URL routing (`wrangler.toml`, website commit `3c7edb3`) which strips `.html`. A website route / clean-URL change can silently break extension auto-activation. Broke once, fixed in extension commit `07f979e` (bug 1215525319408075).
+
+---
+
 ## Communication Preferences
 
 - Longer, comprehensive responses preferred generally — but contextual. Don't pad short answers.
