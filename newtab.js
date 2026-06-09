@@ -14,6 +14,18 @@
   var sidebarSortable = null;
   var dragState = null;
   var nestingTipTimer = null;
+
+  // [1.0.12] Tasks tab filter/sort state. In-memory ONLY — deliberately NOT
+  // persisted to chrome.storage.local or `data`. Resets to defaults on every
+  // new-tab load (per-session, must not carry across new tabs). priorities and
+  // tagIds are multi-select (OR within each); status drives section visibility;
+  // sort reorders within each section. See applyTaskFilterSort / taskMatchesFilters.
+  var taskFilterState = {
+    priorities: [], // subset of 'urgent'|'high'|'medium'|'low'; [] = no priority filter
+    tagIds: [],     // tag ids; [] = no tag filter
+    status: "active", // 'active' | 'completed' | 'all'  (default mirrors the scaffold's first option)
+    sort: "created"   // 'created' | 'due' | 'priority' | 'name'
+  };
   var activeTab = "home";
   // [1.0.11.3] Authoritative state for sidebar group expansion. Multi-expand
   // model: any subset of group IDs may be expanded simultaneously. Lives
@@ -761,34 +773,132 @@
     });
   }
 
+  // ===== [1.0.12] Task priority + filter/sort helpers =====
+
+  var PRIORITY_LABELS = { urgent: "Urgent", high: "High", medium: "Medium", low: "Low" };
+  // Sort weight for the priority sort: urgent > high > medium > low > none(0).
+  var PRIORITY_RANK = { urgent: 4, high: 3, medium: 2, low: 1 };
+
+  function taskPriorityClass(p) {
+    if (p === "urgent") return "tt-prio-urgent";
+    if (p === "high")   return "tt-prio-high";
+    if (p === "medium") return "tt-prio-medium";
+    if (p === "low")    return "tt-prio-low";
+    return "";
+  }
+
+  // Clickable priority pill on each task row. Colored + labelled when a priority
+  // is set; a muted flag-only affordance when null (still a click target so the
+  // user can assign one). Opens the priority popover (see openPriorityPillPopover).
+  function priorityPillHtml(task) {
+    var p = task.priority || null;
+    var cls = "tt-prio-pill " + (p ? taskPriorityClass(p) : "tt-prio-none");
+    var label = p ? PRIORITY_LABELS[p] : "";
+    var aria = p ? ("Priority: " + label + " — click to change") : "Set priority";
+    return '<button type="button" class="' + cls + '" data-task-id="' + escapeHtml(task.id) +
+      '" data-priority="' + (p || "") + '" aria-label="' + escapeHtml(aria) + '" title="' + escapeHtml(aria) + '">' +
+      '<span class="tt-prio-flag" aria-hidden="true">⚑</span>' +
+      (label ? '<span class="tt-prio-pill-label">' + escapeHtml(label) + '</span>' : '') +
+    '</button>';
+  }
+
+  // True when a within-section filter (priority or tag) is narrowing the view.
+  // Used to decide whether a goal card with zero matching children should dim —
+  // we never dim on the unfiltered default (that would dim every empty goal).
+  function tasksFiltersNarrowing() {
+    return taskFilterState.priorities.length > 0 || taskFilterState.tagIds.length > 0;
+  }
+
+  // Priority + tag predicate for real tasks (AND across types, OR within a
+  // multi-select). Status is NOT applied here — it drives section visibility in
+  // renderTasksTab, not per-row removal — so a visible section still shows a
+  // goal's active + completed children, just narrowed by priority/tag.
+  function taskMatchesFilters(task) {
+    var P = taskFilterState.priorities;
+    if (P.length && P.indexOf(task.priority) === -1) return false;
+    var T = taskFilterState.tagIds;
+    if (T.length) {
+      var ids = Array.isArray(task.tagIds) ? task.tagIds : [];
+      var hit = false;
+      for (var i = 0; i < ids.length; i++) { if (T.indexOf(ids[i]) !== -1) { hit = true; break; } }
+      if (!hit) return false;
+    }
+    return true;
+  }
+
+  // Recurring templates have no priority/completed state, so only the tag filter
+  // is meaningful for them; priority/status filters do not apply to templates.
+  function recurringMatchesFilters(tpl) {
+    var T = taskFilterState.tagIds;
+    if (!T.length) return true;
+    var ids = Array.isArray(tpl.tagIds) ? tpl.tagIds : [];
+    for (var i = 0; i < ids.length; i++) { if (T.indexOf(ids[i]) !== -1) return true; }
+    return false;
+  }
+
+  // Comparator for the active sort mode. createdAt asc is the universal tiebreak.
+  function taskSortComparator() {
+    var mode = taskFilterState.sort;
+    return function (a, b) {
+      var d = 0;
+      if (mode === "priority") {
+        d = (PRIORITY_RANK[b.priority] || 0) - (PRIORITY_RANK[a.priority] || 0); // urgent first, null last
+      } else if (mode === "due") {
+        var ad = typeof a.dueAt === "number" ? a.dueAt : Infinity; // null dueAt sorts last
+        var bd = typeof b.dueAt === "number" ? b.dueAt : Infinity;
+        d = ad - bd;
+      } else if (mode === "name") {
+        d = String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" });
+      }
+      if (d !== 0) return d;
+      return (a.createdAt || 0) - (b.createdAt || 0);
+    };
+  }
+
+  // Apply the priority/tag filter, then the active sort, layered on top of the
+  // deletedAt filtering the caller already did. For the default sort ("created")
+  // the caller's incoming order is preserved — callers pass lists already in
+  // sortedByDisplayOrder (manual drag order, createdAt tiebreak), so drag-to-
+  // reorder ([1.0.11.15]) stays authoritative on the default view and only the
+  // explicit due/priority/name modes re-order.
+  function applyTaskFilterSort(tasks) {
+    var filtered = tasks.filter(taskMatchesFilters);
+    if (taskFilterState.sort === "created") return filtered;
+    return filtered.sort(taskSortComparator());
+  }
+
+  function priorityFilterLabel() {
+    var n = taskFilterState.priorities.length;
+    return n ? "Priority (" + n + ")" : "Priority";
+  }
+  function tagFilterLabel() {
+    var n = taskFilterState.tagIds.length;
+    return n ? "Tag (" + n + ")" : "Tag";
+  }
+  function tasksSelectedAttr(a, b) { return a === b ? " selected" : ""; }
+
   function tasksHeaderHtml() {
-    // Filter bar dropdowns rendered with their default option labels per the
-    // PLAN — no logic, no actual filter state. Same with the action buttons
-    // and Templates link, all noop until [1.0.10.1].
+    // [1.0.12] Priority + Tag are multi-select popover buttons (the [1.0.10]
+    // scaffold used single <select>s; multi-select needs a checkbox popover —
+    // see openTaskFilterPopover). Status + Sort stay native <select>s; their
+    // current value is reflected via `selected` so re-renders preserve state.
+    var fs = taskFilterState;
     return '<header class="tasks-header">' +
         '<div class="tasks-header-left">' +
           '<h1 class="tasks-title">Tasks</h1>' +
           '<div class="tasks-filter-bar" role="toolbar" aria-label="Task filters">' +
-            '<select class="tasks-filter" data-filter="priority" aria-label="Priority filter">' +
-              '<option value="">Priority</option>' +
-              '<option value="urgent">Urgent</option>' +
-              '<option value="high">High</option>' +
-              '<option value="medium">Medium</option>' +
-              '<option value="low">Low</option>' +
-            '</select>' +
-            '<select class="tasks-filter" data-filter="tag" aria-label="Tag filter">' +
-              '<option value="">Tag</option>' +
-            '</select>' +
+            '<button type="button" class="tasks-filter tasks-filter-multi' + (fs.priorities.length ? ' is-active' : '') + '" data-filter="priority" aria-haspopup="true">' + escapeHtml(priorityFilterLabel()) + '</button>' +
+            '<button type="button" class="tasks-filter tasks-filter-multi' + (fs.tagIds.length ? ' is-active' : '') + '" data-filter="tag" aria-haspopup="true">' + escapeHtml(tagFilterLabel()) + '</button>' +
             '<select class="tasks-filter" data-filter="status" aria-label="Status filter">' +
-              '<option value="active">Active</option>' +
-              '<option value="completed">Completed</option>' +
-              '<option value="all">All</option>' +
+              '<option value="active"' + tasksSelectedAttr(fs.status, "active") + '>Active</option>' +
+              '<option value="completed"' + tasksSelectedAttr(fs.status, "completed") + '>Completed</option>' +
+              '<option value="all"' + tasksSelectedAttr(fs.status, "all") + '>All</option>' +
             '</select>' +
             '<select class="tasks-filter" data-filter="sort" aria-label="Sort by">' +
-              '<option value="created">Sort: created</option>' +
-              '<option value="due">Sort: due</option>' +
-              '<option value="priority">Sort: priority</option>' +
-              '<option value="name">Sort: name</option>' +
+              '<option value="created"' + tasksSelectedAttr(fs.sort, "created") + '>Sort: created</option>' +
+              '<option value="due"' + tasksSelectedAttr(fs.sort, "due") + '>Sort: due</option>' +
+              '<option value="priority"' + tasksSelectedAttr(fs.sort, "priority") + '>Sort: priority</option>' +
+              '<option value="name"' + tasksSelectedAttr(fs.sort, "name") + '>Sort: name</option>' +
             '</select>' +
           '</div>' +
         '</div>' +
@@ -801,8 +911,9 @@
       '</header>';
   }
 
-  // Single child task row — read-only name + working checkbox. Priority
-  // visual treatment (left border) lands in [1.0.12].
+  // Single child task row — read-only name + working checkbox. [1.0.12] adds
+  // the priority left-border (color only when a priority is set) and a
+  // clickable priority pill.
   function taskRowHtml(workspace, task) {
     var checked = task.completed ? " checked" : "";
     var completedCls = task.completed ? " is-completed" : "";
@@ -818,10 +929,12 @@
     // element via `handle: ".tt-task-handle"`, so checkbox clicks and
     // future task-name interactions reach their handlers without Sortable
     // interception. aria-hidden so screen readers skip the decorative dots.
-    return '<li class="tt-task-row' + completedCls + '" data-task-id="' + escapeHtml(task.id) + '">' +
+    var prioCls = taskPriorityClass(task.priority);
+    return '<li class="tt-task-row' + completedCls + (prioCls ? ' ' + prioCls : '') + '" data-task-id="' + escapeHtml(task.id) + '">' +
       '<span class="tt-task-handle" aria-hidden="true" title="Drag to reorder">⠇</span>' +
       '<input type="checkbox" class="tt-task-check" data-task-id="' + escapeHtml(task.id) + '"' + checked + ' aria-label="Toggle task complete">' +
       '<span class="tt-task-name">' + escapeHtml(task.name) + '</span>' +
+      priorityPillHtml(task) +
       tagHtml +
     '</li>';
   }
@@ -830,9 +943,16 @@
     var children = sortedByDisplayOrder(allTasks.filter(function (t) {
       return t.goalId === goal.id && !t.deletedAt;
     }));
+    // Progress reflects ALL non-deleted children, independent of any filter, so
+    // the bar stays a truthful goal-completion gauge while the list narrows.
     var doneCount = children.filter(function (t) { return t.completed; }).length;
     var totalCount = children.length;
     var pct = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
+    // [1.0.12] Visible list = priority/tag filter + active sort applied within
+    // the card. Zero matches under an active filter dims the card (kept, not
+    // removed); under no filter an empty goal renders normally (never dimmed).
+    var visibleChildren = applyTaskFilterSort(children);
+    var dimmed = tasksFiltersNarrowing() && visibleChildren.length === 0;
 
     var deadlineHtml = "";
     if (typeof goal.deadlineAt === "number") {
@@ -843,9 +963,11 @@
       }
     }
 
-    var tasksListHtml = children.length
-      ? children.map(function (t) { return taskRowHtml(workspace, t); }).join("")
-      : '<li class="tt-task-empty">No tasks yet.</li>';
+    var tasksListHtml = visibleChildren.length
+      ? visibleChildren.map(function (t) { return taskRowHtml(workspace, t); }).join("")
+      : (tasksFiltersNarrowing()
+          ? '<li class="tt-task-empty">No tasks match the current filter.</li>'
+          : '<li class="tt-task-empty">No tasks yet.</li>');
 
     var isCompleted = goal.status === "completed";
     // Strict equality so legacy goals (pre-[1.0.11], no isCollapsed field)
@@ -870,7 +992,7 @@
     var bodyHtml = isCollapsed ? "" :
       '<ul class="tt-goal-tasks">' + tasksListHtml + '</ul>' + addTaskBlockHtml;
 
-    return '<article class="tt-goal-card' + (isCompleted ? ' is-completed' : '') + '" data-goal-id="' + escapeHtml(goal.id) + '" data-collapsed="' + (isCollapsed ? "true" : "false") + '">' +
+    return '<article class="tt-goal-card' + (isCompleted ? ' is-completed' : '') + (dimmed ? ' tt-goal-dimmed' : '') + '" data-goal-id="' + escapeHtml(goal.id) + '" data-collapsed="' + (isCollapsed ? "true" : "false") + '">' +
       '<header class="tt-goal-header">' +
         '<div class="tt-goal-header-left">' +
           '<span class="tt-goal-chevron" aria-label="Toggle goal collapse">' + CHEVRON_RIGHT_SVG + '</span>' +
@@ -928,13 +1050,16 @@
     var goalsHtml = completedGoals.map(function (g) {
       return goalCardHtml(workspace, g, allTasks);
     }).join("");
-    var standaloneHtml = completedStandalone.length
+    var visibleStandalone = applyTaskFilterSort(completedStandalone);
+    var standaloneHtml = visibleStandalone.length
       ? '<ul class="tt-standalone-list tt-standalone-list-completed">' +
-          completedStandalone.map(function (t) { return taskRowHtml(workspace, t); }).join("") +
+          visibleStandalone.map(function (t) { return taskRowHtml(workspace, t); }).join("") +
         '</ul>'
       : "";
     if (!goalsHtml && !standaloneHtml) {
-      return '<div class="tt-empty-state">Nothing completed yet.</div>';
+      return '<div class="tt-empty-state">' +
+        (tasksFiltersNarrowing() ? 'Nothing completed matches the current filter.' : 'Nothing completed yet.') +
+        '</div>';
     }
     return goalsHtml + standaloneHtml;
   }
@@ -996,49 +1121,85 @@
       ? activeGoals.map(function (g) { return goalCardHtml(workspace, g, allTasksForGoals); }).join("")
       : '<div class="tt-empty-state">No active goals — create your first goal.</div>';
 
-    var standaloneHtml = standaloneActive.length
+    // [1.0.12] Standalone list: priority/tag filter + active sort on top of the
+    // deletedAt + goalId===null base.
+    var standaloneVisible = applyTaskFilterSort(standaloneActive);
+    var standaloneHtml = standaloneVisible.length
       ? '<ul class="tt-standalone-list">' +
-          standaloneActive.map(function (t) { return taskRowHtml(workspace, t); }).join("") +
+          standaloneVisible.map(function (t) { return taskRowHtml(workspace, t); }).join("") +
         '</ul>'
-      : '<div class="tt-empty-state">No standalone tasks.</div>';
+      : '<div class="tt-empty-state">' +
+          (tasksFiltersNarrowing() && standaloneActive.length ? 'No standalone tasks match the current filter.' : 'No standalone tasks.') +
+        '</div>';
 
-    var recurringHtml = recurringTemplates.length
+    // [1.0.12] Recurring: tag filter only (templates carry no priority/status);
+    // createdAt order preserved on the default sort, re-sorted otherwise.
+    var recurringVisible = recurringTemplates.filter(recurringMatchesFilters);
+    if (taskFilterState.sort !== "created") {
+      recurringVisible = recurringVisible.slice().sort(taskSortComparator());
+    }
+    var recurringHtml = recurringVisible.length
       ? '<ul class="tt-recurring-list">' +
-          recurringTemplates.map(function (t) { return recurringRowHtml(workspace, t); }).join("") +
+          recurringVisible.map(function (t) { return recurringRowHtml(workspace, t); }).join("") +
         '</ul>'
-      : '<div class="tt-empty-state">No recurring tasks.</div>';
+      : '<div class="tt-empty-state">' +
+          (taskFilterState.tagIds.length && recurringTemplates.length ? 'No recurring tasks match the current filter.' : 'No recurring tasks.') +
+        '</div>';
 
     var completedCount = completedGoals.length + standaloneCompleted.length;
+
+    // [1.0.12] Status drives SECTION visibility (locked interaction model):
+    //   active    → hide Completed section (show goals/standalone/recurring)
+    //   completed → show ONLY the Completed section
+    //   all       → show everything
+    var showActiveSections = taskFilterState.status !== "completed";
+    var showCompletedSection = taskFilterState.status !== "active";
+    // When the user explicitly narrows to Completed, expand that section so its
+    // content is visible; otherwise keep the existing collapsed-by-default.
+    var completedCollapsed = taskFilterState.status !== "completed";
+
+    var activeGoalsSectionHtml = showActiveSections
+      ? '<section class="tt-section" data-section="active-goals">' +
+          '<h2 class="tt-section-title">Active Goals</h2>' +
+          '<div class="tt-goal-list">' + activeGoalsHtml + '</div>' +
+        '</section>'
+      : '';
+    var standaloneSectionHtml = showActiveSections
+      ? '<section class="tt-section" data-section="standalone">' +
+          '<h2 class="tt-section-title">Standalone</h2>' +
+          standaloneHtml +
+        '</section>'
+      : '';
+    var recurringSectionHtml = showActiveSections
+      ? '<section class="tt-section" data-section="recurring">' +
+          '<h2 class="tt-section-title">Recurring' +
+            (recurringVisible.length ? ' <span class="tt-section-count">' + recurringVisible.length + '</span>' : '') +
+          '</h2>' +
+          recurringHtml +
+        '</section>'
+      : '';
+    var completedSectionHtml = showCompletedSection
+      ? '<section class="tt-section tt-completed" data-section="completed" data-collapsed="' + (completedCollapsed ? "true" : "false") + '">' +
+          '<h2 class="tt-section-title">' +
+            '<button class="tt-completed-toggle" type="button" aria-expanded="' + (completedCollapsed ? "false" : "true") + '">' +
+              '<span class="tt-completed-chevron">' + CHEVRON_RIGHT_SVG + '</span>' +
+              '<span>Completed' + (completedCount ? ' (' + completedCount + ')' : '') + '</span>' +
+            '</button>' +
+          '</h2>' +
+          '<div class="tt-completed-body' + (completedCollapsed ? ' hidden' : '') + '">' +
+            completedBodyHtml(workspace, completedGoals, standaloneCompleted, allTasksForGoals) +
+          '</div>' +
+        '</section>'
+      : '';
 
     panel.innerHTML =
       '<div class="tasks-tab" data-tab="tasks">' +
         tasksHeaderHtml() +
         '<div class="tasks-body">' +
-          '<section class="tt-section" data-section="active-goals">' +
-            '<h2 class="tt-section-title">Active Goals</h2>' +
-            '<div class="tt-goal-list">' + activeGoalsHtml + '</div>' +
-          '</section>' +
-          '<section class="tt-section" data-section="standalone">' +
-            '<h2 class="tt-section-title">Standalone</h2>' +
-            standaloneHtml +
-          '</section>' +
-          '<section class="tt-section" data-section="recurring">' +
-            '<h2 class="tt-section-title">Recurring' +
-              (recurringTemplates.length ? ' <span class="tt-section-count">' + recurringTemplates.length + '</span>' : '') +
-            '</h2>' +
-            recurringHtml +
-          '</section>' +
-          '<section class="tt-section tt-completed" data-section="completed" data-collapsed="true">' +
-            '<h2 class="tt-section-title">' +
-              '<button class="tt-completed-toggle" type="button" aria-expanded="false">' +
-                '<span class="tt-completed-chevron">' + CHEVRON_RIGHT_SVG + '</span>' +
-                '<span>Completed' + (completedCount ? ' (' + completedCount + ')' : '') + '</span>' +
-              '</button>' +
-            '</h2>' +
-            '<div class="tt-completed-body hidden">' +
-              completedBodyHtml(workspace, completedGoals, standaloneCompleted, allTasksForGoals) +
-            '</div>' +
-          '</section>' +
+          activeGoalsSectionHtml +
+          standaloneSectionHtml +
+          recurringSectionHtml +
+          completedSectionHtml +
         '</div>' +
       '</div>';
 
@@ -1068,10 +1229,21 @@
       var target = e.target;
       if (!target || !target.classList) return;
 
-      // Filter dropdowns — logic deferred to [1.0.12]; keep the noop log so
-      // the user sees the placeholder until that ships.
-      if (target.closest && target.closest(".tasks-filter")) {
-        console.log("[1.0.10] noop — filter logic in 1.0.12 (" + target.getAttribute("data-filter") + ")");
+      // [1.0.12] Status / Sort <select>s. Priority and Tag are popover buttons
+      // (no change event) handled in the click listener below. Filter/sort
+      // state is in-memory only — never persisted — then an eager re-render
+      // reflows the sections/lists (the storage.onChanged path is not involved,
+      // nothing is written).
+      var filterSel = target.closest && target.closest("select.tasks-filter");
+      if (filterSel) {
+        var kind = filterSel.getAttribute("data-filter");
+        if (kind === "status") {
+          taskFilterState.status = filterSel.value;
+          renderTasksTab(panel, data);
+        } else if (kind === "sort") {
+          taskFilterState.sort = filterSel.value;
+          renderTasksTab(panel, data);
+        }
         return;
       }
 
@@ -1098,6 +1270,26 @@
     panel.addEventListener("click", async function (e) {
       var target = e.target;
       if (!target) return;
+
+      // [1.0.12] Priority / Tag multi-select filter buttons → checkbox popover.
+      var filterBtn = target.closest && target.closest(".tasks-filter-multi");
+      if (filterBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        openTaskFilterPopover(filterBtn, filterBtn.getAttribute("data-filter"));
+        return;
+      }
+
+      // [1.0.12] Task-row priority pill → priority popover (set / change / clear).
+      var prioPill = target.closest && target.closest(".tt-prio-pill");
+      if (prioPill) {
+        e.preventDefault();
+        e.stopPropagation();
+        var pillTaskId = prioPill.getAttribute("data-task-id");
+        var current = prioPill.getAttribute("data-priority") || null;
+        if (pillTaskId) openPriorityPillPopover(prioPill, pillTaskId, current);
+        return;
+      }
 
       // [1.0.11] Goal card chevron — toggle goal.isCollapsed in storage,
       // then eager-render. stopPropagation so the click does not bubble to
@@ -2080,6 +2272,128 @@
       if (e.key === "Escape") closeGoalContextMenu();
     };
     document.addEventListener("keydown", tasksContextMenuEscapeHandler);
+  }
+
+  // [1.0.12] Anchor a freshly-built popover below an element, append it, and
+  // wire the same outside-click + Escape dismissal as the goal context menu.
+  // Reuses the tasksContextMenu* slot + closeGoalContextMenu so only one
+  // menu/popover is ever open at a time.
+  function mountTasksPopover(menu, anchorEl) {
+    document.body.appendChild(menu);
+    var rect = anchorEl.getBoundingClientRect();
+    var w = menu.offsetWidth;
+    var h = menu.offsetHeight;
+    var px = Math.max(8, Math.min(rect.left, window.innerWidth - w - 8));
+    var py = rect.bottom + 4;
+    if (py + h > window.innerHeight - 8) py = Math.max(8, rect.top - h - 4); // flip above if no room below
+    menu.style.left = px + "px";
+    menu.style.top = py + "px";
+
+    tasksContextMenuEl = menu;
+    tasksContextMenuOutsideHandler = function (e) {
+      if (!menu.contains(e.target)) closeGoalContextMenu();
+    };
+    setTimeout(function () {
+      document.addEventListener("click", tasksContextMenuOutsideHandler, true);
+    }, 0);
+    tasksContextMenuEscapeHandler = function (e) {
+      if (e.key === "Escape") closeGoalContextMenu();
+    };
+    document.addEventListener("keydown", tasksContextMenuEscapeHandler);
+  }
+
+  // [1.0.12] Priority popover for a task row's pill. Single-select: the four
+  // priorities + Clear (sets priority back to null). On pick:
+  // Storage.updateTaskPriority (which saveAll's internally) then an EAGER
+  // renderTasksTab — the storage.onChanged write-provenance gate ([1.0.11.2])
+  // suppresses re-render for our own same-tab writes, so relying on onChanged
+  // alone would leave the change invisible until reload. Mirrors the checkbox /
+  // collapse / complete handlers, which eager-render for the same reason.
+  function openPriorityPillPopover(anchorEl, taskId, current) {
+    closeGoalContextMenu();
+    if (!taskId) return;
+    var menu = document.createElement("div");
+    menu.className = "tt-context-menu tt-prio-popover";
+    var rows = [["urgent", "Urgent"], ["high", "High"], ["medium", "Medium"], ["low", "Low"]];
+    var html = rows.map(function (r) {
+      var activeCls = current === r[0] ? " tt-ctx-active" : "";
+      return '<button type="button" class="tt-ctx-item tt-prio-opt' + activeCls + '" data-priority="' + r[0] + '">' +
+        '<span class="tt-prio-swatch ' + taskPriorityClass(r[0]) + '" aria-hidden="true"></span>' + r[1] +
+      '</button>';
+    }).join("");
+    html += '<div class="tt-ctx-separator"></div>' +
+      '<button type="button" class="tt-ctx-item tt-prio-opt' + (!current ? " tt-ctx-active" : "") + '" data-priority="">Clear priority</button>';
+    menu.innerHTML = html;
+
+    menu.addEventListener("click", async function (ev) {
+      var btn = ev.target && ev.target.closest && ev.target.closest(".tt-prio-opt");
+      if (!btn) return;
+      closeGoalContextMenu();
+      var raw = btn.getAttribute("data-priority");
+      var newPriority = raw ? raw : null;
+      try {
+        await Storage.updateTaskPriority(data, taskId, newPriority);
+      } catch (err) {
+        console.error("[LaunchPad] Tasks tab: updateTaskPriority failed", err);
+      }
+      var panel = document.getElementById("tab-tasks");
+      if (panel) renderTasksTab(panel, data); // eager — see [1.0.11.2] gate note above
+    });
+
+    mountTasksPopover(menu, anchorEl);
+  }
+
+  // [1.0.12] Multi-select filter popover for the Priority / Tag bar buttons.
+  // Checkbox list bound to taskFilterState.priorities / .tagIds (in-memory).
+  // Each toggle updates state and eager re-renders; the popover lives on
+  // document.body so it survives the panel innerHTML rewrite and stays open for
+  // multiple selections. Tag options come from Storage.getActiveTags (non-
+  // trashed only — deletedAt-tombstoned tags are excluded).
+  function openTaskFilterPopover(anchorEl, kind) {
+    closeGoalContextMenu();
+    if (kind !== "priority" && kind !== "tag") return;
+    var menu = document.createElement("div");
+    menu.className = "tt-context-menu tt-filter-popover";
+
+    var rows = [];
+    if (kind === "priority") {
+      rows = [["urgent", "Urgent"], ["high", "High"], ["medium", "Medium"], ["low", "Low"]];
+    } else {
+      var ws = Storage.getActiveWorkspace(data);
+      var tags = ws ? Storage.getActiveTags(ws) : [];
+      rows = tags.map(function (t) { return [t.id, t.name]; });
+    }
+
+    if (!rows.length) {
+      menu.innerHTML = '<div class="tt-filter-empty">No tags yet.</div>';
+    } else {
+      var selected = kind === "priority" ? taskFilterState.priorities : taskFilterState.tagIds;
+      menu.innerHTML = rows.map(function (r) {
+        var checked = selected.indexOf(r[0]) !== -1 ? " checked" : "";
+        var swatch = kind === "priority"
+          ? '<span class="tt-prio-swatch ' + taskPriorityClass(r[0]) + '" aria-hidden="true"></span>'
+          : '';
+        return '<label class="tt-filter-row">' +
+          '<input type="checkbox" class="tt-filter-check" value="' + escapeHtml(r[0]) + '"' + checked + '>' +
+          swatch +
+          '<span class="tt-filter-row-label">' + escapeHtml(r[1]) + '</span>' +
+        '</label>';
+      }).join("");
+    }
+
+    menu.addEventListener("change", function (ev) {
+      var cb = ev.target && ev.target.closest && ev.target.closest(".tt-filter-check");
+      if (!cb) return;
+      var val = cb.value;
+      var arr = kind === "priority" ? taskFilterState.priorities : taskFilterState.tagIds;
+      var idx = arr.indexOf(val);
+      if (cb.checked && idx === -1) arr.push(val);
+      else if (!cb.checked && idx !== -1) arr.splice(idx, 1);
+      var panel = document.getElementById("tab-tasks");
+      if (panel) renderTasksTab(panel, data);
+    });
+
+    mountTasksPopover(menu, anchorEl);
   }
 
   // ----- Inline name edit (goal + task) -----

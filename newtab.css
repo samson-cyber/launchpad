@@ -29,6 +29,14 @@
   --pro-frost-floater-blur: blur(14px);
   --pro-frost-menu-bg: rgba(30, 30, 30, 0.95);
   --pro-frost-menu-blur: blur(12px);
+
+  /* [1.0.12] Task priority colors. No priority CSS vars existed before this;
+     the values mirror the Pro-preview literals (.pp-prio-*) so the real Tasks
+     tab and the upgrade preview read identically. */
+  --prio-urgent: #e74c3c;
+  --prio-high:   #e67e22;
+  --prio-medium: #f1c40f;
+  --prio-low:    #5dade2;
 }
 
 html.bg-light {
@@ -7637,6 +7645,100 @@ html.has-bg.bg-light .pro-preview-banner-text {
   text-decoration: line-through;
   opacity: 0.55;
 }
+
+/* ===== [1.0.12] Task priority ===== */
+
+/* Left border reserved (transparent) on every task row so prioritized and
+   unprioritized rows stay aligned; colored only when a priority class is set.
+   padding-left compensates the 3px border so content keeps the base 8px inset
+   (the shared .tt-task-row,.tt-recurring-row rule sets padding: 6px 8px). */
+.tt-task-row {
+  border-left: 3px solid transparent;
+  padding-left: 5px;
+}
+.tt-task-row.tt-prio-urgent { border-left-color: var(--prio-urgent); }
+.tt-task-row.tt-prio-high   { border-left-color: var(--prio-high); }
+.tt-task-row.tt-prio-medium { border-left-color: var(--prio-medium); }
+.tt-task-row.tt-prio-low    { border-left-color: var(--prio-low); }
+
+/* Clickable priority pill: muted flag-only when unset, tinted + labelled when
+   set. flex-shrink:0 so a long task name can't squeeze it away. */
+.tt-prio-pill {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s, opacity 0.12s;
+}
+.tt-prio-pill .tt-prio-flag { font-size: 11px; line-height: 1; }
+.tt-prio-pill.tt-prio-none { opacity: 0.55; }
+.tt-task-row:hover .tt-prio-pill.tt-prio-none { opacity: 1; }
+.tt-prio-pill:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.tt-prio-pill.tt-prio-urgent { color: var(--prio-urgent); border-color: var(--prio-urgent); background: rgba(231, 76, 60, 0.14); }
+.tt-prio-pill.tt-prio-high   { color: var(--prio-high);   border-color: var(--prio-high);   background: rgba(230, 126, 34, 0.14); }
+.tt-prio-pill.tt-prio-medium { color: var(--prio-medium); border-color: var(--prio-medium); background: rgba(241, 196, 15, 0.16); }
+.tt-prio-pill.tt-prio-low    { color: var(--prio-low);    border-color: var(--prio-low);    background: rgba(93, 173, 226, 0.16); }
+
+/* Dimmed goal card: zero children match an active filter (kept, not removed). */
+.tt-goal-dimmed { opacity: 0.4; }
+
+/* Swatch dot used inside the priority popover + filter rows. */
+.tt-prio-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.tt-prio-swatch.tt-prio-urgent { background: var(--prio-urgent); }
+.tt-prio-swatch.tt-prio-high   { background: var(--prio-high); }
+.tt-prio-swatch.tt-prio-medium { background: var(--prio-medium); }
+.tt-prio-swatch.tt-prio-low    { background: var(--prio-low); }
+
+.tt-prio-opt { display: flex; align-items: center; gap: 8px; }
+.tt-ctx-item.tt-ctx-active { background: rgba(111, 177, 255, 0.14); font-weight: 600; }
+
+/* Filter-bar multi-select buttons (Priority / Tag). They share .tasks-filter
+   styling but are <button>s, so strip the <select> chevron background. */
+.tasks-filter-multi {
+  padding: 6px 10px;
+  background-image: none;
+  text-align: left;
+}
+.tasks-filter-multi.is-active {
+  border-color: #6fb1ff;
+  color: #6fb1ff;
+}
+
+/* Filter checkbox popover (reuses .tt-context-menu frosting). */
+.tt-filter-popover { min-width: 160px; }
+.tt-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.tt-filter-row:hover { background: rgba(111, 177, 255, 0.18); }
+.tt-filter-check { width: 14px; height: 14px; accent-color: #6fb1ff; cursor: pointer; flex-shrink: 0; }
+.tt-filter-row-label { flex: 1; min-width: 0; }
+.tt-filter-empty { padding: 8px 10px; font-size: 12px; color: rgba(255, 255, 255, 0.6); }
+
+/* Light-wallpaper: the muted (unset) pill needs a dark glyph against the
+   white-tinted card. Colored pills + the dark popover stay legible as-is. */
+html.has-bg.bg-light .tt-prio-pill.tt-prio-none { color: rgba(0, 0, 0, 0.45); }
+html.has-bg.bg-light .tt-prio-pill:hover { background: rgba(0, 0, 0, 0.06); color: #1f1f1f; }
 
 .tt-task-empty {
   list-style: none;
