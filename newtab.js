@@ -260,6 +260,28 @@
     return pro;
   };
 
+  // ===== Dev-only Pro override =====
+
+  // Console helper to flip the dev Pro override consumed by
+  // ProAccess.getProAccessLevel. Gated on the same signal as pro-access.js
+  // IS_UNPACKED — update_url is undefined for unpacked installs and populated
+  // for store-packaged builds — so window.LP.devPro is NEVER defined in the
+  // published Web Store build. Default OFF; flag lives at top-level
+  // data.__devProOverride (not inside data.pro).
+  if (!chrome.runtime.getManifest().update_url) {
+    window.LP = window.LP || {};
+    window.LP.devPro = async (on = true) => {
+      data.__devProOverride = !!on;
+      await Storage.saveAll(data);
+      // applyAccessLevelUI re-derives the level and re-renders the tab bar
+      // (incl. Pro tab panels via applyTabAccessLevel), sidebar Pro entry, CTA,
+      // workspace switcher, and the Pro Settings panel — no reload needed.
+      applyAccessLevelUI();
+      console.log("[LaunchPad] devPro override:", !!on,
+        "→ access level:", ProAccess.getProAccessLevel(data));
+    };
+  }
+
   // ===== Tab Bar =====
 
   function isProAccessibleLevel(level) {

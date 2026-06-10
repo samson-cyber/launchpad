@@ -46,6 +46,11 @@
   }
 
   function getProAccessLevel(data) {
+    // Dev-only override (gated by IS_UNPACKED above; impossible in store build).
+    // Top-level flag, default OFF. Returns "active" without touching data.pro,
+    // so reconcileProState (which reads data.pro.subscriptionStatus) sees no
+    // change and never demotes or write-loops.
+    if (IS_UNPACKED && data && data.__devProOverride === true) return "active";
     if (!data || !data.pro) return "free";
     var pro = data.pro;
     var status = pro.subscriptionStatus || "free";
