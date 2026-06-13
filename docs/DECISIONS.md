@@ -849,3 +849,27 @@ Decisions made during scoping session for the Notes feature, captured here as th
 - The "$5/mo / $59 lifetime tier" framing used in the 2026-04-24 activations-limit entry reasoning. Limit decision itself (unlimited activations on the Dodo dashboard) unchanged.
 
 **Dodo configuration impact (manual, owner action):** The Lifetime Pro entitlement on the Dodo dashboard should be deactivated or archived. Monthly Pro and Annual Pro entitlements unchanged. License.js code unchanged (no lifetime-specific code paths in the extension).
+
+---
+
+## 2026-06-13 — Versioning + release-tagging convention (two-track model locked)
+
+**Context:** Surfaced in the 2026-06-09 backlog reconciliation; resolved after a read-only git fact-find. Two numbering schemes had grown up implicitly and collide visually in 1.0.0–1.0.4; the live store version lived only in memory/CLAUDE.md, never in git tags; the convention was never written down.
+
+**Findings (git fact-find):**
+- `manifest.json` = `1.0.4`, frozen since 2026-04-23. Bump history 1.0.0 → 1.0.1 → 1.0.2 → 1.0.4 (1.0.3 skipped — uncommitted-ship incident; 1.0.4 was the recommit). Bumped only at store submissions.
+- Pro work runs as an internal marker track `[1.0.5.3]…[1.0.13]` in commit subjects + Asana, never touching the manifest. Subject-marker convention began at `[1.0.9.1]` (2026-04-30), moved to subject-front at `[1.0.9.2]`. `[1.0.5]`–`[1.0.9]` base increments (incl. `[1.0.7]`/`[1.0.8]` CRUD) predate it, no markers.
+- Conventional prefixes in use: feat, docs, fix, chore. Only tag in repo: `main-archive`. No release tags for 1.0.0–1.0.4.
+
+**Outcome (locked):**
+- Two tracks documented in CLAUDE.md (new "Versioning & Release Tagging" section): store/manifest `X.Y.Z` (manual, store-submission only) vs feature-marker `[X.Y.Z(.W)]` (Pro work units, never touch manifest).
+- Commit subjects: feature commits lead with `[X.Y.Z(.W)]` (optional conventional type after); non-feature commits use a conventional prefix with no marker and no bump.
+- Historical 1.0.0–1.0.4 collision left as-is. First Pro store release is a deliberate major bump to `2.0.0` to permanently de-collide from the `[1.x.y]` marker track (pre-empts the `[1.1.0]` Notes clash); SemVer (`2.x`) thereafter.
+- Release tags: annotated `v<manifest-version>` on the submitted commit, extension repo only, from the next store submission forward. No back-tagging of 1.0.0–1.0.4.
+
+**Reasoning:**
+- The marker track is embedded in Asana + commit history + docs; renumbering it destroys traceability for no gain. Documenting the distinction costs nothing and removes the ambiguity.
+- A clean `2.0.0` break at Pro launch is the cheapest permanent de-collision and honestly signals the new tier.
+- Tagging from now forward closes the provenance gap heading into higher-stakes Pro/billing releases without fabricating unreliable history; 1.0.3's absence makes back-tagging actively misleading.
+
+Complements the Git Configuration section of CLAUDE.md.
