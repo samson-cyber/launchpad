@@ -766,6 +766,19 @@
     }
   }
 
+  // [1.0.13] UTC-anchored variant of fmtShortDate. dueAt / deadlineAt are stored
+  // as UTC-midnight epoch ms, so the deadline-block copy must format on the UTC
+  // basis to show the same calendar day the user picked — fmtShortDate renders
+  // in local time, which shifts the shown day for users behind UTC.
+  function fmtShortDateUTC(ts) {
+    if (!ts || typeof ts !== "number") return "";
+    try {
+      return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+    } catch (e) {
+      return "";
+    }
+  }
+
   function isOverdue(deadlineAt) {
     return typeof deadlineAt === "number" && deadlineAt < Date.now();
   }
@@ -1814,6 +1827,10 @@
   //   bodyHtml      — innerHTML of the body region
   //   primaryLabel  — label on the primary button (default "Save")
   //   dangerous     — true => primary button gets the danger style
+  //   hideCancel    — true => omit the Cancel button ([1.0.13] single-button
+  //                   acknowledge variant; header × / Escape / backdrop still
+  //                   close via onCancel). Backward-compatible: callers that
+  //                   don't set it get the default two-button footer.
   //   defaultFocus  — "primary" | "cancel" | "first-input" (default "first-input")
   //   onMounted(el) — called after append (wire input handlers, prefill, etc.)
   //   onPrimary(el) — called on primary click; return false to keep modal open
@@ -1834,7 +1851,7 @@
         '</header>' +
         '<div class="tt-modal-body">' + (opts.bodyHtml || "") + '</div>' +
         '<footer class="tt-modal-footer">' +
-          '<button type="button" class="tt-modal-btn tt-modal-cancel">Cancel</button>' +
+          (opts.hideCancel ? "" : '<button type="button" class="tt-modal-btn tt-modal-cancel">Cancel</button>') +
           '<button type="button" class="' + primaryClass + '">' + escapeHtml(primaryLabel) + '</button>' +
         '</footer>' +
       '</div>';
@@ -1850,7 +1867,8 @@
       if (e.target === overlay) doCancel();
     });
     overlay.querySelector(".tt-modal-close").addEventListener("click", doCancel);
-    overlay.querySelector(".tt-modal-cancel").addEventListener("click", doCancel);
+    var cancelBtn = overlay.querySelector(".tt-modal-cancel");
+    if (cancelBtn) cancelBtn.addEventListener("click", doCancel);
 
     var primaryBtn = overlay.querySelector(".tt-modal-primary");
     primaryBtn.addEventListener("click", async function () {
@@ -1971,6 +1989,21 @@
           return false;
         }
         if (isEdit) {
+          // [1.0.13] Due-date hierarchy: block moving the deadline earlier than
+          // the latest due date among live, incomplete, dated child tasks. Only
+          // check when the deadline actually changed — rename-only / unchanged-
+          // deadline submits keep prior behavior. On block, commit NOTHING (no
+          // rename, no deadline) and keep this modal open via an inline error.
+          // (The block uses an inline error rather than a 1-button acknowledge
+          // modal because openTasksModal is single-instance and can't stack a
+          // second modal over this open edit-goal modal.)
+          if (deadlineAt !== existingGoal.deadlineAt) {
+            var dl = Storage.checkGoalDeadlineConflict(data, existingGoal.id, deadlineAt);
+            if (dl.blocked) {
+              showModalError(errorEl, dl.blockingTaskName + " is due " + fmtShortDateUTC(dl.blockingDueAt) + " — can't set goal deadline before that. Update the task first or pick a later deadline.");
+              return false;
+            }
+          }
           var renamed = await Storage.renameGoal(data, existingGoal.id, name);
           if (!renamed) { showModalError(errorEl, "Could not rename goal."); return false; }
           await Storage.updateGoalDeadline(data, existingGoal.id, deadlineAt);

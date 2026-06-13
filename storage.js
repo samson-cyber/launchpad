@@ -1396,6 +1396,92 @@ var Storage = (function () {
     return task;
   }
 
+  // ===== Due-date hierarchy checks ([1.0.13]) =====
+  //
+  // Pure, read-only conflict checks that sit IN FRONT OF updateTaskDueAt /
+  // updateGoalDeadline. No mutation, no saveAll — callers branch on the
+  // returned descriptor, then call the existing updater with the resolved
+  // value. checkTaskDueConflict also serves 1.0.14's recurring drag-into-goal
+  // check (it ships here unwired to a UI commit point; the task-side 3-button
+  // modal lands in 1.0.13.1 against a real call site).
+  //
+  // Day-comparison basis: dueAt and deadlineAt are both stored as UTC-midnight
+  // epoch ms (newtab.js parseDateInputToTs -> Date.UTC). Normalize BOTH sides
+  // to their UTC calendar day; only a strictly-later UTC day is a conflict,
+  // the same UTC day is not. Do NOT floor to local midnight — that shifts the
+  // day by one for users behind UTC (a UTC-midnight stamp reads as the prior
+  // local day).
+  function utcDay(ts) {
+    var d = new Date(ts);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  }
+
+  /**
+   * Would setting task.dueAt to candidateDueAt push it past its parent goal's
+   * deadline (strictly-later UTC day)? Fires regardless of the task's own
+   * completed state. Pure read — no mutation, no saveAll.
+   *
+   * No-conflict when: task missing, standalone (goalId == null), candidate
+   * null, parent goal missing or deadline-less, or candidate day on/before the
+   * goal-deadline day.
+   *
+   * @returns {{ conflict: boolean, goalId: string|null, goalName: string|null,
+   *   goalDeadlineAt: number|null, candidateDueAt: number|null }}
+   */
+  function checkTaskDueConflict(data, taskId, candidateDueAt, workspaceId) {
+    var noConflict = {
+      conflict: false, goalId: null, goalName: null,
+      goalDeadlineAt: null, candidateDueAt: candidateDueAt
+    };
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws) return noConflict;
+    var task = getTaskById(ws, taskId);
+    if (!task || task.goalId == null || candidateDueAt == null) return noConflict;
+    var goal = getGoalById(ws, task.goalId);
+    if (!goal || goal.deadlineAt == null) return noConflict;
+    if (utcDay(candidateDueAt) <= utcDay(goal.deadlineAt)) return noConflict;
+    return {
+      conflict: true, goalId: goal.id, goalName: goal.name,
+      goalDeadlineAt: goal.deadlineAt, candidateDueAt: candidateDueAt
+    };
+  }
+
+  /**
+   * Would setting goal.deadlineAt to candidateDeadlineAt land before the latest
+   * due date among the goal's constraining children? Constraining children =
+   * live (getAllTasks already excludes deletedAt), incomplete, goalId match,
+   * dueAt != null. Completed / soft-deleted / null-due children are ignored.
+   * Pure read — no mutation, no saveAll.
+   *
+   * Not blocked when the candidate is null or no constraining child's due day
+   * is strictly after the candidate day.
+   *
+   * @returns {{ blocked: boolean, blockingTaskId: string|null,
+   *   blockingTaskName: string|null, blockingDueAt: number|null,
+   *   candidateDeadlineAt: number|null }}
+   */
+  function checkGoalDeadlineConflict(data, goalId, candidateDeadlineAt, workspaceId) {
+    var notBlocked = {
+      blocked: false, blockingTaskId: null, blockingTaskName: null,
+      blockingDueAt: null, candidateDeadlineAt: candidateDeadlineAt
+    };
+    if (candidateDeadlineAt == null) return notBlocked;
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws) return notBlocked;
+    var children = getAllTasks(ws).filter(function (t) {
+      return t.goalId === goalId && !t.completed && t.dueAt != null;
+    });
+    if (!children.length) return notBlocked;
+    var latest = children.reduce(function (a, b) { return b.dueAt > a.dueAt ? b : a; });
+    if (utcDay(latest.dueAt) > utcDay(candidateDeadlineAt)) {
+      return {
+        blocked: true, blockingTaskId: latest.id, blockingTaskName: latest.name,
+        blockingDueAt: latest.dueAt, candidateDeadlineAt: candidateDeadlineAt
+      };
+    }
+    return notBlocked;
+  }
+
   // ===== Tags =====
   //
   // Tag CRUD on the Storage namespace, mirroring the [1.0.7] goal CRUD and
@@ -2018,6 +2104,9 @@ var Storage = (function () {
     getCompletedTasks: getCompletedTasks,
     getAllTasks: getAllTasks,
     getTaskById: getTaskById,
+    // Due-date hierarchy checks ([1.0.13]) — pure reads, no mutation
+    checkTaskDueConflict: checkTaskDueConflict,
+    checkGoalDeadlineConflict: checkGoalDeadlineConflict,
     // Tags (Pro tasks layer — see docs/SPECS/tasks-and-goals.md)
     TAG_PALETTE: TAG_PALETTE,
     createTag: createTag,
