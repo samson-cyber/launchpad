@@ -84,6 +84,15 @@ Other projects in the same dev root: `reelabs`, `condence-ai`, `exhale-health`, 
 
 ---
 
+## Dev Tooling
+
+- **`LP.devPro` — dev-only Pro toggle (shipped commit `bc3b303`).** In an UNPACKED build, run `LP.devPro(true)` in the new-tab page console to enable full Pro for testing; persists across reload. `LP.devPro(false)` returns to free/locked (for testing the gated UI).
+  - Gated by `IS_UNPACKED` (`!chrome.runtime.getManifest().update_url`), and the `getProAccessLevel` override is independently `IS_UNPACKED`-guarded, so it is inert in the published Web Store build.
+  - Flag persists at top-level `data.__devProOverride`. Does not touch real license/trial state and triggers no Dodo network calls.
+  - Supersedes the old manual `chrome.storage.local` trial-arming workaround for entering Pro in dev.
+
+---
+
 ## What to Always Do
 
 - **Search before acting.** For factual questions about the codebase, use file view/grep. For web-facing facts, search the web.
