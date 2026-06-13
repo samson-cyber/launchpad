@@ -1827,10 +1827,6 @@
   //   bodyHtml      — innerHTML of the body region
   //   primaryLabel  — label on the primary button (default "Save")
   //   dangerous     — true => primary button gets the danger style
-  //   hideCancel    — true => omit the Cancel button ([1.0.13] single-button
-  //                   acknowledge variant; header × / Escape / backdrop still
-  //                   close via onCancel). Backward-compatible: callers that
-  //                   don't set it get the default two-button footer.
   //   defaultFocus  — "primary" | "cancel" | "first-input" (default "first-input")
   //   onMounted(el) — called after append (wire input handlers, prefill, etc.)
   //   onPrimary(el) — called on primary click; return false to keep modal open
@@ -1851,7 +1847,7 @@
         '</header>' +
         '<div class="tt-modal-body">' + (opts.bodyHtml || "") + '</div>' +
         '<footer class="tt-modal-footer">' +
-          (opts.hideCancel ? "" : '<button type="button" class="tt-modal-btn tt-modal-cancel">Cancel</button>') +
+          '<button type="button" class="tt-modal-btn tt-modal-cancel">Cancel</button>' +
           '<button type="button" class="' + primaryClass + '">' + escapeHtml(primaryLabel) + '</button>' +
         '</footer>' +
       '</div>';
@@ -1867,8 +1863,7 @@
       if (e.target === overlay) doCancel();
     });
     overlay.querySelector(".tt-modal-close").addEventListener("click", doCancel);
-    var cancelBtn = overlay.querySelector(".tt-modal-cancel");
-    if (cancelBtn) cancelBtn.addEventListener("click", doCancel);
+    overlay.querySelector(".tt-modal-cancel").addEventListener("click", doCancel);
 
     var primaryBtn = overlay.querySelector(".tt-modal-primary");
     primaryBtn.addEventListener("click", async function () {
