@@ -42,6 +42,7 @@ Paid tier. Pricing: **$4.99/mo or $39/year** (annual ~$3.25/mo). See `SPECS/pro-
 - Tasks under goals: simple checklist
 - Tags: create, assign to tasks, assign to bookmarks
 - Active task picker (small widget on main grid)
+- Recurring tasks: template model + instance generation (templates CRUD shipped in [1.0.10]; generation in [1.0.14])
 - **Task completion = the dopamine moment** — deliberate animation + subtle sound (opt-in)
 
 #### Tracking Engine
@@ -70,7 +71,7 @@ Paid tier. Pricing: **$4.99/mo or $39/year** (annual ~$3.25/mo). See `SPECS/pro-
 - Tab bar UI with greyed Pro tabs for free users (spec: `docs/SPECS/pro-tab-architecture.md`)
 - Universal trash bin / soft delete (bookmarks, groups, goals, tasks, tags) — 30-day auto-purge, sidebar icon, spec: `docs/SPECS/trash-bin.md`
 
-Per DECISIONS.md "Ship Pro and free tab-bar update as one release", these free-tier enhancements ship in the same release as Pro launch rather than a separate v1.0.5.
+Per DECISIONS.md "Ship Pro and free tab-bar update as one release", these free-tier enhancements ship in the same release as Pro launch rather than a separate v1.0.5. Amended 2026-07-07: the [1.0.19] onboarding redesign ships earlier as a free-only v1.0.5 (no tab bar); see DECISIONS.md 2026-07-07.
 
 ### Pro v1 UI principles
 
@@ -98,7 +99,7 @@ Items worth building but out of scope for v1 to keep the 10-week build shippable
 - Per-shortcut / per-domain time tracking within a workspace
 - Richer analytics: time trends, categories, deep-work detection patterns
 - Manual workspace switching keyboard shortcut
-- Recurring tasks
+- Pomodoro / sprint timer integrated into workspaces (deferred from Pro v1 per DECISIONS 2026-07-07)
 - Per-domain opt-out for tracking (Personal workspace)
 - Habit tracking specialization for Personal workspace
 
@@ -106,7 +107,6 @@ Items worth building but out of scope for v1 to keep the 10-week build shippable
 
 ## Deferred: Pro v3+
 
-- Pomodoro / sprint timer integrated into workspaces
 - Goal setting with numeric targets ("2 hours of deep work today")
 - Analytics export (CSV, integrations with Toggl / Clockify)
 - Premium wallpaper collection / icon packs / CSS themes

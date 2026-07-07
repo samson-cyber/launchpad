@@ -873,3 +873,24 @@ Decisions made during scoping session for the Notes feature, captured here as th
 - Tagging from now forward closes the provenance gap heading into higher-stakes Pro/billing releases without fabricating unreliable history; 1.0.3's absence makes back-tagging actively misleading.
 
 Complements the Git Configuration section of CLAUDE.md.
+
+---
+
+## 2026-07-07 — Amend one-release model: onboarding redesign ships as free v1.0.5 ahead of v2.0.0; recurring tasks pulled into Pro v1 scope; Pomodoro deferred post-launch
+
+**Context:** The 2026-04-24 "Ship Pro and free tab-bar update as one release" entry concluded "No intermediate v1.0.5." The `[1.0.19]` onboarding redesign PLAN (2026-05-15, Asana GID 1214275063240256) scoped it as a free-tier task shipping independently as v1.0.5, but no DECISIONS entry ever ratified that amendment — the plan and the log disagreed. Separately, ROADMAP listed recurring tasks under Deferred: Pro v2 and Pomodoro under Deferred: Pro v3+, while `[1.0.14]` (recurring instance generation) and `[1.0.18]` (Pomodoro) both sat in the pre-launch Asana chain. This entry reconciles the log to the board on all three points.
+
+**Alternatives considered:**
+- Bundle onboarding into v2.0.0 per the original one-release model — rejected: the uninstall rate is a first-run-experience problem affecting free users today, and holding a finished fix costs every install between completion and Pro launch for the price of one store review cycle.
+- Pull both recurring and Pomodoro into Pro v1 scope — rejected for Pomodoro: no shipped foundation forces it, it is a commodity feature with no launch-day conversion value.
+- Cut recurring from pre-launch — rejected: `[1.0.10]` already shipped recurring template CRUD and the "+ New Recurring" modal, so cutting `[1.0.14]` would ship dead UI.
+
+**Outcome:** v1.0.5 ships as a free-only release carrying the `[1.0.19]` onboarding redesign — no tab bar, no Pro surfaces. The tab-bar-ships-with-Pro principle from 2026-04-24 is unchanged; only the "no intermediate v1.0.5" outcome line is amended. The first Pro store release remains v2.0.0 per the 2026-06-13 versioning entry. Recurring task instance generation (`[1.0.14]`) is Pro v1 committed scope. Pomodoro (`[1.0.18]`) is deferred post-v2.0.0; its Pro Settings placeholder ships as a placeholder.
+
+**Reasoning:**
+- A finished first-run fix that reduces churn should not be gated behind an unrelated paid launch; shipping it as a free v1.0.5 is one extra store review for continuous benefit to every new install.
+- Keeping the tab bar out of v1.0.5 preserves the 2026-04-24 principle that the tab-bar UI is part of the Pro launch narrative, so v1.0.5 introduces no Pro-shaped surfaces prematurely.
+- Recurring is already half-shipped in the UI; finishing generation is cheaper and more coherent than reverting shipped CRUD.
+- Pomodoro has a placeholder but no dependency forcing it pre-launch; deferring it keeps the 10-week build shippable without stranding any shipped code.
+
+**Supersedes:** Partially amends 2026-04-24 "Ship Pro and free tab-bar update as one release" — the no-intermediate-release outcome line only, not the tab-bar bundling reasoning, which stands.
