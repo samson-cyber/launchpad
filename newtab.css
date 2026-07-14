@@ -8197,6 +8197,11 @@ html.has-bg.bg-light .pro-preview-banner-text {
 
 /* Light-wallpaper: dark-tint the muted "Add date" pill (bg, border, text) so
    it stays legible against a white-tinted card; dated pill hover unchanged. */
+/* [Polish] SET-DATE (dated) pill at rest: the base color is white 0.75, so a
+   set date ("Jun 13"/"Jul 22") and its glyph rendered white-on-white on light.
+   Dark ink here matches the empty state's treatment; the more-specific
+   .tt-due-none rule below still wins for the empty "Add date" pill. */
+html.has-bg.bg-light .tt-due-pill { color: rgba(0, 0, 0, 0.72); }
 html.has-bg.bg-light .tt-due-pill:hover { background: rgba(0, 0, 0, 0.06); color: #1f1f1f; }
 html.has-bg.bg-light .tt-due-pill.tt-due-none {
   background: rgba(0, 0, 0, 0.04);
