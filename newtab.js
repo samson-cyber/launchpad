@@ -1182,10 +1182,20 @@
           items.map(function (it) { return completedRowHtml(it.kind, it.id, it.name, it.at); }).join("") +
         '</ul>'
       : '<div class="tt-empty-state">No completed tasks yet.</div>';
+    // [Tasks] Bulk action, only when the box has rows: Clear soft-deletes them
+    // into the Deleted box (recoverable), so it confirms but isn't danger-styled.
+    var actionsHtml = count
+      ? '<span class="tt-box-actions">' +
+          '<button type="button" class="tt-box-action" data-action="clear-completed">Clear</button>' +
+        '</span>'
+      : '';
     return '<section class="tt-section tt-box tt-completed-box" data-section="completed">' +
-        '<h2 class="tt-section-title">Completed' +
-          (count ? ' <span class="tt-section-count">' + count + '</span>' : '') +
-        '</h2>' +
+        '<div class="tt-box-header">' +
+          '<h2 class="tt-section-title">Completed' +
+            (count ? ' <span class="tt-section-count">' + count + '</span>' : '') +
+          '</h2>' +
+          actionsHtml +
+        '</div>' +
         '<div class="tt-box-body">' + bodyHtml + '</div>' +
       '</section>';
   }
@@ -1225,10 +1235,22 @@
           }).join("") +
         '</ul>'
       : '<div class="tt-empty-state">Nothing deleted. Items stay here 30 days.</div>';
+    // [Tasks] Bulk actions, only when the box has rows. Restore all is
+    // non-destructive (no confirm); Empty is the ONLY permanent, danger-styled
+    // action and always confirms with a live count.
+    var actionsHtml = count
+      ? '<span class="tt-box-actions">' +
+          '<button type="button" class="tt-box-action" data-action="restore-all">Restore all</button>' +
+          '<button type="button" class="tt-box-action tt-box-action-danger" data-action="empty-trash">Empty</button>' +
+        '</span>'
+      : '';
     return '<section class="tt-section tt-box tt-deleted-box" data-section="deleted">' +
-        '<h2 class="tt-section-title">Deleted' +
-          (count ? ' <span class="tt-section-count">' + count + '</span>' : '') +
-        '</h2>' +
+        '<div class="tt-box-header">' +
+          '<h2 class="tt-section-title">Deleted' +
+            (count ? ' <span class="tt-section-count">' + count + '</span>' : '') +
+          '</h2>' +
+          actionsHtml +
+        '</div>' +
         '<div class="tt-box-body">' + bodyHtml + '</div>' +
       '</section>';
   }
@@ -1380,6 +1402,93 @@
         }
         var panel = document.getElementById("tab-tasks");
         if (panel) renderTasksTab(panel, data);
+      }
+    });
+  }
+
+  // ----- [Tasks] Bottom-box bulk actions -----
+  //
+  // Counts are read LIVE from storage at click time (not from the rendered DOM),
+  // so a modal can never quote a stale number. Each action batches into ONE
+  // saveAll via the Storage bulk fns, then re-renders through the normal eager
+  // path (which restores the empty state once a box is emptied).
+
+  function pluralItems(n) { return n + " item" + (n === 1 ? "" : "s"); }
+
+  function deletedBoxCount() {
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return 0;
+    return Storage.getDeletedGoals(ws).length + Storage.getDeletedTasks(ws).length;
+  }
+
+  // Mirrors what the Completed box renders: completed goals + completed
+  // STANDALONE tasks (a completed goal's children are represented by the goal).
+  function completedBoxCount() {
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return 0;
+    var standalone = Storage.getCompletedTasks(ws).filter(function (t) { return t.goalId === null; });
+    return Storage.getCompletedGoals(ws).length + standalone.length;
+  }
+
+  function eagerRenderTasks() {
+    var panel = document.getElementById("tab-tasks");
+    if (panel) renderTasksTab(panel, data);
+  }
+
+  // Empty — the ONLY truly destructive bulk action, so it confirms with a live
+  // count and danger styling. Hard-removes every trashed goal/task, one saveAll.
+  function confirmEmptyTrash() {
+    var n = deletedBoxCount();
+    if (!n) return;
+    openTasksConfirmModal({
+      title: "Empty trash?",
+      message: "Permanently delete all " + pluralItems(n) + "? This cannot be undone.",
+      confirmLabel: "Delete permanently",
+      dangerous: true,
+      onConfirm: async function () {
+        try {
+          var removed = await Storage.emptyTrash(data);
+          eagerRenderTasks();
+          showToast("Permanently deleted " + pluralItems(removed));
+        } catch (err) {
+          console.error("[LaunchPad] Tasks tab: empty trash failed", err);
+        }
+      }
+    });
+  }
+
+  // Restore all — non-destructive, so NO confirmation. Storage restores goals
+  // before tasks so a task trashed alongside its goal returns under it.
+  async function restoreAllDeleted() {
+    if (!deletedBoxCount()) return;
+    try {
+      var restored = await Storage.restoreAllTrash(data);
+      eagerRenderTasks();
+      showToast("Restored " + pluralItems(restored));
+    } catch (err) {
+      console.error("[LaunchPad] Tasks tab: restore all failed", err);
+    }
+  }
+
+  // Clear — soft-deletes the Completed box into the Deleted box (NOT permanent),
+  // so it confirms honestly about the 30-day recovery window but isn't danger-
+  // styled. Completed goals cascade their children, as a per-item goal delete does.
+  function confirmClearCompleted() {
+    var n = completedBoxCount();
+    if (!n) return;
+    openTasksConfirmModal({
+      title: "Clear completed?",
+      message: "Move all " + n + " completed " + (n === 1 ? "item" : "items") +
+        " to Deleted? They stay recoverable for 30 days.",
+      confirmLabel: "Move to Deleted",
+      onConfirm: async function () {
+        try {
+          var cleared = await Storage.clearCompletedItems(data);
+          eagerRenderTasks();
+          showToast("Moved " + pluralItems(cleared) + " to Deleted");
+        } catch (err) {
+          console.error("[LaunchPad] Tasks tab: clear completed failed", err);
+        }
       }
     });
   }
@@ -1774,6 +1883,20 @@
         var cKind = completedRow.getAttribute("data-kind");
         var cId = completedRow.getAttribute("data-id");
         if (cId) reactivateCompletedItem(cKind, cId);
+        return;
+      }
+
+      // [Tasks] Bottom-box HEADER bulk actions (Clear / Restore all / Empty).
+      // Resolved before the per-row branches — these live in the box header, not
+      // in a row, so the row lookups below would miss them anyway.
+      var boxAction = target.closest && target.closest(".tt-box-action");
+      if (boxAction) {
+        e.preventDefault();
+        e.stopPropagation();
+        var bulk = boxAction.getAttribute("data-action");
+        if (bulk === "clear-completed") confirmClearCompleted();
+        else if (bulk === "restore-all") restoreAllDeleted();
+        else if (bulk === "empty-trash") confirmEmptyTrash();
         return;
       }
 
@@ -8595,6 +8718,31 @@
   // ===== Events =====
 
   function bindEvents() {
+    // Native <input type="date"> only opens its picker from the small calendar
+    // glyph at the right edge — a poor hit target, and users read the whole
+    // field as clickable. Delegate on document so this covers every date input
+    // at once, including the ones the Tasks modals and the due-date popover
+    // build from innerHTML strings after this runs.
+    //
+    // Keyboard entry is unaffected: showPicker() leaves focus on the input, so
+    // typing still routes to the focused segment while the picker is open. The
+    // native glyph click also lands here, adding a showPicker() on top of the
+    // one the glyph performs itself — harmless, because showPicker() only ever
+    // opens the picker; it has no close path to toggle.
+    document.addEventListener("click", function (e) {
+      var el = e.target;
+      if (!el || el.tagName !== "INPUT" || el.type !== "date") return;
+      if (el.disabled || el.readOnly) return;
+      if (typeof el.showPicker !== "function") return; // non-Chromium / pre-99
+      try {
+        el.showPicker();
+      } catch (err) {
+        // Throws when the input is detached or the click was not treated as a
+        // user gesture. The native glyph still opens the picker, so there is
+        // nothing to recover here.
+      }
+    });
+
     // Sidebar buttons
     safeOn("#sb-history", "click", openHistoryOverlay);
     safeOn("#history-panel-close", "click", closeHistoryOverlay);

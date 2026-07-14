@@ -20,9 +20,11 @@
      Card: large readable surfaces (panels, cards, sections, submenus).
      Floater: modals, popovers, dropdowns, dialogs.
      Menu: small high-opacity context menus / pickers.
-     Light-wallpaper variants only override Card and Floater backgrounds —
-     menus stay dark on light wallpapers (preserves existing behavior; no
-     menu has a light-wallpaper override today). */
+     Light-wallpaper variants override the Card and Floater background vars.
+     The Menu var itself is not overridden, but that does NOT mean menus stay
+     dark on a light wallpaper: `html.has-bg.bg-light .tt-context-menu` sets a
+     white background directly, bypassing the var. Check the concrete selector
+     for a surface before assuming its light-wallpaper appearance. */
   --pro-frost-card-bg: rgba(30, 30, 30, 0.85);
   --pro-frost-card-blur: blur(12px);
   --pro-frost-floater-bg: rgba(30, 30, 30, 0.92);
@@ -7637,6 +7639,55 @@ html.has-bg.bg-light .pro-preview-banner-text {
   border-radius: 4px;
 }
 
+/* [Tasks] Box header: title (which carries .tt-section-title's own opacity) on
+   the left, bulk actions on the right at full strength — the actions sit OUTSIDE
+   the h2 so the title's opacity:0.78 group doesn't dim them. */
+.tt-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tt-box-header .tt-section-title {
+  margin: 0;
+  min-width: 0;
+}
+
+.tt-box-actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 4px;
+}
+
+/* Matches the in-box row buttons (.tt-deleted-btn / .tt-tpl-btn) so header and
+   row actions read as one family. */
+.tt-box-action {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.tt-box-action:hover {
+  background: rgba(111, 177, 255, 0.2);
+  border-color: rgba(111, 177, 255, 0.7);
+}
+
+/* Empty — the only permanent bulk action. */
+.tt-box-action-danger:hover {
+  background: rgba(242, 86, 79, 0.2);
+  border-color: rgba(242, 86, 79, 0.7);
+}
+
 .tt-completed-list,
 .tt-deleted-list {
   list-style: none;
@@ -8495,7 +8546,8 @@ html.has-bg.bg-light .tt-trash-days-amber {
 }
 
 html.has-bg.bg-light .tt-deleted-btn,
-html.has-bg.bg-light .tt-completed-btn {
+html.has-bg.bg-light .tt-completed-btn,
+html.has-bg.bg-light .tt-box-action {
   color: #1f1f1f;
   border-color: rgba(0, 0, 0, 0.2);
   background: rgba(0, 0, 0, 0.05);
@@ -8819,6 +8871,40 @@ html.has-bg.bg-light .tt-task-handle:hover {
   font: inherit;
   font-size: 13px;
   outline: none;
+}
+
+/* --- Native date input affordance ---
+   Chromium paints ::-webkit-calendar-picker-indicator as a near-black glyph.
+   That is invisible on the dark modal and menu surfaces, so invert it to white
+   there. Scoped to the dark surfaces only: #rc-date-start / #rc-date-end paint
+   their own --bg (#fff) surface, so the stock dark glyph is already correct and
+   inverting it would hide it. Whole-field cursor: pointer advertises the
+   click-anywhere-opens-picker behavior wired in newtab.js bindEvents(). */
+.tt-modal-body input[type="date"],
+.tt-due-input,
+#rc-date-start,
+#rc-date-end {
+  cursor: pointer;
+}
+
+.tt-modal-body input[type="date"]::-webkit-calendar-picker-indicator,
+.tt-due-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.tt-modal-body input[type="date"]::-webkit-calendar-picker-indicator:hover,
+.tt-due-input::-webkit-calendar-picker-indicator:hover,
+#rc-date-start::-webkit-calendar-picker-indicator:hover,
+#rc-date-end::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+#rc-date-start::-webkit-calendar-picker-indicator,
+#rc-date-end::-webkit-calendar-picker-indicator {
+  opacity: 0.7;
+  cursor: pointer;
 }
 
 .tt-modal-body input:focus,
@@ -9250,6 +9336,15 @@ html.has-bg.bg-light .tt-modal-body select {
   background: rgba(255, 255, 255, 0.96);
   color: #1f1f1f;
   border-color: rgba(0, 0, 0, 0.18);
+}
+
+/* Both dark surfaces flip to white under a light wallpaper — the modal input via
+   the rule above, .tt-due-input via `html.has-bg.bg-light .tt-context-menu`.
+   The stock dark glyph reads correctly on white, so drop the invert for both;
+   leaving it on would paint the glyph white-on-white. */
+html.has-bg.bg-light .tt-modal-body input[type="date"]::-webkit-calendar-picker-indicator,
+html.has-bg.bg-light .tt-due-input::-webkit-calendar-picker-indicator {
+  filter: none;
 }
 
 html.has-bg.bg-light .tt-modal-body select option {
