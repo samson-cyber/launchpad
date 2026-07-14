@@ -2455,12 +2455,29 @@
     tasksContextMenuEl = null;
   }
 
+  // [Polish] Non-interactive header that names the entity a Tasks-tab context
+  // menu targets ("Goal: …" / "Task: …"). Muted; name truncated to ~24 chars
+  // (+ ellipsis; the full name shows in the title tooltip). Emits the header
+  // plus the existing separator so it sits above the actions. Not a
+  // .tt-ctx-item, so the menu's click handler ignores it (non-interactive).
+  function ctxEntityHeaderHtml(prefix, name) {
+    var full = String(name == null ? "" : name);
+    var shown = full.length > 24 ? full.slice(0, 24) + "…" : full;
+    return '<div class="tt-ctx-header" title="' + escapeHtml(full) + '">' +
+        escapeHtml(prefix + ": " + shown) +
+      '</div>' +
+      '<div class="tt-ctx-separator"></div>';
+  }
+
   function openGoalContextMenu(x, y, goalId) {
     closeGoalContextMenu();
     if (!goalId) return;
+    var headerWorkspace = Storage.getActiveWorkspace(data);
+    var headerGoal = headerWorkspace && Storage.getGoalById(headerWorkspace, goalId);
     var menu = document.createElement("div");
     menu.className = "tt-context-menu";
     menu.innerHTML =
+      ctxEntityHeaderHtml("Goal", headerGoal ? headerGoal.name : "") +
       '<button type="button" class="tt-ctx-item" data-action="edit">Edit</button>' +
       '<button type="button" class="tt-ctx-item" data-action="save-template">Save as template</button>' +
       '<button type="button" class="tt-ctx-item" data-action="complete">Mark complete</button>' +
@@ -2546,6 +2563,7 @@
     var menu = document.createElement("div");
     menu.className = "tt-context-menu";
     menu.innerHTML =
+      ctxEntityHeaderHtml("Task", task.name) +
       '<button type="button" class="tt-ctx-item" data-action="edit">Edit</button>' +
       '<button type="button" class="tt-ctx-item" data-action="duplicate">Duplicate</button>' +
       '<button type="button" class="tt-ctx-item" data-action="toggle-complete">' + escapeHtml(completeLabel) + '</button>' +
