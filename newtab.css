@@ -7574,9 +7574,10 @@ html.has-bg.bg-light .pro-preview-banner-text {
 
 .tt-progress-bar {
   flex: 1;
-  /* ~2x the old 6px so a centered % reads legibly. */
-  height: 14px;
-  border-radius: 7px;
+  /* Chunky bar — bumped again from 14px per review ("still too thin / roughly
+     double again"); holds a comfortably legible centered %. */
+  height: 22px;
+  border-radius: 11px;
   background: rgba(255, 255, 255, 0.1);
   overflow: hidden;
   position: relative;
@@ -7608,7 +7609,7 @@ html.has-bg.bg-light .pro-preview-banner-text {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
