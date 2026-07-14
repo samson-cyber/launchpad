@@ -8364,9 +8364,20 @@ html.has-bg.bg-light .tasks-body::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.32);
 }
 
+/* [Polish] Light-background pass. Sections must read as distinct raised
+   surfaces even on a pure-white wallpaper: a more opaque fill, a definite
+   border, and a soft lift shadow so the container separates from the page. */
 html.has-bg.bg-light .tt-section {
-  background: rgba(255, 255, 255, 0.82);
-  border-color: rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #1f1f1f;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Section count pill: the base rgba(255,255,255,0.12) fill is invisible on the
+   white section — flip to a dark tint. */
+html.has-bg.bg-light .tt-section-count {
+  background: rgba(0, 0, 0, 0.08);
   color: #1f1f1f;
 }
 
@@ -8424,13 +8435,30 @@ html.has-bg.bg-light .tasks-templates-link {
   color: #1e6fc9;
 }
 
+/* Goal cards sit INSIDE the white section, so a 0.02 fill + 0.08 border made
+   them near-invisible. A light-grey fill plus a definite border reads them as
+   distinct nested cards. */
 html.has-bg.bg-light .tt-goal-card {
-  background: rgba(0, 0, 0, 0.02);
-  border-color: rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.035);
+  border-color: rgba(0, 0, 0, 0.14);
 }
 
+/* Empty progress track needs a touch more ink against the white card. */
 html.has-bg.bg-light .tt-progress-bar {
-  background: rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+/* Row hover wash: the base rgba(255,255,255,0.04) is invisible on light. */
+html.has-bg.bg-light .tt-task-row:hover,
+html.has-bg.bg-light .tt-recurring-row:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* Active filter pill: base #6fb1ff (light blue) is low-contrast on white —
+   drop to the darker blue used by the +New actions / Templates link. */
+html.has-bg.bg-light .tasks-filter-multi.is-active {
+  border-color: #1e6fc9;
+  color: #1e6fc9;
 }
 
 /* Light wallpaper: the track is light, so the base (unfilled-half) % needs a
