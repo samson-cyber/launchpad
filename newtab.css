@@ -65,6 +65,26 @@ body {
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
+  /* [Tasks] Push-not-overlay: the margin animates so the content region tracks
+     the sidebar's edge when it pushes on Pro tabs (see the :has rule below).
+     Matches the sidebar's own 300ms width transition so the two edges move
+     together. Never animates on Home (the push rule doesn't apply there). */
+  transition: margin-left 300ms ease;
+}
+
+/* [Tasks] Sidebar push-not-overlay on Pro tabs only. The bookmarks sidebar is a
+   fixed overlay (z-index 200); when it expands to 260px on Home it transiently
+   covers the shortcut grid, which is fine there. On the Pro tabs (Tasks /
+   Dashboard / Insights, signalled by #content-header.is-compact) the same
+   overlay covered the task list's left content (checkboxes/handles). Instead,
+   push #content right to the sidebar's expanded edge so nothing is covered; the
+   flex column simply gets narrower. Pure CSS keyed off the sidebar's EXISTING
+   .expanded / .sidebar-locked classes — the lock-state machinery is untouched
+   (BUGS.md I4). :has() scopes it to Pro tabs without any JS. 268px = the 260px
+   expanded sidebar + the same 8px gap the collapsed state uses (56 - 48). */
+#sidebar.expanded ~ #content:has(#content-header.is-compact),
+#sidebar.sidebar-locked ~ #content:has(#content-header.is-compact) {
+  margin-left: 268px;
 }
 
 /* ===== Content Header (Logo + Search Bar — fixed at top) ===== */

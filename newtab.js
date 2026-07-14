@@ -1616,6 +1616,22 @@
       closeGoalContextMenu();
     }, true);
 
+    // [Tasks] Same rationale for the sidebar push-not-overlay: when the sidebar
+    // expands/collapses on a Pro tab, #content's margin-left animates and the
+    // content region reflows, so a body-mounted fixed popover/menu anchored to a
+    // task row would drift. Close it when that margin transition starts. #content
+    // is a stable element (never re-rendered), so this one-time listener lives
+    // for the page. Filtered to margin-left so the compact-header padding
+    // transition (which bubbles here) doesn't trigger it; closeGoalContextMenu is
+    // a no-op when nothing is open.
+    var contentEl = document.getElementById("content");
+    if (contentEl && !contentEl.dataset.tasksReflowBound) {
+      contentEl.dataset.tasksReflowBound = "1";
+      contentEl.addEventListener("transitionstart", function (e) {
+        if (e.propertyName === "margin-left") closeGoalContextMenu();
+      });
+    }
+
     panel.addEventListener("change", async function (e) {
       var target = e.target;
       if (!target || !target.classList) return;
