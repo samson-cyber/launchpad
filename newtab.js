@@ -1117,27 +1117,108 @@
     '</li>';
   }
 
-  // Completed section bundles two streams: completed goals (with their child
-  // tasks rendered read-only beneath, matching the Active card layout sans
-  // the progress bar) and completed standalone tasks. Recurring instances
-  // can also be completed; until [1.0.14] generates them, this stream is
-  // just spec-aligned scaffolding.
-  function completedBodyHtml(workspace, completedGoals, completedStandalone, allTasks) {
-    var goalsHtml = completedGoals.map(function (g) {
-      return goalCardHtml(workspace, g, allTasks);
-    }).join("");
-    var visibleStandalone = applyTaskFilterSort(completedStandalone);
-    var standaloneHtml = visibleStandalone.length
-      ? '<ul class="tt-standalone-list tt-standalone-list-completed">' +
-          visibleStandalone.map(function (t) { return taskRowHtml(workspace, t); }).join("") +
+  var TRASH_TTL_DAYS = 30;
+  var TRASH_DAY_MS = 24 * 60 * 60 * 1000;
+
+  // Whole days remaining before a trashed item (deletedAt) auto-purges at day
+  // 30. Clamped at 0 (an item at/past expiry shows "0 days" until the next
+  // opportunistic purge removes it).
+  function trashDaysRemaining(deletedAt) {
+    if (typeof deletedAt !== "number") return TRASH_TTL_DAYS;
+    var elapsedDays = Math.floor((Date.now() - deletedAt) / TRASH_DAY_MS);
+    return Math.max(0, TRASH_TTL_DAYS - elapsedDays);
+  }
+
+  // Countdown urgency band (trash-bin.md "neutral → amber → red as it
+  // approaches zero"): >7 neutral, 3–7 amber, ≤2 red.
+  function trashCountdownClass(daysRemaining) {
+    if (daysRemaining <= 2) return "tt-trash-days-red";
+    if (daysRemaining <= 7) return "tt-trash-days-amber";
+    return "tt-trash-days-neutral";
+  }
+
+  // ----- COMPLETED box -----
+  //
+  // The celebration move's always-visible destination. Lists completed goals
+  // and completed STANDALONE tasks as compact rows (struck name + completion
+  // date), newest first by completedAt. Completed CHILD tasks of an active goal
+  // are intentionally NOT listed here — they grey in place inside their goal
+  // card for the progress bar (unchanged behavior); a completed goal represents
+  // its own completed children. Right-click a row to reactivate (see
+  // openCompletedContextMenu). Height-capped with internal scroll so a large
+  // history stays compact.
+  function completedRowHtml(kind, id, name, completedAt) {
+    return '<li class="tt-completed-row" data-kind="' + kind + '" data-id="' + escapeHtml(id) + '" title="Right-click to reactivate">' +
+        '<span class="tt-completed-kind" aria-hidden="true">' + (kind === "goal" ? "◎" : "✓") + '</span>' +
+        '<span class="tt-completed-name">' + escapeHtml(name) + '</span>' +
+        '<span class="tt-completed-date">' + escapeHtml(fmtShortDate(completedAt)) + '</span>' +
+      '</li>';
+  }
+
+  function completedBoxHtml(workspace, completedGoals, completedStandalone) {
+    var items = [];
+    completedGoals.forEach(function (g) {
+      items.push({ kind: "goal", id: g.id, name: g.name, at: g.completedAt || 0 });
+    });
+    completedStandalone.forEach(function (t) {
+      items.push({ kind: "task", id: t.id, name: t.name, at: t.completedAt || 0 });
+    });
+    items.sort(function (a, b) { return b.at - a.at; }); // newest first
+    var count = items.length;
+    var bodyHtml = count
+      ? '<ul class="tt-completed-list">' +
+          items.map(function (it) { return completedRowHtml(it.kind, it.id, it.name, it.at); }).join("") +
         '</ul>'
-      : "";
-    if (!goalsHtml && !standaloneHtml) {
-      return '<div class="tt-empty-state">' +
-        (tasksFiltersNarrowing() ? 'Nothing completed matches the current filter.' : 'Nothing completed yet.') +
-        '</div>';
-    }
-    return goalsHtml + standaloneHtml;
+      : '<div class="tt-empty-state">No completed tasks yet.</div>';
+    return '<section class="tt-section tt-box tt-completed-box" data-section="completed">' +
+        '<h2 class="tt-section-title">Completed' +
+          (count ? ' <span class="tt-section-count">' + count + '</span>' : '') +
+        '</h2>' +
+        '<div class="tt-box-body">' + bodyHtml + '</div>' +
+      '</section>';
+  }
+
+  // ----- DELETED box -----
+  //
+  // The Tasks-tab trash surface (DECISIONS 2026-07-14). Lists trashed goals and
+  // tasks of the current workspace, newest deletion first, each with a type
+  // indicator, name, "X days remaining" countdown (neutral → amber → red), and
+  // per-row Restore / Delete Permanently actions. Permanent delete is the only
+  // action that confirms (trash-bin.md). Restore homing is handled in Storage
+  // (task → parent goal if alive else standalone; goal → goals list).
+  function deletedBoxHtml(workspace, deletedGoals, deletedTasks) {
+    var items = [];
+    deletedGoals.forEach(function (g) {
+      items.push({ kind: "goal", id: g.id, name: g.name, at: g.deletedAt || 0 });
+    });
+    deletedTasks.forEach(function (t) {
+      items.push({ kind: "task", id: t.id, name: t.name, at: t.deletedAt || 0 });
+    });
+    items.sort(function (a, b) { return b.at - a.at; }); // newest deletion first
+    var count = items.length;
+    var bodyHtml = count
+      ? '<ul class="tt-deleted-list">' +
+          items.map(function (it) {
+            var days = trashDaysRemaining(it.at);
+            var daysCls = trashCountdownClass(days);
+            return '<li class="tt-deleted-row" data-kind="' + it.kind + '" data-id="' + escapeHtml(it.id) + '" title="' + escapeHtml(it.kind === "goal" ? "Goal" : "Task") + '">' +
+                '<span class="tt-deleted-kind" aria-hidden="true">' + (it.kind === "goal" ? "◎" : "▪") + '</span>' +
+                '<span class="tt-deleted-name">' + escapeHtml(it.name) + '</span>' +
+                '<span class="tt-trash-days ' + daysCls + '">' + days + (days === 1 ? " day left" : " days left") + '</span>' +
+                '<span class="tt-deleted-actions">' +
+                  '<button type="button" class="tt-deleted-btn tt-deleted-restore" data-action="restore-deleted">Restore</button>' +
+                  '<button type="button" class="tt-deleted-btn tt-deleted-purge" data-action="purge-deleted">Delete</button>' +
+                '</span>' +
+              '</li>';
+          }).join("") +
+        '</ul>'
+      : '<div class="tt-empty-state">Nothing deleted. Items stay here 30 days.</div>';
+    return '<section class="tt-section tt-box tt-deleted-box" data-section="deleted">' +
+        '<h2 class="tt-section-title">Deleted' +
+          (count ? ' <span class="tt-section-count">' + count + '</span>' : '') +
+        '</h2>' +
+        '<div class="tt-box-body">' + bodyHtml + '</div>' +
+      '</section>';
   }
 
   // Task-completion celebration timing (see the "Completion Celebrations →
@@ -1230,6 +1311,46 @@
     }, 5000);
   }
 
+  // [Tasks] Deleted-box: restore a trashed goal or task (deletedAt -> null).
+  // Storage handles restore homing (task -> parent goal if alive, else
+  // standalone; goal -> goals list). Eager re-render + confirmation toast.
+  async function restoreDeletedItem(kind, id) {
+    if (!id) return;
+    try {
+      if (kind === "goal") await Storage.restoreGoal(data, id);
+      else await Storage.restoreTask(data, id);
+    } catch (err) {
+      console.error("[LaunchPad] Tasks tab: restore from Deleted failed", err);
+      return;
+    }
+    var panel = document.getElementById("tab-tasks");
+    if (panel) renderTasksTab(panel, data);
+    showToast(kind === "goal" ? "Goal restored" : "Task restored");
+  }
+
+  // [Tasks] Deleted-box: permanent delete — the ONLY delete that confirms
+  // (trash-bin.md). Hard-splices the record; no Undo. On confirm, re-render.
+  function confirmPurgeDeletedItem(kind, id, name) {
+    if (!id) return;
+    var label = kind === "goal" ? "goal" : "task";
+    openTasksConfirmModal({
+      title: "Delete permanently?",
+      message: 'Permanently delete the ' + label + ' "' + name + '"? This cannot be undone.',
+      confirmLabel: "Delete permanently",
+      dangerous: true,
+      onConfirm: async function () {
+        try {
+          if (kind === "goal") await Storage.deleteGoalPermanent(data, id);
+          else await Storage.deleteTaskPermanent(data, id);
+        } catch (err) {
+          console.error("[LaunchPad] Tasks tab: permanent delete failed", err);
+        }
+        var panel = document.getElementById("tab-tasks");
+        if (panel) renderTasksTab(panel, data);
+      }
+    });
+  }
+
   function renderTasksTab(panel, d) {
     if (!panel) return;
     // [1.0.11.1] Mid-drag re-render suppression. Sortable's drag state lives
@@ -1269,8 +1390,18 @@
       return;
     }
 
+    // [Tasks] Opportunistic trash cleanup before the Deleted box renders
+    // (trash-bin.md). purgeExpiredTrash splices expired goals/tasks
+    // SYNCHRONOUSLY (before its first await) and only writes when it removed
+    // something, so this un-awaited call has already mutated `workspace`'s arrays
+    // by the time getDeleted*/getCompleted* read them just below — and does not
+    // amplify storage writes on the common no-op render.
+    Storage.purgeExpiredTrash(d);
+
     var activeGoals = sortedByDisplayOrder(Storage.getActiveGoals(workspace));
     var completedGoals = sortedByDisplayOrder(Storage.getCompletedGoals(workspace));
+    var deletedGoals = Storage.getDeletedGoals(workspace);
+    var deletedTasks = Storage.getDeletedTasks(workspace);
     var allActiveTasks = Storage.getActiveTasks(workspace);
     var allCompletedTasks = Storage.getCompletedTasks(workspace);
     // Standalone = goalId === null AND not a recurring instance (per PLAN's
@@ -1323,17 +1454,13 @@
           (taskFilterState.tagIds.length && recurringTemplates.length ? 'No recurring tasks match the current filter.' : 'No recurring tasks.') +
         '</div>';
 
-    var completedCount = completedGoals.length + standaloneCompleted.length;
-
-    // [1.0.12] Status drives SECTION visibility (locked interaction model):
-    //   active    → hide Completed section (show goals/standalone/recurring)
-    //   completed → show ONLY the Completed section
-    //   all       → show everything
+    // [1.0.12] Status drives ACTIVE-section visibility (locked interaction
+    // model): 'completed' hides the active goals/standalone/recurring sections;
+    // 'active'/'all' show them. The Completed + Deleted boxes at the bottom are
+    // a persistent surface and render regardless of the status filter (see the
+    // trash-row below) — the Completed box is the celebration move's always-
+    // visible destination, so it must not be gated away in the default view.
     var showActiveSections = taskFilterState.status !== "completed";
-    var showCompletedSection = taskFilterState.status !== "active";
-    // When the user explicitly narrows to Completed, expand that section so its
-    // content is visible; otherwise keep the existing collapsed-by-default.
-    var completedCollapsed = taskFilterState.status !== "completed";
 
     var activeGoalsSectionHtml = showActiveSections
       ? '<section class="tt-section" data-section="active-goals">' +
@@ -1355,19 +1482,16 @@
           recurringHtml +
         '</section>'
       : '';
-    var completedSectionHtml = showCompletedSection
-      ? '<section class="tt-section tt-completed" data-section="completed" data-collapsed="' + (completedCollapsed ? "true" : "false") + '">' +
-          '<h2 class="tt-section-title">' +
-            '<button class="tt-completed-toggle" type="button" aria-expanded="' + (completedCollapsed ? "false" : "true") + '">' +
-              '<span class="tt-completed-chevron">' + CHEVRON_RIGHT_SVG + '</span>' +
-              '<span>Completed' + (completedCount ? ' (' + completedCount + ')' : '') + '</span>' +
-            '</button>' +
-          '</h2>' +
-          '<div class="tt-completed-body' + (completedCollapsed ? ' hidden' : '') + '">' +
-            completedBodyHtml(workspace, completedGoals, standaloneCompleted, allTasksForGoals) +
-          '</div>' +
-        '</section>'
-      : '';
+    // [Tasks] Completed + Deleted boxes — two side-by-side boxes on one row
+    // below Recurring, always rendered (the per-tab trash surface, DECISIONS
+    // 2026-07-14). The Completed box is the celebration move animation's visible
+    // destination; the Deleted box is the Tasks-tab trash with restore /
+    // permanent-delete / 30-day countdowns.
+    var trashRowHtml =
+      '<div class="tt-trash-row">' +
+        completedBoxHtml(workspace, completedGoals, standaloneCompleted) +
+        deletedBoxHtml(workspace, deletedGoals, deletedTasks) +
+      '</div>';
 
     panel.innerHTML =
       '<div class="tasks-tab" data-tab="tasks">' +
@@ -1376,7 +1500,7 @@
           activeGoalsSectionHtml +
           standaloneSectionHtml +
           recurringSectionHtml +
-          completedSectionHtml +
+          trashRowHtml +
         '</div>' +
       '</div>';
 
@@ -1573,16 +1697,23 @@
         return;
       }
 
-      // Completed section chevron toggle.
-      var toggleBtn = target.closest && target.closest(".tt-completed-toggle");
-      if (toggleBtn) {
-        var section = toggleBtn.closest(".tt-completed");
-        if (!section) return;
-        var collapsed = section.getAttribute("data-collapsed") !== "false";
-        section.setAttribute("data-collapsed", collapsed ? "false" : "true");
-        toggleBtn.setAttribute("aria-expanded", collapsed ? "true" : "false");
-        var body = section.querySelector(".tt-completed-body");
-        if (body) body.classList.toggle("hidden", !collapsed);
+      // [Tasks] Deleted-box row actions — Restore / Delete Permanently.
+      var deletedBtn = target.closest && target.closest(".tt-deleted-btn");
+      if (deletedBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var deletedRow = deletedBtn.closest(".tt-deleted-row");
+        if (!deletedRow) return;
+        var dKind = deletedRow.getAttribute("data-kind");
+        var dId = deletedRow.getAttribute("data-id");
+        var dName = (deletedRow.querySelector(".tt-deleted-name") || {}).textContent || "item";
+        if (!dId) return;
+        var dAction = deletedBtn.getAttribute("data-action");
+        if (dAction === "restore-deleted") {
+          restoreDeletedItem(dKind, dId);
+        } else if (dAction === "purge-deleted") {
+          confirmPurgeDeletedItem(dKind, dId, dName);
+        }
         return;
       }
 
@@ -1664,6 +1795,19 @@
     // browser context menus on inline-edit / add-task inputs continue to work.
     panel.addEventListener("contextmenu", function (e) {
       if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
+
+      // [Tasks] Completed-box row → dedicated Reactivate menu. Checked first
+      // because these rows live outside the goal-card/task-row DOM the branches
+      // below resolve against.
+      var completedRow = e.target && e.target.closest && e.target.closest(".tt-completed-row");
+      if (completedRow) {
+        var cKind = completedRow.getAttribute("data-kind");
+        var cId = completedRow.getAttribute("data-id");
+        if (!cId) return;
+        e.preventDefault();
+        openCompletedContextMenu(e.clientX, e.clientY, cKind, cId);
+        return;
+      }
 
       // Task row MUST be resolved before the goal card. A .tt-task-row LI is
       // nested inside its parent .tt-goal-card, so a bare closest(".tt-goal-card")
@@ -1799,10 +1943,9 @@
     // .tt-goal-tasks UL plus one on the active .tt-standalone-list. All share
     // group:'tasks' so drops are symmetric across all four directions
     // (goal→goal, goal→standalone, standalone→goal, within-list reorder).
-    // Completed cards (.tt-goal-card.is-completed) and the completed
-    // standalone list (.tt-standalone-list-completed) are excluded — those
-    // sections are read-only by design; their task rows render in goalCardHtml
-    // / completedBodyHtml but no Sortable binds to them.
+    // Completed cards (.tt-goal-card.is-completed) are excluded — read-only by
+    // design; their task rows render in goalCardHtml but no Sortable binds to
+    // them. The Completed/Deleted boxes are compact lists with no Sortable.
     if (Array.isArray(panel._sortables.taskLists)) {
       panel._sortables.taskLists.forEach(function (s) { try { s.destroy(); } catch (e) {} });
     }
@@ -2528,6 +2671,64 @@
         escapeHtml(prefix + ": " + shown) +
       '</div>' +
       '<div class="tt-ctx-separator"></div>';
+  }
+
+  // [Tasks] Completed-box row context menu — a single Reactivate action for a
+  // completed goal or task. Reuses the shared tasks-menu lifecycle (single
+  // instance via closeGoalContextMenu, viewport-guarded position, outside-click
+  // + Escape dismissal). reactivateTask/reactivateGoal flip the item back to
+  // active (and auto-reactivate a parent goal / greys undone), then re-render.
+  function openCompletedContextMenu(x, y, kind, id) {
+    closeGoalContextMenu();
+    if (!id) return;
+    var workspace = Storage.getActiveWorkspace(data);
+    var name = "";
+    if (kind === "goal") {
+      var g = workspace && Storage.getGoalById(workspace, id);
+      name = g ? g.name : "";
+    } else {
+      var t = workspace && Storage.getTaskById(workspace, id);
+      name = t ? t.name : "";
+    }
+    var menu = document.createElement("div");
+    menu.className = "tt-context-menu";
+    menu.innerHTML =
+      ctxEntityHeaderHtml(kind === "goal" ? "Goal" : "Task", name) +
+      '<button type="button" class="tt-ctx-item" data-action="reactivate">Reactivate</button>';
+    document.body.appendChild(menu);
+
+    var w = menu.offsetWidth;
+    var h = menu.offsetHeight;
+    var px = Math.max(8, Math.min(x, window.innerWidth - w - 8));
+    var py = Math.max(8, Math.min(y, window.innerHeight - h - 8));
+    menu.style.left = px + "px";
+    menu.style.top = py + "px";
+    tasksContextMenuEl = menu;
+
+    menu.addEventListener("click", async function (e) {
+      var btn = e.target && e.target.closest && e.target.closest(".tt-ctx-item");
+      if (!btn) return;
+      closeGoalContextMenu();
+      try {
+        if (kind === "goal") await Storage.reactivateGoal(data, id);
+        else await Storage.reactivateTask(data, id);
+      } catch (err) {
+        console.error("[LaunchPad] Tasks tab: reactivate from Completed failed", err);
+      }
+      var panel = document.getElementById("tab-tasks");
+      if (panel) renderTasksTab(panel, data);
+    });
+
+    tasksContextMenuOutsideHandler = function (e) {
+      if (!menu.contains(e.target)) closeGoalContextMenu();
+    };
+    setTimeout(function () {
+      document.addEventListener("click", tasksContextMenuOutsideHandler, true);
+    }, 0);
+    tasksContextMenuEscapeHandler = function (e) {
+      if (e.key === "Escape") closeGoalContextMenu();
+    };
+    document.addEventListener("keydown", tasksContextMenuEscapeHandler);
   }
 
   function openGoalContextMenu(x, y, goalId) {

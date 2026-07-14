@@ -819,6 +819,54 @@ var Storage = (function () {
   }
 
   /**
+   * Soft-deleted (trashed) goals: deletedAt !== null. Powers the Tasks-tab
+   * Deleted box. Not sorted here — the caller orders by deletedAt.
+   */
+  function getDeletedGoals(workspace) {
+    var goals = ensureGoalsArray(workspace);
+    if (!goals) return [];
+    return goals.filter(function (g) { return g.deletedAt != null; });
+  }
+
+  /**
+   * Restore a soft-deleted goal (deletedAt -> null). Per trash-bin.md the goal
+   * returns to the goals list; its separately-trashed child tasks stay trashed
+   * (they carry their own deletedAt and are restored individually). Finds the
+   * goal regardless of deleted state (findLiveGoal would skip it). Idempotent on
+   * an already-live goal. @returns {Promise<object|null>}
+   */
+  async function restoreGoal(data, goalId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var goals = ws && ws.goals;
+    if (!Array.isArray(goals)) return null;
+    var goal = goals.find(function (g) { return g && g.id === goalId; });
+    if (!goal) return null;
+    if (goal.deletedAt == null) return goal;
+    goal.deletedAt = null;
+    await saveAll(data);
+    return goal;
+  }
+
+  /**
+   * Permanently delete a goal — hard splice from ws.goals, no recovery. The
+   * ONLY delete that is irreversible (per trash-bin.md, permanent delete is the
+   * only action that confirms; the caller shows the modal). Removes just the
+   * goal record; any cascade-trashed child tasks keep their own deletedAt and
+   * remain as their own Deleted-box rows / purge on their own schedule.
+   * @returns {Promise<boolean>} true if a goal was removed.
+   */
+  async function deleteGoalPermanent(data, goalId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var goals = ws && ws.goals;
+    if (!Array.isArray(goals)) return false;
+    var idx = goals.findIndex(function (g) { return g && g.id === goalId; });
+    if (idx === -1) return false;
+    goals.splice(idx, 1);
+    await saveAll(data);
+    return true;
+  }
+
+  /**
    * Lookup by id. Returns null if the goal is missing OR soft-deleted.
    * Returns the goal even if completed.
    */
@@ -1203,9 +1251,16 @@ var Storage = (function () {
 
   /**
    * Restore a soft-deleted task (deletedAt -> null). Counterpart to deleteTask;
-   * used by the 5-second Undo toast on direct delete and, later, the Trash view.
-   * Finds the task regardless of deleted state (findLiveTask would skip it).
-   * Idempotent on an already-live task. @returns {Promise<object|null>}
+   * used by the 5-second Undo toast on direct delete and the Tasks-tab Deleted
+   * box. Finds the task regardless of deleted state (findLiveTask would skip it).
+   * Idempotent on an already-live task.
+   *
+   * Restore homing (trash-bin.md): task -> parent goal if that goal is still
+   * live; if the parent goal is trashed or purged, the task becomes standalone
+   * (goalId -> null) so it lands in the Standalone section rather than dangling
+   * under a goal that no longer renders. The Undo path is unaffected in practice
+   * (the parent goal is virtually always still live moments after deletion).
+   * @returns {Promise<object|null>}
    */
   async function restoreTask(data, taskId, workspaceId) {
     var ws = resolveWorkspaceFromData(data, workspaceId);
@@ -1215,8 +1270,80 @@ var Storage = (function () {
     if (!task) return null;
     if (task.deletedAt == null) return task;
     task.deletedAt = null;
+    // Re-home to standalone if the parent goal is no longer live.
+    if (task.goalId != null && !findLiveGoal(ws, task.goalId)) {
+      task.goalId = null;
+    }
     await saveAll(data);
     return task;
+  }
+
+  /**
+   * Soft-deleted (trashed) tasks: deletedAt !== null. Powers the Tasks-tab
+   * Deleted box. Not sorted here — the caller orders by deletedAt.
+   */
+  function getDeletedTasks(workspace) {
+    var tasks = ensureTasksArray(workspace);
+    if (!tasks) return [];
+    return tasks.filter(function (t) { return t.deletedAt != null; });
+  }
+
+  /**
+   * Permanently delete a task — hard splice from ws.tasks, no recovery. The
+   * only irreversible delete (the caller confirms via modal per trash-bin.md).
+   * @returns {Promise<boolean>} true if a task was removed.
+   */
+  async function deleteTaskPermanent(data, taskId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var tasks = ws && ws.tasks;
+    if (!Array.isArray(tasks)) return false;
+    var idx = tasks.findIndex(function (t) { return t && t.id === taskId; });
+    if (idx === -1) return false;
+    tasks.splice(idx, 1);
+    await saveAll(data);
+    return true;
+  }
+
+  // 30-day trash retention (trash-bin.md Auto-Purge).
+  var TRASH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+  /**
+   * Opportunistic trash cleanup for the Tasks-tab surface: hard-remove goals and
+   * tasks in the given (or active) workspace whose deletedAt is older than 30
+   * days, before the Deleted box renders. This is the "opportunistic cleanup on
+   * trash view open" from trash-bin.md, scoped to the two types this surface
+   * shows; the full daily cross-type, cross-workspace alarm sweep (groups,
+   * bookmarks, tags, other workspaces) is a separate Backlog task.
+   *
+   * The array splices run SYNCHRONOUSLY (before the first await), so a caller
+   * that invokes this without awaiting still reads the purged arrays on the very
+   * next line. saveAll only runs when something was actually removed, so calling
+   * this on every render does not amplify writes. @returns {Promise<number>}
+   * count removed.
+   */
+  async function purgeExpiredTrash(data, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws) return 0;
+    var cutoff = Date.now() - TRASH_TTL_MS;
+    var removed = 0;
+    var expired = function (item) {
+      return item && item.deletedAt != null && item.deletedAt < cutoff;
+    };
+    if (Array.isArray(ws.goals)) {
+      for (var gi = ws.goals.length - 1; gi >= 0; gi--) {
+        if (expired(ws.goals[gi])) { ws.goals.splice(gi, 1); removed++; }
+      }
+    }
+    if (Array.isArray(ws.tasks)) {
+      for (var ti = ws.tasks.length - 1; ti >= 0; ti--) {
+        if (expired(ws.tasks[ti])) { ws.tasks.splice(ti, 1); removed++; }
+      }
+    }
+    if (removed > 0) {
+      await saveAll(data);
+      console.log("[LaunchPad] Trash purge removed " + removed + " expired item(s)");
+    }
+    return removed;
   }
 
   /**
@@ -2099,9 +2226,12 @@ var Storage = (function () {
     completeGoal: completeGoal,
     reactivateGoal: reactivateGoal,
     deleteGoal: deleteGoal,
+    restoreGoal: restoreGoal,
+    deleteGoalPermanent: deleteGoalPermanent,
     getActiveGoals: getActiveGoals,
     getCompletedGoals: getCompletedGoals,
     getAllGoals: getAllGoals,
+    getDeletedGoals: getDeletedGoals,
     getGoalById: getGoalById,
     getGoalAutoTagId: getGoalAutoTagId,
     // Tasks (Pro tasks layer — see docs/SPECS/tasks-and-goals.md)
@@ -2115,6 +2245,9 @@ var Storage = (function () {
     duplicateTask: duplicateTask,
     deleteTask: deleteTask,
     restoreTask: restoreTask,
+    deleteTaskPermanent: deleteTaskPermanent,
+    getDeletedTasks: getDeletedTasks,
+    purgeExpiredTrash: purgeExpiredTrash,
     moveTaskToGoal: moveTaskToGoal,
     reassignTaskToGoal: reassignTaskToGoal,
     hasTaskNameCollision: hasTaskNameCollision,

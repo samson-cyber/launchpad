@@ -7541,6 +7541,172 @@ html.has-bg.bg-light .pro-preview-banner-text {
   font-style: italic;
 }
 
+/* ===== [Tasks] Completed + Deleted boxes (per-tab trash surface) ===== */
+
+/* Two boxes side by side (~50/50), one row below Recurring. min-width:0 lets
+   each box shrink so long names ellipsize instead of forcing overflow; wraps to
+   stacked boxes on narrow viewports (see the 720px media query). */
+.tt-trash-row {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.tt-box {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Height-capped so a large history/trash stays compact; the list scrolls
+   inside. Subtle scrollbar mirrors the inner-panel treatment elsewhere. */
+.tt-box-body {
+  max-height: 320px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+.tt-box-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.tt-box-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tt-box-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.tt-completed-list,
+.tt-deleted-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Completed row: kind glyph, struck name, completion date. */
+.tt-completed-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: 6px;
+  cursor: default;
+}
+
+.tt-completed-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tt-completed-kind {
+  flex-shrink: 0;
+  font-size: 12px;
+  opacity: 0.55;
+  width: 14px;
+  text-align: center;
+}
+
+.tt-completed-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: line-through;
+  opacity: 0.62;
+  font-size: 13px;
+}
+
+.tt-completed-date {
+  flex-shrink: 0;
+  font-size: 11px;
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Deleted row: kind glyph, name, countdown, hover actions. */
+.tt-deleted-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: 6px;
+}
+
+.tt-deleted-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tt-deleted-kind {
+  flex-shrink: 0;
+  font-size: 12px;
+  opacity: 0.5;
+  width: 14px;
+  text-align: center;
+}
+
+.tt-deleted-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.tt-trash-days {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tt-trash-days-neutral { color: rgba(255, 255, 255, 0.5); }
+.tt-trash-days-amber { color: #e6b23e; }
+.tt-trash-days-red { color: #f2564f; }
+
+/* Actions revealed on row hover/focus (always visible on touch via focus-within
+   is unnecessary here; keyboard focus on a button also reveals them). */
+.tt-deleted-actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.tt-deleted-row:hover .tt-deleted-actions,
+.tt-deleted-actions:focus-within {
+  opacity: 1;
+}
+
+.tt-deleted-btn {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.tt-deleted-restore:hover {
+  background: rgba(111, 177, 255, 0.2);
+  border-color: rgba(111, 177, 255, 0.7);
+}
+
+.tt-deleted-purge:hover {
+  background: rgba(242, 86, 79, 0.2);
+  border-color: rgba(242, 86, 79, 0.7);
+}
+
 /* Goal cards */
 .tt-goal-list {
   display: flex;
@@ -8204,6 +8370,35 @@ html.has-bg.bg-light .tt-section {
   color: #1f1f1f;
 }
 
+/* [Tasks] Completed/Deleted boxes on light wallpaper: dark scrollbar thumb,
+   dark hover wash, and dark-tinted action buttons so nothing washes out. */
+html.has-bg.bg-light .tt-box-body {
+  scrollbar-color: rgba(0, 0, 0, 0.22) transparent;
+}
+
+html.has-bg.bg-light .tt-box-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+html.has-bg.bg-light .tt-completed-row:hover,
+html.has-bg.bg-light .tt-deleted-row:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+html.has-bg.bg-light .tt-trash-days-neutral {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+html.has-bg.bg-light .tt-trash-days-amber {
+  color: #b6820c;
+}
+
+html.has-bg.bg-light .tt-deleted-btn {
+  color: #1f1f1f;
+  border-color: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.05);
+}
+
 html.has-bg.bg-light .tasks-filter {
   background: rgba(255, 255, 255, 0.82);
   color: #1f1f1f;
@@ -8268,6 +8463,8 @@ html.has-bg.bg-light .tt-task-handle:hover {
 @media (max-width: 720px) {
   .tasks-header { flex-direction: column; align-items: stretch; }
   .tasks-header-right { justify-content: flex-start; }
+  /* [Tasks] Stack the Completed / Deleted boxes on narrow viewports. */
+  .tt-trash-row { flex-direction: column; }
 }
 
 /* ===== [1.0.10.1] Tasks tab interactivity ===== */
