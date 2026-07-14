@@ -837,6 +837,25 @@
     '</button>';
   }
 
+  // [1.0.13.1] Clickable due-date pill on each task row. Mirrors the priority
+  // pill: tinted + labelled (UTC-formatted date) when a due date is set, a
+  // muted calendar-only affordance when null (still a click target so an
+  // undated task can gain a date — the spec's "click due date -> date picker"
+  // presumes something to click). data-due carries the YYYY-MM-DD so the
+  // popover can prefill without a storage lookup. Opens openDueDatePillPopover.
+  function dueDatePillHtml(task) {
+    var has = typeof task.dueAt === "number";
+    var cls = "tt-due-pill" + (has ? "" : " tt-due-none");
+    var label = has ? fmtShortDateUTC(task.dueAt) : "";
+    var ymd = has ? ymdFromTs(task.dueAt) : "";
+    var aria = has ? ("Due " + label + " — click to change") : "Set due date";
+    return '<button type="button" class="' + cls + '" data-task-id="' + escapeHtml(task.id) +
+      '" data-due="' + escapeHtml(ymd) + '" aria-label="' + escapeHtml(aria) + '" title="' + escapeHtml(aria) + '">' +
+      '<span class="tt-due-icon" aria-hidden="true">🗓</span>' +
+      (label ? '<span class="tt-due-pill-label">' + escapeHtml(label) + '</span>' : '') +
+    '</button>';
+  }
+
   // True when a within-section filter (priority or tag) is narrowing the view.
   // Used to decide whether a goal card with zero matching children should dim —
   // we never dim on the unfiltered default (that would dim every empty goal).
@@ -970,6 +989,7 @@
       '<input type="checkbox" class="tt-task-check" data-task-id="' + escapeHtml(task.id) + '"' + checked + ' aria-label="Toggle task complete">' +
       '<span class="tt-task-name">' + escapeHtml(task.name) + '</span>' +
       priorityPillHtml(task) +
+      dueDatePillHtml(task) +
       tagHtml +
     '</li>';
   }
@@ -1323,6 +1343,17 @@
         var pillTaskId = prioPill.getAttribute("data-task-id");
         var current = prioPill.getAttribute("data-priority") || null;
         if (pillTaskId) openPriorityPillPopover(prioPill, pillTaskId, current);
+        return;
+      }
+
+      // [1.0.13.1] Task-row due-date pill → due-date popover (set / change / clear).
+      var duePill = target.closest && target.closest(".tt-due-pill");
+      if (duePill) {
+        e.preventDefault();
+        e.stopPropagation();
+        var dueTaskId = duePill.getAttribute("data-task-id");
+        var currentYmd = duePill.getAttribute("data-due") || "";
+        if (dueTaskId) openDueDatePillPopover(duePill, dueTaskId, currentYmd);
         return;
       }
 
@@ -1839,6 +1870,19 @@
     var titleHtml = opts.title ? '<div class="tt-modal-title">' + escapeHtml(opts.title) + '</div>' : "";
     var primaryLabel = opts.primaryLabel || "Save";
     var primaryClass = "tt-modal-btn tt-modal-primary" + (opts.dangerous ? " tt-modal-btn-danger" : " tt-modal-btn-primary-fill");
+    // [1.0.13.1] Backward-compatible extra footer buttons. When opts.extraButtons
+    // is absent, footerCls and extraButtonsHtml are empty and the default
+    // Cancel + primary footer is byte-for-byte unchanged. Each entry:
+    // { label, className?, onClick(overlay) } — onClick returning false keeps
+    // the modal open (mirrors onPrimary's contract). Extras render between
+    // Cancel and primary; the footer wraps when they are present so long
+    // hierarchy-modal labels don't overflow.
+    var extraButtons = Array.isArray(opts.extraButtons) ? opts.extraButtons : [];
+    var extraButtonsHtml = extraButtons.map(function (b, i) {
+      var cls = b.className || "tt-modal-btn";
+      return '<button type="button" class="' + cls + ' tt-modal-extra" data-extra-index="' + i + '">' + escapeHtml(b.label || "") + '</button>';
+    }).join("");
+    var footerCls = "tt-modal-footer" + (extraButtons.length ? " tt-modal-footer-wrap" : "");
     overlay.innerHTML =
       '<div class="tt-modal" role="dialog" aria-modal="true">' +
         '<header class="tt-modal-header">' +
@@ -1846,8 +1890,9 @@
           '<button type="button" class="tt-modal-close" aria-label="Close">&times;</button>' +
         '</header>' +
         '<div class="tt-modal-body">' + (opts.bodyHtml || "") + '</div>' +
-        '<footer class="tt-modal-footer">' +
+        '<footer class="' + footerCls + '">' +
           '<button type="button" class="tt-modal-btn tt-modal-cancel">Cancel</button>' +
+          extraButtonsHtml +
           '<button type="button" class="' + primaryClass + '">' + escapeHtml(primaryLabel) + '</button>' +
         '</footer>' +
       '</div>';
@@ -1872,6 +1917,19 @@
         if (result === false) return;
       }
       closeTasksModal();
+    });
+
+    // [1.0.13.1] Wire extra footer buttons. No-op when extraButtons is empty.
+    extraButtons.forEach(function (b, i) {
+      var el = overlay.querySelector('.tt-modal-extra[data-extra-index="' + i + '"]');
+      if (!el) return;
+      el.addEventListener("click", async function () {
+        if (typeof b.onClick === "function") {
+          var r = await b.onClick(overlay);
+          if (r === false) return;
+        }
+        closeTasksModal();
+      });
     });
 
     tasksModalEscapeHandler = function (e) {
@@ -2391,6 +2449,108 @@
     });
 
     mountTasksPopover(menu, anchorEl);
+  }
+
+  // [1.0.13.1] Eager Tasks-tab re-render after a same-tab write. The
+  // [1.0.11.2] write-provenance gate suppresses the storage.onChanged
+  // re-render for our own writes, so every commit path here renders eagerly
+  // (same convention as openPriorityPillPopover / the checkbox + chevron
+  // handlers). No-op when the Tasks panel isn't mounted.
+  function rerenderTasksPanel() {
+    var panel = document.getElementById("tab-tasks");
+    if (panel) renderTasksTab(panel, data);
+  }
+
+  // [1.0.13.1] Due-date popover for a task row's pill. A date input prefilled
+  // with the task's current due day (UTC YYYY-MM-DD), plus Set / Clear. Set
+  // reads the input (empty = clear); Clear commits null directly. Both route
+  // through commitTaskDueAt, which runs the hierarchy check. Mirrors the
+  // priority popover's mount + single-open-at-a-time behavior.
+  function openDueDatePillPopover(anchorEl, taskId, currentYmd) {
+    closeGoalContextMenu();
+    if (!taskId) return;
+    var menu = document.createElement("div");
+    menu.className = "tt-context-menu tt-due-popover";
+    menu.innerHTML =
+      '<div class="tt-due-popover-row">' +
+        '<input type="date" class="tt-due-input" value="' + escapeHtml(currentYmd || "") + '">' +
+      '</div>' +
+      '<div class="tt-due-popover-actions">' +
+        '<button type="button" class="tt-ctx-item tt-due-clear">Clear</button>' +
+        '<button type="button" class="tt-ctx-item tt-due-set">Set</button>' +
+      '</div>';
+    var input = menu.querySelector(".tt-due-input");
+    menu.querySelector(".tt-due-set").addEventListener("click", function () {
+      var candidate = parseDateInputToTs(input.value); // "" or invalid → null (clear)
+      closeGoalContextMenu();
+      commitTaskDueAt(taskId, candidate);
+    });
+    menu.querySelector(".tt-due-clear").addEventListener("click", function () {
+      closeGoalContextMenu();
+      commitTaskDueAt(taskId, null);
+    });
+    mountTasksPopover(menu, anchorEl);
+  }
+
+  // [1.0.13.1] Shared task-due commit path. Runs Storage.checkTaskDueConflict
+  // in front of the write. No conflict (standalone task goalId null, goal with
+  // null deadline, clear-to-null, or candidate on/before the goal-deadline UTC
+  // day) → write directly. Conflict (candidate strictly-later UTC day than the
+  // parent goal deadline) → open the 3-button hierarchy modal instead of
+  // writing. Cancelling the modal writes nothing and leaves the pill as-is
+  // (no re-render), which is the "revert picker" behavior.
+  async function commitTaskDueAt(taskId, candidateDueAt) {
+    var conflict = Storage.checkTaskDueConflict(data, taskId, candidateDueAt);
+    if (!conflict.conflict) {
+      try {
+        await Storage.updateTaskDueAt(data, taskId, candidateDueAt);
+      } catch (err) {
+        console.error("[LaunchPad] Tasks tab: updateTaskDueAt failed", err);
+      }
+      rerenderTasksPanel();
+      return;
+    }
+    openTaskDueConflictModal(taskId, conflict);
+  }
+
+  // [1.0.13.1] The task-side half of the due-date hierarchy rule (spec:
+  // tasks-and-goals.md "Deadline hierarchy rule"). 3-button modal via the
+  // openTasksModal extraButtons extension:
+  //   [Extend goal to taskDate]  → updateGoalDeadline then updateTaskDueAt
+  //   [Keep goal deadline, …]    → updateTaskDueAt(goal.deadlineAt) verbatim
+  //   [Cancel]                   → no writes, pill unchanged
+  function openTaskDueConflictModal(taskId, conflict) {
+    var taskDateStr = fmtShortDateUTC(conflict.candidateDueAt);
+    var goalDateStr = fmtShortDateUTC(conflict.goalDeadlineAt);
+    var goalName = conflict.goalName || "the goal";
+    openTasksModal({
+      title: "Due date after goal deadline",
+      bodyHtml: '<p class="tt-modal-message">This task’s due date (' + escapeHtml(taskDateStr) +
+        ') is after ' + escapeHtml(goalName) + ' deadline (' + escapeHtml(goalDateStr) +
+        '). Extend the goal deadline to match?</p>',
+      primaryLabel: "Extend goal to " + taskDateStr,
+      defaultFocus: "primary",
+      onPrimary: async function () {
+        try {
+          await Storage.updateGoalDeadline(data, conflict.goalId, conflict.candidateDueAt);
+          await Storage.updateTaskDueAt(data, taskId, conflict.candidateDueAt);
+        } catch (err) {
+          console.error("[LaunchPad] Tasks tab: extend-goal due commit failed", err);
+        }
+        rerenderTasksPanel();
+      },
+      extraButtons: [{
+        label: "Keep goal deadline, set task to " + goalDateStr,
+        onClick: async function () {
+          try {
+            await Storage.updateTaskDueAt(data, taskId, conflict.goalDeadlineAt);
+          } catch (err) {
+            console.error("[LaunchPad] Tasks tab: keep-goal due commit failed", err);
+          }
+          rerenderTasksPanel();
+        }
+      }]
+    });
   }
 
   // [1.0.12] Multi-select filter popover for the Priority / Tag bar buttons.

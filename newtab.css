@@ -7688,6 +7688,61 @@ html.has-bg.bg-light .pro-preview-banner-text {
 .tt-prio-pill.tt-prio-medium { color: var(--prio-medium); border-color: var(--prio-medium); background: rgba(241, 196, 15, 0.16); }
 .tt-prio-pill.tt-prio-low    { color: var(--prio-low);    border-color: var(--prio-low);    background: rgba(93, 173, 226, 0.16); }
 
+/* [1.0.13.1] Clickable due-date pill. Mirrors the priority pill: muted
+   calendar-only affordance when unset, tinted + labelled when a date is set.
+   flex-shrink:0 so a long task name can't squeeze it away. */
+.tt-due-pill {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s, opacity 0.12s;
+}
+.tt-due-pill .tt-due-icon { font-size: 11px; line-height: 1; }
+.tt-due-pill.tt-due-none { opacity: 0.55; }
+.tt-task-row:hover .tt-due-pill.tt-due-none { opacity: 1; }
+.tt-due-pill:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+
+/* Due-date popover: reuses the .tt-context-menu frosting; a date input over a
+   Clear / Set action row. */
+.tt-due-popover { min-width: 180px; padding: 8px; }
+.tt-due-popover-row { padding: 2px 2px 8px; }
+.tt-due-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+.tt-due-popover-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.tt-due-popover-actions .tt-ctx-item {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+/* Light-wallpaper: the muted (unset) due pill needs a dark glyph. */
+html.has-bg.bg-light .tt-due-pill.tt-due-none { color: rgba(0, 0, 0, 0.55); }
+html.has-bg.bg-light .tt-due-pill:hover { background: rgba(0, 0, 0, 0.06); color: #1f1f1f; }
+
 /* Dimmed goal card: zero children match an active filter (kept, not removed). */
 .tt-goal-dimmed { opacity: 0.4; }
 
@@ -8251,6 +8306,11 @@ html.has-bg.bg-light .tt-task-handle:hover {
   padding: 10px 18px 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
+
+/* [1.0.13.1] Applied only when a modal has extraButtons (e.g. the 3-button
+   due-date hierarchy modal). Lets long secondary labels wrap instead of
+   overflowing; default 2-button footers never get this class. */
+.tt-modal-footer-wrap { flex-wrap: wrap; }
 
 .tt-modal-btn {
   padding: 8px 14px;
