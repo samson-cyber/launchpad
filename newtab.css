@@ -7773,30 +7773,44 @@ html.has-bg.bg-light .pro-preview-banner-text {
 .tt-task-row.tt-prio-medium { border-left-color: var(--prio-medium); }
 .tt-task-row.tt-prio-low    { border-left-color: var(--prio-low); }
 
-/* [Tasks] Controls zone: a fixed-order, divider-separated block on the right of
-   every task row (priority, date, tags, trash). flex-shrink:0 + margin-left:auto
-   right-anchor it; the name truncates so the divider stays at a consistent x.
-   Priority/date slots carry a min-width so their empty affordance and populated
-   states occupy the same footprint; the trash slot is always present. */
+/* [Tasks v2] Controls zone: a fixed-COLUMN grid on the right of every task row
+   (priority | date | tag | trash). Fixed column widths make the four slots line
+   up as vertical columns across all rows regardless of pill width — a Medium
+   pill sits directly under a High pill because both live in the same fixed
+   priority column, no right-packed stagger. Empty affordances hold their column
+   (centered in-slot). margin-left:auto right-anchors the zone; the name (flex:1)
+   truncates so the zone — and its divider — stay at a consistent x. */
 .tt-task-controls {
   flex: 0 0 auto;
   margin-left: auto;
-  display: flex;
+  display: grid;
+  grid-template-columns: 72px 78px 66px 24px;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding-left: 12px;
-  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  /* Subtle but visibly-present divider between the task info and the zone. */
+  border-left: 1px solid rgba(255, 255, 255, 0.22);
 }
 .tt-task-slot {
   display: flex;
   align-items: center;
-  flex-shrink: 0;
+  justify-content: center; /* content (incl. empty affordances) centered in-column */
+  min-width: 0;
 }
-.tt-slot-priority { min-width: 24px; }
-.tt-slot-date { min-width: 62px; }
-/* Tags are variable-count; bound the slot so many-tag rows can't blow out the
-   zone (they clip). Common 0–2-tag rows fit. */
-.tt-slot-tags { gap: 4px; max-width: 120px; overflow: hidden; }
+/* Tags: single tag typical; extras collapse to a +N indicator (built in
+   taskRowHtml). Left-aligned and clipped so a long tag never pushes the column. */
+.tt-slot-tags {
+  justify-content: flex-start;
+  gap: 4px;
+  overflow: hidden;
+}
+.tt-tag-more {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+}
 .tt-task-trash {
   width: 24px;
   height: 24px;
@@ -7989,7 +8003,8 @@ html.has-bg.bg-light .tt-prio-pill.tt-prio-none { color: rgba(0, 0, 0, 0.45); }
 html.has-bg.bg-light .tt-prio-pill:hover { background: rgba(0, 0, 0, 0.06); color: #1f1f1f; }
 
 /* [Tasks] Controls zone on light wallpapers: dark divider + trash ink. */
-html.has-bg.bg-light .tt-task-controls { border-left-color: rgba(0, 0, 0, 0.14); }
+html.has-bg.bg-light .tt-task-controls { border-left-color: rgba(0, 0, 0, 0.2); }
+html.has-bg.bg-light .tt-tag-more { color: rgba(0, 0, 0, 0.55); }
 html.has-bg.bg-light .tt-task-trash { color: rgba(0, 0, 0, 0.38); }
 html.has-bg.bg-light .tt-task-row:hover .tt-task-trash { color: rgba(0, 0, 0, 0.6); }
 html.has-bg.bg-light .tt-task-trash:hover { color: #d0021b; background: rgba(208, 2, 27, 0.1); }

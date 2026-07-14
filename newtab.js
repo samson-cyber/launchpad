@@ -973,10 +973,16 @@
   function taskRowHtml(workspace, task) {
     var checked = task.completed ? " checked" : "";
     var completedCls = task.completed ? " is-completed" : "";
-    var tagHtml = "";
+    // [Tasks v2] Tag column shows a single tag (the common case); extra tags
+    // collapse into a "+N" indicator so the fixed-width tag column never breaks
+    // the vertical alignment of the controls grid.
     var tagIds = Array.isArray(task.tagIds) ? task.tagIds : [];
-    for (var i = 0; i < tagIds.length; i++) {
-      tagHtml += tagPillHtml(workspace, tagIds[i]);
+    var tagHtml = "";
+    if (tagIds.length >= 1) {
+      tagHtml = tagPillHtml(workspace, tagIds[0]);
+      if (tagIds.length > 1) {
+        tagHtml += '<span class="tt-tag-more" title="' + tagIds.length + ' tags">+' + (tagIds.length - 1) + '</span>';
+      }
     }
     // [1.0.11.18] Dedicated drag handle as the leftmost element. Mirrors
     // the sidebar shortcut grab-dots pattern (.sidebar-shortcut-drag-handle
