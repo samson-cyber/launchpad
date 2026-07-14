@@ -2536,6 +2536,9 @@
         '<div class="tt-modal-row">' +
           '<label class="tt-modal-label" for="tt-goal-deadline-input">Deadline</label>' +
           '<input type="date" id="tt-goal-deadline-input" class="tt-goal-deadline-input" value="' + escapeHtml(deadlineValue) + '">' +
+          // [Polish] Read-only computed deadline shown (instead of the date input)
+          // while a template is selected — its deadline comes from the offset.
+          '<div class="tt-goal-deadline-computed hidden" aria-live="polite"></div>' +
         '</div>' +
         autoTagBlock +
         templateBlock +
@@ -2548,20 +2551,42 @@
             overlay.querySelector(".tt-modal-primary").click();
           }
         });
-        // [1.0.15] Template pick → prefill the (still-editable) name and disable
-        // the deadline field (a template's deadline comes from its offset at
-        // instantiation, not this date input). "None" restores blank-goal input.
+        // [1.0.15] Template pick → prefill the (still-editable) name. [Polish] The
+        // deadline comes from the template's offset at instantiation, so instead
+        // of silently disabling the date input (which read as broken), swap it for
+        // a read-only COMPUTED deadline with provenance. "None" restores the
+        // normal editable date input. Display only — onPrimary's branch on the
+        // selected template id is unchanged.
         var tplSelect = overlay.querySelector(".tt-goal-template");
         var deadlineInput = overlay.querySelector(".tt-goal-deadline-input");
-        if (tplSelect && !tplSelect.disabled) {
+        var deadlineComputed = overlay.querySelector(".tt-goal-deadline-computed");
+
+        function computedDeadlineText(offsetDays) {
+          if (offsetDays == null) return "No deadline (template has no offset)";
+          var now = new Date();
+          var epoch = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) + offsetDays * 86400000;
+          var dt = new Date(epoch);
+          var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+          var dmy = pad(dt.getUTCDate()) + "/" + pad(dt.getUTCMonth() + 1) + "/" + dt.getUTCFullYear();
+          return dmy + " (from template: +" + offsetDays + " day" + (offsetDays === 1 ? "" : "s") + ")";
+        }
+
+        if (tplSelect && !tplSelect.disabled && deadlineInput && deadlineComputed) {
           tplSelect.addEventListener("change", function () {
             var ws2 = Storage.getActiveWorkspace(data);
             var tpl = tplSelect.value && ws2 ? Storage.getGoalTemplateById(ws2, tplSelect.value) : null;
             if (tpl) {
               nameInput.value = tpl.name;
-              if (deadlineInput) { deadlineInput.value = ""; deadlineInput.disabled = true; }
-            } else if (deadlineInput) {
-              deadlineInput.disabled = false;
+              deadlineComputed.textContent = computedDeadlineText(
+                typeof tpl.deadlineOffsetDays === "number" ? tpl.deadlineOffsetDays : null
+              );
+              deadlineInput.classList.add("hidden");
+              deadlineComputed.classList.remove("hidden");
+            } else {
+              // "From template" cleared → back to the editable date input.
+              deadlineComputed.classList.add("hidden");
+              deadlineComputed.textContent = "";
+              deadlineInput.classList.remove("hidden");
             }
           });
         }

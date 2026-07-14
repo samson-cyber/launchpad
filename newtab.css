@@ -8951,6 +8951,15 @@ html.has-bg.bg-light .tt-task-handle:hover {
   line-height: 1.5;
 }
 
+/* [Polish] Read-only computed deadline in the new-goal modal (shown while a
+   template is selected). Inherits the modal text color, so it themes with the
+   modal on light + dark; muted so it reads as informational, not editable. */
+.tt-goal-deadline-computed {
+  font-size: 13px;
+  padding: 6px 0;
+  opacity: 0.82;
+}
+
 /* ===== [1.0.15] Goal templates panel + editor ===== */
 
 .tt-tpl-list {
