@@ -8328,10 +8328,12 @@ html.has-bg.bg-light .tt-task-handle:hover {
 .tt-modal-btn:hover { background: rgba(255, 255, 255, 0.12); }
 
 .tt-modal-btn-primary-fill {
-  background: linear-gradient(135deg, #4a90e2 0%, #6fb1ff 100%);
+  /* Darkened one step from #4a90e2/#6fb1ff so white text clears WCAG AA
+     (~4.8:1 at the light stop) without the glow. The prior text-shadow was
+     masking weak contrast on the light-blue end; removed. */
+  background: linear-gradient(135deg, #2a63b5 0%, #3574c4 100%);
   border-color: transparent;
   color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   box-shadow: 0 2px 8px rgba(74, 144, 226, 0.4);
 }
 
