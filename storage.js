@@ -1202,6 +1202,24 @@ var Storage = (function () {
   }
 
   /**
+   * Restore a soft-deleted task (deletedAt -> null). Counterpart to deleteTask;
+   * used by the 5-second Undo toast on direct delete and, later, the Trash view.
+   * Finds the task regardless of deleted state (findLiveTask would skip it).
+   * Idempotent on an already-live task. @returns {Promise<object|null>}
+   */
+  async function restoreTask(data, taskId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var tasks = ws && ws.tasks;
+    if (!Array.isArray(tasks)) return null;
+    var task = tasks.find(function (t) { return t && t.id === taskId; });
+    if (!task) return null;
+    if (task.deletedAt == null) return task;
+    task.deletedAt = null;
+    await saveAll(data);
+    return task;
+  }
+
+  /**
    * Move a task to a different goal, or to standalone (newGoalIdOrNull = null).
    * Validates the target goal is live when non-null.
    *
@@ -2096,6 +2114,7 @@ var Storage = (function () {
     reactivateTask: reactivateTask,
     duplicateTask: duplicateTask,
     deleteTask: deleteTask,
+    restoreTask: restoreTask,
     moveTaskToGoal: moveTaskToGoal,
     reassignTaskToGoal: reassignTaskToGoal,
     hasTaskNameCollision: hasTaskNameCollision,

@@ -67,6 +67,7 @@
   var FOLDER_SVG = '<svg class="sb-group-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
   var THREE_DOT_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>';
   var THREE_DOT_SM_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>';
+  var TRASH_SM_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
 
   // ===== Gallery Images =====
 
@@ -1004,13 +1005,21 @@
     // future task-name interactions reach their handlers without Sortable
     // interception. aria-hidden so screen readers skip the decorative dots.
     var prioCls = taskPriorityClass(task.priority);
+    // [Tasks] Right side is a fixed-order controls zone (priority, date, tags,
+    // trash) separated from the task info by a divider. Priority + date always
+    // render their affordance so their slots hold width whether set or empty;
+    // the trash slot is always present. The name (flex:1) truncates so the zone
+    // — and the divider — stay at a consistent position row-to-row.
     return '<li class="tt-task-row' + completedCls + (prioCls ? ' ' + prioCls : '') + '" data-task-id="' + escapeHtml(task.id) + '">' +
       '<span class="tt-task-handle" aria-hidden="true" title="Drag to reorder">⠇</span>' +
       '<input type="checkbox" class="tt-task-check" data-task-id="' + escapeHtml(task.id) + '"' + checked + ' aria-label="Toggle task complete">' +
-      '<span class="tt-task-name">' + escapeHtml(task.name) + '</span>' +
-      priorityPillHtml(task) +
-      dueDatePillHtml(task) +
-      tagHtml +
+      '<span class="tt-task-name" title="' + escapeHtml(task.name) + '">' + escapeHtml(task.name) + '</span>' +
+      '<div class="tt-task-controls">' +
+        '<span class="tt-task-slot tt-slot-priority">' + priorityPillHtml(task) + '</span>' +
+        '<span class="tt-task-slot tt-slot-date">' + dueDatePillHtml(task) + '</span>' +
+        '<span class="tt-task-slot tt-slot-tags">' + tagHtml + '</span>' +
+        '<button type="button" class="tt-task-slot tt-task-trash" data-task-id="' + escapeHtml(task.id) + '" aria-label="Delete task" title="Delete task">' + TRASH_SM_SVG + '</button>' +
+      '</div>' +
     '</li>';
   }
 
@@ -1206,6 +1215,32 @@
         settle();
       }
     }, TASK_COMPLETE_DWELL_MS);
+  }
+
+  // [Tasks] Direct task delete per trash-bin.md: soft-delete + eager re-render +
+  // a 5-second Undo toast — no confirmation modal (the trash bin + Undo are the
+  // safety net). Undo restores the task (deletedAt -> null) and re-renders. Used
+  // by the row trash icon and the task context-menu Delete (goal delete keeps
+  // its confirm modal — goals cascade).
+  async function deleteTaskWithUndo(taskId) {
+    if (!taskId) return;
+    try {
+      await Storage.deleteTask(data, taskId);
+    } catch (err) {
+      console.error("[LaunchPad] Tasks tab: deleteTask failed", err);
+      return;
+    }
+    var panel = document.getElementById("tab-tasks");
+    if (panel) renderTasksTab(panel, data);
+    showUndoToast("Deleted. Restore from Trash within 30 days.", async function () {
+      try {
+        await Storage.restoreTask(data, taskId);
+      } catch (err2) {
+        console.error("[LaunchPad] Tasks tab: restoreTask failed", err2);
+      }
+      var p = document.getElementById("tab-tasks");
+      if (p) renderTasksTab(p, data);
+    }, 5000);
   }
 
   function renderTasksTab(panel, d) {
@@ -1530,6 +1565,17 @@
         var dueTaskId = duePill.getAttribute("data-task-id");
         var currentYmd = duePill.getAttribute("data-due") || "";
         if (dueTaskId) openDueDatePillPopover(duePill, dueTaskId, currentYmd);
+        return;
+      }
+
+      // [Tasks] Task-row trash → direct soft-delete + Undo toast (no confirm
+      // modal), per trash-bin.md.
+      var trashBtn = target.closest && target.closest(".tt-task-trash");
+      if (trashBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var trashTaskId = trashBtn.getAttribute("data-task-id");
+        if (trashTaskId) deleteTaskWithUndo(trashTaskId);
         return;
       }
 
@@ -2651,16 +2697,9 @@
         }
         if (panel) renderTasksTab(panel, data);
       } else if (action === "delete") {
-        openTasksConfirmModal({
-          title: "Delete task?",
-          message: 'Delete task "' + task.name + '"?',
-          confirmLabel: "Delete",
-          dangerous: true,
-          onConfirm: async function () {
-            await Storage.deleteTask(data, taskId);
-            if (panel) renderTasksTab(panel, data);
-          }
-        });
+        // Per trash-bin.md, regular task delete is direct (soft-delete + Undo
+        // toast), no confirm modal — same flow as the row trash icon.
+        deleteTaskWithUndo(taskId);
       }
     });
 
@@ -5344,6 +5383,38 @@
     toast._timer = setTimeout(function () {
       toast.classList.remove("visible");
     }, durationMs || 3000);
+  }
+
+  // Toast with an Undo action link and a fixed lifetime (default 5s). Reuses the
+  // single #open-all-toast surface; rebuilds its content each call (textContent
+  // ="" drops any prior message/undo button, so a newer toast cleanly replaces
+  // an older one). onUndo fires only if Undo is clicked before the toast hides.
+  function showUndoToast(message, onUndo, durationMs) {
+    var toast = $("#open-all-toast");
+    if (!toast) return;
+    var dur = durationMs || 5000;
+    toast.textContent = "";
+    var msg = document.createElement("span");
+    msg.className = "toast-message";
+    msg.textContent = message;
+    var undo = document.createElement("button");
+    undo.type = "button";
+    undo.className = "toast-undo";
+    undo.textContent = "Undo";
+    toast.appendChild(msg);
+    toast.appendChild(undo);
+    toast.classList.add("visible");
+    clearTimeout(toast._timer);
+    var handled = false;
+    var hide = function () { toast.classList.remove("visible"); };
+    toast._timer = setTimeout(hide, dur);
+    undo.addEventListener("click", function () {
+      if (handled) return;      // guard against a double-click after hide
+      handled = true;
+      clearTimeout(toast._timer);
+      hide();
+      if (typeof onUndo === "function") onUndo();
+    });
   }
 
   async function exportBackup() {
