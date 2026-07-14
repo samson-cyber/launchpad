@@ -179,6 +179,8 @@ Run before publishing any console-based verification snippet (the kind written f
 
 - **J4. Cleanup is non-negotiable.** Whichever pattern is used, the snippet must restore the original `Storage.saveAll` at the end. Leaving `Storage.saveAll = async () => {}` dangling in a live tab silently breaks all subsequent CRUD until the page reloads.
 
+- **J5. Storage is stateless-by-argument — thread `data` through every call.** Storage holds no data of its own. Every console session begins `const data = await Storage.getAll()`, then threads `data` (and `Storage.getActiveWorkspace(data)`) into every read: `getAllTasks(ws)`, `getAllGoals(ws)`, `getAllRecurringTemplates(ws)`, `getActiveWorkspace(data)`. Argless calls return `[]` or `null`, NOT errors that explain themselves. Mutations on the fetched object persist via `await Storage.saveAll(data)`. Console writes through `saveAll` count as same-tab writes: the write-provenance gate suppresses the re-render, so the UI may show stale state (e.g. a stale Paused chip) until the next full render — storage is correct, force a render before suspecting a bug. Three separate verification sessions on 2026-07-14 tripped on this pattern from different sides.
+
 Originating data points: [1.0.10] commit 2f00d01 and [1.0.10.1] commit 71eafe0 — both shipped verification snippets that used the spy pattern despite explicit "stub `Storage.saveAll`" instruction in their PLANs. The "Storage changed externally" observation in J2 surfaced during [1.0.10] Phase A verification on 2026-05-10 and forced the broader stub-plus-backup pattern as the canonical answer.
 
 ---
