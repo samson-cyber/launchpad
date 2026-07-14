@@ -1470,11 +1470,30 @@
       }
     });
 
-    // Right-click on goal card opens the context menu. The handler ignores
-    // events that originate inside a text input so native browser context
-    // menus on inline-edit / add-task inputs continue to work.
+    // Right-click on a task row or goal card opens the matching context menu.
+    // The handler ignores events that originate inside a text input so native
+    // browser context menus on inline-edit / add-task inputs continue to work.
     panel.addEventListener("contextmenu", function (e) {
       if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
+
+      // Task row MUST be resolved before the goal card. A .tt-task-row LI is
+      // nested inside its parent .tt-goal-card, so a bare closest(".tt-goal-card")
+      // walks up from the clicked task to the goal and opens the goal menu with
+      // the goal's id — the reported bug (Delete on a task said "Delete goal").
+      // Checking the task row first binds the menu to the clicked task instead.
+      var taskRow = e.target && e.target.closest && e.target.closest(".tt-task-row");
+      if (taskRow) {
+        // Rows inside a completed (read-only) goal card defer to the native
+        // menu, mirroring the is-completed rule for goal cards below.
+        var ownerCard = taskRow.closest(".tt-goal-card");
+        if (ownerCard && ownerCard.classList.contains("is-completed")) return;
+        var taskId = taskRow.getAttribute("data-task-id");
+        if (!taskId) return;
+        e.preventDefault();
+        openTaskContextMenu(e.clientX, e.clientY, taskId);
+        return;
+      }
+
       var card = e.target && e.target.closest && e.target.closest(".tt-goal-card");
       if (!card) return;
       // Completed-section cards are read-only; let the native menu through.
@@ -2370,6 +2389,88 @@
 
     // Outside click closes the menu (delayed so the same click that opened
     // it doesn't immediately close it).
+    tasksContextMenuOutsideHandler = function (e) {
+      if (!menu.contains(e.target)) closeGoalContextMenu();
+    };
+    setTimeout(function () {
+      document.addEventListener("click", tasksContextMenuOutsideHandler, true);
+    }, 0);
+
+    tasksContextMenuEscapeHandler = function (e) {
+      if (e.key === "Escape") closeGoalContextMenu();
+    };
+    document.addEventListener("keydown", tasksContextMenuEscapeHandler);
+  }
+
+  // Task-row context menu. Mirrors openGoalContextMenu's lifecycle (single
+  // instance via closeGoalContextMenu, viewport-guarded positioning, outside-
+  // click + Escape dismissal) but every action is bound to the clicked TASK's
+  // id. Actions use existing Storage task CRUD; none touch goal records. The
+  // complete/reactivate label reflects the task's current completion state.
+  function openTaskContextMenu(x, y, taskId) {
+    closeGoalContextMenu();
+    if (!taskId) return;
+    var workspace = Storage.getActiveWorkspace(data);
+    var task = workspace && Storage.getTaskById(workspace, taskId);
+    if (!task) return;
+    var completeLabel = task.completed ? "Reactivate" : "Mark complete";
+    var menu = document.createElement("div");
+    menu.className = "tt-context-menu";
+    menu.innerHTML =
+      '<button type="button" class="tt-ctx-item" data-action="edit">Edit</button>' +
+      '<button type="button" class="tt-ctx-item" data-action="duplicate">Duplicate</button>' +
+      '<button type="button" class="tt-ctx-item" data-action="toggle-complete">' + escapeHtml(completeLabel) + '</button>' +
+      '<div class="tt-ctx-separator"></div>' +
+      '<button type="button" class="tt-ctx-item tt-ctx-danger" data-action="delete">Delete</button>';
+    document.body.appendChild(menu);
+
+    var w = menu.offsetWidth;
+    var h = menu.offsetHeight;
+    var px = Math.max(8, Math.min(x, window.innerWidth - w - 8));
+    var py = Math.max(8, Math.min(y, window.innerHeight - h - 8));
+    menu.style.left = px + "px";
+    menu.style.top = py + "px";
+
+    tasksContextMenuEl = menu;
+
+    menu.addEventListener("click", async function (e) {
+      var btn = e.target && e.target.closest && e.target.closest(".tt-ctx-item");
+      if (!btn) return;
+      var action = btn.getAttribute("data-action");
+      closeGoalContextMenu();
+      var panel = document.getElementById("tab-tasks");
+      if (action === "edit") {
+        // Inline rename on the live row's name span — same affordance as
+        // clicking the name directly (startTaskNameEdit).
+        var span = panel && panel.querySelector('.tt-task-row[data-task-id="' + taskId + '"] .tt-task-name');
+        if (span && span.tagName === "SPAN") startTaskNameEdit(span, taskId);
+      } else if (action === "duplicate") {
+        await Storage.duplicateTask(data, taskId);
+        if (panel) renderTasksTab(panel, data);
+      } else if (action === "toggle-complete") {
+        // Re-read completion at click time so the correct branch runs even if
+        // it changed since the menu opened.
+        var ws2 = Storage.getActiveWorkspace(data);
+        var t2 = ws2 && Storage.getTaskById(ws2, taskId);
+        if (t2) {
+          if (t2.completed) await Storage.reactivateTask(data, taskId);
+          else await Storage.completeTask(data, taskId);
+        }
+        if (panel) renderTasksTab(panel, data);
+      } else if (action === "delete") {
+        openTasksConfirmModal({
+          title: "Delete task?",
+          message: 'Delete task "' + task.name + '"?',
+          confirmLabel: "Delete",
+          dangerous: true,
+          onConfirm: async function () {
+            await Storage.deleteTask(data, taskId);
+            if (panel) renderTasksTab(panel, data);
+          }
+        });
+      }
+    });
+
     tasksContextMenuOutsideHandler = function (e) {
       if (!menu.contains(e.target)) closeGoalContextMenu();
     };
