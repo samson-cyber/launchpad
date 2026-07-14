@@ -1424,11 +1424,14 @@
     }
 
     // [Tasks] Opportunistic trash cleanup before the Deleted box renders
-    // (trash-bin.md). purgeExpiredTrash splices expired goals/tasks
-    // SYNCHRONOUSLY (before its first await) and only writes when it removed
-    // something, so this un-awaited call has already mutated `workspace`'s arrays
-    // by the time getDeleted*/getCompleted* read them just below — and does not
-    // amplify storage writes on the common no-op render.
+    // (trash-bin.md). [Trash] purgeExpiredTrash now sweeps ALL collections across
+    // ALL workspaces (groups/bookmarks/goals/tasks/tags/recurring+goal
+    // templates), but still SYNCHRONOUSLY (before its first await) and only writes
+    // when it removed something — so this un-awaited call has already mutated the
+    // active workspace's arrays by the time getDeleted*/getCompleted* read them
+    // just below, and it does not amplify storage writes on the common no-op
+    // render. The daily 'trash-purge' alarm (background.js) covers Chrome-open
+    // overnight; this covers the moment the user opens Tasks.
     Storage.purgeExpiredTrash(d);
 
     // [1.0.14] Opportunistic recurring sweep on Tasks-tab render (D2). Mirrors

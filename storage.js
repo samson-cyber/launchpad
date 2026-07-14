@@ -1345,37 +1345,99 @@ var Storage = (function () {
   var TRASH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
   /**
-   * Opportunistic trash cleanup for the Tasks-tab surface: hard-remove goals and
-   * tasks in the given (or active) workspace whose deletedAt is older than 30
-   * days, before the Deleted box renders. This is the "opportunistic cleanup on
-   * trash view open" from trash-bin.md, scoped to the two types this surface
-   * shows; the full daily cross-type, cross-workspace alarm sweep (groups,
-   * bookmarks, tags, other workspaces) is a separate Backlog task.
+   * [Trash] Full trash auto-purge (trash-bin.md Auto-Purge). Hard-removes every
+   * soft-deleted item whose deletedAt is older than 30 days, across ALL
+   * workspaces and ALL collections: groups (+ their groupOrder entry), bookmarks
+   * (shortcuts inside surviving groups, and their variants), goals, tasks,
+   * recurring templates, goal templates, and tags. When a tag purges, its id is
+   * cleaned out of every item's tagIds array (groups, shortcuts, tasks,
+   * recurring templates) and any goal.autoTagId pointing at it, in the same
+   * batch — matching the spec's "remove the tag's ID from all items' tagIds
+   * arrays" step.
    *
-   * The array splices run SYNCHRONOUSLY (before the first await), so a caller
-   * that invokes this without awaiting still reads the purged arrays on the very
-   * next line. saveAll only runs when something was actually removed, so calling
-   * this on every render does not amplify writes. @returns {Promise<number>}
-   * count removed.
+   * Runs from two places (D2/render + the daily 'trash-purge' alarm). All array
+   * splices execute SYNCHRONOUSLY before the single awaited saveAll, so the
+   * un-awaited opportunistic render-path caller still reads purged arrays on the
+   * next line. saveAll only runs when something was removed — no write
+   * amplification on the common no-op render. @returns {Promise<number>} count
+   * of purged items (tagIds cleanup is not counted).
    */
-  async function purgeExpiredTrash(data, workspaceId) {
-    var ws = resolveWorkspaceFromData(data, workspaceId);
-    if (!ws) return 0;
+  async function purgeExpiredTrash(data) {
+    if (!data || !Array.isArray(data.workspaces)) return 0;
     var cutoff = Date.now() - TRASH_TTL_MS;
     var removed = 0;
     var expired = function (item) {
       return item && item.deletedAt != null && item.deletedAt < cutoff;
     };
-    if (Array.isArray(ws.goals)) {
-      for (var gi = ws.goals.length - 1; gi >= 0; gi--) {
-        if (expired(ws.goals[gi])) { ws.goals.splice(gi, 1); removed++; }
+
+    data.workspaces.forEach(function (ws) {
+      if (!ws) return;
+      var purgedTagIds = {};
+
+      // Groups (+ groupOrder), then bookmarks/variants inside surviving groups.
+      if (Array.isArray(ws.groups)) {
+        for (var gi = ws.groups.length - 1; gi >= 0; gi--) {
+          var group = ws.groups[gi];
+          if (expired(group)) {
+            if (Array.isArray(ws.groupOrder)) {
+              var oi = ws.groupOrder.indexOf(group.id);
+              if (oi !== -1) ws.groupOrder.splice(oi, 1);
+            }
+            ws.groups.splice(gi, 1);
+            removed++;
+            continue;
+          }
+          if (Array.isArray(group.shortcuts)) {
+            for (var si = group.shortcuts.length - 1; si >= 0; si--) {
+              var sc = group.shortcuts[si];
+              if (expired(sc)) { group.shortcuts.splice(si, 1); removed++; continue; }
+              if (Array.isArray(sc.variants)) {
+                for (var vi = sc.variants.length - 1; vi >= 0; vi--) {
+                  if (expired(sc.variants[vi])) { sc.variants.splice(vi, 1); removed++; }
+                }
+              }
+            }
+          }
+        }
       }
-    }
-    if (Array.isArray(ws.tasks)) {
-      for (var ti = ws.tasks.length - 1; ti >= 0; ti--) {
-        if (expired(ws.tasks[ti])) { ws.tasks.splice(ti, 1); removed++; }
+
+      // Simple per-workspace collections.
+      ["goals", "tasks", "recurringTemplates", "goalTemplates"].forEach(function (key) {
+        var arr = ws[key];
+        if (!Array.isArray(arr)) return;
+        for (var i = arr.length - 1; i >= 0; i--) {
+          if (expired(arr[i])) { arr.splice(i, 1); removed++; }
+        }
+      });
+
+      // Tags — purge + record ids so their references can be cleaned.
+      if (Array.isArray(ws.tags)) {
+        for (var tgi = ws.tags.length - 1; tgi >= 0; tgi--) {
+          var tag = ws.tags[tgi];
+          if (expired(tag)) { purgedTagIds[tag.id] = true; ws.tags.splice(tgi, 1); removed++; }
+        }
       }
-    }
+
+      // Batch-clean purged tag ids out of every tagIds array + goal auto-tags.
+      if (Object.keys(purgedTagIds).length) {
+        var cleanTagIds = function (arr) {
+          if (!Array.isArray(arr)) return;
+          for (var k = arr.length - 1; k >= 0; k--) {
+            if (purgedTagIds[arr[k]]) arr.splice(k, 1);
+          }
+        };
+        (ws.groups || []).forEach(function (g) {
+          cleanTagIds(g.tagIds);
+          (g.shortcuts || []).forEach(function (s) { cleanTagIds(s.tagIds); });
+        });
+        (ws.tasks || []).forEach(function (t) { cleanTagIds(t.tagIds); });
+        (ws.recurringTemplates || []).forEach(function (t) { cleanTagIds(t.tagIds); });
+        (ws.goals || []).forEach(function (g) {
+          if (g.autoTagId && purgedTagIds[g.autoTagId]) g.autoTagId = null;
+        });
+      }
+    });
+
     if (removed > 0) {
       await saveAll(data);
       console.log("[LaunchPad] Trash purge removed " + removed + " expired item(s)");

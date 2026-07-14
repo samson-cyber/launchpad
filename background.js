@@ -42,6 +42,23 @@ async function runRecurringSweepBg() {
   }
 }
 
+// [Trash] Daily 30-day trash auto-purge — mirrors the recurring-sweep pattern
+// exactly: a stateless handler (reads storage, runs the shared
+// Storage.purgeExpiredTrash which does all removals in one saveAll, no
+// module-level mutable state), fired by a named daily alarm (~03:00 local, the
+// same anchor as recurring-sweep) plus a catch-up on install/startup. The Tasks
+// tab's opportunistic render-path call to the same function is unchanged.
+var TRASH_PURGE_ALARM = "trash-purge";
+
+async function runTrashPurgeBg() {
+  try {
+    var data = await Storage.getAll();
+    await Storage.purgeExpiredTrash(data); // saveAll's + logs the count internally when it removes anything
+  } catch (err) {
+    console.error("[LaunchPad] Trash purge failed:", err);
+  }
+}
+
 async function runProReconcile() {
   try {
     var data = await Storage.getAll();
@@ -237,19 +254,23 @@ chrome.runtime.onInstalled.addListener(function () {
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
   chrome.alarms.create(PRO_RECONCILE_ALARM, { periodInMinutes: PRO_RECONCILE_PERIOD_MINUTES });
   chrome.alarms.create(RECURRING_SWEEP_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
+  chrome.alarms.create(TRASH_PURGE_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
   saveCurrentSession();
   runProReconcile();
   runRecurringSweepBg();
+  runTrashPurgeBg();
 });
 chrome.runtime.onStartup.addListener(function () {
   requestContextMenuRebuild();
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
   chrome.alarms.create(PRO_RECONCILE_ALARM, { periodInMinutes: PRO_RECONCILE_PERIOD_MINUTES });
   chrome.alarms.create(RECURRING_SWEEP_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
+  chrome.alarms.create(TRASH_PURGE_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
   saveCurrentSession();
   pruneOldSessions();
   runProReconcile();
   runRecurringSweepBg();
+  runTrashPurgeBg();
 });
 
 chrome.storage.onChanged.addListener(function (changes) {
@@ -361,6 +382,8 @@ chrome.alarms.onAlarm.addListener(function (alarm) {
     runProReconcile();
   } else if (alarm.name === RECURRING_SWEEP_ALARM) {
     runRecurringSweepBg();
+  } else if (alarm.name === TRASH_PURGE_ALARM) {
+    runTrashPurgeBg();
   }
 });
 
