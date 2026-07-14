@@ -7359,6 +7359,29 @@ html.has-bg.bg-light .pro-preview-banner-text {
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+  /* [Tasks] Sticky action header — pins the title + filter/sort bar + the three
+     +New buttons to the top of the .tasks-tab scroll container so they stay
+     reachable while the goals list scrolls. position: sticky works because the
+     container structure already allows it: .tasks-tab is the overflow-y:auto
+     scroller and .tasks-header is its first child. The big centered logo lives
+     in the shared #content-header ABOVE the scroller and is intentionally NOT
+     pinned (it stays put; pinning/reclaiming it would mean restructuring the
+     shared header — see the task's follow-up note). Negative margins bleed the
+     frosted background out to the scroll container's padding edges and up to its
+     top edge, so no scrolled content peeks above the pinned header; the matching
+     padding restores the content inset. z-index sits above the scrolling section
+     cards (which carry no z-index) but far below the body-level popovers /
+     context menus (.tt-context-menu, 10501) and modals (.tt-modal-overlay,
+     10500), which remain on top. */
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: -24px -28px 0;
+  padding: 24px 28px 16px;
+  background: var(--pro-frost-floater-bg);
+  backdrop-filter: var(--pro-frost-floater-blur);
+  -webkit-backdrop-filter: var(--pro-frost-floater-blur);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .tasks-header-left {
