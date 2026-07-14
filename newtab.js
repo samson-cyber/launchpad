@@ -1080,7 +1080,12 @@
         '</div>' +
       '</header>' +
       '<div class="tt-goal-progress">' +
-        '<div class="tt-progress-bar"><div class="tt-progress-fill" style="width:' + pct + '%"></div></div>' +
+        '<div class="tt-progress-bar">' +
+          '<span class="tt-progress-pct tt-progress-pct-base" aria-hidden="true">' + pct + '%</span>' +
+          '<div class="tt-progress-fill" style="width:' + pct + '%">' +
+            '<span class="tt-progress-pct tt-progress-pct-fill" aria-hidden="true">' + pct + '%</span>' +
+          '</div>' +
+        '</div>' +
         '<span class="tt-progress-text">' + doneCount + ' of ' + totalCount + ' task' + (totalCount === 1 ? "" : "s") + ' complete</span>' +
       '</div>' +
       bodyHtml +
@@ -1225,6 +1230,16 @@
     var prevScroller = panel.querySelector(".tasks-tab");
     var savedScrollTop = prevScroller ? prevScroller.scrollTop : 0;
 
+    // [Polish] Capture each goal's current progress-fill width so the freshly
+    // rendered card can animate from the old value to the new one — a plain CSS
+    // width transition can't fire on the recreated element. Mirrors savedScrollTop.
+    var prevFillWidth = {};
+    [].forEach.call(panel.querySelectorAll(".tt-goal-card"), function (card) {
+      var gid = card.getAttribute("data-goal-id");
+      var f = card.querySelector(".tt-progress-fill");
+      if (gid && f && f.style.width) prevFillWidth[gid] = f.style.width;
+    });
+
     var workspace = Storage.getActiveWorkspace(d);
     if (!workspace) {
       panel.innerHTML = '<div class="tasks-tab-empty">No active workspace.</div>';
@@ -1358,6 +1373,34 @@
     // delegated click/change handlers). The old element — and its listener — is
     // discarded with the innerHTML rewrite above, so this never stacks.
     bindTasksScrollCondense(newScroller);
+
+    // [Polish] Animate each changed goal's progress fill from its previous width
+    // to the new one. Set the old width with transitions off, then (after two
+    // frames so the start value is committed) restore the CSS transition and set
+    // the target — the fill's inner % reveal follows the width via overflow.
+    var fillAnims = [];
+    [].forEach.call(panel.querySelectorAll(".tt-goal-card"), function (card) {
+      var gid = card.getAttribute("data-goal-id");
+      var f = gid && card.querySelector(".tt-progress-fill");
+      if (!f) return;
+      var target = f.style.width;
+      var prev = prevFillWidth[gid];
+      if (prev != null && prev !== "" && prev !== target) {
+        f.style.transition = "none";
+        f.style.width = prev;
+        fillAnims.push({ f: f, target: target });
+      }
+    });
+    if (fillAnims.length) {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          fillAnims.forEach(function (a) {
+            a.f.style.transition = "";
+            a.f.style.width = a.target;
+          });
+        });
+      });
+    }
   }
 
   // [Tasks] Toggle the condensed sticky-band state on #content as the Tasks

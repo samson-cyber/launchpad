@@ -7624,16 +7624,54 @@ html.has-bg.bg-light .pro-preview-banner-text {
 
 .tt-progress-bar {
   flex: 1;
-  height: 6px;
-  border-radius: 3px;
+  /* ~2x the old 6px so a centered % reads legibly. */
+  height: 14px;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.1);
   overflow: hidden;
+  position: relative;
+  /* Lets the in-fill % span the full bar width (100cqw) so it stays centered
+     over the BAR while being revealed by the fill's overflow. */
+  container-type: inline-size;
 }
 
 .tt-progress-fill {
   height: 100%;
   background: linear-gradient(90deg, #4a90e2 0%, #6fb1ff 100%);
-  transition: width 0.25s ease;
+  transition: width 0.4s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Centered percentage, legible over BOTH the filled and unfilled halves via a
+   dual-layer clip: a base copy (contrasts the track) sits under the fill; a
+   second copy INSIDE the fill (contrasts the blue) is revealed by the fill's
+   overflow as it grows, so the reveal stays perfectly synced to the width
+   animation. text-shadow:none keeps the small digits crisp (they get contrast
+   from the layering, not a halo). aria-hidden — the adjacent "X of Y tasks
+   complete" text carries the value for assistive tech. */
+.tt-progress-pct {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: none;
+}
+.tt-progress-pct-base {
+  width: 100%;
+  color: rgba(255, 255, 255, 0.92);
+}
+.tt-progress-pct-fill {
+  width: 100cqw;
+  color: rgba(0, 0, 0, 0.82);
 }
 
 .tt-progress-text {
@@ -8135,6 +8173,12 @@ html.has-bg.bg-light .tt-goal-card {
 
 html.has-bg.bg-light .tt-progress-bar {
   background: rgba(0, 0, 0, 0.08);
+}
+
+/* Light wallpaper: the track is light, so the base (unfilled-half) % needs a
+   dark ink. The in-fill % stays dark on the blue fill (theme-independent). */
+html.has-bg.bg-light .tt-progress-pct-base {
+  color: rgba(0, 0, 0, 0.72);
 }
 
 html.has-bg.bg-light .tt-overdue-badge {
