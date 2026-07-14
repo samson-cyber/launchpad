@@ -46,6 +46,7 @@ Paid tier. Pricing: **$4.99/mo or $39/year** (annual ~$3.25/mo). See `SPECS/pro-
 - **Task completion = the dopamine moment** — deliberate animation + subtle sound (opt-in)
 
 #### Tracking Engine
+- Ships capture-first: capture/attribution/retention pre-launch ([1.0.25]/[1.0.26], sequenced before [1.0.16]/[1.0.17]); analytics UI including Day Recap content and Deep Diver ships v2.1 — see SPECS/tracking-engine.md and DECISIONS 2026-07-07.
 - Tab focus tracking via `chrome.tabs.onActivated`, `onUpdated`, `chrome.windows.onFocusChanged`
 - Idle handling via `chrome.idle`
 - URL → bookmark → tag mapping

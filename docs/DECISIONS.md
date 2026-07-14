@@ -894,3 +894,32 @@ Complements the Git Configuration section of CLAUDE.md.
 - Pomodoro has a placeholder but no dependency forcing it pre-launch; deferring it keeps the 10-week build shippable without stranding any shipped code.
 
 **Supersedes:** Partially amends 2026-04-24 "Ship Pro and free tab-bar update as one release" — the no-intermediate-release outcome line only, not the tab-bar bundling reasoning, which stands.
+
+---
+
+## 2026-07-07 — Tracking engine ships capture-first: capture + attribution + retention pre-launch, analytics UI v2.1
+
+**Context:** The tracking engine had zero scoped tasks, yet the Pro value proposition names Deep Work Time as its primary metric — the engine is the sole source of that number. The Experience area's Phase 1 was scoped "tracking-light," which left two untenable poles. Launching with no engine guts the paid value proposition: the headline metric would have no data behind it on day one. Launching with a full engine (capture + analytics UI) adds an estimated 3–5 high-risk weeks to the pre-launch runway. This entry scopes a middle path and creates the tasks to build it.
+
+**Alternatives considered:**
+- **Full engine + analytics UI pre-launch** — rejected. Longest runway, and the analytics UI cannot be de-risked the way capture already has been: the April prototype (commit `7ff8af8`) validated the capture architecture, but no equivalent prototype exists for the charts, Day Recap content, or badge surfaces. Building all of that on the critical path to launch is the highest-risk option for the least launch-day conversion value.
+- **Everything post-launch** — rejected. Tracking data has a hard cold-start: it only exists from the moment the engine runs. Every week the engine is absent is a week of user history that never exists, and Insights would open empty for every launch buyer when v2.1 arrives.
+- **Capture pre-launch, analytics v2.1** — chosen. Data accrues from day one; the v2.1 analytics arrive pre-populated with real history rather than a blank slate.
+
+**Outcome:**
+- `[1.0.25]` (capture core) and `[1.0.26]` (attribution / aggregation / retention) created, **sequenced BEFORE `[1.0.16]` / `[1.0.17]`** — those tasks' acceptance criteria are engine behaviors, so the engine must exist first.
+- One thin user-facing surface — "Today: Xh Ym focused" — folded into `[1.0.20]` (Dashboard shell). No other analytics UI ships pre-launch.
+- `Tracking.debugSummary()` console helper for observability during the capture phase.
+- Idle detection interval fixed at 60s in v1 (not configurable).
+- Per-workspace `trackingEnabled`, default ON, with a visible toggle at workspace creation and in the Pro Settings workspaces list. This **partially supersedes** the 2026-04-24 "Personal workspace default off" mechanic: the per-type default is replaced by visible per-workspace control now that workspaces are generic containers.
+- Session records store **domain only, never full URLs.**
+- Per-day aggregate keys use the **local calendar day**, deliberately contrasted with UTC-normalized task due dates (the `[1.0.13]` lesson); the contrast is documented in the spec and to be documented in code comments.
+- **Achievements redefined:** Consistency and Variety compute on task/goal data; Deep Diver is deferred to v2.1 (it needs tracking analytics). Result: 4 of 5 badges launch.
+
+**Reasoning:**
+- Capture is the de-risked half — the prototype already validated the hard part (write-per-event, storage-durable state, orphan reconciliation), so putting it pre-launch buys the cold-start fix at the lowest architectural risk.
+- The cold-start property is decisive: it is the one part of the analytics story that cannot be added retroactively. Charts can ship late; the history they chart cannot be back-filled.
+- Folding a single "Today" line into the Dashboard gives launch buyers a visible, honest signal that tracking is working, without dragging the full Insights UI onto the critical path.
+- Redefining achievements so 4 of 5 launch keeps the badge set coherent without forcing Deep Diver's analytics dependency into the pre-launch build.
+
+**Supersedes:** Partially supersedes the 2026-04-24 Work/Personal tracking-defaults entries — the **default mechanics only** (per-type on/off defaults, replaced by per-workspace `trackingEnabled`). The privacy principle (attribute by tag, store domain only, local-only, no third-party analytics) and the local-only stance are **reaffirmed**, not superseded.
