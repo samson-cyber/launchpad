@@ -1141,7 +1141,7 @@
 
   // Task-completion celebration timing (see the "Completion Celebrations →
   // Task completion" subsection of docs/SPECS/tasks-and-goals.md).
-  var TASK_COMPLETE_DWELL_MS = 900;   // in-place green-tint acknowledgment
+  var TASK_COMPLETE_DWELL_MS = 1500;  // in-place green fill sweep across the row
   var TASK_COMPLETE_LEAVE_MS = 300;   // fade/slide for rows that leave to Completed
 
   // Animate a just-completed task row, then settle the panel. completeTask has
@@ -1185,7 +1185,10 @@
     // greys in place inside its still-active goal card.
     var leavesView = !task || task.goalId == null || goalAutoCompleted;
 
-    // 150ms checkmark pop + green-tint/dimmed dwell begin together.
+    // 150ms checkmark pop + the left→right green fill sweep begin together.
+    // Feed the dwell length to the CSS sweep so its duration tracks this one
+    // constant (see .tt-task-row.tt-completing::before).
+    row.style.setProperty("--tt-complete-dwell", TASK_COMPLETE_DWELL_MS + "ms");
     row.classList.add("tt-completing");
 
     setTimeout(function () {
