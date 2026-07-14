@@ -8394,6 +8394,27 @@ html.has-bg.bg-light .tasks-tab {
   text-shadow: none;
 }
 
+/* [Polish] Compact Pro-tab nav pill on light wallpapers. The base pill
+   (rgba(30,30,30,0.5) + white tab text at 0.7 opacity) washes out to a pale
+   grey pill with faint text on a light page. Scoped to #content-header.is-compact
+   so ONLY the Pro-tab compact band is affected — the Home hero nav (shared
+   #tab-bar) is deliberately untouched (out of scope). A near-opaque dark pill
+   keeps the dark-pill identity + the white active-tab highlight legible, and the
+   inactive tabs get a firmer resting opacity. */
+html.has-bg.bg-light #content-header.is-compact #tab-bar {
+  background: rgba(38, 38, 38, 0.88);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.22);
+}
+
+html.has-bg.bg-light #content-header.is-compact .tab {
+  opacity: 0.85;
+}
+
+html.has-bg.bg-light #content-header.is-compact .tab:hover,
+html.has-bg.bg-light #content-header.is-compact .tab.active {
+  opacity: 1;
+}
+
 /* [Tasks v3] Dark scrollbar thumb on light wallpapers, where the light thumb
    would wash out. */
 html.has-bg.bg-light .tasks-body {
