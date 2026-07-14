@@ -78,34 +78,10 @@ body {
   padding-bottom: 16px;
   position: relative;
   z-index: 2;
-  /* [Tasks] Smooth the height change when switching to Tasks (reduced at-rest
-     header) and when the header condenses on scroll. */
-  transition: padding-top 0.28s ease, padding-bottom 0.28s ease;
 }
 
 #content-header::after {
   display: none;
-}
-
-/* [Tasks] Sticky-band header. On the Tasks tab the tall 25vh logo area is
-   reduced at rest (reclaims canvas), and once the goals list scrolls the whole
-   shared header condenses into a compact frosted bar so the nav (logo shrinks
-   away, tab bar stays) and the pinned Tasks action row read as ONE cohesive
-   band with no gap. Scoped to data-active-tab="tasks" so Home / other tabs keep
-   the original full-height header. The .tasks-header-condensed class is set by
-   bindTasksScrollCondense and cleared when leaving Tasks. */
-#content[data-active-tab="tasks"] #content-header {
-  padding-top: 7vh;
-}
-#content[data-active-tab="tasks"].tasks-header-condensed #content-header {
-  padding-top: 10px;
-  padding-bottom: 10px;
-  /* Full-width frosted bar so nothing scrolls through between the tab bar and
-     the pinned Tasks action row. Snaps in (no background transition) so there
-     is never a semi-transparent frame during the height animation. */
-  background: var(--pro-frost-floater-bg);
-  -webkit-backdrop-filter: var(--pro-frost-floater-blur);
-  backdrop-filter: var(--pro-frost-floater-blur);
 }
 
 #brand-logo {
@@ -114,17 +90,6 @@ body {
   gap: 12px;
   margin-bottom: 16px;
   user-select: none;
-  /* [Tasks] Collapsible for the condensed header (max-height so it animates). */
-  max-height: 80px;
-  overflow: hidden;
-  transition: max-height 0.28s ease, opacity 0.2s ease, margin-bottom 0.28s ease, transform 0.28s ease;
-}
-#content[data-active-tab="tasks"].tasks-header-condensed #brand-logo {
-  max-height: 0;
-  opacity: 0;
-  margin-bottom: 0;
-  transform: translateY(-6px);
-  pointer-events: none;
 }
 
 /* ===== Tab Bar ===== */
@@ -7387,17 +7352,11 @@ html.has-bg.bg-light .pro-preview-banner-text {
   flex: 1;
   min-height: 0;
   align-self: stretch;
-  /* [Tasks] No top padding: the sticky .tasks-header owns the top spacing and
-     pins flush at scrollTop 0. (v1 kept 24px here + a -24px header margin, which
-     left a strip where scrolled content bled above the pinned bar.) */
-  padding: 0 28px 40px;
+  padding: 24px 28px 40px;
   gap: 20px;
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   overflow-y: auto;
-  /* Guard the header's full-bleed side margins from ever spawning a horizontal
-     scrollbar (Tasks never scrolls horizontally). */
-  overflow-x: hidden;
   /* [1.0.11.16] D4 fix — disable browser scroll anchoring on the Tasks tab
      scroll container. The drop's DOM mutation + same-tab render rebuild
      can shift the layout enough that the browser's anchor-keeping heuristic
@@ -7415,30 +7374,6 @@ html.has-bg.bg-light .pro-preview-banner-text {
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  /* [Tasks] Sticky action row — the lower half of the cohesive top band (the
-     condensed nav is the upper half; see #content-header above). Pins the title
-     + filter/sort bar + the three +New buttons at the top of the .tasks-tab
-     scroller so they stay reachable as the goals list scrolls. position: sticky
-     works because .tasks-tab is the overflow-y:auto scroller and .tasks-header
-     is its first child, and it pins FLUSH under the condensed nav (both share
-     the Floater frost) with no gap for content to bleed through.
-
-     margin: 0 -28px bleeds the frost out to the scroll container's left/right
-     padding edges (full width). There is deliberately NO negative TOP margin
-     (v1 had -24px, which left a strip where scrolled content showed above the
-     bar); with .tasks-tab's top padding removed, top:0 pins the header cleanly
-     at the scroller top with nothing above it. z-index sits above the scrolling
-     section cards (no z-index) but far below the body-level popovers / context
-     menus (.tt-context-menu, 10501) and modals (.tt-modal-overlay, 10500). */
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  margin: 0 -28px;
-  padding: 18px 28px 16px;
-  background: var(--pro-frost-floater-bg);
-  backdrop-filter: var(--pro-frost-floater-blur);
-  -webkit-backdrop-filter: var(--pro-frost-floater-blur);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .tasks-header-left {
