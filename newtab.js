@@ -303,6 +303,25 @@
   function setActiveTab(id) {
     if (TAB_IDS.indexOf(id) === -1) id = "home";
     activeTab = id;
+    // [Tasks] Scope the sticky-band header CSS to the active tab. data-active-tab
+    // drives the reduced at-rest header height on Tasks; the condensed class is
+    // Tasks-only, so drop it when leaving so the shared header returns to its
+    // full-height layout on Home / other tabs.
+    var contentElForTab = document.getElementById("content");
+    if (contentElForTab) {
+      contentElForTab.setAttribute("data-active-tab", id);
+      if (id !== "tasks") {
+        contentElForTab.classList.remove("tasks-header-condensed");
+      } else {
+        // Re-derive the condensed state on return: the tab may have been left
+        // scrolled, and no scroll event fires just from re-showing the panel.
+        var tasksScroller = contentElForTab.querySelector(".tasks-tab");
+        contentElForTab.classList.toggle(
+          "tasks-header-condensed",
+          !!tasksScroller && tasksScroller.scrollTop > CONDENSE_ON_PX
+        );
+      }
+    }
     TAB_IDS.forEach(function (t) {
       var btn = document.querySelector('.tab[data-tab="' + t + '"]');
       var panel = document.getElementById("tab-" + t);
@@ -1331,6 +1350,41 @@
     if (newScroller && savedScrollTop) {
       newScroller.scrollTop = savedScrollTop;
     }
+    // [Tasks] (Re)bind the scroll-condense listener to the freshly-rendered
+    // .tasks-tab (scroll doesn't bubble, so it can't live on the panel like the
+    // delegated click/change handlers). The old element — and its listener — is
+    // discarded with the innerHTML rewrite above, so this never stacks.
+    bindTasksScrollCondense(newScroller);
+  }
+
+  // [Tasks] Toggle the condensed sticky-band state on #content as the Tasks
+  // scroll container scrolls. Once past the goals list starts to move, the
+  // shared header condenses (logo collapses, nav becomes a compact frosted bar)
+  // so the pinned title/filter/+New band sits flush at the top and reclaims the
+  // vertical space the tall at-rest logo area was using. rAF-throttled with a
+  // small hysteresis band so a restored scroll position or a near-boundary
+  // content height doesn't flip-flop. Evaluated once immediately so a restored
+  // scrollTop lands in the right state without waiting for a scroll event.
+  var CONDENSE_ON_PX = 8;
+  var CONDENSE_OFF_PX = 3;
+  function bindTasksScrollCondense(scroller) {
+    var contentEl = document.getElementById("content");
+    if (!contentEl) return;
+    if (!scroller) { contentEl.classList.remove("tasks-header-condensed"); return; }
+    var ticking = false;
+    var apply = function () {
+      ticking = false;
+      var st = scroller.scrollTop;
+      var on = contentEl.classList.contains("tasks-header-condensed");
+      if (!on && st > CONDENSE_ON_PX) contentEl.classList.add("tasks-header-condensed");
+      else if (on && st < CONDENSE_OFF_PX) contentEl.classList.remove("tasks-header-condensed");
+    };
+    scroller.addEventListener("scroll", function () {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(apply);
+    });
+    apply();
   }
 
   function bindTasksTabEvents(panel) {
