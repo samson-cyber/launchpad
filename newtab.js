@@ -1242,14 +1242,15 @@
     if (panel.dataset.tasksDragActive === "true") return;
 
     // [1.0.11.17] D4 v2 — scroll position survival across panel rebuild.
-    // The panel.innerHTML below replaces the old .tasks-tab element with a
+    // The panel.innerHTML below replaces the old scroll container with a
     // new one whose scrollTop starts at 0. overflow-anchor: none (added
     // in [1.0.11.16]) only addresses the in-place anchor heuristic; it does
     // nothing for full DOM replacement. Capture the current scroll position
-    // from the OLD .tasks-tab before the rewrite, restore on the NEW one
-    // after. Defensive: optional-chain via `?` since pre-first-render the
-    // panel has no .tasks-tab yet.
-    var prevScroller = panel.querySelector(".tasks-tab");
+    // from the OLD scroller before the rewrite, restore on the NEW one after.
+    // [Tasks v3] The scroller is now .tasks-body (the fixed .tasks-header no
+    // longer scrolls); pre-v3 this read .tasks-tab. Defensive: null-guard since
+    // pre-first-render the panel has no .tasks-body yet.
+    var prevScroller = panel.querySelector(".tasks-body");
     var savedScrollTop = prevScroller ? prevScroller.scrollTop : 0;
 
     // [Polish] Capture each goal's current progress-fill width so the freshly
@@ -1382,11 +1383,11 @@
     bindTasksTabEvents(panel);
     bindTasksTabSortables(panel, d);
 
-    // [1.0.11.17] D4 v2 — restore scrollTop on the fresh .tasks-tab. If the
+    // [1.0.11.17] D4 v2 — restore scrollTop on the fresh scroller. If the
     // saved value exceeds the new scrollHeight (e.g., a tab with fewer items
     // after the change), the browser clamps automatically, which is the
-    // desired behavior.
-    var newScroller = panel.querySelector(".tasks-tab");
+    // desired behavior. [Tasks v3] scroller is now .tasks-body.
+    var newScroller = panel.querySelector(".tasks-body");
     if (newScroller && savedScrollTop) {
       newScroller.scrollTop = savedScrollTop;
     }
@@ -1428,6 +1429,21 @@
     // handlers working against the freshly-rendered children.
     if (panel.dataset.tasksTabBound === "1") return;
     panel.dataset.tasksTabBound = "1";
+
+    // [Tasks v3] Close any open Tasks popover/context menu when the inner
+    // scroll region (.tasks-body) scrolls. Those menus are body-mounted and
+    // position:fixed (mountTasksPopover / openTaskContextMenu / openGoal
+    // ContextMenu), so an overflow ancestor cannot clip them — but their
+    // fixed position is computed once from the trigger's viewport rect, so on
+    // inner scroll the trigger row moves out from under them. Closing (rather
+    // than repositioning) matches the transient nature of these menus and the
+    // existing outside-click/Escape dismissal. Bound once with capture:true
+    // because scroll events do not bubble — the capture phase still delivers
+    // the .tasks-body scroll to this panel-level listener, so it survives the
+    // per-render innerHTML rewrite that recreates .tasks-body.
+    panel.addEventListener("scroll", function () {
+      closeGoalContextMenu();
+    }, true);
 
     panel.addEventListener("change", async function (e) {
       var target = e.target;
@@ -1803,10 +1819,11 @@
     // Sortables share the same explicit reference. SortableJS's scroll
     // auto-detect walks up parents looking for overflow:auto/scroll, but
     // the path here (.tt-goal-tasks → .tt-goal-card → .tt-goal-list →
-    // .tt-active-goals-section → .tasks-tab) was not reliably picked up
+    // .tt-active-goals-section → the scroller) was not reliably picked up
     // during D8 verification — auto-scroll near the viewport edge did not
-    // fire. Passing the .tasks-tab element directly bypasses detection.
-    var scrollContainerEl = panel.querySelector(".tasks-tab");
+    // fire. Passing the scroll element directly bypasses detection.
+    // [Tasks v3] The scroller is now .tasks-body (was .tasks-tab pre-v3).
+    var scrollContainerEl = panel.querySelector(".tasks-body");
 
     taskListEls.forEach(function (taskListEl) {
       var s = new Sortable(taskListEl, {

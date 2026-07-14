@@ -7352,23 +7352,22 @@ html.has-bg.bg-light .pro-preview-banner-text {
   flex: 1;
   min-height: 0;
   align-self: stretch;
-  padding: 24px 28px 40px;
+  padding: 24px 0 0;
   gap: 20px;
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-  overflow-y: auto;
-  /* [1.0.11.16] D4 fix — disable browser scroll anchoring on the Tasks tab
-     scroll container. The drop's DOM mutation + same-tab render rebuild
-     can shift the layout enough that the browser's anchor-keeping heuristic
-     resets scroll to the top. LaunchPad never inserts content above the
-     viewport in this container (renderTasksTab is full-rebuild, top-down),
-     so anchoring has no useful work to do here. Precedent: [1.0.11.13]
-     applied the same fix on #shortcut-grid-area for the sidebar-expand
-     scroll-shift bug. */
-  overflow-anchor: none;
+  /* [Tasks v3] Fixed page chrome + inner scroll region. .tasks-tab itself no
+     longer scrolls — it lays out the fixed .tasks-header above the .tasks-body
+     scroller. The header keeps its transparent presentation and stays put; only
+     .tasks-body (Active Goals down) scrolls. Horizontal + bottom padding moved
+     onto .tasks-header and .tasks-body so the body's scrollbar sits flush at the
+     panel's right edge (as it did when .tasks-tab was the scroller). */
+  overflow: hidden;
 }
 
 .tasks-header {
+  flex-shrink: 0;
+  padding: 0 28px;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -7466,9 +7465,42 @@ html.has-bg.bg-light .pro-preview-banner-text {
 .tasks-templates-link:hover { opacity: 0.85; }
 
 .tasks-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0 28px 40px;
   display: flex;
   flex-direction: column;
   gap: 18px;
+  overflow-y: auto;
+  /* [Tasks v3] The inner scroll region. Fills the viewport height left by the
+     fixed chrome via flex (flex:1 + min-height:0 up the chain) — no calc or
+     hard-coded chrome height, so it adapts to logo/tab height and resize.
+     overflow-anchor:none keeps the full-rebuild render from snapping scroll to
+     top; moved here from .tasks-tab, same rationale as [1.0.11.16]. */
+  overflow-anchor: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+/* [Tasks v3] Subtle inner-region scrollbar. Light thumb because .tasks-body
+   scrolls over the wallpaper (transparent chrome, white body text); mirrors the
+   thin/rounded/transparent-track treatment of the other inner scroll panels
+   (#recently-closed-list, .rc-panel-list). Light-wallpaper override below. */
+.tasks-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.tasks-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tasks-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+}
+
+.tasks-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .tt-section {
@@ -8150,6 +8182,20 @@ html.has-bg.bg-light .tt-task-trash:hover { color: #d0021b; background: rgba(208
 html.has-bg.bg-light .tasks-tab {
   color: #1f1f1f;
   text-shadow: none;
+}
+
+/* [Tasks v3] Dark scrollbar thumb on light wallpapers, where the light thumb
+   would wash out. */
+html.has-bg.bg-light .tasks-body {
+  scrollbar-color: rgba(0, 0, 0, 0.22) transparent;
+}
+
+html.has-bg.bg-light .tasks-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+html.has-bg.bg-light .tasks-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.32);
 }
 
 html.has-bg.bg-light .tt-section {
