@@ -2551,42 +2551,45 @@
             overlay.querySelector(".tt-modal-primary").click();
           }
         });
-        // [1.0.15] Template pick → prefill the (still-editable) name. [Polish] The
-        // deadline comes from the template's offset at instantiation, so instead
-        // of silently disabling the date input (which read as broken), swap it for
-        // a read-only COMPUTED deadline with provenance. "None" restores the
-        // normal editable date input. Display only — onPrimary's branch on the
-        // selected template id is unchanged.
+        // [1.0.15] Template pick → prefill the (still-editable) name. [Polish]
+        // Deadline handling depends on whether the template OWNS a deadline:
+        //   - offset present → the template's date wins, so show it read-only in
+        //     human phrasing ("20 Jul 2026 · set by this template");
+        //   - offset null → the template doesn't define a deadline, so leave the
+        //     ordinary editable date input (identical to blank-goal creation) —
+        //     no lock, no message;
+        //   - selection cleared → also the ordinary editable input.
         var tplSelect = overlay.querySelector(".tt-goal-template");
         var deadlineInput = overlay.querySelector(".tt-goal-deadline-input");
         var deadlineComputed = overlay.querySelector(".tt-goal-deadline-computed");
 
-        function computedDeadlineText(offsetDays) {
-          if (offsetDays == null) return "No deadline (template has no offset)";
+        // "20 Jul 2026" from a whole-day offset off today (UTC calendar day) —
+        // the exact UTC-midnight date instantiation will set.
+        var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        function templateDeadlineLabel(offsetDays) {
           var now = new Date();
-          var epoch = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) + offsetDays * 86400000;
-          var dt = new Date(epoch);
-          var pad = function (n) { return (n < 10 ? "0" : "") + n; };
-          var dmy = pad(dt.getUTCDate()) + "/" + pad(dt.getUTCMonth() + 1) + "/" + dt.getUTCFullYear();
-          return dmy + " (from template: +" + offsetDays + " day" + (offsetDays === 1 ? "" : "s") + ")";
+          var dt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) + offsetDays * 86400000);
+          return dt.getUTCDate() + " " + MONTHS[dt.getUTCMonth()] + " " + dt.getUTCFullYear() + " · set by this template";
+        }
+        function showEditableDeadline() {
+          deadlineComputed.classList.add("hidden");
+          deadlineComputed.textContent = "";
+          deadlineInput.classList.remove("hidden");
         }
 
         if (tplSelect && !tplSelect.disabled && deadlineInput && deadlineComputed) {
           tplSelect.addEventListener("change", function () {
             var ws2 = Storage.getActiveWorkspace(data);
             var tpl = tplSelect.value && ws2 ? Storage.getGoalTemplateById(ws2, tplSelect.value) : null;
-            if (tpl) {
-              nameInput.value = tpl.name;
-              deadlineComputed.textContent = computedDeadlineText(
-                typeof tpl.deadlineOffsetDays === "number" ? tpl.deadlineOffsetDays : null
-              );
+            if (tpl) nameInput.value = tpl.name;
+            if (tpl && typeof tpl.deadlineOffsetDays === "number") {
+              // Template owns the deadline → read-only computed date.
+              deadlineComputed.textContent = templateDeadlineLabel(tpl.deadlineOffsetDays);
               deadlineInput.classList.add("hidden");
               deadlineComputed.classList.remove("hidden");
             } else {
-              // "From template" cleared → back to the editable date input.
-              deadlineComputed.classList.add("hidden");
-              deadlineComputed.textContent = "";
-              deadlineInput.classList.remove("hidden");
+              // No template, or template without an offset → ordinary date input.
+              showEditableDeadline();
             }
           });
         }
@@ -2630,10 +2633,14 @@
           var tplSel = overlay.querySelector(".tt-goal-template");
           var templateId = tplSel && !tplSel.disabled ? tplSel.value : "";
           if (templateId) {
-            // [1.0.15] D3 — instantiate: goal (deadline from template offset) +
-            // auto-tag + child tasks, one saveAll. Name may be user-edited.
+            // [1.0.15] D3 — instantiate: goal + auto-tag + child tasks, one
+            // saveAll. Name may be user-edited. [Polish] Pass the editable
+            // deadline; Storage applies it ONLY when the template has no offset
+            // (an offset always wins), so for an offset template the hidden
+            // input's value is ignored.
             var inst = await Storage.instantiateGoalTemplate(data, templateId, {
               name: name,
+              deadlineAt: deadlineAt,
               autoCreateTag: !!(autoTagInput && autoTagInput.checked)
             });
             if (!inst) { showModalError(errorEl, "Could not create goal from template."); return false; }

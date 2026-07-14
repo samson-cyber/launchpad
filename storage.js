@@ -2716,10 +2716,20 @@ var Storage = (function () {
       return null;
     }
 
+    // Deadline: the template's offset ALWAYS wins when present (UTC-midnight of
+    // today + offset). Only when the template has NO offset does an explicit
+    // opts.deadlineAt apply (the new-goal modal keeps its editable date field in
+    // that case) — expected to already be a UTC-midnight epoch or null.
+    if (o.deadlineAt !== undefined && o.deadlineAt !== null && typeof o.deadlineAt !== "number") {
+      console.warn("[LaunchPad] instantiateGoalTemplate: deadlineAt must be a number or null");
+      return null;
+    }
     var now = Date.now();
     var deadlineAt = null;
     if (isValidOffsetDays(tpl.deadlineOffsetDays) && tpl.deadlineOffsetDays !== null) {
       deadlineAt = recurUtcMidnight(now) + tpl.deadlineOffsetDays * RECUR_DAY_MS;
+    } else if (typeof o.deadlineAt === "number") {
+      deadlineAt = o.deadlineAt;
     }
 
     var goals = ensureGoalsArray(ws);
