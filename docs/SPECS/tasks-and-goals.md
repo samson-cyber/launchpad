@@ -417,13 +417,13 @@ Deleting template trashes the template. Existing instances remain as individual 
 ### Creation
 
 - Right-click active goal → "Save as template" — captures name, description, deadline-offset (computed from now), current task list
-- Pro Settings → Templates → "New template" — blank form
+- Tasks banner → Templates panel → "New template" — blank form
 
 Form fields: template name, optional description, optional deadline offset in days, ordered task list (name + optional priority each).
 
 ### Management
 
-Pro Settings → Templates section lists all templates. Rename, edit, delete, duplicate.
+The Tasks-banner **Templates** panel lists all templates. Rename, edit, delete, duplicate. (Moved from Pro Settings → Templates per the per-tab surfaces philosophy, DECISIONS 2026-07-14.)
 
 ### Instantiation
 

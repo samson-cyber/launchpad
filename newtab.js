@@ -2499,13 +2499,28 @@
         '<input type="checkbox" class="tt-goal-autotag" checked>' +
         '<span>Auto-create tag from goal name</span>' +
       '</label>';
-    var templateBlock = isEdit ? "" :
-      '<div class="tt-modal-row">' +
-        '<label class="tt-modal-label">From template</label>' +
-        '<select class="tt-goal-template" disabled>' +
-          '<option>(Templates available in 1.0.15)</option>' +
-        '</select>' +
-      '</div>';
+    // [1.0.15] D3 — instantiation entry point. Populate the "From template"
+    // select with the workspace's active goal templates; picking one prefills
+    // the name (still editable) and, on Create, instantiates instead of a blank
+    // goal. Disabled with an empty-state option when no templates exist.
+    var templateBlock = "";
+    if (!isEdit) {
+      var tplWs = Storage.getActiveWorkspace(data);
+      var tpls = tplWs ? Storage.getActiveGoalTemplates(tplWs).slice().sort(function (a, b) {
+        return (a.createdAt || 0) - (b.createdAt || 0);
+      }) : [];
+      var tplOptions = tpls.length
+        ? '<option value="">— None (blank goal) —</option>' +
+            tpls.map(function (t) { return '<option value="' + escapeHtml(t.id) + '">' + escapeHtml(t.name) + '</option>'; }).join("")
+        : '<option value="">No templates yet</option>';
+      templateBlock =
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-goal-template-select">From template</label>' +
+          '<select id="tt-goal-template-select" class="tt-goal-template"' + (tpls.length ? "" : " disabled") + '>' +
+            tplOptions +
+          '</select>' +
+        '</div>';
+    }
 
     openTasksModal({
       title: isEdit ? "Edit goal" : "New goal",
@@ -2530,6 +2545,23 @@
             overlay.querySelector(".tt-modal-primary").click();
           }
         });
+        // [1.0.15] Template pick → prefill the (still-editable) name and disable
+        // the deadline field (a template's deadline comes from its offset at
+        // instantiation, not this date input). "None" restores blank-goal input.
+        var tplSelect = overlay.querySelector(".tt-goal-template");
+        var deadlineInput = overlay.querySelector(".tt-goal-deadline-input");
+        if (tplSelect && !tplSelect.disabled) {
+          tplSelect.addEventListener("change", function () {
+            var ws2 = Storage.getActiveWorkspace(data);
+            var tpl = tplSelect.value && ws2 ? Storage.getGoalTemplateById(ws2, tplSelect.value) : null;
+            if (tpl) {
+              nameInput.value = tpl.name;
+              if (deadlineInput) { deadlineInput.value = ""; deadlineInput.disabled = true; }
+            } else if (deadlineInput) {
+              deadlineInput.disabled = false;
+            }
+          });
+        }
       },
       onPrimary: async function (overlay) {
         var nameInput = overlay.querySelector(".tt-goal-name-input");
@@ -2567,9 +2599,21 @@
           if (!renamed) { showModalError(errorEl, "Could not rename goal."); return false; }
           await Storage.updateGoalDeadline(data, existingGoal.id, deadlineAt);
         } else {
-          var fields = { name: name, deadlineAt: deadlineAt, autoCreateTag: !!(autoTagInput && autoTagInput.checked) };
-          var created = await Storage.createGoal(data, fields);
-          if (!created) { showModalError(errorEl, "Could not create goal."); return false; }
+          var tplSel = overlay.querySelector(".tt-goal-template");
+          var templateId = tplSel && !tplSel.disabled ? tplSel.value : "";
+          if (templateId) {
+            // [1.0.15] D3 — instantiate: goal (deadline from template offset) +
+            // auto-tag + child tasks, one saveAll. Name may be user-edited.
+            var inst = await Storage.instantiateGoalTemplate(data, templateId, {
+              name: name,
+              autoCreateTag: !!(autoTagInput && autoTagInput.checked)
+            });
+            if (!inst) { showModalError(errorEl, "Could not create goal from template."); return false; }
+          } else {
+            var fields = { name: name, deadlineAt: deadlineAt, autoCreateTag: !!(autoTagInput && autoTagInput.checked) };
+            var created = await Storage.createGoal(data, fields);
+            if (!created) { showModalError(errorEl, "Could not create goal."); return false; }
+          }
         }
         var panel = document.getElementById("tab-tasks");
         if (panel) renderTasksTab(panel, data);
@@ -2813,17 +2857,220 @@
   }
 
   // ----- Templates panel (stub) -----
-  function openTemplatesPanel() {
-    openTasksModal({
-      title: "Goal templates",
-      bodyHtml:
-        '<div class="tt-templates-empty">' +
+  // [1.0.15] Goal templates management panel (the Tasks-banner "Templates"
+  // link). Lists the workspace's goal templates with hover Edit / Duplicate /
+  // Delete and a "New template" button; Edit/New open the editor modal (which
+  // reopens this panel on close). Duplicate/Delete act in place and re-render
+  // the list. Soft-delete, no confirm (consistent with task delete), Undo toast.
+  var GOAL_TPL_PRIORITIES = [["", "None"], ["low", "Low"], ["medium", "Medium"], ["high", "High"], ["urgent", "Urgent"]];
+
+  function goalTemplateOffsetSummary(tpl) {
+    if (tpl.deadlineOffsetDays == null) return "no deadline";
+    var d = tpl.deadlineOffsetDays;
+    return d === 0 ? "due same day" : "due +" + d + " day" + (d === 1 ? "" : "s");
+  }
+
+  function goalTemplateListHtml(workspace) {
+    var tpls = (workspace ? Storage.getActiveGoalTemplates(workspace) : []).slice().sort(function (a, b) {
+      return (a.createdAt || 0) - (b.createdAt || 0);
+    });
+    if (!tpls.length) {
+      return '<div class="tt-templates-empty">' +
           '<div class="tt-templates-empty-title">No templates yet</div>' +
-          '<div class="tt-templates-empty-sub">Save a goal as a template to get started. Full templates management lands in 1.0.15.</div>' +
-        '</div>',
+          '<div class="tt-templates-empty-sub">Right-click an active goal → “Save as template”, or create one below.</div>' +
+        '</div>';
+    }
+    return '<ul class="tt-tpl-list">' + tpls.map(function (tpl) {
+      var n = Array.isArray(tpl.taskList) ? tpl.taskList.length : 0;
+      return '<li class="tt-tpl-row" data-template-id="' + escapeHtml(tpl.id) + '">' +
+          '<div class="tt-tpl-row-main">' +
+            '<span class="tt-tpl-name" title="' + escapeHtml(tpl.name) + '">' + escapeHtml(tpl.name) + '</span>' +
+            '<span class="tt-tpl-meta">' + n + ' task' + (n === 1 ? "" : "s") + ' · ' + escapeHtml(goalTemplateOffsetSummary(tpl)) + '</span>' +
+          '</div>' +
+          '<span class="tt-tpl-actions">' +
+            '<button type="button" class="tt-tpl-btn" data-action="edit">Edit</button>' +
+            '<button type="button" class="tt-tpl-btn" data-action="duplicate">Duplicate</button>' +
+            '<button type="button" class="tt-tpl-btn tt-tpl-btn-danger" data-action="delete">Delete</button>' +
+          '</span>' +
+        '</li>';
+    }).join("") + '</ul>';
+  }
+
+  function templatesPanelBodyHtml(workspace) {
+    return '<div class="tt-tpl-panel-body">' +
+        goalTemplateListHtml(workspace) +
+        '<button type="button" class="tt-tpl-new-btn">+ New template</button>' +
+      '</div>';
+  }
+
+  function refreshTemplatesPanel(overlay) {
+    var body = overlay.querySelector(".tt-tpl-panel-body");
+    if (body) body.innerHTML = "";
+    var fresh = templatesPanelBodyHtml(Storage.getActiveWorkspace(data));
+    // Replace the whole body region's inner HTML (list + button).
+    var wrapper = overlay.querySelector(".tt-modal-body");
+    if (wrapper) wrapper.innerHTML = fresh;
+  }
+
+  function openTemplatesPanel() {
+    var overlay = openTasksModal({
+      title: "Goal templates",
+      bodyHtml: templatesPanelBodyHtml(Storage.getActiveWorkspace(data)),
       primaryLabel: "Close",
       defaultFocus: "primary",
-      onPrimary: function () { /* close */ }
+      onMounted: function (ov) {
+        // Delegated on the modal body so it survives in-place list re-renders.
+        var body = ov.querySelector(".tt-modal-body");
+        if (!body) return;
+        body.addEventListener("click", async function (e) {
+          var newBtn = e.target.closest && e.target.closest(".tt-tpl-new-btn");
+          if (newBtn) {
+            // Defer so this panel's close (from the editor's openTasksModal)
+            // doesn't race the editor opening.
+            openGoalTemplateEditModal(null);
+            return;
+          }
+          var actionBtn = e.target.closest && e.target.closest(".tt-tpl-btn");
+          if (!actionBtn) return;
+          var row = actionBtn.closest(".tt-tpl-row");
+          if (!row) return;
+          var templateId = row.getAttribute("data-template-id");
+          var action = actionBtn.getAttribute("data-action");
+          var ws = Storage.getActiveWorkspace(data);
+          var tpl = ws && Storage.getGoalTemplateById(ws, templateId);
+          if (!tpl) return;
+          if (action === "edit") {
+            openGoalTemplateEditModal(tpl);
+          } else if (action === "duplicate") {
+            await Storage.duplicateGoalTemplate(data, templateId);
+            refreshTemplatesPanel(ov);
+          } else if (action === "delete") {
+            await Storage.deleteGoalTemplate(data, templateId);
+            refreshTemplatesPanel(ov);
+            showUndoToast('Template "' + tpl.name + '" deleted.', async function () {
+              // Restore = clear deletedAt (no dedicated restore fn; templates
+              // have no Deleted-box surface in v1).
+              var ws2 = Storage.getActiveWorkspace(data);
+              var arr = ws2 && ws2.goalTemplates;
+              var t = Array.isArray(arr) ? arr.find(function (x) { return x.id === templateId; }) : null;
+              if (t) { t.deletedAt = null; await Storage.saveAll(data); }
+              // Reopen the panel to reflect the restore (it may have been closed).
+              openTemplatesPanel();
+            }, 5000);
+          }
+        });
+      }
+    });
+    return overlay;
+  }
+
+  // [1.0.15] Goal-template editor — shared New/Edit. Fields: name, description,
+  // deadline offset (days; blank = no deadline), and a task-list editor (name +
+  // priority rows, add/remove, SortableJS reorder). Saving reopens the panel.
+  function openGoalTemplateEditModal(existing) {
+    var isEdit = !!existing;
+
+    function priorityOptions(sel) {
+      return GOAL_TPL_PRIORITIES.map(function (p) {
+        return '<option value="' + p[0] + '"' + (sel === p[0] ? " selected" : "") + '>' + p[1] + '</option>';
+      }).join("");
+    }
+    function taskRowHtml(name, priority) {
+      return '<li class="tt-tpl-task-row">' +
+          '<span class="tt-tpl-task-handle" aria-hidden="true" title="Drag to reorder">⠇</span>' +
+          '<input type="text" class="tt-tpl-task-name" maxlength="200" placeholder="Task name" value="' + escapeHtml(name || "") + '">' +
+          '<select class="tt-tpl-task-priority">' + priorityOptions(priority || "") + '</select>' +
+          '<button type="button" class="tt-tpl-task-remove" aria-label="Remove task">×</button>' +
+        '</li>';
+    }
+
+    var initTasks = (isEdit && Array.isArray(existing.taskList)) ? existing.taskList : [];
+    var offsetVal = (isEdit && typeof existing.deadlineOffsetDays === "number") ? existing.deadlineOffsetDays : "";
+
+    var reopen = function () { setTimeout(openTemplatesPanel, 0); };
+
+    openTasksModal({
+      title: isEdit ? "Edit template" : "New template",
+      primaryLabel: isEdit ? "Save" : "Create",
+      bodyHtml:
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-tpl-name">Name</label>' +
+          '<input type="text" id="tt-tpl-name" class="tt-tpl-name-input" maxlength="200" placeholder="Template name" autocomplete="off" spellcheck="false" value="' + (isEdit ? escapeHtml(existing.name) : "") + '">' +
+        '</div>' +
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-tpl-desc">Description</label>' +
+          '<input type="text" id="tt-tpl-desc" class="tt-tpl-desc-input" maxlength="500" placeholder="Optional" autocomplete="off" value="' + (isEdit ? escapeHtml(existing.description || "") : "") + '">' +
+        '</div>' +
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-tpl-offset">Deadline (days from creation)</label>' +
+          '<input type="number" id="tt-tpl-offset" class="tt-tpl-offset-input" min="0" step="1" placeholder="none" value="' + offsetVal + '">' +
+        '</div>' +
+        '<div class="tt-tpl-tasks-editor">' +
+          '<label class="tt-modal-label">Tasks</label>' +
+          '<ul class="tt-tpl-task-list">' + initTasks.map(function (t) { return taskRowHtml(t.name, t.priority); }).join("") + '</ul>' +
+          '<button type="button" class="tt-tpl-add-task">+ Add task</button>' +
+        '</div>' +
+        '<div class="tt-modal-error hidden" role="alert"></div>',
+      onMounted: function (overlay) {
+        var listEl = overlay.querySelector(".tt-tpl-task-list");
+        var addBtn = overlay.querySelector(".tt-tpl-add-task");
+        addBtn.addEventListener("click", function () {
+          listEl.insertAdjacentHTML("beforeend", taskRowHtml("", ""));
+          var last = listEl.lastElementChild;
+          var inp = last && last.querySelector(".tt-tpl-task-name");
+          if (inp) inp.focus();
+        });
+        listEl.addEventListener("click", function (e) {
+          var rm = e.target.closest && e.target.closest(".tt-tpl-task-remove");
+          if (rm) { var row = rm.closest(".tt-tpl-task-row"); if (row) row.remove(); }
+        });
+        if (typeof Sortable !== "undefined") {
+          new Sortable(listEl, {
+            handle: ".tt-tpl-task-handle",
+            draggable: ".tt-tpl-task-row",
+            animation: 150,
+            ghostClass: "sortable-ghost",
+            chosenClass: "sortable-chosen",
+            dragClass: "sortable-drag"
+          });
+        }
+      },
+      onPrimary: async function (overlay) {
+        var errorEl = overlay.querySelector(".tt-modal-error");
+        var name = (overlay.querySelector(".tt-tpl-name-input").value || "").trim();
+        if (!name) { showModalError(errorEl, "Name is required."); return false; }
+        var description = overlay.querySelector(".tt-tpl-desc-input").value || "";
+        var offsetRaw = overlay.querySelector(".tt-tpl-offset-input").value;
+        var offset = null;
+        if (offsetRaw !== "" && offsetRaw != null) {
+          var parsed = parseInt(offsetRaw, 10);
+          if (isNaN(parsed) || parsed < 0) { showModalError(errorEl, "Deadline days must be 0 or more (blank for none)."); return false; }
+          offset = parsed;
+        }
+        var taskList = [].slice.call(overlay.querySelectorAll(".tt-tpl-task-row")).map(function (row) {
+          return {
+            name: (row.querySelector(".tt-tpl-task-name").value || "").trim(),
+            priority: row.querySelector(".tt-tpl-task-priority").value || null
+          };
+        }).filter(function (t) { return t.name; });
+
+        var result;
+        if (isEdit) {
+          result = await Storage.renameGoalTemplate(data, existing.id, name);
+          if (result) {
+            await Storage.updateGoalTemplateDescription(data, existing.id, description);
+            await Storage.updateGoalTemplateOffset(data, existing.id, offset);
+            await Storage.updateGoalTemplateTaskList(data, existing.id, taskList);
+          }
+        } else {
+          result = await Storage.createGoalTemplate(data, {
+            name: name, description: description, deadlineOffsetDays: offset, taskList: taskList
+          });
+        }
+        if (!result) { showModalError(errorEl, "Could not save template."); return false; }
+        reopen();
+      },
+      onCancel: reopen
     });
   }
 
@@ -3022,7 +3269,14 @@
       if (action === "edit") {
         openEditGoalModal(goal);
       } else if (action === "save-template") {
-        showToast("Templates in 1.0.15");
+        // [1.0.15] D2 — capture name/description/deadline-offset + all live child
+        // tasks (name+priority) as a reusable goal template.
+        try {
+          var savedTpl = await Storage.saveGoalAsTemplate(data, goalId);
+          showToast(savedTpl ? 'Saved "' + goal.name + '" as a template' : "Could not save template");
+        } catch (err) {
+          console.error("[LaunchPad] Tasks: saveGoalAsTemplate failed", err);
+        }
       } else if (action === "complete") {
         await Storage.completeGoal(data, goalId);
         if (panel) renderTasksTab(panel, data);

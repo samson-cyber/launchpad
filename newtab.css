@@ -8951,6 +8951,170 @@ html.has-bg.bg-light .tt-task-handle:hover {
   line-height: 1.5;
 }
 
+/* ===== [1.0.15] Goal templates panel + editor ===== */
+
+.tt-tpl-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.tt-tpl-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.tt-tpl-row:hover { background: rgba(255, 255, 255, 0.06); }
+
+.tt-tpl-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tt-tpl-name {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tt-tpl-meta { font-size: 11px; opacity: 0.6; }
+
+.tt-tpl-actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.tt-tpl-row:hover .tt-tpl-actions,
+.tt-tpl-actions:focus-within { opacity: 1; }
+
+.tt-tpl-btn {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.tt-tpl-btn:hover { background: rgba(111, 177, 255, 0.2); border-color: rgba(111, 177, 255, 0.7); }
+.tt-tpl-btn-danger:hover { background: rgba(242, 86, 79, 0.2); border-color: rgba(242, 86, 79, 0.7); }
+
+.tt-tpl-new-btn {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  background: transparent;
+  color: #6fb1ff;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.tt-tpl-new-btn:hover { background: rgba(111, 177, 255, 0.1); border-color: rgba(111, 177, 255, 0.5); }
+
+/* Editor task-list rows */
+.tt-tpl-tasks-editor { margin-top: 4px; }
+
+.tt-tpl-task-list {
+  list-style: none;
+  margin: 6px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.tt-tpl-task-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tt-tpl-task-handle {
+  flex-shrink: 0;
+  cursor: grab;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 14px;
+  user-select: none;
+}
+
+.tt-tpl-task-name { flex: 1; min-width: 0; }
+.tt-tpl-task-priority { flex-shrink: 0; width: auto; }
+
+.tt-tpl-task-remove {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tt-tpl-task-remove:hover { color: #ff8a8a; border-color: rgba(242, 86, 79, 0.6); }
+
+.tt-tpl-add-task {
+  padding: 6px 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tt-tpl-add-task:hover { color: #fff; border-color: rgba(255, 255, 255, 0.3); }
+
+/* Light-wallpaper overrides (D6) */
+html.has-bg.bg-light .tt-tpl-row {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+html.has-bg.bg-light .tt-tpl-row:hover { background: rgba(0, 0, 0, 0.05); }
+html.has-bg.bg-light .tt-tpl-btn {
+  color: #1f1f1f;
+  border-color: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.05);
+}
+html.has-bg.bg-light .tt-tpl-new-btn,
+html.has-bg.bg-light .tt-tpl-add-task { border-color: rgba(0, 0, 0, 0.2); }
+html.has-bg.bg-light .tt-tpl-add-task { color: rgba(0, 0, 0, 0.7); }
+html.has-bg.bg-light .tt-tpl-task-handle { color: rgba(0, 0, 0, 0.3); }
+html.has-bg.bg-light .tt-tpl-task-remove {
+  color: rgba(0, 0, 0, 0.6);
+  border-color: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.05);
+}
+
 /* Goal context menu — fixed positioned popup near the trigger. */
 .tt-context-menu {
   position: fixed;
