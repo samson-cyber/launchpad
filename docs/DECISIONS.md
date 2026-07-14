@@ -923,3 +923,22 @@ Complements the Git Configuration section of CLAUDE.md.
 - Redefining achievements so 4 of 5 launch keeps the badge set coherent without forcing Deep Diver's analytics dependency into the pre-launch build.
 
 **Supersedes:** Partially supersedes the 2026-04-24 Work/Personal tracking-defaults entries — the **default mechanics only** (per-type on/off defaults, replaced by per-workspace `trackingEnabled`). The privacy principle (attribute by tag, store domain only, local-only, no third-party analytics) and the local-only stance are **reaffirmed**, not superseded.
+
+---
+
+## 2026-07-14 — Trash surfaces are per-tab, not a single global panel (lifecycle unchanged)
+
+**Context:** `trash-bin.md` originally spec'd one global Trash panel, opened from an icon next to the Settings cog in the sidebar — a single surface listing deleted bookmarks, groups, goals, tasks, and tags. During the 2026-07-14 Tasks-tab UX iteration (task-row controls + direct trash-delete), restore discoverability surfaced as a real gap: a soft-deleted task had no visible recovery path once its 5-second Undo toast expired. Reviewing the fix, the global-panel model itself was judged unintuitive — recovering a task by navigating away to a different, separate surface breaks the in-context mental model of where the item lives. `notes.md` had already established the alternative pattern: a per-tab trash surface acting as the visual layer over the shared, universal soft-delete lifecycle. This entry ratifies that pattern for the whole system.
+
+**Alternatives considered:**
+- **One global Trash panel via the sidebar icon (original spec)** — rejected. Restore happens out of context: the user leaves the surface where the item lived to recover it, which reads as a separate "system utility" rather than an undo of a local action.
+- **Per-tab trash surfaces over the shared lifecycle** — chosen. Each surface exposes its own deleted items in place, so recovery stays where the deletion happened; the underlying soft-delete data layer is common to all of them.
+
+**Outcome:**
+- **Tasks tab** gets a **Deleted** box beside the existing **Completed** box — two boxes on one row — with per-item Restore, Delete Permanently (confirmed), and 30-day countdowns.
+- **Notes** keeps its spec'd per-tab trash can (per `notes.md`).
+- The **universal data layer is UNCHANGED**: the `deletedAt` field, 30-day auto-purge, restore semantics, Pro-downgrade rules, and the delete-moment toast with 5-second Undo all stand exactly as spec'd. Only the *surface* model changes — where deleted items are shown and recovered — not the lifecycle beneath it.
+
+**Named deferred gap:** With the global panel gone, **bookmarks and groups (the Home grid) lose their only planned restore surface.** A Home-grid trash surface is an **explicit backlog item, not a silent omission**. Until it ships, free-tier bookmark/group deletes are recoverable only via the 5-second Undo toast at the moment of deletion (the soft-delete + 30-day retention still happens underneath; there is simply no UI to browse or restore it yet). This is called out so the gap is tracked rather than discovered later.
+
+**Supersedes:** Supersedes the **"Trash View UX" surface model** of the 2026-04-24 universal trash bin entry (the single panel opened from a sidebar icon). The **universal-lifecycle outcome** of that entry — soft-delete via `deletedAt`, 30-day retention + auto-purge, restore/cascade/downgrade semantics — **stands unchanged.**

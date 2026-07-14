@@ -82,22 +82,19 @@ No confirmation modal on regular delete — the toast plus trash bin is the safe
 
 ---
 
-## Trash View UX
+## Trash Surfaces (per-tab)
 
-### Entry point
+> **Surface model superseded by DECISIONS 2026-07-14 — per-tab surfaces** (was a single global panel opened from a sidebar icon). The shared *lifecycle* below — Data Model, Deletion Flow, Restore Flow, Cascade, Auto-Purge, Downgrade — is unchanged; only where deleted items are shown and recovered changed. The item-row / countdown / empty-state design here is retained as shared guidance for each surface.
 
-An icon adjacent to the Settings cog in the sidebar. When trash contains items, a small badge shows the count. When empty, the icon is slightly dimmed.
+Trash is exposed **per surface**, as the visual layer over the shared soft-delete lifecycle — deleted items are shown and recovered in the context they lived in, not in one separate global panel. Recovery stays where the deletion happened.
 
-Clicking the icon opens the Trash View as a panel (same frosted glass aesthetic as other panels: `backdrop-filter: blur(12px); background: rgba(30,30,30,0.85)`).
+### Surfaces
 
-### Layout
+- **Tasks tab** — a **Deleted** box beside the existing **Completed** box (two boxes, one row). Lists soft-deleted tasks with per-item Restore, Delete Permanently (confirmed), and 30-day countdowns.
+- **Notes** — a per-tab trash can, per `notes.md`.
+- **Home grid (bookmarks / groups)** — **deferred**; no browse/restore surface yet. See DECISIONS 2026-07-14. Until it ships, Home-grid deletes are recoverable only via the delete-moment 5-second Undo toast (soft-delete + 30-day retention still happen underneath; there is just no UI to browse or restore them).
 
-- **Header**: "Trash" title, total count ("12 items"), "Empty Trash" button (right-aligned, with confirmation)
-- **Filter tabs**: All / Bookmarks / Groups / Goals / Tasks / Tags, with counts per tab
-- **Search bar**: matches item names across types
-- **Item list**: default sort is deletion date, newest first
-
-### Item row
+### Item row (shared design for each surface)
 
 - Type icon (left, 16px)
 - Item name (bold)
@@ -106,15 +103,13 @@ Clicking the icon opens the Trash View as a panel (same frosted glass aesthetic 
 - "X days remaining" countdown — subtle color shift (neutral → amber → red) as it approaches zero
 - Actions visible on hover: Restore, Delete Permanently
 
-### Bulk actions
+### Empty state (shared design)
 
-- Checkbox selection per item
-- Selecting items reveals a bulk action bar: "X selected", Restore Selected, Delete Permanently Selected
-- "Select All" at top of current filter view
+Per-surface centered message, e.g. "Nothing in the trash. Deleted items will appear here for 30 days before being permanently removed."
 
-### Empty state
+### Global panel — entry point, layout, bulk actions _(superseded by DECISIONS 2026-07-14 — per-tab surfaces)_
 
-Centered message: "Nothing in the trash. Deleted items will appear here for 30 days before being permanently removed."
+Retained as historical intent. The original single-surface design was: an icon adjacent to the Settings cog in the sidebar (count badge when non-empty, dimmed when empty) opening a frosted panel (`backdrop-filter: blur(12px); background: rgba(30,30,30,0.85)`) with a "Trash" header + total count + "Empty Trash" button; All / Bookmarks / Groups / Goals / Tasks / Tags filter tabs with per-tab counts; a cross-type search bar; a deletion-date-sorted list; and bulk actions (per-item checkbox selection, "Select All", a "X selected / Restore Selected / Delete Permanently Selected" bar). Per-surface equivalents (search, bulk select) may be revisited per surface if a surface needs them.
 
 ---
 
