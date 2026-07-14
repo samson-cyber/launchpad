@@ -78,6 +78,10 @@ body {
   padding-bottom: 16px;
   position: relative;
   z-index: 2;
+  /* [Experience] Hero <-> compact header transition (Home <-> Pro tab switch).
+     One-shot, driven only by the .is-compact class toggle in setActiveTab —
+     never scroll. */
+  transition: padding-top 220ms ease, padding-bottom 220ms ease;
 }
 
 #content-header::after {
@@ -90,6 +94,7 @@ body {
   gap: 12px;
   margin-bottom: 16px;
   user-select: none;
+  transition: gap 220ms ease, margin-bottom 220ms ease;
 }
 
 /* ===== Tab Bar ===== */
@@ -195,6 +200,11 @@ body {
 
 .brand-icon {
   flex-shrink: 0;
+  /* Explicit CSS size (matches the inline 28px attribute) so the compact state
+     can transition width/height to a smaller value. */
+  width: 28px;
+  height: 28px;
+  transition: width 220ms ease, height 220ms ease;
 }
 
 .brand-text {
@@ -202,6 +212,34 @@ body {
   font-weight: 300;
   letter-spacing: 1px;
   color: var(--text-secondary);
+  transition: font-size 220ms ease;
+}
+
+/* [Experience] Compact top-aligned header for Pro tabs (Tasks / Dashboard /
+   Insights, including free-user preview mode). Toggled by setActiveTab via the
+   .is-compact class on the shared, persistent #content-header; the transitions
+   declared on the elements above animate the hero <-> compact change in one shot
+   on tab switch (~220ms). Presentation stays transparent — only the #tab-bar
+   pill carries a background — consistent with the v3 fixed chrome. The reclaimed
+   height (25vh hero padding -> 14px) flows into the content region via the v3
+   flex chain (.tab-panel flex:1 -> .tasks-body scroller). */
+#content-header.is-compact {
+  padding-top: 14px;
+  padding-bottom: 10px;
+}
+
+#content-header.is-compact #brand-logo {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+#content-header.is-compact .brand-icon {
+  width: 22px;
+  height: 22px;
+}
+
+#content-header.is-compact .brand-text {
+  font-size: 20px;
 }
 
 #search-form {

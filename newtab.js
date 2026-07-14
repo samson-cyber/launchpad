@@ -304,6 +304,15 @@
   function setActiveTab(id) {
     if (TAB_IDS.indexOf(id) === -1) id = "home";
     activeTab = id;
+    // [Experience] Per-tab header layout (DECISIONS 2026-07-14, option B). Home
+    // keeps the centered hero; the Pro tabs (incl. free-user preview) get the
+    // compact top-aligned band. #content-header is a single persistent element
+    // shared across tabs (never re-rendered on switch), so toggling one class on
+    // it and letting CSS transition the size properties gives the smooth one-shot
+    // Home<->Pro animation with no FLIP, no scroll listeners. The v3 flex chain
+    // absorbs the reclaimed height into the content region automatically.
+    var header = document.getElementById("content-header");
+    if (header) header.classList.toggle("is-compact", PRO_TAB_IDS.indexOf(id) !== -1);
     TAB_IDS.forEach(function (t) {
       var btn = document.querySelector('.tab[data-tab="' + t + '"]');
       var panel = document.getElementById("tab-" + t);
