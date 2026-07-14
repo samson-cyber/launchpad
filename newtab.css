@@ -7779,6 +7779,12 @@ html.has-bg.bg-light .pro-preview-banner-text {
   gap: 6px;
 }
 .tt-due-popover-actions .tt-ctx-item {
+  /* Reset the vertical-menu width:100% inherited from .tt-ctx-item. In this
+     flex row (justify-content: flex-end) two 100%-wide buttons overflow the
+     container, pushing Clear (the first item) out past the left edge — the
+     reported "Clear renders outside the popover" bug. Auto width lets both
+     size to content and sit inside the footer, right-aligned with the gap. */
+  width: auto;
   flex: 0 0 auto;
   padding: 6px 12px;
   border-radius: 6px;
@@ -8443,7 +8449,11 @@ html.has-bg.bg-light .tt-task-handle:hover {
   display: flex;
   flex-direction: column;
   color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  /* No text-shadow: menu/popover text sits on the near-opaque frosted Menu-tier
+     surface (--pro-frost-menu-bg, ~0.95 alpha), so the shadow added blur, not
+     legibility — the glow reported on the due-popover Set/Clear buttons and, as
+     siblings, on the goal/task/priority/filter menu items. The light-wallpaper
+     override already sets text-shadow: none. */
 }
 
 .tt-ctx-item {
