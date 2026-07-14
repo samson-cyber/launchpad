@@ -838,21 +838,22 @@
   }
 
   // [1.0.13.1] Clickable due-date pill on each task row. Mirrors the priority
-  // pill: tinted + labelled (UTC-formatted date) when a due date is set, a
-  // muted calendar-only affordance when null (still a click target so an
-  // undated task can gain a date — the spec's "click due date -> date picker"
-  // presumes something to click). data-due carries the YYYY-MM-DD so the
-  // popover can prefill without a storage lookup. Opens openDueDatePillPopover.
+  // pill: tinted + labelled (UTC-formatted date) when a due date is set. When
+  // null, a muted "add date" pill (calendar glyph + "Add date" text) so the
+  // affordance is legible — the spec's "click due date -> date picker" presumes
+  // something to click. data-due carries the YYYY-MM-DD so the popover can
+  // prefill without a storage lookup. Opens openDueDatePillPopover.
   function dueDatePillHtml(task) {
     var has = typeof task.dueAt === "number";
     var cls = "tt-due-pill" + (has ? "" : " tt-due-none");
     var label = has ? fmtShortDateUTC(task.dueAt) : "";
     var ymd = has ? ymdFromTs(task.dueAt) : "";
-    var aria = has ? ("Due " + label + " — click to change") : "Set due date";
+    var aria = has ? ("Due " + label + " — click to change") : "Add date";
     return '<button type="button" class="' + cls + '" data-task-id="' + escapeHtml(task.id) +
       '" data-due="' + escapeHtml(ymd) + '" aria-label="' + escapeHtml(aria) + '" title="' + escapeHtml(aria) + '">' +
       '<span class="tt-due-icon" aria-hidden="true">🗓</span>' +
-      (label ? '<span class="tt-due-pill-label">' + escapeHtml(label) + '</span>' : '') +
+      (has ? '<span class="tt-due-pill-label">' + escapeHtml(label) + '</span>'
+           : '<span class="tt-due-add-label">Add date</span>') +
     '</button>';
   }
 

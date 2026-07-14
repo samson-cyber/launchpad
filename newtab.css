@@ -7708,9 +7708,29 @@ html.has-bg.bg-light .pro-preview-banner-text {
   transition: background 0.12s, color 0.12s, border-color 0.12s, opacity 0.12s;
 }
 .tt-due-pill .tt-due-icon { font-size: 11px; line-height: 1; }
-.tt-due-pill.tt-due-none { opacity: 0.55; }
-.tt-task-row:hover .tt-due-pill.tt-due-none { opacity: 1; }
 .tt-due-pill:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+
+/* Undated empty state: a muted pill (calendar glyph + "Add date"). Kept
+   quieter than the colored priority and tag pills so dated rows stay the
+   emphasis; brightens on row hover and again on direct hover. */
+.tt-due-pill.tt-due-none {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.55);
+}
+.tt-due-pill.tt-due-none .tt-due-icon { font-size: 13px; }
+.tt-due-add-label { font-size: 11px; }
+.tt-task-row:hover .tt-due-pill.tt-due-none {
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+/* Direct hover is scoped under the row-hover so it outranks the rule above
+   (a pill hover always implies a row hover). */
+.tt-task-row:hover .tt-due-pill.tt-due-none:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
 
 /* Due-date popover: reuses the .tt-context-menu frosting; a date input over a
    Clear / Set action row. */
@@ -7739,9 +7759,23 @@ html.has-bg.bg-light .pro-preview-banner-text {
   font-weight: 600;
 }
 
-/* Light-wallpaper: the muted (unset) due pill needs a dark glyph. */
-html.has-bg.bg-light .tt-due-pill.tt-due-none { color: rgba(0, 0, 0, 0.55); }
+/* Light-wallpaper: dark-tint the muted "Add date" pill (bg, border, text) so
+   it stays legible against a white-tinted card; dated pill hover unchanged. */
 html.has-bg.bg-light .tt-due-pill:hover { background: rgba(0, 0, 0, 0.06); color: #1f1f1f; }
+html.has-bg.bg-light .tt-due-pill.tt-due-none {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.16);
+  color: rgba(0, 0, 0, 0.55);
+}
+html.has-bg.bg-light .tt-task-row:hover .tt-due-pill.tt-due-none {
+  color: rgba(0, 0, 0, 0.72);
+  border-color: rgba(0, 0, 0, 0.24);
+}
+html.has-bg.bg-light .tt-task-row:hover .tt-due-pill.tt-due-none:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.32);
+  color: #1f1f1f;
+}
 
 /* Dimmed goal card: zero children match an active filter (kept, not removed). */
 .tt-goal-dimmed { opacity: 0.4; }
