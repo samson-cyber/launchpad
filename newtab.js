@@ -1120,6 +1120,67 @@
     return goalsHtml + standaloneHtml;
   }
 
+  // Task-completion celebration timing (see the "Completion Celebrations →
+  // Task completion" subsection of docs/SPECS/tasks-and-goals.md).
+  var TASK_COMPLETE_DWELL_MS = 900;   // in-place green-tint acknowledgment
+  var TASK_COMPLETE_LEAVE_MS = 300;   // fade/slide for rows that leave to Completed
+
+  // Animate a just-completed task row, then settle the panel. completeTask has
+  // already persisted; this only drives the visual acknowledgment so completion
+  // never reads as deletion.
+  //
+  // Uniform beat: 150ms checkmark pop + a ~900ms in-place dwell (green tint +
+  // dimmed text). Then the row settles by DESTINATION:
+  //   - LEAVES its visible spot (standalone task → Completed section, or a
+  //     goal-child whose goal just auto-completed → the whole card relocates):
+  //     ~300ms fade/slide + toast "✓ Moved to Completed".
+  //   - STAYS (goal-child under a still-active goal greys in place, because the
+  //     goal card keeps completed children for its progress bar): settle to the
+  //     is-completed styling + toast "✓ Task completed".
+  //
+  // Goal auto-completion seam: when goalAutoCompleted, the goal card's move to
+  // Completed happens in the deferred settle render below — i.e. AFTER the task
+  // animation, per spec. A goal-completion celebration (not yet implemented)
+  // hooks in there; this task does not add one.
+  //
+  // Render-suppression window (rapid multi-complete safety): the [1.0.11.2]
+  // write-provenance gate already suppresses the onChanged re-render for our own
+  // completeTask write, so nothing re-renders DURING the dwell. We additionally
+  // defer OUR settle renderTasksTab until the last in-flight completion finishes
+  // (panel._completingCount), so one completion's settle never destroys another
+  // completing row mid-animation. Trade-off: with overlapping completes, an
+  // early finisher's row holds its transient state until the last one settles.
+  function runTaskCompletionCelebration(panel, row, result) {
+    panel._completingCount = (panel._completingCount || 0) + 1;
+    var settle = function () {
+      panel._completingCount = Math.max(0, (panel._completingCount || 1) - 1);
+      if (panel._completingCount === 0) renderTasksTab(panel, data);
+    };
+    // No row element to animate (e.g. filtered out of view) — settle only.
+    if (!row || !row.classList) { settle(); return; }
+
+    var task = result && result.task;
+    var goalAutoCompleted = !!(result && result.goalAutoCompleted);
+    // Standalone tasks move to the Completed section. A goal-child moves only if
+    // its goal just auto-completed (the whole card relocates); otherwise it
+    // greys in place inside its still-active goal card.
+    var leavesView = !task || task.goalId == null || goalAutoCompleted;
+
+    // 150ms checkmark pop + green-tint/dimmed dwell begin together.
+    row.classList.add("tt-completing");
+
+    setTimeout(function () {
+      if (leavesView) {
+        showToast("✓ Moved to Completed");
+        row.classList.add("tt-completing-leave"); // ~300ms fade/slide out
+        setTimeout(settle, TASK_COMPLETE_LEAVE_MS);
+      } else {
+        showToast("✓ Task completed");
+        settle();
+      }
+    }, TASK_COMPLETE_DWELL_MS);
+  }
+
   function renderTasksTab(panel, d) {
     if (!panel) return;
     // [1.0.11.1] Mid-drag re-render suppression. Sortable's drag state lives
@@ -1308,19 +1369,33 @@
       var taskId = target.getAttribute("data-task-id");
       if (!taskId) return;
       var willComplete = target.checked;
-      try {
-        if (willComplete) {
-          await Storage.completeTask(data, taskId);
-        } else {
+
+      if (!willComplete) {
+        // Reactivation path is unchanged: flip state + immediate settle render.
+        try {
           await Storage.reactivateTask(data, taskId);
+        } catch (err) {
+          console.error("[LaunchPad] Tasks tab: task reactivate failed", err);
         }
-      } catch (err) {
-        console.error("[LaunchPad] Tasks tab: task toggle failed", err);
+        renderTasksTab(panel, data);
+        return;
       }
-      // Eager re-render so the user sees the new progress bar / completion
-      // styling without waiting for the storage.onChanged round-trip. The
-      // round-trip's re-render that follows is harmless (same data).
-      renderTasksTab(panel, data);
+
+      // Completion runs the celebration flow (checkmark pop + in-place dwell +
+      // destination-named settle). completeTask has already saved by the time
+      // the animation runs; the settle re-render is deferred to the end so the
+      // dwell is visible (and rapid completes don't clobber each other). Grab
+      // the row NOW — the panel isn't re-rendered until the flow settles.
+      var row = target.closest(".tt-task-row");
+      var completeResult;
+      try {
+        completeResult = await Storage.completeTask(data, taskId);
+      } catch (err) {
+        console.error("[LaunchPad] Tasks tab: task complete failed", err);
+        renderTasksTab(panel, data);
+        return;
+      }
+      runTaskCompletionCelebration(panel, row, completeResult);
     });
 
     panel.addEventListener("click", async function (e) {

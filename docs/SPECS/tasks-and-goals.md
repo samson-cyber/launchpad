@@ -629,10 +629,15 @@ When user pauses (main pause button): pomodoro pauses with it. Resume picks up a
 
 ### Task completion
 
-- Checkmark scale animation (150ms)
-- Row fades to 50% opacity, moves to Completed section (300ms)
-- Inline toast: "✓ Task completed"
-- If last task of a goal → goal celebration fires next
+Hybrid acknowledgment (decided 2026-07-14) — completion must read as "done and filed," never as deletion:
+
+- **Checkmark pop** — the checkbox scales up and back (150ms).
+- **In-place dwell (~900ms)** — the row stays where it is with a faint green tint and dimmed text. This is the acknowledgment beat; the row does not move yet.
+- **Settle, named by destination** (the toast names where the task went, so it teaches itself):
+  - **Standalone task** (or a goal-child whose goal just auto-completed, so the whole card relocates) → the row fades/slides out (~300ms) into the Completed section, toast **"✓ Moved to Completed"**.
+  - **Goal-child task under a still-active goal** → the row stays in its goal card and settles into the greyed, struck-through completed styling **in place**. The goal card keeps its completed children so the progress bar stays truthful, so these tasks do *not* move to the Completed section. Toast **"✓ Task completed"**.
+- **Goal auto-completion sequencing** — when completing the task finishes its parent goal (all children done), the goal's move to Completed happens in the post-animation settle render, i.e. AFTER the task animation, per spec. A goal-completion celebration (see Goal completion below) is not yet implemented; the sequencing seam is preserved for when it is.
+- **Rapid multi-completes** are coalesced — the panel defers its settle re-render until the last in-flight completion animation finishes, so one completion never interrupts another's animation.
 
 ### Goal completion
 
