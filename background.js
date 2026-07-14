@@ -8,6 +8,40 @@ importScripts('tracking-prototype.js');
 var PRO_RECONCILE_ALARM = "launchpad-pro-reconcile";
 var PRO_RECONCILE_PERIOD_MINUTES = 360; // 6 hours, well above the 30s minimum
 
+// [1.0.14] Recurring instance generation. A daily alarm (~03:00 local) + a
+// catch-up run on install/startup materialize template occurrences into task
+// instances. The handler is STATELESS (no module-level mutable state — the
+// prototype lesson, commit 7ff8af8): it reads storage, runs the shared
+// Storage.runRecurringSweep (which advances nextScheduledAt + creates instances
+// in one saveAll, idempotent under double-fire), and writes back. The Tasks tab
+// runs the same sweep opportunistically on open, so a Chrome-was-closed gap is
+// caught up whichever path fires first.
+var RECURRING_SWEEP_ALARM = "recurring-sweep";
+
+// Next 03:00 in LOCAL time as an epoch. chrome.alarms has no cron; we anchor
+// with `when` + a 1440-minute period so it re-fires daily near 03:00.
+function nextRecurringSweepAt() {
+  var d = new Date();
+  d.setHours(3, 0, 0, 0);
+  if (d.getTime() <= Date.now()) {
+    d.setDate(d.getDate() + 1);
+  }
+  return d.getTime();
+}
+
+async function runRecurringSweepBg() {
+  try {
+    var data = await Storage.getAll();
+    var res = await Storage.runRecurringSweep(data); // saveAll's internally when it changes state
+    if (res && res.instancesCreated) {
+      console.log("[LaunchPad] Recurring sweep: created " + res.instancesCreated +
+        " instance(s), advanced " + res.templatesAdvanced + " template(s), skipped " + res.skipped);
+    }
+  } catch (err) {
+    console.error("[LaunchPad] Recurring sweep failed:", err);
+  }
+}
+
 async function runProReconcile() {
   try {
     var data = await Storage.getAll();
@@ -202,16 +236,20 @@ chrome.runtime.onInstalled.addListener(function () {
   requestContextMenuRebuild();
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
   chrome.alarms.create(PRO_RECONCILE_ALARM, { periodInMinutes: PRO_RECONCILE_PERIOD_MINUTES });
+  chrome.alarms.create(RECURRING_SWEEP_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
   saveCurrentSession();
   runProReconcile();
+  runRecurringSweepBg();
 });
 chrome.runtime.onStartup.addListener(function () {
   requestContextMenuRebuild();
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
   chrome.alarms.create(PRO_RECONCILE_ALARM, { periodInMinutes: PRO_RECONCILE_PERIOD_MINUTES });
+  chrome.alarms.create(RECURRING_SWEEP_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
   saveCurrentSession();
   pruneOldSessions();
   runProReconcile();
+  runRecurringSweepBg();
 });
 
 chrome.storage.onChanged.addListener(function (changes) {
@@ -321,6 +359,8 @@ chrome.alarms.onAlarm.addListener(function (alarm) {
     saveCurrentSession();
   } else if (alarm.name === PRO_RECONCILE_ALARM) {
     runProReconcile();
+  } else if (alarm.name === RECURRING_SWEEP_ALARM) {
+    runRecurringSweepBg();
   }
 });
 

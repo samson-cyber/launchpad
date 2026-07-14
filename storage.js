@@ -958,6 +958,31 @@ var Storage = (function () {
     return p === null || VALID_PRIORITIES.indexOf(p) !== -1;
   }
 
+  // [1.0.14] Shared task-record builder. Constructs (does NOT persist) a task
+  // object from already-validated fields, so createTask and the recurring sweep
+  // produce an identical shape from one place. displayOrder is read at build
+  // time, so callers that build several in a row must push each before building
+  // the next (the sweep does). Persistence + validation stay with the caller.
+  function newTaskObject(ws, o) {
+    o = o || {};
+    return {
+      id: genTaskId(),
+      name: o.name,
+      description: (o.description === undefined || o.description === null) ? "" : String(o.description),
+      goalId: (o.goalId === undefined) ? null : o.goalId,
+      dueAt: (o.dueAt === undefined) ? null : o.dueAt,
+      priority: (o.priority === undefined) ? null : o.priority,
+      tagIds: Array.isArray(o.tagIds) ? o.tagIds.slice() : [],
+      completed: false,
+      completedAt: null,
+      createdAt: Date.now(),
+      deletedAt: null,
+      displayOrder: nextTaskDisplayOrder(ensureTasksArray(ws)),
+      isRecurringInstance: !!o.isRecurringInstance,
+      recurringTemplateId: (o.recurringTemplateId === undefined) ? null : o.recurringTemplateId
+    };
+  }
+
   /**
    * Create a task in the (optionally specified) workspace.
    *
@@ -1036,23 +1061,24 @@ var Storage = (function () {
 
     var description = (f.description === undefined || f.description === null) ? "" : String(f.description);
 
+    // [1.0.14] P2 — createTask now accepts the recurring-instance markers so the
+    // generic create path can also mint instances; default false/null preserves
+    // every existing caller's behavior byte-for-byte.
+    var isRecurringInstance = (f.isRecurringInstance === undefined) ? false : !!f.isRecurringInstance;
+    var recurringTemplateId = (f.recurringTemplateId === undefined || f.recurringTemplateId === null)
+      ? null : String(f.recurringTemplateId);
+
     var tasks = ensureTasksArray(ws);
-    var task = {
-      id: genTaskId(),
+    var task = newTaskObject(ws, {
       name: name,
       description: description,
       goalId: goalId,
       dueAt: dueAt,
       priority: priority,
       tagIds: tagIds,
-      completed: false,
-      completedAt: null,
-      createdAt: Date.now(),
-      deletedAt: null,
-      displayOrder: nextTaskDisplayOrder(tasks),
-      isRecurringInstance: false,
-      recurringTemplateId: null
-    };
+      isRecurringInstance: isRecurringInstance,
+      recurringTemplateId: recurringTemplateId
+    });
     tasks.push(task);
     await saveAll(data);
     return task;
@@ -2033,8 +2059,37 @@ var Storage = (function () {
       return null;
     }
 
+    // [1.0.14] goalId + priority extend the [1.0.10] schema so generated
+    // instances can inherit a parent goal (also settable via the drag
+    // "move template into goal" flow) and a priority. Both default null; goalId
+    // is validated only for type here (a goal deleted later is handled at
+    // generation time, which falls back to standalone).
+    var tplGoalId = (f.goalId === undefined || f.goalId === null) ? null : f.goalId;
+    if (tplGoalId !== null && typeof tplGoalId !== "string") {
+      console.warn("[LaunchPad] createRecurringTemplate: goalId must be a string or null");
+      return null;
+    }
+    var tplPriority = (f.priority === undefined) ? null : f.priority;
+    if (!isValidPriority(tplPriority)) {
+      console.warn("[LaunchPad] createRecurringTemplate: priority must be 'low'|'medium'|'high'|'urgent'|null");
+      return null;
+    }
+
     var arr = ensureRecurringTemplatesArray(ws);
     var now = Date.now();
+
+    // [1.0.14] Seed nextScheduledAt from the pattern when the caller didn't
+    // supply it, so a freshly-created template is immediately schedulable by the
+    // sweep (the [1.0.10] modal never set it, which would leave templates
+    // dormant forever). First occurrence on/after today (UTC calendar day).
+    if (f.nextScheduledAt === undefined) {
+      var normalizedForSeed = {
+        frequency: frequency,
+        daysOfWeek: frequency === "weekly" ? daysOfWeek : null,
+        dayOfMonth: frequency === "monthly" ? dayOfMonth : null
+      };
+      nextScheduledAt = nextRecurrenceUTC(normalizedForSeed, now, true);
+    }
     // Normalize the off-frequency fields so a 'daily' template doesn't carry
     // a stale daysOfWeek and a 'weekly' template doesn't carry a stale
     // dayOfMonth. Keeps the stored shape stable for downstream code in
@@ -2042,11 +2097,15 @@ var Storage = (function () {
     var template = {
       id: genRecurringTemplateId(),
       name: name,
+      description: (f.description === undefined || f.description === null) ? "" : String(f.description),
       frequency: frequency,
       daysOfWeek: frequency === "weekly" ? daysOfWeek.slice() : null,
       dayOfMonth: frequency === "monthly" ? dayOfMonth : null,
       timeOfDay: timeOfDay,
+      goalId: tplGoalId,
+      priority: tplPriority,
       nextScheduledAt: nextScheduledAt,
+      lastInstanceId: null,
       isActive: isActive,
       tagIds: tagIds,
       createdAt: now,
@@ -2137,6 +2196,27 @@ var Storage = (function () {
       template.nextScheduledAt = u.nextScheduledAt;
     }
 
+    // [1.0.14] goalId (nullable) — the drag "move template into this goal" flow
+    // sets this so future instances bind to the goal; null returns it to
+    // standalone. priority (nullable) inherited by future instances.
+    if (Object.prototype.hasOwnProperty.call(u, "goalId")) {
+      if (u.goalId !== null && typeof u.goalId !== "string") {
+        console.warn("[LaunchPad] updateRecurringTemplate: goalId must be a string or null");
+        return null;
+      }
+      template.goalId = u.goalId;
+    }
+    if (Object.prototype.hasOwnProperty.call(u, "priority")) {
+      if (!isValidPriority(u.priority)) {
+        console.warn("[LaunchPad] updateRecurringTemplate: priority must be 'low'|'medium'|'high'|'urgent'|null");
+        return null;
+      }
+      template.priority = u.priority;
+    }
+    if (Object.prototype.hasOwnProperty.call(u, "description")) {
+      template.description = (u.description === undefined || u.description === null) ? "" : String(u.description);
+    }
+
     template.updatedAt = Date.now();
     await saveAll(data);
     return template;
@@ -2185,6 +2265,159 @@ var Storage = (function () {
     var t = arr.find(function (x) { return x.id === templateId; });
     if (!t || t.deletedAt) return null;
     return t;
+  }
+
+  // ===== [1.0.14] Recurring instance generation (chrome.alarms sweep) =====
+  //
+  // The [1.0.10] schema + CRUD landed the template shape; this section
+  // materializes template occurrences into ordinary task instances. Occurrence
+  // math is UTC-calendar-day based to match the [1.0.13] dueAt convention
+  // (dueAt = UTC-midnight epoch of the calendar day). timeOfDay is stored on the
+  // template but has NO v1 behavior (D4) — scheduling is day-granular.
+
+  var RECUR_DAY_MS = 24 * 60 * 60 * 1000;
+  var RECUR_OVERDUE_CEILING = 7; // D3: keep at most 7 (newest); older skipped.
+
+  function recurUtcMidnight(epoch) {
+    var d = new Date(epoch);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  }
+
+  function recurDaysInUtcMonth(year, monthIdx) {
+    // Day 0 of month+1 == last day of month, in UTC.
+    return new Date(Date.UTC(year, monthIdx + 1, 0)).getUTCDate();
+  }
+
+  /**
+   * Next occurrence day for a template as a UTC-midnight epoch, relative to
+   * fromEpoch. inclusive=true → first occurrence on/after fromEpoch's day;
+   * inclusive=false → first occurrence strictly after it. Monthly clamps a
+   * dayOfMonth beyond the month length to that month's last day (a "31st"
+   * template fires on Feb 28/29). Returns null for a malformed pattern.
+   */
+  function nextRecurrenceUTC(template, fromEpoch, inclusive) {
+    var startDay = recurUtcMidnight(fromEpoch);
+    var probe = inclusive ? startDay : startDay + RECUR_DAY_MS;
+    if (template.frequency === "daily") {
+      return probe;
+    }
+    if (template.frequency === "weekly") {
+      var days = Array.isArray(template.daysOfWeek) ? template.daysOfWeek : [];
+      if (!days.length) return null;
+      for (var i = 0; i < 7; i++) {
+        var cand = probe + i * RECUR_DAY_MS;
+        if (days.indexOf(new Date(cand).getUTCDay()) !== -1) return cand;
+      }
+      return null;
+    }
+    if (template.frequency === "monthly") {
+      var dom = template.dayOfMonth;
+      if (typeof dom !== "number") return null;
+      var d = new Date(probe);
+      var y = d.getUTCFullYear(), m = d.getUTCMonth();
+      for (var g = 0; g < 60; g++) {
+        var target = Math.min(dom, recurDaysInUtcMonth(y, m));
+        var occ = Date.UTC(y, m, target);
+        if (occ >= probe) return occ;
+        m++; if (m > 11) { m = 0; y++; }
+      }
+      return null;
+    }
+    return null;
+  }
+
+  /**
+   * [1.0.14] Recurring sweep. Iterates ALL workspaces (D8); for each active,
+   * non-deleted template whose nextScheduledAt <= now, generates the due/overdue
+   * occurrences as ordinary task instances (isRecurringInstance:true), advances
+   * nextScheduledAt to the first future occurrence, and persists everything in a
+   * SINGLE saveAll (D2 — atomic, so a double-fire alarm + opportunistic run the
+   * same morning is idempotent: the second pass sees nextScheduledAt > now and
+   * no-ops). All array mutations run synchronously BEFORE the awaited saveAll, so
+   * an un-awaited caller (the opportunistic path) still reads the fresh instances
+   * on the next line. Instances bypass the hierarchy modal entirely (D5) — a
+   * goal-bound template may generate an instance past the goal deadline.
+   *
+   * Overdue = option B (D3): missed occurrences are generated with their past
+   * calendar day as dueAt (so they render overdue via the existing dueAt-based
+   * derivation) alongside the current one; a soft ceiling of 7 keeps only the
+   * newest per sweep, older are silently skipped (nextScheduledAt still advances
+   * past them). A null nextScheduledAt (e.g. a pre-[1.0.14] template) is seeded
+   * to the first occurrence on/after now before processing.
+   *
+   * @returns {Promise<{instancesCreated:number, templatesAdvanced:number, skipped:number}>}
+   */
+  async function runRecurringSweep(data, nowTs) {
+    var summary = { instancesCreated: 0, templatesAdvanced: 0, skipped: 0 };
+    if (!data || !Array.isArray(data.workspaces)) return summary;
+    var now = (typeof nowTs === "number") ? nowTs : Date.now();
+    var changed = false;
+
+    data.workspaces.forEach(function (ws) {
+      var templates = ensureRecurringTemplatesArray(ws);
+      if (!templates) return;
+      templates.forEach(function (tpl) {
+        if (tpl.deletedAt || !tpl.isActive) return;
+
+        if (tpl.nextScheduledAt == null) {
+          var seed = nextRecurrenceUTC(tpl, now, true);
+          if (seed == null) return; // malformed pattern — leave untouched
+          tpl.nextScheduledAt = seed;
+          changed = true;
+        }
+        if (tpl.nextScheduledAt > now) return; // nothing due yet
+
+        // Collect every due/overdue occurrence day (<= now), ascending.
+        var occ = [];
+        var cursor = tpl.nextScheduledAt;
+        var guard = 0;
+        while (cursor != null && cursor <= now && guard < 20000) {
+          occ.push(cursor);
+          var nxt = nextRecurrenceUTC(tpl, cursor, false);
+          if (nxt == null || nxt <= cursor) { cursor = null; break; } // defensive
+          cursor = nxt;
+          guard++;
+        }
+        if (!occ.length) return;
+
+        var toCreate = occ;
+        if (occ.length > RECUR_OVERDUE_CEILING) {
+          summary.skipped += occ.length - RECUR_OVERDUE_CEILING;
+          toCreate = occ.slice(occ.length - RECUR_OVERDUE_CEILING);
+        }
+
+        // Goal binding: inherit the template's goalId only if that goal is still
+        // live; otherwise the instance is standalone (D6 — never dangle under a
+        // dead goal).
+        var goalId = (tpl.goalId != null && findLiveGoal(ws, tpl.goalId)) ? tpl.goalId : null;
+        var lastId = null;
+        toCreate.forEach(function (dayEpoch) {
+          var inst = newTaskObject(ws, {
+            name: tpl.name,
+            description: "",
+            goalId: goalId,
+            dueAt: dayEpoch, // UTC-midnight of the occurrence day (D4)
+            priority: (tpl.priority !== undefined) ? tpl.priority : null,
+            tagIds: Array.isArray(tpl.tagIds) ? tpl.tagIds : [],
+            isRecurringInstance: true,
+            recurringTemplateId: tpl.id
+          });
+          ws.tasks.push(inst);
+          lastId = inst.id;
+          summary.instancesCreated++;
+        });
+        if (lastId) tpl.lastInstanceId = lastId;
+        // cursor is the first future occurrence (> now), or null if the guard/
+        // defensive break tripped — in which case fall back to the last created
+        // day + one step so nextScheduledAt still moves forward.
+        tpl.nextScheduledAt = (cursor != null) ? cursor : nextRecurrenceUTC(tpl, occ[occ.length - 1], false);
+        summary.templatesAdvanced++;
+        changed = true;
+      });
+    });
+
+    if (changed) await saveAll(data);
+    return summary;
   }
 
   return {
@@ -2277,6 +2510,9 @@ var Storage = (function () {
     deleteRecurringTemplate: deleteRecurringTemplate,
     getActiveRecurringTemplates: getActiveRecurringTemplates,
     getAllRecurringTemplates: getAllRecurringTemplates,
-    getRecurringTemplateById: getRecurringTemplateById
+    getRecurringTemplateById: getRecurringTemplateById,
+    // [1.0.14] Recurring instance generation
+    runRecurringSweep: runRecurringSweep,
+    nextRecurrenceUTC: nextRecurrenceUTC
   };
 })();

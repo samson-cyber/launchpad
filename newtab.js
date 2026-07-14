@@ -1117,7 +1117,7 @@
     for (var i = 0; i < tagIds.length; i++) {
       tagHtml += tagPillHtml(workspace, tagIds[i]);
     }
-    return '<li class="tt-recurring-row" data-template-id="' + escapeHtml(template.id) + '">' +
+    return '<li class="tt-recurring-row" data-template-id="' + escapeHtml(template.id) + '" title="Right-click to manage">' +
       '<span class="tt-recurring-icon" aria-hidden="true">↻</span>' +
       '<span class="tt-recurring-name">' + escapeHtml(template.name) + '</span>' +
       '<span class="tt-recurring-hint">' + escapeHtml(hint) + '</span>' +
@@ -1431,21 +1431,35 @@
     // amplify storage writes on the common no-op render.
     Storage.purgeExpiredTrash(d);
 
+    // [1.0.14] Opportunistic recurring sweep on Tasks-tab render (D2). Mirrors
+    // the purge pattern: runRecurringSweep mutates ws.tasks / template
+    // nextScheduledAt SYNCHRONOUSLY before its internal awaited saveAll, so this
+    // un-awaited call has already materialized any due instances by the time the
+    // task lists are read below. It only writes when it generated something, and
+    // is a cheap no-op once nextScheduledAt is in the future — so it's safe to
+    // run on every render. The 03:00 alarm covers Chrome-open-overnight; this
+    // covers Chrome-was-closed catch-up the moment the user opens Tasks.
+    Storage.runRecurringSweep(d);
+
     var activeGoals = sortedByDisplayOrder(Storage.getActiveGoals(workspace));
     var completedGoals = sortedByDisplayOrder(Storage.getCompletedGoals(workspace));
     var deletedGoals = Storage.getDeletedGoals(workspace);
     var deletedTasks = Storage.getDeletedTasks(workspace);
     var allActiveTasks = Storage.getActiveTasks(workspace);
     var allCompletedTasks = Storage.getCompletedTasks(workspace);
-    // Standalone = goalId === null AND not a recurring instance (per PLAN's
-    // milestone definition). Recurring instances surface in their own
-    // Recurring section once [1.0.14] generates them; for [1.0.10] we keep
-    // them out of Standalone defensively even though no instances exist yet.
+    // Standalone = goalId === null. [1.0.14] D6: generated recurring INSTANCES
+    // are ordinary tasks living in their goal/standalone lists — a standalone
+    // instance (goalId null) belongs in Standalone like any task, and a
+    // goal-bound instance appears under its goal (goalCardHtml already includes
+    // it). The [1.0.10] defensive `!isRecurringInstance` exclusion is removed
+    // now that instances exist; the RECURRING section lists TEMPLATES, not
+    // instances. (Completed/trashed instances flow to the Completed/Deleted
+    // boxes via standaloneCompleted / getDeletedTasks like any task.)
     var standaloneActive = sortedByDisplayOrder(allActiveTasks.filter(function (t) {
-      return t.goalId === null && !t.isRecurringInstance;
+      return t.goalId === null;
     }));
     var standaloneCompleted = sortedByDisplayOrder(allCompletedTasks.filter(function (t) {
-      return t.goalId === null && !t.isRecurringInstance;
+      return t.goalId === null;
     }));
     // For goal cards' child task lists we need both completed and active
     // children together so the progress bar counts work.
@@ -1824,7 +1838,7 @@
         var action = actionBtn.getAttribute("data-action");
         if (action === "new-goal") openNewGoalModal();
         else if (action === "new-task") openNewTaskModal();
-        else if (action === "new-recurring") openNewRecurringModal();
+        else if (action === "new-recurring") openRecurringModal(null);
         return;
       }
 
@@ -1853,6 +1867,18 @@
         if (!cId) return;
         e.preventDefault();
         openCompletedContextMenu(e.clientX, e.clientY, cKind, cId);
+        return;
+      }
+
+      // [1.0.14] RECURRING template row → template management menu (edit /
+      // pause / delete). Templates are not tasks, so resolve before the task/
+      // goal branches.
+      var recurringRow = e.target && e.target.closest && e.target.closest(".tt-recurring-row");
+      if (recurringRow) {
+        var templateId = recurringRow.getAttribute("data-template-id");
+        if (!templateId) return;
+        e.preventDefault();
+        openRecurringContextMenu(e.clientX, e.clientY, templateId);
         return;
       }
 
@@ -2170,6 +2196,16 @@
     var targetGoalId = taskListGoalId(toList);
     var taskName = task.name;
 
+    // [1.0.14] Item 6 — dragging a recurring INSTANCE into a GOAL asks whether
+    // to move the whole template (future instances bind to the goal) or just
+    // this occurrence, then applies the [1.0.13] hierarchy check on the
+    // instance's date. Gated on isRecurringInstance so ordinary task drags fall
+    // straight through to the shipped collision logic below, unchanged.
+    if (task.isRecurringInstance && targetGoalId !== null) {
+      handleRecurringInstanceDrop(evt, taskId, task, targetGoalId, toList, fromList);
+      return;
+    }
+
     var collides = Storage.hasTaskNameCollision(data, taskName, targetGoalId, taskId);
 
     if (collides && targetGoalId === null) {
@@ -2225,6 +2261,60 @@
       console.error("[LaunchPad] Tasks: cross-list reassign failed", err);
       revertSortableDrop(evt);
     }
+  }
+
+  // [1.0.14] Item 6 — recurring instance dragged into a goal. Offers "move the
+  // template into this goal" (sets template.goalId → future instances bind here)
+  // vs "move just this instance", then runs the [1.0.13] hierarchy check on the
+  // instance's date against the new parent goal. Cancel/dismiss reverts the DOM.
+  // Collision handling is intentionally the simple revert-on-throw path (not the
+  // full rename modal) — recurring instances share the template name, and the
+  // reviewer live-pass covers the interaction (Section I).
+  function handleRecurringInstanceDrop(evt, taskId, task, targetGoalId, toList, fromList) {
+    var templateId = task.recurringTemplateId;
+
+    async function apply(moveTemplate) {
+      try {
+        if (moveTemplate && templateId) {
+          await Storage.updateRecurringTemplate(data, templateId, { goalId: targetGoalId });
+        }
+        await Storage.reassignTaskToGoal(data, taskId, targetGoalId);
+        rebuildTaskDisplayOrderFromList(toList, data);
+        rebuildTaskDisplayOrderFromList(fromList, data);
+        await Storage.saveAll(data);
+        var panel = document.getElementById("tab-tasks");
+        if (panel) renderTasksTab(panel, data);
+        // [1.0.13] hierarchy check on the instance's own date vs the new goal.
+        // Fires the resolution modal (extend goal / clamp instance) — the
+        // interactive path DOES apply the hierarchy rule (unlike generation, D5).
+        // Deferred to a macrotask so the move modal's own closeTasksModal (which
+        // runs right after this onPrimary/onClick resolves) can't immediately
+        // close the conflict modal we just opened.
+        var conflict = Storage.checkTaskDueConflict(data, taskId, task.dueAt);
+        if (conflict && conflict.conflict) {
+          setTimeout(function () { openTaskDueConflictModal(taskId, conflict); }, 0);
+        }
+      } catch (err) {
+        console.error("[LaunchPad] Tasks: recurring instance drop failed", err);
+        revertSortableDrop(evt);
+      }
+    }
+
+    openTasksModal({
+      title: "Move recurring task",
+      bodyHtml: '<p class="tt-modal-message">This is an instance of a recurring task. ' +
+        'Move the whole template into this goal (future instances will belong to it), ' +
+        'or move just this occurrence?</p>',
+      primaryLabel: "Move just this instance",
+      defaultFocus: "primary",
+      onPrimary: async function () { await apply(false); },
+      extraButtons: [{
+        label: "Move the template into this goal",
+        onClick: async function () { await apply(true); }
+      }],
+      // onCancel covers the Cancel button, backdrop click, AND Escape.
+      onCancel: function () { revertSortableDrop(evt); }
+    });
   }
 
   // ===== Tasks tab interactivity helpers ([1.0.10.1]) =====
@@ -2560,15 +2650,23 @@
   // defaults to '09:00' per the 2026-05-10 DECISIONS.md entry. The
   // conditional region is wrapped in a single .tt-recur-conditional
   // container that's swapped on frequency change.
-  function openNewRecurringModal() {
+  // [1.0.14] Recurring template modal — shared create + edit. `existing` null →
+  // create; a template object → edit (prefilled; commits via
+  // updateRecurringTemplate). D7: on an EDIT that changes the pattern, we also
+  // recompute nextScheduledAt so FUTURE instances follow the new pattern;
+  // already-generated instances are ordinary tasks and stay untouched.
+  function openRecurringModal(existing) {
+    var isEdit = !!existing;
     var DOW_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     var DOW_VALUES = [1, 2, 3, 4, 5, 6, 0];
 
     function conditionalHtml(frequency) {
       if (frequency === "weekly") {
+        var pre = (isEdit && Array.isArray(existing.daysOfWeek)) ? existing.daysOfWeek : [];
         var togglesHtml = DOW_LABELS.map(function (label, i) {
+          var chk = pre.indexOf(DOW_VALUES[i]) !== -1 ? " checked" : "";
           return '<label class="tt-modal-dow-toggle">' +
-            '<input type="checkbox" class="tt-recur-dow" value="' + DOW_VALUES[i] + '">' +
+            '<input type="checkbox" class="tt-recur-dow" value="' + DOW_VALUES[i] + '"' + chk + '>' +
             '<span>' + label + '</span>' +
           '</label>';
         }).join("");
@@ -2578,45 +2676,48 @@
           '</div>';
       }
       if (frequency === "monthly") {
+        var domVal = (isEdit && typeof existing.dayOfMonth === "number") ? existing.dayOfMonth : 1;
         return '<div class="tt-modal-row">' +
             '<label class="tt-modal-label" for="tt-recur-dom-input">Day of month</label>' +
-            '<input type="number" id="tt-recur-dom-input" class="tt-recur-dom-input" min="1" max="31" value="1">' +
+            '<input type="number" id="tt-recur-dom-input" class="tt-recur-dom-input" min="1" max="31" value="' + domVal + '">' +
           '</div>';
       }
       return "";
     }
 
+    var initFreq = isEdit ? existing.frequency : "daily";
+    function freqOption(v, label) {
+      return '<option value="' + v + '"' + (initFreq === v ? " selected" : "") + '>' + label + '</option>';
+    }
+
     openTasksModal({
-      title: "New recurring task",
-      primaryLabel: "Create",
+      title: isEdit ? "Edit recurring task" : "New recurring task",
+      primaryLabel: isEdit ? "Save" : "Create",
       bodyHtml:
         '<div class="tt-modal-row">' +
           '<label class="tt-modal-label" for="tt-recur-name-input">Name</label>' +
-          '<input type="text" id="tt-recur-name-input" class="tt-recur-name-input" maxlength="200" placeholder="Recurring task name" autocomplete="off" spellcheck="false">' +
+          '<input type="text" id="tt-recur-name-input" class="tt-recur-name-input" maxlength="200" placeholder="Recurring task name" autocomplete="off" spellcheck="false" value="' + (isEdit ? escapeHtml(existing.name) : "") + '">' +
         '</div>' +
         '<div class="tt-modal-row">' +
           '<label class="tt-modal-label" for="tt-recur-freq-select">Frequency</label>' +
           '<select id="tt-recur-freq-select" class="tt-recur-freq-select">' +
-            '<option value="daily">Daily</option>' +
-            '<option value="weekly">Weekly</option>' +
-            '<option value="monthly">Monthly</option>' +
+            freqOption("daily", "Daily") + freqOption("weekly", "Weekly") + freqOption("monthly", "Monthly") +
           '</select>' +
         '</div>' +
         '<div class="tt-recur-conditional"></div>' +
         '<div class="tt-modal-row">' +
           '<label class="tt-modal-label" for="tt-recur-time-input">Time of day</label>' +
-          '<input type="time" id="tt-recur-time-input" class="tt-recur-time-input" value="09:00">' +
+          '<input type="time" id="tt-recur-time-input" class="tt-recur-time-input" value="' + (isEdit ? escapeHtml(existing.timeOfDay || "09:00") : "09:00") + '">' +
         '</div>' +
         '<label class="tt-modal-row tt-modal-checkbox-row">' +
-          '<input type="checkbox" class="tt-recur-active" checked>' +
+          '<input type="checkbox" class="tt-recur-active"' + ((!isEdit || existing.isActive) ? " checked" : "") + '>' +
           '<span>Active</span>' +
         '</label>' +
         '<div class="tt-modal-error hidden" role="alert"></div>',
       onMounted: function (overlay) {
         var freqSelect = overlay.querySelector(".tt-recur-freq-select");
         var conditional = overlay.querySelector(".tt-recur-conditional");
-        // Initial state: daily → no conditional fields.
-        conditional.innerHTML = conditionalHtml("daily");
+        conditional.innerHTML = conditionalHtml(initFreq);
         freqSelect.addEventListener("change", function () {
           conditional.innerHTML = conditionalHtml(freqSelect.value);
         });
@@ -2645,8 +2746,7 @@
           name: name,
           frequency: frequency,
           timeOfDay: timeInput.value || "09:00",
-          isActive: !!activeInput.checked,
-          tagIds: []
+          isActive: !!activeInput.checked
         };
         if (frequency === "weekly") {
           var checked = [].slice.call(overlay.querySelectorAll(".tt-recur-dow:checked"));
@@ -2664,9 +2764,30 @@
           }
           fields.dayOfMonth = dom;
         }
-        var created = await Storage.createRecurringTemplate(data, fields);
-        if (!created || (created && created.err)) {
-          showModalError(errorEl, (created && created.message) || "Could not create recurring task.");
+
+        var result;
+        if (isEdit) {
+          // D7: recompute nextScheduledAt only when the pattern actually changed,
+          // so future instances follow the new pattern; a rename / time / active
+          // toggle leaves the existing schedule intact.
+          var patternChanged =
+            frequency !== existing.frequency ||
+            JSON.stringify(fields.daysOfWeek || null) !== JSON.stringify(existing.daysOfWeek || null) ||
+            (fields.dayOfMonth || null) !== (existing.dayOfMonth || null);
+          if (patternChanged) {
+            fields.nextScheduledAt = Storage.nextRecurrenceUTC(
+              { frequency: frequency, daysOfWeek: fields.daysOfWeek || null, dayOfMonth: fields.dayOfMonth || null },
+              Date.now(), true
+            );
+          }
+          result = await Storage.updateRecurringTemplate(data, existing.id, fields);
+        } else {
+          fields.tagIds = [];
+          result = await Storage.createRecurringTemplate(data, fields);
+        }
+        if (!result || (result && result.err)) {
+          showModalError(errorEl, (result && result.message) ||
+            (isEdit ? "Could not save recurring task." : "Could not create recurring task."));
           return false;
         }
         var panel = document.getElementById("tab-tasks");
@@ -2764,6 +2885,74 @@
       }
       var panel = document.getElementById("tab-tasks");
       if (panel) renderTasksTab(panel, data);
+    });
+
+    tasksContextMenuOutsideHandler = function (e) {
+      if (!menu.contains(e.target)) closeGoalContextMenu();
+    };
+    setTimeout(function () {
+      document.addEventListener("click", tasksContextMenuOutsideHandler, true);
+    }, 0);
+    tasksContextMenuEscapeHandler = function (e) {
+      if (e.key === "Escape") closeGoalContextMenu();
+    };
+    document.addEventListener("keydown", tasksContextMenuEscapeHandler);
+  }
+
+  // [1.0.14] RECURRING template management menu (D7): Edit, Pause/Activate,
+  // Delete. Edits affect future instances only; deleting soft-deletes the
+  // template and leaves already-generated instances as ordinary tasks.
+  function openRecurringContextMenu(x, y, templateId) {
+    closeGoalContextMenu();
+    if (!templateId) return;
+    var workspace = Storage.getActiveWorkspace(data);
+    var tpl = workspace && Storage.getRecurringTemplateById(workspace, templateId);
+    if (!tpl) return;
+    var menu = document.createElement("div");
+    menu.className = "tt-context-menu";
+    menu.innerHTML =
+      ctxEntityHeaderHtml("Recurring", tpl.name) +
+      '<button type="button" class="tt-ctx-item" data-action="edit">Edit</button>' +
+      '<button type="button" class="tt-ctx-item" data-action="toggle-active">' + (tpl.isActive ? "Pause" : "Activate") + '</button>' +
+      '<div class="tt-ctx-separator"></div>' +
+      '<button type="button" class="tt-ctx-item tt-ctx-danger" data-action="delete">Delete</button>';
+    document.body.appendChild(menu);
+
+    var w = menu.offsetWidth;
+    var h = menu.offsetHeight;
+    var px = Math.max(8, Math.min(x, window.innerWidth - w - 8));
+    var py = Math.max(8, Math.min(y, window.innerHeight - h - 8));
+    menu.style.left = px + "px";
+    menu.style.top = py + "px";
+    tasksContextMenuEl = menu;
+
+    menu.addEventListener("click", async function (e) {
+      var btn = e.target && e.target.closest && e.target.closest(".tt-ctx-item");
+      if (!btn) return;
+      var action = btn.getAttribute("data-action");
+      closeGoalContextMenu();
+      var ws2 = Storage.getActiveWorkspace(data);
+      var live = ws2 && Storage.getRecurringTemplateById(ws2, templateId);
+      if (!live) return;
+      var panel = document.getElementById("tab-tasks");
+      if (action === "edit") {
+        openRecurringModal(live);
+      } else if (action === "toggle-active") {
+        try {
+          await Storage.updateRecurringTemplate(data, templateId, { isActive: !live.isActive });
+        } catch (err) {
+          console.error("[LaunchPad] Tasks tab: toggle recurring active failed", err);
+        }
+        if (panel) renderTasksTab(panel, data);
+      } else if (action === "delete") {
+        try {
+          await Storage.deleteRecurringTemplate(data, templateId);
+        } catch (err2) {
+          console.error("[LaunchPad] Tasks tab: delete recurring template failed", err2);
+        }
+        if (panel) renderTasksTab(panel, data);
+        showToast("Recurring task deleted — existing instances kept");
+      }
     });
 
     tasksContextMenuOutsideHandler = function (e) {
