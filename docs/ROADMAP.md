@@ -55,10 +55,10 @@ Paid tier. Pricing: **$4.99/mo or $39/year** (annual ~$3.25/mo). See `SPECS/pro-
 - Data retention: per-event granularity 30 days, per-day aggregates forever
 
 #### Dashboard & Reviews
-- **Day Recap** card (end of day, after user-set "end time"): deep work total, goals completed / pushed, longest focus stretch, tag pie breakdown, "how did today feel?" single-click capture
+- **Day Recap** card (end of day, after user-set "end time"): deep work total, goals completed / pushed, longest focus stretch, tag pie breakdown, "how did today feel?" single-click capture (ships v2.1 with the analytics UI; per-day aggregates accrue from launch so it arrives pre-populated — DECISIONS 2026-07-07)
 - **Start of Day** card (morning): today's goals, suggested first task, "Let's go" CTA
-- **Weekly summary**: goals completion, time breakdown, deep work trend
-- **Deep Work Time** as primary metric (explicitly not "productivity score")
+- **Weekly summary**: goals completion, time breakdown, deep work trend (v2.1 — same decision)
+- **Deep Work Time** as primary metric (explicitly not "productivity score") (launch-day surface: the 'Today: Xh Ym focused' Dashboard line from [1.0.20]; full analytics v2.1)
 
 #### Achievements
 - 5-7 thoughtfully designed badges (First Week, Goal Crusher, Deep Diver, Variety, Consistency, plus 2 TBD)
