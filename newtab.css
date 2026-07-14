@@ -7671,8 +7671,10 @@ html.has-bg.bg-light .pro-preview-banner-text {
 .tt-trash-days-red { color: #f2564f; }
 
 /* Actions revealed on row hover/focus (always visible on touch via focus-within
-   is unnecessary here; keyboard focus on a button also reveals them). */
-.tt-deleted-actions {
+   is unnecessary here; keyboard focus on a button also reveals them). The
+   Completed box shares this exact reveal pattern for its Restore button. */
+.tt-deleted-actions,
+.tt-completed-actions {
   flex-shrink: 0;
   display: flex;
   gap: 4px;
@@ -7681,11 +7683,14 @@ html.has-bg.bg-light .pro-preview-banner-text {
 }
 
 .tt-deleted-row:hover .tt-deleted-actions,
-.tt-deleted-actions:focus-within {
+.tt-deleted-actions:focus-within,
+.tt-completed-row:hover .tt-completed-actions,
+.tt-completed-actions:focus-within {
   opacity: 1;
 }
 
-.tt-deleted-btn {
+.tt-deleted-btn,
+.tt-completed-btn {
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 5px;
   background: rgba(255, 255, 255, 0.06);
@@ -7697,7 +7702,8 @@ html.has-bg.bg-light .pro-preview-banner-text {
   transition: background 0.12s, border-color 0.12s;
 }
 
-.tt-deleted-restore:hover {
+.tt-deleted-restore:hover,
+.tt-completed-restore:hover {
   background: rgba(111, 177, 255, 0.2);
   border-color: rgba(111, 177, 255, 0.7);
 }
@@ -8404,7 +8410,8 @@ html.has-bg.bg-light .tt-trash-days-amber {
   color: #b6820c;
 }
 
-html.has-bg.bg-light .tt-deleted-btn {
+html.has-bg.bg-light .tt-deleted-btn,
+html.has-bg.bg-light .tt-completed-btn {
   color: #1f1f1f;
   border-color: rgba(0, 0, 0, 0.2);
   background: rgba(0, 0, 0, 0.05);

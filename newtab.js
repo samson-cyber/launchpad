@@ -1148,10 +1148,13 @@
   // openCompletedContextMenu). Height-capped with internal scroll so a large
   // history stays compact.
   function completedRowHtml(kind, id, name, completedAt) {
-    return '<li class="tt-completed-row" data-kind="' + kind + '" data-id="' + escapeHtml(id) + '" title="Right-click to reactivate">' +
+    return '<li class="tt-completed-row" data-kind="' + kind + '" data-id="' + escapeHtml(id) + '" title="Right-click or Restore to reactivate">' +
         '<span class="tt-completed-kind" aria-hidden="true">' + (kind === "goal" ? "◎" : "✓") + '</span>' +
         '<span class="tt-completed-name">' + escapeHtml(name) + '</span>' +
         '<span class="tt-completed-date">' + escapeHtml(fmtShortDate(completedAt)) + '</span>' +
+        '<span class="tt-completed-actions">' +
+          '<button type="button" class="tt-completed-btn tt-completed-restore" data-action="restore-completed">Restore</button>' +
+        '</span>' +
       '</li>';
   }
 
@@ -1326,6 +1329,27 @@
     var panel = document.getElementById("tab-tasks");
     if (panel) renderTasksTab(panel, data);
     showToast(kind === "goal" ? "Goal restored" : "Task restored");
+  }
+
+  // [Polish] Completed-box: reactivate a completed goal or task via the visible
+  // hover Restore button — same reactivate path as the right-click menu
+  // (Storage.reactivateGoal / reactivateTask). Their rich return
+  // (goalAutoReactivated / autoReactivatedGoal — a completed task flips its
+  // parent goal back to active) is reflected by the eager re-render, exactly as
+  // the right-click path does; captured here so any future handling has it.
+  // Right-click reactivate (openCompletedContextMenu) is untouched.
+  async function reactivateCompletedItem(kind, id) {
+    if (!id) return;
+    try {
+      if (kind === "goal") await Storage.reactivateGoal(data, id);
+      else await Storage.reactivateTask(data, id);
+    } catch (err) {
+      console.error("[LaunchPad] Tasks tab: reactivate from Completed failed", err);
+      return;
+    }
+    var panel = document.getElementById("tab-tasks");
+    if (panel) renderTasksTab(panel, data);
+    showToast(kind === "goal" ? "Goal reactivated" : "Task reactivated");
   }
 
   // [Tasks] Deleted-box: permanent delete — the ONLY delete that confirms
@@ -1694,6 +1718,20 @@
         // the change listener above. The storage.onChanged round-trip
         // re-render that follows is harmless (same data).
         renderTasksTab(panel, data);
+        return;
+      }
+
+      // [Polish] Completed-box row Restore button — visible hover action that
+      // mirrors the Deleted box; calls the same reactivate path as right-click.
+      var completedBtn = target.closest && target.closest(".tt-completed-btn");
+      if (completedBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var completedRow = completedBtn.closest(".tt-completed-row");
+        if (!completedRow) return;
+        var cKind = completedRow.getAttribute("data-kind");
+        var cId = completedRow.getAttribute("data-id");
+        if (cId) reactivateCompletedItem(cKind, cId);
         return;
       }
 
