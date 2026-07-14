@@ -7426,7 +7426,11 @@ html.has-bg.bg-light .pro-preview-banner-text {
   color: #fff;
   font-family: inherit;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
+  /* No glow: these buttons sit on a tinted fill, so the inherited .tasks-tab
+     body-legibility text-shadow only added fuzz. Weight 500 matches the popover
+     Set/Clear treatment. The .tasks-tab shadow stays for body/row text. */
+  text-shadow: none;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
@@ -7523,7 +7527,11 @@ html.has-bg.bg-light .pro-preview-banner-text {
 
 .tt-goal-name {
   font-size: 15px;
-  font-weight: 600;
+  /* One weight step down (600 → 500) to shed the heavy look while staying
+     visibly heavier than task-row names (normal/400). Glow removed; the
+     .tasks-tab body-legibility shadow stays for other Tasks text. */
+  font-weight: 500;
+  text-shadow: none;
 }
 
 .tt-goal-deadline {
