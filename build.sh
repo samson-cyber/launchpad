@@ -19,6 +19,7 @@ powershell.exe -NoProfile -Command "
     'license.js',
     'pro-access.js',
     'storage.js',
+    'tracking.js',
     'privacy-policy.html',
     'package.json',
     'assets',

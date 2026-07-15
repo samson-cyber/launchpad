@@ -4633,7 +4633,12 @@
     }, 150);
   }
 
-  async function createWorkspace(name) {
+  // [1.0.25] trackingEnabled defaults to true when omitted — the workspace
+  // dropdown's quick-create passes no flag by design (it stays a name-only
+  // popover), and the default is ON per the spec. The Pro Settings add-row,
+  // which sits directly above the list where each row's toggle lives, is the
+  // creation surface that exposes the choice up front.
+  async function createWorkspace(name, trackingEnabled) {
     var trimmed = (name || "").trim();
     if (!trimmed) {
       showToast("Workspace name required");
@@ -4652,7 +4657,7 @@
       goals: [],
       tasks: [],
       tags: [],
-      tracking: {}
+      tracking: { enabled: trackingEnabled !== false }
     });
     data.workspaceOrder.push(id);
     data.activeWorkspaceId = id;
@@ -4897,10 +4902,17 @@
         var deleteCls = "pws-delete" + (isLast ? " is-disabled" : "");
         var deleteTitle = isLast ? "You need at least one workspace." : "Delete workspace";
         var roCls = ws.isReadOnly ? " is-readonly" : "";
+        // [1.0.25] Per-workspace tracking toggle. Default ON for every
+        // workspace including Main (spec, Workspace Scoping).
+        var trackChecked = Storage.isTrackingEnabled(ws) ? " checked" : "";
         return '<li class="pro-workspace-row' + roCls + '" data-workspace-id="' + escapeHtml(ws.id) + '">' +
           '<span class="pws-drag-handle" title="Drag to reorder">☰</span>' +
           '<span class="pws-chip' + (ws.isReadOnly ? ' is-readonly' : '') + '" style="background:' + color + '">' + escapeHtml(workspaceFirstLetter(ws.name)) + '</span>' +
           '<span class="pws-name' + roCls + '">' + escapeHtml(ws.name || ws.id) + '</span>' +
+          '<label class="pws-tracking" title="Track focus time while this workspace is active">' +
+            '<input type="checkbox" class="pws-tracking-check"' + trackChecked + ' aria-label="Track focus time in this workspace">' +
+            '<span>Track</span>' +
+          '</label>' +
           '<button type="button" class="' + deleteCls + '" title="' + escapeHtml(deleteTitle) + '" aria-label="Delete workspace">×</button>' +
         '</li>';
       })
@@ -4912,6 +4924,23 @@
       nameEl.addEventListener("click", function () {
         if (nameEl.classList.contains("is-readonly")) return;
         startWorkspaceRename(nameEl);
+      });
+    });
+
+    // [1.0.25] Tracking toggle. Writing `data` is what notifies the engine:
+    // the service worker watches this key (D3), re-evaluates the gates on the
+    // change and closes any open session when a workspace is switched off.
+    // No re-render here — the checkbox already shows its own new state, and
+    // rebuilding the list would tear down the Sortable instance mid-interaction.
+    host.querySelectorAll(".pws-tracking-check").forEach(function (check) {
+      check.addEventListener("change", async function (e) {
+        e.stopPropagation();
+        var row = check.closest(".pro-workspace-row");
+        if (!row) return;
+        var enabled = check.checked;
+        if (!Storage.setTrackingEnabled(data, row.dataset.workspaceId, enabled)) return;
+        await Storage.saveAll(data);
+        showToast(enabled ? "Focus tracking on for this workspace" : "Focus tracking off for this workspace");
       });
     });
 
@@ -4955,6 +4984,12 @@
       addBtnRow.className = "settings-row pws-add-row";
       addBtnRow.innerHTML =
         '<input type="text" id="pro-workspace-add-input" class="pws-add-input" placeholder="New workspace name" autocomplete="off" spellcheck="false" maxlength="48">' +
+        // [1.0.25] Tracking choice surfaced at creation (spec, Workspace
+        // Scoping). Checked by default — the default is ON.
+        '<label class="pws-add-tracking" title="Track focus time while this workspace is active">' +
+          '<input type="checkbox" id="pro-workspace-add-tracking" checked aria-label="Track focus time in the new workspace">' +
+          '<span>Track</span>' +
+        '</label>' +
         '<button type="button" id="pro-workspace-add-btn" class="settings-btn">Add workspace</button>';
       // Insert directly after the workspace list
       if (host.nextSibling) {
@@ -4964,6 +4999,7 @@
       }
       var input = addBtnRow.querySelector("#pro-workspace-add-input");
       var btn = addBtnRow.querySelector("#pro-workspace-add-btn");
+      var trackingCheck = addBtnRow.querySelector("#pro-workspace-add-tracking");
       var submit = function () {
         var name = (input.value || "").trim();
         if (!name) {
@@ -4971,8 +5007,11 @@
           input.focus();
           return;
         }
+        var trackingEnabled = !trackingCheck || trackingCheck.checked;
         input.value = "";
-        createWorkspace(name);
+        // Reset to the default for the next create — the field is not sticky.
+        if (trackingCheck) trackingCheck.checked = true;
+        createWorkspace(name, trackingEnabled);
       };
       btn.addEventListener("click", submit);
       input.addEventListener("keydown", function (e) {

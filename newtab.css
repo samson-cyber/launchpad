@@ -6062,6 +6062,49 @@ html.has-bg #nesting-tooltip {
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* [1.0.25] Per-workspace focus-tracking toggles: one per row in the Pro
+   Settings workspace list, one in the add-workspace row. Plain checkboxes
+   rather than a bespoke switch — this inherits the existing settings idiom
+   (.pro-toggle-row) and introduces no new interaction affordance.
+   .pws-add-row is left at its default align-items so the input and button keep
+   their current stretched height; these labels center themselves instead. */
+.pws-tracking,
+.pws-add-tracking {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.pws-tracking input[type="checkbox"],
+.pws-add-tracking input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: #6fb1ff;
+}
+
+.pro-workspace-row:hover .pws-tracking,
+.pws-tracking input:checked + span,
+.pws-add-tracking input:checked + span {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+html.bg-light .pws-tracking,
+html.bg-light .pws-add-tracking {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+html.bg-light .pro-workspace-row:hover .pws-tracking,
+html.bg-light .pws-tracking input:checked + span,
+html.bg-light .pws-add-tracking input:checked + span {
+  color: rgba(0, 0, 0, 0.8);
+}
+
 .pws-section-subtitle {
   font-size: 11px;
   opacity: 0.6;

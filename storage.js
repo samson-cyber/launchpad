@@ -22,8 +22,15 @@ var Storage = (function () {
       : (Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
   }
 
+  // [1.0.25] Per-workspace tracking state. Shipped as an unused `{}` placeholder;
+  // repurposed here to carry the trackingEnabled flag (PLAN AMENDMENT A2).
+  // Default ON for every workspace including Main, per the spec's Workspace
+  // Scoping section. Session RECORDS do not live here — they live in the flat
+  // top-level `tracking_sessions` key, outside `data`, so that write-per-event
+  // capture never triggers the newtab re-render / context-menu rebuild that any
+  // `data` write fires. See tracking.js.
   function emptyTrackingState() {
-    return {};
+    return { enabled: true };
   }
 
   function genId() {
@@ -46,6 +53,10 @@ var Storage = (function () {
       }],
       workspaceOrder: ["main"],
       activeWorkspaceId: "main",
+      // [1.0.25] Global manual-pause gate for tracking. Flag ships now, UI in
+      // [1.0.17] — the data model is complete from day one even where the
+      // surface lands later (same discipline as the task stub fields below).
+      trackingPaused: false,
       settings: { columns: 6, collapsedGroups: {}, combinedAnalyticsEnabled: false },
       pro: {
         licenseKey: null,
@@ -78,6 +89,61 @@ var Storage = (function () {
     return changed;
   }
 
+  // [1.0.25] Seed tracking state onto workspaces that predate it, and onto the
+  // ones carrying the old empty-object placeholder. Runs on the already-migrated
+  // path of getAll alongside ensureDeletedAtFields — same defensive-backfill
+  // shape. Absent or malformed state defaults to ON, matching getDefaultData.
+  function ensureTrackingState(data) {
+    var changed = false;
+    (data.workspaces || []).forEach(function (ws) {
+      if (!ws.tracking || typeof ws.tracking !== "object") {
+        ws.tracking = emptyTrackingState();
+        changed = true;
+      } else if (typeof ws.tracking.enabled !== "boolean") {
+        ws.tracking.enabled = true;
+        changed = true;
+      }
+    });
+    if (typeof data.trackingPaused !== "boolean") {
+      data.trackingPaused = false;
+      changed = true;
+    }
+    return changed;
+  }
+
+  // [1.0.25] Read-side gate helper. Defaults to ON when state is missing so a
+  // workspace that somehow escaped the seed still captures.
+  function isTrackingEnabled(workspace) {
+    if (!workspace) return false;
+    if (!workspace.tracking || typeof workspace.tracking !== "object") return true;
+    return workspace.tracking.enabled !== false;
+  }
+
+  // [1.0.25] Mutate-only, per the established convention: the caller owns the
+  // saveAll (see BUGS.md J5 — Storage is stateless-by-argument).
+  function setTrackingEnabled(data, workspaceId, enabled) {
+    if (!data || !Array.isArray(data.workspaces)) return false;
+    var ws = data.workspaces.find(function (w) { return w.id === workspaceId; });
+    if (!ws) return false;
+    if (!ws.tracking || typeof ws.tracking !== "object") ws.tracking = emptyTrackingState();
+    ws.tracking.enabled = !!enabled;
+    return true;
+  }
+
+  // [1.0.25] Global manual-pause flag — top-level, NOT per-workspace (PLAN
+  // AMENDMENT A2). Flag + gate only; the pause UI is [1.0.17]. Idle transitions
+  // must never write this: the spec is explicit that a user who manually paused
+  // stays paused even after returning to the keyboard.
+  function isTrackingPaused(data) {
+    return !!(data && data.trackingPaused === true);
+  }
+
+  function setTrackingPaused(data, paused) {
+    if (!data) return false;
+    data.trackingPaused = !!paused;
+    return true;
+  }
+
   function migrate(data) {
     if (data && Array.isArray(data.workspaces)) return data;
 
@@ -102,6 +168,7 @@ var Storage = (function () {
       }],
       workspaceOrder: ["main"],
       activeWorkspaceId: "main",
+      trackingPaused: false,
       settings: migratedSettings,
       pro: {
         licenseKey: null,
@@ -149,11 +216,16 @@ var Storage = (function () {
       }
 
       if (Array.isArray(existing.workspaces)) {
-        // Already migrated. Defensive backfill of deletedAt fields.
+        // Already migrated. Defensive backfill of deletedAt fields, plus the
+        // [1.0.25] tracking-state seed (both are idempotent — they write once,
+        // then never again, so this cannot loop against the SW's storage
+        // onChanged watcher).
         var patched = ensureDeletedAtFields(existing);
-        if (patched) {
+        var trackingSeeded = ensureTrackingState(existing);
+        if (patched || trackingSeeded) {
           await chrome.storage.local.set({ data: existing });
-          console.log("[LaunchPad] Backfilled missing deletedAt fields");
+          if (patched) console.log("[LaunchPad] Backfilled missing deletedAt fields");
+          if (trackingSeeded) console.log("[LaunchPad] Seeded per-workspace tracking state (default ON)");
         }
         return existing;
       }
@@ -2873,6 +2945,11 @@ var Storage = (function () {
     saveAll: saveAll,
     migrate: migrate,
     emptyTrackingState: emptyTrackingState,
+    ensureTrackingState: ensureTrackingState,
+    isTrackingEnabled: isTrackingEnabled,
+    setTrackingEnabled: setTrackingEnabled,
+    isTrackingPaused: isTrackingPaused,
+    setTrackingPaused: setTrackingPaused,
     getActiveWorkspace: getActiveWorkspace,
     getActiveWorkspaceIndex: getActiveWorkspaceIndex,
     addShortcut: addShortcut,

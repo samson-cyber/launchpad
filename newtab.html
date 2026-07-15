@@ -689,6 +689,10 @@
   <script src="storage.js"></script>
   <script src="pro-access.js"></script>
   <script src="license.js"></script>
+  <!-- [1.0.25] Loaded here only so Tracking.debugSummary() is reachable from
+       this page's console. The engine's listeners are registered by the service
+       worker, not at import, so this does not start a second engine per tab. -->
+  <script src="tracking.js"></script>
   <script src="bookmarks.js"></script>
   <script src="lib/Sortable.min.js"></script>
   <script src="newtab.js"></script>

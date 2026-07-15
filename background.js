@@ -1,8 +1,9 @@
-/* global chrome, importScripts, Storage, ProAccess, LicenseClient */
+/* global chrome, importScripts, Storage, ProAccess, LicenseClient, Tracking */
 
 importScripts('storage.js');
 importScripts('pro-access.js');
 importScripts('license.js');
+importScripts('tracking.js');
 
 var PRO_RECONCILE_ALARM = "launchpad-pro-reconcile";
 var PRO_RECONCILE_PERIOD_MINUTES = 360; // 6 hours, well above the 30s minimum
@@ -281,6 +282,7 @@ chrome.runtime.onInstalled.addListener(function () {
   runRecurringSweepBg();
   runTrashPurgeBg();
   cleanupTrackingPrototype();
+  Tracking.start();
 });
 chrome.runtime.onStartup.addListener(function () {
   requestContextMenuRebuild();
@@ -294,6 +296,7 @@ chrome.runtime.onStartup.addListener(function () {
   runRecurringSweepBg();
   runTrashPurgeBg();
   cleanupTrackingPrototype();
+  Tracking.start();
 });
 
 chrome.storage.onChanged.addListener(function (changes) {
@@ -488,6 +491,65 @@ async function handleCheckoutReturn(tabId, url) {
     }
   }
 }
+
+// ===== [1.0.25] Focus-time tracking engine =====
+//
+// Listener inventory (BUGS.md I1) — what this section adds to background.js:
+// four Chrome event listeners plus one storage watcher, and NO alarms. The
+// write-per-event architecture (7ff8af8) makes an alarm flush both unnecessary
+// and unviable (30s minimum interval), so the alarm dispatch above is untouched
+// and 'save-session' / pro-reconcile / 'recurring-sweep' / 'trash-purge' cannot
+// collide with anything here.
+//
+// This file now has three chrome.tabs.onUpdated listeners — checkout-return,
+// favicon refresh, and the tracking one below. Each filters on its own
+// changeInfo condition and they do not interact; Chrome fans the event out to
+// all three.
+//
+// Every listener funnels into the single stateless Tracking.sync(), which
+// re-derives the focused tab and the gates from scratch. Nothing is threaded
+// through from the event payload, so no handler carries state the SW could lose
+// to a suspend. The engine logic lives in tracking.js — this is only wiring.
+
+chrome.tabs.onActivated.addListener(function () {
+  Tracking.sync("tab-switch");
+});
+
+chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
+  // URL commits on the active tab only. sync() re-reads the tab itself, so a
+  // same-domain commit resolves to the same session and merely refreshes the
+  // last-known-event stamp; only a cross-domain commit is a real boundary.
+  if (!changeInfo.url) return;
+  if (!tab || tab.active !== true) return;
+  Tracking.sync("domain-change");
+});
+
+chrome.windows.onFocusChanged.addListener(function () {
+  // Includes WINDOW_ID_NONE (every Chrome window blurred), which resolves to
+  // "no focused window" inside sync and closes the open session (D2).
+  Tracking.sync("window-focus");
+});
+
+chrome.idle.onStateChanged.addListener(function (newState) {
+  // Passed as a hint so sync skips a redundant queryState. Idle NEVER writes
+  // the manual-pause flag — returning to the keyboard does not resume a
+  // manually paused user (spec).
+  Tracking.sync("idle", newState);
+});
+
+chrome.storage.onChanged.addListener(function (changes, areaName) {
+  // D3: workspace switches, per-workspace trackingEnabled toggles, the manual
+  // pause flag and the active task all live in `data` and are all written by
+  // the newtab UI rather than the SW. Watching `data` is how the engine sees
+  // them without polling.
+  //
+  // Scoped to `data` deliberately: the engine's own writes land in
+  // tracking_sessions, so ignoring every other key is exactly what stops this
+  // from feeding back on itself.
+  if (areaName !== "local") return;
+  if (!changes.data) return;
+  Tracking.sync("state-change");
+});
 
 // Refresh stored favicon when user visits a bookmarked site
 chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
