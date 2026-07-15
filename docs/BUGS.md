@@ -120,7 +120,13 @@ Run when the task touched: any user data, storage, network calls, or third-party
 Run when the task touched: `tracking-prototype.js` or any other experimental / prototype module.
 
 - **H1. Prototype module is isolated.** It runs alongside production code via a single `importScripts` line or equivalent. It does not modify shared state, production storage keys, or shared UI.
-- **H2. Prototype is gitignored from release ZIP** via `build.sh` allowlist, OR the `importScripts` line must be commented out / removed before the next release build. Flag this in Next Steps of the task.
+- **H2. A file imported by shipped code MUST be in the `build.sh` allowlist.** These are not alternatives — read the two conditions together, not as an either/or:
+  - **If the module still ships** (still `importScripts`-ed / `<script src>`-ed by `background.js`, `newtab.html`, or anything else in the ZIP), its file **must** be in the `build.sh` allowlist.
+  - **If the module should not ship**, remove the import **first**, and only then let it fall out of the allowlist.
+
+  **The fatal quadrant is "excluded from the ZIP + still imported."** `importScripts` of a file that is not in the ZIP throws at service-worker registration, which kills the entire background script — every listener, alarm, and handler in it, not just the missing module. A `<script src>` pointing at a missing file fails the same way on the page. This is invisible in dev because the unpacked tree has the file on disk; it only detonates in the built ZIP.
+
+  Verify by resolving the import graph of the **built ZIP**, not the working tree: extract it, walk `importScripts` / `<script src>` transitively from the manifest's declared `service_worker` and from `newtab.html`, and assert every target is present. This caught the 2026-07-15 release blocker (see Recently Resolved) and is cheap to re-run whenever a file is added to or removed from the import graph.
 - **H3. Prototype storage keys are disposable.** A prototype uses its own storage key (e.g., `tracking_prototype`). The user can wipe it at any time without affecting production data.
 - **H4. Prototype does not add user-facing UI** unless the task explicitly calls for it. Prototypes live in the service worker, in debug helpers, and in console output.
 
@@ -179,7 +185,22 @@ Run before publishing any console-based verification snippet (the kind written f
 
 - **J4. Cleanup is non-negotiable.** Whichever pattern is used, the snippet must restore the original `Storage.saveAll` at the end. Leaving `Storage.saveAll = async () => {}` dangling in a live tab silently breaks all subsequent CRUD until the page reloads.
 
-- **J5. Storage is stateless-by-argument — thread `data` through every call.** Storage holds no data of its own. Every console session begins `const data = await Storage.getAll()`, then threads `data` (and `Storage.getActiveWorkspace(data)`) into every read: `getAllTasks(ws)`, `getAllGoals(ws)`, `getAllRecurringTemplates(ws)`, `getActiveWorkspace(data)`. Argless calls return `[]` or `null`, NOT errors that explain themselves. Mutations on the fetched object persist via `await Storage.saveAll(data)`. Console writes through `saveAll` count as same-tab writes: the write-provenance gate suppresses the re-render, so the UI may show stale state (e.g. a stale Paused chip) until the next full render — storage is correct, force a render before suspecting a bug. Three separate verification sessions on 2026-07-14 tripped on this pattern from different sides.
+- **J5. Storage is stateless-by-argument — thread `data` through every call.** Storage holds no data of its own. Every console session begins `const data = await Storage.getAll()`, then threads `data` (and `Storage.getActiveWorkspace(data)`) into every read: `getAllTasks(ws)`, `getAllGoals(ws)`, `getAllRecurringTemplates(ws)`, `getActiveWorkspace(data)`. Argless calls return `[]` or `null`, NOT errors that explain themselves. Mutations on the fetched object persist via `await Storage.saveAll(data)`. Console writes through `saveAll` count as same-tab writes: the write-provenance gate suppresses the re-render, so the UI may show stale state (e.g. a stale Paused chip) until the next full render — storage is correct, force a render before suspecting a bug.
+
+  **Most `getAll*` readers exclude trashed items — but not all of them. Check, don't assume.** `getAll` reads like "everything" and usually is not:
+
+  | Reader | Trashed (`deletedAt`) rows |
+  |---|---|
+  | `getAllTasks(ws)`, `getAllGoals(ws)`, `getAllRecurringTemplates(ws)` | **excluded** — "all *live* items" |
+  | `getActiveTasks/Goals/Tags/RecurringTemplates(ws)`, `getCompletedTasks/Goals(ws)` | **excluded** |
+  | `getAllTags(ws)` | **INCLUDED** — the exception; returns every tag, deleted ones too, and expects the caller to filter |
+  | `getTagById(ws, id)` | returns `null` for a soft-deleted tag |
+
+  So a snippet that creates an item, soft-deletes it, then asserts against `getAllTasks` sees a count that looks like data loss and is not — the row is in the trash, exactly where it belongs. The mirror-image trap is asserting against `getAllTags` and finding trashed tags still in the list.
+
+  To read trashed items, `getDeletedGoals(ws)` and `getDeletedTasks(ws)` exist — **and nothing else does**. There is no `getDeletedTags` or `getDeletedRecurringTemplates`; for tags, diff `getAllTags` against `getActiveTags`.
+
+  Four separate verification sessions on 2026-07-14 tripped on this family of pattern from different sides.
 
 Originating data points: [1.0.10] commit 2f00d01 and [1.0.10.1] commit 71eafe0 — both shipped verification snippets that used the spy pattern despite explicit "stub `Storage.saveAll`" instruction in their PLANs. The "Storage changed externally" observation in J2 surfaced during [1.0.10] Phase A verification on 2026-05-10 and forced the broader stub-plus-backup pattern as the canonical answer.
 
@@ -224,6 +245,18 @@ Accepted bugs and constraints we're not planning to fix. Format: date, area, des
 ## Recently Resolved
 
 Short history of recently-fixed bugs, ordered newest first. For pattern recognition during audits — if an old bug shape looks similar to something you're about to ship, pause.
+
+### 2026-07-15 — Release Build — prototype import vs. `build.sh` allowlist would have killed the service worker
+
+**Area:** Release hygiene / Prototype discipline
+**Fixed in:** Commit e13b6ab (bug 1216582708412142)
+**Pattern:** **Excluded from the ZIP + still imported is fatal, and each half looks fine on its own.** `background.js` still ran `importScripts('tracking-prototype.js')` while `build.sh`'s allowlist omitted that file. `importScripts` of a missing file throws at service-worker registration and kills the *entire* background script — session saving, context menus, alarms, Pro reconcile, checkout-return license activation — not just the missing module. Shipped 1.0.4 was unaffected only by luck of timing (the prototype landed after that submission).
+
+Three lessons worth more than the fix:
+
+- **Dev cannot see it.** The unpacked tree has the file on disk, so everything works locally; the failure exists only in the built ZIP. Anything that reads the working tree instead of the build artifact is blind to this class.
+- **The checklist itself was the bug.** H2 used to offer the allowlist and the import-removal as alternatives ("OR"). They are conjunctive: an imported file *must* be in the allowlist. A rule phrased as an either/or licensed exactly the state that broke. When a bug slips past an audit item, suspect the audit item's wording, not just the code.
+- **Verify against the artifact, and prove the check can fail.** The fix was confirmed by resolving the ZIP's import graph — and by re-running the same check against the pre-fix tree to watch it fail. A check that has never failed proves nothing.
 
 ### 2026-04-24 — Tracking Prototype — SW suspend buffer drops events
 
