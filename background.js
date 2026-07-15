@@ -3,7 +3,6 @@
 importScripts('storage.js');
 importScripts('pro-access.js');
 importScripts('license.js');
-importScripts('tracking-prototype.js');
 
 var PRO_RECONCILE_ALARM = "launchpad-pro-reconcile";
 var PRO_RECONCILE_PERIOD_MINUTES = 360; // 6 hours, well above the 30s minimum
@@ -69,6 +68,28 @@ async function runProReconcile() {
     }
   } catch (err) {
     console.error("[LaunchPad] Pro reconcile failed:", err);
+  }
+}
+
+// [Bugfix] One-time retirement cleanup for the April tab-tracking prototype
+// (tracking-prototype.js, deleted in this commit). Its disposable key
+// accumulated full URLs since April — validation concluded, so the key goes
+// (BUGS.md H3). Store users never received the prototype: it landed after the
+// 1.0.4 submission, so this only ever fires on a dev profile.
+//
+// Read-first rather than an unconditional remove: once the key is gone this is
+// a single cheap get that returns nothing, so no persisted "already cleaned"
+// flag is needed and the steady-state path never writes.
+var TRACKING_PROTOTYPE_KEY = "tracking_prototype";
+
+async function cleanupTrackingPrototype() {
+  try {
+    var result = await chrome.storage.local.get(TRACKING_PROTOTYPE_KEY);
+    if (result[TRACKING_PROTOTYPE_KEY] === undefined) return;
+    await chrome.storage.local.remove(TRACKING_PROTOTYPE_KEY);
+    console.log("[LaunchPad] Retired tracking prototype: removed disposable key " + TRACKING_PROTOTYPE_KEY);
+  } catch (err) {
+    console.error("[LaunchPad] Tracking prototype cleanup failed:", err);
   }
 }
 
@@ -259,6 +280,7 @@ chrome.runtime.onInstalled.addListener(function () {
   runProReconcile();
   runRecurringSweepBg();
   runTrashPurgeBg();
+  cleanupTrackingPrototype();
 });
 chrome.runtime.onStartup.addListener(function () {
   requestContextMenuRebuild();
@@ -271,6 +293,7 @@ chrome.runtime.onStartup.addListener(function () {
   runProReconcile();
   runRecurringSweepBg();
   runTrashPurgeBg();
+  cleanupTrackingPrototype();
 });
 
 chrome.storage.onChanged.addListener(function (changes) {
