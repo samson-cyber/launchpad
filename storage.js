@@ -2946,6 +2946,10 @@ var Storage = (function () {
     migrate: migrate,
     emptyTrackingState: emptyTrackingState,
     ensureTrackingState: ensureTrackingState,
+    // [1.0.26] Exposed for tracking attribution: a session carries its own
+    // workspaceId and must resolve against THAT workspace, not the active one
+    // (backfill rolls up sessions from workspaces the user is not currently in).
+    resolveWorkspaceFromData: resolveWorkspaceFromData,
     isTrackingEnabled: isTrackingEnabled,
     setTrackingEnabled: setTrackingEnabled,
     isTrackingPaused: isTrackingPaused,

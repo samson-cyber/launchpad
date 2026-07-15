@@ -42,6 +42,19 @@
 
   var STORE_KEY = "tracking_sessions";
 
+  // [1.0.26] Per-day aggregates. Flat top-level key for the same reason session
+  // records are: anything written per-event into `data` re-renders every open
+  // LaunchPad tab and rebuilds the context menu. Keyed `${workspaceId}:${day}`,
+  // so aggregates are per-workspace by construction and a future combined view
+  // just sums keys.
+  var DAYS_KEY = "tracking_days";
+
+  // Spec: session records prune at 30 days; per-day aggregates keep forever.
+  // Because aggregates roll up on write, pruning raw records never loses
+  // history. Pruning runs on SW startup — no alarm (write-per-event, D6).
+  var RETENTION_DAYS = 30;
+  var DAY_MS = 24 * 60 * 60 * 1000;
+
   // Fixed at 60s in v1; user-configurable threshold is v2.1 (spec, Out of scope).
   var IDLE_DETECTION_SECONDS = 60;
 
@@ -91,9 +104,39 @@
   }
 
   async function writeStore(store) {
+    return persist(store, null);
+  }
+
+  async function readDays() {
+    try {
+      var result = await chrome.storage.local.get(DAYS_KEY);
+      var days = result[DAYS_KEY];
+      if (!days || typeof days !== "object") return {};
+      return days;
+    } catch (err) {
+      console.error("[LaunchPad] Tracking: day-aggregate read failed:", err);
+      return {};
+    }
+  }
+
+  async function writeDays(days) {
+    return persist(null, days);
+  }
+
+  // [1.0.26] Single write for both keys.
+  //
+  // This is what makes D3's idempotency real: the day-aggregate increment and
+  // the session's `aggregated: true` stamp MUST land together. chrome.storage's
+  // set() is atomic across the keys in one call, so a crash can never leave an
+  // incremented aggregate with an unstamped session (double-count on next run)
+  // or a stamped session with no increment (silently lost time). Pass null for
+  // either side to leave that key untouched.
+  async function persist(store, days) {
     try {
       var payload = {};
-      payload[STORE_KEY] = store;
+      if (store) payload[STORE_KEY] = store;
+      if (days) payload[DAYS_KEY] = days;
+      if (!Object.keys(payload).length) return false;
       await chrome.storage.local.set(payload);
       return true;
     } catch (err) {
@@ -228,6 +271,199 @@
     return true;
   }
 
+  // ===== [1.0.26] Attribution =====
+  //
+  // Does a bookmark point at this domain? Matches the shortcut's own URL, and
+  // also its variants'.
+  //
+  // Variants matter more than they look. background.js auto-nests bookmarks by
+  // DOMAIN_ALIASES, which deliberately groups DIFFERENT hostnames under one
+  // parent: sheets.google.com nests under a docs.google.com parent,
+  // outlook.office.com under outlook.live.com. Variants carry URLs but no tags
+  // of their own (nothing can tag them — findItemByContext only resolves
+  // "group" and "shortcut"). So matching top-level URLs only would silently
+  // drop the tags on exactly the bookmarks a user was most deliberate about:
+  // tag "Google Docs" as Work, then get nothing for time spent in Sheets.
+  //
+  // A variant hit therefore attributes its PARENT — the parent's tags, and the
+  // parent's id as bookmarkId. The parent is the tagged, user-facing entity;
+  // the variant is a nesting detail.
+  function shortcutMatchesDomain(shortcut, domain) {
+    if (!shortcut || !domain) return false;
+    if (domainOf(shortcut.url) === domain) return true;
+    var variants = shortcut.variants || [];
+    for (var i = 0; i < variants.length; i++) {
+      var v = variants[i];
+      if (v && !v.deletedAt && domainOf(v.url) === domain) return true;
+    }
+    return false;
+  }
+
+  // Every live bookmark in `ws` whose URL (or a variant's) is on `domain`.
+  // Each parent appears at most once however many of its URLs match.
+  function matchingBookmarks(ws, domain) {
+    var out = [];
+    if (!ws || !domain) return out;
+    (ws.groups || []).forEach(function (g) {
+      if (!g || g.deletedAt) return;
+      (g.shortcuts || []).forEach(function (s) {
+        if (!s || s.deletedAt) return;
+        if (shortcutMatchesDomain(s, domain)) out.push(s);
+      });
+    });
+    return out;
+  }
+
+  // D1: stamp attribution onto the record.
+  //
+  //   tagIds     = deduped union of every matching bookmark's tags and the
+  //                active task's tags.
+  //   bookmarkId = the match, but ONLY when exactly one bookmark matched.
+  //                Zero or ambiguous both store null rather than guessing.
+  //
+  // Trashed never attributes: getTagById and getTaskById both return null for a
+  // soft-deleted row, so routing every tag through addTag and the task through
+  // getTaskById filters them for free — and keeps filtering if the trash bin
+  // later extends to bookmarks (groups/shortcuts/variants already carry
+  // deletedAt as a model field; nothing soft-deletes them today, and the
+  // guards above are defensive on purpose).
+  function attributeSession(session, data) {
+    var ws = Storage.resolveWorkspaceFromData(data, session.workspaceId);
+
+    var tagIds = [];
+    var seen = {};
+    function addTag(tid) {
+      if (!tid || seen[tid]) return;
+      if (!Storage.getTagById(ws, tid)) return; // unknown or trashed
+      seen[tid] = true;
+      tagIds.push(tid);
+    }
+
+    var matches = matchingBookmarks(ws, session.domain);
+    matches.forEach(function (s) { (s.tagIds || []).forEach(addTag); });
+
+    // The task may have been trashed between capture and close (or, for
+    // backfill, since capture) — resolve defensively rather than trusting the
+    // stamped id.
+    if (session.activeTaskId && ws) {
+      var task = Storage.getTaskById(ws, session.activeTaskId);
+      if (task) (task.tagIds || []).forEach(addTag);
+    }
+
+    session.tagIds = tagIds;
+    session.bookmarkId = matches.length === 1 ? matches[0].id : null;
+    return session;
+  }
+
+  // ===== [1.0.26] Per-day rollup =====
+
+  function emptyDay(dayKey, workspaceId) {
+    return {
+      day: dayKey,
+      workspaceId: workspaceId,
+      totalFocusedMs: 0,
+      byDomain: {},
+      byTag: {},
+      byTask: {},
+      longestSessionMs: 0
+    };
+  }
+
+  function dayAggregateKey(workspaceId, dayKey) {
+    return workspaceId + ":" + dayKey;
+  }
+
+  function startOfNextLocalDay(ts) {
+    var d = new Date(ts);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 1);
+    return d.getTime();
+  }
+
+  // D4: split a session across every local midnight it crosses.
+  //
+  // Generic in the number of boundaries — a session left open over a weekend
+  // yields a segment per day, not a special case. Walks local midnights via
+  // Date rather than adding 24h, so DST-short and DST-long days split at their
+  // real boundaries. Each step is strictly forward (the next local midnight is
+  // always after the cursor), so this cannot spin.
+  function splitAcrossLocalDays(start, end) {
+    var out = [];
+    var cursor = start;
+    while (cursor < end) {
+      var boundary = Math.min(end, startOfNextLocalDay(cursor));
+      out.push({ dayKey: localDayKey(cursor), ms: boundary - cursor });
+      cursor = boundary;
+    }
+    return out;
+  }
+
+  // Roll one session into the day aggregates and stamp it.
+  //
+  // The stamp is the entire idempotency mechanism (D3): a session contributes
+  // exactly once, ever. It is set here and persisted in the same write as the
+  // increments, so this is safe to call on every session on every run.
+  function rollupSessionInto(days, session) {
+    if (!session || session.aggregated) return false;
+
+    var duration = (session.end || 0) - (session.start || 0);
+    if (!(duration > 0)) {
+      // Contributes nothing. Stamp anyway so it is not rescanned forever.
+      session.aggregated = true;
+      return true;
+    }
+
+    splitAcrossLocalDays(session.start, session.end).forEach(function (seg, i) {
+      var key = dayAggregateKey(session.workspaceId, seg.dayKey);
+      var agg = days[key] || emptyDay(seg.dayKey, session.workspaceId);
+
+      agg.totalFocusedMs += seg.ms;
+      agg.byDomain[session.domain] = (agg.byDomain[session.domain] || 0) + seg.ms;
+      (session.tagIds || []).forEach(function (t) {
+        agg.byTag[t] = (agg.byTag[t] || 0) + seg.ms;
+      });
+      if (session.activeTaskId) {
+        agg.byTask[session.activeTaskId] = (agg.byTask[session.activeTaskId] || 0) + seg.ms;
+      }
+
+      // D4: longestSessionMs is the FULL un-split duration, recorded on the
+      // START day only. A 40-minute stretch across midnight is one 40-minute
+      // stretch, not two shorter ones — the metric answers "how long did you
+      // focus without breaking", which a calendar boundary does not interrupt.
+      if (i === 0 && duration > agg.longestSessionMs) agg.longestSessionMs = duration;
+
+      days[key] = agg;
+    });
+
+    session.aggregated = true;
+    return true;
+  }
+
+  // Attribute + roll up every unstamped session.
+  //
+  // This is deliberately ONE function serving both D3 (rollup at close) and D5
+  // (backfill of records that predate this task). The close path is just
+  // backfill with a backlog of one, so there is no second code path that could
+  // drift — and idempotency is structural rather than a rule to remember.
+  //
+  // Backfill attributes with CURRENT tag/bookmark mappings (D5): a tag added
+  // since capture applies retroactively. Accepted and noted — for a backlog of
+  // hours it is immaterial, and the alternative (never attributing old rows)
+  // is worse.
+  function rollupUnaggregated(store, days, data) {
+    var rolled = 0;
+    (store.sessions || []).forEach(function (s) {
+      if (s.aggregated) return;
+      attributeSession(s, data);
+      if (rollupSessionInto(days, s)) rolled++;
+    });
+    return rolled;
+  }
+
+  function hasUnaggregated(store) {
+    return (store.sessions || []).some(function (s) { return !s.aggregated; });
+  }
+
   async function syncInner(trigger, idleHint) {
     var idleState = idleHint || (await currentIdleState());
     var data = await Storage.getAll();
@@ -274,7 +510,19 @@
       changed = true;
     }
 
-    if (changed) await writeStore(store);
+    // [1.0.26] Roll up whatever the close above produced, in the SAME write.
+    //
+    // The day-aggregate read is skipped entirely when there is nothing to roll
+    // up, so a heartbeat-only sync still costs exactly what it did in [1.0.25].
+    // In steady state the backlog here is the single session just closed.
+    var days = null;
+    if (hasUnaggregated(store)) {
+      days = await readDays();
+      if (rollupUnaggregated(store, days, data)) changed = true;
+      else days = null;
+    }
+
+    if (changed) await persist(store, days);
     return changed;
   }
 
@@ -319,6 +567,46 @@
     return enqueue(reconcileOrphansInner);
   }
 
+  // [1.0.26] Startup backfill + retention (D5 + D6). No alarm: SW startup
+  // cadence is enough for a 30-day window, and tracking adds no alarms by
+  // design (write-per-event).
+  //
+  // Order is load-bearing. The backfill runs FIRST, so a session older than 30
+  // days that was never rolled up gets attributed and counted before the prune
+  // considers it — its time lands in the aggregate (kept forever) and only then
+  // does the raw row go. D6's "roll up first, then prune" is therefore
+  // structural rather than a sequencing rule someone must remember.
+  //
+  // The prune only ever removes STAMPED sessions. If a rollup somehow failed
+  // for one row, that row survives instead of being silently discarded —
+  // failure loses a prune, never data.
+  async function rollupAndPruneInner() {
+    var data = await Storage.getAll();
+    var store = await readStore();
+    var days = await readDays();
+
+    var rolled = rollupUnaggregated(store, days, data);
+
+    var cutoff = Date.now() - RETENTION_DAYS * DAY_MS;
+    var before = (store.sessions || []).length;
+    store.sessions = (store.sessions || []).filter(function (s) {
+      if (!s.aggregated) return true;   // never prune un-rolled-up data
+      return s.start >= cutoff;
+    });
+    var pruned = before - store.sessions.length;
+
+    if (rolled || pruned) {
+      await persist(store, rolled ? days : null);
+      console.log("[LaunchPad] Tracking: rolled up " + rolled + " session(s), pruned " + pruned +
+        " past " + RETENTION_DAYS + "-day retention");
+    }
+    return { rolled: rolled, pruned: pruned };
+  }
+
+  function rollupAndPrune() {
+    return enqueue(rollupAndPruneInner);
+  }
+
   // D5: engine start. Reconcile any orphan, then open a session for the
   // currently focused tab if the gates pass — so capture begins at once rather
   // than waiting for the user's first tab switch. Both steps ride the same
@@ -331,6 +619,9 @@
     }
     return enqueue(async function () {
       await reconcileOrphansInner();
+      // [1.0.26] After reconciling — the orphan just closed is itself an
+      // unstamped session, so it rolls up in the same pass as the backlog.
+      await rollupAndPruneInner();
       await syncInner("engine-start", null);
     });
   }
@@ -363,8 +654,19 @@
   // Primary observability surface for the capture phase (spec, Surfaces v1).
   // Domains only, never URLs, including in console output (D8 / G2) — the
   // records hold no URL to leak in the first place.
+  // Sort an ms-keyed map descending and convert to minutes for reading.
+  function toMinutesDesc(msMap) {
+    var out = {};
+    Object.keys(msMap || {})
+      .sort(function (a, b) { return msMap[b] - msMap[a]; })
+      .forEach(function (k) { out[k] = msToMinutes(msMap[k]); });
+    return out;
+  }
+
   async function debugSummary() {
     var store = await readStore();
+    var days = await readDays();
+    var data = await Storage.getAll();
     var dayStart = startOfLocalDay();
     var today = store.sessions.filter(function (s) { return s.start >= dayStart; });
 
@@ -379,14 +681,34 @@
       if (ms > longestMs) longestMs = ms;
     });
 
-    var byDomain = {};
-    Object.keys(byDomainMs)
-      .sort(function (a, b) { return byDomainMs[b] - byDomainMs[a]; })
-      .forEach(function (d) { byDomain[d] = msToMinutes(byDomainMs[d]); });
+    var byDomain = toMinutesDesc(byDomainMs);
+
+    // [1.0.26] Today's stored aggregate for the ACTIVE workspace, read back
+    // from tracking_days rather than recomputed — so this reports what the
+    // rollup actually wrote, and disagreement with the raw session figures
+    // above is itself the signal.
+    var activeWs = Storage.getActiveWorkspace(data);
+    var todayAgg = null;
+    if (activeWs) {
+      var stored = days[dayAggregateKey(activeWs.id, localDayKey())];
+      if (stored) {
+        todayAgg = {
+          day: stored.day,
+          workspaceId: stored.workspaceId,
+          focusedMinutes: msToMinutes(stored.totalFocusedMs || 0),
+          longestSessionMinutes: msToMinutes(stored.longestSessionMs || 0),
+          byDomain: toMinutesDesc(stored.byDomain),
+          byTag: toMinutesDesc(stored.byTag),
+          byTask: toMinutesDesc(stored.byTask)
+        };
+      }
+    }
 
     var bytesInUse = null;
+    var bytesInUseDays = null;
     try {
       bytesInUse = await chrome.storage.local.getBytesInUse(STORE_KEY);
+      bytesInUseDays = await chrome.storage.local.getBytesInUse(DAYS_KEY);
     } catch (e) {
       // getBytesInUse is unavailable in some contexts; the rest still reports.
     }
@@ -405,14 +727,32 @@
     var out = {
       day: localDayKey(),
       openSession: open,
+
+      // Raw session view (what capture recorded today).
       sessionsToday: today.length,
       focusedMinutesToday: msToMinutes(totalMs),
       longestSessionMinutesToday: msToMinutes(longestMs),
       byDomainToday: byDomain,
+
+      // [1.0.26] Rolled-up view (what aggregation stored for today, active
+      // workspace). Null before the first session of the day rolls up. Note the
+      // two views can legitimately differ: the raw figures above count whole
+      // sessions on their start day, whereas the aggregate splits a
+      // midnight-spanning session across days (D4).
+      todayAggregate: todayAgg,
+
       totalSessionsStored: store.sessions.length,
-      // Unpruned until [1.0.26] lands retention (D6) — this is how growth stays
-      // observable in the meantime.
-      bytesInUse: bytesInUse
+
+      // Rollup health signal (D7): steady state is 0. A persistently nonzero
+      // value means sessions are being closed but not rolled up — i.e. a
+      // rollup bug — because the close path stamps in the same write.
+      unaggregatedSessions: store.sessions.filter(function (s) { return !s.aggregated; }).length,
+
+      // Growth is now bounded by the 30-day prune (D6); aggregates keep forever
+      // but are tiny and fixed-shape per day.
+      bytesInUse: bytesInUse,
+      bytesInUseDays: bytesInUseDays,
+      dayAggregatesStored: Object.keys(days).length
     };
 
     console.log("[LaunchPad] Tracking summary:", out);
@@ -421,12 +761,15 @@
 
   var Tracking = {
     STORE_KEY: STORE_KEY,
+    DAYS_KEY: DAYS_KEY,
+    RETENTION_DAYS: RETENTION_DAYS,
     IDLE_DETECTION_SECONDS: IDLE_DETECTION_SECONDS,
     CAPTURING_LEVELS: CAPTURING_LEVELS,
 
     start: start,
     sync: sync,
     reconcileOrphans: reconcileOrphans,
+    rollupAndPrune: rollupAndPrune,
     debugSummary: debugSummary,
 
     // Exposed for the Section I console harness — verification needs to drive
@@ -437,7 +780,19 @@
     _readStore: readStore,
     _writeStore: writeStore,
     _emptyStore: emptyStore,
-    _startOfLocalDay: startOfLocalDay
+    _startOfLocalDay: startOfLocalDay,
+
+    // [1.0.26]
+    _readDays: readDays,
+    _writeDays: writeDays,
+    _attributeSession: attributeSession,
+    _matchingBookmarks: matchingBookmarks,
+    _splitAcrossLocalDays: splitAcrossLocalDays,
+    _rollupSessionInto: rollupSessionInto,
+    _rollupUnaggregated: rollupUnaggregated,
+    _dayAggregateKey: dayAggregateKey,
+    _emptyDay: emptyDay,
+    _localDayKey: localDayKey
   };
 
   if (typeof self !== "undefined") self.Tracking = Tracking;
