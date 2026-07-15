@@ -655,12 +655,38 @@
   // Domains only, never URLs, including in console output (D8 / G2) — the
   // records hold no URL to leak in the first place.
   // Sort an ms-keyed map descending and convert to minutes for reading.
-  function toMinutesDesc(msMap) {
+  // `label` optionally rewrites each key for display — see labelForTag/Task.
+  function toMinutesDesc(msMap, label) {
     var out = {};
     Object.keys(msMap || {})
       .sort(function (a, b) { return msMap[b] - msMap[a]; })
-      .forEach(function (k) { out[k] = msToMinutes(msMap[k]); });
+      .forEach(function (k) { out[label ? label(k) : k] = msToMinutes(msMap[k]); });
     return out;
+  }
+
+  // [Polish] byTag/byTask keys are ids, which are unreadable in the console —
+  // you cannot tell which tag you just attributed time to. Resolve them to
+  // "Name (id)" for DISPLAY ONLY; the stored aggregates keep bare ids.
+  //
+  // The id stays in the label deliberately: it disambiguates same-named tags and
+  // keeps the output greppable against raw storage.
+  //
+  // Falling back to the bare id is a real path, not a formality. Aggregates are
+  // immutable history kept forever, while getTagById returns null once a tag is
+  // trashed — and the trash purge sweeps dead tag ids off shortcuts and tasks
+  // but never touches tracking_days. So a tag deleted (or purged) after its
+  // sessions rolled up leaves an id here that resolves to nothing, forever.
+  // Showing the id beats showing "undefined".
+  function labelWithId(named, id) {
+    return named && named.name ? named.name + " (" + id + ")" : id;
+  }
+
+  function labelForTag(ws, tagId) {
+    return labelWithId(Storage.getTagById(ws, tagId), tagId);
+  }
+
+  function labelForTask(ws, taskId) {
+    return labelWithId(Storage.getTaskById(ws, taskId), taskId);
   }
 
   async function debugSummary() {
@@ -698,8 +724,10 @@
           focusedMinutes: msToMinutes(stored.totalFocusedMs || 0),
           longestSessionMinutes: msToMinutes(stored.longestSessionMs || 0),
           byDomain: toMinutesDesc(stored.byDomain),
-          byTag: toMinutesDesc(stored.byTag),
-          byTask: toMinutesDesc(stored.byTask)
+          // Names resolved against the aggregate's own workspace — which is the
+          // active one here by construction, since todayAgg is keyed on it.
+          byTag: toMinutesDesc(stored.byTag, function (id) { return labelForTag(activeWs, id); }),
+          byTask: toMinutesDesc(stored.byTask, function (id) { return labelForTask(activeWs, id); })
         };
       }
     }
