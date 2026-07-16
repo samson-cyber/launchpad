@@ -353,6 +353,9 @@
     var hasPro = isProAccessibleLevel(level);
     applyTabAccessLevel(level);
     applySidebarProEntryVisibility(hasPro);
+    // [1.0.16] D9 — the widget is Pro-gated on the same signal as every other
+    // Pro entry point, so a trial lapsing mid-session hides it without reload.
+    renderActiveTaskWidget();
     applyCtaState(data);
     applyWorkspaceSwitcherState(data);
     if ($("#pro-settings-panel") && !$("#pro-settings-panel").classList.contains("hidden")) {
@@ -979,6 +982,14 @@
   // Single child task row — read-only name + working checkbox. [1.0.12] adds
   // the priority left-border (color only when a priority is set) and a
   // clickable priority pill.
+  // [1.0.16] Is this row the globally-active task? Matched on workspace too:
+  // activeTask is global across workspaces and task ids are only unique within
+  // one, so id alone could light up a same-id row in the wrong workspace.
+  function satIsActiveTaskRow(workspace, task) {
+    var a = Storage.getActiveTask(data);
+    return !!(a && a.taskId === task.id && a.workspaceId === (workspace && workspace.id));
+  }
+
   function taskRowHtml(workspace, task) {
     var checked = task.completed ? " checked" : "";
     var completedCls = task.completed ? " is-completed" : "";
@@ -1006,9 +1017,21 @@
     // render their affordance so their slots hold width whether set or empty;
     // the trash slot is always present. The name (flex:1) truncates so the zone
     // — and the divider — stay at a consistent position row-to-row.
-    return '<li class="tt-task-row' + completedCls + (prioCls ? ' ' + prioCls : '') + '" data-task-id="' + escapeHtml(task.id) + '">' +
+    // [1.0.16] Activation affordance + active indicator, as ONE element. It is
+    // not on the name: clicking .tt-task-name already opens the inline rename
+    // (startTaskNameEdit), and the name is the row's whole body. Dim-on-hover
+    // for any row, solid for the active task.
+    var isActiveTask = satIsActiveTaskRow(workspace, task);
+    var activeCls = isActiveTask ? " is-active-task" : "";
+    var playTitle = isActiveTask ? "This is your active task" : "Make active";
+    var playHtml = '<button type="button" class="tt-task-play" data-task-id="' + escapeHtml(task.id) +
+      '" aria-label="' + escapeHtml(playTitle) + '" title="' + escapeHtml(playTitle) + '"' +
+      (isActiveTask ? ' aria-pressed="true"' : '') + '>' + (isActiveTask ? "▶" : "▷") + '</button>';
+
+    return '<li class="tt-task-row' + completedCls + activeCls + (prioCls ? ' ' + prioCls : '') + '" data-task-id="' + escapeHtml(task.id) + '">' +
       '<span class="tt-task-handle" aria-hidden="true" title="Drag to reorder">⠇</span>' +
       '<input type="checkbox" class="tt-task-check" data-task-id="' + escapeHtml(task.id) + '"' + checked + ' aria-label="Toggle task complete">' +
+      playHtml +
       '<span class="tt-task-name" title="' + escapeHtml(task.name) + '">' + escapeHtml(task.name) + '</span>' +
       '<div class="tt-task-controls">' +
         '<span class="tt-task-slot tt-slot-priority">' + priorityPillHtml(task) + '</span>' +
@@ -1950,6 +1973,17 @@
       if (addCancel) {
         var card3 = addCancel.closest(".tt-goal-card");
         if (card3) hideAddTaskInline(card3);
+        return;
+      }
+
+      // [1.0.16] Play glyph — make this task active. Ahead of the name branch
+      // below on purpose: the two affordances are adjacent and this one is a
+      // <button>, so it must claim the click before any name-zone handling.
+      var playBtn = target.closest && target.closest(".tt-task-play");
+      if (playBtn) {
+        var playId = playBtn.getAttribute("data-task-id");
+        var playWs = Storage.getActiveWorkspace(data);
+        if (playId && playWs) satActivate(playId, playWs.id);
         return;
       }
 
@@ -3486,10 +3520,19 @@
     var task = workspace && Storage.getTaskById(workspace, taskId);
     if (!task) return;
     var completeLabel = task.completed ? "Reactivate" : "Mark complete";
+    // [1.0.16] Entry point (3). Directly under the entity header — it is the
+    // primary verb for an open task. Suppressed on a completed task (nothing to
+    // focus on) and on the already-active one (setActiveTask is idempotent, but
+    // offering a no-op reads as broken).
+    var isActiveTask = satIsActiveTaskRow(workspace, task);
+    var makeActiveHtml = (!task.completed && !isActiveTask)
+      ? '<button type="button" class="tt-ctx-item" data-action="make-active">Make active</button>'
+      : "";
     var menu = document.createElement("div");
     menu.className = "tt-context-menu";
     menu.innerHTML =
       ctxEntityHeaderHtml("Task", task.name) +
+      makeActiveHtml +
       '<button type="button" class="tt-ctx-item" data-action="edit">Edit</button>' +
       '<button type="button" class="tt-ctx-item" data-action="duplicate">Duplicate</button>' +
       '<button type="button" class="tt-ctx-item" data-action="toggle-complete">' + escapeHtml(completeLabel) + '</button>' +
@@ -3512,7 +3555,10 @@
       var action = btn.getAttribute("data-action");
       closeGoalContextMenu();
       var panel = document.getElementById("tab-tasks");
-      if (action === "edit") {
+      if (action === "make-active") {
+        var mws = Storage.getActiveWorkspace(data);
+        if (mws) await satActivate(taskId, mws.id);
+      } else if (action === "edit") {
         // Inline rename on the live row's name span — same affordance as
         // clicking the name directly (startTaskNameEdit).
         var span = panel && panel.querySelector('.tt-task-row[data-task-id="' + taskId + '"] .tt-task-name');
@@ -5598,6 +5644,7 @@
     bindProSettings();
     bindUpgradeCta();
     bindWorkspaceSwitcher();
+    bindActiveTaskWidget();
     applyAccessLevelUI();
     startCtaCountdown();
     Bookmarks.bindEvents(function (newData) {
@@ -7286,6 +7333,563 @@
 
   // ===== Render =====
 
+  // ===== [1.0.16] Active task widget =====
+  //
+  // The engine's first visible surface. Lives in the sidebar, so it renders on
+  // EVERY tab — nothing here may assume the Tasks tab is mounted.
+  //
+  // Time shown is today's FOCUSED time for the task (D1), not wall-clock since
+  // activation. Activating at 9am and going to lunch must not read "4h" — the
+  // headline number on Pro's most visible surface has to be the honest one.
+  //
+  // The readout arrives in two halves from Tracking.focusedTodayForTask:
+  // `baseMs` (rolled-up + closed) and `openSince` (the open session's start, iff
+  // it is stamped to this task). Live total = baseMs + (now - openSince). The
+  // engine writes only at boundaries, so between them storage is static and the
+  // 1s tick is pure local arithmetic — one storage read per boundary, not per
+  // second.
+
+  var satExpanded = false;
+  var satTickTimer = null;
+  var satReadout = { taskId: null, baseMs: 0, openSince: null };
+  var satSwitchMenuEl = null;
+  var satSwitchOutsideHandler = null;
+  var satSwitchEscapeHandler = null;
+  var satSwitchScrollHandler = null;
+  var satHealing = false;
+
+  function satHasPro() {
+    var level = (typeof ProAccess !== "undefined" && data) ? ProAccess.getProAccessLevel(data) : "free";
+    return isProAccessibleLevel(level);
+  }
+
+  // "1h 24m" collapsed / "1:24:03" expanded. Both tabular-nums so the digits
+  // don't jitter as they tick.
+  function satFmtShort(ms) {
+    var totalMin = Math.floor(ms / 60000);
+    var h = Math.floor(totalMin / 60);
+    var m = totalMin % 60;
+    return h > 0 ? h + "h " + m + "m" : m + "m";
+  }
+
+  function satFmtLong(ms) {
+    var totalSec = Math.floor(ms / 1000);
+    var h = Math.floor(totalSec / 3600);
+    var m = Math.floor((totalSec % 3600) / 60);
+    var s = totalSec % 60;
+    var pad = function (n) { return n < 10 ? "0" + n : String(n); };
+    return h > 0 ? h + ":" + pad(m) + ":" + pad(s) : m + ":" + pad(s);
+  }
+
+  function satLiveMs() {
+    var open = satReadout.openSince ? Math.max(0, Date.now() - satReadout.openSince) : 0;
+    return satReadout.baseMs + open;
+  }
+
+  // Repaint ONLY the time text. A full re-render every second would fight the
+  // dropdown, kill hover states, and reset the search field.
+  function satPaintTime() {
+    var el = $("#sb-active-task");
+    if (!el) return;
+    var ms = satLiveMs();
+    var big = el.querySelector(".sat-time");
+    if (big) big.textContent = satFmtLong(ms);
+    var small = el.querySelector(".sat-collapsed-time");
+    if (small && !el.querySelector(".sat-collapsed.is-empty")) small.textContent = satFmtShort(ms);
+  }
+
+  function satStopTick() {
+    if (satTickTimer) { clearInterval(satTickTimer); satTickTimer = null; }
+  }
+
+  function satStartTick() {
+    satStopTick();
+    // Only an OPEN session stamped to this task advances the number. With no
+    // open session the total is fixed until the next boundary, so a timer would
+    // repaint identical text forever.
+    if (!satReadout.openSince) return;
+    satTickTimer = setInterval(satPaintTime, 1000);
+  }
+
+  // Re-read the engine's numbers. Async, but never blocks a render: the widget
+  // paints from the cached readout and the fresh value lands a tick later.
+  async function satRefreshReadout(taskId) {
+    if (!taskId || typeof Tracking === "undefined" || !Tracking.focusedTodayForTask) {
+      satReadout = { taskId: null, baseMs: 0, openSince: null };
+      satStopTick();
+      return;
+    }
+    try {
+      var r = await Tracking.focusedTodayForTask(taskId);
+      satReadout = { taskId: taskId, baseMs: r.baseMs, openSince: r.openSince };
+    } catch (err) {
+      console.error("[LaunchPad] Active task: focused-time read failed", err);
+      satReadout = { taskId: taskId, baseMs: 0, openSince: null };
+    }
+    // A late resolution for a task that is no longer active must not paint.
+    var res = Storage.resolveActiveTask(data);
+    if (!res || res.stale || res.task.id !== satReadout.taskId) return;
+    satPaintTime();
+    satStartTick();
+  }
+
+  function satCollapsedHtml(res) {
+    if (!res) {
+      return '<button type="button" class="sat-collapsed sb-item is-empty" title="Pick an active task">' +
+          '<span class="sat-glyph" aria-hidden="true">+</span>' +
+          '<span class="sb-label sat-collapsed-time">No active task</span>' +
+        '</button>';
+    }
+    return '<button type="button" class="sat-collapsed sb-item" title="' + escapeHtml(res.task.name) + '">' +
+        '<span class="sat-glyph" aria-hidden="true">▶</span>' +
+        '<span class="sb-label sat-collapsed-time">' + escapeHtml(satFmtShort(satLiveMs())) + '</span>' +
+      '</button>';
+  }
+
+  function satExpandedHtml(res) {
+    if (!res) {
+      return '<div class="sat-expanded">' +
+          '<div class="sat-name">No active task</div>' +
+          '<div class="sat-goal">Pick one to start tracking focus</div>' +
+          '<div class="sat-actions">' +
+            '<button type="button" class="sat-btn sat-btn-switch" data-sat-act="switch">Pick a task</button>' +
+          '</div>' +
+        '</div>';
+    }
+
+    var tagIds = Array.isArray(res.task.tagIds) ? res.task.tagIds : [];
+    var tagHtml = "";
+    if (tagIds.length >= 1) {
+      tagHtml = tagPillHtml(res.workspace, tagIds[0]);
+      if (tagIds.length > 1) {
+        tagHtml += '<span class="tt-tag-more" title="' + tagIds.length + ' tags">+' + (tagIds.length - 1) + '</span>';
+      }
+    }
+
+    // D8: a foreign task is shown and fully operable — Complete/Cancel work
+    // without switching workspace. The switch is an offer, not a prerequisite.
+    var foreignHtml = "";
+    if (res.isForeign) {
+      foreignHtml = '<div class="sat-foreign">' +
+          'This task is in ' + escapeHtml(res.workspace.name) +
+          '<button type="button" class="sat-foreign-switch" data-sat-act="goto-workspace">' +
+            'Switch to ' + escapeHtml(res.workspace.name) +
+          '</button>' +
+        '</div>';
+    }
+
+    // D2: the flag has been invisible since [1.0.25]; the control is [1.0.17].
+    // Showing the state now is the whole point — an indicator, not a button.
+    var pausedHtml = "";
+    if (Storage.isTrackingPaused(data)) {
+      pausedHtml = '<div class="sat-paused" role="status">' +
+          '<span aria-hidden="true">⏸</span> Tracking paused' +
+        '</div>';
+    }
+
+    return '<div class="sat-expanded">' +
+        '<div class="sat-name" title="' + escapeHtml(res.task.name) + '">' + escapeHtml(res.task.name) + '</div>' +
+        (res.goal ? '<div class="sat-goal" title="' + escapeHtml(res.goal.name) + '">' + escapeHtml(res.goal.name) + '</div>' : '') +
+        (tagHtml ? '<div class="sat-tags">' + tagHtml + '</div>' : '') +
+        foreignHtml +
+        '<div class="sat-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</div>' +
+        '<div class="sat-time-label">focused today</div>' +
+        pausedHtml +
+        '<div class="sat-actions">' +
+          '<button type="button" class="sat-btn sat-btn-complete" data-sat-act="complete" title="Complete task">✓ Done</button>' +
+          '<button type="button" class="sat-btn" data-sat-act="cancel" title="Deactivate (task is kept)">×</button>' +
+          '<button type="button" class="sat-btn" data-sat-act="switch" title="Switch active task">⇄</button>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function renderActiveTaskWidget() {
+    var el = $("#sb-active-task");
+    if (!el) return;
+
+    // D9: hidden entirely for free users. The sidebar is shared free real
+    // estate; no preview stub here.
+    if (!satHasPro()) {
+      el.classList.add("hidden");
+      el.innerHTML = "";
+      satStopTick();
+      closeSatSwitchMenu();
+      return;
+    }
+    el.classList.remove("hidden");
+
+    var resolved = Storage.resolveActiveTask(data);
+
+    // Self-heal (item 7). resolveActiveTask reports a task completed or deleted
+    // ANYWHERE — including by another tab — as stale, and the widget drops to
+    // its empty state. It also clears the stored record: leaving it would keep
+    // the engine attributing focus to a task the UI says isn't active, which is
+    // exactly the invisible-state mismatch the paused-flag lesson warns about.
+    // One write, then resolve returns null and this never fires again.
+    if (resolved && resolved.stale) {
+      if (!satHealing) {
+        satHealing = true;
+        console.log("[LaunchPad] Active task: self-healing stale record (" + resolved.reason + ")");
+        Storage.clearActiveTask(data)
+          .catch(function (err) { console.error("[LaunchPad] Active task: self-heal failed", err); })
+          .then(function () { satHealing = false; });
+      }
+      resolved = null;
+      satExpanded = false;
+    }
+
+    var res = (resolved && !resolved.stale) ? resolved : null;
+    if (!res) satReadout = { taskId: null, baseMs: 0, openSince: null };
+
+    el.dataset.collapsed = satExpanded ? "0" : "1";
+    el.innerHTML = satExpanded ? satExpandedHtml(res) : satCollapsedHtml(res);
+
+    if (res) satRefreshReadout(res.task.id);
+    else satStopTick();
+  }
+
+  // Make a task active. The single funnel for all three entry points (row play
+  // glyph, Switch dropdown, right-click) so the eager-render and the toast
+  // cannot drift apart between them.
+  async function satActivate(taskId, workspaceId) {
+    try {
+      var rec = await Storage.setActiveTask(data, taskId, workspaceId);
+      if (!rec) return false;
+    } catch (err) {
+      console.error("[LaunchPad] Active task: activate failed", err);
+      return false;
+    }
+    // Eager render: saveAll tags our own writes and the provenance gate
+    // suppresses the resulting onChanged, so nothing else will repaint this tab.
+    renderActiveTaskWidget();
+    satRenderTasksPanel();
+    return true;
+  }
+
+  // Repaint the Tasks panel whether or not it is the visible tab. setActiveTab
+  // only toggles .hidden — it does not re-render — so skipping this when the
+  // user is on Home would leave the play glyph lit on the previously-active row
+  // until something else happened to render, and they would find it stale on
+  // their next visit to the tab. Cheap, panel-guarded, and the same thing every
+  // other Tasks mutation does.
+  function satRenderTasksPanel() {
+    var panel = document.getElementById("tab-tasks");
+    if (panel) renderTasksTab(panel, data);
+  }
+
+  async function satCancel() {
+    // D7: deactivate only — the task itself is untouched.
+    try {
+      await Storage.clearActiveTask(data);
+    } catch (err) {
+      console.error("[LaunchPad] Active task: cancel failed", err);
+      return;
+    }
+    satExpanded = false;
+    renderActiveTaskWidget();
+    satRenderTasksPanel();
+  }
+
+  // D6: complete via the rich completeTask path, then deactivate.
+  //
+  // Order matters. completeTask's write does not touch data.activeTask, so the
+  // engine sees no boundary from it; the subsequent clear IS the boundary, and
+  // it closes the session stamped to this task — so focus right up to the
+  // moment of completion still attributes correctly.
+  async function satComplete() {
+    var res = Storage.resolveActiveTask(data);
+    if (!res || res.stale) return;
+    var task = res.task;
+    var name = task.name;
+
+    var result;
+    try {
+      result = await Storage.completeTask(data, task.id, res.workspace.id);
+    } catch (err) {
+      console.error("[LaunchPad] Active task: complete failed", err);
+      return;
+    }
+    if (!result) return;
+
+    try {
+      await Storage.clearActiveTask(data);
+    } catch (err) {
+      console.error("[LaunchPad] Active task: deactivate-after-complete failed", err);
+    }
+
+    // The green sweep on the widget, then empty. Deliberately the widget's own
+    // animation: the task row's celebration cannot run here — the Tasks tab may
+    // not even be the visible tab.
+    var el = $("#sb-active-task");
+    var card = el && el.querySelector(".sat-expanded");
+    var settle = function () {
+      satExpanded = false;
+      renderActiveTaskWidget();
+      satRenderTasksPanel();  // Completed box + any goal flip
+    };
+    if (card) {
+      card.classList.add("sat-sweep");
+      satStopTick();
+      setTimeout(settle, 600);
+    } else {
+      settle();
+    }
+
+    // runTaskCompletionCelebration owns the toast only on its animated path,
+    // and that path needs a mounted row — which a sidebar completion has no
+    // reason to have. So the widget says it itself.
+    showToast(result.goalAutoCompleted && result.autoCompletedGoal
+      ? '"' + name + '" complete — goal "' + result.autoCompletedGoal.name + '" finished!'
+      : '"' + name + '" complete');
+  }
+
+  // --- Switch dropdown (D5): workspace -> goal -> tasks ---------------------
+  //
+  // Sidebar-resident, so it follows the SIDEBAR dropdown contract (B5 / I4),
+  // not the Tasks-tab menu one: it must hold sidebarLocked while open, or
+  // moving the cursor onto this body-mounted menu leaves #sidebar, fires the
+  // mouseleave collapse, and pulls the sidebar out from under it. Release
+  // mirrors openRestoreDropdown exactly — including the :hover check, so the
+  // sidebar only collapses if the cursor is genuinely gone.
+
+  function closeSatSwitchMenu() {
+    if (!satSwitchMenuEl) return;
+    if (satSwitchOutsideHandler) {
+      document.removeEventListener("click", satSwitchOutsideHandler, true);
+      satSwitchOutsideHandler = null;
+    }
+    if (satSwitchEscapeHandler) {
+      document.removeEventListener("keydown", satSwitchEscapeHandler);
+      satSwitchEscapeHandler = null;
+    }
+    if (satSwitchScrollHandler) {
+      window.removeEventListener("scroll", satSwitchScrollHandler, true);
+      satSwitchScrollHandler = null;
+    }
+    if (satSwitchMenuEl.parentNode) satSwitchMenuEl.parentNode.removeChild(satSwitchMenuEl);
+    satSwitchMenuEl = null;
+
+    sidebarLocked = false;
+    var sidebar = $("#sidebar");
+    if (sidebar) {
+      sidebar.classList.remove("sidebar-locked");
+      if (!sidebar.matches(":hover")) {
+        sidebar.classList.remove("expanded");
+        hideSidebarPanel();
+        satExpanded = false;
+        renderActiveTaskWidget();
+      }
+    }
+  }
+
+  // Renders the whole list from (query, collapse-state). Both the search input
+  // and a workspace header toggle route through this one function — the
+  // alternative (mutating rows in place for a toggle, regenerating for a
+  // search) gives the two paths different ideas of what is expanded.
+  function satSwitchListHtml(query, collapsedWs) {
+    var q = (query || "").trim().toLowerCase();
+    var collapsed = collapsedWs || {};
+    var activeRes = Storage.resolveActiveTask(data);
+    var activeId = (activeRes && !activeRes.stale) ? activeRes.task.id : null;
+    var activeWsId = (Storage.getActiveWorkspace(data) || {}).id;
+    var html = "";
+    var matches = 0;
+
+    (data.workspaces || []).forEach(function (ws) {
+      var tasks = (ws.tasks || []).filter(function (t) {
+        if (t.deletedAt || t.completed) return false;
+        return !q || t.name.toLowerCase().indexOf(q) !== -1;
+      });
+      if (!tasks.length) return;
+      matches += tasks.length;
+
+      // A search expands every workspace it hit — a collapsed match is
+      // indistinguishable from no match. Otherwise: the user's own toggle if
+      // they made one, else the current workspace (D5's default).
+      var expanded;
+      if (q) expanded = true;
+      else if (collapsed[ws.id] !== undefined) expanded = !collapsed[ws.id];
+      else expanded = ws.id === activeWsId;
+
+      html += '<button type="button" class="sat-ws-header" data-sat-ws="' + escapeHtml(ws.id) + '" aria-expanded="' + expanded + '">' +
+          '<svg class="sat-ws-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>' +
+          escapeHtml(ws.name) +
+        '</button>';
+
+      if (!expanded) return;
+
+      // Grouped under their goal, standalone last — the spec's hierarchy.
+      var byGoal = {};
+      var standalone = [];
+      tasks.forEach(function (t) {
+        if (t.goalId) { (byGoal[t.goalId] = byGoal[t.goalId] || []).push(t); }
+        else standalone.push(t);
+      });
+
+      var rowHtml = function (t) {
+        var isActive = t.id === activeId;
+        return '<button type="button" class="sat-switch-task' + (isActive ? " is-active" : "") + '"' +
+            ' data-sat-task="' + escapeHtml(t.id) + '" data-sat-task-ws="' + escapeHtml(ws.id) + '">' +
+            '<span class="sat-glyph" aria-hidden="true">' + (isActive ? "▶" : "▷") + '</span>' +
+            '<span class="sat-switch-task-name">' + escapeHtml(t.name) + '</span>' +
+          '</button>';
+      };
+
+      Object.keys(byGoal).forEach(function (goalId) {
+        var goal = Storage.getGoalById(ws, goalId);
+        html += '<div class="sat-goal-header">' + escapeHtml(goal ? goal.name : "Goal") + '</div>';
+        html += byGoal[goalId].map(rowHtml).join("");
+      });
+      if (standalone.length) {
+        if (Object.keys(byGoal).length) html += '<div class="sat-goal-header">No goal</div>';
+        html += standalone.map(rowHtml).join("");
+      }
+    });
+
+    if (!matches) {
+      html = '<div class="sat-switch-empty">' + (q ? "No tasks match" : "No open tasks yet") + "</div>";
+    }
+    return html;
+  }
+
+  function openSatSwitchMenu(anchorEl) {
+    closeSatSwitchMenu();
+
+    sidebarLocked = true;
+    var sidebar = $("#sidebar");
+    if (sidebar) {
+      sidebar.classList.add("sidebar-locked");
+      sidebar.classList.add("expanded");
+    }
+    showSidebarPanel();
+
+    var menu = document.createElement("div");
+    menu.className = "tt-context-menu sat-switch-menu";
+    menu.innerHTML =
+      '<input type="text" class="sat-switch-search" placeholder="Search tasks in all workspaces" ' +
+        'autocomplete="off" spellcheck="false" aria-label="Search tasks">' +
+      '<div class="sat-switch-list">' + satSwitchListHtml("", {}) + '</div>';
+    document.body.appendChild(menu);
+    satSwitchMenuEl = menu;
+
+    var rect = anchorEl.getBoundingClientRect();
+    var w = menu.offsetWidth;
+    var h = menu.offsetHeight;
+    var px = Math.min(rect.right + 6, window.innerWidth - w - 8);
+    var py = Math.max(8, Math.min(rect.top, window.innerHeight - h - 8));
+    menu.style.left = Math.max(8, px) + "px";
+    menu.style.top = py + "px";
+
+    var listEl = menu.querySelector(".sat-switch-list");
+    var searchEl = menu.querySelector(".sat-switch-search");
+    // Per-open, DOM-only: which workspaces the user has toggled shut. Not
+    // persisted — the dropdown is transient and D5 specifies the default fresh
+    // each time.
+    var collapsedWs = {};
+    var repaint = function () {
+      listEl.innerHTML = satSwitchListHtml(searchEl.value, collapsedWs);
+    };
+
+    searchEl.addEventListener("input", repaint);
+    searchEl.focus();
+
+    menu.addEventListener("click", async function (e) {
+      var hdr = e.target.closest && e.target.closest(".sat-ws-header");
+      if (hdr) {
+        var wsId = hdr.getAttribute("data-sat-ws");
+        collapsedWs[wsId] = hdr.getAttribute("aria-expanded") === "true";
+        repaint();
+        return;
+      }
+      var row = e.target.closest && e.target.closest(".sat-switch-task");
+      if (!row) return;
+      var taskId = row.getAttribute("data-sat-task");
+      var taskWs = row.getAttribute("data-sat-task-ws");
+      closeSatSwitchMenu();
+      await satActivate(taskId, taskWs);
+    });
+
+    satSwitchOutsideHandler = function (e) {
+      if (!menu.contains(e.target)) closeSatSwitchMenu();
+    };
+    setTimeout(function () {
+      document.addEventListener("click", satSwitchOutsideHandler, true);
+    }, 0);
+
+    satSwitchEscapeHandler = function (e) {
+      if (e.key === "Escape") closeSatSwitchMenu();
+    };
+    document.addEventListener("keydown", satSwitchEscapeHandler);
+
+    // v3 scroll-close: the menu is position:fixed off a one-time rect, so any
+    // scroll of an ancestor region drifts it. Same rationale as the Tasks-tab
+    // popovers.
+    satSwitchScrollHandler = function () { closeSatSwitchMenu(); };
+    window.addEventListener("scroll", satSwitchScrollHandler, true);
+  }
+
+  function bindActiveTaskWidget() {
+    var el = $("#sb-active-task");
+    if (!el || el.dataset.satBound === "1") return;
+    el.dataset.satBound = "1";
+
+    el.addEventListener("click", async function (e) {
+      var actBtn = e.target.closest && e.target.closest("[data-sat-act]");
+      if (actBtn) {
+        var act = actBtn.getAttribute("data-sat-act");
+        if (act === "complete") { await satComplete(); return; }
+        if (act === "cancel") { await satCancel(); return; }
+        if (act === "switch") { openSatSwitchMenu(actBtn); return; }
+        if (act === "goto-workspace") {
+          var res = Storage.resolveActiveTask(data);
+          if (res && !res.stale) await switchWorkspace(res.workspace.id);
+          return;
+        }
+        return;
+      }
+      // Collapsed row -> expand.
+      if (e.target.closest && e.target.closest(".sat-collapsed")) {
+        satExpanded = true;
+        renderActiveTaskWidget();
+      }
+    });
+
+    // Outside-click collapses the expanded widget (per description). Capture
+    // phase to match the menu convention. The dropdown owns its own dismissal,
+    // so ignore clicks while it is up.
+    document.addEventListener("click", function (e) {
+      if (!satExpanded) return;
+      if (satSwitchMenuEl) return;
+      var w = $("#sb-active-task");
+      if (w && !w.contains(e.target)) {
+        satExpanded = false;
+        renderActiveTaskWidget();
+      }
+    }, true);
+
+    // A backgrounded tab's setInterval is throttled to ~1/min by Chrome, so the
+    // number can be well behind by the time the tab is looked at again. Re-read
+    // on the way back rather than trusting the tick.
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) return;
+      var res = Storage.resolveActiveTask(data);
+      if (res && !res.stale) satRefreshReadout(res.task.id);
+    });
+
+    // The engine's writes land in tracking_sessions / tracking_days, never in
+    // `data` — deliberately, so per-event capture does not re-render every open
+    // tab. That means the `data` watcher above will NEVER fire for a session
+    // opening or closing, and the widget needs its own listener to stay honest.
+    if (typeof Tracking !== "undefined") {
+      chrome.storage.onChanged.addListener(function (changes, areaName) {
+        if (areaName !== "local") return;
+        if (!changes[Tracking.STORE_KEY] && !changes[Tracking.DAYS_KEY]) return;
+        var res = Storage.resolveActiveTask(data);
+        if (res && !res.stale) satRefreshReadout(res.task.id);
+      });
+    }
+  }
+
   function render() {
     destroySortables();
     var container = $("#groups");
@@ -7304,6 +7908,7 @@
     ensureAllPlaceholders();
     initSortables();
     renderSidebarGroups();
+    renderActiveTaskWidget();
     initSidebarSortable();
     initSidebarGroupObserver();
     checkNestingTooltip();
@@ -9138,6 +9743,14 @@
       if (keepOpen) return;
       hideGroupMenu();
       closeRestoreDropdown();
+      // [1.0.16] The expanded widget collapses with the sidebar, per spec. It
+      // rides the existing keepOpen verdict rather than adding a flag of its
+      // own — while its Switch dropdown is open sidebarLocked is already true,
+      // so this returns above and the widget stays put.
+      if (satExpanded) {
+        satExpanded = false;
+        renderActiveTaskWidget();
+      }
     });
 
     // Group context menu — close on Escape

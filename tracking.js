@@ -663,6 +663,73 @@
       String(d.getDate()).padStart(2, "0");
   }
 
+  // ===== [1.0.16] Read surface =====
+  //
+  // The active-task widget's focused-time readout. The first thing outside the
+  // engine to read tracking data, so it is a deliberate contract rather than
+  // the UI reaching into storage keys — debugSummary is console-shaped (minutes,
+  // display labels) and unusable here.
+  //
+  // Returns the two halves of the number separately, on purpose:
+  //
+  //   { baseMs, openSince }   live total = baseMs + (openSince ? now - openSince : 0)
+  //
+  // The engine writes ONLY at boundaries — no alarm, no heartbeat, nothing
+  // polls. So between boundaries `open.start` is fixed and storage is provably
+  // static: the caller can tick a smooth 1s clock off `openSince` locally with
+  // no writer racing its interpolation, and re-read only when a
+  // storage.onChanged fires for our keys. Handing back a single `totalMs` would
+  // force a storage read per tick to animate.
+  //
+  // SUMS ACROSS EVERY WORKSPACE's aggregate for today, which is required, not
+  // defensive. Aggregates are keyed `${workspaceId}:${day}` from the session's
+  // workspaceId — the workspace that was ACTIVE at capture. The active task is
+  // global and may belong to a different workspace (the widget's cross-workspace
+  // state), so its time lands under whichever workspace the user was browsing
+  // in. Reading only the task's own workspace would show 0 for a foreign task.
+  //
+  // No double-count: byTask counts only sessions stamped `aggregated`, the
+  // unaggregated term counts only those without the stamp, and the open session
+  // is in neither list until it closes. Close + rollup land in ONE atomic
+  // write, so the handover is seamless in both directions.
+  async function focusedTodayForTask(taskId) {
+    if (!taskId) return { baseMs: 0, openSince: null };
+
+    var days = await readDays();
+    var store = await readStore();
+    var today = localDayKey();
+    var baseMs = 0;
+
+    Object.keys(days).forEach(function (k) {
+      var agg = days[k];
+      if (!agg || agg.day !== today) return;
+      baseMs += (agg.byTask && agg.byTask[taskId]) || 0;
+    });
+
+    // Closed but not yet rolled up. Steady state is none of these (rollup rides
+    // the closing write), but a failed rollup or a pre-[1.0.26] record would
+    // otherwise make the readout jump backwards at the close and forwards again
+    // at the next startup backfill.
+    (store.sessions || []).forEach(function (s) {
+      if (!s || s.aggregated) return;
+      if ((s.activeTaskId || null) !== taskId) return;
+      splitAcrossLocalDays(s.start, s.end).forEach(function (seg) {
+        if (seg.dayKey === today) baseMs += seg.ms;
+      });
+    });
+
+    // Clamp to today's start: a session left open across local midnight has
+    // already contributed yesterday's share to yesterday's aggregate (D4 splits
+    // at every midnight it crosses), so counting from its true start would
+    // re-add that time to today.
+    var openSince = null;
+    if (store.open && (store.open.activeTaskId || null) === taskId) {
+      openSince = Math.max(store.open.start, startOfLocalDay());
+    }
+
+    return { baseMs: baseMs, openSince: openSince };
+  }
+
   function msToMinutes(ms) {
     return Math.round((ms / 60000) * 100) / 100;
   }
@@ -815,6 +882,10 @@
     reconcileOrphans: reconcileOrphans,
     rollupAndPrune: rollupAndPrune,
     debugSummary: debugSummary,
+
+    // [1.0.16] Read surface for the active-task widget. The only non-console
+    // read contract; see focusedTodayForTask for why it returns two halves.
+    focusedTodayForTask: focusedTodayForTask,
 
     // Exposed for the Section I console harness — verification needs to drive
     // the gates and the store directly without waiting on real Chrome events.

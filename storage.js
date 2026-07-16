@@ -1014,8 +1014,11 @@ var Storage = (function () {
   // recurringTemplateId (defaults; [1.0.14] populates). Data model is
   // complete from day one even though enforcement / UI lands later.
   //
-  // Active task selection (data.activeTask top-level) is entirely [1.0.16]'s
-  // territory — no Storage.setActiveTask here.
+  // Active task selection (data.activeTask top-level) lives in its own section
+  // below — see "Active task ([1.0.16])" for setActiveTask / clearActiveTask /
+  // resolveActiveTask. Deliberately NOT wired into completeTask or deleteTask:
+  // resolveActiveTask self-heals a stale record on read, so no mutation path
+  // has to remember to clear it (and none could cover the other-tab case).
 
   var VALID_PRIORITIES = ["low", "medium", "high", "urgent"];
 
@@ -1805,6 +1808,126 @@ var Storage = (function () {
     var task = tasks.find(function (t) { return t.id === taskId; });
     if (!task || task.deletedAt) return null;
     return task;
+  }
+
+  // ===== Active task ([1.0.16]) =====
+  //
+  // Top-level `data.activeTask`, GLOBAL across workspaces (one at a time) —
+  // shape per docs/SPECS/tasks-and-goals.md:
+  //
+  //   { taskId, workspaceId, startedAt, isPaused, pomodoroState }
+  //
+  // workspaceId is stored even though taskId would resolve on its own: the
+  // active task can belong to a workspace the user is not currently in (the
+  // widget's cross-workspace state), and resolving it must not depend on which
+  // workspace happens to be active.
+  //
+  // Two shapes, one name — do not confuse them. `data.activeTask` is this
+  // OBJECT; a tracking session's `activeTaskId` is the BARE id string. The
+  // engine reads `data.activeTask.taskId` to bridge them (tracking.js
+  // computeDesired). Widening this object is safe; renaming `taskId` is not.
+  //
+  // isPaused/pomodoroState are written but never read here: the pause control is
+  // [1.0.17] and Pomodoro is deferred past 2.0.0. They are stored from day one
+  // so those tasks add behavior, not a migration.
+  //
+  // These write through saveAll rather than mutate-only (the setTrackingEnabled
+  // convention): an active-task change is a tracking session boundary, and the
+  // engine only learns about it from the storage watcher firing on `data`. A
+  // mutate-only setter would make every caller responsible for the boundary.
+
+  function getActiveTask(data) {
+    var active = data && data.activeTask;
+    if (!active || typeof active !== "object" || !active.taskId) return null;
+    return active;
+  }
+
+  /**
+   * Make `taskId` the active task. Resolves the task first: a missing or
+   * trashed task never becomes active.
+   *
+   * Idempotent on the already-active task — it returns the existing record
+   * WITHOUT rewriting startedAt or touching storage. That matters beyond
+   * tidiness: re-activating the current task must not look like a boundary to
+   * the engine, or clicking an already-active row would split the session and
+   * reset the user's visible focused time.
+   *
+   * @returns {Promise<object|null>} the stored activeTask record, or null.
+   */
+  async function setActiveTask(data, taskId, workspaceId) {
+    if (!data || !taskId) return null;
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var task = findLiveTask(ws, taskId);
+    if (!task) return null;
+
+    var current = getActiveTask(data);
+    if (current && current.taskId === taskId) return current;
+
+    data.activeTask = {
+      taskId: taskId,
+      workspaceId: ws.id,
+      startedAt: Date.now(),
+      isPaused: false,
+      pomodoroState: null
+    };
+    await saveAll(data);
+    return data.activeTask;
+  }
+
+  /**
+   * Deactivate (D7: the task itself is untouched — not completed, not
+   * cancelled, merely no longer active). No-op write when nothing was active,
+   * so callers can fire it unconditionally without producing a spurious
+   * storage event the engine would treat as a boundary.
+   *
+   * @returns {Promise<boolean>} whether anything was cleared.
+   */
+  async function clearActiveTask(data) {
+    if (!data || data.activeTask == null) return false;
+    data.activeTask = null;
+    await saveAll(data);
+    return true;
+  }
+
+  /**
+   * Resolve `data.activeTask` into everything a renderer needs — or report it
+   * stale. PURE: no mutation, no saveAll, safe to call on every render and from
+   * a harness.
+   *
+   * Self-healing is the caller's, by construction: a stale record resolves to
+   * `{ stale: true }` and the widget draws its empty state. The alternative —
+   * hooking completeTask/deleteTask to clear the flag — would need every
+   * present and future mutation path to remember, and would still miss the
+   * other tab. Resolution can't forget.
+   *
+   * Stale means: workspace gone, task missing or trashed (getTaskById returns
+   * null for a soft-deleted row), or the task completed elsewhere. Note tasks
+   * carry a boolean `completed`, while goals carry `status` — deliberately
+   * asymmetric in the model, so check the right one.
+   *
+   * @returns {null|{stale:true,reason:string,activeTask:object}
+   *          |{stale:false,activeTask,task,workspace,goal,isForeign}}
+   */
+  function resolveActiveTask(data) {
+    var active = getActiveTask(data);
+    if (!active) return null;
+
+    var ws = resolveWorkspaceFromData(data, active.workspaceId);
+    if (!ws) return { stale: true, reason: "workspace-missing", activeTask: active };
+
+    var task = getTaskById(ws, active.taskId);
+    if (!task) return { stale: true, reason: "task-missing", activeTask: active };
+    if (task.completed) return { stale: true, reason: "task-completed", activeTask: active };
+
+    var activeWs = getActiveWorkspace(data);
+    return {
+      stale: false,
+      activeTask: active,
+      task: task,
+      workspace: ws,
+      goal: task.goalId ? getGoalById(ws, task.goalId) : null,
+      isForeign: !!(activeWs && activeWs.id !== ws.id)
+    };
   }
 
   // ===== Due-date hierarchy checks ([1.0.13]) =====
@@ -3030,6 +3153,12 @@ var Storage = (function () {
     getCompletedTasks: getCompletedTasks,
     getAllTasks: getAllTasks,
     getTaskById: getTaskById,
+    // Active task ([1.0.16]) — data.activeTask is the OBJECT; a tracking
+    // session's activeTaskId is the bare id. resolveActiveTask is pure.
+    getActiveTask: getActiveTask,
+    setActiveTask: setActiveTask,
+    clearActiveTask: clearActiveTask,
+    resolveActiveTask: resolveActiveTask,
     // Due-date hierarchy checks ([1.0.13]) — pure reads, no mutation
     checkTaskDueConflict: checkTaskDueConflict,
     checkGoalDeadlineConflict: checkGoalDeadlineConflict,
