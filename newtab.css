@@ -3919,6 +3919,18 @@ html.has-bg:not(.bg-light) #sb-rate:hover {
   opacity: 1;
 }
 
+/* Accent for the activation affordances ([1.0.16] polish).
+   --accent (#1a73e8) is tuned for the base light theme (--bg is #fff): on the
+   DARK surfaces a wallpaper produces it is a dim blue, which is why a small
+   glyph in it read as an unfindable sliver rather than a control. Follows the
+   existing on-dark precedent (html.has-bg #pro-settings-privacy-link -> #8ab4f8).
+   The .bg-light selector carries two classes so it wins over html.has-bg
+   regardless of source order — a light wallpaper puts these back on light
+   surfaces, where the standard accent is the readable one. */
+:root { --sat-accent: var(--accent); }
+html.has-bg { --sat-accent: #8ab4f8; }
+html.has-bg.bg-light { --sat-accent: var(--accent); }
+
 /* ===== [1.0.16] Active task widget =====
 
    Lives between the group list and the bottom cluster. Two INDEPENDENT collapse
@@ -3956,15 +3968,16 @@ html.has-bg:not(.bg-light) #sb-rate:hover {
 
 /* --- Collapsed row: "▶ 1h 24m" / "No active task +" --- */
 
+/* Rides .sb-item (40px row, padding 0 12px, gap 12px) so the glyph lands in the
+   same icon column as History / Add Group above it — no padding/gap override,
+   which previously nudged it ~2px off that column. */
 .sat-collapsed {
   width: 100%;
-  gap: 10px;
   background: none;
   border: none;
   cursor: pointer;
   font: inherit;
   text-align: left;
-  padding: 0 14px;
   color: var(--text-primary, #fff);
 }
 
@@ -3975,16 +3988,18 @@ html.has-bg:not(.bg-light) #sb-rate:hover {
   flex-shrink: 0;
   width: 20px;
   height: 20px;
-  font-size: 12px;
+  /* The triangle was 12px in a 20px box — legible now, filling the glyph slot
+     like a real icon rather than a speck. */
+  font-size: 15px;
   line-height: 1;
-  color: var(--accent, #4a9eff);
+  color: var(--sat-accent);
 }
 
 .sat-collapsed.is-empty .sat-glyph { color: var(--text-secondary, rgba(255, 255, 255, 0.6)); }
 
 .sat-collapsed-time {
   font-variant-numeric: tabular-nums;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
@@ -4271,26 +4286,37 @@ html.has-bg:not(.bg-light) #sb-rate:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: none;
   border-radius: 4px;
   background: none;
   color: var(--text-secondary, rgba(255, 255, 255, 0.5));
-  font-size: 9px;
+  /* Was 9px — a sliver that read as noise, not a control (Samson couldn't find
+     it on the live pass). Legible at rest, unmissable on hover. */
+  font-size: 13px;
   line-height: 1;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 120ms ease, color 120ms ease;
+  transition: opacity 120ms ease, color 120ms ease, transform 120ms ease, background-color 120ms ease;
 }
 
-.tt-task-row:hover .tt-task-play { opacity: 0.75; }
-.tt-task-play:hover { opacity: 1 !important; color: var(--accent, #4a9eff); }
+/* Subtle at rest, unmistakable on hover: full opacity, bright accent, a faint
+   accent wash so the hit target reads as a button. */
+.tt-task-row:hover .tt-task-play { opacity: 0.7; }
+.tt-task-play:hover {
+  opacity: 1 !important;
+  color: var(--sat-accent);
+  background: rgba(138, 180, 248, 0.18);
+}
 
+/* The active task announces itself at a glance: solid accent + a slight scale,
+   permanently visible regardless of row hover. */
 .tt-task-row.is-active-task .tt-task-play {
   opacity: 1;
-  color: var(--accent, #4a9eff);
+  color: var(--sat-accent);
+  transform: scale(1.18);
 }
 
 .tt-task-row.is-active-task .tt-task-name { font-weight: 600; }
