@@ -227,12 +227,28 @@
       session: {
         workspaceId: gate.workspaceId,
         domain: focus.domain,
-        // Stamped as-is: null until [1.0.16] ships setActiveTask, and
-        // attribution ([1.0.26]) simply skips a null. The spec's active-task
-        // boundary needs no special handling — data.activeTask lives in `data`,
-        // so the storage watcher fires on change and sameSession() sees the
-        // mismatch, closing and reopening exactly like any other boundary.
-        activeTaskId: (data && data.activeTask) || null
+        // TWO DIFFERENT SHAPES, one name. `data.activeTask` is an OBJECT —
+        // {taskId, workspaceId, startedAt, ...} per tasks-and-goals.md — while a
+        // session stamps the BARE id per tracking-engine.md. Read `.taskId`,
+        // never the object itself.
+        //
+        // Stamping the object breaks three things at once, none of them loudly:
+        // sameSession() compares this field with ===, and two deserialized
+        // objects are never identical, so every boundary would close and reopen
+        // the session (and the lastEventAt heartbeat below would be
+        // unreachable); rollup would key byTask by "[object Object]", collapsing
+        // every task's time into one bucket; and getTaskById() would resolve
+        // null, silently dropping the active task's tags from attribution.
+        //
+        // This read was written when nothing populated data.activeTask, so
+        // `undefined || null` made it correct-by-accident until [1.0.16] shipped
+        // setActiveTask.
+        //
+        // The active-task boundary itself needs no special handling —
+        // data.activeTask lives in `data`, so the storage watcher fires on
+        // change and sameSession() sees the mismatch, closing and reopening
+        // exactly like any other boundary.
+        activeTaskId: (data && data.activeTask && data.activeTask.taskId) || null
       }
     };
   }
