@@ -7354,23 +7354,32 @@
 
   // ===== Render =====
 
-  // ===== [1.0.16] Active task widget =====
+  // ===== [1.0.16 v2] Active-task PILL =====
   //
-  // The engine's first visible surface. Lives in the sidebar, so it renders on
-  // EVERY tab — nothing here may assume the Tasks tab is mounted.
+  // The engine's first visible surface. v2 relocates it from the sidebar to a
+  // FIXED PILL in the top-right corner (DIRECTION v2): visible on EVERY tab
+  // without a hover, with a frosted fill so its text is legible on any wallpaper
+  // (the sidebar's translucent illegibility was the named anti-pattern). The
+  // LOGIC layer is unchanged from v1 — this is a surface relocation. What moved:
+  //   - collapsed content renders into the fixed pill (#active-task-pill), not a
+  //     sidebar row;
+  //   - the expanded state is a BODY-MOUNTED panel anchored to the pill
+  //     (satPanelEl), not an innerHTML swap on a sidebar element;
+  //   - the Switch dropdown no longer touches sidebarLocked (it is not in the
+  //     sidebar any more) — it is a plain body-mounted menu anchored to the
+  //     panel's Switch button.
   //
   // Time shown is today's FOCUSED time for the task (D1), not wall-clock since
-  // activation. Activating at 9am and going to lunch must not read "4h" — the
-  // headline number on Pro's most visible surface has to be the honest one.
-  //
-  // The readout arrives in two halves from Tracking.focusedTodayForTask:
-  // `baseMs` (rolled-up + closed) and `openSince` (the open session's start, iff
-  // it is stamped to this task). Live total = baseMs + (now - openSince). The
-  // engine writes only at boundaries, so between them storage is static and the
-  // 1s tick is pure local arithmetic — one storage read per boundary, not per
-  // second.
+  // activation. The readout arrives in two halves from
+  // Tracking.focusedTodayForTask: `baseMs` (rolled-up + closed) and `openSince`
+  // (the open session's start, iff stamped to this task). Live total = baseMs +
+  // (now - openSince). The engine writes only at boundaries, so between them
+  // storage is static and the 1s tick is pure local arithmetic.
 
-  var satExpanded = false;
+  var satPanelEl = null;          // body-mounted expanded panel, null when closed
+  var satPanelOutsideHandler = null;
+  var satPanelEscapeHandler = null;
+  var satPanelScrollHandler = null;
   var satTickTimer = null;
   var satReadout = { taskId: null, baseMs: 0, openSince: null };
   var satSwitchMenuEl = null;
@@ -7383,6 +7392,8 @@
     var level = (typeof ProAccess !== "undefined" && data) ? ProAccess.getProAccessLevel(data) : "free";
     return isProAccessibleLevel(level);
   }
+
+  function satPanelOpen() { return !!satPanelEl; }
 
   // "1h 24m" collapsed / "1:24:03" expanded. Both tabular-nums so the digits
   // don't jitter as they tick.
@@ -7407,16 +7418,17 @@
     return satReadout.baseMs + open;
   }
 
-  // Repaint ONLY the time text. A full re-render every second would fight the
-  // dropdown, kill hover states, and reset the search field.
+  // Repaint ONLY the time text — in the pill AND (if open) the panel. A full
+  // re-render every second would fight the dropdown, kill hover states, and
+  // reset the search field.
   function satPaintTime() {
-    var el = $("#sb-active-task");
-    if (!el) return;
     var ms = satLiveMs();
-    var big = el.querySelector(".sat-time");
-    if (big) big.textContent = satFmtLong(ms);
-    var small = el.querySelector(".sat-collapsed-time");
-    if (small && !el.querySelector(".sat-collapsed.is-empty")) small.textContent = satFmtShort(ms);
+    var pillTime = document.querySelector("#active-task-pill .sat-pill-time");
+    if (pillTime) pillTime.textContent = satFmtShort(ms);
+    if (satPanelEl) {
+      var big = satPanelEl.querySelector(".sat-time");
+      if (big) big.textContent = satFmtLong(ms);
+    }
   }
 
   function satStopTick() {
@@ -7432,7 +7444,7 @@
     satTickTimer = setInterval(satPaintTime, 1000);
   }
 
-  // Re-read the engine's numbers. Async, but never blocks a render: the widget
+  // Re-read the engine's numbers. Async, but never blocks a render: the pill
   // paints from the cached readout and the fresh value lands a tick later.
   async function satRefreshReadout(taskId) {
     if (!taskId || typeof Tracking === "undefined" || !Tracking.focusedTodayForTask) {
@@ -7454,17 +7466,16 @@
     satStartTick();
   }
 
-  function satCollapsedHtml(res) {
+  // The pill's collapsed content: play glyph + truncated name + ticking time,
+  // or the empty state. DIRECTION v2 collapsed spec.
+  function satPillHtml(res) {
     if (!res) {
-      return '<button type="button" class="sat-collapsed sb-item is-empty" title="Pick an active task">' +
-          '<span class="sat-glyph" aria-hidden="true">+</span>' +
-          '<span class="sb-label sat-collapsed-time">No active task</span>' +
-        '</button>';
+      return '<span class="sat-pill-empty">No active task</span>' +
+        '<span class="sat-pill-plus" aria-hidden="true">+</span>';
     }
-    return '<button type="button" class="sat-collapsed sb-item" title="' + escapeHtml(res.task.name) + '">' +
-        '<span class="sat-glyph" aria-hidden="true">▶</span>' +
-        '<span class="sb-label sat-collapsed-time">' + escapeHtml(satFmtShort(satLiveMs())) + '</span>' +
-      '</button>';
+    return '<span class="sat-pill-glyph" aria-hidden="true">▶</span>' +
+      '<span class="sat-pill-name">' + escapeHtml(res.task.name) + '</span>' +
+      '<span class="sat-pill-time">' + escapeHtml(satFmtShort(satLiveMs())) + '</span>';
   }
 
   function satExpandedHtml(res) {
@@ -7524,27 +7535,29 @@
       '</div>';
   }
 
+  // Repaint the pill (and, if open, the panel body). Called from render(),
+  // applyAccessLevelUI(), and every activate/cancel/complete path.
   function renderActiveTaskWidget() {
-    var el = $("#sb-active-task");
-    if (!el) return;
+    var pill = $("#active-task-pill");
+    if (!pill) return;
 
-    // D9: hidden entirely for free users. The sidebar is shared free real
-    // estate; no preview stub here.
+    // D9: hidden entirely for free users. No preview stub.
     if (!satHasPro()) {
-      el.classList.add("hidden");
-      el.innerHTML = "";
+      pill.classList.add("hidden");
+      pill.innerHTML = "";
       satStopTick();
+      closeActiveTaskPanel();
       closeSatSwitchMenu();
       return;
     }
-    el.classList.remove("hidden");
+    pill.classList.remove("hidden");
 
     var resolved = Storage.resolveActiveTask(data);
 
     // Self-heal (item 7). resolveActiveTask reports a task completed or deleted
-    // ANYWHERE — including by another tab — as stale, and the widget drops to
-    // its empty state. It also clears the stored record: leaving it would keep
-    // the engine attributing focus to a task the UI says isn't active, which is
+    // ANYWHERE — including by another tab — as stale, and the pill drops to its
+    // empty state. It also clears the stored record: leaving it would keep the
+    // engine attributing focus to a task the UI says isn't active, which is
     // exactly the invisible-state mismatch the paused-flag lesson warns about.
     // One write, then resolve returns null and this never fires again.
     if (resolved && resolved.stale) {
@@ -7556,17 +7569,105 @@
           .then(function () { satHealing = false; });
       }
       resolved = null;
-      satExpanded = false;
     }
 
     var res = (resolved && !resolved.stale) ? resolved : null;
     if (!res) satReadout = { taskId: null, baseMs: 0, openSince: null };
 
-    el.dataset.collapsed = satExpanded ? "0" : "1";
-    el.innerHTML = satExpanded ? satExpandedHtml(res) : satCollapsedHtml(res);
+    pill.classList.toggle("is-empty", !res);
+    pill.setAttribute("title", res ? res.task.name : "Pick an active task");
+    pill.innerHTML = satPillHtml(res);
+
+    // Keep an open panel in sync (e.g. a foreign onChanged flips the paused
+    // flag, or another tab changes the task). Most local transitions close the
+    // panel first, so this is the cross-tab / passive-refresh path.
+    if (satPanelEl) satPanelEl.querySelector(".sat-panel-body").innerHTML = satExpandedHtml(res);
 
     if (res) satRefreshReadout(res.task.id);
     else satStopTick();
+  }
+
+  // ----- Expanded panel (body-mounted, anchored to the pill) -----
+  //
+  // Replaces v1's sidebar innerHTML swap. Body-mounted + position:fixed so it
+  // floats above content; scroll-close + outside-click + Escape, the v3 popover
+  // contract. z-order sits above content but below menus/modals so the Switch
+  // dropdown (a .tt-context-menu at z 10501) layers on top.
+
+  function positionActiveTaskPanel() {
+    if (!satPanelEl) return;
+    var pill = $("#active-task-pill");
+    if (!pill) return;
+    var rect = pill.getBoundingClientRect();
+    var w = satPanelEl.offsetWidth;
+    var h = satPanelEl.offsetHeight;
+    // Right-align the panel to the pill's right edge; drop below it.
+    var right = window.innerWidth - rect.right;
+    var top = rect.bottom + 6;
+    if (top + h > window.innerHeight - 8) top = Math.max(8, rect.top - h - 6); // flip above if no room
+    satPanelEl.style.right = Math.max(8, right) + "px";
+    satPanelEl.style.top = top + "px";
+  }
+
+  function closeActiveTaskPanel() {
+    if (!satPanelEl) return;
+    if (satPanelOutsideHandler) { document.removeEventListener("click", satPanelOutsideHandler, true); satPanelOutsideHandler = null; }
+    if (satPanelEscapeHandler) { document.removeEventListener("keydown", satPanelEscapeHandler); satPanelEscapeHandler = null; }
+    if (satPanelScrollHandler) { window.removeEventListener("scroll", satPanelScrollHandler, true); satPanelScrollHandler = null; }
+    if (satPanelEl.parentNode) satPanelEl.parentNode.removeChild(satPanelEl);
+    satPanelEl = null;
+    var pill = $("#active-task-pill");
+    if (pill) pill.setAttribute("aria-expanded", "false");
+  }
+
+  function openActiveTaskPanel() {
+    if (satPanelEl) { closeActiveTaskPanel(); return; }
+    var pill = $("#active-task-pill");
+    if (!pill || !satHasPro()) return;
+
+    var res = Storage.resolveActiveTask(data);
+    res = (res && !res.stale) ? res : null;
+
+    var panel = document.createElement("div");
+    panel.className = "sat-panel";
+    panel.setAttribute("role", "dialog");
+    panel.innerHTML = '<div class="sat-panel-body">' + satExpandedHtml(res) + '</div>';
+    document.body.appendChild(panel);
+    satPanelEl = panel;
+    pill.setAttribute("aria-expanded", "true");
+    positionActiveTaskPanel();
+    // Fresh readout so the big timer is current the instant the panel opens.
+    if (res) satRefreshReadout(res.task.id);
+
+    // Action buttons inside the panel.
+    panel.addEventListener("click", async function (e) {
+      var actBtn = e.target.closest && e.target.closest("[data-sat-act]");
+      if (!actBtn) return;
+      var act = actBtn.getAttribute("data-sat-act");
+      if (act === "complete") { await satComplete(); return; }
+      if (act === "cancel") { await satCancel(); return; }
+      if (act === "switch") { openSatSwitchMenu(actBtn); return; }
+      if (act === "goto-workspace") {
+        var r2 = Storage.resolveActiveTask(data);
+        if (r2 && !r2.stale) { closeActiveTaskPanel(); await switchWorkspace(r2.workspace.id); }
+        return;
+      }
+    });
+
+    satPanelOutsideHandler = function (e) {
+      // The Switch dropdown lives outside the panel DOM but is logically part of
+      // this interaction — ignore clicks while it is open.
+      if (satSwitchMenuEl) return;
+      if (!panel.contains(e.target) && !pill.contains(e.target)) closeActiveTaskPanel();
+    };
+    setTimeout(function () { document.addEventListener("click", satPanelOutsideHandler, true); }, 0);
+
+    satPanelEscapeHandler = function (e) { if (e.key === "Escape" && !satSwitchMenuEl) closeActiveTaskPanel(); };
+    document.addEventListener("keydown", satPanelEscapeHandler);
+
+    // Scroll-close (v3): the panel is position:fixed off a one-time rect.
+    satPanelScrollHandler = function () { if (!satSwitchMenuEl) closeActiveTaskPanel(); };
+    window.addEventListener("scroll", satPanelScrollHandler, true);
   }
 
   // Make a task active. The single funnel for all three entry points (row play
@@ -7582,6 +7683,7 @@
     }
     // Eager render: saveAll tags our own writes and the provenance gate
     // suppresses the resulting onChanged, so nothing else will repaint this tab.
+    closeActiveTaskPanel();
     renderActiveTaskWidget();
     satRenderTasksPanel();
     return true;
@@ -7606,7 +7708,7 @@
       console.error("[LaunchPad] Active task: cancel failed", err);
       return;
     }
-    satExpanded = false;
+    closeActiveTaskPanel();
     renderActiveTaskWidget();
     satRenderTasksPanel();
   }
@@ -7638,13 +7740,13 @@
       console.error("[LaunchPad] Active task: deactivate-after-complete failed", err);
     }
 
-    // The green sweep on the widget, then empty. Deliberately the widget's own
-    // animation: the task row's celebration cannot run here — the Tasks tab may
-    // not even be the visible tab.
-    var el = $("#sb-active-task");
-    var card = el && el.querySelector(".sat-expanded");
+    // The green sweep, then empty. Deliberately the widget's own animation: the
+    // task row's celebration cannot run here — the Tasks tab may not even be the
+    // visible tab. Done is clicked from the open panel, so the sweep plays on the
+    // panel card; if the panel is somehow already closed, settle immediately.
+    var card = satPanelEl && satPanelEl.querySelector(".sat-expanded");
     var settle = function () {
-      satExpanded = false;
+      closeActiveTaskPanel();
       renderActiveTaskWidget();
       satRenderTasksPanel();  // Completed box + any goal flip
     };
@@ -7666,12 +7768,10 @@
 
   // --- Switch dropdown (D5): workspace -> goal -> tasks ---------------------
   //
-  // Sidebar-resident, so it follows the SIDEBAR dropdown contract (B5 / I4),
-  // not the Tasks-tab menu one: it must hold sidebarLocked while open, or
-  // moving the cursor onto this body-mounted menu leaves #sidebar, fires the
-  // mouseleave collapse, and pulls the sidebar out from under it. Release
-  // mirrors openRestoreDropdown exactly — including the :hover check, so the
-  // sidebar only collapses if the cursor is genuinely gone.
+  // v2: the Switch button lives in the body-mounted panel, NOT the sidebar, so
+  // this no longer touches sidebarLocked / #sidebar at all (the v1 sidebar
+  // coupling is gone). It is a plain body-mounted .tt-context-menu anchored to
+  // the panel's Switch button, layering above the panel (z 10501 > panel).
 
   function closeSatSwitchMenu() {
     if (!satSwitchMenuEl) return;
@@ -7689,18 +7789,6 @@
     }
     if (satSwitchMenuEl.parentNode) satSwitchMenuEl.parentNode.removeChild(satSwitchMenuEl);
     satSwitchMenuEl = null;
-
-    sidebarLocked = false;
-    var sidebar = $("#sidebar");
-    if (sidebar) {
-      sidebar.classList.remove("sidebar-locked");
-      if (!sidebar.matches(":hover")) {
-        sidebar.classList.remove("expanded");
-        hideSidebarPanel();
-        satExpanded = false;
-        renderActiveTaskWidget();
-      }
-    }
   }
 
   // Renders the whole list from (query, collapse-state). Both the search input
@@ -7776,14 +7864,6 @@
   function openSatSwitchMenu(anchorEl) {
     closeSatSwitchMenu();
 
-    sidebarLocked = true;
-    var sidebar = $("#sidebar");
-    if (sidebar) {
-      sidebar.classList.add("sidebar-locked");
-      sidebar.classList.add("expanded");
-    }
-    showSidebarPanel();
-
     var menu = document.createElement("div");
     menu.className = "tt-context-menu sat-switch-menu";
     menu.innerHTML =
@@ -7850,43 +7930,22 @@
   }
 
   function bindActiveTaskWidget() {
-    var el = $("#sb-active-task");
-    if (!el || el.dataset.satBound === "1") return;
-    el.dataset.satBound = "1";
+    var pill = $("#active-task-pill");
+    if (!pill || pill.dataset.satBound === "1") return;
+    pill.dataset.satBound = "1";
 
-    el.addEventListener("click", async function (e) {
-      var actBtn = e.target.closest && e.target.closest("[data-sat-act]");
-      if (actBtn) {
-        var act = actBtn.getAttribute("data-sat-act");
-        if (act === "complete") { await satComplete(); return; }
-        if (act === "cancel") { await satCancel(); return; }
-        if (act === "switch") { openSatSwitchMenu(actBtn); return; }
-        if (act === "goto-workspace") {
-          var res = Storage.resolveActiveTask(data);
-          if (res && !res.stale) await switchWorkspace(res.workspace.id);
-          return;
-        }
-        return;
-      }
-      // Collapsed row -> expand.
-      if (e.target.closest && e.target.closest(".sat-collapsed")) {
-        satExpanded = true;
-        renderActiveTaskWidget();
-      }
+    // Click the pill toggles the expanded panel. (Panel action buttons are bound
+    // inside openActiveTaskPanel.)
+    pill.addEventListener("click", function () {
+      if (satPanelEl) closeActiveTaskPanel();
+      else openActiveTaskPanel();
     });
 
-    // Outside-click collapses the expanded widget (per description). Capture
-    // phase to match the menu convention. The dropdown owns its own dismissal,
-    // so ignore clicks while it is up.
-    document.addEventListener("click", function (e) {
-      if (!satExpanded) return;
-      if (satSwitchMenuEl) return;
-      var w = $("#sb-active-task");
-      if (w && !w.contains(e.target)) {
-        satExpanded = false;
-        renderActiveTaskWidget();
-      }
-    }, true);
+    // Reposition an open panel on viewport resize so it stays anchored to the
+    // pill (fixed chrome moves with the window).
+    window.addEventListener("resize", function () {
+      if (satPanelEl) positionActiveTaskPanel();
+    });
 
     // A backgrounded tab's setInterval is throttled to ~1/min by Chrome, so the
     // number can be well behind by the time the tab is looked at again. Re-read
@@ -9764,14 +9823,6 @@
       if (keepOpen) return;
       hideGroupMenu();
       closeRestoreDropdown();
-      // [1.0.16] The expanded widget collapses with the sidebar, per spec. It
-      // rides the existing keepOpen verdict rather than adding a flag of its
-      // own — while its Switch dropdown is open sidebarLocked is already true,
-      // so this returns above and the widget stays put.
-      if (satExpanded) {
-        satExpanded = false;
-        renderActiveTaskWidget();
-      }
     });
 
     // Group context menu — close on Escape

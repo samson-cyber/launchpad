@@ -40,14 +40,6 @@
       </svg>
       <span class="sb-label">Add Group</span>
     </button>
-    <!--
-      [1.0.16] Active task widget. Below the group list, above the Settings cog.
-      Sits OUTSIDE #sb-group-list (the sidebar's only scroller) so it stays put
-      while groups scroll, and outside #sidebar-bottom so it is not pinned into
-      the cog/support cluster. Body filled by renderActiveTaskWidget(); hidden
-      entirely for free users (D9).
-    -->
-    <div id="sb-active-task" class="sb-active-task hidden" data-collapsed="1"></div>
     <div class="sb-separator"></div>
     <div id="sidebar-bottom">
       <div class="sb-pro-settings-row">
@@ -146,6 +138,17 @@
     <div id="tab-dashboard" class="tab-panel hidden" role="tabpanel"></div>
     <div id="tab-insights" class="tab-panel hidden" role="tabpanel"></div>
   </main>
+
+  <!--
+    [1.0.16 v2] Active-task PILL — fixed chrome, top-right corner, on every tab.
+    position:fixed so it is viewport-relative and unaffected by #content's
+    sidebar-push margin. Body-level (not inside #content) to make it
+    unambiguously chrome. Collapsed content is filled by renderActiveTaskWidget();
+    click body-mounts the expanded panel. Hidden entirely for free users (D9).
+    Frosted fill (not the sidebar's translucent bg) so text is legible on any
+    wallpaper — the v1 illegibility anti-pattern dies here.
+  -->
+  <button id="active-task-pill" class="hidden" type="button" aria-haspopup="dialog" aria-expanded="false"></button>
 
   <div id="history-overlay" class="hidden">
     <div id="history-panel">

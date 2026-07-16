@@ -3931,56 +3931,108 @@ html.has-bg:not(.bg-light) #sb-rate:hover {
 html.has-bg { --sat-accent: #8ab4f8; }
 html.has-bg.bg-light { --sat-accent: var(--accent); }
 
-/* ===== [1.0.16] Active task widget =====
+/* ===== [1.0.16 v2] Active-task PILL + PANEL =====
 
-   Lives between the group list and the bottom cluster. Two INDEPENDENT collapse
-   axes meet here, which is the thing to hold in mind when editing:
+   v2 relocation (DIRECTION v2): the surface moved from the sidebar to a fixed
+   top-right PILL with a body-mounted expanded PANEL. Unlike the sidebar — which
+   is deliberately bare, so the widget had to inherit its translucent illegibility
+   — the pill and panel are their OWN chrome and get the frosted FLOATER tier
+   (--pro-frost-floater-*), so text is legible on any wallpaper. That was the
+   whole point of the move. The Switch dropdown still rides .tt-context-menu (menu
+   tier), layering above the panel. */
 
-     1. The SIDEBAR's 48px <-> 260px hover expansion. Handled the same way every
-        other sidebar row handles it — .sb-label hides at 48px, so the collapsed
-        widget degrades to its glyph alone with no bespoke rules.
-     2. The WIDGET's own collapsed <-> expanded state, driven by click and
-        carried on [data-collapsed] on #sb-active-task.
-
-   Axis 2 only ever renders while axis 1 is expanded (the sidebar expands on
-   mouseenter, so any click already happens at 260px), which is why the expanded
-   card needs no 48px variant.
-
-   NO backdrop-filter, background-image, border or shadow on the container:
-   #sidebar itself is deliberately bare (see its rule above — "NO background,
-   border, shadow, or backdrop-filter — ever") and the frosted plate is the
-   separate #sidebar-panel behind it. A frost tier here would double-blur an
-   already-blurred backdrop, so the surface tints follow the sidebar's own
-   rgba(255,255,255,x) idiom rather than --pro-frost-*. The Switch dropdown is a
-   different story: it is body-mounted and reuses .tt-context-menu, which owns
-   the menu tier + its light-wallpaper handling. */
-
-.sb-active-task {
-  /* Outside #sb-group-list (flex:1), so without this the widget is what gives
-     when the column runs short — matching .sb-separator / .sb-expand-all-btn. */
-  flex-shrink: 0;
-  margin: 2px 4px;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.sb-active-task.hidden { display: none; }
-
-/* --- Collapsed row: "▶ 1h 24m" / "No active task +" --- */
-
-/* Rides .sb-item (40px row, padding 0 12px, gap 12px) so the glyph lands in the
-   same icon column as History / Add Group above it — no padding/gap override,
-   which previously nudged it ~2px off that column. */
-.sat-collapsed {
-  width: 100%;
-  background: none;
-  border: none;
-  cursor: pointer;
+/* --- The fixed pill (top-right, every tab) --- */
+#active-task-pill {
+  position: fixed;
+  top: 10px;
+  right: 14px;
+  /* ~15% of canvas, clamped so it neither shrinks to a sliver nor dominates.
+     The 62px vertical clearance to the Tasks-tab + New cluster is
+     width-independent (the compact band is a fixed 92px), so this width is free
+     to flex. */
+  width: clamp(160px, 15vw, 300px);
+  height: 40px;
+  z-index: 1500;               /* above content (z 2); below menus/modals */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: 20px;
+  background: var(--pro-frost-floater-bg);
+  backdrop-filter: var(--pro-frost-floater-blur);
+  -webkit-backdrop-filter: var(--pro-frost-floater-blur);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  color: #fff;                 /* dark frost by default; bg-light flips it dark */
   font: inherit;
+  cursor: pointer;
   text-align: left;
-  color: var(--text-primary, #fff);
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
+#active-task-pill.hidden { display: none; }
+#active-task-pill:hover { border-color: rgba(255, 255, 255, 0.28); }
+#active-task-pill[aria-expanded="true"] { border-color: var(--sat-accent); }
+
+.sat-pill-glyph {
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--sat-accent);
+}
+
+.sat-pill-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.sat-pill-time {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sat-accent);
+}
+
+/* Empty state: "No active task +" — legible on any wallpaper via the pill fill. */
+.sat-pill-empty {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.75));
+}
+
+.sat-pill-plus {
+  flex-shrink: 0;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--sat-accent);
+}
+
+/* --- The body-mounted expanded panel (anchored to the pill) --- */
+.sat-panel {
+  position: fixed;
+  z-index: 9000;              /* above content, below menus (10501) / modals */
+  width: 280px;
+  max-width: calc(100vw - 16px);
+  border-radius: 12px;
+  padding: 4px;
+  background: var(--pro-frost-floater-bg);
+  backdrop-filter: var(--pro-frost-floater-blur);
+  -webkit-backdrop-filter: var(--pro-frost-floater-blur);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+/* Shared glyph (Switch dropdown rows use this too — kept from v1). */
 .sat-glyph {
   display: inline-flex;
   align-items: center;
@@ -3988,40 +4040,29 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   flex-shrink: 0;
   width: 20px;
   height: 20px;
-  /* The triangle was 12px in a 20px box — legible now, filling the glyph slot
-     like a real icon rather than a speck. */
   font-size: 15px;
   line-height: 1;
   color: var(--sat-accent);
 }
 
-.sat-collapsed.is-empty .sat-glyph { color: var(--text-secondary, rgba(255, 255, 255, 0.6)); }
-
-.sat-collapsed-time {
-  font-variant-numeric: tabular-nums;
-  font-size: 14px;
-  font-weight: 600;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-}
-
-.sat-collapsed.is-empty .sat-collapsed-time {
-  font-weight: 400;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
-}
-
-/* --- Expanded card --- */
+/* --- Expanded card (now the panel body — the frosted plate is .sat-panel, so
+       no own background here or it double-tints) --- */
 
 .sat-expanded {
   padding: 10px 12px 12px;
-  background: rgba(255, 255, 255, 0.08);
   border-radius: 8px;
 }
 
+/* Text defaults to WHITE — the frost floater tier is DARK by default and under
+   has-bg (dark wallpaper); only html.bg-light flips the frost white, and the
+   bg-light overrides below flip the ink dark to match. (This is the v1 latency
+   fix: the sidebar widget got white text by inheritance, but a body-mounted
+   panel does not, so the color must be explicit.) */
 .sat-name {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
-  color: var(--text-primary, #fff);
+  color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   /* ~2 lines max per spec, then ellipsis. */
   display: -webkit-box;
@@ -4033,7 +4074,7 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
 .sat-goal {
   margin-top: 2px;
   font-size: 11px;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+  color: rgba(255, 255, 255, 0.7);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4050,7 +4091,7 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   line-height: 1.1;
   letter-spacing: 0.5px;
   font-variant-numeric: tabular-nums;
-  color: var(--text-primary, #fff);
+  color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
@@ -4060,7 +4101,7 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   font-weight: 500;
   letter-spacing: 0.6px;
   text-transform: uppercase;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+  color: rgba(255, 255, 255, 0.55);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
@@ -4087,7 +4128,7 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
   font-size: 11px;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .sat-foreign-switch {
@@ -4098,7 +4139,7 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   border: none;
   font: inherit;
   font-weight: 600;
-  color: var(--accent, #4a9eff);
+  color: var(--sat-accent);
   cursor: pointer;
   text-align: left;
 }
@@ -4123,7 +4164,7 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   background: rgba(255, 255, 255, 0.06);
-  color: var(--text-primary, #fff);
+  color: #fff;
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
@@ -4212,7 +4253,9 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   margin-top: 2px;
   background: none;
   border: none;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+  /* Menu tier: dark by default, white under has-bg.bg-light. Light ink here,
+     dark ink in the bg-light overrides below. */
+  color: rgba(255, 255, 255, 0.6);
   font: inherit;
   font-size: 10px;
   font-weight: 600;
@@ -4222,7 +4265,7 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   text-align: left;
 }
 
-.sat-ws-header:hover { color: var(--text-primary, #fff); }
+.sat-ws-header:hover { color: #fff; }
 
 .sat-ws-chevron {
   transition: transform 150ms ease;
@@ -4235,7 +4278,7 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   padding: 5px 8px 3px 18px;
   font-size: 10px;
   font-weight: 600;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.45));
+  color: rgba(255, 255, 255, 0.5);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4250,7 +4293,7 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   border-radius: 4px;
   background: none;
   border: none;
-  color: var(--text-primary, #fff);
+  color: rgba(255, 255, 255, 0.92);
   font: inherit;
   font-size: 12px;
   cursor: pointer;
@@ -4259,7 +4302,7 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
 
 .sat-switch-task:hover { background: rgba(255, 255, 255, 0.1); }
 
-.sat-switch-task.is-active { color: var(--accent, #4a9eff); font-weight: 600; }
+.sat-switch-task.is-active { color: var(--sat-accent); font-weight: 600; }
 
 .sat-switch-task-name {
   flex: 1;
@@ -4272,7 +4315,7 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   padding: 14px 10px;
   text-align: center;
   font-size: 11px;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+  color: rgba(255, 255, 255, 0.5);
 }
 
 /* --- Task row play affordance ([1.0.16]) ---
@@ -4328,17 +4371,28 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   pointer-events: none;
 }
 
-/* --- Active task widget: bg-light mode --- */
+/* --- Active-task pill + panel: bg-light mode ---
+   The frosted floater bg var flips to white-tinted under html.bg-light, so the
+   pill/panel FILL adapts automatically; only the ink and borders need setting. */
 
-html.bg-light .sat-collapsed { color: var(--text-primary); }
+html.bg-light #active-task-pill {
+  color: var(--text-primary);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+html.bg-light #active-task-pill:hover { border-color: rgba(0, 0, 0, 0.25); }
 
-html.bg-light .sat-collapsed-time,
+html.bg-light .sat-pill-empty { color: var(--text-secondary); }
+
+html.bg-light .sat-panel {
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+}
+
 html.bg-light .sat-name,
 html.bg-light .sat-goal,
 html.bg-light .sat-time,
 html.bg-light .sat-time-label { text-shadow: none; }
-
-html.bg-light .sat-expanded { background: rgba(0, 0, 0, 0.05); }
 
 html.bg-light .sat-name,
 html.bg-light .sat-time { color: var(--text-primary); }
