@@ -4672,7 +4672,18 @@
       sidebarExpandedGroupIds.clear();
       await Storage.saveAll(data);
       render();
-      applyWorkspaceSwitcherState(data);
+      // A workspace switch is a same-tab write to `data`: Storage.saveAll tags
+      // it and the write-provenance gate suppresses our OWN onChanged, so the
+      // cross-tab refresh path never runs for the tab that made the switch. We
+      // must replicate here exactly what a FOREIGN tab's onChanged does —
+      // `render(); applyAccessLevelUI();` — or the Pro panels stay a workspace
+      // behind until an unrelated render fires. applyAccessLevelUI is a superset
+      // of applyWorkspaceSwitcherState: it also re-renders the Tasks panel (via
+      // applyTabAccessLevel -> renderTabPlaceholder -> renderTasksTab, which
+      // reads the now-switched active workspace) and the active-task widget's
+      // cross-workspace state, so switcher label, panel content, and widget all
+      // agree immediately with no new tab. (I2 render-flow.)
+      applyAccessLevelUI();
       requestAnimationFrame(function () {
         if (grid) grid.classList.remove("is-swapping");
       });
@@ -4712,11 +4723,14 @@
     sidebarExpandedGroupIds.clear();
     await Storage.saveAll(data);
     render();
-    applyWorkspaceSwitcherState(data);
+    // Creating a workspace switches to it (empty), so the Pro panels would
+    // otherwise show the PREVIOUS workspace's content — same same-tab stale
+    // render as switchWorkspace. applyAccessLevelUI is the superset repaint
+    // (Tasks panel + widget + switcher label), and it already re-renders the
+    // Pro Settings workspace list when that panel is open, so no separate
+    // renderProWorkspaceList call is needed here.
+    applyAccessLevelUI();
     closeWorkspaceDropdown();
-    if ($("#pro-settings-panel") && !$("#pro-settings-panel").classList.contains("hidden")) {
-      renderProWorkspaceList();
-    }
     showToast("Workspace created");
   }
 
@@ -4756,7 +4770,14 @@
     if (activeChanged) sidebarExpandedGroupIds.clear();
     await Storage.saveAll(data);
     render();
-    applyWorkspaceSwitcherState(data);
+    // Deleting the ACTIVE workspace switches to another one, so the Pro panels
+    // need the same superset repaint as switchWorkspace (Tasks panel + widget +
+    // switcher label). Unconditional is fine when a non-active workspace is
+    // deleted — applyAccessLevelUI just repaints the unchanged active workspace.
+    applyAccessLevelUI();
+    // Delete is invoked from the Pro Settings panel; keep the explicit list
+    // refresh so the removed row disappears regardless of applyAccessLevelUI's
+    // panel-open guard.
     renderProWorkspaceList();
     showToast("Workspace deleted");
   }
