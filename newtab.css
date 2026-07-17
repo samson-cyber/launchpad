@@ -4177,6 +4177,33 @@ html.bg-light { --sat-amber: #8a6d09; }
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
+/* [1.0.17 dual counters] FOCUSED TODAY — the smaller secondary reader beneath the
+   ACTIVE headline. Value + micro-label on one baseline row. Stays its normal muted
+   ink even while paused (only the ACTIVE headline goes amber-frozen). */
+.sat-focused {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.sat-focused-time {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.sat-focused-label {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
 /* [1.0.17] Loud PAUSED state. Replaces the [1.0.16] indicator chip — the state
    is absorbed INTO the Pause/Resume control (D2), not shown as a second element.
    Amber accent + a visibly frozen timer, unmistakable on either wallpaper via the
@@ -4491,13 +4518,17 @@ html.bg-light .sat-card-min:hover { background: rgba(0, 0, 0, 0.08); color: var(
 html.bg-light .sat-name,
 html.bg-light .sat-goal,
 html.bg-light .sat-time,
-html.bg-light .sat-time-label { text-shadow: none; }
+html.bg-light .sat-time-label,
+html.bg-light .sat-focused-time,
+html.bg-light .sat-focused-label { text-shadow: none; }
 
 html.bg-light .sat-name,
-html.bg-light .sat-time { color: var(--text-primary); }
+html.bg-light .sat-time,
+html.bg-light .sat-focused-time { color: var(--text-primary); }
 
 html.bg-light .sat-goal,
 html.bg-light .sat-time-label,
+html.bg-light .sat-focused-label,
 html.bg-light .sat-foreign { color: var(--text-secondary); }
 
 html.bg-light .sat-foreign { background: rgba(0, 0, 0, 0.04); }

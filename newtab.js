@@ -7406,23 +7406,41 @@
     return h > 0 ? h + ":" + pad(m) + ":" + pad(s) : m + ":" + pad(s);
   }
 
+  // FOCUSED TODAY — the engine's honest per-day reader (secondary line on the
+  // card). baseMs (rolled-up + closed) + the live open span iff a session is
+  // stamped to this task; static between engine boundaries.
   function satLiveMs() {
     var open = satReadout.openSince ? Math.max(0, Date.now() - satReadout.openSince) : 0;
     return satReadout.baseMs + open;
   }
 
-  // Repaint ONLY the time text — whichever of the two renderings is mounted (the
-  // pill's small time in minimized/empty-adjacent states, the card's large timer
-  // when expanded; never both at once). A full re-render every second would fight
-  // the Switch dropdown, kill hover states, and reset the search field.
+  // ACTIVE — the headline liveness counter: wall-clock since the task was made
+  // active, minus every paused span. Pure local arithmetic off data.activeTask
+  // (startedAt / pausedMs / pausedAt), so it ticks every second while running and
+  // is display-only — the engine never reads these fields. While paused, the
+  // (now - pausedAt) term cancels the (now - startedAt) growth, so it freezes at
+  // the value it held when pause began. Clamped at 0 (a task born paused reads 0).
+  function satActiveMs() {
+    var a = Storage.getActiveTask(data);
+    if (!a || !a.startedAt) return 0;
+    var now = Date.now();
+    var pausedSpan = (Storage.isTrackingPaused(data) && a.pausedAt != null) ? (now - a.pausedAt) : 0;
+    return Math.max(0, now - a.startedAt - (a.pausedMs || 0) - pausedSpan);
+  }
+
+  // Repaint the time text without a full re-render (which would fight the Switch
+  // dropdown, kill hover states, reset the search field). The pill's time and the
+  // card's LARGE timer both show ACTIVE; the card's secondary line shows FOCUSED.
   function satPaintTime() {
-    var ms = satLiveMs();
     var container = $("#active-task-pill");
     if (!container) return;
+    var activeText = satFmtLong(satActiveMs());
     var pillTime = container.querySelector(".sat-pill-time");
-    if (pillTime) pillTime.textContent = satFmtLong(ms);
+    if (pillTime) pillTime.textContent = activeText;
     var big = container.querySelector(".sat-time");
-    if (big) big.textContent = satFmtLong(ms);
+    if (big) big.textContent = activeText;
+    var focused = container.querySelector(".sat-focused-time");
+    if (focused) focused.textContent = satFmtLong(satLiveMs());
   }
 
   function satStopTick() {
@@ -7431,10 +7449,10 @@
 
   function satStartTick() {
     satStopTick();
-    // Only an OPEN session stamped to this task advances the number. With no
-    // open session the total is fixed until the next boundary, so a timer would
-    // repaint identical text forever.
-    if (!satReadout.openSince) return;
+    // ACTIVE advances every second while running — unlike FOCUSED it does not need
+    // an open session (it is wall-clock). It FREEZES while paused, and there is
+    // nothing to advance with no active task, so the timer is pointless then.
+    if (!satReadout.taskId || Storage.isTrackingPaused(data)) return;
     satTickTimer = setInterval(satPaintTime, 1000);
   }
 
@@ -7492,7 +7510,8 @@
           '<span class="sat-pill-label">' + (paused ? 'Paused' : 'Active task') + '</span>' +
           '<span class="sat-pill-name">' + escapeHtml(res.task.name) + '</span>' +
         '</span>' +
-        '<span class="sat-pill-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</span>';
+        // ACTIVE ticking time (the pill is the liveness surface); frozen amber when paused.
+        '<span class="sat-pill-time">' + escapeHtml(satFmtLong(satActiveMs())) + '</span>';
     }
     var act = res ? "restore" : "pick";
     var label = res ? "Restore active task card" : "Pick an active task";
@@ -7547,8 +7566,16 @@
         (res.goal ? '<div class="sat-goal" title="' + escapeHtml(res.goal.name) + '">' + escapeHtml(res.goal.name) + '</div>' : '') +
         (tagHtml ? '<div class="sat-tags">' + tagHtml + '</div>' : '') +
         foreignHtml +
-        '<div class="sat-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</div>' +
-        '<div class="sat-time-label">' + (paused ? 'Paused' : 'focused today') + '</div>' +
+        // Dual counters: the LARGE number is ACTIVE (ticks 1s, freezes amber when
+        // paused); FOCUSED TODAY is the smaller honest reader beneath. Both always
+        // shown. The big label reads PAUSED while paused (the loud state), ACTIVE
+        // while running.
+        '<div class="sat-time">' + escapeHtml(satFmtLong(satActiveMs())) + '</div>' +
+        '<div class="sat-time-label">' + (paused ? 'Paused' : 'Active') + '</div>' +
+        '<div class="sat-focused">' +
+          '<span class="sat-focused-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</span>' +
+          '<span class="sat-focused-label">focused today</span>' +
+        '</div>' +
         '<div class="sat-actions">' +
           '<button type="button" class="sat-btn sat-btn-complete" data-sat-act="complete" title="Complete task">✓ Done</button>' +
           pauseBtn +

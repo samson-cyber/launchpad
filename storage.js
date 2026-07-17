@@ -151,6 +151,22 @@ var Storage = (function () {
     var next = !!paused;
     if (isTrackingPaused(data) === next) return false;
     data.trackingPaused = next;
+
+    // [1.0.17 dual counters] maintain the active task's ACTIVE-counter accounting
+    // so it freezes on pause and resumes exactly where it left off. Display-only:
+    // computeDesired never reads pausedAt/pausedMs. Guarded by the no-op check
+    // above, so pausedAt is stamped once per pause and pausedMs accrues once per
+    // resume. Global pause with no active task simply has nothing to stamp.
+    var active = getActiveTask(data);
+    if (active) {
+      if (next) {
+        active.pausedAt = Date.now();
+      } else if (active.pausedAt != null) {
+        active.pausedMs = (active.pausedMs || 0) + (Date.now() - active.pausedAt);
+        active.pausedAt = null;
+      }
+    }
+
     await saveAll(data);
     return true;
   }
@@ -1874,12 +1890,20 @@ var Storage = (function () {
     var current = getActiveTask(data);
     if (current && current.taskId === taskId) return current;
 
+    // [1.0.17 dual counters] pausedAt/pausedMs back the display-only ACTIVE
+    // counter (wall-clock since startedAt, minus paused spans). Fresh per task —
+    // switching resets the accounting. Born paused if tracking is already paused
+    // (pausedAt = startedAt), so the ACTIVE counter reads 0 and stays frozen
+    // until resume rather than counting a span the user never worked.
+    var now = Date.now();
     data.activeTask = {
       taskId: taskId,
       workspaceId: ws.id,
-      startedAt: Date.now(),
+      startedAt: now,
       isPaused: false,
-      pomodoroState: null
+      pomodoroState: null,
+      pausedAt: isTrackingPaused(data) ? now : null,
+      pausedMs: 0
     };
     await saveAll(data);
     return data.activeTask;
