@@ -7467,15 +7467,22 @@
   // The eyebrow sits ABOVE the name (tiny caps, muted — the microlabel idiom);
   // it is static and on its own line, so it never truncates — only the name does,
   // via the ellipsis rules on .sat-pill-name.
-  function satPillFaceHtml(res) {
+  //
+  // [1.0.17] `paused` (the GLOBAL tracking-pause flag) drives the loud paused
+  // treatment: the play glyph becomes a pause glyph, the eyebrow reads "Paused",
+  // and the container's is-paused class amber-tints them + the frozen time. Even
+  // the empty state gets a small amber pause glyph so a global pause is never
+  // invisible when there is no active task to show (the invisible-flag lesson).
+  function satPillFaceHtml(res, paused) {
     var inner;
     if (!res) {
-      inner = '<span class="sat-pill-empty">No active task</span>' +
+      inner = (paused ? '<span class="sat-pill-glyph" aria-hidden="true">⏸</span>' : '') +
+        '<span class="sat-pill-empty">No active task</span>' +
         '<span class="sat-pill-plus" aria-hidden="true">+</span>';
     } else {
-      inner = '<span class="sat-pill-glyph" aria-hidden="true">▶</span>' +
+      inner = '<span class="sat-pill-glyph" aria-hidden="true">' + (paused ? '⏸' : '▶') + '</span>' +
         '<span class="sat-pill-main">' +
-          '<span class="sat-pill-label">Active task</span>' +
+          '<span class="sat-pill-label">' + (paused ? 'Paused' : 'Active task') + '</span>' +
           '<span class="sat-pill-name">' + escapeHtml(res.task.name) + '</span>' +
         '</span>' +
         '<span class="sat-pill-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</span>';
@@ -7489,7 +7496,12 @@
   // The docked card's content (active + expanded). `res` is always a live task
   // here — the empty and minimized states render the slim pill instead. Adds the
   // v3 eyebrow + minimize chevron over the v2 expanded body.
-  function satCardHtml(res) {
+  //
+  // [1.0.17] `paused` (the GLOBAL tracking-pause flag) drives a loud state: the
+  // card takes .is-paused (amber-tinted, frozen timer), the "focused today" label
+  // becomes "Paused", and the Pause control shows as Resume. The [1.0.16] paused
+  // CHIP is gone — its state is absorbed into the control (D2), not duplicated.
+  function satCardHtml(res, paused) {
     var tagIds = Array.isArray(res.task.tagIds) ? res.task.tagIds : [];
     var tagHtml = "";
     if (tagIds.length >= 1) {
@@ -7511,16 +7523,14 @@
         '</div>';
     }
 
-    // D2: the flag has been invisible since [1.0.25]; the control is [1.0.17].
-    // Showing the state now is the whole point — an indicator, not a button.
-    var pausedHtml = "";
-    if (Storage.isTrackingPaused(data)) {
-      pausedHtml = '<div class="sat-paused" role="status">' +
-          '<span aria-hidden="true">⏸</span> Tracking paused' +
-        '</div>';
-    }
+    // D2/D4: one Pause/Resume toggle, not a chip. Copy is GLOBAL ("Pause
+    // tracking" / "Resume tracking"), never per-task. When paused it is the loud
+    // amber recovery control (.sat-btn-resume).
+    var pauseBtn = paused
+      ? '<button type="button" class="sat-btn sat-btn-resume" data-sat-act="resume" title="Resume tracking">▶ Resume</button>'
+      : '<button type="button" class="sat-btn" data-sat-act="pause" title="Pause tracking">⏸ Pause</button>';
 
-    return '<div class="sat-expanded">' +
+    return '<div class="sat-expanded' + (paused ? ' is-paused' : '') + '">' +
         '<div class="sat-card-head">' +
           '<span class="sat-eyebrow">Active task</span>' +
           '<button type="button" class="sat-card-min" data-sat-act="minimize" ' +
@@ -7531,10 +7541,10 @@
         (tagHtml ? '<div class="sat-tags">' + tagHtml + '</div>' : '') +
         foreignHtml +
         '<div class="sat-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</div>' +
-        '<div class="sat-time-label">focused today</div>' +
-        pausedHtml +
+        '<div class="sat-time-label">' + (paused ? 'Paused' : 'focused today') + '</div>' +
         '<div class="sat-actions">' +
           '<button type="button" class="sat-btn sat-btn-complete" data-sat-act="complete" title="Complete task">✓ Done</button>' +
+          pauseBtn +
           '<button type="button" class="sat-btn" data-sat-act="cancel" title="Deactivate (task is kept)">×</button>' +
           '<button type="button" class="sat-btn" data-sat-act="switch" title="Switch active task">⇄</button>' +
         '</div>' +
@@ -7550,7 +7560,7 @@
     // D9: hidden entirely for free users. No preview stub.
     if (!satHasPro()) {
       pill.classList.add("hidden");
-      pill.classList.remove("is-card", "is-empty");
+      pill.classList.remove("is-card", "is-empty", "is-paused");
       document.body.classList.remove("sat-card-open");
       pill.innerHTML = "";
       satStopTick();
@@ -7586,9 +7596,14 @@
     // pill states are a single .sat-pill-face button. The minimize preference is
     // read fresh each render, so a cross-tab flip lands via the render() path.
     var showCard = !!res && !Storage.isActiveTaskCardMinimized(data);
+    // [1.0.17] Global manual-pause flag, read fresh each render (a cross-tab flip
+    // lands via the render() path). Shown even in the empty state (BUILD 4) so a
+    // global pause is never invisible.
+    var paused = Storage.isTrackingPaused(data);
 
     pill.classList.toggle("is-card", showCard);
     pill.classList.toggle("is-empty", !res);
+    pill.classList.toggle("is-paused", paused);
     // Reserve room in the Tasks-tab header (via body class) ONLY while the card
     // is expanded, so its top-right + New / Templates cluster slides clear of the
     // card. The slim pill/empty states sit above the cluster and release it.
@@ -7597,11 +7612,11 @@
     if (showCard) {
       pill.setAttribute("role", "region");
       pill.setAttribute("aria-label", "Active task");
-      pill.innerHTML = satCardHtml(res);
+      pill.innerHTML = satCardHtml(res, paused);
     } else {
       pill.removeAttribute("role");
       pill.removeAttribute("aria-label");
-      pill.innerHTML = satPillFaceHtml(res);
+      pill.innerHTML = satPillFaceHtml(res, paused);
     }
 
     if (res) satRefreshReadout(res.task.id);
@@ -7624,6 +7639,24 @@
     }
     // Eager render: saveAll tags our own writes and the provenance gate
     // suppresses the resulting onChanged, so nothing else will repaint this tab.
+    renderActiveTaskWidget();
+  }
+
+  // ----- Pause / resume (GLOBAL tracking pause, [1.0.17]) -----
+  //
+  // Writes data.trackingPaused (through saveAll, no-op when unchanged) and
+  // eager-renders. This is a real tracking boundary: the SW's `data` watcher
+  // fires Tracking.sync, evaluateGates now returns "paused", and the engine
+  // closes the open session — capture stops until resume, when the next boundary
+  // reopens one. No engine change (the gate + watcher already exist). Cross-tab
+  // via onChanged like every other `data` write. Global, not per-task (D4).
+  async function satSetPaused(paused) {
+    closeSatSwitchMenu();
+    try {
+      await Storage.setTrackingPaused(data, paused);
+    } catch (err) {
+      console.error("[LaunchPad] Active task: pause toggle failed", err);
+    }
     renderActiveTaskWidget();
   }
 
@@ -7902,6 +7935,8 @@
       if (act === "switch" || act === "pick") { openSatSwitchMenu(actBtn); return; }
       if (act === "minimize") { await satSetMinimized(true); return; }
       if (act === "restore") { await satSetMinimized(false); return; }
+      if (act === "pause") { await satSetPaused(true); return; }
+      if (act === "resume") { await satSetPaused(false); return; }
       if (act === "goto-workspace") {
         var r2 = Storage.resolveActiveTask(data);
         if (r2 && !r2.stale) await switchWorkspace(r2.workspace.id);

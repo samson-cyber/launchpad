@@ -131,16 +131,27 @@ var Storage = (function () {
   }
 
   // [1.0.25] Global manual-pause flag — top-level, NOT per-workspace (PLAN
-  // AMENDMENT A2). Flag + gate only; the pause UI is [1.0.17]. Idle transitions
-  // must never write this: the spec is explicit that a user who manually paused
-  // stays paused even after returning to the keyboard.
+  // AMENDMENT A2). Idle transitions must never write this: the spec is explicit
+  // that a user who manually paused stays paused even after returning to the
+  // keyboard.
   function isTrackingPaused(data) {
     return !!(data && data.trackingPaused === true);
   }
 
-  function setTrackingPaused(data, paused) {
+  // [1.0.17] The pause CONTROL's setter. Unlike setTrackingEnabled (mutate-only,
+  // caller batches the saveAll), this flows through saveAll itself with a no-op
+  // guard — the same shape as the active-task setters, and for the same reasons:
+  // it is fired standalone from the docked card, an unchanged write must not emit
+  // a spurious storage event the engine would treat as a boundary, and the write
+  // must reach the engine's data watcher (session close/reopen) and other tabs'
+  // renders (cross-tab paused state) on its own. The engine needs no change —
+  // evaluateGates already reads this flag; the watcher already fires on `data`.
+  async function setTrackingPaused(data, paused) {
     if (!data) return false;
-    data.trackingPaused = !!paused;
+    var next = !!paused;
+    if (isTrackingPaused(data) === next) return false;
+    data.trackingPaused = next;
+    await saveAll(data);
     return true;
   }
 

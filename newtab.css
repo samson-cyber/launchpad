@@ -3931,6 +3931,14 @@ html.has-bg:not(.bg-light) #sb-rate:hover {
 html.has-bg { --sat-accent: #8ab4f8; }
 html.has-bg.bg-light { --sat-accent: var(--accent); }
 
+/* [1.0.17] Amber for the loud PAUSED state. The pill/card frost is DARK by
+   default (base theme + dark wallpaper) where #f1c40f reads bright; only a light
+   wallpaper flips the frost white, where a darker amber (#8a6d09) keeps the
+   luminance contrast. html.bg-light implies has-bg (a light wallpaper is a
+   wallpaper), so the two-way token is enough. */
+:root { --sat-amber: #f1c40f; }
+html.bg-light { --sat-amber: #8a6d09; }
+
 /* ===== [1.0.16 v3] Active-task surface (docked card + slim pill) =====
 
    DIRECTION v3: one fixed top-right surface, #active-task-pill, that renders as
@@ -4169,21 +4177,20 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
-/* D2: the flag is visible now; the control lands in [1.0.17]. Deliberately an
-   indicator, not a button — do not make this clickable here. */
-.sat-paused {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 8px;
-  padding: 3px 7px;
-  border-radius: 4px;
-  background: rgba(241, 196, 15, 0.15);
-  border: 1px solid rgba(241, 196, 15, 0.3);
-  font-size: 10px;
-  font-weight: 500;
-  color: #f1c40f;
-}
+/* [1.0.17] Loud PAUSED state. Replaces the [1.0.16] indicator chip — the state
+   is absorbed INTO the Pause/Resume control (D2), not shown as a second element.
+   Amber accent + a visibly frozen timer, unmistakable on either wallpaper via the
+   --sat-amber luminance token (D3). */
+
+/* Slim pill (minimized or empty): amber pause glyph, eyebrow and frozen time. */
+#active-task-pill.is-paused .sat-pill-glyph,
+#active-task-pill.is-paused .sat-pill-label,
+#active-task-pill.is-paused .sat-pill-time { color: var(--sat-amber); }
+
+/* Docked card: the frozen number and its "PAUSED" label go amber. */
+.sat-expanded.is-paused .sat-time,
+.sat-expanded.is-paused .sat-time-label { color: var(--sat-amber); }
+.sat-expanded.is-paused .sat-time-label { font-weight: 700; }
 
 /* D8: foreign active task — say where it lives, offer the switch. */
 .sat-foreign {
@@ -4210,27 +4217,31 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
 
 .sat-foreign-switch:hover { text-decoration: underline; }
 
-/* --- Actions: Complete / Cancel / Switch. No Pause, no Pomodoro (D2). --- */
+/* --- Actions: Complete / Pause-Resume / Cancel / Switch ([1.0.17]). No
+       Pomodoro (deferred). --- */
 
 .sat-actions {
   display: flex;
-  gap: 6px;
+  gap: 5px;
   margin-top: 12px;
 }
 
 .sat-btn {
   flex: 1;
+  min-width: 0;                /* four buttons now — let them share the row */
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
   height: 28px;
+  padding: 0 4px;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
   font-size: 11px;
   font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
   transition: background-color 0.15s, border-color 0.15s;
 }
@@ -4241,6 +4252,16 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   background: rgba(46, 204, 113, 0.25);
   border-color: rgba(46, 204, 113, 0.5);
 }
+
+/* The loud amber Resume control (paused state). Placed after .sat-btn so it wins
+   on the base/dark theme; the bg-light override lives with the other bg-light
+   card rules. */
+.sat-btn-resume {
+  background: rgba(241, 196, 15, 0.16);
+  border-color: rgba(241, 196, 15, 0.5);
+  color: var(--sat-amber);
+}
+.sat-btn-resume:hover { background: rgba(241, 196, 15, 0.28); }
 
 /* D6: the brief green sweep on complete — the dopamine mechanic, on the most
    visible surface Pro has. Runs on the widget itself, independent of the task
@@ -4483,12 +4504,15 @@ html.bg-light .sat-btn {
 
 html.bg-light .sat-btn:hover { background: rgba(0, 0, 0, 0.09); }
 
-/* Amber on white needs a darker ink than the on-dark #f1c40f. */
-html.bg-light .sat-paused {
-  background: rgba(241, 196, 15, 0.2);
-  border-color: rgba(191, 154, 10, 0.45);
+/* Amber on white needs a darker ink than the on-dark #f1c40f. Higher specificity
+   than html.bg-light .sat-btn so the Resume control stays amber on a light
+   wallpaper instead of picking up the generic light-button ink. */
+html.bg-light .sat-btn-resume {
+  background: rgba(241, 196, 15, 0.22);
+  border-color: rgba(191, 154, 10, 0.55);
   color: #8a6d09;
 }
+html.bg-light .sat-btn-resume:hover { background: rgba(241, 196, 15, 0.32); }
 
 /* The dropdown rides .tt-context-menu, which goes white-on-light via
    `html.has-bg.bg-light .tt-context-menu` — so only the pieces that set their
