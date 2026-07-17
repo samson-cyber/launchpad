@@ -7473,10 +7473,17 @@
   // and the container's is-paused class amber-tints them + the frozen time. Even
   // the empty state gets a small amber pause glyph so a global pause is never
   // invisible when there is no active task to show (the invisible-flag lesson).
+  //
+  // In that empty + paused state the glyph is ALSO the resume CONTROL (its own
+  // data-sat-act="resume"), because the card — where Resume normally lives — is
+  // not shown. The delegated handler routes on the innermost data-sat-act, so a
+  // click on the glyph resumes while a click anywhere else on the face still
+  // opens the Switch dropdown ("pick"). One click out of the paused-no-task hole.
   function satPillFaceHtml(res, paused) {
     var inner;
     if (!res) {
-      inner = (paused ? '<span class="sat-pill-glyph" aria-hidden="true">⏸</span>' : '') +
+      inner = (paused ? '<span class="sat-pill-glyph sat-pill-resume" data-sat-act="resume" ' +
+          'role="button" title="Resume tracking" aria-label="Resume tracking">⏸</span>' : '') +
         '<span class="sat-pill-empty">No active task</span>' +
         '<span class="sat-pill-plus" aria-hidden="true">+</span>';
     } else {

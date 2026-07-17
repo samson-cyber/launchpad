@@ -4187,6 +4187,12 @@ html.bg-light { --sat-amber: #8a6d09; }
 #active-task-pill.is-paused .sat-pill-label,
 #active-task-pill.is-paused .sat-pill-time { color: var(--sat-amber); }
 
+/* Empty + paused: the amber glyph is the resume CONTROL (one click out of the
+   paused-with-no-task hole). It reads as clickable — pointer + a hover brighten —
+   while the rest of the face still opens the Switch dropdown. */
+.sat-pill-resume { cursor: pointer; border-radius: 4px; transition: filter 0.12s, background-color 0.12s; }
+.sat-pill-resume:hover { filter: brightness(1.25); background: rgba(241, 196, 15, 0.16); }
+
 /* Docked card: the frozen number and its "PAUSED" label go amber. */
 .sat-expanded.is-paused .sat-time,
 .sat-expanded.is-paused .sat-time-label { color: var(--sat-amber); }
