@@ -3931,33 +3931,23 @@ html.has-bg:not(.bg-light) #sb-rate:hover {
 html.has-bg { --sat-accent: #8ab4f8; }
 html.has-bg.bg-light { --sat-accent: var(--accent); }
 
-/* ===== [1.0.16 v2] Active-task PILL + PANEL =====
+/* ===== [1.0.16 v3] Active-task surface (docked card + slim pill) =====
 
-   v2 relocation (DIRECTION v2): the surface moved from the sidebar to a fixed
-   top-right PILL with a body-mounted expanded PANEL. Unlike the sidebar — which
-   is deliberately bare, so the widget had to inherit its translucent illegibility
-   — the pill and panel are their OWN chrome and get the frosted FLOATER tier
-   (--pro-frost-floater-*), so text is legible on any wallpaper. That was the
-   whole point of the move. The Switch dropdown still rides .tt-context-menu (menu
-   tier), layering above the panel. */
+   DIRECTION v3: one fixed top-right surface, #active-task-pill, that renders as
+   either the always-open DOCKED CARD (active + expanded — furniture, so no
+   scroll/outside-click/Escape close) or the slim PILL (active + minimized, or the
+   empty "No active task +"). Both are their OWN chrome on the frosted FLOATER tier
+   (--pro-frost-floater-*), legible on any wallpaper. The Switch dropdown rides
+   .tt-context-menu (menu tier), layering above. z-order + collision carry over
+   from v2: above content, below menus/modals; clear of the Tasks-tab + New
+   cluster. */
 
-/* --- The fixed pill (top-right, every tab) --- */
+/* --- Shared surface (both modes) --- */
 #active-task-pill {
   position: fixed;
   top: 10px;
   right: 14px;
-  /* ~15% of canvas, clamped so it neither shrinks to a sliver nor dominates.
-     The 62px vertical clearance to the Tasks-tab + New cluster is
-     width-independent (the compact band is a fixed 92px), so this width is free
-     to flex. */
-  width: clamp(160px, 15vw, 300px);
-  height: 40px;
   z-index: 1500;               /* above content (z 2); below menus/modals */
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  border-radius: 20px;
   background: var(--pro-frost-floater-bg);
   backdrop-filter: var(--pro-frost-floater-blur);
   -webkit-backdrop-filter: var(--pro-frost-floater-blur);
@@ -3965,14 +3955,34 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
   color: #fff;                 /* dark frost by default; bg-light flips it dark */
   font: inherit;
-  cursor: pointer;
-  text-align: left;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-
 #active-task-pill.hidden { display: none; }
-#active-task-pill:hover { border-color: rgba(255, 255, 255, 0.28); }
-#active-task-pill[aria-expanded="true"] { border-color: var(--sat-accent); }
+
+/* --- Pill mode: empty or minimized. The .sat-pill-face button fills it.
+   ~15% of canvas, clamped so it neither shrinks to a sliver nor dominates. --- */
+#active-task-pill:not(.is-card) {
+  width: clamp(160px, 15vw, 300px);
+  height: 40px;
+  border-radius: 20px;
+}
+#active-task-pill:not(.is-card):hover { border-color: rgba(255, 255, 255, 0.28); }
+
+.sat-pill-face {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  padding: 0 12px;
+  background: none;
+  border: 0;
+  border-radius: inherit;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
 
 .sat-pill-glyph {
   flex-shrink: 0;
@@ -3981,9 +3991,32 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   color: var(--sat-accent);
 }
 
-.sat-pill-name {
+/* Middle column: eyebrow label stacked ABOVE the task name. min-width:0 lets the
+   name truncate inside the clamped pill; the label sits on its own line and is
+   static, so it never truncates (name-truncates-first priority). */
+.sat-pill-main {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  overflow: hidden;
+}
+
+.sat-pill-label {
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.sat-pill-name {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4017,20 +4050,50 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   color: var(--sat-accent);
 }
 
-/* --- The body-mounted expanded panel (anchored to the pill) --- */
-.sat-panel {
-  position: fixed;
-  z-index: 9000;              /* above content, below menus (10501) / modals */
+/* --- Card mode: the always-open docked card (active + expanded) --- */
+#active-task-pill.is-card {
   width: 280px;
-  max-width: calc(100vw - 16px);
+  max-width: calc(100vw - 28px);
   border-radius: 12px;
   padding: 4px;
-  background: var(--pro-frost-floater-bg);
-  backdrop-filter: var(--pro-frost-floater-blur);
-  -webkit-backdrop-filter: var(--pro-frost-floater-blur);
-  border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  z-index: 9000;              /* the expanded surface, like v2's panel */
 }
+
+/* Card head: eyebrow (left) + minimize chevron (right, in the corner). Negative
+   margins pull it to the card's edges against .sat-expanded's own padding. */
+.sat-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -2px -4px 4px 0;
+}
+
+.sat-eyebrow {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.sat-card-min {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sat-card-min:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
 
 /* Shared glyph (Switch dropdown rows use this too — kept from v1). */
 .sat-glyph {
@@ -4045,11 +4108,12 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   color: var(--sat-accent);
 }
 
-/* --- Expanded card (now the panel body — the frosted plate is .sat-panel, so
-       no own background here or it double-tints) --- */
+/* --- Expanded card body (v3: the card body sits directly in
+       #active-task-pill.is-card, which is the frosted plate — no own background
+       here or it double-tints) --- */
 
 .sat-expanded {
-  padding: 10px 12px 12px;
+  padding: 8px 12px 12px;
   border-radius: 8px;
 }
 
@@ -4371,23 +4435,31 @@ html.has-bg.bg-light { --sat-accent: var(--accent); }
   pointer-events: none;
 }
 
-/* --- Active-task pill + panel: bg-light mode ---
+/* --- Active-task surface (pill + card): bg-light mode ---
    The frosted floater bg var flips to white-tinted under html.bg-light, so the
-   pill/panel FILL adapts automatically; only the ink and borders need setting. */
+   FILL adapts automatically; only the ink and borders need setting. */
 
 html.bg-light #active-task-pill {
   color: var(--text-primary);
   border-color: rgba(0, 0, 0, 0.12);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
 }
-html.bg-light #active-task-pill:hover { border-color: rgba(0, 0, 0, 0.25); }
+html.bg-light #active-task-pill:not(.is-card):hover { border-color: rgba(0, 0, 0, 0.25); }
 
 html.bg-light .sat-pill-empty { color: var(--text-secondary); }
+html.bg-light .sat-pill-label { color: var(--text-secondary); }
 
-html.bg-light .sat-panel {
+html.bg-light #active-task-pill.is-card {
   border-color: rgba(0, 0, 0, 0.1);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
 }
+
+html.bg-light .sat-eyebrow {
+  color: var(--text-secondary);
+  text-shadow: none;
+}
+html.bg-light .sat-card-min { color: var(--text-secondary); }
+html.bg-light .sat-card-min:hover { background: rgba(0, 0, 0, 0.08); color: var(--text-primary); }
 
 html.bg-light .sat-name,
 html.bg-light .sat-goal,
@@ -8047,6 +8119,22 @@ html.has-bg.bg-light .pro-preview-banner-text {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  /* Slides (not jumps) as the docked card opens/closes — see the sat-card-open
+     reserve below; ~200ms to match the card's minimize feel. */
+  transition: margin-right 200ms ease;
+}
+
+/* [1.0.16 v3] Docked-card collision reserve. While the active-task card is
+   expanded (body.sat-card-open, set by renderActiveTaskWidget), push this cluster
+   ~300px left of the viewport's right edge so it clears the 280px card at
+   right:14. Only when open: the slim pill/empty states sit above the cluster and
+   need no gutter, so they release it. The header is flex-wrap, so at widths where
+   the shifted cluster no longer fits beside the title/filter bar it WRAPS to its
+   own line rather than overlapping them. In the ≤720px stacked layout the reserve
+   is released (below) — a right gutter on a full-width stacked row is just dead
+   space. */
+body.sat-card-open .tasks-header-right {
+  margin-right: 300px;
 }
 
 .tasks-action {
@@ -9191,6 +9279,9 @@ html.has-bg.bg-light .tt-task-handle:hover {
 @media (max-width: 720px) {
   .tasks-header { flex-direction: column; align-items: stretch; }
   .tasks-header-right { justify-content: flex-start; }
+  /* Header is stacked here (cluster on its own full-width row), so the docked-card
+     reserve would only add dead space on the right — release it. */
+  body.sat-card-open .tasks-header-right { margin-right: 0; }
   /* [Tasks] Stack the Completed / Deleted boxes on narrow viewports. */
   .tt-trash-row { flex-direction: column; }
 }

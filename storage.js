@@ -1930,6 +1930,29 @@ var Storage = (function () {
     };
   }
 
+  // Active-task CARD minimize preference ([1.0.16] DIRECTION v3). A pure UI
+  // preference at the top level of `data`; DEFAULT false = the card is expanded.
+  //
+  // Deliberately a plain `data` field, NOT part of the activeTask object: the
+  // engine's computeDesired derives a session only from activeTask.taskId,
+  // workspace, enabled and paused, so flipping this flag re-fires the storage
+  // watcher but yields the SAME desired session — no boundary, no thrash. (It
+  // rides `data` precisely so a foreign tab's onChanged repaints the widget and
+  // the minimize/restore syncs cross-tab, same as every other data change.)
+  // No-op when unchanged so an unconditional call cannot emit a spurious event.
+  function isActiveTaskCardMinimized(data) {
+    return !!(data && data.activeTaskCardMinimized);
+  }
+
+  async function setActiveTaskCardMinimized(data, minimized) {
+    if (!data) return false;
+    var next = !!minimized;
+    if (!!data.activeTaskCardMinimized === next) return false;
+    data.activeTaskCardMinimized = next;
+    await saveAll(data);
+    return true;
+  }
+
   // ===== Due-date hierarchy checks ([1.0.13]) =====
   //
   // Pure, read-only conflict checks that sit IN FRONT OF updateTaskDueAt /
@@ -3159,6 +3182,8 @@ var Storage = (function () {
     setActiveTask: setActiveTask,
     clearActiveTask: clearActiveTask,
     resolveActiveTask: resolveActiveTask,
+    isActiveTaskCardMinimized: isActiveTaskCardMinimized,
+    setActiveTaskCardMinimized: setActiveTaskCardMinimized,
     // Due-date hierarchy checks ([1.0.13]) — pure reads, no mutation
     checkTaskDueConflict: checkTaskDueConflict,
     checkGoalDeadlineConflict: checkGoalDeadlineConflict,

@@ -7354,20 +7354,24 @@
 
   // ===== Render =====
 
-  // ===== [1.0.16 v2] Active-task PILL =====
+  // ===== [1.0.16 v3] Active-task surface (docked card + slim pill) =====
   //
-  // The engine's first visible surface. v2 relocates it from the sidebar to a
-  // FIXED PILL in the top-right corner (DIRECTION v2): visible on EVERY tab
-  // without a hover, with a frosted fill so its text is legible on any wallpaper
-  // (the sidebar's translucent illegibility was the named anti-pattern). The
-  // LOGIC layer is unchanged from v1 — this is a surface relocation. What moved:
-  //   - collapsed content renders into the fixed pill (#active-task-pill), not a
-  //     sidebar row;
-  //   - the expanded state is a BODY-MOUNTED panel anchored to the pill
-  //     (satPanelEl), not an innerHTML swap on a sidebar element;
-  //   - the Switch dropdown no longer touches sidebarLocked (it is not in the
-  //     sidebar any more) — it is a plain body-mounted menu anchored to the
-  //     panel's Switch button.
+  // The engine's first visible surface, in the top-right fixed chrome on EVERY
+  // tab, with a frosted fill so its text is legible on any wallpaper. v3
+  // (DIRECTION v3) makes the expanded state an ALWAYS-OPEN DOCKED CARD — it is
+  // furniture, so it does NOT close on scroll / outside-click / Escape the way v2's
+  // body-mounted panel did. The single #active-task-pill container renders as one
+  // of three states, all in place (no body-mounted panel any more):
+  //   - CARD (active + expanded): the default. Eyebrow, name, goal · tag, large
+  //     ticking timer, Done/Cancel/Switch, paused indicator, cross-workspace
+  //     notice — plus a minimize chevron.
+  //   - slim PILL, minimized: active task, but the user minimized the card
+  //     (data.activeTaskCardMinimized). Clicking the pill restores the card.
+  //   - slim PILL, empty: "No active task +". Clicking opens the Switch dropdown.
+  // The minimize preference rides `data` (cross-tab via onChanged, default
+  // expanded) and is inert to the engine (Storage.setActiveTaskCardMinimized). The
+  // Switch dropdown is still a body-mounted menu anchored to the card's Switch
+  // button; only IT keeps the scroll-close behavior.
   //
   // Time shown is today's FOCUSED time for the task (D1), not wall-clock since
   // activation. The readout arrives in two halves from
@@ -7376,10 +7380,6 @@
   // (now - openSince). The engine writes only at boundaries, so between them
   // storage is static and the 1s tick is pure local arithmetic.
 
-  var satPanelEl = null;          // body-mounted expanded panel, null when closed
-  var satPanelOutsideHandler = null;
-  var satPanelEscapeHandler = null;
-  var satPanelScrollHandler = null;
   var satTickTimer = null;
   var satReadout = { taskId: null, baseMs: 0, openSince: null };
   var satSwitchMenuEl = null;
@@ -7393,17 +7393,10 @@
     return isProAccessibleLevel(level);
   }
 
-  function satPanelOpen() { return !!satPanelEl; }
-
-  // "1h 24m" collapsed / "1:24:03" expanded. Both tabular-nums so the digits
-  // don't jitter as they tick.
-  function satFmtShort(ms) {
-    var totalMin = Math.floor(ms / 60000);
-    var h = Math.floor(totalMin / 60);
-    var m = totalMin % 60;
-    return h > 0 ? h + "h " + m + "m" : m + "m";
-  }
-
+  // m:ss, rolling to h:mm:ss past an hour; tabular-nums so the digits don't
+  // jitter as they tick. The slim pill and the card's large timer share this ONE
+  // formatter — the pill ticks at second resolution too (the honest ticker), just
+  // rendered smaller.
   function satFmtLong(ms) {
     var totalSec = Math.floor(ms / 1000);
     var h = Math.floor(totalSec / 3600);
@@ -7418,17 +7411,18 @@
     return satReadout.baseMs + open;
   }
 
-  // Repaint ONLY the time text — in the pill AND (if open) the panel. A full
-  // re-render every second would fight the dropdown, kill hover states, and
-  // reset the search field.
+  // Repaint ONLY the time text — whichever of the two renderings is mounted (the
+  // pill's small time in minimized/empty-adjacent states, the card's large timer
+  // when expanded; never both at once). A full re-render every second would fight
+  // the Switch dropdown, kill hover states, and reset the search field.
   function satPaintTime() {
     var ms = satLiveMs();
-    var pillTime = document.querySelector("#active-task-pill .sat-pill-time");
-    if (pillTime) pillTime.textContent = satFmtShort(ms);
-    if (satPanelEl) {
-      var big = satPanelEl.querySelector(".sat-time");
-      if (big) big.textContent = satFmtLong(ms);
-    }
+    var container = $("#active-task-pill");
+    if (!container) return;
+    var pillTime = container.querySelector(".sat-pill-time");
+    if (pillTime) pillTime.textContent = satFmtLong(ms);
+    var big = container.querySelector(".sat-time");
+    if (big) big.textContent = satFmtLong(ms);
   }
 
   function satStopTick() {
@@ -7466,29 +7460,36 @@
     satStartTick();
   }
 
-  // The pill's collapsed content: play glyph + truncated name + ticking time,
-  // or the empty state. DIRECTION v2 collapsed spec.
-  function satPillHtml(res) {
+  // The slim pill — one clickable .sat-pill-face button, in two variants:
+  //   - empty: "No active task +" (data-sat-act="pick" -> opens the Switch menu);
+  //   - minimized: play glyph + eyebrow/name + ticking m:ss time
+  //     (data-sat-act="restore" -> reopens the docked card).
+  // The eyebrow sits ABOVE the name (tiny caps, muted — the microlabel idiom);
+  // it is static and on its own line, so it never truncates — only the name does,
+  // via the ellipsis rules on .sat-pill-name.
+  function satPillFaceHtml(res) {
+    var inner;
     if (!res) {
-      return '<span class="sat-pill-empty">No active task</span>' +
+      inner = '<span class="sat-pill-empty">No active task</span>' +
         '<span class="sat-pill-plus" aria-hidden="true">+</span>';
+    } else {
+      inner = '<span class="sat-pill-glyph" aria-hidden="true">▶</span>' +
+        '<span class="sat-pill-main">' +
+          '<span class="sat-pill-label">Active task</span>' +
+          '<span class="sat-pill-name">' + escapeHtml(res.task.name) + '</span>' +
+        '</span>' +
+        '<span class="sat-pill-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</span>';
     }
-    return '<span class="sat-pill-glyph" aria-hidden="true">▶</span>' +
-      '<span class="sat-pill-name">' + escapeHtml(res.task.name) + '</span>' +
-      '<span class="sat-pill-time">' + escapeHtml(satFmtShort(satLiveMs())) + '</span>';
+    var act = res ? "restore" : "pick";
+    var label = res ? "Restore active task card" : "Pick an active task";
+    return '<button type="button" class="sat-pill-face" data-sat-act="' + act + '" ' +
+      'aria-label="' + label + '">' + inner + '</button>';
   }
 
-  function satExpandedHtml(res) {
-    if (!res) {
-      return '<div class="sat-expanded">' +
-          '<div class="sat-name">No active task</div>' +
-          '<div class="sat-goal">Pick one to start tracking focus</div>' +
-          '<div class="sat-actions">' +
-            '<button type="button" class="sat-btn sat-btn-switch" data-sat-act="switch">Pick a task</button>' +
-          '</div>' +
-        '</div>';
-    }
-
+  // The docked card's content (active + expanded). `res` is always a live task
+  // here — the empty and minimized states render the slim pill instead. Adds the
+  // v3 eyebrow + minimize chevron over the v2 expanded body.
+  function satCardHtml(res) {
     var tagIds = Array.isArray(res.task.tagIds) ? res.task.tagIds : [];
     var tagHtml = "";
     if (tagIds.length >= 1) {
@@ -7520,6 +7521,11 @@
     }
 
     return '<div class="sat-expanded">' +
+        '<div class="sat-card-head">' +
+          '<span class="sat-eyebrow">Active task</span>' +
+          '<button type="button" class="sat-card-min" data-sat-act="minimize" ' +
+            'title="Minimize" aria-label="Minimize active task card">⌃</button>' +
+        '</div>' +
         '<div class="sat-name" title="' + escapeHtml(res.task.name) + '">' + escapeHtml(res.task.name) + '</div>' +
         (res.goal ? '<div class="sat-goal" title="' + escapeHtml(res.goal.name) + '">' + escapeHtml(res.goal.name) + '</div>' : '') +
         (tagHtml ? '<div class="sat-tags">' + tagHtml + '</div>' : '') +
@@ -7535,8 +7541,8 @@
       '</div>';
   }
 
-  // Repaint the pill (and, if open, the panel body). Called from render(),
-  // applyAccessLevelUI(), and every activate/cancel/complete path.
+  // Repaint the surface as pill or card per state. Called from render(),
+  // applyAccessLevelUI(), and every activate/cancel/complete/minimize path.
   function renderActiveTaskWidget() {
     var pill = $("#active-task-pill");
     if (!pill) return;
@@ -7544,9 +7550,10 @@
     // D9: hidden entirely for free users. No preview stub.
     if (!satHasPro()) {
       pill.classList.add("hidden");
+      pill.classList.remove("is-card", "is-empty");
+      document.body.classList.remove("sat-card-open");
       pill.innerHTML = "";
       satStopTick();
-      closeActiveTaskPanel();
       closeSatSwitchMenu();
       return;
     }
@@ -7574,100 +7581,50 @@
     var res = (resolved && !resolved.stale) ? resolved : null;
     if (!res) satReadout = { taskId: null, baseMs: 0, openSince: null };
 
-    pill.classList.toggle("is-empty", !res);
-    pill.setAttribute("title", res ? res.task.name : "Pick an active task");
-    pill.innerHTML = satPillHtml(res);
+    // Three states: the docked CARD (active + expanded — the default), or the
+    // slim PILL (active + minimized, or empty). Only the card nests buttons; the
+    // pill states are a single .sat-pill-face button. The minimize preference is
+    // read fresh each render, so a cross-tab flip lands via the render() path.
+    var showCard = !!res && !Storage.isActiveTaskCardMinimized(data);
 
-    // Keep an open panel in sync (e.g. a foreign onChanged flips the paused
-    // flag, or another tab changes the task). Most local transitions close the
-    // panel first, so this is the cross-tab / passive-refresh path.
-    if (satPanelEl) satPanelEl.querySelector(".sat-panel-body").innerHTML = satExpandedHtml(res);
+    pill.classList.toggle("is-card", showCard);
+    pill.classList.toggle("is-empty", !res);
+    // Reserve room in the Tasks-tab header (via body class) ONLY while the card
+    // is expanded, so its top-right + New / Templates cluster slides clear of the
+    // card. The slim pill/empty states sit above the cluster and release it.
+    document.body.classList.toggle("sat-card-open", showCard);
+    pill.setAttribute("title", res ? res.task.name : "Pick an active task");
+    if (showCard) {
+      pill.setAttribute("role", "region");
+      pill.setAttribute("aria-label", "Active task");
+      pill.innerHTML = satCardHtml(res);
+    } else {
+      pill.removeAttribute("role");
+      pill.removeAttribute("aria-label");
+      pill.innerHTML = satPillFaceHtml(res);
+    }
 
     if (res) satRefreshReadout(res.task.id);
     else satStopTick();
   }
 
-  // ----- Expanded panel (body-mounted, anchored to the pill) -----
+  // ----- Minimize / restore -----
   //
-  // Replaces v1's sidebar innerHTML swap. Body-mounted + position:fixed so it
-  // floats above content; scroll-close + outside-click + Escape, the v3 popover
-  // contract. z-order sits above content but below menus/modals so the Switch
-  // dropdown (a .tt-context-menu at z 10501) layers on top.
-
-  function positionActiveTaskPanel() {
-    if (!satPanelEl) return;
-    var pill = $("#active-task-pill");
-    if (!pill) return;
-    var rect = pill.getBoundingClientRect();
-    var w = satPanelEl.offsetWidth;
-    var h = satPanelEl.offsetHeight;
-    // Right-align the panel to the pill's right edge; drop below it.
-    var right = window.innerWidth - rect.right;
-    var top = rect.bottom + 6;
-    if (top + h > window.innerHeight - 8) top = Math.max(8, rect.top - h - 6); // flip above if no room
-    satPanelEl.style.right = Math.max(8, right) + "px";
-    satPanelEl.style.top = top + "px";
-  }
-
-  function closeActiveTaskPanel() {
-    if (!satPanelEl) return;
-    if (satPanelOutsideHandler) { document.removeEventListener("click", satPanelOutsideHandler, true); satPanelOutsideHandler = null; }
-    if (satPanelEscapeHandler) { document.removeEventListener("keydown", satPanelEscapeHandler); satPanelEscapeHandler = null; }
-    if (satPanelScrollHandler) { window.removeEventListener("scroll", satPanelScrollHandler, true); satPanelScrollHandler = null; }
-    if (satPanelEl.parentNode) satPanelEl.parentNode.removeChild(satPanelEl);
-    satPanelEl = null;
-    var pill = $("#active-task-pill");
-    if (pill) pill.setAttribute("aria-expanded", "false");
-  }
-
-  function openActiveTaskPanel() {
-    if (satPanelEl) { closeActiveTaskPanel(); return; }
-    var pill = $("#active-task-pill");
-    if (!pill || !satHasPro()) return;
-
-    var res = Storage.resolveActiveTask(data);
-    res = (res && !res.stale) ? res : null;
-
-    var panel = document.createElement("div");
-    panel.className = "sat-panel";
-    panel.setAttribute("role", "dialog");
-    panel.innerHTML = '<div class="sat-panel-body">' + satExpandedHtml(res) + '</div>';
-    document.body.appendChild(panel);
-    satPanelEl = panel;
-    pill.setAttribute("aria-expanded", "true");
-    positionActiveTaskPanel();
-    // Fresh readout so the big timer is current the instant the panel opens.
-    if (res) satRefreshReadout(res.task.id);
-
-    // Action buttons inside the panel.
-    panel.addEventListener("click", async function (e) {
-      var actBtn = e.target.closest && e.target.closest("[data-sat-act]");
-      if (!actBtn) return;
-      var act = actBtn.getAttribute("data-sat-act");
-      if (act === "complete") { await satComplete(); return; }
-      if (act === "cancel") { await satCancel(); return; }
-      if (act === "switch") { openSatSwitchMenu(actBtn); return; }
-      if (act === "goto-workspace") {
-        var r2 = Storage.resolveActiveTask(data);
-        if (r2 && !r2.stale) { closeActiveTaskPanel(); await switchWorkspace(r2.workspace.id); }
-        return;
-      }
-    });
-
-    satPanelOutsideHandler = function (e) {
-      // The Switch dropdown lives outside the panel DOM but is logically part of
-      // this interaction — ignore clicks while it is open.
-      if (satSwitchMenuEl) return;
-      if (!panel.contains(e.target) && !pill.contains(e.target)) closeActiveTaskPanel();
-    };
-    setTimeout(function () { document.addEventListener("click", satPanelOutsideHandler, true); }, 0);
-
-    satPanelEscapeHandler = function (e) { if (e.key === "Escape" && !satSwitchMenuEl) closeActiveTaskPanel(); };
-    document.addEventListener("keydown", satPanelEscapeHandler);
-
-    // Scroll-close (v3): the panel is position:fixed off a one-time rect.
-    satPanelScrollHandler = function () { if (!satSwitchMenuEl) closeActiveTaskPanel(); };
-    window.addEventListener("scroll", satPanelScrollHandler, true);
+  // The card ↔ pill toggle. Writes data.activeTaskCardMinimized (through saveAll,
+  // no-op when unchanged) and eager-renders. The write rides `data` so a foreign
+  // tab's onChanged repaints the widget (cross-tab sync); computeDesired ignores
+  // the flag, so it is inert to the engine. Any open Switch dropdown is closed —
+  // it anchored to a button that is about to be replaced.
+  async function satSetMinimized(minimized) {
+    closeSatSwitchMenu();
+    try {
+      await Storage.setActiveTaskCardMinimized(data, minimized);
+    } catch (err) {
+      console.error("[LaunchPad] Active task: minimize toggle failed", err);
+    }
+    // Eager render: saveAll tags our own writes and the provenance gate
+    // suppresses the resulting onChanged, so nothing else will repaint this tab.
+    renderActiveTaskWidget();
   }
 
   // Make a task active. The single funnel for all three entry points (row play
@@ -7683,7 +7640,6 @@
     }
     // Eager render: saveAll tags our own writes and the provenance gate
     // suppresses the resulting onChanged, so nothing else will repaint this tab.
-    closeActiveTaskPanel();
     renderActiveTaskWidget();
     satRenderTasksPanel();
     return true;
@@ -7708,7 +7664,6 @@
       console.error("[LaunchPad] Active task: cancel failed", err);
       return;
     }
-    closeActiveTaskPanel();
     renderActiveTaskWidget();
     satRenderTasksPanel();
   }
@@ -7742,11 +7697,11 @@
 
     // The green sweep, then empty. Deliberately the widget's own animation: the
     // task row's celebration cannot run here — the Tasks tab may not even be the
-    // visible tab. Done is clicked from the open panel, so the sweep plays on the
-    // panel card; if the panel is somehow already closed, settle immediately.
-    var card = satPanelEl && satPanelEl.querySelector(".sat-expanded");
+    // visible tab. Done is clicked from the docked card, so the sweep plays on the
+    // card in place; if the card is minimized (Done unreachable) or absent, settle
+    // immediately.
+    var card = document.querySelector("#active-task-pill.is-card .sat-expanded");
     var settle = function () {
-      closeActiveTaskPanel();
       renderActiveTaskWidget();
       satRenderTasksPanel();  // Completed box + any goal flip
     };
@@ -7768,10 +7723,10 @@
 
   // --- Switch dropdown (D5): workspace -> goal -> tasks ---------------------
   //
-  // v2: the Switch button lives in the body-mounted panel, NOT the sidebar, so
-  // this no longer touches sidebarLocked / #sidebar at all (the v1 sidebar
-  // coupling is gone). It is a plain body-mounted .tt-context-menu anchored to
-  // the panel's Switch button, layering above the panel (z 10501 > panel).
+  // A plain body-mounted .tt-context-menu, anchored to the card's Switch button
+  // (or, in the empty state, the pill face). It does not touch sidebarLocked /
+  // #sidebar. Of the whole surface, only THIS keeps the scroll-close behavior —
+  // the card itself is furniture and stays put.
 
   function closeSatSwitchMenu() {
     if (!satSwitchMenuEl) return;
@@ -7934,17 +7889,24 @@
     if (!pill || pill.dataset.satBound === "1") return;
     pill.dataset.satBound = "1";
 
-    // Click the pill toggles the expanded panel. (Panel action buttons are bound
-    // inside openActiveTaskPanel.)
-    pill.addEventListener("click", function () {
-      if (satPanelEl) closeActiveTaskPanel();
-      else openActiveTaskPanel();
-    });
-
-    // Reposition an open panel on viewport resize so it stays anchored to the
-    // pill (fixed chrome moves with the window).
-    window.addEventListener("resize", function () {
-      if (satPanelEl) positionActiveTaskPanel();
+    // One delegated handler for the whole surface. The card's action buttons and
+    // its minimize chevron carry data-sat-act; the pill face carries "restore"
+    // (minimized) or "pick" (empty). Anything else on the card is inert — the card
+    // is furniture, not a popover, so a background click does nothing.
+    pill.addEventListener("click", async function (e) {
+      var actBtn = e.target.closest && e.target.closest("[data-sat-act]");
+      if (!actBtn) return;
+      var act = actBtn.getAttribute("data-sat-act");
+      if (act === "complete") { await satComplete(); return; }
+      if (act === "cancel") { await satCancel(); return; }
+      if (act === "switch" || act === "pick") { openSatSwitchMenu(actBtn); return; }
+      if (act === "minimize") { await satSetMinimized(true); return; }
+      if (act === "restore") { await satSetMinimized(false); return; }
+      if (act === "goto-workspace") {
+        var r2 = Storage.resolveActiveTask(data);
+        if (r2 && !r2.stale) await switchWorkspace(r2.workspace.id);
+        return;
+      }
     });
 
     // A backgrounded tab's setInterval is throttled to ~1/min by Chrome, so the
