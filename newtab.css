@@ -4451,6 +4451,21 @@ html.bg-light { --sat-amber: #8a6d09; }
 :root { --tt-play-outline: rgba(255, 255, 255, 0.92); }
 html.bg-light { --tt-play-outline: rgba(0, 0, 0, 0.78); }
 
+/* [Polish] ACTIVE states outline in BLACK, not white. Live feedback: a white
+   halo around a LIGHT fill (the blue accent pause bars, the amber resume play)
+   has too little contrast against its own fill, so the ring reads as blur
+   rather than an edge. Black separates those same light fills crisply. The
+   non-active states keep the white token above — their fill is the muted
+   secondary ink, where white reads as a clean edge and which Samson explicitly
+   liked on hover.
+   No light-wallpaper override: --tt-play-outline is ALREADY black there, so
+   the two tokens converge on light (0.85 vs 0.78 — visually the same edge) and
+   the active-state change is a no-op on that wallpaper. Nothing can double up
+   either: -webkit-text-stroke-color is a single property, so the active rule
+   REPLACES the base colour rather than stacking a second ring the way layered
+   text-shadows would. */
+:root { --tt-play-outline-active: rgba(0, 0, 0, 0.85); }
+
 .tt-task-play {
   flex-shrink: 0;
   display: inline-flex;
@@ -4493,6 +4508,10 @@ html.bg-light { --tt-play-outline: rgba(0, 0, 0, 0.78); }
   opacity: 1;
   color: var(--sat-accent);
   transform: scale(1.18);
+  /* Longhand, so the 2px width from the base rule survives and only the ring
+     colour flips. Covers BOTH active glyphs — the accent pause bars and the
+     amber resume play, since .is-paused below changes only `color`. */
+  -webkit-text-stroke-color: var(--tt-play-outline-active);
 }
 
 /* [Polish] Paused is the loud amber state, matching the card and pill — this
@@ -4504,7 +4523,30 @@ html.bg-light { --tt-play-outline: rgba(0, 0, 0, 0.78); }
   color: var(--sat-amber);
 }
 
-.tt-task-row.is-active-task .tt-task-name { font-weight: 600; }
+/* [Polish] The active task's name gets the same black edge separation as its
+   glyph. TEXT-SHADOW, not -webkit-text-stroke: a stroke is centred on the glyph
+   edge, so at this 13px size it thickens the letterforms and closes the
+   counters of a/e/o — the exact failure already observed on the hollow play
+   glyph, where a 2px stroke filled its interior in. A 1px zero-blur ring sits
+   entirely OUTSIDE the letterform, so it separates without touching weight or
+   shape. Four-way rather than eight: at 1px the diagonals are already covered
+   by the orthogonal pair, and eight offsets visibly muddies text this small.
+   Bold weight unchanged. */
+.tt-task-row.is-active-task .tt-task-name {
+  font-weight: 600;
+  text-shadow:
+    1px 0 0 var(--tt-play-outline-active),
+    -1px 0 0 var(--tt-play-outline-active),
+    0 1px 0 var(--tt-play-outline-active),
+    0 -1px 0 var(--tt-play-outline-active);
+}
+
+/* On a light wallpaper the name ink is already near-black on a white-tinted
+   frost, so a black ring would not separate anything — it would just smudge
+   dark-on-dark and read as the blur we are removing. The contrast is already
+   there; drop the ring entirely rather than inventing a white one, which would
+   reintroduce the halo-on-light-fill artifact in mirror image. */
+html.bg-light .tt-task-row.is-active-task .tt-task-name { text-shadow: none; }
 
 /* Completed rows can't be activated — the slot still holds its width so the
    name column does not shift between rows. */
