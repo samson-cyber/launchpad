@@ -10397,19 +10397,143 @@ html.bg-light #tips-close:hover { color: #202124; background: rgba(0, 0, 0, 0.06
   color: rgba(255, 255, 255, 0.78);
 }
 
-.tips-list {
-  margin: 0;
-  padding-left: 18px;
+/* ===== [1.0.19 D17] Tip rows ===== */
+/* One shared shape for all six. Actionable rows are buttons and get hover +
+   pointer; static rows get neither, so the affordance reads honestly before
+   anyone clicks. No ring on any of this text — D16 — the panel is the
+   surface providing contrast. */
+.tips-section {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 4px;
 }
-.tips-list li {
+
+.tip-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
   font-size: 12.5px;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.45;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: rgba(255, 255, 255, 0.82);
+  text-shadow: none;
 }
-.tips-list strong { color: #fff; font-weight: 600; }
+.tip-row .tip-text { flex: 1; min-width: 0; }
+.tip-row strong { color: #fff; font-weight: 600; }
+
+button.tip-row.is-actionable {
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+button.tip-row.is-actionable:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+button.tip-row.is-actionable:focus-visible {
+  outline: 2px solid var(--sat-accent, #8ab4f8);
+  outline-offset: 1px;
+}
+/* Static rows: explicitly no pointer, no hover response. Also covers a tip
+   demoted from actionable at render (the workspaces case). */
+.tip-row.is-static { cursor: default; }
+.tip-row.is-static:hover { background: none; border-color: transparent; }
+
+/* --- visuals: CSS only, one static glyph each; one keyframe on drag --- */
+.tip-visual {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  position: relative;
+  border-radius: 5px;
+  opacity: 0.85;
+}
+/* 1. mini plus-tile */
+.tip-vis-plus { border: 1.5px dashed rgba(255,255,255,0.55); }
+.tip-vis-plus::before, .tip-vis-plus::after {
+  content: ""; position: absolute; background: rgba(255,255,255,0.75);
+}
+.tip-vis-plus::before { left: 50%; top: 6px; bottom: 6px; width: 1.5px; transform: translateX(-50%); }
+.tip-vis-plus::after  { top: 50%; left: 6px; right: 6px; height: 1.5px; transform: translateY(-50%); }
+/* 2. mini context-menu sketch */
+.tip-vis-menu {
+  border: 1.5px solid rgba(255,255,255,0.55);
+  background:
+    linear-gradient(rgba(255,255,255,0.7) 0 0) no-repeat 5px 7px / 12px 1.5px,
+    linear-gradient(rgba(255,255,255,0.7) 0 0) no-repeat 5px 11px / 9px 1.5px,
+    linear-gradient(rgba(255,255,255,0.7) 0 0) no-repeat 5px 15px / 11px 1.5px;
+}
+/* 3. two tiles, one nudging toward the other — the ONE keyframe */
+.tip-vis-drag i {
+  position: absolute; width: 10px; height: 10px; border-radius: 3px;
+  background: rgba(255,255,255,0.55);
+}
+.tip-vis-drag i:first-child { left: 0; top: 7px; animation: tip-nudge 2.4s ease-in-out infinite; }
+.tip-vis-drag i:last-child  { right: 0; top: 7px; }
+@keyframes tip-nudge {
+  0%, 60%, 100% { transform: translateX(0); }
+  30%           { transform: translateX(5px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tip-vis-drag i:first-child { animation: none; }
+}
+/* 4. folder glyph */
+.tip-vis-folder {
+  border: 1.5px solid rgba(255,255,255,0.55);
+  border-top-width: 0;
+  border-radius: 0 4px 4px 4px;
+  height: 17px; margin-top: 4px;
+}
+.tip-vis-folder::before {
+  content: ""; position: absolute; left: -1.5px; top: -5px;
+  width: 10px; height: 5px;
+  border: 1.5px solid rgba(255,255,255,0.55); border-bottom: 0;
+  border-radius: 3px 3px 0 0;
+}
+/* 5. layered squares */
+.tip-vis-layers { border: 1.5px solid rgba(255,255,255,0.55); width: 17px; height: 17px; margin: 4px 0 0 5px; }
+.tip-vis-layers::before {
+  content: ""; position: absolute; left: -5px; top: -5px; width: 17px; height: 17px;
+  border: 1.5px solid rgba(255,255,255,0.35); border-radius: 4px;
+}
+/* 6. mini swatch strip */
+.tip-vis-swatch { display: flex; gap: 2px; align-items: center; }
+.tip-vis-swatch i { flex: 1; height: 16px; border-radius: 2px; }
+.tip-vis-swatch i:nth-child(1) { background: rgba(255,255,255,0.75); }
+.tip-vis-swatch i:nth-child(2) { background: var(--sat-accent, #8ab4f8); }
+.tip-vis-swatch i:nth-child(3) { background: rgba(255,255,255,0.35); }
+
+/* Light wallpaper: the panel frost flips white, so the ink and glyph strokes
+   flip with it — same reasoning as the D15 close X (this sits ON the panel). */
+html.bg-light .tip-row { color: #3c4043; }
+html.bg-light .tip-row strong { color: #202124; }
+html.bg-light button.tip-row.is-actionable:hover {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+html.bg-light .tip-row.is-static:hover { background: none; border-color: transparent; }
+html.bg-light .tip-vis-plus { border-color: rgba(0,0,0,0.45); }
+html.bg-light .tip-vis-plus::before,
+html.bg-light .tip-vis-plus::after { background: rgba(0,0,0,0.6); }
+html.bg-light .tip-vis-menu {
+  border-color: rgba(0,0,0,0.45);
+  background:
+    linear-gradient(rgba(0,0,0,0.55) 0 0) no-repeat 5px 7px / 12px 1.5px,
+    linear-gradient(rgba(0,0,0,0.55) 0 0) no-repeat 5px 11px / 9px 1.5px,
+    linear-gradient(rgba(0,0,0,0.55) 0 0) no-repeat 5px 15px / 11px 1.5px;
+}
+html.bg-light .tip-vis-drag i { background: rgba(0,0,0,0.45); }
+html.bg-light .tip-vis-folder,
+html.bg-light .tip-vis-folder::before { border-color: rgba(0,0,0,0.45); }
+html.bg-light .tip-vis-layers { border-color: rgba(0,0,0,0.45); }
+html.bg-light .tip-vis-layers::before { border-color: rgba(0,0,0,0.25); }
+html.bg-light .tip-vis-swatch i:nth-child(1) { background: rgba(0,0,0,0.6); }
+html.bg-light .tip-vis-swatch i:nth-child(3) { background: rgba(0,0,0,0.25); }
 
 /* [1.0.19 D16] Same treatment as .demo-clear, for the same reason. This
    button had no literal ring — its failure mode was the OTHER expression of
@@ -10461,10 +10585,8 @@ html.bg-light #tips-panel {
 }
 html.bg-light .import-intro,
 html.bg-light .import-option-desc,
-html.bg-light .tips-list li,
 html.bg-light .tips-restore-note,
 html.bg-light .tips-pro-seed { color: #3c4043; }
-html.bg-light .tips-list strong { color: #202124; }
 html.bg-light .import-option {
   border-color: rgba(0, 0, 0, 0.12);
   background: rgba(0, 0, 0, 0.03);

@@ -6085,6 +6085,7 @@
     if (panel && !panel.classList.contains("hidden")) { closeTipsPanel(); return; }
     if (openSimplePanel("#tips-panel")) {
       renderTipsRestoreState();
+      renderTipsActionability();
       bindSimplePanelOutside("#tips-panel", "#sb-tips", function () { closeTipsPanel(); });
     }
   }
@@ -8170,6 +8171,23 @@
     return wrote;
   }
 
+  // [1.0.19 D17] Tip 5 ("Switch workspaces") is only genuinely actionable when
+  // the workspace switcher exists for this user — applyWorkspaceSwitcherState
+  // hides #sb-workspace-switcher for anyone without Pro access. On the
+  // free-only v1.0.5 build that is everyone, so a fixed actionable row would
+  // promise a click that goes nowhere. Computed at panel-open (the same
+  // read-at-render discipline as the D4 Clear gate) and demoted to the static
+  // treatment when unavailable, so the affordance stays honest either way.
+  function renderTipsActionability() {
+    var row = document.querySelector('[data-tip-act="workspaces"]');
+    if (!row) return;
+    var btn = $("#sb-workspace-switcher");
+    var available = !!(btn && !btn.classList.contains("hidden"));
+    row.classList.toggle("is-actionable", available);
+    row.classList.toggle("is-static", !available);
+    row.setAttribute("aria-disabled", available ? "false" : "true");
+  }
+
   function renderTipsRestoreState() {
     var btn = $("#tips-restore-examples");
     var note = $("#tips-restore-note");
@@ -9875,6 +9893,54 @@
     safeOn("#tips-restore-examples", "click", function () {
       if (this.getAttribute("aria-disabled") === "true") return; // handler guard
       restoreDemoExamples();
+    });
+
+    // [1.0.19 D17] Actionable tips. Each routes through the EXISTING opener —
+    // nothing new is built, this is a door to surfaces that already exist:
+    //   add-shortcut -> openModal("add", groupId)  (the add-tile's own opener)
+    //   add-group    -> addGroup()                 (#sb-add-group's own handler)
+    //   workspaces   -> #sb-workspace-switcher.click()
+    //   background   -> openBgModal()              (Settings' Change wallpaper)
+    //
+    // The switcher is triggered through its own control rather than by calling
+    // its opener, because that opener is an inline listener inside
+    // bindWorkspaceSwitcher with no named entry point — and extracting one
+    // would mean refactoring Pro-adjacent code this round is not scoped to
+    // touch. Clicking the real control reuses the real path exactly.
+    //
+    // Close-then-open, in that order and once: closeTipsPanel() early-returns
+    // if already hidden and tears down the outside handler, so the chain
+    // cannot double-fire. The tip click itself is INSIDE the panel, so the
+    // outside handler ignores it — this close is the only one.
+    safeOn("#tips-panel", "click", function (e) {
+      var row = e.target.closest && e.target.closest("[data-tip-act]");
+      if (!row) return;
+      if (row.getAttribute("aria-disabled") === "true") return; // demoted to static
+      var act = row.getAttribute("data-tip-act");
+
+      closeTipsPanel();
+
+      if (act === "add-shortcut") {
+        // Target the user's own first group rather than an example one, so a
+        // shortcut added from here does not land inside content Clear removes.
+        var ws = Storage.getActiveWorkspace(data);
+        var gid = null;
+        if (ws && Array.isArray(ws.groupOrder)) {
+          for (var i = 0; i < ws.groupOrder.length; i++) {
+            if (!Storage.isDemoGroup({ id: ws.groupOrder[i] })) { gid = ws.groupOrder[i]; break; }
+          }
+          if (!gid) gid = ws.groupOrder[0];
+        }
+        openModal("add", gid);
+        return;
+      }
+      if (act === "add-group") { addGroup(); return; }
+      if (act === "workspaces") {
+        var sw = $("#sb-workspace-switcher");
+        if (sw && !sw.classList.contains("hidden")) sw.click();
+        return;
+      }
+      if (act === "background") { openBgModal(); }
     });
 
     // [1.0.19 D3/D4] Delegated handlers for the demo intro strip. Routing on
