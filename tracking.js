@@ -730,6 +730,76 @@
     return { baseMs: baseMs, openSince: openSince };
   }
 
+  // [1.0.20] WHOLE-DAY focused total. The Dashboard's "Today: Xh Ym focused"
+  // line, and the second public read contract on this namespace.
+  //
+  // focusedTodayForTask answers "how long on THIS task"; there was no reader for
+  // "how long today", and the UI is not allowed to reach for _readDays /
+  // _dayAggregateKey to get it — those are console-harness hooks by their own
+  // label. Same reasoning that produced the per-task reader: a deliberate
+  // contract rather than the UI reaching into storage keys.
+  //
+  // SCOPE. `workspaceId` scopes to one workspace; `null` means COMBINED — every
+  // workspace summed. Day aggregates are keyed workspaceId:dayKey, so the
+  // combined case is the same walk with the id test dropped, which is exactly
+  // why this is ONE implementation with two public names rather than two
+  // functions: the subtle part (the open-session clamp) must not be written
+  // twice. combinedAnalyticsEnabled picks which name the Dashboard calls.
+  //
+  // Returns the same two halves as the per-task reader, for the same reason:
+  // baseMs is settled (rolled-up + closed-but-unaggregated), openSince is the
+  // clamped start of the open session so a caller can tick without re-reading.
+  //
+  // OPEN-SESSION ATTRIBUTION. openSince is non-null ONLY when the open session
+  // belongs to the queried scope — an open session in Personal must not lift
+  // Work's number. In combined mode any open session qualifies.
+  //
+  // The clamp to startOfLocalDay is load-bearing and matches the per-task
+  // reader: a session left open across local midnight has already contributed
+  // yesterday's share to yesterday's aggregate (splitAcrossLocalDays splits at
+  // every midnight it crosses), so counting from its true start would re-add it.
+  async function focusedTodayForScope(workspaceId) {
+    var combined = (workspaceId == null);
+
+    var days = await readDays();
+    var store = await readStore();
+    var today = localDayKey();
+    var baseMs = 0;
+
+    Object.keys(days).forEach(function (k) {
+      var agg = days[k];
+      if (!agg || agg.day !== today) return;
+      if (!combined && agg.workspaceId !== workspaceId) return;
+      baseMs += agg.totalFocusedMs || 0;
+    });
+
+    // Closed but not yet rolled up — mirrors the per-task reader's second term.
+    // Steady state is none of these (rollup rides the closing write); a failed
+    // rollup would otherwise make the line jump backwards then forwards again.
+    (store.sessions || []).forEach(function (s) {
+      if (!s || s.aggregated) return;
+      if (!combined && s.workspaceId !== workspaceId) return;
+      splitAcrossLocalDays(s.start, s.end).forEach(function (seg) {
+        if (seg.dayKey === today) baseMs += seg.ms;
+      });
+    });
+
+    var openSince = null;
+    if (store.open && (combined || store.open.workspaceId === workspaceId)) {
+      openSince = Math.max(store.open.start, startOfLocalDay());
+    }
+
+    return { baseMs: baseMs, openSince: openSince };
+  }
+
+  function focusedTodayForWorkspace(workspaceId) {
+    return focusedTodayForScope(workspaceId || null);
+  }
+
+  function focusedTodayCombined() {
+    return focusedTodayForScope(null);
+  }
+
   function msToMinutes(ms) {
     return Math.round((ms / 60000) * 100) / 100;
   }
@@ -886,6 +956,13 @@
     // [1.0.16] Read surface for the active-task widget. The only non-console
     // read contract; see focusedTodayForTask for why it returns two halves.
     focusedTodayForTask: focusedTodayForTask,
+
+    // [1.0.20] Read surface for the Dashboard's whole-day line. Two public
+    // names over one implementation (focusedTodayForScope) so call sites read
+    // honestly while the open-session clamp exists in exactly one place.
+    // Both return { baseMs, openSince } — the same contract as above.
+    focusedTodayForWorkspace: focusedTodayForWorkspace,
+    focusedTodayCombined: focusedTodayCombined,
 
     // Exposed for the Section I console harness — verification needs to drive
     // the gates and the store directly without waiting on real Chrome events.

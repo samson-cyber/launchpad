@@ -57,7 +57,14 @@ var Storage = (function () {
       // [1.0.17] — the data model is complete from day one even where the
       // surface lands later (same discipline as the task stub fields below).
       trackingPaused: false,
-      settings: { columns: 6, collapsedGroups: {}, combinedAnalyticsEnabled: false },
+      // [1.0.20] endOfDayMinutes — minutes since LOCAL midnight at which the
+      // Dashboard flips from the Start-of-Day card to the evening card. 1020 =
+      // 17:00. The key ships now, its picker UI later ([1.0.3] Pro Settings did
+      // not ship a time control) — same ship-the-data-model-first discipline as
+      // trackingPaused above. It governs CARD SELECTION ONLY; every figure the
+      // Dashboard reports stays local-midnight-based, because the tracking
+      // engine's day aggregates are pre-split at local midnight (D4).
+      settings: { columns: 6, collapsedGroups: {}, combinedAnalyticsEnabled: false, endOfDayMinutes: 1020 },
       pro: {
         licenseKey: null,
         instanceId: null,
@@ -136,6 +143,26 @@ var Storage = (function () {
   // keyboard.
   function isTrackingPaused(data) {
     return !!(data && data.trackingPaused === true);
+  }
+
+  // [1.0.20] The Dashboard's end-of-day boundary, minutes since LOCAL midnight.
+  //
+  // Defaults at READ time rather than relying on the migration alone. migrate()
+  // only runs for pre-workspaces data, so every already-migrated install has a
+  // settings bag with no endOfDayMinutes in it — exactly the population that
+  // must not get NaN. Same defaulting-reader shape as isTrackingEnabled, and
+  // for the same reason: absence means "never configured", not "zero".
+  //
+  // Range is clamped to a real clock day. 1440 is admitted (means "never flip
+  // to evening"); a value at or below the 04:00 floor is admitted too and
+  // simply yields an all-evening day, which is coherent.
+  var DEFAULT_END_OF_DAY_MINUTES = 1020; // 17:00
+
+  function getEndOfDayMinutes(data) {
+    var v = data && data.settings && data.settings.endOfDayMinutes;
+    if (typeof v !== "number" || !isFinite(v)) return DEFAULT_END_OF_DAY_MINUTES;
+    if (v < 0 || v > 1440) return DEFAULT_END_OF_DAY_MINUTES;
+    return Math.floor(v);
   }
 
   // [1.0.17] The pause CONTROL's setter. Unlike setTrackingEnabled (mutate-only,
@@ -275,8 +302,12 @@ var Storage = (function () {
     if (data && Array.isArray(data.workspaces)) return data;
 
     var oldData = data || {};
+    // [1.0.20] endOfDayMinutes sits in the DEFAULTS object, not the override
+    // one: it is a user preference, so a value already present in oldData.settings
+    // must survive. combinedAnalyticsEnabled stays in the override object
+    // deliberately — it is reset on migration.
     var migratedSettings = Object.assign(
-      { columns: 6, collapsedGroups: {} },
+      { columns: 6, collapsedGroups: {}, endOfDayMinutes: 1020 },
       oldData.settings || {},
       { combinedAnalyticsEnabled: false }
     );
@@ -3505,6 +3536,8 @@ var Storage = (function () {
     isTrackingEnabled: isTrackingEnabled,
     setTrackingEnabled: setTrackingEnabled,
     isTrackingPaused: isTrackingPaused,
+    // [1.0.20] Dashboard end-of-day boundary (minutes since local midnight).
+    getEndOfDayMinutes: getEndOfDayMinutes,
     setTrackingPaused: setTrackingPaused,
     anchorBrowserSession: anchorBrowserSession,
     setIdleState: setIdleState,
@@ -3600,6 +3633,12 @@ var Storage = (function () {
     isActiveTaskCardMinimized: isActiveTaskCardMinimized,
     setActiveTaskCardMinimized: setActiveTaskCardMinimized,
     // Due-date hierarchy checks ([1.0.13]) — pure reads, no mutation
+    // [1.0.20] utcDay is exported so UI day-comparisons (the Dashboard's
+    // due-today / overdue labels) use the SAME basis the due-date engine does,
+    // rather than each caller re-deriving it and drifting. dueAt is UTC-midnight
+    // epoch ms; comparing it against a local-midnight timestamp shifts the day
+    // by one for users away from UTC (Bali is UTC+8, so it is visible here).
+    utcDay: utcDay,
     checkTaskDueConflict: checkTaskDueConflict,
     checkGoalDeadlineConflict: checkGoalDeadlineConflict,
     // Tags (Pro tasks layer — see docs/SPECS/tasks-and-goals.md)

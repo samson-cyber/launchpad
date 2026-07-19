@@ -990,3 +990,32 @@ Complements the Git Configuration section of CLAUDE.md.
 - **Existing users see zero change** beyond the two new sidebar entries. This was treated as a premise-grade invariant and is asserted in the harness: an existing profile's init performs no write at all and leaves stored data byte-identical.
 
 **Supersedes:** Supersedes the 2026-04-25 plan for this task in full (that plan redesigned the wizard; this removes it). The 2026-07-07 shipping-vehicle ratification stands unchanged — this ships free-tier in v1.0.5 ahead of the v2.0.0 Pro launch, and the manifest bump happens at store submission, not here.
+
+---
+
+## 2026-07-20 — Dashboard is a two-state surface, not a card registry; time-of-day governs card SELECTION only
+
+**Context:** [1.0.20] (Dashboard shell) and [1.0.21] (Start of Day card) were built as one round ("Arc B"). The April plan specified a card registration system: cards declare a time window, the shell walks them in priority order and features the first match. Two audits of the integration surface (2026-07-19) then established that the Dashboard panel was empty, that no end-of-day setting existed anywhere, that there was no public reader for a whole-day focused total, and that the tracking engine's day aggregates are hard-bound to local midnight.
+
+**Alternatives considered:**
+1. Build the registry as originally specified.
+2. Two states selected by a pure function; build the switcher when a second card actually exists.
+3. A 04:00 "day floor" governing both card selection and the reported figures.
+4. Recompute figures from raw sessions so a 04:00 day could be reported consistently.
+
+**Outcome:**
+- **No registry.** `dashboardPeriod(now, endOfDayMinutes)` returns `"day"` or `"evening"`; the renderer branches on it. There is exactly one card per state, so a selector with one entry per slot is machinery pretending to be architecture. Day Recap (v2.1) builds whatever selection it needs when there is something to select between.
+- **Time boundaries govern card SELECTION ONLY.** `data.settings.endOfDayMinutes` (minutes since local midnight, default 1020 = 17:00) plus a named 04:00 night-owl floor decide *which card shows*. Every FIGURE stays local-midnight-based.
+- **`endOfDayMinutes` ships before its picker UI**, with a defaulting reader (`Storage.getEndOfDayMinutes`) rather than migration alone — `migrate()` only runs for pre-workspaces data, so already-migrated installs would otherwise read `undefined`.
+- **One new public reader on Tracking**, two names over one implementation: `focusedTodayForWorkspace(id)` and `focusedTodayCombined()`, both returning the same `{ baseMs, openSince }` contract as `focusedTodayForTask`. This gives `combinedAnalyticsEnabled` its first consumer and its semantics.
+- **Tracking-disabled suppresses the focused line entirely** rather than rendering `0h 0m`.
+
+**Reasoning:** Options 3 and 4 both fail on the same fact — `splitAcrossLocalDays` splits sessions at every local midnight, so the stored aggregates *are* midnight-bounded and no read-time adjustment un-splits them. Option 4 would mean re-deriving totals from raw sessions, i.e. changing the engine's storage contract to move a greeting. Selection-only keeps the engine untouched: between 00:00 and 04:00 the evening card reports the new day's near-zero total, which is honest.
+
+A bare `0h 0m` for a workspace with tracking off says "you did nothing today" when the truth is "nothing was measured" — different claims, and the misleading one is the one the user would act on.
+
+**Also decided, and worth recording because both were found by measurement rather than reading:**
+- **"Today" for due-date labels is `Date.UTC(localYear, localMonth, localDate)`** — the user's LOCAL calendar date re-encoded into the UTC-midnight space `dueAt` lives in. Both obvious alternatives are wrong: comparing against a local-midnight timestamp shifts the day for users behind UTC (storage.js:2371), and `utcDay(Date.now())` shifts it for users *ahead* of UTC — in UTC+8 it returns yesterday's UTC day every morning before 08:00, so a task due today would read as due tomorrow. Bali is UTC+8; the second bug was live in the first draft and was caught by a multi-zone harness, not by review.
+- **The Dashboard CTA takes its affordance from an OUTLINE, not fill contrast.** Because the card is translucent, its rendered luminance spans the full range across wallpapers (rgb(30,30,30) dark preset, ~rgb(64) over a bright image, near-white on the light preset). Measured, no single fill colour clears 3:1 fill-vs-surface on all three frames — a dark fill passes on light and fails over an image, a light fill does the reverse. A border contrasts against both fill and surface regardless, which is the same answer commits 77fabf7 and 70870ef reached for the row glyph and the ACTIVE state.
+
+**Deferred:** the pulsing "what's on for today" Home-grid button (greenfield sub-feature, not a tweak), the end-of-day picker UI, Day Recap content and all analytics (v2.1 boundary holds).

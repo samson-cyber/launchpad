@@ -337,10 +337,33 @@
         panel.classList.toggle("hidden", !isActive);
       }
     });
+    // [1.0.20] D8 triggers 2 and 3. setActiveTab is the ONLY place that knows
+    // the Dashboard just became visible — it does not re-render panel content
+    // for anyone else, and the Dashboard is the one panel whose correctness is
+    // a function of the wall clock and of work done on other tabs. Gated on Pro
+    // access so a free user's preview is never overwritten (D10); the period
+    // watch is torn down on the way out so it never runs against a hidden tab.
+    if (id === "dashboard" && isProAccessibleLevel(currentAccessLevel())) {
+      var dashPanel = document.getElementById("tab-dashboard");
+      if (dashPanel) renderDashboardTab(dashPanel, data);
+      dashStartPeriodWatch();
+    } else {
+      dashStopPeriodWatch();
+    }
+
     // Tab switch is treated as a navigation change — close any open popover and
     // re-derive the CTA state (pulse depends on whether we're on a Pro tab).
     closeUpgradePopover();
     applyCtaState(data);
+  }
+
+  // The access level is derived, never cached (applyAccessLevelUI re-reads it
+  // on every pass so a lapsing trial takes effect without a reload). This is
+  // the same derivation, factored out for the callers that need it on its own.
+  function currentAccessLevel() {
+    return (typeof ProAccess !== "undefined" && data)
+      ? ProAccess.getProAccessLevel(data)
+      : "free";
   }
 
   function applyTabAccessLevel(level) {
@@ -389,6 +412,12 @@
         renderTasksTab(panel, data);
         return;
       }
+      // [1.0.20] Dashboard shell — a third branch mirroring Tasks (D8 trigger 1).
+      // Insights stays on Coming-soon until [1.0.22].
+      if (id === "dashboard") {
+        renderDashboardTab(panel, data);
+        return;
+      }
       panel.innerHTML =
         '<div class="tab-placeholder">' +
           '<div class="tab-placeholder-title">' + label + '</div>' +
@@ -397,6 +426,381 @@
     } else {
       renderProPreview(id, panel, data);
     }
+  }
+
+  // ===== [1.0.20] Dashboard shell + [1.0.21] Start of Day card =====
+  //
+  // Arc B. The Dashboard is the "today" surface. Two states, no card registry:
+  // a Start-of-Day card during the day and a calm close-out card in the evening.
+  // A registry was the original April plan and was dropped deliberately (D2) —
+  // there is exactly one card per state, and a switcher with one entry per slot
+  // is machinery pretending to be architecture. Day Recap (v2.1) builds whatever
+  // selector it actually needs when a second card exists to select between.
+
+  // 04:00 local. The night-owl floor: before it, the user is still finishing
+  // YESTERDAY, so they get the evening card rather than a "good morning" at
+  // 01:30 (D4). Named because it is a product boundary, not an arithmetic
+  // constant — and because the codebase already has a near-miss neighbour in
+  // background.js's local-03:00 recurring-sweep anchor that it must not be
+  // confused with.
+  var DASHBOARD_DAY_FLOOR_MINUTES = 4 * 60;
+
+  // PURE. Takes the instant and the boundary; touches no clock and no storage,
+  // so the boundary matrix is testable without mocking Date. `now` is epoch ms
+  // (or a Date); endOfDayMinutes is minutes since LOCAL midnight.
+  //
+  // These boundaries govern WHICH CARD SHOWS and nothing else (D4). Every
+  // FIGURE the Dashboard reports stays local-midnight-based, because the
+  // tracking engine's day aggregates are pre-split at local midnight
+  // (splitAcrossLocalDays) and no read-time adjustment can un-split them.
+  // Between 00:00 and 04:00 the evening card therefore reports the NEW day's
+  // near-zero total, which is honest: it says "today", and the engine's today
+  // did in fact just roll over.
+  function dashboardPeriod(now, endOfDayMinutes) {
+    var d = (now instanceof Date) ? now : new Date(now);
+    var minutes = d.getHours() * 60 + d.getMinutes();
+    if (minutes < DASHBOARD_DAY_FLOOR_MINUTES) return "evening";
+    return (minutes < endOfDayMinutes) ? "day" : "evening";
+  }
+
+  // ----- Suggestion cascade (D6) -----
+  //
+  // Tier 1: has a due date        — earliest dueAt, then priority desc, then oldest
+  // Tier 2: no due date, priority — priority desc, then oldest
+  // Tier 3: neither               — oldest ("longest pending")
+  //
+  // One comparator over the locked tier order rather than three sorted passes
+  // concatenated: a single total order is what a sort actually needs, and the
+  // tie-breaks are then provably exhaustive by reading down one function.
+  function dashboardSuggestionTier(t) {
+    if (typeof t.dueAt === "number") return 1;
+    if (t.priority) return 2;
+    return 3;
+  }
+
+  function dashboardCompareSuggestions(a, b) {
+    var ta = dashboardSuggestionTier(a);
+    var tb = dashboardSuggestionTier(b);
+    if (ta !== tb) return ta - tb;
+
+    var pa = PRIORITY_RANK[a.priority] || 0;
+    var pb = PRIORITY_RANK[b.priority] || 0;
+
+    if (ta === 1) {
+      if (a.dueAt !== b.dueAt) return a.dueAt - b.dueAt;
+      if (pa !== pb) return pb - pa;
+    } else if (ta === 2) {
+      if (pa !== pb) return pb - pa;
+    }
+    // Tier 3, and the final tie-break for every tier: oldest first.
+    return (a.createdAt || 0) - (b.createdAt || 0);
+  }
+
+  // Scope: active workspace, incomplete, non-trashed. getActiveTasks is the
+  // right reader and getAllTasks is NOT — getAllTasks excludes trashed but
+  // KEEPS completed (BUGS.md J5: "check, don't assume"), which would let a
+  // finished task be suggested. Recurring instances are ordinary task records
+  // by the time they land here (they come off the shared newTaskObject builder
+  // with a real createdAt and their own instance dueAt), so they participate
+  // through tier 1 with no special case.
+  function dashboardPickSuggestion(ws) {
+    if (!ws) return null;
+    var candidates = Storage.getActiveTasks(ws);
+    if (!candidates.length) return null;
+    return candidates.slice().sort(dashboardCompareSuggestions)[0];
+  }
+
+  // "Today", encoded the way dueAt is encoded: the UTC-midnight stamp of the
+  // user's LOCAL calendar date.
+  //
+  // Both halves of that sentence are load-bearing, and getting either wrong is
+  // an off-by-one day.
+  //   - Comparing dueAt against a LOCAL-midnight timestamp is wrong: dueAt is
+  //     UTC-midnight, and the two encodings disagree for users away from UTC
+  //     (storage.js:2371 — it shifts the day for users behind UTC).
+  //   - But Storage.utcDay(Date.now()) is ALSO wrong, and this one bites in
+  //     Bali specifically. utcDay() is built to compare two STORED values,
+  //     both already UTC-midnight; feeding it a wall-clock instant asks a
+  //     different question — "which UTC day is it right now" — and in UTC+8
+  //     between 00:00 and 08:00 local the answer is YESTERDAY. A task due today
+  //     would read as due tomorrow every morning before 8am.
+  // So: take the local calendar date, then re-encode it as UTC-midnight, which
+  // is exactly the space dueAt lives in.
+  function dashboardTodayAsUtcDay(now) {
+    var d = (now == null) ? new Date() : new Date(now);
+    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+
+  function dashboardDueLabel(dueAt) {
+    if (typeof dueAt !== "number") return "";
+    var today = dashboardTodayAsUtcDay();
+    var due = Storage.utcDay(dueAt);
+    if (due < today) return "Overdue";
+    if (due === today) return "Due today";
+    return "Due " + fmtShortDate(dueAt);
+  }
+
+  // Top goals (D6): the user's own ordering, filtered to goals that still have
+  // something to do, first three. Same sortedByDisplayOrder + getActiveGoals
+  // pair the Tasks tab uses, so the Dashboard cannot disagree with it.
+  function dashboardTopGoals(ws) {
+    if (!ws) return [];
+    var allTasks = Storage.getAllTasks(ws);
+    return sortedByDisplayOrder(Storage.getActiveGoals(ws))
+      .map(function (g) {
+        var children = allTasks.filter(function (t) { return t.goalId === g.id; });
+        var done = children.filter(function (t) { return t.completed; }).length;
+        return {
+          goal: g,
+          done: done,
+          total: children.length,
+          pct: children.length ? Math.round((done / children.length) * 100) : 0,
+          openCount: children.length - done
+        };
+      })
+      .filter(function (e) { return e.openCount > 0; })
+      .slice(0, 3);
+  }
+
+  // ----- Focused Today line (D5) -----
+  //
+  // Two-phase, exactly like the active-task card's readout: the panel paints
+  // synchronously with a placeholder and the engine's number lands a tick
+  // later. renderTabPlaceholder and its callers are synchronous innerHTML
+  // builders — making the Dashboard render async would push that up the whole
+  // call chain for one line of text.
+  //
+  // No live ticker in v1 (D5). The line is refreshed by the D8 triggers.
+  var dashReadoutToken = 0;
+
+  function dashFormatFocused(ms) {
+    var totalMin = Math.floor(Math.max(0, ms) / 60000);
+    var h = Math.floor(totalMin / 60);
+    var m = totalMin % 60;
+    return h > 0 ? (h + "h " + m + "m") : (m + "m");
+  }
+
+  // Whether the line renders at all, and in which scope. Suppression is a
+  // RENDER-LEVEL gate, not a reader concern: with tracking disabled the reader
+  // legitimately returns 0, and painting a bare "0h 0m" would tell the user
+  // they did nothing today when the truth is that nothing was measured (D5).
+  // Global trackingPaused does NOT suppress — settled time is still real.
+  function dashFocusedScope(d) {
+    var ws = Storage.getActiveWorkspace(d);
+    var combined = !!(d && d.settings && d.settings.combinedAnalyticsEnabled);
+    if (combined) return { mode: "combined", workspaceId: null };
+    if (!Storage.isTrackingEnabled(ws)) return null;
+    return { mode: "workspace", workspaceId: ws ? ws.id : null };
+  }
+
+  function dashFocusedLineHtml(scope) {
+    if (!scope) return "";
+    var label = (scope.mode === "combined")
+      ? "focused today across all workspaces"
+      : "focused today";
+    return '<div class="dash-focused" data-dash-focused="1">' +
+        '<span class="dash-focused-num">—</span>' +
+        '<span class="dash-focused-label">' + label + '</span>' +
+      '</div>';
+  }
+
+  async function dashRefreshFocused(panel, scope) {
+    if (!panel || !scope) return;
+    if (typeof Tracking === "undefined" || !Tracking.focusedTodayForWorkspace) return;
+    var token = ++dashReadoutToken;
+    var r;
+    try {
+      r = (scope.mode === "combined")
+        ? await Tracking.focusedTodayCombined()
+        : await Tracking.focusedTodayForWorkspace(scope.workspaceId);
+    } catch (err) {
+      console.error("[LaunchPad] Dashboard: focused-time read failed", err);
+      return;
+    }
+    // A late resolution must not paint over a newer render (workspace switch,
+    // period flip). Same staleness guard as satRefreshReadout, token-based
+    // because the scope alone does not distinguish two renders of one scope.
+    if (token !== dashReadoutToken) return;
+    var el = panel.querySelector('[data-dash-focused] .dash-focused-num');
+    if (!el) return;
+    var open = r.openSince ? Math.max(0, Date.now() - r.openSince) : 0;
+    el.textContent = dashFormatFocused(r.baseMs + open);
+  }
+
+  // ----- Card markup -----
+
+  function dashDayCardHtml(d, ws) {
+    var res = Storage.resolveActiveTask(d);
+    var activeTask = (res && !res.stale) ? res.task : null;
+
+    // VARIANT A — pick up where you left off. An active task already answers
+    // "what now", so offering a fresh suggestion beside it would be arguing
+    // with the user's own last decision (D6).
+    if (activeTask) {
+      var goal = activeTask.goalId ? Storage.getGoalById(ws, activeTask.goalId) : null;
+      var paused = Storage.isTrackingPaused(d);
+      return '<div class="dash-card" data-dash-variant="pickup">' +
+          '<div class="dash-card-title">Pick up where you left off</div>' +
+          '<div class="dash-headline">' + escapeHtml(activeTask.name) + '</div>' +
+          (goal ? '<div class="dash-sub">in ' + escapeHtml(goal.name) + '</div>' : '') +
+          '<button type="button" class="dash-cta" data-dash-action="continue">' +
+            (paused ? "Resume" : "Continue") +
+          '</button>' +
+        '</div>';
+    }
+
+    var suggestion = dashboardPickSuggestion(ws);
+
+    // VARIANT C — nothing to do at all.
+    if (!suggestion) {
+      return '<div class="dash-card" data-dash-variant="empty">' +
+          '<div class="dash-card-title">' + escapeHtml(dashGreeting()) + '</div>' +
+          '<div class="dash-headline">Nothing on the list.</div>' +
+          '<div class="dash-sub">When you are ready, add something in the Tasks tab.</div>' +
+        '</div>';
+    }
+
+    // VARIANT B — greeting + top goals + one suggestion.
+    var goals = dashboardTopGoals(ws);
+    var goalsHtml = goals.length
+      ? '<div class="dash-goals">' + goals.map(function (e) {
+          return '<div class="dash-goal">' +
+              '<div class="dash-goal-row">' +
+                '<span class="dash-goal-name">' + escapeHtml(e.goal.name) + '</span>' +
+                '<span class="dash-goal-count">' + e.done + ' of ' + e.total + '</span>' +
+              '</div>' +
+              '<div class="dash-progress-bar">' +
+                '<div class="dash-progress-fill" style="width:' + e.pct + '%"></div>' +
+              '</div>' +
+            '</div>';
+        }).join("") + '</div>'
+      : "";
+
+    var dueLabel = dashboardDueLabel(suggestion.dueAt);
+    var prioLabel = suggestion.priority ? PRIORITY_LABELS[suggestion.priority] : "";
+    var metaBits = [];
+    if (dueLabel) metaBits.push('<span class="dash-meta-due' + (dueLabel === "Overdue" ? " is-overdue" : "") + '">' + escapeHtml(dueLabel) + '</span>');
+    if (prioLabel) metaBits.push('<span class="dash-meta-prio">' + escapeHtml(prioLabel) + '</span>');
+
+    return '<div class="dash-card" data-dash-variant="suggestion">' +
+        '<div class="dash-card-title">' + escapeHtml(dashGreeting()) + '</div>' +
+        goalsHtml +
+        '<div class="dash-suggest">' +
+          '<div class="dash-suggest-label">Suggested next</div>' +
+          '<div class="dash-headline">' + escapeHtml(suggestion.name) + '</div>' +
+          (metaBits.length ? '<div class="dash-meta">' + metaBits.join("") + '</div>' : '') +
+        '</div>' +
+        '<button type="button" class="dash-cta" data-dash-action="lets-go" data-task-id="' + escapeHtml(suggestion.id) + '">' +
+          'Let’s go' +
+        '</button>' +
+      '</div>';
+  }
+
+  // No name to greet with — LaunchPad has never asked for one and this card is
+  // not the place to start.
+  function dashGreeting() {
+    var h = new Date().getHours();
+    if (h < 12) return "Good morning";
+    if (h < 17) return "Good afternoon";
+    return "Good evening";
+  }
+
+  // VARIANT D — evening (D7). Calm close-out plus one teaser sentence. No
+  // analytics, no breakdowns: the v2.1 boundary holds absolutely.
+  function dashEveningCardHtml() {
+    return '<div class="dash-card" data-dash-variant="evening">' +
+        '<div class="dash-card-title">That’s the day</div>' +
+        '<div class="dash-headline">Work’s done.</div>' +
+        '<div class="dash-sub">A full Day Recap arrives in a future update.</div>' +
+      '</div>';
+  }
+
+  function renderDashboardTab(panel, d) {
+    if (!panel) return;
+    var ws = Storage.getActiveWorkspace(d);
+    var period = dashboardPeriod(Date.now(), Storage.getEndOfDayMinutes(d));
+    var scope = dashFocusedScope(d);
+
+    panel.dataset.dashPeriod = period;
+    panel.innerHTML =
+      '<div class="dash-tab" data-period="' + period + '">' +
+        (period === "day" ? dashDayCardHtml(d, ws) : dashEveningCardHtml()) +
+        dashFocusedLineHtml(scope) +
+      '</div>';
+
+    bindDashboardEvents(panel);
+    dashRefreshFocused(panel, scope);
+  }
+
+  function bindDashboardEvents(panel) {
+    // Bind once per panel, delegated — same rationale as bindTasksTabEvents:
+    // the listener lives on the panel container, which survives the innerHTML
+    // rewrite, and a dataset flag stops N renders stacking N listeners.
+    if (panel.dataset.dashBound === "1") return;
+    panel.dataset.dashBound = "1";
+
+    panel.addEventListener("click", async function (e) {
+      var btn = e.target.closest("[data-dash-action]");
+      if (!btn) return;
+      var action = btn.getAttribute("data-dash-action");
+
+      if (action === "lets-go") {
+        var taskId = btn.getAttribute("data-task-id");
+        if (!taskId) return;
+        // Through satActivate — the SINGLE activation funnel. It carries
+        // clearPause (Rule 4: an explicit "start this" clears a global pause in
+        // the same atomic write) and the eager renders that keep the pill and
+        // the Tasks panel from drifting. Reimplementing activation here would
+        // be a second funnel, which is precisely what satActivate's comment
+        // says must not exist.
+        var ok = await satActivate(taskId, null);
+        if (!ok) return;
+        setActiveTab("home");
+        return;
+      }
+
+      if (action === "continue") {
+        // Continue on an already-active task: switch to Home, and if the user
+        // is globally paused, resume — same start-means-start reading of
+        // Rule 4 that satActivate applies, without re-activating the task
+        // (which would be a no-op write the engine could read as a boundary).
+        if (Storage.isTrackingPaused(data)) await satSetPaused(false);
+        setActiveTab("home");
+      }
+    });
+  }
+
+  // ----- D8 re-render plumbing -----
+  //
+  // Deliberately NOT the Tasks tab's ~40 eager mutation-site calls. The
+  // Dashboard is one small read-only card; three triggers cover it:
+  //   (1) renderTabPlaceholder — init, access-level change, workspace switch,
+  //       and (via the same applyAccessLevelUI pass) foreign-tab writes.
+  //   (2) every ACTIVATION of the Dashboard tab — this is what makes the card
+  //       fresh after the user completes tasks elsewhere and comes back.
+  //   (3) a 60s period check while the panel is visible, re-rendering ONLY on a
+  //       period flip, so a tab left open crosses end-of-day correctly.
+  var dashPeriodTimer = null;
+
+  function dashStopPeriodWatch() {
+    if (dashPeriodTimer) {
+      clearInterval(dashPeriodTimer);
+      dashPeriodTimer = null;
+    }
+  }
+
+  function dashStartPeriodWatch() {
+    dashStopPeriodWatch();
+    dashPeriodTimer = setInterval(function () {
+      var panel = document.getElementById("tab-dashboard");
+      if (!panel || panel.classList.contains("hidden")) return;
+      var period = dashboardPeriod(Date.now(), Storage.getEndOfDayMinutes(data));
+      // Re-render ONLY on a flip. An unchanged period must not repaint — a
+      // silent minute-by-minute innerHTML rewrite would throw away focus and
+      // restart the focused-time read for nothing.
+      if (panel.dataset.dashPeriod === period) return;
+      renderDashboardTab(panel, data);
+    }, 60000);
   }
 
   // ===== Pro Preview Mode =====

@@ -7442,6 +7442,232 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   opacity: 0.5;
 }
 
+/* ===== [1.0.20] Live Dashboard tab ([1.0.21] Start of Day card) =====
+   D3: MIRRORS the free-preview card language (.pp-dash-card) rather than
+   inventing a second one — the preview is the promise, this is the delivery.
+   Parallel classes, not shared ones: coupling live markup to demo-only
+   internals would make either surface unsafe to change alone.
+   All ink here sits ON a surface, so it is ring-free per [1.0.19] D16 — the
+   card provides the contrast, and a text-shadow over an opaque fill only
+   muddies it. The bare-over-wallpaper ring convention does not apply inside
+   a card. */
+
+.dash-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 640px;
+}
+
+.dash-card {
+  padding: 22px 24px;
+  border-radius: 12px;
+  background: var(--pro-frost-card-bg);
+  backdrop-filter: var(--pro-frost-card-blur);
+  -webkit-backdrop-filter: var(--pro-frost-card-blur);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  color: #fff;
+  text-shadow: none;
+}
+
+.dash-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-bottom: 12px;
+}
+
+.dash-headline {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.dash-sub {
+  margin-top: 6px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* Top goals — same gauge shape as the Tasks tab's, at card scale. */
+.dash-goals {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.dash-goal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.dash-goal-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-goal-count {
+  flex: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-progress-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+
+.dash-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: #4da3ff;
+  transition: width 0.3s ease;
+}
+
+.dash-suggest {
+  margin-bottom: 18px;
+}
+
+.dash-suggest-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 4px;
+}
+
+.dash-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.dash-meta-due,
+.dash-meta-prio {
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.dash-meta-due.is-overdue {
+  background: rgba(255, 107, 107, 0.9);
+  color: #2a0000;
+}
+
+/* The one real CONTROL on the Dashboard, so it carries the stricter bar the
+   [1.0.19] D16 sweep applied to controls.
+
+   Ink-vs-fill is 5.51:1 on all three frames. Fill-vs-surface CANNOT be solved
+   by colour choice: the card is translucent, so its rendered luminance spans
+   the full range across wallpapers (rgb(30,30,30) on the dark preset, ~rgb(64)
+   over a bright image, near-white on the light preset). Measured, a dark fill
+   clears 3:1 on the light preset and fails over a bright image; a light fill
+   does the reverse. No single fill clears all three.
+
+   So the affordance edge comes from an OUTLINE, which is the same answer
+   commits 77fabf7 and 70870ef reached for the row glyph and the ACTIVE state:
+   a border contrasts against BOTH the fill and the surface regardless of what
+   the wallpaper does to the card underneath. */
+.dash-cta {
+  margin-top: 4px;
+  padding: 10px 22px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 8px;
+  background: #1668c4;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-shadow: none;
+}
+
+.dash-cta:hover {
+  background: #1d7ae0;
+}
+
+/* The tracking engine's one launch surface. Deliberately a slim bar, not a
+   card: no charts, no breakdowns — those are v2.1.
+
+   It sits ON the frosted surface rather than bare over the wallpaper. Measured
+   bare it was 1.00:1 white-on-white against a bright image wallpaper — the ring
+   convention tolerates that for the exempt grid text, but this is a NUMBER, and
+   the whole point of the line is that the number is readable. Putting it on the
+   card surface makes it ring-free on-surface ink like the rest of the Dashboard
+   (D16) instead of an exception that has to be argued for. */
+.dash-focused {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--pro-frost-card-bg);
+  backdrop-filter: var(--pro-frost-card-blur);
+  -webkit-backdrop-filter: var(--pro-frost-card-blur);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: none;
+  align-self: flex-start;
+}
+
+.dash-focused-num {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Light-wallpaper luminance overrides, matching the preview's block below. */
+html.has-bg.bg-light .dash-card {
+  color: #222;
+}
+
+html.has-bg.bg-light .dash-sub,
+html.has-bg.bg-light .dash-goal-count,
+html.has-bg.bg-light .dash-suggest-label {
+  color: rgba(0, 0, 0, 0.65);
+}
+
+html.has-bg.bg-light .dash-progress-bar {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+html.has-bg.bg-light .dash-meta-due,
+html.has-bg.bg-light .dash-meta-prio {
+  background: rgba(0, 0, 0, 0.1);
+  color: #222;
+}
+
+html.has-bg.bg-light .dash-focused {
+  color: rgba(0, 0, 0, 0.7);
+  text-shadow: none;
+}
+
+/* On a light wallpaper the card is near-white, so the white outline would
+   vanish into it — the edge flips dark, same pattern as every other override
+   in this block. */
+html.has-bg.bg-light .dash-cta {
+  border-color: rgba(0, 0, 0, 0.7);
+}
+
+html.has-bg.bg-light .dash-focused,
+html.has-bg.bg-light .dash-card {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+html.has-bg.bg-light .dash-focused-num {
+  color: #111;
+}
+
 /* ----- Dashboard preview ----- */
 
 .pp-dash-grid {
