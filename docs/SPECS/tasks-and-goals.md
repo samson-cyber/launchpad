@@ -35,7 +35,7 @@ The experience is designed around two dopamine moments: small celebrations on ta
 - Recurring tasks (daily, weekly, monthly patterns)
 - Goal templates (save a goal's structure, instantiate new goals from it)
 - One global active task
-- Active task widget in sidebar (collapsed / expanded / paused states)
+- Active task surface: fixed top-right docked card, minimizing to a pill (paused is a state of both)
 - Pomodoro timer on active task (customizable durations in Pro Settings)
 - Pause button on active task
 - Completed goals section (collapsed, reopenable)
@@ -526,45 +526,55 @@ Tasks tab filter bar:
 
 ---
 
-## Active Task Widget
+## Active Task Surface
 
-> **Partially superseded — surface and counter.** As shipped ([1.0.16] v3), this is a fixed top-right **docked card** that minimizes to a **pill**, not a sidebar widget; the states below map onto card / minimized-pill / empty-pill. And where this section says "elapsed time", the shipped headline is **ACTIVE** — *this sitting, while present*, per the formula in **Active Task State** above — not raw wall-clock since activation. The **behaviours** described here (freeze on pause, controls, pomodoro interaction) still hold. The surface description itself has not been rewritten; treat **Active Task State** and `DECISIONS.md` (2026-07-17 / 07-18 / 07-19) as authoritative for the counter.
+> **Supersedes** the April sidebar widget (collapsed/expanded inline in the sidebar), replaced by the [1.0.16] v3 docked card.
 
-Lives in sidebar, accessible from every tab. Three visual states: collapsed, expanded, paused (variant of collapsed/expanded).
+A single fixed **top-right** surface (`#active-task-pill`), present on every tab. It is *furniture*, not a popover — a background click does nothing. Three renderings, one element:
 
-### Collapsed state
+**Docked card** (active task, not minimized — the default):
+- Eyebrow "Active task" + a minimize chevron
+- Task name; parent goal name beneath it, if any; tag pills, if any
+- If the active task lives in another workspace, a "This task is in X" notice with a one-click switch
+- **ACTIVE** — the large ticking headline, with its label reading `Active` or `Paused`
+- **FOCUSED TODAY** — the smaller honest line beneath
+- Action row: `✓ Done` / `⏸ Pause` (becomes `▶ Resume` when paused) / `×` cancel / `⇄` switch
 
-Small compact element in sidebar, below group list, above Settings cog:
-- Active, not paused: `▶ 00:23:15` (play icon + elapsed time)
-- Active, paused: `⏸ 00:23:15` (pause icon + frozen elapsed time)
-- No active task: "No active task" + "+" icon to pick one
-- Click to expand
+**Minimized pill** (active task, minimized): play or pause glyph, an eyebrow reading "Active task" or "Paused", the task name (truncating), and the ticking ACTIVE time. The whole face restores the card. The minimize preference is persisted and picked up cross-tab.
 
-### Expanded state
+**Empty pill** (no active task): "No active task" and a `+`; the face opens the Switch dropdown. **When globally paused with no active task**, it also shows an amber pause glyph which is itself a one-click **Resume** control — the card that normally hosts Resume is not rendered, so without it a paused user with no task would be trapped. A click on the glyph resumes; a click anywhere else on the face still opens the dropdown.
 
-Click collapsed widget → expands inline in sidebar:
-- Task name (bold, ~2 lines)
-- Parent goal name (secondary text, if any)
-- Tag pill (if any)
-- Elapsed time (large, prominent)
-- Progress ring if pomodoro running
-- Action buttons:
-  - Complete (✓)
-  - Cancel (×)
-  - Switch (⇄)
-  - Pause/Resume (⏸ / ▶)
-  - Pomodoro (⏱)
+**Self-heal:** if the active task is completed, deleted, or its workspace disappears — including from another tab — the stored record is cleared and the surface drops to the empty pill, so the engine can never attribute focus to a task the UI says is not active.
 
-Clicks outside or cursor leaving sidebar (with `sidebarLocked = false`) collapses back.
+### The two counters
+
+Both are always shown, labelled, and answer different questions. **`Active Task State` above is authoritative** for the field set and the exact ACTIVE formula; see also `DECISIONS.md` (2026-07-17 dual counters, 2026-07-18 session anchor, 2026-07-19 idle deduct).
+
+- **ACTIVE** — the large one. *This sitting, while present*: session-anchored at browser launch (closed-browser time is structurally uncountable), with **pause deducting loudly** and **idle deducting silently**. Ticks every second; freezes visibly when paused.
+- **FOCUSED TODAY** — the smaller one. The tracking engine's honest per-day attribution, advancing only inside an open session. Unaffected by the ACTIVE accounting.
 
 ### Making a task active
 
-Three entry points:
-- Click a task in Tasks tab → immediately active (replaces any currently active)
-- Expanded widget → Switch → hierarchical dropdown (Workspace → Goal → Tasks), current workspace expanded by default, search bar at top for filtering across all tasks
-- Right-click a task anywhere → "Make active"
+Entry points, all funnelling through one activation path:
+- The **play glyph** on a task row in the Tasks tab
+- The card's **Switch** button, or the empty pill's face → hierarchical dropdown (Workspace → Goal → Tasks), current workspace expanded by default, search across all workspaces at the top
+- **Right-click** a task anywhere → "Make active"
 
-Previous active task: stays as-is (not completed/cancelled), just no longer active. Tracking stops for previous, begins for new.
+Previous active task: stays as-is (not completed/cancelled), just no longer active. Tracking stops for the previous task and begins for the new one.
+
+**Rule 4 — activation clears pause.** Every one of those gestures clears the global pause in the *same atomic write* as the activation: pause means "stepped away", and choosing a task is the opposite declaration. No second click. Re-picking the **already-active** task is idempotent and behaves as **Resume** — ACTIVE continues from the frozen value rather than restarting, `startedAt` is not rewritten, and no engine session is split ("carry on", not "start over").
+
+### Task-row integration
+
+The row's glyph is a three-state control over the same global flag as the card, so card, pill and row can never disagree:
+
+| Row state | Glyph | Tooltip | Click |
+|---|---|---|---|
+| Not active | play (revealed on row hover) | "Start task" | activate |
+| Active, running | pause | "Pause tracking" | pause tracking |
+| Active, paused | play, amber | "Resume tracking" | resume tracking |
+
+Clicking a *different* row's glyph while one task is active switches activation, as before. When globally paused with an active task, that task's **entire row** takes an amber tint and ring, so the paused state reads at row level rather than from the glyph alone.
 
 ### Pause behavior
 

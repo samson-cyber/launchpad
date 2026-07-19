@@ -86,7 +86,8 @@ Each of the following closes the current session and, where applicable, opens th
 
 - Manual pause is a **persisted flag** that gates session opening: while paused, no new session opens.
 - Idle transitions **never** clear manual pause. (A user who manually paused stays paused even after returning to the keyboard.)
-- The pause **flag and gate** ship in `[1.0.25]`. The pause **UI** ships in `[1.0.17]` (see `tasks-and-goals.md`, Active Task Widget).
+- The pause **flag and gate** ship in `[1.0.25]`. The pause **UI** ships in `[1.0.17]` (see `tasks-and-goals.md`, Active Task Surface).
+- Idle additionally deducts from the **ACTIVE** display counter (`idleAt`/`idleMs` on `activeTask`) so it reads "this sitting, while present". That accounting is **display-only and engine-inert** — `computeDesired` reads only `activeTask.taskId`, and session/FOCUSED behaviour is unchanged. See `tasks-and-goals.md`, Active Task State.
 
 ---
 

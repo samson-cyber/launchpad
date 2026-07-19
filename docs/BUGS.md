@@ -204,6 +204,41 @@ Run before publishing any console-based verification snippet (the kind written f
 
 Originating data points: [1.0.10] commit 2f00d01 and [1.0.10.1] commit 71eafe0 — both shipped verification snippets that used the spy pattern despite explicit "stub `Storage.saveAll`" instruction in their PLANs. The "Storage changed externally" observation in J2 surfaced during [1.0.10] Phase A verification on 2026-05-10 and forced the broader stub-plus-backup pattern as the canonical answer.
 
+### Section K: CSS Harness Environment Traps
+
+Run before trusting any in-browser (CDP / claude-in-chrome) harness that measures computed style. Both entries below produced **confident, plausible, wrong numbers** — the failure mode is silent, not a crash.
+
+- **K1. `color-mix()` resolves to float channels — normalize before any contrast maths.** Chrome serializes `color-mix()` to CSS Color 4 form, `color(srgb 0.945098 0.768627 0.0588235 / 0.14)`, whose RGB channels are **0–1 floats**, not 0–255 integers. A parser written for `rgb()`/`rgba()` reads `0.945` as a channel value, so every colour flattens to near-black and all contrast arithmetic silently collapses. Observed: a ring measuring **7.59:1** was reported as **1.16:1** — comfortably "failing" a 3:1 gate it actually passed by a wide margin.
+
+  ```
+  // Detect the function form and scale; do not assume rgb().
+  function parseRgb(s) {
+    const m = s.match(/[\d.]+/g); if (!m) return null;
+    const k = /^color\(/.test(s.trim()) ? 255 : 1;   // color(srgb ...) is 0-1
+    return { r: +m[0]*k, g: +m[1]*k, b: +m[2]*k, a: m[3] === undefined ? 1 : +m[3] };
+  }
+  ```
+
+  Also flatten translucent ink over its actual backdrop before measuring — an alpha ring judged as if opaque overstates its real contrast. Both corrections are needed; either alone still lies.
+
+- **K2. Runtime theme toggling does not work in this environment — use one iframe per theme.** Post-load style mutations made from the CDP context **do not take effect in computed style**. Toggling `html.bg-light` at runtime, and even setting an inline `color` or `background-color`, is ignored by `getComputedStyle` — in a fresh, foregrounded tab too. A harness that flips the theme then reads styles is reading the *parse-time* theme while believing it read the other one, producing false failures (and, in the mirror case, false passes).
+
+  The working structure is **one iframe per theme, each loading its theme at parse time** from the query string, never toggled afterwards:
+
+  ```
+  <iframe src="/_rows.html"></iframe>         <!-- dark  -->
+  <iframe src="/_rows.html?light"></iframe>   <!-- light -->
+  <!-- inside _rows.html, before the stylesheet: -->
+  document.documentElement.className =
+    new URLSearchParams(location.search).has('light') ? 'has-bg bg-light' : 'has-bg';
+  ```
+
+  **Always carry a sanity guard** that asserts a post-load inline override *does* take effect. It will fail in this environment — that is the point: it identifies the limitation instead of letting a silent freeze masquerade as a product defect. Corroborate with a screenshot; and note that two iframes reporting genuinely different token values is itself proof the reads are real, which a frozen style tree could not produce.
+
+  Poll for the real iframe document rather than waiting on `load`: an iframe starts on `about:blank`, which already reports `readyState === 'complete'`, so a naive wait resolves before the `src` has loaded and every query returns `null`.
+
+Originating data points: established during [1.0.17]-era polish commit 77fabf7, where the first harness was a single page toggling `html.bg-light` at runtime and **reported a light-theme amber failure that did not exist** — the sanity guard caught the lie and the iframe-per-theme rewrite was the fix. Corroborated in commit 567a603, where K1's float-channel trap surfaced on the amber-row contrast check and, once fixed, exposed a **real** finding underneath it (55% ring alpha genuinely failing 3:1 on light wallpapers at 2.19:1, shipped at 85%). Both entries earned their place by producing wrong answers first.
+
 ---
 
 ## Known Limitations
