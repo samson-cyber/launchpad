@@ -965,3 +965,28 @@ Complements the Git Configuration section of CLAUDE.md.
 - Legacy records without the fields degrade to zero deduction, the same convention as the `sessionAnchorAt` fallback.
 
 **Supersedes:** Completes the ACTIVE-counter definition begun by the 2026-07-17 dual-counters addition and the 2026-07-18 session anchor. ACTIVE is now **present-time within this sitting** rather than wall-clock. FOCUSED TODAY is unchanged and still answers the other question — honest cross-day attribution, advancing only inside an open session. The April per-task pause model (`isPaused` / `totalPausedMs`) remains superseded.
+
+---
+
+## 2026-07-19 — First-run onboarding: the wizard is removed, the grid teaches itself
+
+**Context:** Install-to-WAU sat around 1 in 5. The first thing a new user met was a three-step modal wizard that could not be dismissed — no close control, no Escape handler, no backdrop click; the two "Skip" links advanced steps rather than exiting, so the shortest way out was three clicks, and closing the tab instead left the completion flag unset so the wizard returned on the next new tab. Behind it sat an empty grid. The 2026-04-25 plan proposed redesigning that wizard. The 2026-07-19 design conversation concluded the wizard itself was the problem: it front-loads explanation onto someone who has not yet seen the thing being explained.
+
+**Alternatives considered:**
+- **Redesign the wizard (tighter copy, fewer screens, genuinely skippable)** — rejected. A shorter takeover is still a takeover, and still teaches before there is anything to teach with.
+- **Interactive step-by-step tour engine** (coach marks walking the user through the UI) — explicitly rejected for v1.0.5. It is the wizard reborn with more machinery, and it carries a maintenance surface (anchors, sequencing, resumability) far larger than the problem. May return as its own task if lived use demands it.
+- **Seed example content and let the grid demonstrate itself** — chosen. First run is a populated grid of obviously-example content that shows the interaction model and asks to be replaced, plus a permanent Tips home. No modal, no tour, no takeover.
+
+**Outcome:**
+- **The wizard is gone entirely** — markup, ~275 lines of JS, ~400 lines of CSS, its event bindings, and the POPULAR_SITES chips. No replacement modal of any kind.
+- **First-run seeding sits behind the SAME latch**, and the storage key `launchpad_onboarding` is **kept deliberately** rather than renamed. Its semantics move from "wizard completed" to "first-run setup done"; the continuity is the point, because every existing install already has it true and renaming it would re-seed the entire installed base on their next new tab. The flag stays load-bearing: `isFirstRun` is a content heuristic, so without the flag a user who deleted everything would be re-seeded repeatedly.
+- **Example content is demo-marked** — `demo: true` on every seeded record, reserved `demo_` group ids — so it can later be identified and removed as an exact set. Nothing else in the codebase writes either marker. Records are fully inert: url, title, timestamps, no analytics or tracking seeds.
+- **Clear Examples is gated on owning a real shortcut**, and the gate is a pure reader (`Storage.hasRealShortcut`) computed at render, never event-wired. That is what makes every add path — add tile, right-click, bookmark import, top sites, drag — flip it without being special-cased: no path has to remember to announce itself. It uses `aria-disabled` plus a handler guard rather than the `disabled` attribute, because a disabled button fires no pointer events and the tooltip explaining why it is inert could never appear. Gating on real content makes an empty-grid-via-clear structurally impossible.
+- **Import is now permanent** in the sidebar, offering both existing flows. This is not cosmetic: Top Sites import was reachable *only* from the wizard, so removing the wizard would have deleted its only route. (Bookmark import already had three non-wizard callers and survived regardless.)
+- **Tips is a permanent sidebar panel** — deliberately a static list for v1.0.5, plus a Restore Examples action and one Pro seed line. No versioning, no what's-new engine, no unread badges.
+- **Restore Examples re-runs the same seed**, and is idempotent by construction: `seedDemoContent` no-ops when examples are present, so restore cannot ever produce a second copy.
+- **The seed does not write a background.** `loadBackground` already substitutes *and persists* `DEFAULT_BG` when no record exists, and it runs before the seeding check at init — so the wizard's explicit background writes died with it at no loss.
+- **New hint/latch state lives in `data.settings`** (the nesting-tooltip convention), with the D2 latch as the sole exception for the migration-safety reason above. `#rc-tip` and the promo toasts are left exactly as they are — no migration, no consolidation.
+- **Existing users see zero change** beyond the two new sidebar entries. This was treated as a premise-grade invariant and is asserted in the harness: an existing profile's init performs no write at all and leaves stored data byte-identical.
+
+**Supersedes:** Supersedes the 2026-04-25 plan for this task in full (that plan redesigned the wizard; this removes it). The 2026-07-07 shipping-vehicle ratification stands unchanged — this ships free-tier in v1.0.5 ahead of the v2.0.0 Pro launch, and the manifest bump happens at store submission, not here.

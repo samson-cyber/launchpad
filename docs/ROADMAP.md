@@ -19,7 +19,7 @@ The free LaunchPad Chrome extension, live on the Chrome Web Store.
 - Settings panel with icon size, wallpaper, bookmarks import, about
 - Search bar using Chrome Search API (respects user's default search engine)
 - Nested shortcut variants (click-triggered dropdown showing sub-shortcuts under a parent icon)
-- Onboarding wizard on first install
+- First-run example content on fresh install — a seeded, obviously-example grid plus permanent Import and Tips sidebar entries ([1.0.19], replaced the three-step onboarding wizard)
 - **Backup / export / import** (JSON envelope format with recovery backup on import) — shipped v1.0.4
 - Promo toast system (Rate at 3rd open, Coffee at 8th, alternating every 20)
 

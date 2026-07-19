@@ -517,12 +517,226 @@ var Storage = (function () {
     }
   }
 
+  // [1.0.19] The key name "launchpad_onboarding" is KEPT deliberately even
+  // though the wizard it was named for is gone. Its semantics are repurposed
+  // from "wizard completed" to "first-run setup done", and that continuity is
+  // the whole point: every existing install already has it true, so none of
+  // them can ever be seeded with example content. Renaming it would re-seed
+  // the entire installed base on their next new tab.
   async function setOnboardingComplete() {
     try {
       await chrome.storage.local.set({ launchpad_onboarding: true });
     } catch (err) {
       console.error("[LaunchPad] Failed to save onboarding flag:", err);
     }
+  }
+
+  // ===== [1.0.19] First-run example content =====
+  //
+  // The grid teaches itself: a fresh install is seeded with obviously-example
+  // content that demonstrates the interaction model and begs to be replaced.
+  // Everything seeded here is DEMO-MARKED so it can be identified and removed
+  // as an exact set later — groups by a reserved "demo_" id prefix, shortcuts
+  // by demo: true. Nothing else in the codebase writes either marker, so the
+  // marked set is precisely what this module created.
+  //
+  // Records are fully inert: url, title, timestamps. No analytics, no tracking
+  // seeds, nothing that could be mistaken for user behaviour (the April plan's
+  // privacy note, still binding).
+  var DEMO_GROUP_PREFIX = "demo_";
+  var DEMO_INTRO_GROUP_ID = "demo_intro";
+
+  // The three teaching tiles ride in the grid as records rather than as
+  // hard-coded markup, so clearDemoContent removes them in the SAME write as
+  // everything else and no second source of truth exists for "are examples
+  // present". demoTile is what the renderer branches on.
+  var DEMO_TILES = ["welcome", "teaching", "import"];
+
+  var DEMO_SEED_GROUPS = [
+    {
+      id: "demo_daily",
+      name: "✨ Examples — Daily",
+      shortcuts: [
+        { title: "Google", url: "https://www.google.com" },
+        { title: "YouTube", url: "https://www.youtube.com" },
+        { title: "Gmail", url: "https://mail.google.com" },
+        { title: "Maps", url: "https://www.google.com/maps" },
+        { title: "Wikipedia", url: "https://www.wikipedia.org" }
+      ]
+    },
+    {
+      id: "demo_work",
+      name: "✨ Examples — Work",
+      shortcuts: [
+        { title: "Docs", url: "https://docs.google.com" },
+        { title: "Calendar", url: "https://calendar.google.com" },
+        { title: "GitHub", url: "https://github.com" },
+        { title: "LinkedIn", url: "https://www.linkedin.com" }
+      ]
+    }
+  ];
+
+  function isDemoGroup(group) {
+    return !!(group && typeof group.id === "string" &&
+      group.id.indexOf(DEMO_GROUP_PREFIX) === 0);
+  }
+
+  function isDemoShortcut(s) {
+    return !!(s && s.demo === true);
+  }
+
+  /**
+   * Is any example content currently present? Used to keep seeding and restore
+   * idempotent — neither may ever produce a second copy.
+   */
+  function hasDemoContent(data) {
+    var ws = getActiveWorkspace(data);
+    if (!ws || !Array.isArray(ws.groups)) return false;
+    return ws.groups.some(function (g) {
+      if (isDemoGroup(g)) return true;
+      return (g.shortcuts || []).some(isDemoShortcut);
+    });
+  }
+
+  /**
+   * [1.0.19 D4 gate] Does the user own at least one REAL shortcut — anywhere in
+   * the workspace, in any group, demo or not?
+   *
+   * Deliberately a pure reader over stored state rather than an event the add
+   * paths fire: the UI computes it at render time, so EVERY add path (add tile,
+   * right-click context menu, bookmark import, top-sites import, drag) flips
+   * the gate without being special-cased. A path that forgot to announce itself
+   * is not possible, because no path announces itself.
+   *
+   * Soft-deleted shortcuts do not count — a trashed shortcut is not content the
+   * user still has.
+   */
+  function hasRealShortcut(data) {
+    var ws = getActiveWorkspace(data);
+    if (!ws || !Array.isArray(ws.groups)) return false;
+    return ws.groups.some(function (g) {
+      return (g.shortcuts || []).some(function (s) {
+        return s && !s.demo && !s.deletedAt && !s.demoTile;
+      });
+    });
+  }
+
+  function makeDemoShortcut(seed, now, i) {
+    return {
+      id: "demo_s_" + now.toString(36) + "_" + i.toString(36),
+      url: seed.url,
+      title: seed.title,
+      addedAt: now,
+      deletedAt: null,
+      demo: true
+    };
+  }
+
+  /**
+   * Seed the example content. Used both for the first-run latch (D2) and for
+   * "Restore examples" (D7) — one implementation, so the restored grid is
+   * byte-shaped like a fresh install's.
+   *
+   * No-op (returns false, writes nothing) when example content is already
+   * present, which is what makes Restore idempotent.
+   *
+   * Does NOT write a background. loadBackground already substitutes and
+   * PERSISTS DEFAULT_BG when no record exists, and it runs before this at init
+   * — so writing one here would be a redundant second write of a value that is
+   * already on disk (P8 verdict, ratified into D2).
+   */
+  async function seedDemoContent(data) {
+    if (!data) return false;
+    var ws = getActiveWorkspace(data);
+    if (!ws) return false;
+    if (hasDemoContent(data)) return false;
+
+    ensureGroupsArray(ws);
+    var now = Date.now();
+    var i = 0;
+
+    // Intro strip first — it carries the welcome/teaching/import tiles and,
+    // with them, the Clear Examples control.
+    var intro = {
+      id: DEMO_INTRO_GROUP_ID,
+      name: "Getting started",
+      deletedAt: null,
+      shortcuts: DEMO_TILES.map(function (kind) {
+        i++;
+        return {
+          id: "demo_t_" + now.toString(36) + "_" + kind,
+          demoTile: kind,
+          demo: true,
+          addedAt: now,
+          deletedAt: null
+        };
+      })
+    };
+
+    var seeded = [intro].concat(DEMO_SEED_GROUPS.map(function (g) {
+      return {
+        id: g.id,
+        name: g.name,
+        deletedAt: null,
+        shortcuts: g.shortcuts.map(function (s) { i++; return makeDemoShortcut(s, now, i); })
+      };
+    }));
+
+    // Examples lead; the user's own groups keep their existing relative order
+    // behind them. After a Clear the user's groups are simply all that is left.
+    seeded.forEach(function (g) { ws.groups.push(g); });
+    ws.groupOrder = seeded.map(function (g) { return g.id; })
+      .concat((ws.groupOrder || []).filter(function (id) {
+        return seeded.every(function (g) { return g.id !== id; });
+      }));
+
+    await saveAll(data);
+    return true;
+  }
+
+  /**
+   * Remove EXACTLY the demo-marked set — the intro tiles, the demo_ groups and
+   * any demo: true shortcut that has since been dragged into a user group — in
+   * ONE write. Anything the user owns is untouched, including a real shortcut
+   * dragged INTO a demo group (it is re-homed rather than destroyed).
+   */
+  async function clearDemoContent(data) {
+    if (!data) return false;
+    var ws = getActiveWorkspace(data);
+    if (!ws || !Array.isArray(ws.groups)) return false;
+    if (!hasDemoContent(data)) return false;
+
+    // A real shortcut sitting inside a demo group would otherwise be collateral
+    // damage when the group goes. Re-home those into the first surviving group.
+    var rescued = [];
+    ws.groups.forEach(function (g) {
+      if (!isDemoGroup(g)) return;
+      (g.shortcuts || []).forEach(function (s) {
+        if (!isDemoShortcut(s)) rescued.push(s);
+      });
+    });
+
+    ws.groups = ws.groups.filter(function (g) { return !isDemoGroup(g); });
+    ws.groupOrder = (ws.groupOrder || []).filter(function (id) {
+      return id.indexOf(DEMO_GROUP_PREFIX) !== 0;
+    });
+
+    // Demo shortcuts that were dragged out of their demo group into a user
+    // group still carry demo: true, so they clear with the rest.
+    ws.groups.forEach(function (g) {
+      g.shortcuts = (g.shortcuts || []).filter(function (s) { return !isDemoShortcut(s); });
+    });
+
+    if (rescued.length) {
+      ensureGroupsArray(ws);
+      var host = ws.groups[0];
+      if (host) {
+        host.shortcuts = (host.shortcuts || []).concat(rescued);
+      }
+    }
+
+    await saveAll(data);
+    return true;
   }
 
   // ===== Goals =====
@@ -3290,6 +3504,13 @@ var Storage = (function () {
     setTrackingPaused: setTrackingPaused,
     anchorBrowserSession: anchorBrowserSession,
     setIdleState: setIdleState,
+    // [1.0.19] First-run example content
+    seedDemoContent: seedDemoContent,
+    clearDemoContent: clearDemoContent,
+    hasDemoContent: hasDemoContent,
+    hasRealShortcut: hasRealShortcut,
+    isDemoGroup: isDemoGroup,
+    isDemoShortcut: isDemoShortcut,
     getActiveWorkspace: getActiveWorkspace,
     getActiveWorkspaceIndex: getActiveWorkspaceIndex,
     addShortcut: addShortcut,

@@ -180,17 +180,6 @@
   var CHECK_SVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
   var CHECK_SM_SVG = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
 
-  var POPULAR_SITES = [
-    { title: "Google", url: "https://www.google.com" },
-    { title: "YouTube", url: "https://www.youtube.com" },
-    { title: "Amazon", url: "https://www.amazon.com" },
-    { title: "Facebook", url: "https://www.facebook.com" },
-    { title: "Instagram", url: "https://www.instagram.com" },
-    { title: "Gmail", url: "https://mail.google.com" },
-    { title: "Netflix", url: "https://www.netflix.com" },
-    { title: "LinkedIn", url: "https://www.linkedin.com" }
-  ];
-  var obSelectedPopular = {};
 
 
   // ===== Sidebar expand-state debug hooks =====
@@ -5680,10 +5669,25 @@
     applyIconSize(data.settings.iconSize || "medium");
     applySearch();
 
-    // Check if onboarding needed
+    // [1.0.19 D2] First-run seeding, behind the SAME latch the wizard used.
+    // The grid teaches itself now: instead of a modal takeover, a fresh install
+    // gets obviously-example content it can play with and then clear.
+    //
+    // Both halves of the condition are load-bearing. The flag alone would
+    // re-seed nobody but also protect nobody who cleared their grid; the
+    // content heuristic alone would re-seed a user who deleted everything,
+    // repeatedly. Together: seed exactly once, for genuinely new installs.
+    //
+    // No background is written here — loadBackground above already substitutes
+    // and persists DEFAULT_BG when no record exists (P8).
     var onboardingDone = await Storage.getOnboardingComplete();
     if (!onboardingDone && Bookmarks.isFirstRun(data)) {
-      showOnboarding();
+      try {
+        await Storage.seedDemoContent(data);
+      } catch (err) {
+        console.error("[LaunchPad] First-run seeding failed:", err);
+      }
+      await Storage.setOnboardingComplete();
     }
 
     render();
@@ -5698,13 +5702,7 @@
     startCtaCountdown();
     Bookmarks.bindEvents(function (newData) {
       data = newData;
-      hideFirstRunToast();
       render();
-      // If onboarding triggered a bookmark import, advance to step 2
-      if (obPendingBookmarks) {
-        obPendingBookmarks = false;
-        goToObStep(2);
-      }
     });
 
     // Listen for external storage changes (e.g. context menu adds a shortcut)
@@ -5751,18 +5749,6 @@
       readyGroups.reduce(function (n, g) { return n + g.shortcuts.length; }, 0), "shortcut(s)");
   }
 
-  // ===== First-Run Toast =====
-
-  function showFirstRunToast() {
-    var toast = $("#first-run-toast");
-    if (toast) toast.classList.remove("hidden");
-    console.log("[LaunchPad] First run — showing toast");
-  }
-
-  function hideFirstRunToast() {
-    var toast = $("#first-run-toast");
-    if (toast) toast.classList.add("hidden");
-  }
 
   // ===== Promo Toast (one-time BMC / Rate) =====
 
@@ -5906,63 +5892,6 @@
     }, 400);
   }
 
-  // ===== Onboarding =====
-
-  var obCurrentStep = 1;
-  var obSelectedBg = "";
-  var obPendingBookmarks = false;
-
-  function showOnboarding() {
-    var overlay = $("#onboarding-overlay");
-    if (!overlay) return;
-    overlay.classList.remove("hidden");
-    obCurrentStep = 1;
-    obSelectedPopular = {};
-    updateObDots();
-    previewTopSites();
-    renderObPopularSites();
-    console.log("[LaunchPad] Onboarding started");
-  }
-
-  function hideOnboarding() {
-    var overlay = $("#onboarding-overlay");
-    if (overlay) overlay.classList.add("hidden");
-  }
-
-  function goToObStep(step) {
-    obCurrentStep = step;
-    $$(".ob-step").forEach(function (el) {
-      el.classList.toggle("hidden", parseInt(el.dataset.step) !== step);
-    });
-    updateObDots();
-    if (step === 2) {
-      renderObBgColors();
-      renderObGallery();
-    }
-    // Show onboarding overlay if it was hidden (e.g. during bookmark import)
-    $("#onboarding-overlay").classList.remove("hidden");
-  }
-
-  function updateObDots() {
-    $$(".ob-dot").forEach(function (dot) {
-      dot.classList.toggle("active", parseInt(dot.dataset.step) <= obCurrentStep);
-    });
-  }
-
-  function previewTopSites() {
-    if (!chrome.topSites || !chrome.topSites.get) return;
-    chrome.topSites.get(function (sites) {
-      var preview = $("#ob-top-sites-preview");
-      if (!preview || !sites || !sites.length) return;
-      var html = sites.slice(0, 8).map(function (site) {
-        var domain = getDomain(site.url);
-        var favicon = getFaviconUrl(site.url);
-        return '<img class="ob-preview-favicon" src="' + favicon + '" alt="" width="20" height="20" title="' + esc(site.title || domain) + '">';
-      }).join("");
-      preview.innerHTML = html;
-    });
-  }
-
   function importTopSites(callback) {
     if (!chrome.topSites || !chrome.topSites.get) {
       console.warn("[LaunchPad] chrome.topSites not available");
@@ -5999,186 +5928,6 @@
     });
   }
 
-  function handleObTopSites() {
-    importTopSites(function () {
-      addSelectedPopularSites().then(function () {
-        render();
-        goToObStep(2);
-      });
-    });
-  }
-
-  function handleObBookmarks() {
-    obPendingBookmarks = true;
-    addSelectedPopularSites().then(function () {
-      render();
-      hideOnboarding();
-      Bookmarks.showPicker();
-      // If user cancels bookmark picker, re-show onboarding at step 2
-      waitForHidden($("#bookmark-overlay"), function () {
-        if (obPendingBookmarks) {
-          obPendingBookmarks = false;
-          goToObStep(2);
-        }
-      });
-    });
-  }
-
-  function handleObBoth() {
-    importTopSites(function () {
-      handleObBookmarks();
-    });
-  }
-
-  function waitForHidden(el, callback) {
-    if (el.classList.contains("hidden")) {
-      callback();
-      return;
-    }
-    var observer = new MutationObserver(function () {
-      if (el.classList.contains("hidden")) {
-        observer.disconnect();
-        callback();
-      }
-    });
-    observer.observe(el, { attributes: true, attributeFilter: ["class"] });
-  }
-
-  function renderObBgColors() {
-    var grid = $("#ob-bg-color-grid");
-    if (!grid) return;
-    obSelectedBg = currentBg || DEFAULT_BG;
-    grid.innerHTML = COLOR_PRESETS.map(function (preset) {
-      var hex = preset.value.slice(6);
-      var isSelected = obSelectedBg === preset.value;
-      return '<button class="ob-bg-thumb ob-bg-color-swatch' + (isSelected ? ' selected' : '') + '" data-bg="' + preset.value + '" type="button" title="' + esc(preset.label) + '" style="background-color: ' + hex + ';">' +
-        '<span class="ob-bg-check">' + CHECK_SVG + '</span>' +
-        '</button>';
-    }).join("");
-  }
-
-  function renderObGallery() {
-    var grid = $("#ob-bg-grid");
-    if (!grid) return;
-    grid.innerHTML = GALLERY_IMAGES.map(function (img) {
-      var isSelected = obSelectedBg === img.url;
-      return '<button class="ob-bg-thumb' + (isSelected ? ' selected' : '') + '" data-bg="' + img.url + '" type="button" title="' + esc(img.label) + '">' +
-        '<span class="ob-bg-check">' + CHECK_SVG + '</span>' +
-        '<img src="' + img.thumb + '" alt="' + esc(img.label) + '" loading="lazy">' +
-        '</button>';
-    }).join("");
-  }
-
-  function selectObBg(thumbEl) {
-    $$(".ob-bg-thumb", $("#ob-bg-color-grid")).forEach(function (el) { el.classList.remove("selected"); });
-    $$(".ob-bg-thumb", $("#ob-bg-grid")).forEach(function (el) { el.classList.remove("selected"); });
-    thumbEl.classList.add("selected");
-    obSelectedBg = thumbEl.dataset.bg;
-    applyBackground(obSelectedBg);
-  }
-
-  function handleObBgNext() {
-    var bg = obSelectedBg || DEFAULT_BG;
-    Storage.saveBackground(bg).then(function () {
-      applyBackground(bg);
-    });
-    goToObStep(3);
-  }
-
-  function handleObUploadOwn() {
-    $("#ob-file-input").click();
-  }
-
-  function handleObFileUpload(file) {
-    if (!file || !file.type.startsWith("image/")) return;
-    var reader = new FileReader();
-    reader.onload = function () {
-      var img = new Image();
-      img.onload = function () {
-        resizeImage(img, function (dataUrl) {
-          obSelectedBg = dataUrl;
-          applyBackground(dataUrl);
-          // Mark all thumbs as unselected (custom upload)
-          $$(".ob-bg-thumb", $("#ob-bg-grid")).forEach(function (el) {
-            el.classList.remove("selected");
-          });
-        });
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  }
-
-  async function finishOnboarding() {
-    // Save background if selected
-    if (obSelectedBg) {
-      await Storage.saveBackground(obSelectedBg);
-      applyBackground(obSelectedBg);
-    }
-    await Storage.setOnboardingComplete();
-    hideOnboarding();
-    render();
-    console.log("[LaunchPad] Onboarding complete");
-  }
-
-  // ===== Onboarding Popular Sites =====
-
-  function renderObPopularSites() {
-    var row = $("#ob-popular-row");
-    if (!row) return;
-    row.innerHTML = POPULAR_SITES.map(function (site, i) {
-      var domain = getDomain(site.url);
-      var favicon = getFaviconUrl(site.url);
-      return '<button class="ob-popular-item" data-index="' + i + '" type="button">' +
-        '<div class="ob-popular-icon">' +
-          '<img src="' + favicon + '" alt="" width="20" height="20">' +
-          '<span class="ob-popular-check">' + CHECK_SM_SVG + '</span>' +
-        '</div>' +
-        '<span class="ob-popular-label">' + esc(site.title) + '</span>' +
-      '</button>';
-    }).join("");
-  }
-
-  function toggleObPopularSite(index) {
-    if (obSelectedPopular[index]) {
-      delete obSelectedPopular[index];
-    } else {
-      obSelectedPopular[index] = true;
-    }
-    var items = $$(".ob-popular-item", $("#ob-popular-row"));
-    items.forEach(function (el) {
-      el.classList.toggle("selected", !!obSelectedPopular[parseInt(el.dataset.index)]);
-    });
-  }
-
-  async function addSelectedPopularSites() {
-    var indices = Object.keys(obSelectedPopular);
-    if (!indices.length) return;
-    var shortcuts = indices.map(function (i, idx) {
-      var site = POPULAR_SITES[parseInt(i)];
-      return {
-        id: Date.now().toString(36) + idx.toString(36) + Math.random().toString(36).slice(2, 7),
-        url: site.url,
-        title: site.title,
-        addedAt: Date.now(),
-        deletedAt: null
-      };
-    });
-    var popularWs = Storage.getActiveWorkspace(data);
-    if (!popularWs) return;
-    // Add to "Ungrouped" group or create "Quick Start"
-    var ungrouped = popularWs.groups.find(function (g) { return g.id === "ungrouped"; });
-    if (ungrouped) {
-      ungrouped.shortcuts = ungrouped.shortcuts.concat(shortcuts);
-    } else {
-      var groupId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-      popularWs.groups.push({ id: groupId, name: "Quick Start", shortcuts: shortcuts, deletedAt: null });
-      popularWs.groupOrder.push(groupId);
-    }
-    await Storage.saveAll(data);
-    obSelectedPopular = {};
-    console.log("[LaunchPad] Added", shortcuts.length, "popular sites");
-  }
 
   // ===== Sidebar Panel Mutual Exclusion =====
   //
@@ -6205,8 +5954,59 @@
   var SIDEBAR_PANEL_CHAIN = [
     { name: "settings",         selector: "#settings-panel",     open: function () { openSettingsPanel(); },     close: function (opts) { closeSettingsPanel(opts); } },
     { name: "pro-settings",     selector: "#pro-settings-panel", open: function () { openProSettingsPanel(); },  close: function (opts) { closeProSettingsPanel(opts); } },
-    { name: "restore-session",  selector: "#restore-dropdown",   open: function () { openRestoreDropdown(); },   close: function (opts) { closeRestoreDropdown(opts); } }
+    { name: "restore-session",  selector: "#restore-dropdown",   open: function () { openRestoreDropdown(); },   close: function (opts) { closeRestoreDropdown(opts); } },
+    // [1.0.19 D5/D6] Both new panels join the chain so they are mutually
+    // exclusive with Settings/Pro Settings/Restore exactly like every other
+    // sidebar-locking surface.
+    { name: "import",           selector: "#import-panel",       open: function () { openImportPanel(); },      close: function (opts) { closeImportPanel(opts); } },
+    { name: "tips",             selector: "#tips-panel",         open: function () { openTipsPanel(); },        close: function (opts) { closeTipsPanel(opts); } }
   ];
+
+  // [1.0.19] Import + Tips panels. Deliberately modelled on the Settings panel
+  // (lock the sidebar, force expanded, showSidebarPanel) rather than inventing
+  // a second panel idiom.
+  function openSimplePanel(sel) {
+    var panel = $(sel);
+    if (!panel) return false;
+    hideGroupMenu();
+    sidebarLocked = true;
+    var sidebar = $("#sidebar");
+    if (sidebar) {
+      sidebar.classList.add("sidebar-locked");
+      sidebar.classList.add("expanded");
+    }
+    showSidebarPanel();
+    panel.classList.remove("hidden");
+    return true;
+  }
+
+  function closeSimplePanel(sel, opts) {
+    var panel = $(sel);
+    if (!panel || panel.classList.contains("hidden")) return;
+    panel.classList.add("hidden");
+    if (opts && opts.silent) return;
+    sidebarLocked = false;
+    var sidebar = $("#sidebar");
+    if (sidebar) {
+      sidebar.classList.remove("sidebar-locked");
+      if (!sidebar.matches(":hover")) sidebar.classList.remove("expanded");
+    }
+    hideSidebarPanel();
+  }
+
+  function openImportPanel() {
+    var panel = $("#import-panel");
+    if (panel && !panel.classList.contains("hidden")) { closeImportPanel(); return; }
+    openSimplePanel("#import-panel");
+  }
+  function closeImportPanel(opts) { closeSimplePanel("#import-panel", opts); }
+
+  function openTipsPanel() {
+    var panel = $("#tips-panel");
+    if (panel && !panel.classList.contains("hidden")) { closeTipsPanel(); return; }
+    if (openSimplePanel("#tips-panel")) renderTipsRestoreState();
+  }
+  function closeTipsPanel(opts) { closeSimplePanel("#tips-panel", opts); }
 
   function isPanelOpen(panel) {
     var el = $(panel.selector);
@@ -8081,7 +7881,9 @@
     container.innerHTML = groupOrder
       .map(function (id) { return groupMap[id]; })
       .filter(Boolean)
-      .map(function (g) { return groupHTML(g, singleGroup); })
+      // [1.0.19 D3] The demo intro group renders as a teaching strip, not a
+      // normal group — no header, no count, no add tile.
+      .map(function (g) { return g.id === "demo_intro" ? demoIntroHTML() : groupHTML(g, singleGroup); })
       .join("");
     ensureAllPlaceholders();
     initSortables();
@@ -8194,6 +7996,103 @@
     });
     if (!pills.length) return "";
     return '<span class="' + sizeClass + '">' + pills.join("") + "</span>";
+  }
+
+  // ===== [1.0.19] First-run example content =====
+  //
+  // D3: three teaching tiles rendered from the demo_intro group's records, so
+  // they are data (cleared in one write with everything else) rather than
+  // hard-coded markup with a second source of truth for "are examples present".
+  //
+  // D4: the Clear Examples control lives on the welcome tile and is GATED on
+  // owning a real shortcut. The gate is computed HERE, at render, from
+  // Storage.hasRealShortcut — never event-wired. That is what makes every add
+  // path (add tile, right-click, bookmark import, top sites, drag) flip it
+  // without being special-cased: no path has to remember to announce itself.
+  //
+  // aria-disabled + a handler guard, NOT the disabled attribute: a disabled
+  // button fires no pointer events, so its hover tooltip could never appear —
+  // and the tooltip is the whole explanation of why the control is inert.
+  function demoIntroHTML() {
+    var canClear = Storage.hasRealShortcut(data);
+    var clearBtn =
+      '<button type="button" class="demo-clear' + (canClear ? '' : ' is-gated') + '"' +
+        ' data-demo-act="clear"' +
+        ' aria-disabled="' + (canClear ? 'false' : 'true') + '">' +
+        'Clear examples' +
+      '</button>' +
+      (canClear ? '' :
+        '<span class="demo-clear-tip" role="tooltip">' +
+          'Add your first shortcut to LaunchPad to clear the examples.' +
+        '</span>');
+
+    return (
+      '<section class="group demo-intro" data-group-id="demo_intro">' +
+        '<div class="demo-tiles">' +
+          '<div class="demo-tile demo-tile-welcome">' +
+            '<div class="demo-tile-title">Welcome to LaunchPad</div>' +
+            '<p class="demo-tile-body">Your new tab, organised your way. ' +
+              'Everything below is an example — open it, drag it, rename it, ' +
+              'then make this grid yours.</p>' +
+            '<div class="demo-clear-wrap">' + clearBtn + '</div>' +
+          '</div>' +
+          '<div class="demo-tile demo-tile-teach">' +
+            '<div class="demo-tile-title">Save any page</div>' +
+            '<p class="demo-tile-body">Right-click any page → ' +
+              '<strong>Add to LaunchPad</strong>. That is the whole habit.</p>' +
+          '</div>' +
+          '<button type="button" class="demo-tile demo-tile-import" data-demo-act="import">' +
+            '<span class="demo-tile-title">Already have bookmarks?</span>' +
+            '<span class="demo-tile-body">Bring them in — top sites or Chrome bookmarks.</span>' +
+          '</button>' +
+        '</div>' +
+      '</section>'
+    );
+  }
+
+  // Clear is a single Storage call so the whole demo set leaves in ONE write;
+  // the eager render pairing matches satActivate/satSetPaused — our own writes
+  // are provenance-tagged, so the onChanged path deliberately will not repaint
+  // this tab.
+  async function clearDemoExamples() {
+    if (!Storage.hasRealShortcut(data)) return; // handler guard for aria-disabled
+    try {
+      await Storage.clearDemoContent(data);
+    } catch (err) {
+      console.error("[LaunchPad] Clear examples failed:", err);
+      return;
+    }
+    render();
+  }
+
+  // D7: Restore re-runs the same seed. seedDemoContent no-ops when examples are
+  // already present, so this is idempotent by construction rather than by a
+  // guard here.
+  async function restoreDemoExamples() {
+    var wrote = false;
+    try {
+      wrote = await Storage.seedDemoContent(data);
+    } catch (err) {
+      console.error("[LaunchPad] Restore examples failed:", err);
+      return;
+    }
+    render();
+    renderTipsRestoreState();
+    return wrote;
+  }
+
+  function renderTipsRestoreState() {
+    var btn = $("#tips-restore-examples");
+    var note = $("#tips-restore-note");
+    if (!btn) return;
+    var present = Storage.hasDemoContent(data);
+    btn.setAttribute("aria-disabled", present ? "true" : "false");
+    btn.classList.toggle("is-gated", present);
+    if (note) {
+      note.textContent = present
+        ? "Examples are already on your grid."
+        : "Puts the example groups and tips tiles back on your grid.";
+    }
   }
 
   function addTileHTML(groupId) {
@@ -8388,7 +8287,9 @@
         container.innerHTML = ws.groupOrder
           .map(function (id) { return groupMap[id]; })
           .filter(Boolean)
-          .map(function (g) { return groupHTML(g, singleGroup); })
+          // [1.0.19 D3] The demo intro group renders as a teaching strip, not a
+      // normal group — no header, no count, no add tile.
+      .map(function (g) { return g.id === "demo_intro" ? demoIntroHTML() : groupHTML(g, singleGroup); })
           .join("");
         ensureAllPlaceholders();
         initSortables();
@@ -8458,7 +8359,9 @@
     container.innerHTML = groupOrder
       .map(function (id) { return groupMap[id]; })
       .filter(Boolean)
-      .map(function (g) { return groupHTML(g, singleGroup); })
+      // [1.0.19 D3] The demo intro group renders as a teaching strip, not a
+      // normal group — no header, no count, no add tile.
+      .map(function (g) { return g.id === "demo_intro" ? demoIntroHTML() : groupHTML(g, singleGroup); })
       .join("");
     ensureAllPlaceholders();
     initSortables();
@@ -9867,6 +9770,43 @@
     });
     safeOn("#sb-settings", "click", function (e) { e.stopPropagation(); openPanel("settings"); });
 
+    // [1.0.19 D5/D6] Import + Tips sidebar entries and their panels.
+    safeOn("#sb-import", "click", function (e) { e.stopPropagation(); openPanel("import"); });
+    safeOn("#sb-tips", "click", function (e) { e.stopPropagation(); openPanel("tips"); });
+    safeOn("#import-close", "click", function () { closeImportPanel(); });
+    safeOn("#tips-close", "click", function () { closeTipsPanel(); });
+    safeOn("#import-top-sites", "click", function () {
+      closeImportPanel();
+      importTopSites();
+    });
+    safeOn("#import-bookmarks", "click", function () {
+      closeImportPanel();
+      Bookmarks.showPicker();
+    });
+    safeOn("#tips-restore-examples", "click", function () {
+      if (this.getAttribute("aria-disabled") === "true") return; // handler guard
+      restoreDemoExamples();
+    });
+
+    // [1.0.19 D3/D4] Delegated handlers for the demo intro strip. Routing on
+    // data-demo-act keeps the drawn state and the action it performs together,
+    // and the gated Clear is guarded here as well as in clearDemoExamples.
+    safeOn("#groups", "click", function (e) {
+      var actEl = e.target.closest && e.target.closest("[data-demo-act]");
+      if (!actEl) return;
+      var act = actEl.getAttribute("data-demo-act");
+      if (act === "clear") {
+        e.preventDefault();
+        if (actEl.getAttribute("aria-disabled") === "true") return;
+        clearDemoExamples();
+        return;
+      }
+      if (act === "import") {
+        e.preventDefault();
+        openPanel("import");
+      }
+    });
+
     // Settings panel events
     safeOn("#settings-close", "click", function () { closeSettingsPanel(); });
     safeOn("#settings-icon-size", "click", function (e) {
@@ -9947,13 +9887,6 @@
       }
     }, true);
 
-    // First-run toast events
-    safeOn("#toast-dismiss", "click", hideFirstRunToast);
-    safeOn("#toast-import", "click", function (e) {
-      e.preventDefault();
-      hideFirstRunToast();
-      Bookmarks.showPicker();
-    });
 
     // Right-click tip
     safeOn("#rc-tip-dismiss", "click", dismissRightClickTip);
@@ -10302,39 +10235,6 @@
       if (thumb) handleBgGalleryClick(thumb);
     });
 
-    // Onboarding events
-    safeOn("#ob-top-sites", "click", handleObTopSites);
-    safeOn("#ob-bookmarks", "click", function () { handleObBookmarks(); });
-    safeOn("#ob-both", "click", handleObBoth);
-    safeOn("#ob-skip-import", "click", function (e) {
-      e.preventDefault();
-      addSelectedPopularSites().then(function () { render(); goToObStep(2); });
-    });
-    safeOn("#ob-bg-next", "click", handleObBgNext);
-    safeOn("#ob-skip-bg", "click", function (e) {
-      e.preventDefault();
-      Storage.saveBackground(DEFAULT_BG);
-      applyBackground(DEFAULT_BG);
-      goToObStep(3);
-    });
-    safeOn("#ob-upload-own", "click", handleObUploadOwn);
-    safeOn("#ob-file-input", "change", function () {
-      if (this.files && this.files[0]) handleObFileUpload(this.files[0]);
-      this.value = "";
-    });
-    safeOn("#ob-get-started", "click", finishOnboarding);
-    safeOn("#ob-popular-row", "click", function (e) {
-      var item = e.target.closest(".ob-popular-item");
-      if (item) toggleObPopularSite(parseInt(item.dataset.index));
-    });
-    safeOn("#ob-bg-grid", "click", function (e) {
-      var thumb = e.target.closest(".ob-bg-thumb");
-      if (thumb) selectObBg(thumb);
-    });
-    safeOn("#ob-bg-color-grid", "click", function (e) {
-      var thumb = e.target.closest(".ob-bg-thumb");
-      if (thumb) selectObBg(thumb);
-    });
 
     // Close menus on outside click
     document.addEventListener("click", function (e) {
