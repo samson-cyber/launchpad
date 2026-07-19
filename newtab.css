@@ -10313,6 +10313,58 @@ html.bg-light .demo-tile-body { color: #3c4043; }
   color: #fff;
 }
 
+/* [1.0.19 D15] Close affordance for the two new panels.
+
+   AUDIT: a single convention already exists across all four close controls
+   (#history-panel-close, #settings-close, #pro-settings-close,
+   #rc-panel-close) — background:none, border:none, cursor:pointer, muted ink
+   via --text-hint, padding 0 4px, and :hover brightening to --text-primary.
+   That IS the frost-consistent ghost D15 asks for, so it is MATCHED rather
+   than a fifth style invented. #pro-settings-close is the best of them
+   because it alone also handles wallpapers (has-bg + bg-light overrides), so
+   that is the variant copied.
+
+   These two buttons previously had NO CSS at all, so they rendered as default
+   browser buttons — a white chip with a black glyph, exactly the "out of place
+   on dark glass" verdict. Measured before: 12x19.
+
+   The bg-light override IS correct here, unlike the D14 button: this control
+   sits on the PANEL, whose frost flips white under bg-light, so the ink must
+   flip with it. On bg-image the panel frost stays dark, so the dark-glass
+   default applies — which is the right answer there. */
+#import-close,
+#tips-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0 4px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.55);
+  transition: color 120ms ease, background-color 120ms ease;
+}
+#import-close:hover,
+#tips-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.10);
+}
+#import-close:focus-visible,
+#tips-close:focus-visible {
+  color: #fff;
+  outline: 2px solid var(--sat-accent, #8ab4f8);
+  outline-offset: 1px;
+}
+html.bg-light #import-close,
+html.bg-light #tips-close { color: rgba(0, 0, 0, 0.45); }
+html.bg-light #import-close:hover,
+html.bg-light #tips-close:hover { color: #202124; background: rgba(0, 0, 0, 0.06); }
+
 .import-intro {
   margin: 0 0 12px;
   font-size: 12.5px;
@@ -10359,6 +10411,14 @@ html.bg-light .demo-tile-body { color: #3c4043; }
 }
 .tips-list strong { color: #fff; font-weight: 600; }
 
+/* [1.0.19 D16] Same treatment as .demo-clear, for the same reason. This
+   button had no literal ring — its failure mode was the OTHER expression of
+   the same class: a translucent fill (rgba(255,255,255,.07)) plus an
+   opacity-0.5 gated state, over a panel that is itself only 92% opaque, so a
+   bright wallpaper bleeds through and lifts everything under the ink.
+   Opaque fills, hue-distinct states, no opacity, no ring, and no bg-light
+   counterpart — identical values to .demo-clear so the two [1.0.19] action
+   buttons read as one system and share one solved luminance window. */
 .tips-action {
   font: inherit;
   font-size: 12.5px;
@@ -10366,14 +10426,18 @@ html.bg-light .demo-tile-body { color: #3c4043; }
   width: 100%;
   padding: 8px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.20);
-  background: rgba(255, 255, 255, 0.07);
-  color: inherit;
+  border: 1px solid transparent;
+  background: #4d8bf5;
+  color: #202124;
+  text-shadow: none;
   cursor: pointer;
+  transition: background-color 120ms ease;
 }
-.tips-action:hover { background: rgba(255, 255, 255, 0.14); }
-.tips-action.is-gated { opacity: 0.5; cursor: default; }
-.tips-action.is-gated:hover { background: rgba(255, 255, 255, 0.07); }
+.tips-action:hover { background: #5590f6; }
+.tips-action:active { background: #4584f2; }
+.tips-action.is-gated { background: #878d93; color: #202124; cursor: default; }
+.tips-action.is-gated:hover,
+.tips-action.is-gated:active { background: #878d93; }
 
 .tips-restore-note {
   margin: 6px 0 0;
@@ -10405,10 +10469,5 @@ html.bg-light .import-option {
   border-color: rgba(0, 0, 0, 0.12);
   background: rgba(0, 0, 0, 0.03);
 }
-html.bg-light .tips-action {
-  border-color: rgba(0, 0, 0, 0.18);
-  background: rgba(0, 0, 0, 0.05);
-  color: #202124;
-}
-html.bg-light .tips-action:hover { background: rgba(0, 0, 0, 0.10); }
-html.bg-light .tips-action.is-gated:hover { background: rgba(0, 0, 0, 0.05); }
+/* No html.bg-light override for .tips-action — see D16 above; its treatment
+   is deliberately luminance-class-independent. */
