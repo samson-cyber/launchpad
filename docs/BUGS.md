@@ -237,7 +237,31 @@ Run before trusting any in-browser (CDP / claude-in-chrome) harness that measure
 
   Poll for the real iframe document rather than waiting on `load`: an iframe starts on `about:blank`, which already reports `readyState === 'complete'`, so a naive wait resolves before the `src` has loaded and every query returns `null`.
 
-Originating data points: established during [1.0.17]-era polish commit 77fabf7, where the first harness was a single page toggling `html.bg-light` at runtime and **reported a light-theme amber failure that did not exist** — the sanity guard caught the lie and the iframe-per-theme rewrite was the fix. Corroborated in commit 567a603, where K1's float-channel trap surfaced on the amber-row contrast check and, once fixed, exposed a **real** finding underneath it (55% ring alpha genuinely failing 3:1 on light wallpapers at 2.19:1, shipped at 85%). Both entries earned their place by producing wrong answers first.
+- **K3. Never delete a CSS rule by regex — a GROUPED selector orphans its leading line into the NEXT rule.** Deleting `#foo`'s rule with a pattern like `/[^\n]*#foo[^{]*\{[^}]*\}/` works on a standalone rule and silently corrupts a grouped one. Given:
+
+  ```
+  html.has-bg #content,
+  html.has-bg #first-run-toast { position: relative; z-index: 1; }
+  ```
+
+  removing the `#first-run-toast` half takes its line **and the shared `{...}` body**, leaving `html.has-bg #content,` dangling. A trailing comma is not a syntax error — the orphan simply joins whatever rule comes next:
+
+  ```
+  html.has-bg #content, html.has-bg #content-header::after { display: none; }
+  ```
+
+  `#content` — the `<main>` wrapping the entire grid — silently inherited `display: none`, and the whole page rendered blank on every wallpaper.
+
+  **Three reasons the usual checks miss it, all of which held in the real incident:**
+  1. **It is not an error.** The merged rule is *valid CSS*. Nothing throws, nothing fails to parse, and the console stays completely clean — so "zero errors" tells you nothing.
+  2. **Brace balance still passes.** A complete `{...}` block was removed, so open/close counts match and a well-formedness check reports depth 0. Balance checking cannot detect this class.
+  3. **JS looks healthy.** `render()` runs to completion and writes the correct markup; any log placed *after* it still prints. The DOM is fully populated — only its container is switched off, so DOM-presence probes near the failure can mislead badly (an ancestor walk from `[id*=group]` matched the sidebar's `#sb-group-list` first in document order and never inspected `#groups` at all).
+
+  **Before deleting:** grep the selector and check whether the matched line ends in a comma, or whether the line above it does. Afterwards, scan for orphans — a selector line ending in `,` whose next non-blank line begins a new selector block is the signature.
+
+  **The countermeasure is a container-chain render guard**, not more logging: assert every element from the outermost layout container down to the grid is neither `display: none` nor `visibility: hidden`, has a non-zero bounding box, and retains the positioning it is supposed to have. Per Section I discipline, prove the guard can fail — reintroducing the broken rule must turn it red (it did: `#content -> none`, `#groups -> 0x0`, every section `0` height). A guard that has never failed is not yet a guard.
+
+Originating data points: established during [1.0.17]-era polish commit 77fabf7, where the first harness was a single page toggling `html.bg-light` at runtime and **reported a light-theme amber failure that did not exist** — the sanity guard caught the lie and the iframe-per-theme rewrite was the fix. Corroborated in commit 567a603, where K1's float-channel trap surfaced on the amber-row contrast check and, once fixed, exposed a **real** finding underneath it (55% ring alpha genuinely failing 3:1 on light wallpapers at 2.19:1, shipped at 85%). K3 was paid for in [1.0.19]: commit 623f44b removed the dead `#first-run-toast` by regex and shipped a **completely blank grid** to fresh installs *and* to every existing user on update, with zero console errors, passing brace balance, and a correct `render()`. Root-caused and fixed in ec2e00e, which also added the container-chain guard and demonstrated it failing against the reintroduced bug. All three entries earned their place by producing wrong answers first.
 
 ---
 
