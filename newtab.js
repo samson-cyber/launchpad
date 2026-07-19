@@ -6007,31 +6007,94 @@
   // then openPanel would immediately reopen it, so it could never be toggled
   // shut from its own button.
   var simplePanelOutside = null;
+  var simplePanelPress = null;
+  var outsidePressPending = false;
+
+  // [1.0.19 D18] Surfaces that spawn ABOVE an open panel. z-index confirms the
+  // layering is already correct — modals and the picker sit at 2000, history at
+  // 1500, these panels at 1200 — so they coexist; what was missing was telling
+  // the outside-click handler that a click over there is not a click "outside".
+  var PANEL_OVERLAY_SELECTORS = [
+    "#modal-overlay",       // add-shortcut / edit modal
+    "#bg-overlay",          // wallpaper picker
+    "#history-overlay",     // history
+    "#workspace-dropdown",  // workspace switcher (created dynamically)
+    ".tt-context-menu"      // context menus and the Switch dropdown
+  ];
+  var PANEL_OVERLAY_SELECTOR = PANEL_OVERLAY_SELECTORS.join(",");
+
+  function anyPanelOverlayOpen() {
+    for (var i = 0; i < PANEL_OVERLAY_SELECTORS.length; i++) {
+      var el = document.querySelector(PANEL_OVERLAY_SELECTORS[i]);
+      if (el && !el.classList.contains("hidden")) return true;
+    }
+    return false;
+  }
 
   function unbindSimplePanelOutside() {
     if (simplePanelOutside) {
       document.removeEventListener("click", simplePanelOutside, true);
       simplePanelOutside = null;
     }
+    if (simplePanelPress) {
+      document.removeEventListener("mousedown", simplePanelPress, true);
+      simplePanelPress = null;
+    }
+    outsidePressPending = false;
   }
 
   function bindSimplePanelOutside(sel, triggerSel, closeFn) {
     unbindSimplePanelOutside();
+
+    function isElsewhere(t) {
+      if (!t || !t.closest) return false;
+      if (t.closest(sel)) return false;
+      if (t.closest(triggerSel)) return false;
+      if (t.closest(PANEL_OVERLAY_SELECTOR)) return false;
+      return true;
+    }
+
+    // [1.0.19 D18] The press half of the pair. A click only counts as an
+    // outside click if its own MOUSEDOWN also landed outside — i.e. if it was
+    // a real press-and-release on the background.
+    //
+    // That pairing is what defeats the native-dialog case STRUCTURALLY rather
+    // than by timing. window.prompt (the Create-a-group flow) blocks the page,
+    // and its dismissal produces a stray page click with NO preceding page
+    // mousedown — the last real press was on the tip, inside the panel. So the
+    // pairing rejects it for the right reason (a release with no matching
+    // press is not a click on the background) rather than by racing a timer.
+    // It also fixes a pre-existing sibling case for free: press inside the
+    // panel, drag out, release — that never should have closed it either.
+    simplePanelPress = function (e) {
+      outsidePressPending = !anyPanelOverlayOpen() && isElsewhere(e.target);
+    };
+
     simplePanelOutside = function (e) {
       var panel = $(sel);
       if (!panel || panel.classList.contains("hidden")) { unbindSimplePanelOutside(); return; }
+      // A press is consumed by exactly one click, however that click arrives.
+      var pressWasOutside = outsidePressPending;
+      outsidePressPending = false;
+
       var t = e.target;
       if (!t || !t.closest) return;
       if (t.closest(sel)) return;         // inside the panel
       if (t.closest(triggerSel)) return;  // its own trigger — let it toggle
+      // Any spawned surface is up, or the click landed in one: not "outside".
+      if (anyPanelOverlayOpen()) return;
+      if (t.closest(PANEL_OVERLAY_SELECTOR)) return;
+      if (!pressWasOutside) return;
       // Deliberately does NOT stopPropagation: the click still reaches its
       // real target, so e.g. the grid's "Pick a background" tile closes this
       // panel AND opens #bg-overlay in the same gesture.
       closeFn();
     };
+
     // Deferred exactly like satSwitchOutsideHandler, so the click that opened
     // the panel cannot be the one that closes it.
     setTimeout(function () {
+      document.addEventListener("mousedown", simplePanelPress, true);
       document.addEventListener("click", simplePanelOutside, true);
     }, 0);
   }
@@ -9908,17 +9971,21 @@
     // would mean refactoring Pro-adjacent code this round is not scoped to
     // touch. Clicking the real control reuses the real path exactly.
     //
-    // Close-then-open, in that order and once: closeTipsPanel() early-returns
-    // if already hidden and tears down the outside handler, so the chain
-    // cannot double-fire. The tip click itself is INSIDE the panel, so the
-    // outside handler ignores it — this close is the only one.
+    // [1.0.19 D18] supersedes D17's close-then-open: the panel now STAYS OPEN
+    // behind whatever the tip launched. The tip click is inside the panel, so
+    // the outside handler ignores it; and because the tip's own mousedown
+    // landed inside too, any stray click the launched surface produces on
+    // dismissal has no matching outside press and is ignored as well.
     safeOn("#tips-panel", "click", function (e) {
       var row = e.target.closest && e.target.closest("[data-tip-act]");
       if (!row) return;
       if (row.getAttribute("aria-disabled") === "true") return; // demoted to static
       var act = row.getAttribute("data-tip-act");
 
-      closeTipsPanel();
+      // [1.0.19 D18] The panel is a playground: a tip opens its target and
+      // STAYS OPEN behind it, so you can run the next tip without reopening.
+      // (Every target layers above the panel — modals/picker 2000, history
+      // 1500, panel 1200 — so they coexist without a stacking conflict.)
 
       if (act === "add-shortcut") {
         // Target the user's own first group rather than an example one, so a
