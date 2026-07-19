@@ -2371,7 +2371,15 @@ html.bg-image body::before {
   z-index: 0;
 }
 
-html.has-bg #content,
+/* [1.0.19 fix] This rule lost its partner when #first-run-toast was deleted.
+   It was a GROUPED selector — "html.has-bg #content, html.has-bg
+   #first-run-toast { position: relative; z-index: 1; }" — and a regex that
+   removed the toast half left "html.has-bg #content," orphaned, which then
+   joined the NEXT rule and inherited its display:none. Restored standalone. */
+html.has-bg #content {
+  position: relative;
+  z-index: 1;
+}
 
 html.has-bg #content-header::after {
   display: none;

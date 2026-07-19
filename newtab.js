@@ -11081,6 +11081,17 @@
       var keyMap = {};
       g.shortcuts.forEach(function (s) {
         if (match) return;
+        // [1.0.19 fix] Demo-marked shortcuts never form a nesting pair. The
+        // seeded examples are Google-heavy (Google / Maps / Gmail / Docs /
+        // Calendar all reduce to one match key), so on a fresh profile this
+        // fired on the very first tab quoting our own example content — the
+        // exact first-impression noise the redesign exists to remove.
+        //
+        // Excluding demo records rather than early-returning on
+        // hasDemoContent is the smaller and more honest change: a user who
+        // has examples AND two real same-domain shortcuts still gets the tip,
+        // which is a genuine case an early-return would suppress.
+        if (Storage.isDemoShortcut(s)) return;
         var key = getMatchKey(s.url);
         if (!key) return;
         // Skip shortcuts that already have variants
