@@ -86,7 +86,30 @@
     { url: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=1920", thumb: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=400&h=250&fit=crop", label: "Northern lights" }
   ];
 
-  var DEFAULT_BG = "color:#f5f5f5";
+  // [1.0.19 D11] The first-paint default. Was "color:#f5f5f5" — an abrasive
+  // white on a fresh install. Now the darkest NEUTRAL preset from
+  // COLOR_PRESETS below: #2a2a2a, luminance 0.165, which resolves to
+  // html.has-bg.bg-dark — i.e. NOT bg-light, so the primary dark styling path
+  // (white ink, frosted surfaces) applies, which is what every surface in this
+  // codebase is authored against by default.
+  //
+  // Chosen over the other three dark presets deliberately: #000000 is pure
+  // black (excluded unless it were the only dark option), while #1e3a5f (navy)
+  // and #3d2818 (brown) are TINTED and would fight the neutral frost, whose
+  // own base is rgba(30,30,30,...) — #2a2a2a sits alongside that as one
+  // continuous dark-glass system.
+  //
+  // Deliberately NOT a gallery image: all twelve GALLERY_IMAGES entries are
+  // remote Unsplash URLs, so an image default would make first paint depend on
+  // a third-party fetch, and the image path adds bg-image with NEITHER
+  // luminance class — every html.bg-light override would silently stop
+  // applying. See the [1.0.19] POLISH UNBLOCK.
+  //
+  // Scope: this value reaches users ONLY through loadBackground's self-heal
+  // (record falsy or "__none__"). Nothing migrates persisted records, so every
+  // existing user — including anyone who persisted the old #f5f5f5 — is
+  // untouched.
+  var DEFAULT_BG = "color:#2a2a2a";
   var COLOR_PRESETS = [
     { value: "color:#f5f5f5", label: "Light gray" },
     { value: "color:#ffffff", label: "White" },
@@ -8045,6 +8068,13 @@
             '<span class="demo-tile-title">Already have bookmarks?</span>' +
             '<span class="demo-tile-body">Bring them in — top sites or Chrome bookmarks.</span>' +
           '</button>' +
+          // [1.0.19 D12] A door to the picker that already exists — no new UI.
+          // This revives the one genuinely liked job of the dead wizard's
+          // screen 2, as a tile the user can ignore rather than a gate.
+          '<button type="button" class="demo-tile demo-tile-background" data-demo-act="background">' +
+            '<span class="demo-tile-title">Pick a background</span>' +
+            '<span class="demo-tile-body">Make it yours — pick a background.</span>' +
+          '</button>' +
         '</div>' +
       '</section>'
     );
@@ -9804,6 +9834,19 @@
       if (act === "import") {
         e.preventDefault();
         openPanel("import");
+        return;
+      }
+      // [1.0.19 D12] Opens the EXISTING wallpaper picker directly, the same
+      // surface Settings' "Change wallpaper" opens (openBgModal, which renders
+      // the colour presets + gallery and switches to the Gallery tab). Chosen
+      // over "open Settings scrolled to its wallpaper section" because it is
+      // strictly smaller — one existing call, no scroll/focus plumbing — and
+      // lands the user ON the picker rather than on a button they must then
+      // click. #bg-overlay is deliberately outside the sidebar panel chain, so
+      // this needs no mutual-exclusion coordination.
+      if (act === "background") {
+        e.preventDefault();
+        openBgModal();
       }
     });
 

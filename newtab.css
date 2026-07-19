@@ -10182,12 +10182,18 @@ html.has-bg .tag-create-btn:hover:not(:disabled) {
   color: rgba(255, 255, 255, 0.78);
 }
 
-/* The import tile is the only actionable one, so it alone gets affordance. */
-button.demo-tile-import {
+/* The actionable tiles (import, and [1.0.19 D12] pick-a-background) get the
+   affordance; welcome and teaching are prose and stay inert.
+   No grid change was needed for the fourth tile: .demo-tiles is
+   auto-fit/minmax(220px, 1fr), so it lays out 4-across when there is room and
+   wraps to 2x2 rather than squashing below 220px. */
+button.demo-tile-import,
+button.demo-tile-background {
   cursor: pointer;
   transition: border-color 120ms ease, background-color 120ms ease;
 }
-button.demo-tile-import:hover {
+button.demo-tile-import:hover,
+button.demo-tile-background:hover {
   border-color: var(--sat-accent, #8ab4f8);
   background: rgba(138, 180, 248, 0.12);
 }

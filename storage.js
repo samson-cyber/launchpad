@@ -550,7 +550,11 @@ var Storage = (function () {
   // hard-coded markup, so clearDemoContent removes them in the SAME write as
   // everything else and no second source of truth exists for "are examples
   // present". demoTile is what the renderer branches on.
-  var DEMO_TILES = ["welcome", "teaching", "import"];
+  // [1.0.19 D12] "background" is the fourth tile. It needed no change to
+  // seed / clear / restore beyond this array entry — precisely because the
+  // tiles are DATA rather than hard-coded markup, so the whole demo lifecycle
+  // carries it for free.
+  var DEMO_TILES = ["welcome", "teaching", "import", "background"];
 
   var DEMO_SEED_GROUPS = [
     {
