@@ -7457,13 +7457,28 @@
   // (now - origin) growth, so it freezes at the value it held when pause began.
   // Clamped at 0 (a task born paused, or one re-anchored while still paused
   // from before a shutdown, reads a frozen 0).
+  // [1.0.17 idle deduct] Idle is deducted the same way pause is, so ACTIVE means
+  // "this sitting, WHILE PRESENT". The idle terms are SILENT — no amber, no
+  // label change, no idle indication anywhere (the loud treatment stays
+  // exclusive to manual pause). The counter simply stops advancing while the
+  // user is away and reads honest on their return.
+  //
+  // idleAt needs no flag test, unlike pausedAt: a non-null idleAt IS the pending
+  // -idle state, because the setter only ever stamps it on a real transition and
+  // clears it on the way back. (pausedAt has to be gated on isTrackingPaused
+  // because the born-paused and anchor-reset shapes both stamp it while paused.)
+  //
+  // Legacy records predating these fields degrade to zero deduction via the
+  // || 0 / != null guards — the same convention as the sessionAnchorAt fallback
+  // above, so an existing record keeps its old behaviour rather than jumping.
   function satActiveMs() {
     var a = Storage.getActiveTask(data);
     if (!a || !a.startedAt) return 0;
     var now = Date.now();
     var origin = Math.max(a.startedAt, a.sessionAnchorAt || 0);
     var pausedSpan = (Storage.isTrackingPaused(data) && a.pausedAt != null) ? (now - a.pausedAt) : 0;
-    return Math.max(0, now - origin - (a.pausedMs || 0) - pausedSpan);
+    var idleSpan = (a.idleAt != null) ? (now - a.idleAt) : 0;
+    return Math.max(0, now - origin - (a.pausedMs || 0) - (a.idleMs || 0) - pausedSpan - idleSpan);
   }
 
   // Repaint the time text without a full re-render (which would fight the Switch

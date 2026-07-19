@@ -551,7 +551,26 @@ chrome.idle.onStateChanged.addListener(function (newState) {
   // the manual-pause flag — returning to the keyboard does not resume a
   // manually paused user (spec).
   Tracking.sync("idle", newState);
+  // [1.0.17 idle deduct] Additionally maintain the ACTIVE counter's idle
+  // accounting. Deliberately AFTER Tracking.sync and deliberately not awaited
+  // by it: the engine's behaviour on this event must be bit-for-bit what it was
+  // before. The two are independent — sync closes/opens the engine session,
+  // this only accrues display-only fields the engine never reads.
+  idleStateBg(newState);
 });
+
+// [1.0.17 idle deduct] Stateless handler, mirroring anchorBrowserSessionBg:
+// read storage, call the shared setter (which no-op guards and saveAll's
+// internally), done. "locked" counts as idle — a locked screen is the strongest
+// possible evidence the user is not present.
+async function idleStateBg(newState) {
+  try {
+    const data = await Storage.getAll();
+    await Storage.setIdleState(data, newState !== "active");
+  } catch (err) {
+    console.error("[LaunchPad] Idle accounting failed:", err);
+  }
+}
 
 chrome.storage.onChanged.addListener(function (changes, areaName) {
   // D3: workspace switches, per-workspace trackingEnabled toggles, the manual

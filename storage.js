@@ -159,12 +159,69 @@ var Storage = (function () {
     // resume. Global pause with no active task simply has nothing to stamp.
     var active = getActiveTask(data);
     if (active) {
+      var pnow = Date.now();
       if (next) {
-        active.pausedAt = Date.now();
+        // [1.0.17 idle deduct] Fold any PENDING idle span before stamping the
+        // pause, in this same write — otherwise the wall-clock from idleAt
+        // onwards would be deducted twice, once by the idle term and once by
+        // the pause term, and ACTIVE would run backwards on resume.
+        // Defensive by nature: pausing is a click, which implies input, which
+        // means the idle listener has normally already folded. But the ordering
+        // must be safe regardless of which event lands first.
+        if (active.idleAt != null) {
+          active.idleMs = (active.idleMs || 0) + (pnow - active.idleAt);
+          active.idleAt = null;
+        }
+        active.pausedAt = pnow;
       } else if (active.pausedAt != null) {
-        active.pausedMs = (active.pausedMs || 0) + (Date.now() - active.pausedAt);
+        active.pausedMs = (active.pausedMs || 0) + (pnow - active.pausedAt);
         active.pausedAt = null;
       }
+    }
+
+    await saveAll(data);
+    return true;
+  }
+
+  // [1.0.17 idle deduct] Maintain the active task's IDLE accounting so ACTIVE
+  // means "this sitting, WHILE PRESENT" rather than raw wall-clock. The engine
+  // already closes its session on idle (FOCUSED stops); ACTIVE is pure
+  // arithmetic and used to keep climbing while the user was away, which is the
+  // gap this closes.
+  //
+  // Deliberately SEPARATE fields from pausedAt/pausedMs rather than reusing
+  // them: manual-pause semantics, Rule 4 (activation clears pause) and the
+  // born-paused shape all key off the pause fields, and folding idle into them
+  // would entangle a silent, automatic state with a loud, user-owned one.
+  //
+  // Gated on an active task AND !trackingPaused. The pause gate is the other
+  // half of the no-double-deduct rule (see setTrackingPaused): while manually
+  // paused the pause term already covers the whole span, so idle must not also
+  // accrue. It also means a manually-paused user returning to the keyboard
+  // still does not resume — idle never writes the pause flag, per spec.
+  //
+  // No-op guarded in BOTH directions (already-stamped idle, or an active
+  // transition with nothing pending) so a redundant transition performs no
+  // write and emits no storage event the engine would treat as a boundary.
+  //
+  // Display-only and engine-inert: computeDesired reads activeTask.taskId and
+  // never these fields.
+  //
+  // @returns {Promise<boolean>} whether a real transition was written.
+  async function setIdleState(data, isIdle) {
+    if (!data) return false;
+    var active = getActiveTask(data);
+    if (!active) return false;              // nothing to account against
+    if (isTrackingPaused(data)) return false; // pause owns the deduction
+
+    var now = Date.now();
+    if (isIdle) {
+      if (active.idleAt != null) return false; // already stamped
+      active.idleAt = now;
+    } else {
+      if (active.idleAt == null) return false; // nothing pending to fold
+      active.idleMs = (active.idleMs || 0) + (now - active.idleAt);
+      active.idleAt = null;
     }
 
     await saveAll(data);
@@ -202,6 +259,13 @@ var Storage = (function () {
     active.sessionAnchorAt = now;
     active.pausedMs = 0;
     active.pausedAt = isTrackingPaused(data) ? now : null;
+    // [1.0.17 idle deduct] Idle accounting is per-anchor too: a pending idleAt
+    // from before the shutdown would otherwise deduct the entire closed-browser
+    // span from the new sitting the moment the user returned. Unlike pausedAt
+    // there is no "born-idle" case to preserve — idle is not a persisted user
+    // intent, and the listener re-stamps on the next real transition.
+    active.idleMs = 0;
+    active.idleAt = null;
 
     await saveAll(data);
     return true;
@@ -1951,6 +2015,15 @@ var Storage = (function () {
           current.pausedMs = (current.pausedMs || 0) + (now - current.pausedAt);
           current.pausedAt = null;
         }
+        // [1.0.17 idle deduct] Fold pending idle the same way, defensively.
+        // While paused the idle listener is gated off, so a pending idleAt here
+        // can only be one that setTrackingPaused should already have folded —
+        // but folding again costs nothing and guarantees the re-pick cannot
+        // leave a stale stamp that would deduct the whole paused span twice.
+        if (current.idleAt != null) {
+          current.idleMs = (current.idleMs || 0) + (now - current.idleAt);
+          current.idleAt = null;
+        }
         data.trackingPaused = false;
         await saveAll(data);
       }
@@ -1974,6 +2047,11 @@ var Storage = (function () {
       pomodoroState: null,
       pausedAt: (!clearPause && isTrackingPaused(data)) ? now : null,
       pausedMs: 0,
+      // [1.0.17 idle deduct] Fresh per task, like the pause accounting. No
+      // born-idle counterpart: activating is an input event, so the user is by
+      // definition present at this instant.
+      idleAt: null,
+      idleMs: 0,
       // [1.0.17 session anchor] ACTIVE counts from max(startedAt, sessionAnchorAt).
       // Activating IS the start of a sitting, so they coincide here; onStartup
       // moves the anchor forward on each later browser launch.
@@ -3211,6 +3289,7 @@ var Storage = (function () {
     isTrackingPaused: isTrackingPaused,
     setTrackingPaused: setTrackingPaused,
     anchorBrowserSession: anchorBrowserSession,
+    setIdleState: setIdleState,
     getActiveWorkspace: getActiveWorkspace,
     getActiveWorkspaceIndex: getActiveWorkspaceIndex,
     addShortcut: addShortcut,

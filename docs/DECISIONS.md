@@ -942,3 +942,26 @@ Complements the Git Configuration section of CLAUDE.md.
 **Named deferred gap:** With the global panel gone, **bookmarks and groups (the Home grid) lose their only planned restore surface.** A Home-grid trash surface is an **explicit backlog item, not a silent omission**. Until it ships, free-tier bookmark/group deletes are recoverable only via the 5-second Undo toast at the moment of deletion (the soft-delete + 30-day retention still happens underneath; there is simply no UI to browse or restore it yet). This is called out so the gap is tracked rather than discovered later.
 
 **Supersedes:** Supersedes the **"Trash View UX" surface model** of the 2026-04-24 universal trash bin entry (the single panel opened from a sidebar icon). The **universal-lifecycle outcome** of that entry — soft-delete via `deletedAt`, 30-day retention + auto-purge, restore/cascade/downgrade semantics — **stands unchanged.**
+
+---
+
+## 2026-07-19 — ACTIVE means "this sitting, while present": idle deducts silently, pause deducts loudly
+
+**Context:** The card's headline ACTIVE counter was introduced (2026-07-17) as wall-clock since activation minus paused time, and later session-anchored (2026-07-18) so it stops counting through a closed browser. A live pass then surfaced the remaining hole: ACTIVE kept climbing while the user was **idle**. The tracking engine already closes its session on idle, so FOCUSED TODAY correctly froze — but ACTIVE is pure arithmetic over stored timestamps and had no idle term, so walking away for lunch inflated it. Reported as "task did not auto pause on idle"; the underlying complaint was not that idle should pause (it must not — pause is manual-only and sacred), but that the visible number was dishonest about presence.
+
+**Alternatives considered:**
+- **Leave ACTIVE as raw wall-clock, document it as "time since you started"** — rejected. It is the largest, most-looked-at number on the surface; a number that says 6:14 when you worked 40 minutes teaches users to distrust the whole panel.
+- **Make idle trigger the manual pause flag** — rejected outright. It would make idle *visible and sticky*: the user returns to an amber PAUSED card they never asked for and must click Resume. It also collides with the standing rule that manual pause survives an idle round-trip, and would blur a user-owned declaration into an automatic one.
+- **Idle silently deducts from ACTIVE, mirroring the pause arithmetic** — chosen.
+
+**Outcome:**
+- `data.activeTask` gains **`idleAt` / `idleMs`**, deliberately **separate from `pausedAt`/`pausedMs`** so manual-pause semantics, Rule 4 (activation clears pause) and the born-paused shape are untouched.
+- The background idle listener additionally maintains them, gated on an active task **and** `!trackingPaused`: idle/locked stamps `idleAt`, active folds `idleMs += now - idleAt`. No-op guarded both ways, one `saveAll` per real transition.
+- `ACTIVE = now - max(startedAt, sessionAnchorAt) - pausedMs - idleMs - (paused ? now - pausedAt : 0) - (idleAt ? now - idleAt : 0)`.
+- **The two states are deliberately asymmetric in presentation.** Manual pause is **loud** — amber card, pill, row, frozen counter, "PAUSED" label — because it is a user declaration they need reflected back. Idle is **silent** — no amber, no label, no idle indication anywhere — because it is an automatic inference the user did not ask for and cannot act on. The counter simply reads honest on their return. Surfacing idle is a v2.1 consideration, not a gap.
+- **No double-deduct:** `setTrackingPaused(true)` folds any pending `idleAt` in the same write before stamping `pausedAt`; the idle listener never touches the fields while paused. The two spans can never overlap.
+- The **session anchor** (`onStartup`) resets `idleAt`/`idleMs` alongside the pause accounting, so a pre-shutdown idle span cannot bleed into the new sitting.
+- **Engine untouched:** `computeDesired`, `evaluateGates`, session lifecycle and FOCUSED TODAY are unchanged. `computeDesired` reads only `activeTask.taskId`; these fields are display-only. Idle still closes the engine session by its own existing path.
+- Legacy records without the fields degrade to zero deduction, the same convention as the `sessionAnchorAt` fallback.
+
+**Supersedes:** Completes the ACTIVE-counter definition begun by the 2026-07-17 dual-counters addition and the 2026-07-18 session anchor. ACTIVE is now **present-time within this sitting** rather than wall-clock. FOCUSED TODAY is unchanged and still answers the other question — honest cross-day attribution, advancing only inside an open session. The April per-task pause model (`isPaused` / `totalPausedMs`) remains superseded.

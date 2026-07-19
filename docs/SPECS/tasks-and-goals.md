@@ -187,18 +187,33 @@ Global across workspaces, top-level in `data`:
     "taskId": "task-xyz",
     "workspaceId": "workspace-1",
     "startedAt": 1773050000000,
-    "isPaused": false,
+    "sessionAnchorAt": 1773050000000,
     "pausedAt": null,
-    "totalPausedMs": 0,
+    "pausedMs": 0,
+    "idleAt": null,
+    "idleMs": 0,
+    "isPaused": false,
     "pomodoroState": null
   }
 }
 ```
 
-- `isPaused`: true when user manually paused. Persists across new-tab opens and workspace switches.
-- `pausedAt`: timestamp when pause was activated; null when not paused.
-- `totalPausedMs`: accumulated paused milliseconds for this task session. Used to compute actual active elapsed time = (now - startedAt) - totalPausedMs - (current pause duration if paused).
+> **Superseded (April model):** pause was originally spec'd as a PER-TASK flag (`isPaused` / `totalPausedMs`). It is now a **global** top-level flag, `data.trackingPaused` — pause stops *tracking*, not *this task*. `isPaused` remains on the record as an inert legacy field. See `DECISIONS.md` 2026-07-19.
+
+- `startedAt`: when the task was made active. Never rewritten while it stays active (re-activating the already-active task must not split the engine session).
+- `sessionAnchorAt`: start of the current **browser sitting**, rewritten once per launch by `chrome.runtime.onStartup`. Closed-browser time is structurally uncountable, so ACTIVE counts from `max(startedAt, sessionAnchorAt)`.
+- `pausedAt` / `pausedMs`: manual-pause accounting. `pausedAt` is stamped on pause and folded into `pausedMs` on resume.
+- `idleAt` / `idleMs`: idle accounting, maintained by the background idle listener. Deliberately separate from the pause fields so manual-pause semantics stay untouched.
 - `pomodoroState`: nullable.
+
+**The two counters.** The card shows both, answering different questions:
+
+- **ACTIVE** (headline, ticks every second) = *this sitting, while present*:
+  `now - max(startedAt, sessionAnchorAt) - pausedMs - idleMs - (paused ? now - pausedAt : 0) - (idleAt ? now - idleAt : 0)`
+  Display-only — the tracking engine never reads these fields.
+- **FOCUSED TODAY** (secondary line) = the engine's honest per-day attribution, advancing only inside an open session.
+
+Records predating any of these fields degrade to zero deduction rather than jumping.
 
 Pomodoro state:
 
@@ -513,6 +528,8 @@ Tasks tab filter bar:
 
 ## Active Task Widget
 
+> **Partially superseded — surface and counter.** As shipped ([1.0.16] v3), this is a fixed top-right **docked card** that minimizes to a **pill**, not a sidebar widget; the states below map onto card / minimized-pill / empty-pill. And where this section says "elapsed time", the shipped headline is **ACTIVE** — *this sitting, while present*, per the formula in **Active Task State** above — not raw wall-clock since activation. The **behaviours** described here (freeze on pause, controls, pomodoro interaction) still hold. The surface description itself has not been rewritten; treat **Active Task State** and `DECISIONS.md` (2026-07-17 / 07-18 / 07-19) as authoritative for the counter.
+
 Lives in sidebar, accessible from every tab. Three visual states: collapsed, expanded, paused (variant of collapsed/expanded).
 
 ### Collapsed state
@@ -551,24 +568,27 @@ Previous active task: stays as-is (not completed/cancelled), just no longer acti
 
 ### Pause behavior
 
-Pause button in expanded widget. When pressed:
-- `activeTask.isPaused = true`
-- `activeTask.pausedAt = now`
-- Widget's elapsed time freezes
-- Collapsed icon changes from ▶ to ⏸
-- Tracking engine stops attributing time to this task
+Pause is GLOBAL — it pauses tracking, not one task. The control lives on the active-task card (and the row glyph mirrors it). When pressed:
+- `data.trackingPaused = true`
+- `activeTask.pausedAt = now` (after folding any pending `idleAt` into `idleMs`, so the two spans can never double-deduct)
+- ACTIVE freezes; the card, minimized pill and the task's row all take the **loud amber** paused treatment
+- The engine's gate returns `paused`, so the open session closes and none reopen
 - If pomodoro is running, the current phase also pauses (timer freezes at its current remaining duration)
 
 On resume (pressing the button again):
-- Accumulated pause duration added to `totalPausedMs`
-- `isPaused = false`, `pausedAt = null`
-- Elapsed time resumes counting from where it stopped
+- Accumulated pause duration added to `pausedMs`; `pausedAt = null`
+- `data.trackingPaused = false`; the amber treatment clears everywhere
+- ACTIVE resumes from the frozen value with no jump; the engine reopens a session on the next boundary
 - Pomodoro phase resumes; `phaseEndsAt` extended by the pause duration
 
+Activation also clears pause: every explicit activation gesture clears `trackingPaused` in the same write (start means start). Re-picking the already-active task behaves as Resume — ACTIVE continues from the frozen value rather than restarting.
+
 **Pause vs idle detection:**
-- Manual pause is sacred — tracking stays paused until user resumes, even if they return to the keyboard
-- Idle detection only acts when user has NOT manually paused. If user goes idle without pausing, tracking pauses silently and resumes silently on activity. No state written to `isPaused` — idle is invisible to the user by design.
-- If user manually pauses then goes idle, they stay paused (expected).
+- Manual pause is sacred — tracking stays paused until the user resumes, even if they return to the keyboard. Idle never writes the pause flag.
+- Idle acts only when the user has NOT manually paused. Going idle closes the engine session silently and it reopens silently on activity.
+- Idle additionally **deducts from ACTIVE** (`idleAt`/`idleMs`), so the counter reads honest on return rather than counting time the user was away.
+- **The asymmetry is deliberate:** pause is LOUD (amber, frozen, labelled — a user declaration reflected back), idle is SILENT (no amber, no label, no idle UI — an automatic inference the user did not ask for). Idle remains invisible by design.
+- If the user manually pauses then goes idle, they stay paused, and the idle listener no-ops entirely while paused.
 
 **Pause persists across workspace switches and new-tab opens.**
 
@@ -696,10 +716,12 @@ No confetti, no full-screen takeover, no sound by default.
 - Goal templates save from active goals and instantiate new goals
 - Dragging a task between goals handles name collisions with modal
 - Dragging a recurring task to a goal prompts "move template" vs "move instance"
-- Active task widget shows elapsed time (collapsed) or full controls (expanded)
-- Pause button freezes elapsed time, changes icon to ⏸, tracking stops
-- Resume restores tracking and pomodoro state correctly
+- Active task surface shows the ACTIVE counter (minimized pill) or full controls (docked card)
+- Pause button freezes ACTIVE, applies the loud amber treatment, tracking stops
+- Resume restores tracking and pomodoro state correctly, ACTIVE continuing with no jump
 - Idle detection doesn't override manual pause
+- Going idle silently freezes ACTIVE (no amber, no label) and it reads honest on return
+- Idle and pause never double-deduct, in either order
 - One active task persists across workspace switches and new-tab opens
 - Pomodoro timer defaults to 25/5, customizable in Pro Settings
 - Pomodoro pauses and resumes correctly with main pause button
