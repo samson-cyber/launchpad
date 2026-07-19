@@ -171,6 +171,42 @@ var Storage = (function () {
     return true;
   }
 
+  // [1.0.17 session anchor] Stamp a browser-session anchor on the active task.
+  // Fired ONCE per true browser launch (chrome.runtime.onStartup) — SW suspends
+  // inside a running browser must NOT reset it, which is exactly why this hangs
+  // off onStartup and nothing else.
+  //
+  // Why: the ACTIVE counter is wall-clock since startedAt, so it counted through
+  // closed Chrome (observed 46:21:09 across two nights). Anchoring makes ACTIVE
+  // mean "this sitting": closed time is structurally uncountable, and morning
+  // greets the still-active task at 0:00 climbing. startedAt is PRESERVED —
+  // other readers (and any future "since activation" surface) still need it.
+  //
+  // The per-anchor pause accounting resets with the anchor so a pre-shutdown
+  // pause cannot bleed a frozen offset into the new sitting. Note the pausedAt
+  // reset is anchor-valued, NOT null, when the global flag is still true: that
+  // is the born-paused shape setActiveTask already uses, and it is what actually
+  // holds the card at a frozen 0:00 until resume. Nulling it while paused would
+  // leave the counter CLIMBING behind a "PAUSED" label. The global
+  // trackingPaused flag itself is untouched here — it persists per its own
+  // semantics, and resuming accrues (now - pausedAt) so ACTIVE resumes from 0.
+  //
+  // Display-only, like the rest of this accounting: computeDesired reads
+  // activeTask.taskId and never these fields, so this is engine-inert.
+  async function anchorBrowserSession(data) {
+    if (!data) return false;
+    var active = getActiveTask(data);
+    if (!active) return false; // nothing to anchor; no spurious write
+
+    var now = Date.now();
+    active.sessionAnchorAt = now;
+    active.pausedMs = 0;
+    active.pausedAt = isTrackingPaused(data) ? now : null;
+
+    await saveAll(data);
+    return true;
+  }
+
   function migrate(data) {
     if (data && Array.isArray(data.workspaces)) return data;
 
@@ -1903,7 +1939,11 @@ var Storage = (function () {
       isPaused: false,
       pomodoroState: null,
       pausedAt: isTrackingPaused(data) ? now : null,
-      pausedMs: 0
+      pausedMs: 0,
+      // [1.0.17 session anchor] ACTIVE counts from max(startedAt, sessionAnchorAt).
+      // Activating IS the start of a sitting, so they coincide here; onStartup
+      // moves the anchor forward on each later browser launch.
+      sessionAnchorAt: now
     };
     await saveAll(data);
     return data.activeTask;
@@ -3135,6 +3175,7 @@ var Storage = (function () {
     setTrackingEnabled: setTrackingEnabled,
     isTrackingPaused: isTrackingPaused,
     setTrackingPaused: setTrackingPaused,
+    anchorBrowserSession: anchorBrowserSession,
     getActiveWorkspace: getActiveWorkspace,
     getActiveWorkspaceIndex: getActiveWorkspaceIndex,
     addShortcut: addShortcut,

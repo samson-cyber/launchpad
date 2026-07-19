@@ -7414,18 +7414,28 @@
     return satReadout.baseMs + open;
   }
 
-  // ACTIVE — the headline liveness counter: wall-clock since the task was made
-  // active, minus every paused span. Pure local arithmetic off data.activeTask
-  // (startedAt / pausedMs / pausedAt), so it ticks every second while running and
-  // is display-only — the engine never reads these fields. While paused, the
-  // (now - pausedAt) term cancels the (now - startedAt) growth, so it freezes at
-  // the value it held when pause began. Clamped at 0 (a task born paused reads 0).
+  // ACTIVE — the headline liveness counter, SESSION-ANCHORED: wall-clock since
+  // THIS SITTING began, minus every paused span within it. The origin is
+  // max(startedAt, sessionAnchorAt): activating sets both, and each browser
+  // launch (chrome.runtime.onStartup) moves the anchor forward, so time spent
+  // with Chrome closed is never counted — it is structurally uncountable, and a
+  // plain wall-clock reading of startedAt once produced 46:21:09 across two
+  // nights. max() rather than the anchor alone so a task activated AFTER the
+  // launch anchors on its own activation, and a missing anchor (pre-fix record)
+  // degrades to the old startedAt behavior instead of reading 0.
+  //
+  // Pure local arithmetic off data.activeTask, display-only — the engine never
+  // reads these fields. While paused, the (now - pausedAt) term cancels the
+  // (now - origin) growth, so it freezes at the value it held when pause began.
+  // Clamped at 0 (a task born paused, or one re-anchored while still paused
+  // from before a shutdown, reads a frozen 0).
   function satActiveMs() {
     var a = Storage.getActiveTask(data);
     if (!a || !a.startedAt) return 0;
     var now = Date.now();
+    var origin = Math.max(a.startedAt, a.sessionAnchorAt || 0);
     var pausedSpan = (Storage.isTrackingPaused(data) && a.pausedAt != null) ? (now - a.pausedAt) : 0;
-    return Math.max(0, now - a.startedAt - (a.pausedMs || 0) - pausedSpan);
+    return Math.max(0, now - origin - (a.pausedMs || 0) - pausedSpan);
   }
 
   // Repaint the time text without a full re-render (which would fight the Switch

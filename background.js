@@ -29,6 +29,21 @@ function nextRecurringSweepAt() {
   return d.getTime();
 }
 
+// [1.0.17 session anchor] One write per true browser launch: re-anchor the
+// active task's ACTIVE counter to this sitting. Mirrors the recurring-sweep
+// pattern (stateless: read storage, call the shared setter which saveAll's
+// internally). onStartup ONLY — service-worker suspends inside a running
+// browser must not reset the anchor, and onInstalled is a different event with
+// different semantics (a fresh install/update has no sitting to carry over).
+async function anchorBrowserSessionBg() {
+  try {
+    var data = await Storage.getAll();
+    await Storage.anchorBrowserSession(data); // no-op (no write) when no task is active
+  } catch (err) {
+    console.error("[LaunchPad] Session anchor failed:", err);
+  }
+}
+
 async function runRecurringSweepBg() {
   try {
     var data = await Storage.getAll();
@@ -292,6 +307,7 @@ chrome.runtime.onStartup.addListener(function () {
   chrome.alarms.create(TRASH_PURGE_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
   saveCurrentSession();
   pruneOldSessions();
+  anchorBrowserSessionBg();
   runProReconcile();
   runRecurringSweepBg();
   runTrashPurgeBg();
