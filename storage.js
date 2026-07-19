@@ -1913,38 +1913,73 @@ var Storage = (function () {
    * WITHOUT rewriting startedAt or touching storage. That matters beyond
    * tidiness: re-activating the current task must not look like a boundary to
    * the engine, or clicking an already-active row would split the session and
-   * reset the user's visible focused time.
+   * reset the user's visible focused time. (opts.clearPause is the one thing
+   * that can still make that branch write — see below.)
    *
+   * [Polish Rule 4] opts.clearPause — an EXPLICIT activation gesture clears the
+   * global pause in this same write. Pause means "stepped away"; choosing a task
+   * to work on is the opposite declaration, so start means start rather than
+   * landing on an amber PAUSED 0:00 card that needs a second click. One atomic
+   * saveAll, so the engine sees the activation and the unpause together and
+   * opens a session on the next boundary. Callers that are NOT an explicit user
+   * gesture omit it and keep the defensive born-paused shape.
+   *
+   * @param {object} [opts] - {clearPause: boolean}
    * @returns {Promise<object|null>} the stored activeTask record, or null.
    */
-  async function setActiveTask(data, taskId, workspaceId) {
+  async function setActiveTask(data, taskId, workspaceId, opts) {
     if (!data || !taskId) return null;
     var ws = resolveWorkspaceFromData(data, workspaceId);
     var task = findLiveTask(ws, taskId);
     if (!task) return null;
 
+    var clearPause = !!(opts && opts.clearPause);
+    var now = Date.now();
     var current = getActiveTask(data);
-    if (current && current.taskId === taskId) return current;
+    if (current && current.taskId === taskId) {
+      // Re-picking the ALREADY-active task (only reachable from the Switch
+      // dropdown — the active row's own glyph is a pause/resume control now).
+      // Still an explicit "start", so it must clear a pause; otherwise the one
+      // gesture that means start would be the one gesture that leaves you
+      // paused. The record is KEPT rather than replaced here, so the pending
+      // paused span has to be folded into pausedMs by hand — the fresh-object
+      // reset that makes this moot for a real switch does not apply. Folding
+      // (rather than zeroing) makes this behave exactly like Resume: ACTIVE
+      // continues from where it froze instead of restarting.
+      if (clearPause && isTrackingPaused(data)) {
+        if (current.pausedAt != null) {
+          current.pausedMs = (current.pausedMs || 0) + (now - current.pausedAt);
+          current.pausedAt = null;
+        }
+        data.trackingPaused = false;
+        await saveAll(data);
+      }
+      return current;
+    }
 
     // [1.0.17 dual counters] pausedAt/pausedMs back the display-only ACTIVE
     // counter (wall-clock since startedAt, minus paused spans). Fresh per task —
-    // switching resets the accounting. Born paused if tracking is already paused
-    // (pausedAt = startedAt), so the ACTIVE counter reads 0 and stays frozen
-    // until resume rather than counting a span the user never worked.
-    var now = Date.now();
+    // switching resets the accounting, which is also why no span needs folding
+    // on this branch: the new record starts at pausedMs 0 regardless.
+    //
+    // The born-paused shape (pausedAt = startedAt, so ACTIVE reads a frozen 0
+    // rather than counting a span never worked) now only applies WITHOUT
+    // clearPause — i.e. never from a UI gesture, but still reachable from
+    // console/direct callers, which is why it stays.
     data.activeTask = {
       taskId: taskId,
       workspaceId: ws.id,
       startedAt: now,
       isPaused: false,
       pomodoroState: null,
-      pausedAt: isTrackingPaused(data) ? now : null,
+      pausedAt: (!clearPause && isTrackingPaused(data)) ? now : null,
       pausedMs: 0,
       // [1.0.17 session anchor] ACTIVE counts from max(startedAt, sessionAnchorAt).
       // Activating IS the start of a sitting, so they coincide here; onStartup
       // moves the anchor forward on each later browser launch.
       sessionAnchorAt: now
     };
+    if (clearPause) data.trackingPaused = false;
     await saveAll(data);
     return data.activeTask;
   }

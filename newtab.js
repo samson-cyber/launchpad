@@ -7732,12 +7732,20 @@
     satRenderTasksPanel();
   }
 
-  // Make a task active. The single funnel for all three entry points (row play
-  // glyph, Switch dropdown, right-click) so the eager-render and the toast
-  // cannot drift apart between them.
+  // Make a task active. The single funnel for all entry points (row play glyph,
+  // Switch dropdown pick — which the empty pill also opens — and the right-click
+  // Make active item) so the eager-render and the toast cannot drift apart
+  // between them.
+  //
+  // [Polish Rule 4] Every one of those is an EXPLICIT user gesture meaning
+  // "start this", so all of them clear a global pause as part of the same
+  // atomic write (clearPause). Because this is the only funnel, passing it here
+  // covers every gesture — and equally, nothing that is not a gesture picks it
+  // up. The row glyph's RESUME click is unaffected: it routes to satSetPaused,
+  // not here, and is already a resume.
   async function satActivate(taskId, workspaceId) {
     try {
-      var rec = await Storage.setActiveTask(data, taskId, workspaceId);
+      var rec = await Storage.setActiveTask(data, taskId, workspaceId, { clearPause: true });
       if (!rec) return false;
     } catch (err) {
       console.error("[LaunchPad] Active task: activate failed", err);
