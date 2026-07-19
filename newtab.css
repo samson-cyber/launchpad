@@ -10208,25 +10208,57 @@ button.demo-tile-background:hover {
   margin-top: 6px;
 }
 
+/* [1.0.19 D14] SOLID fills, and deliberately NO luminance-class variants.
+   The previous treatment was a translucent white wash (rgba(255,255,255,.08))
+   plus a bg-light override. Two things broke it over image wallpapers: the
+   tile's own frost is only 85% opaque, so a bright photo bleeds through and
+   lifts the surface beneath the button; and an image background carries
+   NEITHER bg-light NOR bg-dark (the 260f199 analysis), so the bg-light
+   override never fired and near-white-on-near-white was the result.
+
+   Both fills below are fully OPAQUE, so no wallpaper reaches them, and each is
+   a single value with no html.bg-light counterpart — the button measures
+   identically on the dark preset, the light preset and any image. No
+   text-shadow and no stroke ring: an opaque fill needs neither, and rings are
+   what produced the flare in the first place.
+
+   Gated vs enabled differ by HUE (neutral slate vs accent blue) rather than by
+   opacity — opacity would have reintroduced the very bleed this avoids.
+
+   WHY BOTH FILLS ARE MID-TONE, and why the values look arbitrary: one
+   treatment has to clear 3:1 against a tile that ranges from near-black on the
+   dark preset (luminance 0.014) to near-white on the light preset (0.986),
+   with a bright photo bleeding through the 85% frost landing between them
+   (0.045). Solving those three simultaneously leaves a narrow window for the
+   fill's own luminance — [0.236, 0.295] — so any single luminance-independent
+   fill MUST be mid-tone. #4d8bf5 (0.266) and #878d93 (0.263) sit near its
+   midpoint; hover 0.285 and active 0.242 stay inside it. Dark ink is used
+   rather than white because it measures ~4.8:1 on these fills against white's
+   ~3.3:1. Move any of these values and re-run the three-frame harness — the
+   window is tight enough that eyeballing will not catch a regression. */
 .demo-clear {
   font: inherit;
   font-size: 12px;
   font-weight: 600;
   padding: 5px 12px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  border: 1px solid transparent;
+  background: #4d8bf5;
+  color: #202124;
+  text-shadow: none;
   cursor: pointer;
-  transition: background-color 120ms ease, opacity 120ms ease;
+  transition: background-color 120ms ease;
 }
-.demo-clear:hover { background: rgba(255, 255, 255, 0.16); }
+.demo-clear:hover { background: #5590f6; }
+.demo-clear:active { background: #4584f2; }
 
 .demo-clear.is-gated {
-  opacity: 0.5;
+  background: #878d93;
+  color: #202124;
   cursor: default;
 }
-.demo-clear.is-gated:hover { background: rgba(255, 255, 255, 0.08); }
+.demo-clear.is-gated:hover,
+.demo-clear.is-gated:active { background: #878d93; }
 
 /* Tooltip explaining WHY the control is inert. Hidden until the gated button
    is hovered or focused; it is the sibling of the button inside the wrap. */
@@ -10260,13 +10292,9 @@ html.bg-light .demo-tile {
   color: var(--text-primary);
 }
 html.bg-light .demo-tile-body { color: #3c4043; }
-html.bg-light .demo-clear {
-  border-color: rgba(0, 0, 0, 0.18);
-  background: rgba(0, 0, 0, 0.05);
-  color: #202124;
-}
-html.bg-light .demo-clear:hover { background: rgba(0, 0, 0, 0.10); }
-html.bg-light .demo-clear.is-gated:hover { background: rgba(0, 0, 0, 0.05); }
+/* No html.bg-light override for .demo-clear — see D14 above. Its treatment is
+   deliberately luminance-class-INDEPENDENT, because bg-image carries no
+   luminance class at all and an override here would silently not apply. */
 
 /* ===== [1.0.19] Import + Tips panels ===== */
 

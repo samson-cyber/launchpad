@@ -5988,6 +5988,54 @@
   // [1.0.19] Import + Tips panels. Deliberately modelled on the Settings panel
   // (lock the sidebar, force expanded, showSidebarPanel) rather than inventing
   // a second panel idiom.
+  // [1.0.19 D13] Click-outside-to-close, for the TWO NEW panels only.
+  //
+  // AUDIT RESULT driving that scope: the existing sidebar-chain panels do NOT
+  // close on outside click. Settings and Pro Settings close only via their X
+  // or by openPanel() swapping to another chain panel; Restore Session adds
+  // mouseleave (its own, and the sidebar's) but still no outside click. The
+  // one surface that does close on an outside click is #history-overlay — a
+  // fullscreen modal with a real backdrop (e.target === e.currentTarget),
+  // deliberately outside this chain. So this is NOT a consistency fix to
+  // match; it is new behaviour on the new panels, and the inconsistency with
+  // the long-shipped panels is flagged as a follow-up rather than changed
+  // here. No Escape handling exists for any chain panel, and none is added.
+  //
+  // Two exclusions make it behave: the panel itself (so interactive children
+  // like Tips' Restore button work), and the panel's OWN sidebar trigger —
+  // without that second one the trigger click would close the panel here and
+  // then openPanel would immediately reopen it, so it could never be toggled
+  // shut from its own button.
+  var simplePanelOutside = null;
+
+  function unbindSimplePanelOutside() {
+    if (simplePanelOutside) {
+      document.removeEventListener("click", simplePanelOutside, true);
+      simplePanelOutside = null;
+    }
+  }
+
+  function bindSimplePanelOutside(sel, triggerSel, closeFn) {
+    unbindSimplePanelOutside();
+    simplePanelOutside = function (e) {
+      var panel = $(sel);
+      if (!panel || panel.classList.contains("hidden")) { unbindSimplePanelOutside(); return; }
+      var t = e.target;
+      if (!t || !t.closest) return;
+      if (t.closest(sel)) return;         // inside the panel
+      if (t.closest(triggerSel)) return;  // its own trigger — let it toggle
+      // Deliberately does NOT stopPropagation: the click still reaches its
+      // real target, so e.g. the grid's "Pick a background" tile closes this
+      // panel AND opens #bg-overlay in the same gesture.
+      closeFn();
+    };
+    // Deferred exactly like satSwitchOutsideHandler, so the click that opened
+    // the panel cannot be the one that closes it.
+    setTimeout(function () {
+      document.addEventListener("click", simplePanelOutside, true);
+    }, 0);
+  }
+
   function openSimplePanel(sel) {
     var panel = $(sel);
     if (!panel) return false;
@@ -6005,8 +6053,14 @@
 
   function closeSimplePanel(sel, opts) {
     var panel = $(sel);
+    // The already-hidden guard is what keeps a panel swap to exactly ONE
+    // close: the outside handler closes it, then openPanel's chain sweep
+    // finds it hidden and does nothing.
     if (!panel || panel.classList.contains("hidden")) return;
     panel.classList.add("hidden");
+    // Torn down on EVERY close, including the silent chain swap — otherwise a
+    // stale listener would keep firing against a hidden panel.
+    unbindSimplePanelOutside();
     if (opts && opts.silent) return;
     sidebarLocked = false;
     var sidebar = $("#sidebar");
@@ -6020,14 +6074,19 @@
   function openImportPanel() {
     var panel = $("#import-panel");
     if (panel && !panel.classList.contains("hidden")) { closeImportPanel(); return; }
-    openSimplePanel("#import-panel");
+    if (openSimplePanel("#import-panel")) {
+      bindSimplePanelOutside("#import-panel", "#sb-import", function () { closeImportPanel(); });
+    }
   }
   function closeImportPanel(opts) { closeSimplePanel("#import-panel", opts); }
 
   function openTipsPanel() {
     var panel = $("#tips-panel");
     if (panel && !panel.classList.contains("hidden")) { closeTipsPanel(); return; }
-    if (openSimplePanel("#tips-panel")) renderTipsRestoreState();
+    if (openSimplePanel("#tips-panel")) {
+      renderTipsRestoreState();
+      bindSimplePanelOutside("#tips-panel", "#sb-tips", function () { closeTipsPanel(); });
+    }
   }
   function closeTipsPanel(opts) { closeSimplePanel("#tips-panel", opts); }
 
