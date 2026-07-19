@@ -1021,12 +1021,27 @@
     // not on the name: clicking .tt-task-name already opens the inline rename
     // (startTaskNameEdit), and the name is the row's whole body. Dim-on-hover
     // for any row, solid for the active task.
+    // [Polish] The ACTIVE row's glyph is a live play/pause TOGGLE mirroring the
+    // card's control — three views of ONE state (card, pill, row glyph), never a
+    // per-task pause: it writes the same GLOBAL data.trackingPaused flag.
+    //   non-active            -> ▷  "Start task"      (activate; unchanged)
+    //   active + running      -> ⏸  "Pause tracking"  (setTrackingPaused(true))
+    //   active + paused       -> ▶  "Resume tracking" (amber, per the loud-paused standard)
+    // Paused shows PLAY because the glyph advertises what the click DOES, which
+    // is also why the active+running glyph is a pause bar rather than the old ▶.
+    // data-play-act is read by the delegated handler so routing is driven by the
+    // rendered state rather than re-derived at click time — the two cannot drift.
     var isActiveTask = satIsActiveTaskRow(workspace, task);
     var activeCls = isActiveTask ? " is-active-task" : "";
-    var playTitle = isActiveTask ? "This is your active task" : "Make active";
-    var playHtml = '<button type="button" class="tt-task-play" data-task-id="' + escapeHtml(task.id) +
+    var rowPaused = isActiveTask && Storage.isTrackingPaused(data);
+    var playAct = !isActiveTask ? "activate" : (rowPaused ? "resume" : "pause");
+    var playTitle = playAct === "activate" ? "Start task"
+      : (playAct === "pause" ? "Pause tracking" : "Resume tracking");
+    var playGlyph = playAct === "activate" ? "▷" : (playAct === "pause" ? "⏸" : "▶");
+    var playHtml = '<button type="button" class="tt-task-play' + (rowPaused ? ' is-paused' : '') +
+      '" data-task-id="' + escapeHtml(task.id) + '" data-play-act="' + playAct +
       '" aria-label="' + escapeHtml(playTitle) + '" title="' + escapeHtml(playTitle) + '"' +
-      (isActiveTask ? ' aria-pressed="true"' : '') + '>' + (isActiveTask ? "▶" : "▷") + '</button>';
+      (isActiveTask ? ' aria-pressed="true"' : '') + '>' + playGlyph + '</button>';
 
     return '<li class="tt-task-row' + completedCls + activeCls + (prioCls ? ' ' + prioCls : '') + '" data-task-id="' + escapeHtml(task.id) + '">' +
       '<span class="tt-task-handle" aria-hidden="true" title="Drag to reorder">⠇</span>' +
@@ -1981,6 +1996,13 @@
       // <button>, so it must claim the click before any name-zone handling.
       var playBtn = target.closest && target.closest(".tt-task-play");
       if (playBtn) {
+        // [Polish] Three-way route on the state the row was RENDERED in. Only
+        // the active row carries pause/resume; every other row still activates,
+        // so clicking a different row's glyph while one is active switches
+        // activation exactly as before (satActivate no-ops on the same task).
+        var playAction = playBtn.getAttribute("data-play-act") || "activate";
+        if (playAction === "pause") { satSetPaused(true); return; }
+        if (playAction === "resume") { satSetPaused(false); return; }
         var playId = playBtn.getAttribute("data-task-id");
         var playWs = Storage.getActiveWorkspace(data);
         if (playId && playWs) satActivate(playId, playWs.id);
@@ -7702,6 +7724,12 @@
       console.error("[LaunchPad] Active task: pause toggle failed", err);
     }
     renderActiveTaskWidget();
+    // [Polish] The row glyph is now a third view of this flag, so the Tasks
+    // panel must repaint with the card/pill. Without this, pausing FROM the card
+    // left the row glyph stale in THIS tab — our own writes are provenance-
+    // tagged, so the onChanged path deliberately will not repaint us. Mirrors
+    // satActivate/satCancel, which already pair the two renders for this reason.
+    satRenderTasksPanel();
   }
 
   // Make a task active. The single funnel for all three entry points (row play
