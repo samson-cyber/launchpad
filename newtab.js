@@ -1043,7 +1043,13 @@
       '" aria-label="' + escapeHtml(playTitle) + '" title="' + escapeHtml(playTitle) + '"' +
       (isActiveTask ? ' aria-pressed="true"' : '') + '>' + playGlyph + '</button>';
 
-    return '<li class="tt-task-row' + completedCls + activeCls + (prioCls ? ' ' + prioCls : '') + '" data-task-id="' + escapeHtml(task.id) + '">' +
+    // [Polish step 8] Paused-active reads at ROW level, not just glyph level.
+    // Driven by the SAME rowPaused above that routes the glyph's three states —
+    // one source of truth (active + the global trackingPaused flag), computed at
+    // render time. No new state, and the row and its glyph cannot disagree
+    // because a single boolean produces both.
+    var pausedRowCls = rowPaused ? " is-paused" : "";
+    return '<li class="tt-task-row' + completedCls + activeCls + pausedRowCls + (prioCls ? ' ' + prioCls : '') + '" data-task-id="' + escapeHtml(task.id) + '">' +
       '<span class="tt-task-handle" aria-hidden="true" title="Drag to reorder">⠇</span>' +
       '<input type="checkbox" class="tt-task-check" data-task-id="' + escapeHtml(task.id) + '"' + checked + ' aria-label="Toggle task complete">' +
       playHtml +

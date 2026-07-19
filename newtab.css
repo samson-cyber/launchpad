@@ -4548,6 +4548,51 @@ html.bg-light { --tt-play-outline: rgba(0, 0, 0, 0.78); }
    reintroduce the halo-on-light-fill artifact in mirror image. */
 html.bg-light .tt-task-row.is-active-task .tt-task-name { text-shadow: none; }
 
+/* [Polish step 8] PAUSED-ACTIVE reads at ROW level. The amber glyph alone is a
+   13px signal on a 20px control; when you have stepped away and come back, the
+   question "is this thing running?" should be answerable from the row.
+   Derived entirely from --sat-amber via color-mix, which is why there is no
+   bg-light override here: the token ALREADY flips (#f1c40f dark / #8a6d09
+   light), so the tint and ring follow it on both wallpapers from this one rule.
+   Reusing the token rather than inventing alpha literals also means the two
+   surfaces can never drift apart.
+
+   OUTLINE, not border and not box-shadow, on purpose — both alternatives
+   collide with something already on this row:
+     - border-left is the PRIORITY indicator (.tt-prio-*), so a border here
+       would fight it for the same edge;
+     - box-shadow is the SortableJS drag lift (.sortable-chosen), and this rule
+       is 3 classes to its 1, so a box-shadow ring would silently suppress the
+       lift while dragging a paused row.
+   outline touches neither, and outline-offset:-1px keeps it inside the row box
+   so nothing reflows. */
+/* Ring alpha is 85%, not the 55% it started at, because of the LIGHT wallpaper:
+   there the token is the dark amber #8a6d09 over white frost, and 55% flattened
+   to only 2.19:1 against the row surface — under the 3:1 standard, even though
+   the same 55% cleared it comfortably on dark (3.96:1). A measured sweep put the
+   light break-even at 75%; 85% takes both wallpapers clear with margin
+   (3.69:1 light / 7.59:1 dark) while keeping one value and one rule. */
+.tt-task-row.is-active-task.is-paused {
+  background: color-mix(in srgb, var(--sat-amber) 14%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--sat-amber) 85%, transparent);
+  outline-offset: -1px;
+}
+
+/* Hover must still respond — the generic .tt-task-row:hover wash loses to this
+   rule's specificity, so without an explicit pair the paused row would be the
+   one dead row in the list. */
+.tt-task-row.is-active-task.is-paused:hover {
+  background: color-mix(in srgb, var(--sat-amber) 22%, transparent);
+}
+
+/* The drag PLACEHOLDER is a neutral hole, not a paused row. .sortable-ghost is
+   a single class and would otherwise lose to the 3-class rule above, leaving an
+   amber-tinted, outlined gap following the cursor. */
+.tt-task-row.is-active-task.is-paused.sortable-ghost {
+  background: rgba(255, 255, 255, 0.06);
+  outline: none;
+}
+
 /* Completed rows can't be activated — the slot still holds its width so the
    name column does not shift between rows. */
 .tt-task-row.is-completed .tt-task-play {
