@@ -74,7 +74,13 @@ var Storage = (function () {
         trialEndedAt: null,
         subscriptionStatus: "free",
         lastVerifiedAt: null
-      }
+      },
+      // [1.0.23] Achievements record. Ships in the default shape (seeded:false)
+      // so a fresh install's first Pro day-opened runs the retro pass over an
+      // empty world (seeds 0, earns nothing). EXISTING installs never see this
+      // default — migrate() is a no-op for workspace-shaped data — so the real
+      // backfill is ensureAchievements at read (the getEndOfDayMinutes lesson).
+      achievements: emptyAchievements()
     };
   }
 
@@ -354,7 +360,8 @@ var Storage = (function () {
         trialEndedAt: null,
         subscriptionStatus: "free",
         lastVerifiedAt: null
-      }
+      },
+      achievements: emptyAchievements()   // [1.0.23] — see getDefaultData
     };
 
     ensureDeletedAtFields(newData);
@@ -1197,7 +1204,10 @@ var Storage = (function () {
     if (!goal) return null;
     if (goal.status === "completed") return goal;
     goal.status = "completed";
-    goal.completedAt = Date.now();
+    var goalNow = Date.now();
+    goal.completedAt = goalNow;
+    // [1.0.23] Achievements — manual goal completion, riding this write.
+    achievementsOnCompletion(data, "goal-completed", { goal: goal }, goalNow);
     await saveAll(data);
     return goal;
   }
@@ -1678,6 +1688,13 @@ var Storage = (function () {
         }
       }
     }
+
+    // [1.0.23] Achievements — evaluate on the completion transition, riding this
+    // same write (mutate-only, no extra saveAll). task-completed always; the
+    // auto-goal branch ALSO emits goal-completed, so a goal finished by its last
+    // task increments the lifetime counter — the two-path trap from the audit.
+    achievementsOnCompletion(data, "task-completed", { task: task }, now);
+    if (goalAutoCompleted) achievementsOnCompletion(data, "goal-completed", { goal: autoCompletedGoal }, now);
 
     await saveAll(data);
     return { task: task, goalAutoCompleted: goalAutoCompleted, autoCompletedGoal: autoCompletedGoal };
@@ -3536,6 +3553,294 @@ var Storage = (function () {
     return { goal: goal, tasks: createdTasks };
   }
 
+  // ============================================================
+  // [1.0.23] Achievements foundation (R1 — pure logic, no UI)
+  // ============================================================
+  //
+  // Data model + a plain check-on-event engine + the five v1 badge conditions.
+  // Display and celebrations land in [1.0.24] (R2); this round only WRITES
+  // earned state and QUEUES pendingCelebrations — nothing consumes them yet.
+  //
+  // DESIGN (per the 2026-07-20 Arc C PLAN, D5/D6/D7):
+  //  - Home is data.achievements (survives export/restore — earned state is
+  //    precious). Existing installs have no record: migrate() is a no-op for
+  //    already-workspace-shaped data, so this record is defaulted AT READ
+  //    (getAchievements / ensureAchievements) exactly like getEndOfDayMinutes.
+  //  - No event-bus (the Arc B registry lesson): a thin evaluator runs at the
+  //    audited choke points only — completeTask (task-completed; its auto-goal
+  //    branch ALSO emits goal-completed — the two-path trap), completeGoal
+  //    (goal-completed), and a day-opened hook wired in newtab init.
+  //  - Conditions are PURE functions over (data, achievements, one injected
+  //    tracking read) — DOM-free, clock-injectable, fully harnessable.
+  //  - Earned is idempotent and permanent: a badge earns once, is never
+  //    re-earned and never un-earned; earning also pushes one pendingCelebration.
+  //  - Scope is GLOBAL for all five (D4): counters/streaks/reads span every
+  //    workspace regardless of combinedAnalyticsEnabled.
+
+  var ACHIEVEMENTS_VERSION = 1;
+
+  var BADGE_FIRST_WEEK   = "first-week";
+  var BADGE_GOAL_CRUSHER = "goal-crusher";
+  var BADGE_DEEP_DIVER   = "deep-diver";
+  var BADGE_VARIETY      = "variety";
+  var BADGE_CONSISTENCY  = "consistency";
+
+  // Thresholds (D3, final).
+  var ACH_GOAL_CRUSHER_TARGET = 5;          // goals completed lifetime
+  var ACH_STREAK_TARGET       = 7;          // consecutive days (First Week + Consistency)
+  var ACH_VARIETY_TAGS_TARGET = 5;          // distinct tags in the rolling window
+  var ACH_VARIETY_WINDOW_MS   = 7 * 24 * 60 * 60 * 1000;  // rolling 7-day window
+  var ACH_DEEP_DIVER_MS       = 2 * 60 * 60 * 1000;        // 7,200,000 — a single 2h session
+
+  function emptyAchievements() {
+    return {
+      version: ACHIEVEMENTS_VERSION,
+      // seeded flips true after the one-time retro pass has run (D7). It is the
+      // guard that makes the pre-seed window race-free: completion events before
+      // the retro are no-ops (the retro snapshot captures current state), so a
+      // completion cannot both be counted incrementally AND by the snapshot.
+      seeded: false,
+      earned: {},                                   // badgeId -> { earnedAt, retro }
+      counters: { goalCompletions: 0 },
+      streaks: {
+        openDays:       { lastDay: null, streak: 0 },
+        completionDays: { lastDay: null, streak: 0 }
+      },
+      pendingCelebrations: []                        // [{ badgeId, earnedAt, retro }] — consumed in R2
+    };
+  }
+
+  function achNormStreak(s) {
+    if (!s || typeof s !== "object") return { lastDay: null, streak: 0 };
+    return {
+      lastDay: (typeof s.lastDay === "string") ? s.lastDay : null,
+      streak: (typeof s.streak === "number" && s.streak >= 0) ? s.streak : 0
+    };
+  }
+
+  // Defaulting READER — non-mutating, returns a normalized snapshot even when
+  // data.achievements is absent or partial. Use for reads (harness, R2 display).
+  // Engine writes go through ensureAchievements (the live object).
+  function getAchievements(data) {
+    var a = (data && data.achievements && typeof data.achievements === "object") ? data.achievements : null;
+    if (!a) return emptyAchievements();
+    return {
+      version: (typeof a.version === "number") ? a.version : ACHIEVEMENTS_VERSION,
+      seeded: !!a.seeded,
+      earned: (a.earned && typeof a.earned === "object") ? a.earned : {},
+      counters: { goalCompletions: (a.counters && typeof a.counters.goalCompletions === "number") ? a.counters.goalCompletions : 0 },
+      streaks: {
+        openDays: achNormStreak(a.streaks && a.streaks.openDays),
+        completionDays: achNormStreak(a.streaks && a.streaks.completionDays)
+      },
+      pendingCelebrations: Array.isArray(a.pendingCelebrations) ? a.pendingCelebrations : []
+    };
+  }
+
+  // Mutating ENSURE (the ensure*Array convention): guarantees data.achievements
+  // exists and is well-shaped, and returns the LIVE object for the engine to
+  // mutate. Callers own the saveAll.
+  function ensureAchievements(data) {
+    if (!data.achievements || typeof data.achievements !== "object") {
+      data.achievements = emptyAchievements();
+      return data.achievements;
+    }
+    var a = data.achievements;
+    if (typeof a.version !== "number") a.version = ACHIEVEMENTS_VERSION;
+    if (typeof a.seeded !== "boolean") a.seeded = false;
+    if (!a.earned || typeof a.earned !== "object") a.earned = {};
+    if (!a.counters || typeof a.counters !== "object") a.counters = { goalCompletions: 0 };
+    if (typeof a.counters.goalCompletions !== "number") a.counters.goalCompletions = 0;
+    if (!a.streaks || typeof a.streaks !== "object") a.streaks = {};
+    a.streaks.openDays = achNormStreak(a.streaks.openDays);
+    a.streaks.completionDays = achNormStreak(a.streaks.completionDays);
+    if (!Array.isArray(a.pendingCelebrations)) a.pendingCelebrations = [];
+    return a;
+  }
+
+  // ---- Pure date helpers (local calendar day) ----
+  function achDayKey(ts) {
+    var d = new Date(ts == null ? Date.now() : ts);
+    return d.getFullYear() + "-" +
+      String(d.getMonth() + 1).padStart(2, "0") + "-" +
+      String(d.getDate()).padStart(2, "0");
+  }
+  // Whole calendar days from a to b (b - a). Both keys parsed identically via
+  // Date.UTC, so the zone offset cancels — this is a pure day-count, DST-safe.
+  function achDayDiff(a, b) {
+    var pa = a.split("-"), pb = b.split("-");
+    return Math.round(
+      (Date.UTC(+pb[0], +pb[1] - 1, +pb[2]) - Date.UTC(+pa[0], +pa[1] - 1, +pa[2])) / 86400000
+    );
+  }
+
+  // Advance a {lastDay, streak} record with a new activity day. Same day -> no
+  // change; consecutive (+1) -> streak+1; gap (>1) -> reset to 1; a past-dated
+  // day (<0, defensive — live completedAt is always "now") is ignored, never
+  // rewinds the streak.
+  function achAdvanceStreak(streakObj, dayKey) {
+    var s = achNormStreak(streakObj);
+    if (s.lastDay == null) return { lastDay: dayKey, streak: 1 };
+    var diff = achDayDiff(s.lastDay, dayKey);
+    if (diff === 0) return { lastDay: s.lastDay, streak: s.streak };
+    if (diff === 1) return { lastDay: dayKey, streak: s.streak + 1 };
+    if (diff > 1)   return { lastDay: dayKey, streak: 1 };
+    return { lastDay: s.lastDay, streak: s.streak };
+  }
+
+  // ---- Pure condition evaluators ----
+  function achCondGoalCrusher(ach)  { return ach.counters.goalCompletions >= ACH_GOAL_CRUSHER_TARGET; }
+  function achCondFirstWeek(ach)    { return ach.streaks.openDays.streak >= ACH_STREAK_TARGET; }
+  function achCondConsistency(ach)  { return ach.streaks.completionDays.streak >= ACH_STREAK_TARGET; }
+  function achCondDeepDiver(maxLongestSessionMs) { return (maxLongestSessionMs || 0) >= ACH_DEEP_DIVER_MS; }
+
+  // Variety: distinct tags across LIVE completed tasks whose completedAt is
+  // within the rolling window ending at nowMs. Global (all workspaces). Tags
+  // are namespaced by workspace id so ids from different workspaces never
+  // collide into one bucket.
+  function achVarietyDistinctTags(data, nowMs) {
+    var cutoff = nowMs - ACH_VARIETY_WINDOW_MS;
+    var set = {};
+    (data.workspaces || []).forEach(function (ws) {
+      if (!ws) return;
+      (ws.tasks || []).forEach(function (t) {
+        if (!t || t.deletedAt != null) return;
+        if (!t.completed || typeof t.completedAt !== "number") return;
+        if (t.completedAt < cutoff) return;
+        (Array.isArray(t.tagIds) ? t.tagIds : []).forEach(function (id) {
+          if (id) set[ws.id + ":" + id] = true;
+        });
+      });
+    });
+    return Object.keys(set).length;
+  }
+
+  // ---- Retro snapshots (D7) ----
+  // Lifetime goal count from the live snapshot. Undercount is accepted and
+  // honest: completed-then-purged goals are gone (30-day trash TTL), and
+  // reactivation nulls completedAt — so this floors the true lifetime, which is
+  // exactly why the counter is persisted from here on rather than recomputed.
+  function achCompletedGoalSnapshot(data) {
+    var n = 0;
+    (data.workspaces || []).forEach(function (ws) {
+      if (!ws) return;
+      (ws.goals || []).forEach(function (g) {
+        if (g && g.deletedAt == null && g.status === "completed") n++;
+      });
+    });
+    return n;
+  }
+
+  // Current completion-day streak from live tasks: the run of consecutive days
+  // ending at the most recent completion day. Purge-lossy by nature (only live
+  // tasks carry completedAt) — a best-effort reconstruction, not a guarantee.
+  function achCompletionStreakSnapshot(data) {
+    var daySet = {};
+    (data.workspaces || []).forEach(function (ws) {
+      if (!ws) return;
+      (ws.tasks || []).forEach(function (t) {
+        if (t && t.deletedAt == null && t.completed && typeof t.completedAt === "number") {
+          daySet[achDayKey(t.completedAt)] = true;
+        }
+      });
+    });
+    var days = Object.keys(daySet).sort();
+    if (!days.length) return { lastDay: null, streak: 0 };
+    var last = days[days.length - 1];
+    var streak = 1;
+    for (var i = days.length - 1; i > 0; i--) {
+      if (achDayDiff(days[i - 1], days[i]) === 1) streak++;
+      else break;
+    }
+    return { lastDay: last, streak: streak };
+  }
+
+  // Earn a badge once. Idempotent: an already-earned badge is a no-op and is
+  // NOT re-queued. Returns true only on the first earn.
+  function achEarn(ach, badgeId, nowMs, retro) {
+    if (ach.earned[badgeId]) return false;
+    ach.earned[badgeId] = { earnedAt: nowMs, retro: !!retro };
+    ach.pendingCelebrations.push({ badgeId: badgeId, earnedAt: nowMs, retro: !!retro });
+    return true;
+  }
+
+  // ---- Engine entry point 1: completion events (mutate-only, synchronous) ----
+  //
+  // Called from completeTask/completeGoal BEFORE their existing saveAll, so the
+  // achievements mutation rides that single provenance-tagged write — no extra
+  // save, no second onChanged. Returns the badgeIds newly earned (for R2).
+  //
+  // Pre-seed gate: while !seeded the retro pass has not run, so incremental
+  // evaluation is skipped entirely — the just-completed goal/task is part of the
+  // current state the retro snapshot will read, and double-counting it (once
+  // here, once by the snapshot) is exactly what the gate prevents.
+  function achievementsOnCompletion(data, eventType, ctx, nowMs) {
+    var ach = ensureAchievements(data);
+    if (!ach.seeded) return [];
+    var now = (typeof nowMs === "number") ? nowMs : Date.now();
+    var earned = [];
+
+    if (eventType === "goal-completed") {
+      ach.counters.goalCompletions += 1;
+      if (achCondGoalCrusher(ach) && achEarn(ach, BADGE_GOAL_CRUSHER, now, false)) earned.push(BADGE_GOAL_CRUSHER);
+    } else if (eventType === "task-completed") {
+      var task = ctx && ctx.task;
+      var day = achDayKey(task && typeof task.completedAt === "number" ? task.completedAt : now);
+      ach.streaks.completionDays = achAdvanceStreak(ach.streaks.completionDays, day);
+      if (achCondConsistency(ach) && achEarn(ach, BADGE_CONSISTENCY, now, false)) earned.push(BADGE_CONSISTENCY);
+      if (achVarietyDistinctTags(data, now) >= ACH_VARIETY_TAGS_TARGET && achEarn(ach, BADGE_VARIETY, now, false)) earned.push(BADGE_VARIETY);
+    }
+    return earned;
+  }
+
+  // ---- Engine entry point 2: day-opened (mutate-only; caller reads Tracking) ----
+  //
+  // Runs the one-time retro seed (guarded by !seeded), advances the open-day
+  // streak, and evaluates the day-opened badges (First Week, Deep Diver). Deep
+  // Diver needs one tracking read (max longestSessionMs across retained
+  // aggregates), passed in by the caller so this stays pure/clock-injectable and
+  // storage.js keeps no dependency on the tracking module.
+  //
+  // Returns { earned, changed }. `changed` lets the caller skip a needless write
+  // on a same-day reopen with nothing new.
+  function achievementsOnDayOpened(data, opts) {
+    opts = opts || {};
+    var ach = ensureAchievements(data);
+    var now = (typeof opts.nowMs === "number") ? opts.nowMs : Date.now();
+    var today = opts.todayKey || achDayKey(now);
+    var maxLongest = (typeof opts.maxLongestSessionMs === "number") ? opts.maxLongestSessionMs : 0;
+    var retro = !ach.seeded;            // the whole first-open evaluation is "retro"
+    var earned = [];
+    var changed = false;
+
+    // ONE-TIME RETRO SEED (D7): counter + completion streak from live data,
+    // plus the data-only earn checks. Deep Diver's retro is handled by the
+    // unconditional check below (earn is permanent, so it is naturally retro on
+    // the first open). openDays has no history to seed — First Week from zero.
+    if (!ach.seeded) {
+      ach.counters.goalCompletions = achCompletedGoalSnapshot(data);
+      ach.streaks.completionDays = achCompletionStreakSnapshot(data);
+      ach.seeded = true;
+      changed = true;
+      if (achCondGoalCrusher(ach) && achEarn(ach, BADGE_GOAL_CRUSHER, now, true)) earned.push(BADGE_GOAL_CRUSHER);
+      if (achCondConsistency(ach) && achEarn(ach, BADGE_CONSISTENCY, now, true)) earned.push(BADGE_CONSISTENCY);
+      if (achVarietyDistinctTags(data, now) >= ACH_VARIETY_TAGS_TARGET && achEarn(ach, BADGE_VARIETY, now, true)) earned.push(BADGE_VARIETY);
+    }
+
+    // OPEN-DAY STREAK — every open; only the first open of a new day changes it.
+    var prevOpen = ach.streaks.openDays;
+    var nextOpen = achAdvanceStreak(prevOpen, today);
+    if (nextOpen.lastDay !== prevOpen.lastDay || nextOpen.streak !== prevOpen.streak) changed = true;
+    ach.streaks.openDays = nextOpen;
+    if (achCondFirstWeek(ach) && achEarn(ach, BADGE_FIRST_WEEK, now, retro)) { earned.push(BADGE_FIRST_WEEK); changed = true; }
+
+    // DEEP DIVER — every open (a 2h session that closed since the last open of
+    // the same day must still land). Permanent once earned.
+    if (achCondDeepDiver(maxLongest) && achEarn(ach, BADGE_DEEP_DIVER, now, retro)) { earned.push(BADGE_DEEP_DIVER); changed = true; }
+
+    return { earned: earned, changed: changed };
+  }
+
   return {
     // [1.0.11.2] Write-provenance hooks — see saveAll() above.
     TAB_INSTANCE_ID: TAB_INSTANCE_ID,
@@ -3558,6 +3863,37 @@ var Storage = (function () {
     // [1.0.20 F2] Combined-analytics toggle setter (Dashboard's cross-workspace view).
     setCombinedAnalyticsEnabled: setCombinedAnalyticsEnabled,
     setTrackingPaused: setTrackingPaused,
+
+    // [1.0.23] Achievements (R1). Public: the defaulting reader + the two engine
+    // entry points. The completion entry point is also called internally by
+    // completeTask/completeGoal; it is exported for the harness and for R2.
+    getAchievements: getAchievements,
+    ensureAchievements: ensureAchievements,
+    achievementsOnCompletion: achievementsOnCompletion,
+    achievementsOnDayOpened: achievementsOnDayOpened,
+    // Underscore hooks — pure condition/helper fns exposed for the R1 harness,
+    // not for UI (same discipline as tracking's _ hooks).
+    _emptyAchievements: emptyAchievements,
+    _achDayKey: achDayKey,
+    _achDayDiff: achDayDiff,
+    _achAdvanceStreak: achAdvanceStreak,
+    _achVarietyDistinctTags: achVarietyDistinctTags,
+    _achCompletedGoalSnapshot: achCompletedGoalSnapshot,
+    _achCompletionStreakSnapshot: achCompletionStreakSnapshot,
+    _achConditions: {
+      goalCrusher: achCondGoalCrusher,
+      firstWeek: achCondFirstWeek,
+      consistency: achCondConsistency,
+      deepDiver: achCondDeepDiver
+    },
+    _ACH: {
+      GOAL_CRUSHER_TARGET: ACH_GOAL_CRUSHER_TARGET,
+      STREAK_TARGET: ACH_STREAK_TARGET,
+      VARIETY_TAGS_TARGET: ACH_VARIETY_TAGS_TARGET,
+      VARIETY_WINDOW_MS: ACH_VARIETY_WINDOW_MS,
+      DEEP_DIVER_MS: ACH_DEEP_DIVER_MS,
+      BADGES: { FIRST_WEEK: BADGE_FIRST_WEEK, GOAL_CRUSHER: BADGE_GOAL_CRUSHER, DEEP_DIVER: BADGE_DEEP_DIVER, VARIETY: BADGE_VARIETY, CONSISTENCY: BADGE_CONSISTENCY }
+    },
     anchorBrowserSession: anchorBrowserSession,
     setIdleState: setIdleState,
     // [1.0.19] First-run example content

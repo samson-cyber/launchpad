@@ -800,6 +800,24 @@
     return focusedTodayForScope(null);
   }
 
+  // [1.0.23] Read-only accessor for the Achievements engine (Deep Diver). The
+  // longest single focus session ever, across ALL retained day aggregates and
+  // ALL workspaces (badge is global). Aggregates keep forever, so this reaches
+  // back to when tracking shipped. Pure READ — no capture path is touched, and
+  // it is a deliberate public contract rather than the engine reaching for the
+  // _readDays console hook (the F-round discipline).
+  async function maxLongestSessionMs() {
+    var days = await readDays();
+    var max = 0;
+    Object.keys(days).forEach(function (k) {
+      var agg = days[k];
+      if (agg && typeof agg.longestSessionMs === "number" && agg.longestSessionMs > max) {
+        max = agg.longestSessionMs;
+      }
+    });
+    return max;
+  }
+
   function msToMinutes(ms) {
     return Math.round((ms / 60000) * 100) / 100;
   }
@@ -963,6 +981,9 @@
     // Both return { baseMs, openSince } — the same contract as above.
     focusedTodayForWorkspace: focusedTodayForWorkspace,
     focusedTodayCombined: focusedTodayCombined,
+
+    // [1.0.23] Read surface for the Achievements engine's Deep Diver badge.
+    maxLongestSessionMs: maxLongestSessionMs,
 
     // Exposed for the Section I console harness — verification needs to drive
     // the gates and the store directly without waiting on real Chrome events.

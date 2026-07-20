@@ -6251,10 +6251,48 @@
     setTimeout(checkPromoToast, 2000);
     checkRightClickTip();
 
+    // [1.0.23] Achievements day-opened hook — beside the checkPromoToast
+    // precedent. Fire-and-forget: it owns its try/catch and only saveAll's when
+    // something changed. R1 queues pendingCelebrations; R2 delivers them.
+    runAchievementsDayOpened();
+
     var readyWs = Storage.getActiveWorkspace(data);
     var readyGroups = (readyWs && readyWs.groups) || [];
     console.log("[LaunchPad] Ready —", readyGroups.length, "group(s),",
       readyGroups.reduce(function (n, g) { return n + g.shortcuts.length; }, 0), "shortcut(s)");
+  }
+
+  // [1.0.23] Achievements: the day-opened engine tick. Pro-GATED — achievements
+  // are a Pro feature, and gating here keeps a free user's storage untouched
+  // (the completion choke points are already Pro-only surfaces). Reads the one
+  // tracking figure Deep Diver needs and hands it to the pure engine, which runs
+  // the one-time retro seed (first open after the update), advances the open-day
+  // streak, and queues any unlocks. Provenance-correct: a single saveAll only
+  // when the engine reports a change. R1 does not deliver — no UI this round.
+  async function runAchievementsDayOpened() {
+    if (!isProAccessibleLevel(currentAccessLevel())) return;
+    var maxLongest = 0;
+    try {
+      if (typeof Tracking !== "undefined" && Tracking.maxLongestSessionMs) {
+        maxLongest = await Tracking.maxLongestSessionMs();
+      }
+    } catch (err) {
+      console.error("[LaunchPad] Achievements: tracking read failed", err);
+    }
+    var res;
+    try {
+      res = Storage.achievementsOnDayOpened(data, { maxLongestSessionMs: maxLongest });
+    } catch (err) {
+      console.error("[LaunchPad] Achievements: day-opened evaluation failed", err);
+      return;
+    }
+    if (res && res.changed) {
+      try {
+        await Storage.saveAll(data);
+      } catch (err) {
+        console.error("[LaunchPad] Achievements: save failed", err);
+      }
+    }
   }
 
 
