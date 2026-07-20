@@ -715,10 +715,15 @@
       '</div>';
   }
 
-  function renderDashboardTab(panel, d) {
+  function renderDashboardTab(panel, d, periodOverride) {
     if (!panel) return;
     var ws = Storage.getActiveWorkspace(d);
-    var period = dashboardPeriod(Date.now(), Storage.getEndOfDayMinutes(d));
+    // periodOverride is passed by the watcher/reconcile, which have ALREADY read
+    // the boundary fresh from storage; everyone else gets the cached boundary for
+    // an instant, no-flash first paint (dashboardPeriod stays pure — only the
+    // SOURCE of its boundary argument differs). See dashSyncPeriod for why the
+    // cache can be stale.
+    var period = periodOverride || dashboardPeriod(Date.now(), Storage.getEndOfDayMinutes(d));
     var scope = dashFocusedScope(d);
 
     panel.dataset.dashPeriod = period;
@@ -730,6 +735,14 @@
 
     bindDashboardEvents(panel);
     dashRefreshFocused(panel, scope);
+
+    // [1.0.20 F1] Reconcile the first paint against the FRESH stored boundary.
+    // Skipped when we were handed a fresh period already (the watcher/reconcile),
+    // so this cannot recurse. Same render-then-patch two-phase shape as
+    // dashRefreshFocused above, and for the same reason: the boundary source in
+    // this tab's cached `data` can lag storage after a provenance-suppressed
+    // own-tab settings write.
+    if (!periodOverride) dashSyncPeriod(panel);
   }
 
   function bindDashboardEvents(panel) {
@@ -772,15 +785,22 @@
 
   // ----- D8 re-render plumbing -----
   //
-  // Deliberately NOT the Tasks tab's ~40 eager mutation-site calls. The
-  // Dashboard is one small read-only card; three triggers cover it:
+  // Still deliberately NOT the Tasks tab's ~40 eager mutation-site calls. The
+  // triggers:
   //   (1) renderTabPlaceholder — init, access-level change, workspace switch,
-  //       and (via the same applyAccessLevelUI pass) foreign-tab writes.
+  //       and (via the same applyAccessLevelUI pass) foreign-tab writes. Also the
+  //       F2 combined-analytics toggle re-render, routed through this gated path.
   //   (2) every ACTIVATION of the Dashboard tab — this is what makes the card
   //       fresh after the user completes tasks elsewhere and comes back.
-  //   (3) a 60s period check while the panel is visible, re-rendering ONLY on a
-  //       period flip, so a tab left open crosses end-of-day correctly.
+  //   (3) a 60s period check while the panel is visible, plus an after-paint
+  //       reconcile on every render — both via dashSyncPeriod, which reads the
+  //       boundary FRESH from storage so a same-tab settings write reaches it
+  //       (the [1.0.20 F1] live finding); re-renders ONLY on a period flip.
+  //   (4) [1.0.20 F3] three bounded active-task sites (satActivate/satCancel/
+  //       satComplete) — a stale pick-up card offering a COMPLETED task is wrong,
+  //       not merely old. Three sites, exactly; still not the 40-site pattern.
   var dashPeriodTimer = null;
+  var dashPeriodToken = 0;
 
   function dashStopPeriodWatch() {
     if (dashPeriodTimer) {
@@ -789,17 +809,47 @@
     }
   }
 
+  // [1.0.20 F1] The one "is the shown period still right?" check, against the
+  // FRESH stored boundary. It is the fix for the live finding: a same-tab
+  // settings write (a console poke today, the end-of-day picker tomorrow) is
+  // provenance-suppressed by design — the storage.onChanged gate skips the
+  // own-tab refresh so DOM state survives — which leaves this tab's cached `data`
+  // holding the OLD boundary indefinitely. Reading `data` here would compare the
+  // clock against a stale boundary forever; reading storage is the honest source.
+  //
+  // (The PRODUCTION clock-crossing path — fixed boundary, moving clock — was
+  // never affected: Date.now() is always fresh and the boundary did not change,
+  // so cached and stored agreed. This becomes a real bug the day the picker
+  // ships, since a picker IS a same-tab settings write.)
+  //
+  // Shared by the 60s watcher tick AND the after-paint reconcile — both ask the
+  // same question, and async is fine in both. Passes the fresh period into
+  // renderDashboardTab so that render uses it verbatim and cannot loop by
+  // recomputing from the stale cache. Token-guarded so a slow read landing after
+  // a newer render/tick is discarded.
+  async function dashSyncPeriod(panel) {
+    if (!panel || panel.classList.contains("hidden") || !panel.isConnected) return;
+    var token = ++dashPeriodToken;
+    var boundary;
+    try {
+      boundary = Storage.getEndOfDayMinutes(await Storage.getAll());
+    } catch (err) {
+      console.error("[LaunchPad] Dashboard: end-of-day read failed", err);
+      return;
+    }
+    if (token !== dashPeriodToken || !panel.isConnected) return;
+    var period = dashboardPeriod(Date.now(), boundary);
+    // Re-render ONLY on a flip. An unchanged period must not repaint — a silent
+    // minute-by-minute innerHTML rewrite would throw away focus and restart the
+    // focused-time read for nothing.
+    if (panel.dataset.dashPeriod === period) return;
+    renderDashboardTab(panel, data, period);
+  }
+
   function dashStartPeriodWatch() {
     dashStopPeriodWatch();
     dashPeriodTimer = setInterval(function () {
-      var panel = document.getElementById("tab-dashboard");
-      if (!panel || panel.classList.contains("hidden")) return;
-      var period = dashboardPeriod(Date.now(), Storage.getEndOfDayMinutes(data));
-      // Re-render ONLY on a flip. An unchanged period must not repaint — a
-      // silent minute-by-minute innerHTML rewrite would throw away focus and
-      // restart the focused-time read for nothing.
-      if (panel.dataset.dashPeriod === period) return;
-      renderDashboardTab(panel, data);
+      dashSyncPeriod(document.getElementById("tab-dashboard"));
     }, 60000);
   }
 
@@ -5280,6 +5330,25 @@
         }
       });
     }
+    // [1.0.20 F2] Combined-analytics toggle. Persists through the per-field
+    // setter (mutates this tab's `data` + saveAll, provenance-tagged), then
+    // EAGERLY repaints the Dashboard: our own write is provenance-suppressed, so
+    // nothing else repaints this tab — the same eager-render-after-own-write
+    // discipline as the workspace switch and every Tasks mutation. The repaint
+    // goes through renderTabPlaceholder, the ACCESS-GATED dispatcher, so a
+    // free/expired user's preview is never overwritten (D10) — belt-and-braces,
+    // since this control only exists inside the Pro-gated settings panel. Because
+    // the setter mutated this tab's cached `data`, the repaint reads the new
+    // combined scope from cache immediately; F1's reconcile (the boundary, a
+    // different setting) is the complementary half for writes that bypass cache.
+    safeOn("#pro-analytics-toggle", "change", async function (e) {
+      try {
+        await Storage.setCombinedAnalyticsEnabled(data, !!e.target.checked);
+      } catch (err) {
+        console.error("[LaunchPad] Combined analytics: toggle failed", err);
+      }
+      renderTabPlaceholder("dashboard", currentAccessLevel());
+    });
     bindProTagsControls();
   }
 
@@ -8126,6 +8195,16 @@
     // suppresses the resulting onChanged, so nothing else will repaint this tab.
     renderActiveTaskWidget();
     satRenderTasksPanel();
+    // [1.0.20 F3] Keep the Dashboard's Start-of-Day card honest after an
+    // active-task write. Without this, completing the active task from the pill
+    // while the Dashboard shows "Pick up where you left off" leaves the card
+    // offering to Continue a COMPLETED task until the next activation — stale AND
+    // wrong, not merely old (the live finding). Bounded to exactly these three
+    // sat sites, deliberately NOT the Tasks tab's ~40-site pattern. renderDashboard
+    // Tab null-guards the panel, so this is a safe one-liner; hidden-safe like
+    // satRenderTasksPanel. These paths are Pro-only reachable (the pill is gated
+    // at render), so a free user's preview panel is never reached here.
+    renderDashboardTab(document.getElementById("tab-dashboard"), data);
     return true;
   }
 
@@ -8150,6 +8229,7 @@
     }
     renderActiveTaskWidget();
     satRenderTasksPanel();
+    renderDashboardTab(document.getElementById("tab-dashboard"), data); // [1.0.20 F3] see satActivate
   }
 
   // D6: complete via the rich completeTask path, then deactivate.
@@ -8188,6 +8268,7 @@
     var settle = function () {
       renderActiveTaskWidget();
       satRenderTasksPanel();  // Completed box + any goal flip
+      renderDashboardTab(document.getElementById("tab-dashboard"), data); // [1.0.20 F3] see satActivate
     };
     if (card) {
       card.classList.add("sat-sweep");

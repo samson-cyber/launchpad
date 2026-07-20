@@ -165,6 +165,23 @@ var Storage = (function () {
     return Math.floor(v);
   }
 
+  // [1.0.20 F2] The combined-analytics CONTROL's setter. Same shape as
+  // setTrackingPaused: a per-field settings write with a no-op guard, flowing
+  // through saveAll itself. The flag shipped in the data model in [1.0.3] with
+  // its checkbox disabled ("Coming with Dashboard") because nothing consumed it;
+  // bd95cf8 built the consumer (the Dashboard's focused-today line), and this is
+  // the write half that finally makes the checkbox live. The no-op guard keeps
+  // an unchanged toggle from emitting a redundant storage event.
+  async function setCombinedAnalyticsEnabled(data, enabled) {
+    if (!data) return false;
+    if (!data.settings) return false;
+    var next = !!enabled;
+    if (!!data.settings.combinedAnalyticsEnabled === next) return false;
+    data.settings.combinedAnalyticsEnabled = next;
+    await saveAll(data);
+    return true;
+  }
+
   // [1.0.17] The pause CONTROL's setter. Unlike setTrackingEnabled (mutate-only,
   // caller batches the saveAll), this flows through saveAll itself with a no-op
   // guard — the same shape as the active-task setters, and for the same reasons:
@@ -3538,6 +3555,8 @@ var Storage = (function () {
     isTrackingPaused: isTrackingPaused,
     // [1.0.20] Dashboard end-of-day boundary (minutes since local midnight).
     getEndOfDayMinutes: getEndOfDayMinutes,
+    // [1.0.20 F2] Combined-analytics toggle setter (Dashboard's cross-workspace view).
+    setCombinedAnalyticsEnabled: setCombinedAnalyticsEnabled,
     setTrackingPaused: setTrackingPaused,
     anchorBrowserSession: anchorBrowserSession,
     setIdleState: setIdleState,
