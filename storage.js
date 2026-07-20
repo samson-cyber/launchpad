@@ -3601,12 +3601,16 @@ var Storage = (function () {
       // completion cannot both be counted incrementally AND by the snapshot.
       seeded: false,
       earned: {},                                   // badgeId -> { earnedAt, retro }
-      counters: { goalCompletions: 0 },
+      // [1.0.24 item 0] Goal Crusher is DISTINCT: the SET of goal ids ever
+      // completed (5 different goals lifetime). Recompleting a reactivated goal
+      // does not recount; a purged goal's id persists in the set. Supersedes R1's
+      // goalCompletions transition-counter (Samson's ruling 2026-07-20).
+      counters: { completedGoalIds: [] },
       streaks: {
         openDays:       { lastDay: null, streak: 0 },
         completionDays: { lastDay: null, streak: 0 }
       },
-      pendingCelebrations: []                        // [{ badgeId, earnedAt, retro }] — consumed in R2
+      pendingCelebrations: []                        // [{ badgeId, earnedAt, retro, type }] — consumed R2
     };
   }
 
@@ -3628,7 +3632,7 @@ var Storage = (function () {
       version: (typeof a.version === "number") ? a.version : ACHIEVEMENTS_VERSION,
       seeded: !!a.seeded,
       earned: (a.earned && typeof a.earned === "object") ? a.earned : {},
-      counters: { goalCompletions: (a.counters && typeof a.counters.goalCompletions === "number") ? a.counters.goalCompletions : 0 },
+      counters: { completedGoalIds: (a.counters && Array.isArray(a.counters.completedGoalIds)) ? a.counters.completedGoalIds : [] },
       streaks: {
         openDays: achNormStreak(a.streaks && a.streaks.openDays),
         completionDays: achNormStreak(a.streaks && a.streaks.completionDays)
@@ -3649,8 +3653,17 @@ var Storage = (function () {
     if (typeof a.version !== "number") a.version = ACHIEVEMENTS_VERSION;
     if (typeof a.seeded !== "boolean") a.seeded = false;
     if (!a.earned || typeof a.earned !== "object") a.earned = {};
-    if (!a.counters || typeof a.counters !== "object") a.counters = { goalCompletions: 0 };
-    if (typeof a.counters.goalCompletions !== "number") a.counters.goalCompletions = 0;
+    if (!a.counters || typeof a.counters !== "object") a.counters = {};
+    // [1.0.24 item 0] Migrate the R1 transition-counter to the distinct SET.
+    // A seeded R1 record carries counters.goalCompletions (a number) and no
+    // completedGoalIds. Re-derive the set HONESTLY from live completed goals —
+    // the same snapshot the retro seed uses — then drop the old field. Runs once
+    // (the array is present thereafter). Fresh records already have the array
+    // from emptyAchievements, so this never fires spuriously.
+    if (!Array.isArray(a.counters.completedGoalIds)) {
+      a.counters.completedGoalIds = achCompletedGoalIdsSnapshot(data);
+    }
+    if ("goalCompletions" in a.counters) delete a.counters.goalCompletions;
     if (!a.streaks || typeof a.streaks !== "object") a.streaks = {};
     a.streaks.openDays = achNormStreak(a.streaks.openDays);
     a.streaks.completionDays = achNormStreak(a.streaks.completionDays);
@@ -3689,7 +3702,7 @@ var Storage = (function () {
   }
 
   // ---- Pure condition evaluators ----
-  function achCondGoalCrusher(ach)  { return ach.counters.goalCompletions >= ACH_GOAL_CRUSHER_TARGET; }
+  function achCondGoalCrusher(ach)  { return ach.counters.completedGoalIds.length >= ACH_GOAL_CRUSHER_TARGET; }
   function achCondFirstWeek(ach)    { return ach.streaks.openDays.streak >= ACH_STREAK_TARGET; }
   function achCondConsistency(ach)  { return ach.streaks.completionDays.streak >= ACH_STREAK_TARGET; }
   function achCondDeepDiver(maxLongestSessionMs) { return (maxLongestSessionMs || 0) >= ACH_DEEP_DIVER_MS; }
@@ -3716,19 +3729,25 @@ var Storage = (function () {
   }
 
   // ---- Retro snapshots (D7) ----
-  // Lifetime goal count from the live snapshot. Undercount is accepted and
-  // honest: completed-then-purged goals are gone (30-day trash TTL), and
-  // reactivation nulls completedAt — so this floors the true lifetime, which is
-  // exactly why the counter is persisted from here on rather than recomputed.
-  function achCompletedGoalSnapshot(data) {
-    var n = 0;
+  // The DISTINCT ids of live completed goals. Undercount is accepted and honest:
+  // completed-then-purged goals are gone (30-day trash TTL) and reactivation
+  // clears status — so this floors the true lifetime set. That is exactly why
+  // the set is persisted from the seed forward (ids added at completion, never
+  // removed) rather than recomputed: a goal completed today then purged next
+  // month keeps its id in the set even though this snapshot could not find it.
+  function achCompletedGoalIdsSnapshot(data) {
+    var ids = [];
+    var seen = {};
     (data.workspaces || []).forEach(function (ws) {
       if (!ws) return;
       (ws.goals || []).forEach(function (g) {
-        if (g && g.deletedAt == null && g.status === "completed") n++;
+        if (g && g.deletedAt == null && g.status === "completed" && g.id && !seen[g.id]) {
+          seen[g.id] = true;
+          ids.push(g.id);
+        }
       });
     });
-    return n;
+    return ids;
   }
 
   // Current completion-day streak from live tasks: the run of consecutive days
@@ -3756,12 +3775,27 @@ var Storage = (function () {
   }
 
   // Earn a badge once. Idempotent: an already-earned badge is a no-op and is
-  // NOT re-queued. Returns true only on the first earn.
+  // NOT re-queued. Returns true only on the first earn. The queued entry carries
+  // type:"badge-unlock" so the [1.0.24] splash consumer can filter (goal
+  // completions are IMMEDIATE, never queued — the queue is unlocks only).
   function achEarn(ach, badgeId, nowMs, retro) {
     if (ach.earned[badgeId]) return false;
     ach.earned[badgeId] = { earnedAt: nowMs, retro: !!retro };
-    ach.pendingCelebrations.push({ badgeId: badgeId, earnedAt: nowMs, retro: !!retro });
+    ach.pendingCelebrations.push({ badgeId: badgeId, earnedAt: nowMs, retro: !!retro, type: "badge-unlock" });
     return true;
+  }
+
+  // [1.0.24 item 2] Shift the OLDEST pending celebration (optionally of a given
+  // type; an R1 entry with no type reads as "badge-unlock"). Mutate-only — the
+  // caller owns the provenance-correct saveAll. Returns the entry or null.
+  function dequeueCelebration(data, type) {
+    var ach = ensureAchievements(data);
+    var q = ach.pendingCelebrations;
+    for (var i = 0; i < q.length; i++) {
+      var t = (q[i] && q[i].type) || "badge-unlock";
+      if (!type || t === type) return q.splice(i, 1)[0];
+    }
+    return null;
   }
 
   // ---- Engine entry point 1: completion events (mutate-only, synchronous) ----
@@ -3781,7 +3815,10 @@ var Storage = (function () {
     var earned = [];
 
     if (eventType === "goal-completed") {
-      ach.counters.goalCompletions += 1;
+      // DISTINCT: add the goal's id to the set iff new. Recompleting a
+      // reactivated goal (same id) is a no-op; a purged goal keeps its id.
+      var gid = ctx && ctx.goal && ctx.goal.id;
+      if (gid && ach.counters.completedGoalIds.indexOf(gid) === -1) ach.counters.completedGoalIds.push(gid);
       if (achCondGoalCrusher(ach) && achEarn(ach, BADGE_GOAL_CRUSHER, now, false)) earned.push(BADGE_GOAL_CRUSHER);
     } else if (eventType === "task-completed") {
       var task = ctx && ctx.task;
@@ -3818,7 +3855,7 @@ var Storage = (function () {
     // unconditional check below (earn is permanent, so it is naturally retro on
     // the first open). openDays has no history to seed — First Week from zero.
     if (!ach.seeded) {
-      ach.counters.goalCompletions = achCompletedGoalSnapshot(data);
+      ach.counters.completedGoalIds = achCompletedGoalIdsSnapshot(data);
       ach.streaks.completionDays = achCompletionStreakSnapshot(data);
       ach.seeded = true;
       changed = true;
@@ -3871,6 +3908,8 @@ var Storage = (function () {
     ensureAchievements: ensureAchievements,
     achievementsOnCompletion: achievementsOnCompletion,
     achievementsOnDayOpened: achievementsOnDayOpened,
+    // [1.0.24 item 2] Splash queue consumer (mutate-only; caller saveAll's).
+    dequeueCelebration: dequeueCelebration,
     // Underscore hooks — pure condition/helper fns exposed for the R1 harness,
     // not for UI (same discipline as tracking's _ hooks).
     _emptyAchievements: emptyAchievements,
@@ -3878,7 +3917,7 @@ var Storage = (function () {
     _achDayDiff: achDayDiff,
     _achAdvanceStreak: achAdvanceStreak,
     _achVarietyDistinctTags: achVarietyDistinctTags,
-    _achCompletedGoalSnapshot: achCompletedGoalSnapshot,
+    _achCompletedGoalIdsSnapshot: achCompletedGoalIdsSnapshot,
     _achCompletionStreakSnapshot: achCompletionStreakSnapshot,
     _achConditions: {
       goalCrusher: achCondGoalCrusher,

@@ -7987,6 +7987,138 @@ html.has-bg.bg-light .pro-preview-banner-text {
   color: #333;
 }
 
+/* ===== [1.0.22] Insights tab (live Achievements) ===== */
+.insights-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 720px;
+}
+.insights-badge-count {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.6;
+  margin-left: 6px;
+}
+/* The calm "trends coming" line sits BARE over the wallpaper (not on a card),
+   so it takes the ring per D6 — the opposite of on-card ink. */
+.insights-soon {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+  padding: 2px 4px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+html.has-bg.bg-light .insights-soon {
+  color: rgba(0, 0, 0, 0.7);
+  text-shadow: none;
+}
+
+/* ===== [1.0.24] Badge unlock splash (one-shot Home overlay) ===== */
+.badge-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;      /* only the card is interactive */
+}
+.badge-splash-card {
+  pointer-events: auto;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 28px 40px;
+  border-radius: 16px;
+  background: var(--pro-frost-floater-bg);
+  backdrop-filter: var(--pro-frost-floater-blur);
+  -webkit-backdrop-filter: var(--pro-frost-floater-blur);
+  border: 1px solid rgba(255, 214, 110, 0.45);
+  box-shadow: 0 14px 50px rgba(0, 0, 0, 0.5), 0 0 60px rgba(255, 214, 110, 0.14);
+  color: #fff;
+  /* enter/leave: scale + fade (the sat-sweep idiom, scaled to an overlay) */
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 320ms ease, transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.badge-splash.is-in .badge-splash-card { opacity: 1; transform: scale(1); }
+.badge-splash.is-leaving .badge-splash-card { opacity: 0; transform: scale(0.96); }
+.badge-splash-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 28%, rgba(255, 214, 110, 0.28), transparent 68%);
+  animation: badge-splash-glow 2.4s ease-in-out infinite;
+}
+@keyframes badge-splash-glow {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 1; }
+}
+.badge-splash-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 214, 110, 0.16);
+  border: 1px solid rgba(255, 214, 110, 0.5);
+  color: #ffd66e;
+}
+.badge-splash-icon svg { width: 34px; height: 34px; }
+.badge-splash-eyebrow {
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #ffd66e;
+}
+.badge-splash-title { font-size: 20px; font-weight: 700; color: #fff; }
+.badge-splash-desc { font-size: 13px; color: rgba(255, 255, 255, 0.82); }
+
+/* Light-wallpaper: the floater glass flips to white, so the ink and the gold
+   accent must darken to keep >= 3:1. */
+html.has-bg.bg-light .badge-splash-card { color: #222; }
+html.has-bg.bg-light .badge-splash-title { color: #1a1a1a; }
+html.has-bg.bg-light .badge-splash-desc { color: rgba(0, 0, 0, 0.72); }
+html.has-bg.bg-light .badge-splash-eyebrow { color: #8a5a00; }
+html.has-bg.bg-light .badge-splash-icon { color: #8a5a00; border-color: rgba(138, 90, 0, 0.5); background: rgba(138, 90, 0, 0.1); }
+
+/* ===== [1.0.24] Goal-completion celebration (in place, sat-sweep idiom) ===== */
+.tt-goal-card.tt-goal-celebrate::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg,
+    rgba(46, 204, 113, 0) 0%,
+    rgba(46, 204, 113, 0.45) 50%,
+    rgba(46, 204, 113, 0) 100%);
+  background-size: 200% 100%;
+  animation: sat-sweep 700ms ease-out forwards;   /* reuse the existing keyframe */
+  pointer-events: none;
+}
+
+/* ===== [1.0.24] Reduced-motion: the splash and goal sweep are one-shot
+   niceties — under reduce, the splash still APPEARS (static, no scale/glow) and
+   the goal sweep is suppressed. None of this existed to inherit (audit). ===== */
+@media (prefers-reduced-motion: reduce) {
+  .badge-splash-card {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .badge-splash-glow { animation: none; opacity: 0.6; }
+  .tt-goal-card.tt-goal-celebrate::after { animation: none; opacity: 0; }
+}
+
 @media (max-width: 760px) {
   .pp-dash-grid {
     grid-template-columns: 1fr;

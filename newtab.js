@@ -351,6 +351,14 @@
       dashStopPeriodWatch();
     }
 
+    // [1.0.22 D10] Insights activation re-render — the badge grid reflects state
+    // changed on other tabs (a goal completed on Tasks, a retro unlock). Same
+    // Pro-gated pattern as the Dashboard hook above; no watcher to tear down.
+    if (id === "insights" && isProAccessibleLevel(currentAccessLevel())) {
+      var insPanel = document.getElementById("tab-insights");
+      if (insPanel) renderInsightsTab(insPanel, data);
+    }
+
     // Tab switch is treated as a navigation change — close any open popover and
     // re-derive the CTA state (pulse depends on whether we're on a Pro tab).
     closeUpgradePopover();
@@ -413,9 +421,13 @@
         return;
       }
       // [1.0.20] Dashboard shell — a third branch mirroring Tasks (D8 trigger 1).
-      // Insights stays on Coming-soon until [1.0.22].
       if (id === "dashboard") {
         renderDashboardTab(panel, data);
+        return;
+      }
+      // [1.0.22] Insights shell — the live Achievements section (D9).
+      if (id === "insights") {
+        renderInsightsTab(panel, data);
         return;
       }
       panel.innerHTML =
@@ -943,14 +955,16 @@
         { tag: DEMO_TAG_PALETTE.admin,     hours: 2  }
       ]
     },
+    // [1.0.24 item 4] Preview-is-the-promise: trimmed to the FIVE shipped badges
+    // (Marathoner/Curator removed — banked as future badge-pack candidates).
+    // Consistency copy corrected to the live definition (was "Deep work every
+    // weekday for 2 weeks", which never matched what ships).
     badges: [
       { id: "first-week",   title: "First Week",   desc: "Used LaunchPad 7 days running",          unlocked: true,  glyph: "calendar" },
       { id: "goal-crusher", title: "Goal Crusher", desc: "Completed 5 goals",                      unlocked: true,  glyph: "target"   },
       { id: "deep-diver",   title: "Deep Diver",   desc: "Single 2-hour focus block",              unlocked: true,  glyph: "compass"  },
       { id: "variety",      title: "Variety",      desc: "5 different tags in a week",             unlocked: false, glyph: "layers"   },
-      { id: "consistency",  title: "Consistency",  desc: "Deep work every weekday for 2 weeks",    unlocked: false, glyph: "trend"    },
-      { id: "marathoner",   title: "Marathoner",   desc: "8-hour deep work day",                   unlocked: false, glyph: "clock"    },
-      { id: "curator",      title: "Curator",      desc: "50+ shortcuts organized",                unlocked: false, glyph: "bookmark" }
+      { id: "consistency",  title: "Consistency",  desc: "Complete a task 7 days running",         unlocked: false, glyph: "trend"    }
     ]
   };
 
@@ -1187,6 +1201,63 @@
     };
     var inner = icons[glyph] || icons.target;
     return '<svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+  }
+
+  // ===== [1.0.22] Insights tab — live Achievements section =====
+  //
+  // The five shipped badges (D2), reusing the preview's renderBadgeGlyph icon
+  // set and .pp-badge visual language (D3 mirror principle). Earned badges are
+  // lit and show WHEN they were earned; locked badges are dimmed but show their
+  // REAL description (D9 divergence from the preview's "Locked" subtitle — a Pro
+  // user deserves to see the target). Trends are a v2.1 promise; the history is
+  // already accruing behind the scenes.
+  var INSIGHTS_BADGES = [
+    { id: "first-week",   title: "First Week",   desc: "Open LaunchPad 7 days running",          glyph: "calendar" },
+    { id: "goal-crusher", title: "Goal Crusher", desc: "Complete 5 different goals",             glyph: "target"   },
+    { id: "deep-diver",   title: "Deep Diver",   desc: "A single 2-hour focus session",         glyph: "compass"  },
+    { id: "variety",      title: "Variety",      desc: "Complete tasks across 5 tags in a week", glyph: "layers"   },
+    { id: "consistency",  title: "Consistency",  desc: "Complete a task 7 days running",         glyph: "trend"    }
+  ];
+  var INSIGHTS_BADGE_BY_ID = INSIGHTS_BADGES.reduce(function (m, b) { m[b.id] = b; return m; }, {});
+
+  function renderInsightsTab(panel, d) {
+    if (!panel) return;
+    var ach = Storage.getAchievements(d);
+    var earnedCount = 0;
+    var badgesHtml = INSIGHTS_BADGES.map(function (b) {
+      var e = ach.earned[b.id];
+      var lit = !!e;
+      if (lit) earnedCount++;
+      // Lit -> when earned; locked -> the real target (D9).
+      var sub = lit ? ("Earned " + escapeHtml(fmtShortDate(e.earnedAt))) : escapeHtml(b.desc);
+      return '<div class="pp-badge insights-badge' + (lit ? "" : " pp-badge-locked") + '"' + (lit ? ' data-earned="1"' : '') + '>' +
+          '<div class="pp-badge-icon">' + renderBadgeGlyph(b.glyph) + '</div>' +
+          '<div class="pp-badge-title">' + escapeHtml(b.title) + '</div>' +
+          '<div class="pp-badge-sub">' + sub + '</div>' +
+        '</div>';
+    }).join("");
+
+    panel.innerHTML =
+      '<div class="insights-tab">' +
+        '<div class="pp-insights-card">' +
+          '<div class="pp-dash-card-title">Achievements ' +
+            '<span class="insights-badge-count">' + earnedCount + ' of ' + INSIGHTS_BADGES.length + '</span>' +
+          '</div>' +
+          '<div class="pp-badge-grid">' + badgesHtml + '</div>' +
+        '</div>' +
+        '<div class="insights-soon">Trends and time-by-tag land in a future update — your history is already being recorded.</div>' +
+      '</div>';
+  }
+
+  // [1.0.22 D10] Eager-render Insights when it is the VISIBLE tab, after an event
+  // that may have unlocked a badge (a completion via the always-visible pill).
+  // Access-gated dispatcher discipline (the F2/F4 class): free users keep their
+  // preview; hidden panels do no work. renderInsightsTab reads getAchievements,
+  // so a badge earned in the same completion write is lit immediately.
+  function renderInsightsPanelEager() {
+    if (!isProAccessibleLevel(currentAccessLevel())) return;
+    var panel = document.getElementById("tab-insights");
+    if (panel && !panel.classList.contains("hidden")) renderInsightsTab(panel, data);
   }
 
   function renderProPreview(id, panel, d) {
@@ -1797,9 +1868,16 @@
   // early finisher's row holds its transient state until the last one settles.
   function runTaskCompletionCelebration(panel, row, result) {
     panel._completingCount = (panel._completingCount || 0) + 1;
+    var autoGoalId = (result && result.goalAutoCompleted && result.autoCompletedGoal) ? result.autoCompletedGoal.id : null;
     var settle = function () {
       panel._completingCount = Math.max(0, (panel._completingCount || 1) - 1);
-      if (panel._completingCount === 0) renderTasksTab(panel, data);
+      if (panel._completingCount === 0) {
+        renderTasksTab(panel, data);
+        // [1.0.24 item 3] The goal card relocated to Completed in the render just
+        // above; sweep it now, in place. [1.0.22 D10] Goal Crusher may have
+        // unlocked — refresh Insights if it is the visible tab.
+        if (autoGoalId) { celebrateGoalCompletion(autoGoalId); renderInsightsPanelEager(); }
+      }
     };
     // No row element to animate (e.g. filtered out of view) — settle only.
     if (!row || !row.classList) { settle(); return; }
@@ -3966,6 +4044,8 @@
       } else if (action === "complete") {
         await Storage.completeGoal(data, goalId);
         if (panel) renderTasksTab(panel, data);
+        celebrateGoalCompletion(goalId);   // [1.0.24 item 3] immediate, in place
+        renderInsightsPanelEager();         // [1.0.22 D10] Goal Crusher may have unlocked
       } else if (action === "delete") {
         var children = (workspace.tasks || []).filter(function (t) {
           return t.goalId === goalId && !t.deletedAt;
@@ -4065,11 +4145,17 @@
         // it changed since the menu opened.
         var ws2 = Storage.getActiveWorkspace(data);
         var t2 = ws2 && Storage.getTaskById(ws2, taskId);
+        var ctxCompleteRes = null;
         if (t2) {
           if (t2.completed) await Storage.reactivateTask(data, taskId);
-          else await Storage.completeTask(data, taskId);
+          else ctxCompleteRes = await Storage.completeTask(data, taskId);
         }
         if (panel) renderTasksTab(panel, data);
+        // [1.0.24 item 3 / 1.0.22 D10] auto-goal completion via this path too.
+        if (ctxCompleteRes && ctxCompleteRes.goalAutoCompleted && ctxCompleteRes.autoCompletedGoal) {
+          celebrateGoalCompletion(ctxCompleteRes.autoCompletedGoal.id);
+        }
+        renderInsightsPanelEager();
       } else if (action === "delete") {
         // Per trash-bin.md, regular task delete is direct (soft-delete + Undo
         // toast), no confirm modal — same flow as the row trash icon.
@@ -6251,10 +6337,10 @@
     setTimeout(checkPromoToast, 2000);
     checkRightClickTip();
 
-    // [1.0.23] Achievements day-opened hook — beside the checkPromoToast
-    // precedent. Fire-and-forget: it owns its try/catch and only saveAll's when
-    // something changed. R1 queues pendingCelebrations; R2 delivers them.
-    runAchievementsDayOpened();
+    // [1.0.23/1.0.24] Achievements on-open — beside the checkPromoToast
+    // precedent. Runs the day-opened engine tick then delivers ONE queued badge
+    // splash. Fire-and-forget: it owns its try/catch.
+    runAchievementsOnOpen();
 
     var readyWs = Storage.getActiveWorkspace(data);
     var readyGroups = (readyWs && readyWs.groups) || [];
@@ -6262,14 +6348,23 @@
       readyGroups.reduce(function (n, g) { return n + g.shortcuts.length; }, 0), "shortcut(s)");
   }
 
-  // [1.0.23] Achievements: the day-opened engine tick. Pro-GATED — achievements
-  // are a Pro feature, and gating here keeps a free user's storage untouched
-  // (the completion choke points are already Pro-only surfaces). Reads the one
-  // tracking figure Deep Diver needs and hands it to the pure engine, which runs
-  // the one-time retro seed (first open after the update), advances the open-day
-  // streak, and queues any unlocks. Provenance-correct: a single saveAll only
-  // when the engine reports a change. R1 does not deliver — no UI this round.
-  async function runAchievementsDayOpened() {
+  // [1.0.23/1.0.24] Achievements on-open. Pro-GATED — achievements are a Pro
+  // feature, and gating here keeps a free user's storage untouched (the completion
+  // choke points are already Pro-only surfaces; pendingCelebrations therefore
+  // only ever accrue from Pro paths). Two phases in one open:
+  //   1. day-opened engine tick — retro seed (first open after the update),
+  //      open-day streak, First Week + Deep Diver; queues any unlocks.
+  //   2. deliver ONE badge splash — the OLDEST queued unlock (oldest-first, one
+  //      per open; the rest wait for the next open).
+  //
+  // CONSUME-ON-SHOW ordering (D8): the dequeue is PERSISTED before the overlay
+  // is rendered. A crash/tab-close between show and dismiss therefore cannot
+  // double-play — the entry is already gone from storage. At-most-once is the
+  // right contract for a non-critical nicety: a missed splash beats a repeated
+  // one, and if the persist itself fails we DON'T show (the entry is still in
+  // storage and simply retries next open — no loss, no double-play). Both phases
+  // ride ONE saveAll.
+  async function runAchievementsOnOpen() {
     if (!isProAccessibleLevel(currentAccessLevel())) return;
     var maxLongest = 0;
     try {
@@ -6279,20 +6374,91 @@
     } catch (err) {
       console.error("[LaunchPad] Achievements: tracking read failed", err);
     }
-    var res;
+    var dayRes;
     try {
-      res = Storage.achievementsOnDayOpened(data, { maxLongestSessionMs: maxLongest });
+      dayRes = Storage.achievementsOnDayOpened(data, { maxLongestSessionMs: maxLongest });
     } catch (err) {
       console.error("[LaunchPad] Achievements: day-opened evaluation failed", err);
       return;
     }
-    if (res && res.changed) {
+
+    var entry = null;
+    try {
+      entry = Storage.dequeueCelebration(data, "badge-unlock");  // shift oldest (mutate-only)
+    } catch (err) {
+      console.error("[LaunchPad] Achievements: dequeue failed", err);
+    }
+
+    var changed = (dayRes && dayRes.changed) || !!entry;
+    if (changed) {
       try {
         await Storage.saveAll(data);
       } catch (err) {
         console.error("[LaunchPad] Achievements: save failed", err);
+        // Persist failed — do NOT show a dequeued entry (it is still in storage
+        // and will retry next open). Prevents a double-play.
+        return;
       }
     }
+    if (entry) showBadgeSplash(entry);
+  }
+
+  // [1.0.24 item 2] The one-shot Home badge splash. Dark-glass card mounted on
+  // #content, sat-sweep idiom (glow + scale, no confetti), ~3s auto-dismiss +
+  // click-to-dismiss. CSS-only animation with its OWN reduced-motion fallback
+  // (the audit found none to inherit). The queue entry was already consumed
+  // (persisted) before this runs — this function only paints and tears down.
+  function showBadgeSplash(entry) {
+    var meta = INSIGHTS_BADGE_BY_ID[entry && entry.badgeId];
+    if (!meta) return;  // unknown/removed badge id — already consumed, safe to skip
+    var host = document.getElementById("content");
+    if (!host) return;
+
+    var overlay = document.createElement("div");
+    overlay.className = "badge-splash";
+    overlay.setAttribute("role", "status");
+    overlay.setAttribute("aria-live", "polite");
+    overlay.innerHTML =
+      '<div class="badge-splash-card">' +
+        '<div class="badge-splash-glow" aria-hidden="true"></div>' +
+        '<div class="badge-splash-icon">' + renderBadgeGlyph(meta.glyph) + '</div>' +
+        '<div class="badge-splash-eyebrow">Achievement unlocked</div>' +
+        '<div class="badge-splash-title">' + escapeHtml(meta.title) + '</div>' +
+        '<div class="badge-splash-desc">' + escapeHtml(meta.desc) + '</div>' +
+      '</div>';
+
+    var timer = null;
+    var dismissed = false;
+    var dismiss = function () {
+      if (dismissed) return;
+      dismissed = true;
+      if (timer) clearTimeout(timer);
+      overlay.classList.add("is-leaving");
+      setTimeout(function () { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }, 320);
+    };
+    overlay.addEventListener("click", dismiss);
+    host.appendChild(overlay);
+    // Enter on the next frame so the CSS transition runs from the initial state.
+    requestAnimationFrame(function () { overlay.classList.add("is-in"); });
+    timer = setTimeout(dismiss, 3000);
+  }
+
+  // [1.0.24 item 3] IMMEDIATE, in-place goal-completion celebration (resolves the
+  // spec'd-never-built goal celebration). A sat-sweep-idiom pass over the goal's
+  // card when it is mounted on the visible Tasks tab; best-effort and once — if
+  // the card is not mounted (Tasks tab hidden, e.g. completed via the pill), it
+  // is a no-op and the existing satComplete toast still names the goal. NOT
+  // queued — goal completions are the "immediate" delivery type (D8), distinct
+  // from the deferred badge splash. Reduced-motion is honored by the CSS.
+  function celebrateGoalCompletion(goalId) {
+    if (!goalId) return;
+    var sel = (window.CSS && CSS.escape) ? CSS.escape(goalId) : String(goalId).replace(/"/g, '\\"');
+    var card = document.querySelector('.tt-goal-card[data-goal-id="' + sel + '"]');
+    if (!card) return;
+    card.classList.remove("tt-goal-celebrate");
+    void card.offsetWidth;                 // restart the animation if re-fired
+    card.classList.add("tt-goal-celebrate");
+    setTimeout(function () { card.classList.remove("tt-goal-celebrate"); }, 900);
   }
 
 
@@ -8323,6 +8489,11 @@
       renderActiveTaskWidget();
       satRenderTasksPanel();  // Completed box + any goal flip
       renderDashboardTab(document.getElementById("tab-dashboard"), data); // [1.0.20 F3] see satActivate
+      // [1.0.24 item 3] in-place goal celebration if the last task finished a
+      // goal (best-effort: the Tasks goal card may not be mounted from here).
+      if (result.goalAutoCompleted && result.autoCompletedGoal) celebrateGoalCompletion(result.autoCompletedGoal.id);
+      // [1.0.22 D10] the pill is visible on Insights too — refresh it if shown.
+      renderInsightsPanelEager();
     };
     if (card) {
       card.classList.add("sat-sweep");
