@@ -8182,6 +8182,10 @@
     // tagged, so the onChanged path deliberately will not repaint us. Mirrors
     // satActivate/satCancel, which already pair the two renders for this reason.
     satRenderTasksPanel();
+    // [Bug 1216701983826304] trackingPaused is a FOURTH view of this flag: the
+    // Dashboard's pick-up card reads it (Continue vs Resume). Same provenance
+    // reason as the Tasks panel above — repaint it too, the F3 sat-site pattern.
+    renderDashboardTab(document.getElementById("tab-dashboard"), data);
   }
 
   // Make a task active. The single funnel for all entry points (row play glyph,
