@@ -80,7 +80,8 @@ var Storage = (function () {
       // empty world (seeds 0, earns nothing). EXISTING installs never see this
       // default — migrate() is a no-op for workspace-shaped data — so the real
       // backfill is ensureAchievements at read (the getEndOfDayMinutes lesson).
-      achievements: emptyAchievements()
+      achievements: emptyAchievements(),
+      gettingStarted: emptyGettingStarted()   // [R3] free-tier checklist
     };
   }
 
@@ -361,7 +362,8 @@ var Storage = (function () {
         subscriptionStatus: "free",
         lastVerifiedAt: null
       },
-      achievements: emptyAchievements()   // [1.0.23] — see getDefaultData
+      achievements: emptyAchievements(),   // [1.0.23] — see getDefaultData
+      gettingStarted: emptyGettingStarted()
     };
 
     ensureDeletedAtFields(newData);
@@ -473,6 +475,9 @@ var Storage = (function () {
     }
 
     group.shortcuts.push(shortcut);
+    // [R3] Checklist step 1 rides this write. Demo content never ticks (belt-and-
+    // suspenders — the demo seed builds shortcuts directly, not via addShortcut).
+    if (!isDemoShortcut(shortcut)) recordChecklistStep(data, GS_STEP_SHORTCUT);
     await saveAll(data);
     console.log("[LaunchPad] Shortcut added to", groupId, ":", shortcut.title || shortcut.url);
     return shortcut;
@@ -497,6 +502,8 @@ var Storage = (function () {
     var group = { id: id, name: name, shortcuts: [], deletedAt: null };
     ws.groups.push(group);
     ws.groupOrder.push(id);
+    // [R3] Checklist step 4 rides this write (a user-created, non-demo group).
+    if (!isDemoGroup(group)) recordChecklistStep(data, GS_STEP_GROUP);
     await saveAll(data);
     console.log("[LaunchPad] Group added:", name, "(" + id + ")");
     return group;
@@ -3912,6 +3919,128 @@ var Storage = (function () {
     return { earned: earned, changed: changed };
   }
 
+  // [R3-D5] Focused Curator evaluation for add-event immediacy. Stateless (a
+  // live count), mutate-only, IDEMPOTENT via achEarn — so an earn here does NOT
+  // double with the day-opened backstop. Returns true iff Curator newly earned
+  // (queued a splash). The caller Pro-gates and owns the saveAll.
+  function achievementsEvaluateCurator(data, nowMs) {
+    var ach = ensureAchievements(data);
+    var now = (typeof nowMs === "number") ? nowMs : Date.now();
+    return !!(achCondCurator(achLiveShortcutCount(data)) && achEarn(ach, BADGE_CURATOR, now, false));
+  }
+
+  // ============================================================
+  // [R3] Getting-Started checklist (free tier)
+  // ============================================================
+  //
+  // Six steps that tick as the user performs real actions (the D17 Tips rows
+  // become a live checklist). Same "small record + defaulting reader" discipline
+  // as the achievements record: lives in data (survives export/restore),
+  // defaulted at read (migrate is a no-op for existing installs).
+  //
+  // Ticks are booleans, so they are naturally idempotent — no pre-seed gate is
+  // needed (unlike the achievements counter). A tick rides the SAME storage
+  // write its funnel already makes (recordChecklistStep is mutate-only). Demo-
+  // seeded content never ticks (R3-D2) and never retro-ticks (R3-D3).
+
+  var GS_VERSION = 1;
+  var GS_STEP_SHORTCUT   = "1";   // add a shortcut (any add funnel)
+  var GS_STEP_RIGHTCLICK = "2";   // add via the right-click context menu ONLY
+  var GS_STEP_NEST       = "3";   // nest one tile on another (any nest funnel)
+  var GS_STEP_GROUP      = "4";   // create a group (user-created, not auto-ungrouped)
+  var GS_STEP_WORKSPACE  = "5";   // switch workspaces
+  var GS_STEP_BACKGROUND = "6";   // pick a background
+  var GS_STEP_IDS = ["1", "2", "3", "4", "5", "6"];
+
+  function emptyGettingStarted() {
+    return { version: GS_VERSION, steps: {}, dismissed: false, retroDone: false };
+  }
+
+  // Defaulting READER — non-mutating, normalized even when absent/partial.
+  function getGettingStarted(data) {
+    var g = (data && data.gettingStarted && typeof data.gettingStarted === "object") ? data.gettingStarted : null;
+    if (!g) return emptyGettingStarted();
+    return {
+      version: (typeof g.version === "number") ? g.version : GS_VERSION,
+      steps: (g.steps && typeof g.steps === "object") ? g.steps : {},
+      dismissed: !!g.dismissed,
+      retroDone: !!g.retroDone
+    };
+  }
+
+  // Mutating ENSURE — returns the live object for the engine to mutate.
+  function ensureGettingStarted(data) {
+    if (!data.gettingStarted || typeof data.gettingStarted !== "object") {
+      data.gettingStarted = emptyGettingStarted();
+      return data.gettingStarted;
+    }
+    var g = data.gettingStarted;
+    if (typeof g.version !== "number") g.version = GS_VERSION;
+    if (!g.steps || typeof g.steps !== "object") g.steps = {};
+    if (typeof g.dismissed !== "boolean") g.dismissed = false;
+    if (typeof g.retroDone !== "boolean") g.retroDone = false;
+    return g;
+  }
+
+  // Tick a step. Mutate-only (caller saves); permanent and idempotent.
+  function recordChecklistStep(data, stepId) {
+    if (!data || stepId == null) return false;
+    var g = ensureGettingStarted(data);
+    var k = String(stepId);
+    if (g.steps[k]) return false;
+    g.steps[k] = true;
+    return true;
+  }
+
+  // Manual dismiss (the always-available escape hatch, R3-D4). Mutate-only.
+  function dismissGettingStarted(data) {
+    var g = ensureGettingStarted(data);
+    if (g.dismissed) return false;
+    g.dismissed = true;
+    return true;
+  }
+
+  // One-time HONEST retro (R3-D3). Existing real content pre-ticks what it
+  // proves; DEMO content proves nothing. Step 2 (right-click) is unknowable
+  // retroactively and never retro-ticks. Step 6's source (the background) is a
+  // separate storage key, so the caller reads it and passes
+  // opts.hasNonDefaultBackground. Mutate-only; guarded by retroDone so it runs
+  // once. Returns true iff anything changed (incl. the flag flip).
+  function retroTickGettingStarted(data, opts) {
+    var g = ensureGettingStarted(data);
+    if (g.retroDone) return false;
+    opts = opts || {};
+    var ws = getActiveWorkspace(data);
+    var groups = (ws && Array.isArray(ws.groups)) ? ws.groups : [];
+    var liveGroups = groups.filter(function (gr) { return gr && gr.deletedAt == null && !isDemoGroup(gr); });
+
+    // Step 1: a real (non-demo, live) shortcut exists.
+    if (liveGroups.some(function (gr) {
+      return (gr.shortcuts || []).some(function (s) { return s && s.deletedAt == null && !isDemoShortcut(s); });
+    })) g.steps[GS_STEP_SHORTCUT] = true;
+
+    // Step 3: a real live shortcut carries a live variant (nested).
+    if (liveGroups.some(function (gr) {
+      return (gr.shortcuts || []).some(function (s) {
+        return s && s.deletedAt == null && !isDemoShortcut(s) &&
+          Array.isArray(s.variants) && s.variants.some(function (v) { return v && v.deletedAt == null; });
+      });
+    })) g.steps[GS_STEP_NEST] = true;
+
+    // Step 4: a user-created group — non-demo, live, and not the auto "ungrouped".
+    if (liveGroups.some(function (gr) { return gr.id !== "ungrouped"; })) g.steps[GS_STEP_GROUP] = true;
+
+    // Step 5: more than one workspace.
+    if (Array.isArray(data.workspaces) && data.workspaces.length > 1) g.steps[GS_STEP_WORKSPACE] = true;
+
+    // Step 6: a persisted non-default background (caller-provided; separate key).
+    if (opts.hasNonDefaultBackground) g.steps[GS_STEP_BACKGROUND] = true;
+
+    // Step 2 is deliberately NOT touched.
+    g.retroDone = true;
+    return true;
+  }
+
   return {
     // [1.0.11.2] Write-provenance hooks — see saveAll() above.
     TAB_INSTANCE_ID: TAB_INSTANCE_ID,
@@ -3944,6 +4073,15 @@ var Storage = (function () {
     achievementsOnDayOpened: achievementsOnDayOpened,
     // [1.0.24 item 2] Splash queue consumer (mutate-only; caller saveAll's).
     dequeueCelebration: dequeueCelebration,
+    // [R3-D5] Add-event Curator immediacy (mutate-only; caller Pro-gates + saves).
+    achievementsEvaluateCurator: achievementsEvaluateCurator,
+    // [R3] Getting-Started checklist (free tier).
+    getGettingStarted: getGettingStarted,
+    ensureGettingStarted: ensureGettingStarted,
+    recordChecklistStep: recordChecklistStep,
+    dismissGettingStarted: dismissGettingStarted,
+    retroTickGettingStarted: retroTickGettingStarted,
+    GS_STEPS: { SHORTCUT: GS_STEP_SHORTCUT, RIGHTCLICK: GS_STEP_RIGHTCLICK, NEST: GS_STEP_NEST, GROUP: GS_STEP_GROUP, WORKSPACE: GS_STEP_WORKSPACE, BACKGROUND: GS_STEP_BACKGROUND, IDS: GS_STEP_IDS },
     // Underscore hooks — pure condition/helper fns exposed for the R1 harness,
     // not for UI (same discipline as tracking's _ hooks).
     _emptyAchievements: emptyAchievements,

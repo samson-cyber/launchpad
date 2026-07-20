@@ -411,6 +411,19 @@ chrome.contextMenus.onClicked.addListener(async function (info, tab) {
       targetGroup.shortcuts.push(shortcut);
       console.log("[LaunchPad] Shortcut added to", targetGroup.name, ":", shortcut.title);
     }
+
+    // [R3] Getting-Started ticks ride THIS existing write (no new messaging
+    // infra). A right-click add is always step 1 (added a shortcut) + step 2
+    // (the right-click path itself); step 3 if it auto-nested; step 4 if the
+    // user chose "New Group". Idempotent + permanent; a right-click add is never
+    // demo content, so no exclusion guard is needed here.
+    if (Storage.recordChecklistStep) {
+      Storage.recordChecklistStep(data, Storage.GS_STEPS.SHORTCUT);
+      Storage.recordChecklistStep(data, Storage.GS_STEPS.RIGHTCLICK);
+      if (existingMatch) Storage.recordChecklistStep(data, Storage.GS_STEPS.NEST);
+      if (targetGroupId === "new") Storage.recordChecklistStep(data, Storage.GS_STEPS.GROUP);
+    }
+
     await Storage.saveAll(data);
   } catch (err) {
     console.error("[LaunchPad] Failed to add shortcut:", err);

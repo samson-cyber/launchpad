@@ -5252,8 +5252,11 @@
       // renderSidebarGroups still handles the group-delete case where an
       // ID outlives its group within a single workspace.
       sidebarExpandedGroupIds.clear();
+      // [R3] Checklist step 5 rides this write.
+      Storage.recordChecklistStep(data, Storage.GS_STEPS.WORKSPACE);
       await Storage.saveAll(data);
       render();
+      refreshGettingStartedIfOpen();
       // A workspace switch is a same-tab write to `data`: Storage.saveAll tags
       // it and the write-provenance gate suppresses our OWN onChanged, so the
       // cross-tab refresh path never runs for the tab that made the switch. We
@@ -6344,6 +6347,19 @@
     // splash. Fire-and-forget: it owns its try/catch.
     runAchievementsOnOpen();
 
+    // [R3] Getting-Started one-time HONEST retro — free-tier, runs for everyone.
+    // currentBg is set (loadBackground ran above), so we can pass whether a
+    // non-default background is persisted for step 6. Guarded by retroDone; step
+    // 2 (right-click) never retro-ticks.
+    try {
+      if (Storage.retroTickGettingStarted(data, { hasNonDefaultBackground: !!(currentBg && currentBg !== DEFAULT_BG) })) {
+        await Storage.saveAll(data);
+        refreshGettingStartedIfOpen();
+      }
+    } catch (err) {
+      console.error("[LaunchPad] Getting-Started retro failed", err);
+    }
+
     var readyWs = Storage.getActiveWorkspace(data);
     var readyGroups = (readyWs && readyWs.groups) || [];
     console.log("[LaunchPad] Ready —", readyGroups.length, "group(s),",
@@ -6839,7 +6855,7 @@
     if (panel && !panel.classList.contains("hidden")) { closeTipsPanel(); return; }
     if (openSimplePanel("#tips-panel")) {
       renderTipsRestoreState();
-      renderTipsActionability();
+      renderGettingStarted();
       bindSimplePanelOutside("#tips-panel", "#sb-tips", function () { closeTipsPanel(); });
     }
   }
@@ -7875,9 +7891,14 @@
       g.shortcuts = g.shortcuts.filter(function (s) { return s.id !== shortcutId; });
     });
 
+    // [R3] Checklist step 3 (drag-to-nest) rides this write. Dragging a DEMO
+    // example tile is sandbox play (D18), not the user organizing — it does not
+    // tick.
+    if (!Storage.isDemoShortcut(shortcut)) Storage.recordChecklistStep(data, Storage.GS_STEPS.NEST);
     await Storage.saveAll(data);
     data = await Storage.getAll();
     render();
+    refreshGettingStartedIfOpen();
     console.log("[LaunchPad] Nested shortcut", shortcut.title, "under", target.title);
 
     // If this was the first nest (target had no variants before), offer rename
@@ -8953,14 +8974,76 @@
   // promise a click that goes nowhere. Computed at panel-open (the same
   // read-at-render discipline as the D4 Clear gate) and demoted to the static
   // treatment when unavailable, so the affordance stays honest either way.
-  function renderTipsActionability() {
-    var row = document.querySelector('[data-tip-act="workspaces"]');
-    if (!row) return;
-    var btn = $("#sb-workspace-switcher");
-    var available = !!(btn && !btn.classList.contains("hidden"));
-    row.classList.toggle("is-actionable", available);
-    row.classList.toggle("is-static", !available);
-    row.setAttribute("aria-disabled", available ? "false" : "true");
+  // [R3] Getting-Started checklist. The six rows reuse the D17 .tip-row shape and
+  // keep their D18 doors (data-tip-act); ticked rows get a check + dim but stay
+  // clickable as reference tips (zero-loss, R3-D4). Rows 2 and 3 are static
+  // (not self-executable); the workspaces row is actionable only when the
+  // switcher is available (folds in the old renderTipsActionability logic).
+  var GS_ROWS = [
+    { step: "1", act: "add-shortcut", vis: "tip-vis-plus",   text: "Add your first shortcut" },
+    { step: "2", act: null,           vis: "tip-vis-menu",   html: 'Save a page with right-click &mdash; choose <strong>Add to LaunchPad</strong>' },
+    { step: "3", act: null,           vis: "tip-vis-drag",   inner: "<i></i><i></i>", text: "Nest one tile on another" },
+    { step: "4", act: "add-group",    vis: "tip-vis-folder", text: "Create a group" },
+    { step: "5", act: "workspaces",   vis: "tip-vis-layers", text: "Switch workspaces" },
+    { step: "6", act: "background",   vis: "tip-vis-swatch", inner: "<i></i><i></i><i></i>", text: "Pick a background" }
+  ];
+
+  function renderGettingStarted() {
+    var host = document.getElementById("gs-checklist");
+    if (!host) return;
+    var gs = Storage.getGettingStarted(data);
+    var steps = gs.steps || {};
+
+    // Dismissed -> collapsed to the done-line only (permanent escape hatch).
+    if (gs.dismissed) {
+      host.innerHTML = '<div class="gs-doneline">You know your way around.</div>';
+      return;
+    }
+
+    var done = GS_ROWS.reduce(function (n, r) { return n + (steps[r.step] ? 1 : 0); }, 0);
+    var total = GS_ROWS.length;
+    var complete = done >= total;
+
+    var swBtn = $("#sb-workspace-switcher");
+    var switcherAvailable = !!(swBtn && !swBtn.classList.contains("hidden"));
+
+    var header = complete
+      ? '<div class="gs-doneline">You know your way around.</div>'
+      : '<div class="gs-header"><span class="gs-title">Getting started</span>' +
+          '<span class="gs-count">' + done + ' of ' + total + '</span></div>';
+
+    var rowsHtml = GS_ROWS.map(function (r) {
+      var checked = !!steps[r.step];
+      // Row 5's door only exists when the switcher is available.
+      var actionable = !!r.act && (r.step !== "5" || switcherAvailable);
+      var tag = actionable ? "button" : "div";
+      var open = "<" + tag + ' class="tip-row gs-row ' + (actionable ? "is-actionable" : "is-static") +
+        (checked ? " is-checked" : "") + '" data-step="' + r.step + '"' +
+        (actionable ? ' type="button" data-tip-act="' + r.act + '" aria-disabled="false"' : ' role="note"') + ">";
+      return open +
+          '<span class="tip-visual ' + r.vis + '" aria-hidden="true">' + (r.inner || "") + '</span>' +
+          '<span class="tip-text">' + (r.html || escapeHtml(r.text)) + '</span>' +
+          '<span class="gs-check" aria-hidden="true">' + CHECK_SVG + '</span>' +
+        "</" + tag + ">";
+    }).join("");
+
+    // The manual dismiss is ALWAYS available while the checklist is shown (R3-D4).
+    host.innerHTML = header + '<div class="gs-rows">' + rowsHtml + '</div>' +
+      '<button class="gs-dismiss" id="gs-dismiss" type="button">I know my way around</button>';
+  }
+
+  // Re-render the checklist iff the Tips panel is open (a tick from an action
+  // funnel while the panel is showing lights the row in place).
+  function refreshGettingStartedIfOpen() {
+    var panel = document.getElementById("tips-panel");
+    if (panel && !panel.classList.contains("hidden")) renderGettingStarted();
+  }
+
+  async function dismissGettingStartedChecklist() {
+    if (Storage.dismissGettingStarted(data)) {
+      try { await Storage.saveAll(data); } catch (err) { console.error("[LaunchPad] Getting-Started dismiss save failed", err); }
+    }
+    renderGettingStarted();
   }
 
   function renderTipsRestoreState() {
@@ -10192,6 +10275,13 @@
   async function commitBgPreview() {
     if (currentBg !== previousBg) {
       await Storage.saveBackground(currentBg);
+      // [R3] Checklist step 6. The background lives in a SEPARATE storage key
+      // (saveBackground bypasses saveAll), so the tick needs its own data write
+      // — provenance-correct (same-tab onChanged suppressed).
+      if (Storage.recordChecklistStep(data, Storage.GS_STEPS.BACKGROUND)) {
+        try { await Storage.saveAll(data); } catch (err) { console.error("[LaunchPad] Checklist bg-step save failed", err); }
+        refreshGettingStartedIfOpen();
+      }
     }
     previousBg = null;
     closeBgModal();
@@ -10689,6 +10779,13 @@
     // landed inside too, any stray click the launched surface produces on
     // dismissal has no matching outside press and is ignored as well.
     safeOn("#tips-panel", "click", function (e) {
+      // [R3] Manual dismiss — the always-available escape hatch (collapses to the
+      // done-line). It carries no data-tip-act, so it is handled before the door
+      // routing below and never mistaken for a door.
+      if (e.target.closest && e.target.closest("#gs-dismiss")) {
+        dismissGettingStartedChecklist();
+        return;
+      }
       var row = e.target.closest && e.target.closest("[data-tip-act]");
       if (!row) return;
       if (row.getAttribute("aria-disabled") === "true") return; // demoted to static
@@ -11394,6 +11491,10 @@
           favicon: modalState.customFavicon || getFaviconUrl(url),
           deletedAt: null
         });
+        // [R3] Add-modal nest: a real URL the user typed, added (step 1) as a
+        // nested variant (step 3). Rides this write.
+        Storage.recordChecklistStep(data, Storage.GS_STEPS.SHORTCUT);
+        Storage.recordChecklistStep(data, Storage.GS_STEPS.NEST);
         await Storage.saveAll(data);
       } else {
         var newShortcut = {
@@ -11422,6 +11523,23 @@
     closeModal();
     data = await Storage.getAll();
     render();
+    // [R3-D5] Curator immediacy: a Pro user who just crossed 50 live shortcuts
+    // via an add earns now (splash on next open), without waiting for the day-
+    // opened backstop. Idempotent, so no double-earn with that backstop.
+    await maybeCuratorAfterShortcutAdd();
+    refreshGettingStartedIfOpen();
+  }
+
+  // [R3-D5] Pro-gated add-event Curator evaluation. The module `data` is fresh
+  // (saveModal just re-read it), so the count includes the new shortcut.
+  async function maybeCuratorAfterShortcutAdd() {
+    if (!isProAccessibleLevel(currentAccessLevel())) return;
+    var earned = false;
+    try { earned = Storage.achievementsEvaluateCurator(data); } catch (err) { console.error("[LaunchPad] Curator eval failed", err); }
+    if (earned) {
+      try { await Storage.saveAll(data); } catch (err) { console.error("[LaunchPad] Curator save failed", err); }
+      renderInsightsPanelEager();
+    }
   }
 
   // ===== Group Operations =====
@@ -11437,6 +11555,7 @@
     await Storage.addGroup(name.trim());
     data = await Storage.getAll();
     render();
+    refreshGettingStartedIfOpen();
   }
 
   function startRename(nameEl) {

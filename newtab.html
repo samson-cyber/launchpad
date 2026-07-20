@@ -254,41 +254,11 @@
       <button id="tips-close" type="button" title="Close">&times;</button>
     </div>
     <div class="settings-body">
-      <!-- [1.0.19 D17] Six tips, actionable-first + illustrated-second. One
-           shared .tip-row shape. Actionable rows are <button> and carry
-           data-tip-act; the two static rows are <div role="note"> so the
-           affordance is honest in the markup as well as the styling. -->
-      <div class="settings-section tips-section">
-        <button class="tip-row is-actionable" type="button" data-tip-act="add-shortcut" aria-disabled="false">
-          <span class="tip-visual tip-vis-plus" aria-hidden="true"></span>
-          <span class="tip-text">Add your first shortcut</span>
-        </button>
-
-        <div class="tip-row is-static" role="note">
-          <span class="tip-visual tip-vis-menu" aria-hidden="true"></span>
-          <span class="tip-text">Save any page from anywhere &mdash; right-click and choose <strong>Add to LaunchPad</strong></span>
-        </div>
-
-        <div class="tip-row is-static" role="note">
-          <span class="tip-visual tip-vis-drag" aria-hidden="true"><i></i><i></i></span>
-          <span class="tip-text">Drag to rearrange &mdash; drop one tile on another to nest</span>
-        </div>
-
-        <button class="tip-row is-actionable" type="button" data-tip-act="add-group" aria-disabled="false">
-          <span class="tip-visual tip-vis-folder" aria-hidden="true"></span>
-          <span class="tip-text">Create a group</span>
-        </button>
-
-        <button class="tip-row is-actionable" type="button" data-tip-act="workspaces" aria-disabled="false">
-          <span class="tip-visual tip-vis-layers" aria-hidden="true"></span>
-          <span class="tip-text">Switch workspaces</span>
-        </button>
-
-        <button class="tip-row is-actionable" type="button" data-tip-act="background" aria-disabled="false">
-          <span class="tip-visual tip-vis-swatch" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span class="tip-text">Change your background</span>
-        </button>
-      </div>
+      <!-- [R3] Getting-Started interactive checklist. The six D17 tip rows become
+           a live checklist (JS-rendered into this container); rows tick as the
+           user performs the real action, and the D18 door behaviour is preserved
+           via the same data-tip-act attributes. -->
+      <div class="settings-section tips-section" id="gs-checklist"></div>
       <div class="settings-section">
         <button id="tips-restore-examples" class="tips-action" type="button">Restore examples</button>
         <p class="tips-restore-note" id="tips-restore-note"></p>
