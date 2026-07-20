@@ -5510,8 +5510,11 @@
     // [1.0.25] Tracking toggle. Writing `data` is what notifies the engine:
     // the service worker watches this key (D3), re-evaluates the gates on the
     // change and closes any open session when a workspace is switched off.
-    // No re-render here — the checkbox already shows its own new state, and
-    // rebuilding the list would tear down the Sortable instance mid-interaction.
+    // We do NOT rebuild THIS list — the checkbox already shows its own new
+    // state, and rebuilding it would tear down the Sortable instance
+    // mid-interaction. But [1.0.20 F4] we DO repaint the Dashboard, whose
+    // focused-today line reads isTrackingEnabled for the active workspace; see
+    // the handler below.
     host.querySelectorAll(".pws-tracking-check").forEach(function (check) {
       check.addEventListener("change", async function (e) {
         e.stopPropagation();
@@ -5520,6 +5523,15 @@
         var enabled = check.checked;
         if (!Storage.setTrackingEnabled(data, row.dataset.workspaceId, enabled)) return;
         await Storage.saveAll(data);
+        // [1.0.20 F4] Same gap and same fix as F2's analytics toggle (third and
+        // last occurrence of the class among the settings handlers): this
+        // own-tab write is provenance-suppressed, so the Dashboard visible
+        // BEHIND the settings overlay keeps its stale focused-today pill — the
+        // suppression logic (dashFocusedScope -> null when tracking is off) is
+        // sound, it just never re-runs. Repaint through renderTabPlaceholder,
+        // the access-gated dispatcher (D10-safe). This touches only
+        // #tab-dashboard, so the workspace-list Sortable above is untouched.
+        renderTabPlaceholder("dashboard", currentAccessLevel());
         showToast(enabled ? "Focus tracking on for this workspace" : "Focus tracking off for this workspace");
       });
     });
