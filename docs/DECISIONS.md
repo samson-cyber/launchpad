@@ -1047,3 +1047,17 @@ Locked thresholds: First Week = opened on 7 consecutive local calendar days (no 
 **Migration:** a seeded R1 record carrying the old `counters.goalCompletions` number is re-mapped once, at read (`ensureAchievements`), by re-deriving `completedGoalIds` from the live completed-goal snapshot and dropping the old field — the same honest-floor snapshot the retro seed uses. An inflated old counter therefore collapses to the true distinct live count (Samson's live record: counter 1 → set of 1).
 
 **Delivery, also locked this round (D8 realized):** badge unlocks queue as `pendingCelebrations` and deliver as a deferred one-shot **splash** on #content at next open — CONSUME-ON-SHOW (the dequeue is persisted before the overlay renders, so a crash between show and dismiss cannot double-play; a missed splash beats a repeated one for a non-critical nicety). Goal completions are the IMMEDIATE type — an in-place sat-sweep on the goal card at the moment of completion, never queued. Both honor `prefers-reduced-motion` with their own fallback (the splash still appears, statically; the goal sweep is suppressed) — none existed to inherit.
+
+---
+
+## 2026-07-20 (R2 amendment 2) — the badge set is SIX: Curator un-banked (stateless), Marathoner the sole banked candidate
+
+**Amends the 2026-07-20 achievements entries above.** After the R2 live pass Samson called the layout: five tiles sit oddly, six make a clean 3x2. **Curator joins the shipped set** ("Organize 50+ shortcuts"), un-banked from the future-candidates note. **Marathoner remains the sole banked candidate.**
+
+**Curator is STATELESS** — its condition is a current count, not a persisted metric: total LIVE shortcuts across ALL workspaces ≥ 50, computed at evaluation time. So it needs no counter, no seed, and no migration; the `data.achievements` record shape is unchanged. Retro is inherent — any user already at 50+ earns on the first open with this build (and gets the splash).
+
+**Counting rule:** a shortcut counts iff neither it nor its group is soft-deleted. **Variants are NOT counted** — an auto-nested domain-alias (e.g. sheets.google.com nested under a docs.google.com parent) is an alias of a shortcut, not an independently-organized entry; counting them would inflate the milestone opaquely. Trashed shortcuts and shortcuts in trashed groups are excluded.
+
+**Evaluated on the DAY-OPENED tick only**, alongside Deep Diver — a 50-shortcut milestone earns at the next open. This matches the accepted Flag-2 next-open pattern and deliberately sidesteps the multi-site shortcut-add problem (the audit found shortcut-add is not a single funnel — background.js reimplements the write inline for the context menu). R3's emit helpers may later add an add-event hook for in-the-moment earning; until then next-open is honest and sufficient.
+
+**Layout:** the live Insights set and the free preview are both six now (the promise and the product match exactly); the `.pp-badge-grid` was nudged from `auto-fit`/`minmax` (which packed 5+1) to a fixed 3 columns (2 on narrow) for the clean 3x2.

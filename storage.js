@@ -3584,13 +3584,15 @@ var Storage = (function () {
   var BADGE_DEEP_DIVER   = "deep-diver";
   var BADGE_VARIETY      = "variety";
   var BADGE_CONSISTENCY  = "consistency";
+  var BADGE_CURATOR      = "curator";        // [D-SIXTH]
 
-  // Thresholds (D3, final).
+  // Thresholds (D3, final; Curator added [D-SIXTH]).
   var ACH_GOAL_CRUSHER_TARGET = 5;          // goals completed lifetime
   var ACH_STREAK_TARGET       = 7;          // consecutive days (First Week + Consistency)
   var ACH_VARIETY_TAGS_TARGET = 5;          // distinct tags in the rolling window
   var ACH_VARIETY_WINDOW_MS   = 7 * 24 * 60 * 60 * 1000;  // rolling 7-day window
   var ACH_DEEP_DIVER_MS       = 2 * 60 * 60 * 1000;        // 7,200,000 — a single 2h session
+  var ACH_CURATOR_TARGET      = 50;         // live shortcuts across all workspaces
 
   function emptyAchievements() {
     return {
@@ -3706,6 +3708,32 @@ var Storage = (function () {
   function achCondFirstWeek(ach)    { return ach.streaks.openDays.streak >= ACH_STREAK_TARGET; }
   function achCondConsistency(ach)  { return ach.streaks.completionDays.streak >= ACH_STREAK_TARGET; }
   function achCondDeepDiver(maxLongestSessionMs) { return (maxLongestSessionMs || 0) >= ACH_DEEP_DIVER_MS; }
+
+  // [D-SIXTH] Curator is STATELESS — a live count, not a persisted counter, so
+  // the achievements record shape is unchanged (no seed, no migration). Retro is
+  // inherent: a 50+ user earns on the first open with this build.
+  //
+  // COUNTING RULE: LIVE TOP-LEVEL shortcuts across ALL workspaces. A shortcut
+  // counts iff neither it nor its group is soft-deleted. Variants (auto-nested
+  // domain-alias aliases under a parent, e.g. sheets.google.com under a
+  // docs.google.com parent) are NOT counted — they are aliases of a shortcut,
+  // not independently-organized entries, and counting them would inflate the
+  // milestone opaquely. Trashed shortcuts and shortcuts inside trashed groups
+  // are excluded (they are in the bin, not organized).
+  function achLiveShortcutCount(data) {
+    var n = 0;
+    (data && data.workspaces || []).forEach(function (ws) {
+      if (!ws || !Array.isArray(ws.groups)) return;
+      ws.groups.forEach(function (g) {
+        if (!g || g.deletedAt != null || !Array.isArray(g.shortcuts)) return;
+        g.shortcuts.forEach(function (sc) {
+          if (sc && sc.deletedAt == null) n++;
+        });
+      });
+    });
+    return n;
+  }
+  function achCondCurator(count) { return (count || 0) >= ACH_CURATOR_TARGET; }
 
   // Variety: distinct tags across LIVE completed tasks whose completedAt is
   // within the rolling window ending at nowMs. Global (all workspaces). Tags
@@ -3875,6 +3903,12 @@ var Storage = (function () {
     // the same day must still land). Permanent once earned.
     if (achCondDeepDiver(maxLongest) && achEarn(ach, BADGE_DEEP_DIVER, now, retro)) { earned.push(BADGE_DEEP_DIVER); changed = true; }
 
+    // CURATOR [D-SIXTH] — stateless: count live shortcuts across all workspaces
+    // right now. Day-opened only (like Deep Diver); the multi-site shortcut-add
+    // paths, incl. background.js inline writes, would need R3's emit helpers for
+    // in-the-moment earning, so a next-open earn is the accepted Flag-2 pattern.
+    if (achCondCurator(achLiveShortcutCount(data)) && achEarn(ach, BADGE_CURATOR, now, retro)) { earned.push(BADGE_CURATOR); changed = true; }
+
     return { earned: earned, changed: changed };
   }
 
@@ -3919,11 +3953,13 @@ var Storage = (function () {
     _achVarietyDistinctTags: achVarietyDistinctTags,
     _achCompletedGoalIdsSnapshot: achCompletedGoalIdsSnapshot,
     _achCompletionStreakSnapshot: achCompletionStreakSnapshot,
+    _achLiveShortcutCount: achLiveShortcutCount,
     _achConditions: {
       goalCrusher: achCondGoalCrusher,
       firstWeek: achCondFirstWeek,
       consistency: achCondConsistency,
-      deepDiver: achCondDeepDiver
+      deepDiver: achCondDeepDiver,
+      curator: achCondCurator
     },
     _ACH: {
       GOAL_CRUSHER_TARGET: ACH_GOAL_CRUSHER_TARGET,
@@ -3931,7 +3967,8 @@ var Storage = (function () {
       VARIETY_TAGS_TARGET: ACH_VARIETY_TAGS_TARGET,
       VARIETY_WINDOW_MS: ACH_VARIETY_WINDOW_MS,
       DEEP_DIVER_MS: ACH_DEEP_DIVER_MS,
-      BADGES: { FIRST_WEEK: BADGE_FIRST_WEEK, GOAL_CRUSHER: BADGE_GOAL_CRUSHER, DEEP_DIVER: BADGE_DEEP_DIVER, VARIETY: BADGE_VARIETY, CONSISTENCY: BADGE_CONSISTENCY }
+      CURATOR_TARGET: ACH_CURATOR_TARGET,
+      BADGES: { FIRST_WEEK: BADGE_FIRST_WEEK, GOAL_CRUSHER: BADGE_GOAL_CRUSHER, DEEP_DIVER: BADGE_DEEP_DIVER, VARIETY: BADGE_VARIETY, CONSISTENCY: BADGE_CONSISTENCY, CURATOR: BADGE_CURATOR }
     },
     anchorBrowserSession: anchorBrowserSession,
     setIdleState: setIdleState,

@@ -7895,8 +7895,13 @@ html.has-bg.bg-light .dash-focused-num {
 
 .pp-badge-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  /* [D-SIXTH] Six badges: a clean 3x2. auto-fit/minmax packed 5+1 at the
+     insights width, so the columns are fixed at 3 and drop to 2 on narrow. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+}
+@media (max-width: 620px) {
+  .pp-badge-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .pp-badge {

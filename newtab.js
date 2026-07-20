@@ -955,16 +955,17 @@
         { tag: DEMO_TAG_PALETTE.admin,     hours: 2  }
       ]
     },
-    // [1.0.24 item 4] Preview-is-the-promise: trimmed to the FIVE shipped badges
-    // (Marathoner/Curator removed — banked as future badge-pack candidates).
-    // Consistency copy corrected to the live definition (was "Deep work every
-    // weekday for 2 weeks", which never matched what ships).
+    // [1.0.24 item 4 / D-SIXTH] Preview-is-the-promise: the SIX shipped badges.
+    // Curator is un-banked (2026-07-20) and restored here with its original copy;
+    // Marathoner remains the sole banked future candidate. Consistency copy was
+    // corrected to the live definition (was "Deep work every weekday for 2 weeks").
     badges: [
       { id: "first-week",   title: "First Week",   desc: "Used LaunchPad 7 days running",          unlocked: true,  glyph: "calendar" },
       { id: "goal-crusher", title: "Goal Crusher", desc: "Completed 5 goals",                      unlocked: true,  glyph: "target"   },
       { id: "deep-diver",   title: "Deep Diver",   desc: "Single 2-hour focus block",              unlocked: true,  glyph: "compass"  },
       { id: "variety",      title: "Variety",      desc: "5 different tags in a week",             unlocked: false, glyph: "layers"   },
-      { id: "consistency",  title: "Consistency",  desc: "Complete a task 7 days running",         unlocked: false, glyph: "trend"    }
+      { id: "consistency",  title: "Consistency",  desc: "Complete a task 7 days running",         unlocked: false, glyph: "trend"    },
+      { id: "curator",      title: "Curator",      desc: "50+ shortcuts organized",                unlocked: false, glyph: "bookmark" }
     ]
   };
 
@@ -1216,7 +1217,8 @@
     { id: "goal-crusher", title: "Goal Crusher", desc: "Complete 5 different goals",             glyph: "target"   },
     { id: "deep-diver",   title: "Deep Diver",   desc: "A single 2-hour focus session",         glyph: "compass"  },
     { id: "variety",      title: "Variety",      desc: "Complete tasks across 5 tags in a week", glyph: "layers"   },
-    { id: "consistency",  title: "Consistency",  desc: "Complete a task 7 days running",         glyph: "trend"    }
+    { id: "consistency",  title: "Consistency",  desc: "Complete a task 7 days running",         glyph: "trend"    },
+    { id: "curator",      title: "Curator",      desc: "Organize 50+ shortcuts",                 glyph: "bookmark" }
   ];
   var INSIGHTS_BADGE_BY_ID = INSIGHTS_BADGES.reduce(function (m, b) { m[b.id] = b; return m; }, {});
 
