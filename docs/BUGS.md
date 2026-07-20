@@ -233,7 +233,9 @@ Run before trusting any in-browser (CDP / claude-in-chrome) harness that measure
     new URLSearchParams(location.search).has('light') ? 'has-bg bg-light' : 'has-bg';
   ```
 
-  **Always carry a sanity guard** that asserts a post-load inline override *does* take effect. It will fail in this environment — that is the point: it identifies the limitation instead of letting a silent freeze masquerade as a product defect. Corroborate with a screenshot; and note that two iframes reporting genuinely different token values is itself proof the reads are real, which a frozen style tree could not produce.
+  **Always carry a sanity guard** that asserts a post-load inline override *does* take effect. Whether it *passes* or *fails* is itself the diagnostic — read it, do not assume it.
+
+  **The freeze is CDP-specific, not universal.** The failure above was observed driving the tab over the Chrome DevTools Protocol. Under the **`javascript_tool`** path (extension-injected page script, as used for bd95cf8's three-frame CSS pass), a post-load inline override **does** take effect: the sanity probe set `padding-top:99px` after load and `getComputedStyle` returned `99px` on all three frames. So the guard is not a fixed "must fail" — it reports which harness transport you are on. Parse-time-per-iframe is still the right construction regardless, because it is strictly safer and needs no per-transport reasoning; but do not treat a *passing* post-load override as evidence the harness is broken. (2026-07-20, Arc B live-fix round.)
 
   Poll for the real iframe document rather than waiting on `load`: an iframe starts on `about:blank`, which already reports `readyState === 'complete'`, so a naive wait resolves before the `src` has loaded and every query returns `null`.
 
