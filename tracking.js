@@ -663,6 +663,28 @@
       String(d.getDate()).padStart(2, "0");
   }
 
+  // [2.0] The n most recent local day keys, oldest first so index n-1 is TODAY
+  // — the order the Insights bar chart wants (todayIndex = last). Built ON
+  // startOfLocalDay + localDayKey rather than subtracting DAY_MS n times: a
+  // fixed-24h step drifts across a DST boundary and would skip or repeat a
+  // calendar day, so this walks the local calendar via Date.setDate(-1) and
+  // re-anchors to local midnight each step (the same technique as
+  // startOfNextLocalDay, inverted). Matches the exact "YYYY-MM-DD" basis the
+  // day aggregates are keyed on, so the returned keys index straight into the
+  // day map with no adjustment.
+  function lastNLocalDayKeys(n) {
+    var keys = [];
+    var cursor = startOfLocalDay();
+    for (var i = 0; i < n; i++) {
+      keys.push(localDayKey(cursor));
+      var d = new Date(cursor);
+      d.setDate(d.getDate() - 1);
+      d.setHours(0, 0, 0, 0);
+      cursor = d.getTime();
+    }
+    return keys.reverse();
+  }
+
   // ===== [1.0.16] Read surface =====
   //
   // The active-task widget's focused-time readout. The first thing outside the
@@ -816,6 +838,120 @@
       }
     });
     return max;
+  }
+
+  // ===== [2.0] Insights board read surface =====
+  //
+  // Three windowed readers for the live analytics board (Asana 1216743756248660,
+  // PLAN D2). Each is a deliberate exported contract in the focusedTodayForScope
+  // mould — the board is NOT permitted to reach for _readDays / _dayAggregateKey
+  // (the F-round discipline; those are console-harness hooks). All three take the
+  // same shape:
+  //
+  //   scope  = workspaceId, or null for COMBINED (every workspace summed) —
+  //            identical to focusedTodayForScope, so the board computes ONE scope
+  //            (combinedAnalyticsEnabled ? null : activeWs.id) and passes it to all.
+  //   keys   = the list of local "YYYY-MM-DD" day keys to include, from
+  //            lastNLocalDayKeys(30). Filtering is by exact key membership, so a
+  //            caller can pass any window without this code knowing the size.
+  //
+  // Each does exactly ONE readDays() over the whole map then a single
+  // Object.keys walk — the audited enumeration pattern (no per-day re-read).
+  // Historical days are settled aggregates; TODAY'S open-session share is folded
+  // in by COMPOSITION at the range reader only (see below), never re-derived here.
+
+  // Per-day focused totals for the scope, as a { dayKey: ms } map with EVERY
+  // requested key present (zero-filled) so the bar chart and averages can index
+  // straight through without a "missing day" branch.
+  //
+  // TODAY'S open share: rather than duplicate focusedTodayForScope's
+  // across-midnight clamp, this OVERWRITES today's settled value with that
+  // reader's live figure (baseMs = settled today aggregate + closed-but-
+  // unaggregated; openSince = the clamped open-session start). The `now -
+  // openSince` interpolation is the same one the Dashboard applies to that
+  // reader's return (newtab.js dashRefreshFocused) — the clamp itself lives in
+  // exactly one place. Historical days never carry an open session, so they are
+  // pure settled aggregate.
+  async function focusedRangeForScope(workspaceId, keys) {
+    var combined = (workspaceId == null);
+    var wanted = {};
+    (keys || []).forEach(function (k) { wanted[k] = 0; });
+
+    var days = await readDays();
+    Object.keys(days).forEach(function (k) {
+      var agg = days[k];
+      if (!agg || !(agg.day in wanted)) return;
+      if (!combined && agg.workspaceId !== workspaceId) return;
+      wanted[agg.day] += agg.totalFocusedMs || 0;
+    });
+
+    var todayKey = localDayKey();
+    if (todayKey in wanted) {
+      var t = await focusedTodayForScope(workspaceId);
+      var open = t.openSince ? Math.max(0, Date.now() - t.openSince) : 0;
+      wanted[todayKey] = t.baseMs + open;
+    }
+    return wanted;
+  }
+
+  // Windowed byTag rollup for the scope. Returns an ARRAY of
+  // { workspaceId, tagId, ms } records, one per DISTINCT (workspaceId, tagId)
+  // pair, summed across the window. An array — not a map — because the key is a
+  // TUPLE: byTag stores bare tag ids inside a per-workspace aggregate, and the
+  // SAME bare id in two workspaces is two different tags (the Variety rule,
+  // storage.achVarietyDistinctTags). Carrying workspaceId as an explicit field
+  // rather than a "wsId:tagId" string mirrors how the day records carry
+  // workspaceId beside the composite storage key, and lets the board resolve
+  // each id against its OWN workspace with no key parsing. Orphaned ids (tag
+  // trashed/purged after rollup — tracking_days is never swept) survive as
+  // records here; labelling them is the board's call (PLAN: a "Deleted tags"
+  // bucket). No open-session fold: the open session's tags are not yet
+  // attributed, so its live share lands in the board's Untagged remainder
+  // (scope total − Σ tag buckets) until it closes — which keeps the donut total
+  // honest without re-implementing attribution here.
+  async function byTagForScope(workspaceId, keys) {
+    return rollupBucketOverWindow(workspaceId, keys, "byTag", "tagId");
+  }
+
+  // Windowed byTask rollup for the scope. Same contract as byTagForScope but for
+  // tasks: an array of { workspaceId, taskId, ms }, one per distinct
+  // (workspaceId, taskId), summed across the window. Orphaned ids survive as
+  // records; the board drops unresolvable ones from Top Tasks (their minutes
+  // still count in every total via focusedRangeForScope).
+  async function byTaskForScope(workspaceId, keys) {
+    return rollupBucketOverWindow(workspaceId, keys, "byTask", "taskId");
+  }
+
+  // Shared spine for the two windowed rollups — byTag and byTask differ only in
+  // which sub-map they read and what the id field is named. Internal accumulator
+  // keys on wsId + " " + id (a space never appears in a
+  // "main"/base36/"tag_"/"task_" id, and the key never leaves this function);
+  // the emitted records carry the parts as explicit fields.
+  async function rollupBucketOverWindow(workspaceId, keys, mapField, idField) {
+    var combined = (workspaceId == null);
+    var wanted = {};
+    (keys || []).forEach(function (k) { wanted[k] = true; });
+
+    var days = await readDays();
+    var acc = {};
+    Object.keys(days).forEach(function (k) {
+      var agg = days[k];
+      if (!agg || !wanted[agg.day]) return;
+      if (!combined && agg.workspaceId !== workspaceId) return;
+      var sub = agg[mapField] || {};
+      Object.keys(sub).forEach(function (id) {
+        var bucket = agg.workspaceId + " " + id;
+        if (!acc[bucket]) acc[bucket] = { workspaceId: agg.workspaceId, id: id, ms: 0 };
+        acc[bucket].ms += sub[id] || 0;
+      });
+    });
+
+    return Object.keys(acc).map(function (bucket) {
+      var rec = acc[bucket];
+      var out = { workspaceId: rec.workspaceId, ms: rec.ms };
+      out[idField] = rec.id;
+      return out;
+    });
   }
 
   function msToMinutes(ms) {
@@ -984,6 +1120,16 @@
 
     // [1.0.23] Read surface for the Achievements engine's Deep Diver badge.
     maxLongestSessionMs: maxLongestSessionMs,
+
+    // [2.0] Read surface for the Insights analytics board (PLAN D2). scope =
+    // workspaceId | null (combined). focusedRangeForScope folds today's open
+    // share by composing focusedTodayForScope (no clamp duplication); the two
+    // rollups are settled-aggregate arrays keyed on the (workspaceId, id) tuple.
+    // lastNLocalDayKeys builds the window on localDayKey/startOfLocalDay.
+    lastNLocalDayKeys: lastNLocalDayKeys,
+    focusedRangeForScope: focusedRangeForScope,
+    byTagForScope: byTagForScope,
+    byTaskForScope: byTaskForScope,
 
     // Exposed for the Section I console harness — verification needs to drive
     // the gates and the store directly without waiting on real Chrome events.

@@ -1142,58 +1142,97 @@
       '</div>';
   }
 
-  function renderInsightsPreview() {
-    var d = DEMO_INSIGHTS_DATA;
+  // ===== [2.0] Shared Insights SVG builders =====
+  //
+  // Extracted verbatim from the preview's inline construction so the LIVE board
+  // (renderInsightsTab) and the free PREVIEW (renderInsightsPreview) render
+  // through ONE code path — the audit's "parameterize the preview's SVG" mandate
+  // made literal. The preview passes demo data; the board passes real
+  // aggregates. Output is byte-identical to the pre-refactor preview when fed the
+  // same inputs (asserted in the reader/render harness), so the free tier is
+  // untouched.
 
-    // 30-day trend bars
+  // Mono-series bar chart. `hours` is a plain number[]; the bar at `todayIndex`
+  // gets the solid highlight class (CSS-fixed color — fine for a single series,
+  // per the audit). The maxH `|| 1` and 1px height floor keep an all-zero or
+  // sparse window honest rather than blank — a new user's chart filling in day
+  // by day is the feature, so there is deliberately no empty state here.
+  function insightsBarChartSvg(hours, todayIndex, ariaLabel) {
     var w = 560, h = 190, padX = 32, padTop = 28, padBottom = 32;
-    var days = d.trend30.days;
-    var maxH = Math.max.apply(null, days) || 1;
-    var step = (w - 2 * padX) / days.length;
+    var maxH = Math.max.apply(null, hours) || 1;
+    var step = (w - 2 * padX) / hours.length;
     var barW = step * 0.6;
     var chartH = h - padTop - padBottom;
-    var barsSvg = days.map(function (hours, i) {
+    var barsSvg = hours.map(function (hrs, i) {
       var x = padX + step * i + (step - barW) / 2;
-      var bh = chartH * (hours / maxH);
+      var bh = chartH * (hrs / maxH);
       var y = h - padBottom - bh;
-      var cls = (i === d.trend30.todayIndex) ? "pp-bar pp-bar-today" : "pp-bar";
+      var cls = (i === todayIndex) ? "pp-bar pp-bar-today" : "pp-bar";
       return '<rect class="' + cls + '" x="' + x + '" y="' + y + '" width="' + barW + '" height="' + Math.max(bh, 1) + '" rx="2" />';
     }).join("");
-    var trendSvg = '<svg class="pp-trend-chart" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="Deep work trend over the last 30 days">' +
+    return '<svg class="pp-trend-chart" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + ariaLabel + '">' +
         '<line class="pp-axis" x1="' + padX + '" y1="' + (h - padBottom) + '" x2="' + (w - padX) + '" y2="' + (h - padBottom) + '" />' +
         barsSvg +
         '<text class="pp-axis-label" x="' + padX + '" y="' + (padTop - 10) + '">hours / day</text>' +
         '<text class="pp-axis-label-sub" x="' + padX + '" y="' + (h - padBottom + 16) + '" text-anchor="start">30 days ago</text>' +
         '<text class="pp-axis-label-sub" x="' + (w - padX) + '" y="' + (h - padBottom + 16) + '" text-anchor="end">today</text>' +
       '</svg>';
+  }
 
-    // Donut chart
-    var totalH = d.donut.segments.reduce(function (a, s) { return a + s.hours; }, 0) || 1;
-    var donutR = 60, donutCx = 80, donutCy = 80, donutCirc = 2 * Math.PI * donutR;
-    var donutOffset = 0;
-    var donutSegSvg = d.donut.segments.map(function (s) {
-      var frac = s.hours / totalH;
-      var dash = donutCirc * frac;
-      var gap = donutCirc - dash;
-      var seg = '<circle class="pp-donut-seg" cx="' + donutCx + '" cy="' + donutCy + '" r="' + donutR + '"' +
-        ' stroke="' + s.tag.color + '"' +
+  // Donut ring. `segments` is [{ color, value }]; the ring's denominator is the
+  // SUM of the segment values, so the ring ALWAYS sums to exactly its own whole —
+  // the donut cannot lie about itself. `centerLabel` is the caller's own string;
+  // the board computes it from that same segment sum so center, ring and legend
+  // agree by construction.
+  function insightsDonutSvg(segments, centerLabel, ariaLabel) {
+    var total = segments.reduce(function (a, s) { return a + s.value; }, 0) || 1;
+    var r = 60, cx = 80, cy = 80, circ = 2 * Math.PI * r;
+    var offset = 0;
+    var segSvg = segments.map(function (s) {
+      var frac = s.value / total;
+      var dash = circ * frac;
+      var gap = circ - dash;
+      var seg = '<circle class="pp-donut-seg" cx="' + cx + '" cy="' + cy + '" r="' + r + '"' +
+        ' stroke="' + s.color + '"' +
         ' stroke-dasharray="' + dash + ' ' + gap + '"' +
-        ' stroke-dashoffset="' + (-donutOffset) + '"' +
+        ' stroke-dashoffset="' + (-offset) + '"' +
       '/>';
-      donutOffset += dash;
+      offset += dash;
       return seg;
     }).join("");
-    var donutSvg = '<svg class="pp-donut" viewBox="0 0 160 160" role="img" aria-label="Time by tag, last 30 days">' +
-        '<g transform="rotate(-90 ' + donutCx + ' ' + donutCy + ')">' + donutSegSvg + '</g>' +
-        '<text class="pp-donut-center" x="' + donutCx + '" y="' + donutCy + '" text-anchor="middle" dominant-baseline="middle">' + escapeHtml(d.donut.centerLabel) + '</text>' +
+    return '<svg class="pp-donut" viewBox="0 0 160 160" role="img" aria-label="' + ariaLabel + '">' +
+        '<g transform="rotate(-90 ' + cx + ' ' + cy + ')">' + segSvg + '</g>' +
+        '<text class="pp-donut-center" x="' + cx + '" y="' + cy + '" text-anchor="middle" dominant-baseline="middle">' + escapeHtml(centerLabel) + '</text>' +
       '</svg>';
-    var donutLegend = d.donut.segments.map(function (s) {
+  }
+
+  // Legend rows for the donut. `rows` is [{ color, name, valueText }].
+  function insightsDonutLegend(rows) {
+    return rows.map(function (r) {
       return '<div class="pp-donut-legend-row">' +
-          '<span class="pp-donut-legend-swatch" style="background:' + s.tag.color + '"></span>' +
-          '<span class="pp-donut-legend-name">' + escapeHtml(s.tag.name) + '</span>' +
-          '<span class="pp-donut-legend-hrs">' + s.hours + 'h</span>' +
+          '<span class="pp-donut-legend-swatch" style="background:' + r.color + '"></span>' +
+          '<span class="pp-donut-legend-name">' + escapeHtml(r.name) + '</span>' +
+          '<span class="pp-donut-legend-hrs">' + r.valueText + '</span>' +
         '</div>';
     }).join("");
+  }
+
+  function renderInsightsPreview() {
+    var d = DEMO_INSIGHTS_DATA;
+
+    // 30-day trend bars — through the shared builder.
+    var trendSvg = insightsBarChartSvg(d.trend30.days, d.trend30.todayIndex, "Deep work trend over the last 30 days");
+
+    // Donut chart + legend — through the shared builders. The demo segments carry
+    // {tag:{name,color}, hours}; map them to the builders' {color,value}/name shape.
+    var donutSvg = insightsDonutSvg(
+      d.donut.segments.map(function (s) { return { color: s.tag.color, value: s.hours }; }),
+      d.donut.centerLabel,
+      "Time by tag, last 30 days"
+    );
+    var donutLegend = insightsDonutLegend(
+      d.donut.segments.map(function (s) { return { color: s.tag.color, name: s.tag.name, valueText: s.hours + "h" }; })
+    );
 
     // Achievement badges
     var badgesHtml = d.badges.map(function (b) {
@@ -1253,8 +1292,60 @@
   ];
   var INSIGHTS_BADGE_BY_ID = INSIGHTS_BADGES.reduce(function (m, b) { m[b.id] = b; return m; }, {});
 
-  function renderInsightsTab(panel, d) {
-    if (!panel) return;
+  // ===== [2.0] Insights live analytics board (Asana 1216743756248660) =====
+  //
+  // The board that fulfils the free preview's promise on the Pro tab: a summary
+  // strip, 30-day Deep Work bars, Time by Tag donut, and Top Tasks — all from the
+  // real per-day aggregates — sitting ABOVE the existing Achievements card. The
+  // insights-soon placeholder is retired (D4). Free users never reach here
+  // (renderProPreview owns the gated branch); this runs only inside the
+  // Pro-accessible path, same as the Achievements card always has.
+
+  // Two grays for the donut's two computed buckets, data-carried into the segment
+  // stroke + legend swatch (no new donut CSS needed). Untagged inherits the demo
+  // "ungrouped" gray; Deleted tags is a second, darker, distinguishable gray.
+  // Both verified against the card frame in the three-frame harness.
+  var INSIGHTS_UNTAGGED_COLOR = "#9b9b9b";
+  var INSIGHTS_DELETED_TAG_COLOR = "#6d6d6d";
+
+  // Staleness guard for the async board reads — a late resolution must not paint
+  // over a newer render (workspace switch, scope flip, onChanged repaint). Same
+  // token discipline as dashReadoutToken.
+  var insightsReadToken = 0;
+
+  // Compact hours label for the donut center and legend/task durations: "0h",
+  // "1.5h", "32h". One decimal below 10h, whole hours at or above.
+  function insightsHoursText(ms) {
+    var hrs = ms / 3600000;
+    if (hrs <= 0) return "0h";
+    if (hrs >= 10) return Math.round(hrs) + "h";
+    return (Math.round(hrs * 10) / 10) + "h";
+  }
+
+  // "YYYY-MM-DD" (a LOCAL day key) -> local-midnight epoch ms, so a best-day key
+  // formats through fmtShortDate on the same local basis the aggregates use.
+  function insightsKeyToTs(key) {
+    var p = String(key).split("-");
+    return new Date(+p[0], +p[1] - 1, +p[2]).getTime();
+  }
+
+  // ONE scope for the whole board (D3), the Dashboard convention verbatim:
+  // combined -> every workspace; otherwise the active workspace. Returns null to
+  // SUPPRESS the tracking-derived surfaces entirely when that workspace has
+  // tracking disabled (measured-nothing is not did-nothing) — the Achievements
+  // card renders regardless. Combined mode ignores per-workspace disabled flags
+  // (the established D5 semantics); global trackingPaused never suppresses.
+  function insightsScope(d) {
+    var combined = !!(d && d.settings && d.settings.combinedAnalyticsEnabled);
+    if (combined) return { mode: "combined", workspaceId: null };
+    var ws = Storage.getActiveWorkspace(d);
+    if (!Storage.isTrackingEnabled(ws)) return null;
+    return { mode: "workspace", workspaceId: ws ? ws.id : null };
+  }
+
+  // The Achievements card — unchanged behaviour, extracted so both the suppressed
+  // and the full board render it identically (D3: always present).
+  function insightsAchievementsCardHtml(d) {
     var ach = Storage.getAchievements(d);
     var earnedCount = 0;
     var badgesHtml = INSIGHTS_BADGES.map(function (b) {
@@ -1269,17 +1360,189 @@
           '<div class="pp-badge-sub">' + sub + '</div>' +
         '</div>';
     }).join("");
+    return '<div class="pp-insights-card">' +
+        '<div class="pp-dash-card-title">Achievements ' +
+          '<span class="insights-badge-count">' + earnedCount + ' of ' + INSIGHTS_BADGES.length + '</span>' +
+        '</div>' +
+        '<div class="pp-badge-grid">' + badgesHtml + '</div>' +
+      '</div>';
+  }
+
+  // Two-phase render (D5): paint the card frames synchronously (no blank flash —
+  // titles and Achievements are immediate), then fill the tracking surfaces from
+  // the async readers. When suppressed, the tracking shell is absent entirely and
+  // only Achievements renders.
+  function renderInsightsTab(panel, d) {
+    if (!panel) return;
+    var scope = insightsScope(d);
+    var trackingShell = scope
+      ? '<div class="insights-strip" data-ins-strip></div>' +
+        '<div class="pp-insights-card">' +
+          '<div class="pp-dash-card-title">Deep Work — last 30 days</div>' +
+          '<div data-ins-deepwork></div>' +
+        '</div>' +
+        '<div class="pp-insights-card">' +
+          '<div class="pp-dash-card-title">Time by tag — last 30 days</div>' +
+          '<div class="pp-donut-row" data-ins-donut></div>' +
+        '</div>' +
+        '<div class="pp-insights-card">' +
+          '<div class="pp-dash-card-title">Top tasks — last 30 days</div>' +
+          '<div class="insights-task-list" data-ins-toptasks></div>' +
+        '</div>'
+      : "";
 
     panel.innerHTML =
       '<div class="insights-tab">' +
-        '<div class="pp-insights-card">' +
-          '<div class="pp-dash-card-title">Achievements ' +
-            '<span class="insights-badge-count">' + earnedCount + ' of ' + INSIGHTS_BADGES.length + '</span>' +
-          '</div>' +
-          '<div class="pp-badge-grid">' + badgesHtml + '</div>' +
-        '</div>' +
-        '<div class="insights-soon">Trends and time-by-tag land in a future update — your history is already being recorded.</div>' +
+        trackingShell +
+        insightsAchievementsCardHtml(d) +
       '</div>';
+
+    if (scope) insightsRefresh(panel, scope, d);
+  }
+
+  function insightsFill(panel, selector, html) {
+    var el = panel.querySelector(selector);
+    if (el) el.innerHTML = html;
+  }
+
+  // Fill the four tracking surfaces from the windowed readers. One scope drives
+  // all of them (D3). Reads run in parallel; a stale token (a newer render landed
+  // meanwhile) drops the whole paint.
+  async function insightsRefresh(panel, scope, d) {
+    if (!panel || !scope) return;
+    if (typeof Tracking === "undefined" || !Tracking.focusedRangeForScope) return;
+    var token = ++insightsReadToken;
+    var keys = Tracking.lastNLocalDayKeys(30);
+    var range, byTag, byTask;
+    try {
+      var res = await Promise.all([
+        Tracking.focusedRangeForScope(scope.workspaceId, keys),
+        Tracking.byTagForScope(scope.workspaceId, keys),
+        Tracking.byTaskForScope(scope.workspaceId, keys)
+      ]);
+      range = res[0]; byTag = res[1]; byTask = res[2];
+    } catch (err) {
+      console.error("[LaunchPad] Insights: board read failed", err);
+      return;
+    }
+    if (token !== insightsReadToken) return;
+
+    var combined = (scope.mode === "combined");
+    var perDayMs = keys.map(function (k) { return range[k] || 0; });
+    var scopeTotalMs = perDayMs.reduce(function (a, b) { return a + b; }, 0);
+    var hours = perDayMs.map(function (ms) { return ms / 3600000; });
+
+    insightsFill(panel, "[data-ins-strip]", insightsStripHtml(range, keys, scopeTotalMs));
+    insightsFill(panel, "[data-ins-deepwork]",
+      insightsBarChartSvg(hours, hours.length - 1, "Deep work over the last 30 days"));
+    insightsFill(panel, "[data-ins-donut]", insightsTagDonutHtml(byTag, scopeTotalMs, d, combined));
+    insightsFill(panel, "[data-ins-toptasks]", insightsTopTasksHtml(byTask, d, combined));
+  }
+
+  // Summary strip: rolling "Last 7 days" total (deliberately NOT a calendar week
+  // — no week-start locale question), "Best day" over the window (date + hours),
+  // and a flat "Daily avg" = total / 30 with zero days included (a calendar
+  // average). All local-day-key based, matching the aggregate basis.
+  function insightsStripHtml(range, keys, scopeTotalMs) {
+    var last7 = keys.slice(-7).reduce(function (a, k) { return a + (range[k] || 0); }, 0);
+    var bestKey = null, bestMs = 0;
+    keys.forEach(function (k) {
+      var v = range[k] || 0;
+      if (v > bestMs) { bestMs = v; bestKey = k; }
+    });
+    var avgMs = scopeTotalMs / 30;
+    var items = [
+      { num: dashFormatFocused(last7), label: "last 7 days" },
+      { num: bestMs > 0 ? dashFormatFocused(bestMs) : "—",
+        label: bestMs > 0 ? ("best day · " + escapeHtml(fmtShortDate(insightsKeyToTs(bestKey)))) : "best day" },
+      { num: dashFormatFocused(avgMs), label: "daily avg" }
+    ];
+    return items.map(function (it) {
+      return '<div class="insights-strip-item">' +
+          '<span class="insights-strip-num">' + escapeHtml(it.num) + '</span>' +
+          '<span class="insights-strip-label">' + it.label + '</span>' +
+        '</div>';
+    }).join("");
+  }
+
+  // Time by Tag donut. Buckets are keyed (workspaceId, tagId) by the reader and
+  // NEVER merged across workspaces (Q3) — each resolves against its OWN workspace
+  // for live name + color, with a workspace suffix in combined mode. Two computed
+  // buckets keep the ring honest: "Deleted tags" collects orphaned ids (trashed/
+  // purged after rollup — Q2), and "Untagged" is scopeTotal − Σ tag buckets.
+  //
+  // Donut-cannot-lie: the ring denominator and the center label are BOTH the sum
+  // of the drawn segments, so they always agree. When no session carried more
+  // than one tag, Σ tag buckets ≤ scopeTotal and that sum EQUALS scopeTotal
+  // (untagged fills the gap) — the PLAN's "=== scope total" invariant, exact.
+  // When sessions overlap tags (byTag unions bookmark + task tags, so a segment's
+  // ms is credited to each of its tags — tracking.attributeSession), Σ tag
+  // buckets can exceed scopeTotal; untagged clamps to 0 and the center reflects
+  // the ring's real drawn total rather than understating it. The ring never sums
+  // to a number other than its center label.
+  function insightsTagDonutHtml(byTag, scopeTotalMs, d, combined) {
+    var slices = [];
+    var deletedMs = 0, tagTotalMs = 0;
+    byTag.forEach(function (b) {
+      tagTotalMs += b.ms;
+      var ws = Storage.resolveWorkspaceFromData(d, b.workspaceId);
+      var tag = ws ? Storage.getTagById(ws, b.tagId) : null;
+      if (!tag) { deletedMs += b.ms; return; }
+      var name = combined ? (tag.name + " — " + ws.name) : tag.name;
+      slices.push({ color: tag.color, name: name, ms: b.ms });
+    });
+    slices.sort(function (a, b) { return b.ms - a.ms; });
+
+    var untaggedMs = Math.max(0, scopeTotalMs - tagTotalMs);
+    var ordered = slices.slice();
+    if (deletedMs > 0) ordered.push({ color: INSIGHTS_DELETED_TAG_COLOR, name: "Deleted tags", ms: deletedMs });
+    if (untaggedMs > 0) ordered.push({ color: INSIGHTS_UNTAGGED_COLOR, name: "Untagged", ms: untaggedMs });
+
+    if (scopeTotalMs <= 0 || ordered.length === 0) {
+      return '<div class="insights-empty">No focus time tracked in the last 30 days yet.</div>';
+    }
+
+    var drawnTotalMs = ordered.reduce(function (a, s) { return a + s.ms; }, 0);
+    var donutSvg = insightsDonutSvg(
+      ordered.map(function (s) { return { color: s.color, value: s.ms }; }),
+      insightsHoursText(drawnTotalMs),
+      "Time by tag, last 30 days"
+    );
+    var legend = insightsDonutLegend(
+      ordered.map(function (s) { return { color: s.color, name: s.name, valueText: insightsHoursText(s.ms) }; })
+    );
+    return donutSvg + '<div class="pp-donut-legend">' + legend + '</div>';
+  }
+
+  // Top Tasks: top 5 by focused ms over the window. Names resolve live (renames
+  // reflected by construction); workspace suffix in combined mode. Orphaned ids
+  // (task purged/trashed after rollup) are DROPPED SILENTLY (Q2) — their minutes
+  // still count in every total via focusedRangeForScope; an unnameable rank is
+  // noise. Quiet empty line when the window holds no task focus.
+  function insightsTopTasksHtml(byTask, d, combined) {
+    var rows = [];
+    byTask.forEach(function (b) {
+      var ws = Storage.resolveWorkspaceFromData(d, b.workspaceId);
+      var task = ws ? Storage.getTaskById(ws, b.taskId) : null;
+      if (!task) return;
+      var name = combined ? (task.name + " — " + ws.name) : task.name;
+      rows.push({ name: name, ms: b.ms });
+    });
+    rows.sort(function (a, b) { return b.ms - a.ms; });
+
+    if (rows.length === 0) {
+      return '<div class="insights-empty">No task focus tracked in the last 30 days yet.</div>';
+    }
+
+    var maxMs = rows[0].ms || 1;
+    return rows.slice(0, 5).map(function (r) {
+      var pct = Math.round((r.ms / maxMs) * 100);
+      return '<div class="insights-task-row">' +
+          '<span class="insights-task-name">' + escapeHtml(r.name) + '</span>' +
+          '<span class="insights-task-bar"><span class="insights-task-bar-fill" style="width:' + pct + '%"></span></span>' +
+          '<span class="insights-task-dur">' + insightsHoursText(r.ms) + '</span>' +
+        '</div>';
+    }).join("");
   }
 
   // [1.0.22 D10] Eager-render Insights when it is the VISIBLE tab, after an event
@@ -8796,6 +9059,12 @@
         if (!changes[Tracking.STORE_KEY] && !changes[Tracking.DAYS_KEY]) return;
         var res = Storage.resolveActiveTask(data);
         if (res && !res.stale) satRefreshReadout(res.task.id);
+        // [2.0] The Insights board is driven by these same keys: a rollup landing
+        // (DAYS_KEY) or a session boundary (STORE_KEY, which shifts today's open
+        // share) changes what the board shows. renderInsightsPanelEager is
+        // self-gating — it repaints ONLY when the panel is visible and Pro, so a
+        // background capture event on a non-Insights tab does no work.
+        renderInsightsPanelEager();
       });
     }
   }

@@ -8051,6 +8051,96 @@ html.has-bg.bg-light .insights-soon {
   text-shadow: none;
 }
 
+/* ===== [2.0] Insights live analytics board ===== */
+
+/* Summary strip — slim frosted tiles on the CARD frame, so their ink is
+   on-surface and ring-free (D16). Kept to the preview's visual weight. */
+.insights-strip {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.insights-strip-item {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--pro-frost-card-bg);
+  backdrop-filter: var(--pro-frost-card-blur);
+  -webkit-backdrop-filter: var(--pro-frost-card-blur);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+.insights-strip-num {
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.insights-strip-label {
+  font-size: 11px;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* Top tasks — rows inside a pp-insights-card, so ink inherits the card's ink
+   (white on dark, #222 on light via the shared override below). */
+.insights-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.insights-task-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px auto;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+.insights-task-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.insights-task-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.insights-task-bar-fill {
+  display: block;
+  height: 100%;
+  background: rgba(111, 177, 255, 0.85);
+  border-radius: 3px;
+}
+.insights-task-dur {
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+.insights-empty {
+  font-size: 13px;
+  opacity: 0.6;
+  padding: 4px 0;
+}
+
+/* Light-wallpaper luminance overrides for the net-new board ink + tracks. The
+   strip tiles are on the frost-card frame (whose var flips white-tinted on light
+   wallpapers), so their ink must flip to dark too; the task-bar track must flip
+   from a white wash to a dark one to stay visible on the light card. */
+html.has-bg.bg-light .insights-strip-num,
+html.has-bg.bg-light .insights-strip-label,
+html.has-bg.bg-light .insights-task-row,
+html.has-bg.bg-light .insights-empty {
+  color: #222;
+  text-shadow: none;
+}
+html.has-bg.bg-light .insights-task-bar {
+  background: rgba(0, 0, 0, 0.1);
+}
+
 /* ===== [1.0.24] Badge unlock splash (one-shot Home overlay) ===== */
 .badge-splash {
   position: fixed;
