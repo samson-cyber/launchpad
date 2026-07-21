@@ -29,32 +29,63 @@ function nextRecurringSweepAt() {
   return d.getTime();
 }
 
+// [Bug 1216739924148350] Serial queue for every background mutation of the
+// `data` blob. Each such task is its own getAll -> mutate -> saveAll cycle on an
+// INDEPENDENT snapshot (getAll returns a fresh object per call), and saveAll
+// writes the whole blob — so two cycles that interleave produce a last-write-
+// wins clobber: the later saveAll silently overwrites the earlier task's fields.
+//
+// This bit the cold-start session anchor. onStartup fires the anchor, pro
+// reconcile, recurring sweep and trash purge together, and a genuine cold start
+// ALSO fires the missed daily-sweep alarm (nextRecurringSweepAt is the next
+// 03:00, which elapsed while the PC was off) — a SIXTH writer from a separate
+// entry point. The anchor set sessionAnchorAt := now, then a sweep that had read
+// the pre-anchor snapshot wrote its blob back on top, reverting sessionAnchorAt
+// to startedAt. Observed exactly that: identical startedAt/sessionAnchorAt and a
+// surviving pre-shutdown idleMs the anchor's idleMs:=0 should have cleared.
+//
+// Funnelling every background data-writer through one FIFO queue makes each read
+// see the previous write, so disjoint-field writers (anchor vs sweep) all land
+// regardless of trigger or arrival order. The queue never rejects (a failing
+// task is caught and logged), so one failure cannot stall the chain. Session
+// snapshots (savedSessions key) are deliberately NOT enqueued — they touch a
+// different key, cannot clobber `data`, and should persist promptly.
+var _bgDataQueue = Promise.resolve();
+function enqueueBgData(label, fn) {
+  var run = function () {
+    return Promise.resolve().then(fn).catch(function (err) {
+      console.error("[LaunchPad] Background task failed (" + label + "):", err);
+    });
+  };
+  _bgDataQueue = _bgDataQueue.then(run, run);
+  return _bgDataQueue;
+}
+
 // [1.0.17 session anchor] One write per true browser launch: re-anchor the
 // active task's ACTIVE counter to this sitting. Mirrors the recurring-sweep
 // pattern (stateless: read storage, call the shared setter which saveAll's
 // internally). onStartup ONLY — service-worker suspends inside a running
 // browser must not reset the anchor, and onInstalled is a different event with
 // different semantics (a fresh install/update has no sitting to carry over).
-async function anchorBrowserSessionBg() {
-  try {
+function anchorBrowserSessionBg() {
+  // Enqueued so the anchor's saveAll cannot be clobbered by a concurrent sweep/
+  // reconcile/purge (see enqueueBgData). onStartup calls this FIRST, so it heads
+  // the queue and lands before any sibling writer reads.
+  return enqueueBgData("session-anchor", async function () {
     var data = await Storage.getAll();
     await Storage.anchorBrowserSession(data); // no-op (no write) when no task is active
-  } catch (err) {
-    console.error("[LaunchPad] Session anchor failed:", err);
-  }
+  });
 }
 
-async function runRecurringSweepBg() {
-  try {
+function runRecurringSweepBg() {
+  return enqueueBgData("recurring-sweep", async function () {
     var data = await Storage.getAll();
     var res = await Storage.runRecurringSweep(data); // saveAll's internally when it changes state
     if (res && res.instancesCreated) {
       console.log("[LaunchPad] Recurring sweep: created " + res.instancesCreated +
         " instance(s), advanced " + res.templatesAdvanced + " template(s), skipped " + res.skipped);
     }
-  } catch (err) {
-    console.error("[LaunchPad] Recurring sweep failed:", err);
-  }
+  });
 }
 
 // [Trash] Daily 30-day trash auto-purge — mirrors the recurring-sweep pattern
@@ -65,26 +96,22 @@ async function runRecurringSweepBg() {
 // tab's opportunistic render-path call to the same function is unchanged.
 var TRASH_PURGE_ALARM = "trash-purge";
 
-async function runTrashPurgeBg() {
-  try {
+function runTrashPurgeBg() {
+  return enqueueBgData("trash-purge", async function () {
     var data = await Storage.getAll();
     await Storage.purgeExpiredTrash(data); // saveAll's + logs the count internally when it removes anything
-  } catch (err) {
-    console.error("[LaunchPad] Trash purge failed:", err);
-  }
+  });
 }
 
-async function runProReconcile() {
-  try {
+function runProReconcile() {
+  return enqueueBgData("pro-reconcile", async function () {
     var data = await Storage.getAll();
     var changed = ProAccess.reconcileProState(data);
     if (changed) {
       await Storage.saveAll(data);
       console.log("[LaunchPad] Pro state reconciled:", data.pro.subscriptionStatus);
     }
-  } catch (err) {
-    console.error("[LaunchPad] Pro reconcile failed:", err);
-  }
+  });
 }
 
 // [Bugfix] One-time retirement cleanup for the April tab-tracking prototype
@@ -576,13 +603,14 @@ chrome.idle.onStateChanged.addListener(function (newState) {
 // read storage, call the shared setter (which no-op guards and saveAll's
 // internally), done. "locked" counts as idle — a locked screen is the strongest
 // possible evidence the user is not present.
-async function idleStateBg(newState) {
-  try {
+function idleStateBg(newState) {
+  // Enqueued for the same reason as the anchor: setIdleState is a getAll ->
+  // mutate -> saveAll cycle on the `data` blob, and an idle transition landing
+  // alongside a startup anchor/sweep would otherwise clobber or be clobbered.
+  return enqueueBgData("idle-state", async function () {
     const data = await Storage.getAll();
     await Storage.setIdleState(data, newState !== "active");
-  } catch (err) {
-    console.error("[LaunchPad] Idle accounting failed:", err);
-  }
+  });
 }
 
 chrome.storage.onChanged.addListener(function (changes, areaName) {
