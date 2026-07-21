@@ -611,11 +611,20 @@
   // counter would make each invalidate the other's guard mid-paint).
   var dashRecapToken = 0;
 
-  function dashFormatFocused(ms) {
+  // [2.0] THE shared duration formatter — Samson's locked rule (task
+  // 1216757107669726). ms -> ">=1h: XhYm" (1h23m), "whole hours: Xh" (12h,
+  // never 12h0m), "<1h: Xm" (23m, never 0h23m). Every user-facing duration
+  // LABEL on the Insights board (donut center, legend, Top Tasks) and the
+  // Dashboard (focused line, recap lines, summary strip) speaks through this one
+  // function, so they all read identically. Out of scope: the pill/card H:MM:SS
+  // live ticker (satFmtLong) — that is a second-resolution CLOCK, not a duration
+  // label, and stays H:MM:SS.
+  function fmtDurationHM(ms) {
     var totalMin = Math.floor(Math.max(0, ms) / 60000);
     var h = Math.floor(totalMin / 60);
     var m = totalMin % 60;
-    return h > 0 ? (h + "h " + m + "m") : (m + "m");
+    if (h > 0) return m > 0 ? (h + "h" + m + "m") : (h + "h");
+    return m + "m";
   }
 
   // Whether the line renders at all, and in which scope. Suppression is a
@@ -662,7 +671,7 @@
     var el = panel.querySelector('[data-dash-focused] .dash-focused-num');
     if (!el) return;
     var open = r.openSince ? Math.max(0, Date.now() - r.openSince) : 0;
-    el.textContent = dashFormatFocused(r.baseMs + open);
+    el.textContent = fmtDurationHM(r.baseMs + open);
   }
 
   // ===== [2.0] Day Recap — evening recap lines (PLAN D1) =====
@@ -717,8 +726,8 @@
 
   function dashRecapLineHtml(label, name, ms) {
     var value = name
-      ? escapeHtml(name) + " · " + dashFormatFocused(ms)
-      : dashFormatFocused(ms);
+      ? escapeHtml(name) + " · " + fmtDurationHM(ms)
+      : fmtDurationHM(ms);
     return '<div class="dash-recap-line">' +
         '<span class="dash-recap-label">' + label + '</span>' +
         '<span class="dash-recap-value">' + value + '</span>' +
@@ -1422,15 +1431,6 @@
   // token discipline as dashReadoutToken.
   var insightsReadToken = 0;
 
-  // Compact hours label for the donut center and legend/task durations: "0h",
-  // "1.5h", "32h". One decimal below 10h, whole hours at or above.
-  function insightsHoursText(ms) {
-    var hrs = ms / 3600000;
-    if (hrs <= 0) return "0h";
-    if (hrs >= 10) return Math.round(hrs) + "h";
-    return (Math.round(hrs * 10) / 10) + "h";
-  }
-
   // "YYYY-MM-DD" (a LOCAL day key) -> local-midnight epoch ms, so a best-day key
   // formats through fmtShortDate on the same local basis the aggregates use.
   function insightsKeyToTs(key) {
@@ -1561,10 +1561,10 @@
     });
     var avgMs = scopeTotalMs / 30;
     var items = [
-      { num: dashFormatFocused(last7), label: "last 7 days" },
-      { num: bestMs > 0 ? dashFormatFocused(bestMs) : "—",
+      { num: fmtDurationHM(last7), label: "last 7 days" },
+      { num: bestMs > 0 ? fmtDurationHM(bestMs) : "—",
         label: bestMs > 0 ? ("best day · " + escapeHtml(fmtShortDate(insightsKeyToTs(bestKey)))) : "best day" },
-      { num: dashFormatFocused(avgMs), label: "daily avg" }
+      { num: fmtDurationHM(avgMs), label: "daily avg" }
     ];
     return items.map(function (it) {
       return '<div class="insights-strip-item">' +
@@ -1614,11 +1614,11 @@
     var drawnTotalMs = ordered.reduce(function (a, s) { return a + s.ms; }, 0);
     var donutSvg = insightsDonutSvg(
       ordered.map(function (s) { return { color: s.color, value: s.ms }; }),
-      insightsHoursText(drawnTotalMs),
+      fmtDurationHM(drawnTotalMs),
       "Time by tag, last 30 days"
     );
     var legend = insightsDonutLegend(
-      ordered.map(function (s) { return { color: s.color, name: s.name, valueText: insightsHoursText(s.ms) }; })
+      ordered.map(function (s) { return { color: s.color, name: s.name, valueText: fmtDurationHM(s.ms) }; })
     );
     return donutSvg + '<div class="pp-donut-legend">' + legend + '</div>';
   }
@@ -1649,7 +1649,7 @@
       return '<div class="insights-task-row">' +
           '<span class="insights-task-name">' + escapeHtml(r.name) + '</span>' +
           '<span class="insights-task-bar"><span class="insights-task-bar-fill" style="width:' + pct + '%"></span></span>' +
-          '<span class="insights-task-dur">' + insightsHoursText(r.ms) + '</span>' +
+          '<span class="insights-task-dur">' + fmtDurationHM(r.ms) + '</span>' +
         '</div>';
     }).join("");
   }

@@ -203,7 +203,26 @@
       if (!domain) return { domain: null, reason: "not-trackable" };
       return { domain: domain, reason: null };
     } catch (err) {
-      console.error("[LaunchPad] Tracking: focused-tab query failed:", err);
+      // "No last-focused window" is Chrome's EXPECTED reply when no Chrome
+      // window holds OS focus — getLastFocused surfaces the WINDOW_ID_NONE case
+      // as a rejection rather than a blurred window. That is the same
+      // not-engaged state the window-blur branch handles above; logging it as an
+      // error only pollutes the extension Errors page and desensitizes real
+      // failures. Match that one message CONSERVATIVELY (exact phrase, substring
+      // to tolerate any "Error: " prefixing) and keep it quiet: a dev-only
+      // whisper in unpacked builds, fully silent in the store build (console.debug
+      // never reaches the Errors page regardless). EVERY other failure keeps the
+      // loud console.error. The return is byte-identical in both branches, so
+      // the query-failed -> not-engaged behavior is unchanged.
+      var expected = err && typeof err.message === "string" &&
+        err.message.indexOf("No last-focused window") !== -1;
+      if (expected) {
+        if (!chrome.runtime.getManifest().update_url) {
+          console.debug("[LaunchPad] Tracking: no focused window (expected):", err.message);
+        }
+      } else {
+        console.error("[LaunchPad] Tracking: focused-tab query failed:", err);
+      }
       return { domain: null, reason: "query-failed" };
     }
   }
