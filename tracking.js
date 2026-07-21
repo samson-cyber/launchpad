@@ -954,6 +954,37 @@
     });
   }
 
+  // [2.0] Day Recap (task 1216745591530862, PLAN D2). The scope's longest single
+  // focus session within the window — the evening card's "Longest session" line.
+  // Same spine as the windowed rollups above: one readDays(), scope + exact-key
+  // filter, take the max of the per-day longestSessionMs. Differs from
+  // maxLongestSessionMs() (the global, all-time Deep Diver read) only in being
+  // scope- and window-bounded.
+  //
+  // SETTLED-ONLY, deliberately: longestSessionMs is written to a day aggregate
+  // only when a session rolls up (rollupSessionInto), so today's OPEN session
+  // contributes nothing until it closes — the same honesty as byTag/byTask (an
+  // in-progress stretch is not yet a session of known length). A recap read at
+  // 22:00 during an open session reports the longest CLOSED session of the day,
+  // which is the honest answer to "how long was your longest focus stretch".
+  async function longestSessionForScope(workspaceId, keys) {
+    var combined = (workspaceId == null);
+    var wanted = {};
+    (keys || []).forEach(function (k) { wanted[k] = true; });
+
+    var days = await readDays();
+    var max = 0;
+    Object.keys(days).forEach(function (k) {
+      var agg = days[k];
+      if (!agg || !wanted[agg.day]) return;
+      if (!combined && agg.workspaceId !== workspaceId) return;
+      if (typeof agg.longestSessionMs === "number" && agg.longestSessionMs > max) {
+        max = agg.longestSessionMs;
+      }
+    });
+    return max;
+  }
+
   function msToMinutes(ms) {
     return Math.round((ms / 60000) * 100) / 100;
   }
@@ -1130,6 +1161,8 @@
     focusedRangeForScope: focusedRangeForScope,
     byTagForScope: byTagForScope,
     byTaskForScope: byTaskForScope,
+    // [2.0] Day Recap "Longest session" line — scope+window-bounded max, settled-only.
+    longestSessionForScope: longestSessionForScope,
 
     // Exposed for the Section I console harness — verification needs to drive
     // the gates and the store directly without waiting on real Chrome events.

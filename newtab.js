@@ -606,6 +606,10 @@
   //
   // No live ticker in v1 (D5). The line is refreshed by the D8 triggers.
   var dashReadoutToken = 0;
+  // [2.0] Separate staleness token for the recap read — it must NOT share
+  // dashReadoutToken with dashRefreshFocused (both fire from one render; a shared
+  // counter would make each invalidate the other's guard mid-paint).
+  var dashRecapToken = 0;
 
   function dashFormatFocused(ms) {
     var totalMin = Math.floor(Math.max(0, ms) / 60000);
@@ -659,6 +663,101 @@
     if (!el) return;
     var open = r.openSince ? Math.max(0, Date.now() - r.openSince) : 0;
     el.textContent = dashFormatFocused(r.baseMs + open);
+  }
+
+  // ===== [2.0] Day Recap — evening recap lines (PLAN D1) =====
+  //
+  // Up to three TODAY-scoped lines beneath the focused line: Most focused (top
+  // task), Longest session, Top tag. Each is SUPPRESSED independently — a line is
+  // simply absent when its figure is empty (measured-nothing, not a "0" that
+  // reads as did-nothing). All settled-only, so they agree exactly with the
+  // Insights board's today figures (byTag/byTask/longestSession are all
+  // settled-only there too). The scope is the Dashboard's own convention, already
+  // computed by dashFocusedScope; a null scope suppressed the shell upstream, so
+  // this only runs for a live scope.
+  //
+  // Reads a [todayKey] window through the board's windowed readers — a today
+  // rollup with zero new spine (the readers filter by exact key membership). The
+  // one-key window is built on lastNLocalDayKeys, the mandated day-key helper.
+
+  // Top real task for the scope today, orphans DROPPED (an unnameable purged/
+  // trashed id never wins the line — its minutes still count in the focused
+  // total). Returns { name, ms } or null. Combined mode carries a workspace
+  // suffix, mirroring the board's Top Tasks.
+  function dashRecapTopTask(byTask, d, combined) {
+    var best = null;
+    byTask.forEach(function (b) {
+      var ws = Storage.resolveWorkspaceFromData(d, b.workspaceId);
+      var task = ws ? Storage.getTaskById(ws, b.taskId) : null;
+      if (!task) return;
+      if (!best || b.ms > best.ms) {
+        best = { name: combined ? (task.name + " — " + ws.name) : task.name, ms: b.ms };
+      }
+    });
+    return best;
+  }
+
+  // Top real tag for the scope today. byTag holds only real tag ids, so the
+  // Untagged remainder (a board-computed balance, never a byTag entry) inherently
+  // cannot compete for this line. Orphaned buckets (the board's Deleted-tags) do
+  // not resolve via getTagById and are dropped, so a Deleted-tags bucket never
+  // wins either — the line shows the top REAL tag or the caller suppresses it.
+  function dashRecapTopTag(byTag, d, combined) {
+    var best = null;
+    byTag.forEach(function (b) {
+      var ws = Storage.resolveWorkspaceFromData(d, b.workspaceId);
+      var tag = ws ? Storage.getTagById(ws, b.tagId) : null;
+      if (!tag) return;
+      if (!best || b.ms > best.ms) {
+        best = { name: combined ? (tag.name + " — " + ws.name) : tag.name, ms: b.ms };
+      }
+    });
+    return best;
+  }
+
+  function dashRecapLineHtml(label, name, ms) {
+    var value = name
+      ? escapeHtml(name) + " · " + dashFormatFocused(ms)
+      : dashFormatFocused(ms);
+    return '<div class="dash-recap-line">' +
+        '<span class="dash-recap-label">' + label + '</span>' +
+        '<span class="dash-recap-value">' + value + '</span>' +
+      '</div>';
+  }
+
+  async function dashRefreshRecap(panel, scope, d) {
+    if (!panel || !scope) return;
+    if (typeof Tracking === "undefined" || !Tracking.byTaskForScope) return;
+    var token = ++dashRecapToken;
+    var keys = Tracking.lastNLocalDayKeys(1); // [todayKey]
+    var byTask, byTag, longestMs;
+    try {
+      var res = await Promise.all([
+        Tracking.byTaskForScope(scope.workspaceId, keys),
+        Tracking.byTagForScope(scope.workspaceId, keys),
+        Tracking.longestSessionForScope(scope.workspaceId, keys)
+      ]);
+      byTask = res[0]; byTag = res[1]; longestMs = res[2];
+    } catch (err) {
+      console.error("[LaunchPad] Dashboard: recap read failed", err);
+      return;
+    }
+    // A late resolution must not paint over a newer render (period flip, workspace
+    // switch). Same guard as dashRefreshFocused, own token.
+    if (token !== dashRecapToken) return;
+    var el = panel.querySelector('[data-dash-recap]');
+    if (!el) return;
+
+    var combined = (scope.mode === "combined");
+    var lines = [];
+    var topTask = dashRecapTopTask(byTask, d, combined);
+    if (topTask) lines.push(dashRecapLineHtml("Most focused", topTask.name, topTask.ms));
+    if (longestMs > 0) lines.push(dashRecapLineHtml("Longest session", null, longestMs));
+    var topTag = dashRecapTopTag(byTag, d, combined);
+    if (topTag) lines.push(dashRecapLineHtml("Top tag", topTag.name, topTag.ms));
+    // Empty when every line suppressed — the .dash-recap:empty rule collapses the
+    // tile, so the card keeps only its calm header + the focused line.
+    el.innerHTML = lines.join("");
   }
 
   // ----- Card markup -----
@@ -739,13 +838,14 @@
     return "Good evening";
   }
 
-  // VARIANT D — evening (D7). Calm close-out plus one teaser sentence. No
-  // analytics, no breakdowns: the v2.1 boundary holds absolutely.
+  // VARIANT D — evening (D7 + [2.0] Day Recap). Calm close-out. The future-update
+  // teaser sentence is retired: the recap figures (rendered beneath this card as
+  // the focused line + dashRecap lines) now deliver the recap the teaser only
+  // promised. The card itself stays pure calm-header copy — no numbers on it.
   function dashEveningCardHtml() {
     return '<div class="dash-card" data-dash-variant="evening">' +
         '<div class="dash-card-title">That’s the day</div>' +
         '<div class="dash-headline">Work’s done.</div>' +
-        '<div class="dash-sub">A full Day Recap arrives in a future update.</div>' +
       '</div>';
   }
 
@@ -760,15 +860,24 @@
     var period = periodOverride || dashboardPeriod(Date.now(), Storage.getEndOfDayMinutes(d));
     var scope = dashFocusedScope(d);
 
+    // [2.0] Day Recap: the evening card gains today-scoped recap lines beneath the
+    // focused line (which stays the recap's first figure, unchanged). The shell is
+    // an empty container filled two-phase by dashRefreshRecap — same pattern as the
+    // focused num, and gated on the SAME scope: null scope (per-workspace tracking
+    // off) suppresses the whole recap, exactly as it suppresses the focused line.
+    // Evening-only; :empty collapses it when every line suppresses.
+    var recapShell = (period === "evening" && scope) ? '<div class="dash-recap" data-dash-recap></div>' : '';
     panel.dataset.dashPeriod = period;
     panel.innerHTML =
       '<div class="dash-tab" data-period="' + period + '">' +
         (period === "day" ? dashDayCardHtml(d, ws) : dashEveningCardHtml()) +
         dashFocusedLineHtml(scope) +
+        recapShell +
       '</div>';
 
     bindDashboardEvents(panel);
     dashRefreshFocused(panel, scope);
+    if (period === "evening" && scope) dashRefreshRecap(panel, scope, d);
 
     // [1.0.20 F1] Reconcile the first paint against the FRESH stored boundary.
     // Skipped when we were handed a fresh period already (the watcher/reconcile),

@@ -7699,6 +7699,50 @@ html.has-bg.bg-light .dash-focused-num {
   color: #111;
 }
 
+/* [2.0] Day Recap — the evening recap tile. Same frost-card + explicit-white
+   treatment as .dash-focused (a68dd89 doctrine: on-card ink is chosen once, not
+   inherited), so it reads on any wallpaper. :empty collapses the tile when every
+   recap line suppresses, leaving the card's calm header + focused line alone. */
+.dash-recap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--pro-frost-card-bg);
+  backdrop-filter: var(--pro-frost-card-blur);
+  -webkit-backdrop-filter: var(--pro-frost-card-blur);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: none;
+  align-self: flex-start;
+}
+.dash-recap:empty {
+  display: none;
+}
+.dash-recap-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.dash-recap-label {
+  opacity: 0.7;
+}
+.dash-recap-value {
+  color: #fff;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+html.has-bg.bg-light .dash-recap {
+  color: rgba(0, 0, 0, 0.7);
+  text-shadow: none;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+html.has-bg.bg-light .dash-recap-value {
+  color: #111;
+}
+
 /* ----- Dashboard preview ----- */
 
 .pp-dash-grid {

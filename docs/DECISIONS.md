@@ -1102,3 +1102,9 @@ Locked thresholds: First Week = opened on 7 consecutive local calendar days (no 
 **Reasoning:** The blocker the 2026-07-07 entry named for the analytics UI — "the charts cannot be de-risked the way capture was" — is materially smaller now: the preview's SVG constructions are production-styled and parameterizable, the aggregates exist and are proven, and the board is static (no tooltips/interactivity in v1). The remaining risk is read-shape + resolution correctness, which is console/VM-verifiable against the real modules. Day Recap (the evening Dashboard card) remains a follow-on task sharing these same readers.
 
 **Supersedes:** Amends the **2026-07-07** entry's "analytics UI v2.1" outcome — the readers and this board move to v2.0.0. The capture-first sequencing, the cold-start reasoning, the privacy stance (domain-only, local-only, no third-party analytics), and the local-calendar-day aggregate basis are all **reaffirmed**, not superseded.
+
+---
+
+## 2026-07-21 — Day Recap ships at v2.0.0 (the last v2.1 analytics deferral consumed for launch)
+
+The evening Dashboard card's future-update teaser is retired: it now shows real today-scoped recap figures (focused total, most-focused task, longest session, top tag) built on the Insights board's windowed readers plus one small `longestSessionForScope`. Follows the 2026-07-21 Insights amendment above — the same pull-forward reasoning (the readers exist, the risk is read-shape correctness, the surface is calm prose with no new charts). This consumes the last analytics item that the 2026-07-07 capture-first entry had deferred to v2.1; capture-first itself remains unchanged and vindicated (the recap arrives pre-populated). Task 1216745591530862.
