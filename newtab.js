@@ -295,6 +295,28 @@
     };
   }
 
+  // ===== v1.0.5 teaser-mode gate ([Pre-launch] 1216701870177421) =====
+  //
+  // The 7-day trial funnel is gated OFF for the v1.0.5 store build. Rationale
+  // (DECISIONS.md 2026-07-19, option c1): billing is not yet smoke-tested and
+  // the trial belongs to the v2.0.0 launch, so a trial started now would burn a
+  // user's one 7-day window against a still-placeholder Pro. Teaser mode keeps
+  // the tab bar, locked Pro tabs and preview-mode clicks (the [1.0.4] pattern)
+  // but renders the trial CTA as an inert "Coming soon" chip — it banks the
+  // curiosity without offering a trial we cannot yet honor.
+  //
+  // Flip this ONE line to true at v2.0.0 to make the trial CTA live everywhere.
+  var TRIAL_CTA_ENABLED = false;
+  //
+  // Dev builds ALWAYS keep the live trial CTA so the trial flow stays testable
+  // (same IS_UNPACKED signal as the LP.devPro block above / pro-access.js:
+  // update_url is undefined for unpacked installs, populated for store builds).
+  // Rule: the trial CTA is live when TRIAL_CTA_ENABLED is true OR the build is
+  // unpacked; only a PACKED build with the flag false is in teaser mode.
+  function trialCtaLive() {
+    return TRIAL_CTA_ENABLED || !chrome.runtime.getManifest().update_url;
+  }
+
   // ===== Tab Bar =====
 
   function isProAccessibleLevel(level) {
@@ -971,6 +993,15 @@
 
   function previewBannerHtml(d) {
     var trialUsed = !!(d && d.pro && d.pro.trialStartedAt);
+    if (!trialUsed && !trialCtaLive()) {
+      // v1.0.5 teaser mode — the preview STAYS (locked-tab clicks are untouched),
+      // but the trial link becomes an inert "Coming soon" chip. Rendered without
+      // the data-pro-preview-cta hook, so the click binder below never wires it.
+      return '<div class="pro-preview-banner">' +
+        '<span class="pro-preview-banner-text">Preview mode. Full Pro is coming soon.</span>' +
+        '<span class="pro-preview-banner-cta is-teaser" aria-disabled="true">Coming soon</span>' +
+      '</div>';
+    }
     var ctaText = trialUsed ? "Upgrade" : "Start free trial";
     return '<div class="pro-preview-banner">' +
       '<span class="pro-preview-banner-text">Preview mode. Upgrade to Pro to use this feature with your data.</span>' +
@@ -4631,7 +4662,7 @@
     var trialUsed = !!(d && d.pro && d.pro.trialStartedAt);
     var onProTab = PRO_TAB_IDS.indexOf(activeTab) !== -1;
 
-    cta.classList.remove("hidden", "is-pulsing", "tab-cta-trial", "tab-cta-pro");
+    cta.classList.remove("hidden", "is-pulsing", "tab-cta-trial", "tab-cta-pro", "tab-cta-teaser");
 
     var labelHtml, ariaLabel;
 
@@ -4658,6 +4689,15 @@
       labelHtml = '<span class="tab-cta-trial-text-full">' + fullText + '</span>' +
                   '<span class="tab-cta-trial-text-short">' + shortText + '</span>';
       ariaLabel = fullText;
+    } else if (!trialUsed && !trialCtaLive()) {
+      // v1.0.5 teaser mode — the trial funnel is gated off (see trialCtaLive).
+      // Inert "Coming soon" chip: no pulse, no click affordance (bindUpgradeCta
+      // also bails, and .tab-cta-teaser sets pointer-events:none). This is the
+      // sole trial entry point on the tab bar; gating it here plus the preview
+      // banner makes the upgrade popover unreachable for a fresh free user.
+      cta.classList.add("tab-cta-teaser");
+      labelHtml = '<span>Coming soon</span>';
+      ariaLabel = "LaunchPad Pro — coming soon";
     } else {
       // States A-D — free or expired upgrade CTA
       var ctaText = trialUsed ? "Upgrade" : "Start free trial";
@@ -4685,6 +4725,12 @@
         openPanel("pro-settings");
         return;
       }
+      // v1.0.5 teaser mode: a free user's CTA is an inert "Coming soon" chip.
+      // .tab-cta-teaser already sets pointer-events:none, so this rarely fires —
+      // it is the JS backstop so the trial popover cannot open even if the class
+      // is missing for any reason.
+      var trialUsed = !!(data && data.pro && data.pro.trialStartedAt);
+      if (!trialUsed && !trialCtaLive()) return;
       if (isUpgradePopoverOpen()) {
         closeUpgradePopover();
       } else {
@@ -4724,7 +4770,10 @@
     // Trialing / active / grace levels never reach the popover (CTA opens Pro
     // Settings directly per the 2026-04-26 routing decision), so only the
     // free / expired branches need copy here.
-    return trialUsed
+    // In v1.0.5 teaser mode the trial block is suppressed (see openUpgradePopover),
+    // so the "free for 7 days" title would be a promise with no button under it —
+    // fall back to the upgrade title.
+    return (trialUsed || !trialCtaLive())
       ? "Upgrade to LaunchPad Pro"
       : "Try LaunchPad Pro free for 7 days";
   }
@@ -4738,7 +4787,11 @@
     // Trial primary stack only renders when the user hasn't started a trial.
     // Once the trial has been used (active or expired), the popover collapses
     // to "tier buttons + Already have a license?".
-    var trialBlock = trialUsed ? "" :
+    // v1.0.5 teaser mode also suppresses the trial block (trialCtaLive() false in
+    // a packed build). Free-user entry points to this popover are already inert
+    // in teaser mode, so this is the defense-in-depth chokepoint: even if a
+    // surface routes here, no trial can be started.
+    var trialBlock = (trialUsed || !trialCtaLive()) ? "" :
       '<button type="button" class="up-primary">Start free trial</button>' +
       '<div class="up-or-divider"><span>or upgrade now</span></div>';
 

@@ -1061,3 +1061,23 @@ Locked thresholds: First Week = opened on 7 consecutive local calendar days (no 
 **Evaluated on the DAY-OPENED tick only**, alongside Deep Diver — a 50-shortcut milestone earns at the next open. This matches the accepted Flag-2 next-open pattern and deliberately sidesteps the multi-site shortcut-add problem (the audit found shortcut-add is not a single funnel — background.js reimplements the write inline for the context menu). R3's emit helpers may later add an add-event hook for in-the-moment earning; until then next-open is honest and sufficient.
 
 **Layout:** the live Insights set and the free preview are both six now (the promise and the product match exactly); the `.pp-badge-grid` was nudged from `auto-fit`/`minmax` (which packed 5+1) to a fixed 3 columns (2 on narrow) for the clean 3x2.
+
+---
+
+## 2026-07-19 (option c1; recorded at v1.0.5 packaging, 2026-07-21) — v1.0.5 ships FROM MASTER in TEASER MODE: tab bar + locked Pro tabs stay, the trial CTA is gated off
+
+**Context:** Ratified 2026-07-19 (Asana RELEASE DECISION on `[1.0.19]`, GID 1214275063240256), formally recorded here with the packaging/gating commit per the amendment-ships-with-the-work convention. This amends the 2026-07-07 "free-only v1.0.5, no tab bar" outcome. Master has moved well past the free-only shape the 2026-07-07 entry assumed: the tab bar, locked Pro tabs, preview-mode clicks, the upgrade CTA/popover, and (since that decision) the Dashboard and Insights surfaces (`[1.0.20]`–`[1.0.24]`) are all built. Shipping strictly "free-only" would now mean tearing working surfaces back out.
+
+**Outcome:** v1.0.5 ships **from master** with the tab bar visible, the locked Pro tabs, and preview-mode clicks — the existing `[1.0.4]` greyed-tab pattern, untouched. The **7-day trial funnel is gated OFF** by a single build-time flag, `TRIAL_CTA_ENABLED = false` in `newtab.js`, surfaced through `trialCtaLive()`. When gated, every trial entry point renders an inert "Coming soon" chip instead of a live "Start free trial" control:
+- the tab-bar CTA (`applyCtaState` free state) — `.tab-cta-teaser`, `pointer-events:none`, and `bindUpgradeCta` bails;
+- the Pro-preview banner CTA (`previewBannerHtml`) — inert chip, no `data-pro-preview-cta` hook so no handler binds;
+- the upgrade popover's trial block (`openUpgradePopover` / `popoverTitleForState`) — suppressed, as a defense-in-depth chokepoint.
+
+**Dev builds keep the live CTA:** `trialCtaLive()` returns true when `TRIAL_CTA_ENABLED` is true **or** the build is unpacked (`!update_url`, the same IS_UNPACKED signal as `LP.devPro`/pro-access.js), so only a *packed* build with the flag false is in teaser mode. The flag flips to `true` in **one line** at the v2.0.0 launch to make the trial live everywhere.
+
+**Reasoning:**
+- **Why still gate the trial now that Dashboard/Insights have shipped:** the original burn-the-placeholder rationale is partly overtaken by events, but the trial stays gated because **billing is not yet smoke-tested** and the trial funnel (start → 7-day unlock → read-time auto-downgrade → conversion) belongs to the v2.0.0 launch. A user's one 7-day trial is an irreversible per-user resource; spending it against an unverified funnel pre-launch is premature regardless of how finished the Pro *surfaces* now look.
+- **Why teaser rather than hide entirely:** "Coming soon" banks the curiosity (the decision's own framing) without offering something we cannot yet honor; hiding the CTA banks nothing.
+- **Consequence, not a separate gate:** gating the two free-user entry points makes the upgrade popover — and therefore the Dodo checkout tiers inside it — unreachable for a fresh free install, so no live purchase flow is exposed at v1.0.5 either. The read-only-workspace "Upgrade" banner also routes through the popover but only appears for multi-workspace (Pro) state, which a fresh free install never has.
+
+**Supersedes:** Amends the 2026-07-07 "free-only v1.0.5 (no tab bar)" outcome — v1.0.5 now ships the tab bar and Pro-preview surfaces in teaser form. The 2026-04-24 "tab bar is part of the Pro launch narrative" principle is softened, not broken: the tab bar *previews* ahead of Pro, but the trial/purchase funnel does not go live until v2.0.0. The first Pro store release remains v2.0.0 per the 2026-06-13 versioning entry; the manifest bumps to 1.0.5 at this submission, per that same entry's "store version bumps only at submission" rule.
