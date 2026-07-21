@@ -8029,6 +8029,21 @@ html.has-bg.bg-light .pro-preview-banner-text {
   flex-direction: column;
   gap: 16px;
   max-width: 720px;
+  /* [2.0 contrast fix] On-card ink is LUMINANCE-CLASS-INDEPENDENT white, set
+     once at the board root — the dark frost card guarantees the surface, so the
+     ink is chosen once and never keyed to a wallpaper class (D14/D16). This
+     mirrors the free preview's proven treatment: .pro-preview-content forces
+     color:#fff on its whole subtree, which is why the preview reads on any
+     wallpaper. The live board had no such ancestor and every on-card element
+     (card titles, legend rows, strip labels, task names, empty lines) fell
+     through to body's var(--text-primary) = #202124, which composites to
+     ~1.5:1 dark-on-mid on an image wallpaper (has-bg without .bg-light — images
+     never carry the light-luminance class). No text-shadow ring: the card
+     provides the contrast (D16), and white-on-card clears 4.5:1 unaided.
+     The html.has-bg.bg-light overrides below re-darken to #222 on the
+     white-tinted card and win by specificity (0,3,0 > this rule's 0,1,0).
+     The Achievements badges set their own explicit colors and are unaffected. */
+  color: #fff;
 }
 .insights-badge-count {
   font-size: 11px;
