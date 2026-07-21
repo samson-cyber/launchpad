@@ -8,6 +8,28 @@ importScripts('tracking.js');
 var PRO_RECONCILE_ALARM = "launchpad-pro-reconcile";
 var PRO_RECONCILE_PERIOD_MINUTES = 360; // 6 hours, well above the 30s minimum
 
+// [2.0 bug 1216759668591060] Periodic license RE-VALIDATION against Dodo.
+// reconcileProState (above) is PASSIVE — it only time-decays an 'active' license
+// to 'free' after the full 14-day grace and never asks Dodo anything, so a
+// CANCELLED subscription kept Pro until the user manually clicked "Check license
+// status now". The only automatic network validate was newtab.js init, gated by
+// LicenseClient's 24h debounce, so a same-day cancellation stayed invisible. The
+// fix adds two worker-side triggers that actually hit Dodo: a browser-startup
+// call and a daily alarm, both throttled and both funnelled through the
+// revalidateLicenseBg writer (enqueueBgData, per BUGS.md L1 / b72b0a6).
+//
+// THROTTLE: at most one network validate per REVALIDATE_THROTTLE_MS across all
+// worker triggers, tracked by a SIBLING top-level key (LICENSE_REVALIDATE_KEY),
+// NOT a data.pro field — so the throttle survives SW suspend and a browser
+// restart (module vars and chrome.storage.session do not survive a restart) and
+// never churns the `data` blob (a data write re-renders every open tab +
+// rebuilds the context menu). onStartup fires once per real browser launch, so
+// two rapid relaunches collapse to one validate; the daily alarm (1440 min) is
+// the browser-left-open-for-days backstop and always clears the 6h throttle.
+var LICENSE_VALIDATE_ALARM = "launchpad-license-validate";
+var LICENSE_REVALIDATE_KEY = "license_revalidate";
+var REVALIDATE_THROTTLE_MS = 6 * 60 * 60 * 1000; // 6h minimum interval between network validates
+
 // [1.0.14] Recurring instance generation. A daily alarm (~03:00 local) + a
 // catch-up run on install/startup materialize template occurrences into task
 // instances. The handler is STATELESS (no module-level mutable state — the
@@ -110,6 +132,67 @@ function runProReconcile() {
     if (changed) {
       await Storage.saveAll(data);
       console.log("[LaunchPad] Pro state reconciled:", data.pro.subscriptionStatus);
+    }
+  });
+}
+
+// [2.0 bug 1216759668591060] Ask Dodo whether the stored license is still valid,
+// and persist the verdict — the missing periodic trigger. Enqueued because it is
+// a background `data` writer (BUGS.md L1): a bare getAll -> ensureValidated ->
+// saveAll cycle that would otherwise last-write-lose against a concurrent sweep/
+// anchor/reconcile on startup.
+//
+// FAILURE SEMANTICS live entirely inside LicenseClient.ensureValidated and are
+// deliberately NOT re-implemented here:
+//   - FAIL-OPEN: network error / timeout / 5xx / unparseable 2xx -> data.pro is
+//     left untouched (subscriptionStatus + lastVerifiedAt preserved), so an
+//     offline or flaky-network user KEEPS Pro. getProAccessLevel's own 7-day
+//     grace / 14-day expiry then rides the last SUCCESSFUL lastVerifiedAt.
+//   - FAIL-CLOSED: an explicit invalid verdict (200 valid:false, or 4xx / Dodo
+//     structured error) -> subscriptionStatus flips to 'invalid', which
+//     getProAccessLevel maps straight to 'free' (the proven manual-button path).
+//
+// force:true bypasses the 24h per-newtab debounce so a relaunch shortly after a
+// cancellation catches it; our own 6h throttle (sibling key) is what bounds the
+// Dodo call rate. We persist ONLY when an entitlement field actually moved, so a
+// fail-open no-op and a throttled skip write nothing to `data` (no churn, no
+// re-render). ProAccess/LicenseClient stay pure; persistence is the caller's job.
+function revalidateLicenseBg(reason) {
+  return enqueueBgData("license-revalidate", async function () {
+    var data = await Storage.getAll();
+    // Free / trial / never-purchased: no key to validate. Nothing to do.
+    if (!data.pro || !data.pro.licenseKey) return;
+
+    // Throttle on the SIBLING key so rapid relaunches / a startup+missed-alarm
+    // double-fire collapse to one network validate, without touching `data`.
+    var throttle = await chrome.storage.local.get(LICENSE_REVALIDATE_KEY);
+    var slot = throttle && throttle[LICENSE_REVALIDATE_KEY];
+    var lastAttemptAt = (slot && slot.lastAttemptAt) || 0;
+    if (Date.now() - lastAttemptAt < REVALIDATE_THROTTLE_MS) return;
+    // Claim the window BEFORE the network call so a hang / SW death cannot spawn
+    // a retry storm; the next attempt waits out the throttle regardless.
+    var slotWrite = {};
+    slotWrite[LICENSE_REVALIDATE_KEY] = { lastAttemptAt: Date.now(), reason: reason || "unknown" };
+    await chrome.storage.local.set(slotWrite);
+
+    var beforeStatus = data.pro.subscriptionStatus;
+    var beforeVerified = data.pro.lastVerifiedAt || 0;
+    try {
+      await LicenseClient.ensureValidated(data, data.pro.licenseKey, { force: true });
+    } catch (err) {
+      // Unexpected throw is treated as FAIL-OPEN: leave entitlement untouched.
+      console.error("[LaunchPad] License revalidation error (" + (reason || "unknown") + "):", err);
+      return;
+    }
+    // Persist iff an entitlement field moved. Network/5xx fail-open leaves both
+    // equal -> no write. A valid refresh advances lastVerifiedAt; an invalid
+    // verdict flips subscriptionStatus. Both are genuine, at most once per 6h.
+    var moved = data.pro.subscriptionStatus !== beforeStatus ||
+                (data.pro.lastVerifiedAt || 0) !== beforeVerified;
+    if (moved) {
+      await Storage.saveAll(data);
+      console.log("[LaunchPad] License revalidated (" + (reason || "unknown") +
+        "):", data.pro.subscriptionStatus);
     }
   });
 }
@@ -319,6 +402,7 @@ chrome.runtime.onInstalled.addListener(function () {
   chrome.alarms.create(PRO_RECONCILE_ALARM, { periodInMinutes: PRO_RECONCILE_PERIOD_MINUTES });
   chrome.alarms.create(RECURRING_SWEEP_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
   chrome.alarms.create(TRASH_PURGE_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
+  chrome.alarms.create(LICENSE_VALIDATE_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
   saveCurrentSession();
   runProReconcile();
   runRecurringSweepBg();
@@ -332,12 +416,18 @@ chrome.runtime.onStartup.addListener(function () {
   chrome.alarms.create(PRO_RECONCILE_ALARM, { periodInMinutes: PRO_RECONCILE_PERIOD_MINUTES });
   chrome.alarms.create(RECURRING_SWEEP_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
   chrome.alarms.create(TRASH_PURGE_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
+  chrome.alarms.create(LICENSE_VALIDATE_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
   saveCurrentSession();
   pruneOldSessions();
   anchorBrowserSessionBg();
   runProReconcile();
   runRecurringSweepBg();
   runTrashPurgeBg();
+  // [2.0 bug 1216759668591060] Browser-launch license re-validation (throttled
+  // to REVALIDATE_THROTTLE_MS via the sibling key). This is the trigger the
+  // cancelled-subscription smoke test proved missing: a relaunch now re-checks
+  // Dodo and downgrades a revoked license without the manual button.
+  revalidateLicenseBg("startup");
   cleanupTrackingPrototype();
   Tracking.start();
 });
@@ -466,6 +556,8 @@ chrome.alarms.onAlarm.addListener(function (alarm) {
     runRecurringSweepBg();
   } else if (alarm.name === TRASH_PURGE_ALARM) {
     runTrashPurgeBg();
+  } else if (alarm.name === LICENSE_VALIDATE_ALARM) {
+    revalidateLicenseBg("alarm");
   }
 });
 
