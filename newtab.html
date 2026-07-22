@@ -380,8 +380,8 @@
         </label>
       </div>
       <div class="settings-section">
-        <h3 class="settings-section-title">Pomodoro timer</h3>
-        <p class="pro-section-subtitle">Focus and break lengths. Changes apply to your next phase.</p>
+        <h3 class="settings-section-title">Focus sessions</h3>
+        <p class="pro-section-subtitle">Work and break lengths. Changes apply to your next phase.</p>
         <div class="pomo-settings">
           <label class="pomo-setting-row">
             <span class="pomo-setting-label">Work</span>
@@ -410,6 +410,10 @@
               <input type="number" id="pomo-cycles" class="pomo-setting-input" min="2" max="10" step="1" inputmode="numeric">
             </span>
           </label>
+        </div>
+        <div class="pomo-reset-row">
+          <button type="button" id="pomo-reset-cycles" class="pomo-reset-btn">Reset cycle count</button>
+          <span class="pomo-reset-hint" id="pomo-reset-hint"></span>
         </div>
       </div>
       <div class="settings-section settings-about">

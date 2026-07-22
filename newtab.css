@@ -3870,11 +3870,11 @@ html.bg-light { --sat-amber: #8a6d09; }
 
 /* [1.0.18] Pomodoro — running-phase card + Start control (Round A1). */
 
-/* Start control: its own row above the standard actions, full-width and subtle
-   so it reads as an option, not a crowded fifth action button. */
-.sat-pomo-start-row { margin-top: 10px; }
+/* Start row: the primary "Focus session" button + a tappable duration segment
+   (D10). Both subtle so the row reads as an option, not a crowded action bar. */
+.sat-pomo-start-row { margin-top: 10px; display: flex; gap: 5px; }
 .sat-btn-pomo-start {
-  width: 100%;
+  flex: 1;
   height: 30px;
   gap: 6px;
   color: var(--sat-accent);
@@ -3884,8 +3884,57 @@ html.bg-light { --sat-amber: #8a6d09; }
   background: rgba(255, 255, 255, 0.14);
   border-color: rgba(255, 255, 255, 0.28);
 }
+.sat-btn-pomo-dur {
+  flex: 0 0 auto;
+  height: 30px;
+  padding: 0 8px;
+  color: rgba(255, 255, 255, 0.85);
+  border-color: rgba(255, 255, 255, 0.16);
+  font-variant-numeric: tabular-nums;
+}
+.sat-btn-pomo-dur:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.28);
+}
 
-/* Running phase: ring + centered countdown + phase label, then a single Stop. */
+/* Duration presets + custom input, revealed under the start row (D10). */
+.sat-pomo-dur-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.sat-pomo-chip {
+  min-width: 34px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.sat-pomo-chip:hover { background: rgba(255, 255, 255, 0.14); }
+.sat-pomo-chip.is-active {
+  background: rgba(138, 180, 248, 0.22);
+  border-color: var(--sat-accent);
+  color: var(--sat-accent);
+  font-weight: 600;
+}
+.sat-pomo-dur-input {
+  width: 62px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.sat-pomo-dur-input:focus { outline: none; border-color: var(--sat-accent); }
+
+/* Running phase: ring + centered countdown + phase label, then Stop. */
 .sat-pomo {
   display: flex;
   flex-direction: column;
@@ -3929,6 +3978,12 @@ html.bg-light { --sat-amber: #8a6d09; }
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
+/* On the minimized pill the same JS-hook class must NOT take the card's big size,
+   and [A2 fix, A1 self-flag #4] must NOT inherit the is-paused amber bleed — the
+   frozen countdown reads clean; the Resume control conveys pause. */
+.sat-pill-face .sat-pomo-time { font-size: 13px; font-weight: 600; }
+#active-task-pill.is-paused .sat-pill-face .sat-pomo-time { color: #fff; }
+
 .sat-pomo-phase {
   font-size: 9px;
   font-weight: 600;
@@ -3938,12 +3993,13 @@ html.bg-light { --sat-amber: #8a6d09; }
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
-.sat-expanded-pomo .sat-actions { margin-top: 12px; width: 100%; }
+.sat-pomo-stop-row { margin-top: 12px; width: 100%; display: flex; }
 .sat-btn-pomo-stop { flex: 1; }
 .sat-btn-pomo-stop:hover {
   background: rgba(231, 76, 60, 0.22);
   border-color: rgba(231, 76, 60, 0.5);
 }
+.sat-expanded-pomo .sat-actions { margin-top: 8px; width: 100%; }
 
 /* D6: the brief green sweep on complete — the dopamine mechanic, on the most
    visible surface Pro has. Runs on the widget itself, independent of the task
@@ -4296,6 +4352,10 @@ html.bg-light .sat-foreign { background: rgba(0, 0, 0, 0.04); }
 /* [1.0.18] Pomodoro ink on light wallpapers (the ring fill uses the luminance-
    aware --sat-accent token, so only the ink + track need flipping). */
 html.bg-light .sat-pomo-time { color: var(--text-primary); text-shadow: none; }
+html.bg-light #active-task-pill.is-paused .sat-pill-face .sat-pomo-time { color: var(--text-primary); }
+html.bg-light .sat-pomo-chip { color: var(--text-primary); border-color: rgba(0, 0, 0, 0.14); background: rgba(0, 0, 0, 0.04); }
+html.bg-light .sat-pomo-dur-input { color: var(--text-primary); border-color: rgba(0, 0, 0, 0.14); background: rgba(0, 0, 0, 0.04); }
+html.bg-light .sat-btn-pomo-dur { color: var(--text-secondary); }
 html.bg-light .sat-pomo-phase { color: var(--text-secondary); text-shadow: none; }
 html.bg-light .sat-pomo-ring-track { stroke: rgba(0, 0, 0, 0.12); }
 
@@ -5459,6 +5519,24 @@ html.has-bg .pomo-setting-input {
   border-color: rgba(255, 255, 255, 0.14);
   color: #fff;
 }
+
+/* [1.0.18 A2] Reset cycle-count control in the Focus sessions settings section. */
+.pomo-reset-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.pomo-reset-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pomo-reset-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
+.pomo-reset-btn:disabled { opacity: 0.45; cursor: default; }
+.pomo-reset-hint { font-size: 12px; opacity: 0.7; }
+html.has-bg .pomo-reset-btn { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.14); color: #fff; }
+html.bg-light .pomo-reset-btn { background: rgba(0, 0, 0, 0.04); border-color: rgba(0, 0, 0, 0.14); color: var(--text-primary); }
 
 #pro-settings-privacy-link {
   color: var(--accent);

@@ -5887,6 +5887,19 @@
       });
     });
 
+    // [A2] Reset the running cycle count on the active task's focus state.
+    safeOn("#pomo-reset-cycles", "click", async function () {
+      try {
+        if (await Storage.resetPomodoroCycleCount(data)) {
+          renderActiveTaskWidget();
+          showToast("Focus cycle count reset.");
+        }
+      } catch (err) {
+        console.error("[LaunchPad] Focus session: reset cycles failed", err);
+      }
+      renderProPomodoroSettings();
+    });
+
     bindProTagsControls();
   }
 
@@ -6236,6 +6249,13 @@
     set("#pomo-short-break-min", s.shortBreakMin);
     set("#pomo-long-break-min", s.longBreakMin);
     set("#pomo-cycles", s.cyclesBeforeLongBreak);
+    // [A2] Reset control: enabled only with an active task carrying a count > 0.
+    var resetBtn = $("#pomo-reset-cycles");
+    var hint = $("#pomo-reset-hint");
+    var active = Storage.getActiveTask(data);
+    var ps = active ? Storage.hydratePomodoroState(active.pomodoroState) : null;
+    if (resetBtn) resetBtn.disabled = !ps || ps.cycleCount === 0;
+    if (hint) hint.textContent = ps ? (ps.cycleCount + " completed this task") : "No active task";
   }
 
   // ===== Pro Settings: Tags section ([1.0.9.1]) =====
@@ -8607,24 +8627,27 @@
     return Math.max(0, now - origin - (a.pausedMs || 0) - (a.idleMs || 0) - pausedSpan - idleSpan);
   }
 
-  // ===== Pomodoro ([1.0.18], Round A1) =====
+  // ===== Focus sessions (Pomodoro, [1.0.18]) =====
   //
   // Display + control layer only; phase state lives on data.activeTask.
   // pomodoroState and every read goes through Storage.hydratePomodoroState, so
-  // the pill never touches the raw slot. A1 ships a single WORK phase: start,
-  // count down, stop — no auto-advance, no cycle counting (A2). The countdown is
-  // pure arithmetic off phaseEndsAt, exactly the ACTIVE-counter model, so a tab
-  // close loses nothing and reopening re-derives.
+  // the pill never touches the raw slot. The countdown is pure arithmetic off
+  // phaseEndsAt, exactly the ACTIVE-counter model, so a tab close loses nothing
+  // and reopening re-derives. [A2] adds auto-advance (work<->break with long
+  // break per cadence), graceful expiry, and pause integration — all driven from
+  // the page's 1s tick / render / visibilitychange via Storage.reconcilePomodoro.
+  // Internal identifiers keep the "pomo" name; USER-FACING strings say "Focus
+  // session" (D9), phase labels stay Work / Break / Long break.
   var SAT_POMO_RING_R = 44;                        // must match the <circle r> in satCardHtml
   var SAT_POMO_RING_C = 2 * Math.PI * SAT_POMO_RING_R;
-  var SAT_POMO_PHASE_LABEL = { work: "Work", shortBreak: "Short break", longBreak: "Long break" };
+  var SAT_POMO_PHASE_LABEL = { work: "Work", shortBreak: "Break", longBreak: "Long break" };
   var SAT_BASE_TITLE = null;                        // page title, captured lazily on first paint
+  var satReconciling = false;                       // one reconcile write in flight at a time
+  var satPomoDurOpen = false;                        // D10 duration-chip picker open (card-local UI state)
 
-  // Total configured duration (ms) of a phase, from CURRENT settings. Used ONLY
-  // for the ring fraction; the countdown itself derives from phaseEndsAt and is
-  // exact regardless. A settings change mid-phase can therefore skew the ring
-  // (phaseEndsAt keeps the old length per D8) — the fraction is clamped to [0,1]
-  // so it degrades gracefully rather than overflowing, and self-corrects next phase.
+  // Fallback total (ms) of a phase from CURRENT settings — used ONLY when a legacy
+  // A1 running phase carries no stamped phaseDurationMs. Fresh phases stamp their
+  // duration at start, so the ring reads the phase's own length (A2 D1-AMEND).
   function satPomoPhaseTotalMs(phase) {
     var s = Storage.getPomodoroSettings(data);
     if (phase === "work") return s.workMin * 60000;
@@ -8633,20 +8656,61 @@
     return 0;
   }
 
-  // The running phase, or null. A null phase (not running) or absent active task
-  // both return null. Pure read off the hydrated state.
+  // The running phase, or null. totalMs is the STAMPED phaseDurationMs (exact),
+  // falling back to current settings only for a legacy A1 phase. Pure read.
   function satRunningPomo() {
     var a = Storage.getActiveTask(data);
     if (!a) return null;
     var ps = Storage.hydratePomodoroState(a.pomodoroState);
     if (!ps.phase || ps.phaseEndsAt == null) return null;
-    return { phase: ps.phase, phaseEndsAt: ps.phaseEndsAt, totalMs: satPomoPhaseTotalMs(ps.phase), cycleCount: ps.cycleCount };
+    var totalMs = ps.phaseDurationMs || satPomoPhaseTotalMs(ps.phase);
+    return { phase: ps.phase, phaseEndsAt: ps.phaseEndsAt, totalMs: totalMs, cycleCount: ps.cycleCount };
   }
 
-  // Remaining ms in the running phase, floored at 0 (A1 holds at 0:00 — no
-  // auto-advance). Caller passes the record to avoid re-reading per element.
+  // Remaining ms in the running phase, floored at 0. [A2 D4] While tracking is
+  // paused the countdown FREEZES: it reads phaseEndsAt - pausedAt, exactly what
+  // setTrackingPaused's resume shift restores continuity against. Caller passes
+  // the record to avoid re-reading per element.
   function satPomoRemainingMs(pomo) {
-    return Math.max(0, pomo.phaseEndsAt - Date.now());
+    var ref = Date.now();
+    if (Storage.isTrackingPaused(data)) {
+      var a = Storage.getActiveTask(data);
+      if (a && a.pausedAt != null) ref = a.pausedAt;
+    }
+    return Math.max(0, pomo.phaseEndsAt - ref);
+  }
+
+  // Toast copy for an auto-advance into the given phase (D7 cue).
+  function satPomoAdvanceToast(toPhase) {
+    return toPhase === "work" ? "Break over. Back to work." : "Work phase complete. Break time.";
+  }
+
+  // [A2] Reconcile the running phase against the clock, fire-and-forget. Cheap
+  // sync early-outs (not running / paused / not yet due) avoid any storage hit on
+  // the vast majority of ticks; only the tick that actually crosses phaseEndsAt
+  // reaches Storage.reconcilePomodoro (which itself re-reads for the multi-tab
+  // guard). One write in flight at a time via satReconciling.
+  function satMaybeReconcile() {
+    if (satReconciling) return;
+    var pomo = satRunningPomo();
+    if (!pomo) return;
+    if (Storage.isTrackingPaused(data)) return;          // frozen — cannot cross a boundary
+    if (Date.now() <= pomo.phaseEndsAt) return;          // still running
+    satReconciling = true;
+    Storage.reconcilePomodoro(data)
+      .then(function (res) {
+        if (res.action === "advanced") {
+          showToast(satPomoAdvanceToast(res.to));
+          renderActiveTaskWidget();
+        } else if (res.action === "expired") {
+          showToast("Focus session ended while you were away.");
+          renderActiveTaskWidget();
+        } else if (res.raced) {
+          renderActiveTaskWidget();                       // adopt the other tab's phase
+        }
+      })
+      .catch(function (err) { console.error("[LaunchPad] Focus session: reconcile failed", err); })
+      .then(function () { satReconciling = false; });
   }
 
   // Tab-title countdown: "(24:59) New Tab" while a phase runs, restored to the
@@ -8707,7 +8771,9 @@
     // integration is A2) and needs no engine readout.
     var pomoRunning = !!satRunningPomo();
     if (!pomoRunning && (!satReadout.taskId || Storage.isTrackingPaused(data))) return;
-    satTickTimer = setInterval(satPaintTime, 1000);
+    // [A2] The tick both paints and reconciles — the boundary-crossing detector
+    // that drives auto-advance / expiry (satMaybeReconcile early-outs cheaply).
+    satTickTimer = setInterval(function () { satPaintTime(); satMaybeReconcile(); }, 1000);
   }
 
   // Re-read the engine's numbers. Async, but never blocks a render: the pill
@@ -8830,11 +8896,24 @@
       (tagHtml ? '<div class="sat-tags">' + tagHtml + '</div>' : '') +
       foreignHtml;
 
-    // [1.0.18] Pomodoro RUNNING: the progress ring + countdown + phase label
-    // replace the ACTIVE/FOCUSED metric and the standard action row; the only
-    // control is Stop. Complete / Cancel / Switch / Pause return on Stop (their
-    // pomodoro-running integration is A2), so the phase view is a deliberately
-    // focused, single-exit surface.
+    // D2/D4: one Pause/Resume toggle. Copy is GLOBAL, never per-task. When paused
+    // it is the loud amber recovery control. [A2] The action row is SHARED by the
+    // normal and running-phase cards so Pause stays available during a phase (P3).
+    var pauseBtn = paused
+      ? '<button type="button" class="sat-btn sat-btn-resume" data-sat-act="resume" title="Resume tracking">▶ Resume</button>'
+      : '<button type="button" class="sat-btn" data-sat-act="pause" title="Pause tracking">⏸ Pause</button>';
+    var actionsRow =
+      '<div class="sat-actions">' +
+        '<button type="button" class="sat-btn sat-btn-complete" data-sat-act="complete" title="Complete task">✓ Done</button>' +
+        pauseBtn +
+        '<button type="button" class="sat-btn" data-sat-act="cancel" title="Deactivate (task is kept)">×</button>' +
+        '<button type="button" class="sat-btn" data-sat-act="switch" title="Switch active task">⇄</button>' +
+      '</div>';
+
+    // [A2] Focus session RUNNING: ring + countdown + phase label + Stop, PLUS the
+    // shared action row. Stop clears the phase and returns to the elapsed view;
+    // Switch gates through the reset-confirm modal (in satActivate); Complete /
+    // Cancel act immediately — the phase dies with the task.
     var pomo = satRunningPomo();
     if (pomo) {
       var remaining = satPomoRemainingMs(pomo);
@@ -8856,43 +8935,50 @@
                 '<span class="sat-pomo-phase">' + escapeHtml(phaseLabel) + '</span>' +
               '</div>' +
             '</div>' +
-            '<div class="sat-actions">' +
-              '<button type="button" class="sat-btn sat-btn-pomo-stop" data-sat-act="pomo-stop" title="Stop pomodoro">■ Stop</button>' +
+            '<div class="sat-pomo-stop-row">' +
+              '<button type="button" class="sat-btn sat-btn-pomo-stop" data-sat-act="pomo-stop" title="Stop focus session">■ Stop</button>' +
             '</div>' +
           '</div>' +
+          actionsRow +
         '</div>';
     }
 
-    // D2/D4: one Pause/Resume toggle, not a chip. Copy is GLOBAL ("Pause
-    // tracking" / "Resume tracking"), never per-task. When paused it is the loud
-    // amber recovery control (.sat-btn-resume).
-    var pauseBtn = paused
-      ? '<button type="button" class="sat-btn sat-btn-resume" data-sat-act="resume" title="Resume tracking">▶ Resume</button>'
-      : '<button type="button" class="sat-btn" data-sat-act="pause" title="Pause tracking">⏸ Pause</button>';
-
+    // [A2 D9/D10] Not running: dual counters, then the Focus-session start control
+    // with the sticky work length + a tappable duration segment (chips + custom).
+    var workMin = Storage.getPomodoroSettings(data).workMin;
     return '<div class="sat-expanded' + (paused ? ' is-paused' : '') + '">' +
         head +
-        // Dual counters: the LARGE number is ACTIVE (ticks 1s, freezes amber when
-        // paused); FOCUSED TODAY is the smaller honest reader beneath. Both always
-        // shown. The big label reads PAUSED while paused (the loud state), ACTIVE
-        // while running.
         '<div class="sat-time">' + escapeHtml(satFmtLong(satActiveMs())) + '</div>' +
         '<div class="sat-time-label">' + (paused ? 'Paused' : 'Active') + '</div>' +
         '<div class="sat-focused">' +
           '<span class="sat-focused-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</span>' +
           '<span class="sat-focused-label">focused today</span>' +
         '</div>' +
-        // [1.0.18] Start control — shown only when no phase is running (D2/D7). Its
-        // own row above the standard actions so the four existing buttons keep their layout.
         '<div class="sat-pomo-start-row">' +
-          '<button type="button" class="sat-btn sat-btn-pomo-start" data-sat-act="pomo-start" title="Start a pomodoro focus phase">◷ Pomodoro</button>' +
+          '<button type="button" class="sat-btn sat-btn-pomo-start" data-sat-act="pomo-start" title="Start a focus session">▶ Focus session</button>' +
+          '<button type="button" class="sat-btn sat-btn-pomo-dur" data-sat-act="pomo-duration" ' +
+            'title="Change focus length" aria-expanded="' + (satPomoDurOpen ? 'true' : 'false') + '">' +
+            escapeHtml(String(workMin)) + ' min ▾</button>' +
         '</div>' +
-        '<div class="sat-actions">' +
-          '<button type="button" class="sat-btn sat-btn-complete" data-sat-act="complete" title="Complete task">✓ Done</button>' +
-          pauseBtn +
-          '<button type="button" class="sat-btn" data-sat-act="cancel" title="Deactivate (task is kept)">×</button>' +
-          '<button type="button" class="sat-btn" data-sat-act="switch" title="Switch active task">⇄</button>' +
-        '</div>' +
+        (satPomoDurOpen ? satPomoDurChipsHtml(workMin) : "") +
+        actionsRow +
+      '</div>';
+  }
+
+  // [A2 D10] Preset focus-length chips + a custom numeric input. Picking persists
+  // via setPomodoroWorkMin (sticky — Pro Settings and this button read the same
+  // stored value). The active preset is highlighted; a non-preset workMin prefills
+  // the custom box.
+  function satPomoDurChipsHtml(workMin) {
+    var presets = [5, 10, 15, 25, 45];
+    var chips = presets.map(function (m) {
+      return '<button type="button" class="sat-pomo-chip' + (m === workMin ? ' is-active' : '') +
+        '" data-sat-act="pomo-dur-pick" data-min="' + m + '">' + m + '</button>';
+    }).join("");
+    var isPreset = presets.indexOf(workMin) !== -1;
+    return '<div class="sat-pomo-dur-row">' + chips +
+        '<input type="number" class="sat-pomo-dur-input" data-sat-act="pomo-dur-custom" ' +
+          'min="5" max="60" step="1" inputmode="numeric" placeholder="Custom" value="' + (isPreset ? "" : escapeHtml(String(workMin))) + '">' +
       '</div>';
   }
 
@@ -8973,6 +9059,7 @@
       satPaintTime();
       satRefreshReadout(res.task.id);
       satStartTick();
+      satMaybeReconcile();   // [A2] render is a reconcile point (D3) — catch a boundary crossed while unpainted
     } else {
       satStopTick();
       satUpdateTabTitle();   // restore the page title when the widget empties
@@ -9036,10 +9123,11 @@
   // pick it up via the `data` watcher. Storage.start/stop no-op safely with no
   // active task, so these are inert if somehow fired without one.
   async function satPomoStart() {
+    satPomoDurOpen = false;   // close the duration picker on start
     try {
       await Storage.startPomodoroPhase(data);
     } catch (err) {
-      console.error("[LaunchPad] Pomodoro: start failed", err);
+      console.error("[LaunchPad] Focus session: start failed", err);
       return;
     }
     renderActiveTaskWidget();
@@ -9049,10 +9137,35 @@
     try {
       await Storage.stopPomodoro(data);
     } catch (err) {
-      console.error("[LaunchPad] Pomodoro: stop failed", err);
+      console.error("[LaunchPad] Focus session: stop failed", err);
       return;
     }
     renderActiveTaskWidget();
+  }
+
+  // [A2 D10] Persist a sticky focus length and close the picker. Keeps the Pro
+  // Settings work-minutes input consistent (both read the same stored value).
+  async function satPomoSetWorkMin(val) {
+    try {
+      await Storage.setPomodoroWorkMin(data, val);
+    } catch (err) {
+      console.error("[LaunchPad] Focus session: duration save failed", err);
+    }
+    satPomoDurOpen = false;
+    renderActiveTaskWidget();
+    if (document.getElementById("pomo-work-min")) renderProPomodoroSettings();
+  }
+
+  // [A2 D6] Confirm-gate for switching the active task WHILE a focus phase runs:
+  // the switch resets the session (setActiveTask installs a fresh pomodoroState).
+  // Reuses the Tasks confirm modal. No confirm when no phase is running.
+  function satConfirmSwitchReset(onConfirm) {
+    openTasksConfirmModal({
+      title: "Switch task?",
+      message: "This will reset your focus session.",
+      confirmLabel: "Switch and reset",
+      onConfirm: onConfirm
+    });
   }
 
   // Make a task active. The single funnel for all entry points (row play glyph,
@@ -9067,6 +9180,20 @@
   // up. The row glyph's RESUME click is unaffected: it routes to satSetPaused,
   // not here, and is already a resume.
   async function satActivate(taskId, workspaceId) {
+    // [A2 D6] Switching AWAY from a task with a running focus phase resets that
+    // session — gate it behind a confirm. Covers every switch entry point (row
+    // glyph, context menu, Switch dropdown) since this is the single funnel.
+    // Re-activating the SAME task, or activating with no phase running, is unchanged.
+    var cur = Storage.getActiveTask(data);
+    if (cur && cur.taskId !== taskId && satRunningPomo()) {
+      closeSatSwitchMenu();
+      satConfirmSwitchReset(function () { satActivateNow(taskId, workspaceId); });
+      return false;
+    }
+    return satActivateNow(taskId, workspaceId);
+  }
+
+  async function satActivateNow(taskId, workspaceId) {
     try {
       var rec = await Storage.setActiveTask(data, taskId, workspaceId, { clearPause: true });
       if (!rec) return false;
@@ -9354,6 +9481,8 @@
       if (act === "cancel") { await satCancel(); return; }
       if (act === "pomo-start") { await satPomoStart(); return; }
       if (act === "pomo-stop") { await satPomoStop(); return; }
+      if (act === "pomo-duration") { satPomoDurOpen = !satPomoDurOpen; renderActiveTaskWidget(); return; }
+      if (act === "pomo-dur-pick") { await satPomoSetWorkMin(parseInt(actBtn.getAttribute("data-min"), 10)); return; }
       if (act === "switch" || act === "pick") { openSatSwitchMenu(actBtn); return; }
       if (act === "minimize") { await satSetMinimized(true); return; }
       if (act === "restore") { await satSetMinimized(false); return; }
@@ -9366,6 +9495,15 @@
       }
     });
 
+    // [A2 D10] The custom focus-length input fires "change" (not click), so it
+    // needs its own delegated listener on the pill surface. Clamp lives in Storage.
+    pill.addEventListener("change", async function (e) {
+      var t = e.target;
+      if (t && t.getAttribute && t.getAttribute("data-sat-act") === "pomo-dur-custom") {
+        await satPomoSetWorkMin(t.value);
+      }
+    });
+
     // A backgrounded tab's setInterval is throttled to ~1/min by Chrome, so the
     // number can be well behind by the time the tab is looked at again. Re-read
     // on the way back rather than trusting the tick.
@@ -9373,6 +9511,7 @@
       if (document.hidden) return;
       var res = Storage.resolveActiveTask(data);
       if (res && !res.stale) satRefreshReadout(res.task.id);
+      satMaybeReconcile();   // [A2] refocus is a reconcile point (D3) — a phase may have crossed while backgrounded
     });
 
     // The engine's writes land in tracking_sessions / tracking_days, never in
