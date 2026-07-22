@@ -202,6 +202,8 @@ Run before publishing any console-based verification snippet (the kind written f
 
   Four separate verification sessions on 2026-07-14 tripped on this family of pattern from different sides.
 
+- **J6. Assert what the cascade actually renders, not what the spec intends.** A verification snippet must read the COMPUTED / rendered output — `getComputedStyle(el).color`, the actual `textContent`, the resolved attribute — and compare that to the requirement. Restating the spec's intended value as both the expected AND (implicitly) the actual — "the ink should be white, the code sets white, therefore pass" — verifies nothing: it cannot catch a value that is set correctly in one place and then overridden by the cascade, inheritance, or a later write. This is the a68dd89 lesson: on-card ink was authored white but inherited the body's dark `#202124` at the board root and rendered illegible on image wallpapers; a snippet asserting the intended white would have passed while the pixels were black. Read the END of the pipeline, not the middle. (Corollary to Section K: computed-style harnesses lie in their own ways — but a snippet that never reads computed style at all cannot even be lied to; it is asserting against itself.)
+
 Originating data points: [1.0.10] commit 2f00d01 and [1.0.10.1] commit 71eafe0 — both shipped verification snippets that used the spy pattern despite explicit "stub `Storage.saveAll`" instruction in their PLANs. The "Storage changed externally" observation in J2 surfaced during [1.0.10] Phase A verification on 2026-05-10 and forced the broader stub-plus-backup pattern as the canonical answer.
 
 ### Section K: CSS Harness Environment Traps
@@ -276,6 +278,12 @@ Run before adding, or writing a harness for, any background (`background.js`) co
   Fixture trap that hides inside L2: the anchor's writer no-ops (writes nothing) when there is no active task, and `getActiveTask` / `isTrackingPaused` read **top-level** `data.activeTask` / `data.trackingPaused`, not per-workspace fields. A fixture that nests `activeTask` under a workspace makes `anchorBrowserSession` return false without writing — at which point `sessionAnchorAt === startedAt` holds because the anchor **never ran**, and a "clobber reproduced" assertion passes for the wrong reason. Keep a green control (the serial path genuinely advances the anchor) alongside the red one so a non-writing fixture can't fake the red.
 
 Originating data point: bug 1216739924148350 — the `[1.0.17]` cold-start session anchor silently reverted on a genuine full-shutdown restart. The stored state alone could not distinguish "onStartup fired and was clobbered" from "onStartup never fired"; the fix (b72b0a6) is robust to both because it guarantees the anchor lands whenever onStartup fires, in any ordering. The harness gap (L2) is why the simulated step-12..15 gates went green while a real cold start failed.
+
+### Section M: Search / Grep Tooling Traps
+
+Run before trusting any grep- or ripgrep-based search or audit over the repository.
+
+- **M1. `tracking.js` is ripgrep-invisible — it embeds NUL bytes, so `rg` classifies it as binary and SILENTLY skips it.** Every tool built on ripgrep (the Grep tool, any `rg`-driven audit sweep) inherits this: a search returns "no matches" with no error, so a grep that never inspected the file reads identically to a grep that inspected it and found nothing — a false negative that looks like a clean result. The NUL bytes are DELIBERATE and correct: `agg.workspaceId + "\0" + id` composite-key separators (~`tracking.js:962`; a space can never appear in a workspace/entity id, so NUL is a safe delimiter). **Do not "fix" them.** The consequence is tooling-only: search this one file with a NUL-tolerant reader — `Select-String` (PowerShell, the project convention), or `rg --text` / `grep -a`. Any future audit, harness, or refactor sweep that greps the tree for a symbol (e.g. checking the tracking engine for shared state, renaming an export, counting call sites) MUST search `tracking.js` explicitly with such a reader, or it will conclude a symbol is absent when it is present. Surfaced during the [1.0.18] Pomodoro audit, where every globbed `rg` over `tracking.js` returned empty until the file was read byte-wise; two NUL bytes were confirmed at file offsets 41216 and 41951.
 
 ---
 
