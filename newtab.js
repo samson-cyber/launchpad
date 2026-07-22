@@ -8544,6 +8544,14 @@
   // formatter — the pill ticks at second resolution too (the honest ticker), just
   // rendered smaller.
   function satFmtLong(ms) {
+    // [1.0.18 fix] Clamp at the formatter — the single point EVERY time surface
+    // flows through (ACTIVE, FOCUSED, and the pomodoro countdown on card / pill /
+    // tab-title). Guarantees no negative or NaN duration can ever render: a phase
+    // that runs past phaseEndsAt holds at 0:00 instead of ticking negative. The
+    // `!(ms > 0)` form also folds NaN (NaN > 0 is false) to 0. Pomodoro remaining
+    // is already floored in satPomoRemainingMs; this is the belt-and-braces that
+    // makes the guarantee independent of any caller.
+    if (!(ms > 0)) ms = 0;
     var totalSec = Math.floor(ms / 1000);
     var h = Math.floor(totalSec / 3600);
     var m = Math.floor((totalSec % 3600) / 60);
