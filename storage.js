@@ -64,7 +64,7 @@ var Storage = (function () {
       // trackingPaused above. It governs CARD SELECTION ONLY; every figure the
       // Dashboard reports stays local-midnight-based, because the tracking
       // engine's day aggregates are pre-split at local midnight (D4).
-      settings: { columns: 6, collapsedGroups: {}, combinedAnalyticsEnabled: false, endOfDayMinutes: 1020 },
+      settings: { columns: 6, collapsedGroups: {}, combinedAnalyticsEnabled: false, endOfDayMinutes: 1020, pomodoro: { workMin: 25, shortBreakMin: 5, longBreakMin: 15, cyclesBeforeLongBreak: 4 } },
       pro: {
         licenseKey: null,
         instanceId: null,
@@ -171,6 +171,61 @@ var Storage = (function () {
     if (v < 0 || v > 1440) return DEFAULT_END_OF_DAY_MINUTES;
     return Math.floor(v);
   }
+
+  // ===== Pomodoro settings ([1.0.18]) =====
+  //
+  // Four durations under data.settings.pomodoro, following the endOfDayMinutes
+  // discipline: DEFAULT AT READ TIME (getPomodoroSettings), so an already-
+  // migrated install with no pomodoro bag reads defaults rather than NaN, and a
+  // legacy/partial object hydrates field-by-field. Per-field setters only (no
+  // partial-object merge) — each clamps + coerces to its range, no-op guards,
+  // and flows through saveAll like the other per-field settings writers.
+  var POMODORO_DEFAULTS = { workMin: 25, shortBreakMin: 5, longBreakMin: 15, cyclesBeforeLongBreak: 4 };
+  var POMODORO_RANGES = { workMin: [5, 60], shortBreakMin: [1, 30], longBreakMin: [5, 60], cyclesBeforeLongBreak: [2, 10] };
+
+  // Coerce to an integer and clamp to the field's range; any non-finite input
+  // (missing, null, "", "abc") degrades to the field default. The single clamp
+  // used by BOTH the reader and every setter, so a stored value and a freshly-
+  // typed value are validated identically (999 -> 60, "" -> default).
+  function clampPomodoroField(field, val) {
+    var def = POMODORO_DEFAULTS[field];
+    var rng = POMODORO_RANGES[field];
+    var n = Math.floor(Number(val));
+    if (!isFinite(n)) return def;
+    if (n < rng[0]) return rng[0];
+    if (n > rng[1]) return rng[1];
+    return n;
+  }
+
+  // Defaulting reader: always returns a complete, in-range object regardless of
+  // what (if anything) is stored. Pure — no mutation, no saveAll.
+  function getPomodoroSettings(data) {
+    var p = (data && data.settings && data.settings.pomodoro) || {};
+    return {
+      workMin: clampPomodoroField("workMin", p.workMin),
+      shortBreakMin: clampPomodoroField("shortBreakMin", p.shortBreakMin),
+      longBreakMin: clampPomodoroField("longBreakMin", p.longBreakMin),
+      cyclesBeforeLongBreak: clampPomodoroField("cyclesBeforeLongBreak", p.cyclesBeforeLongBreak)
+    };
+  }
+
+  // Private per-field writer: clamp, ensure the bag exists, no-op guard, saveAll.
+  // Exposed ONLY through the four named wrappers below, so each public updater
+  // touches exactly one field (no generic partial-object update surface).
+  async function setPomodoroField(data, field, val) {
+    if (!data || !data.settings) return false;
+    var next = clampPomodoroField(field, val);
+    if (!data.settings.pomodoro || typeof data.settings.pomodoro !== "object") data.settings.pomodoro = {};
+    if (data.settings.pomodoro[field] === next) return false;
+    data.settings.pomodoro[field] = next;
+    await saveAll(data);
+    return true;
+  }
+
+  function setPomodoroWorkMin(data, val) { return setPomodoroField(data, "workMin", val); }
+  function setPomodoroShortBreakMin(data, val) { return setPomodoroField(data, "shortBreakMin", val); }
+  function setPomodoroLongBreakMin(data, val) { return setPomodoroField(data, "longBreakMin", val); }
+  function setPomodoroCyclesBeforeLongBreak(data, val) { return setPomodoroField(data, "cyclesBeforeLongBreak", val); }
 
   // [1.0.20 F2] The combined-analytics CONTROL's setter. Same shape as
   // setTrackingPaused: a per-field settings write with a no-op guard, flowing
@@ -2244,9 +2299,12 @@ var Storage = (function () {
   // engine reads `data.activeTask.taskId` to bridge them (tracking.js
   // computeDesired). Widening this object is safe; renaming `taskId` is not.
   //
-  // isPaused/pomodoroState are written but never read here: the pause control is
-  // [1.0.17] and Pomodoro is deferred past 2.0.0. They are stored from day one
-  // so those tasks add behavior, not a migration.
+  // isPaused is written but never read here (the pause control is [1.0.17],
+  // global via data.trackingPaused). pomodoroState now carries the [1.0.18]
+  // phase shape { cycleCount, phase, phaseEndsAt } — emptyPomodoroState() on a
+  // fresh activation, read back through hydratePomodoroState. It rides the
+  // activeTask object precisely so every clear path (switch / complete / cancel /
+  // self-heal) drops the pomodoro with it, no separate cleanup to wire.
   //
   // These write through saveAll rather than mutate-only (the setTrackingEnabled
   // convention): an active-task change is a tracking session boundary, and the
@@ -2334,7 +2392,7 @@ var Storage = (function () {
       workspaceId: ws.id,
       startedAt: now,
       isPaused: false,
-      pomodoroState: null,
+      pomodoroState: emptyPomodoroState(),
       pausedAt: (!clearPause && isTrackingPaused(data)) ? now : null,
       pausedMs: 0,
       // [1.0.17 idle deduct] Fresh per task, like the pause accounting. No
@@ -2363,6 +2421,70 @@ var Storage = (function () {
   async function clearActiveTask(data) {
     if (!data || data.activeTask == null) return false;
     data.activeTask = null;
+    await saveAll(data);
+    return true;
+  }
+
+  // ===== Pomodoro phase state ([1.0.18]) =====
+  //
+  // Phase state rides data.activeTask.pomodoroState — the slot reserved on the
+  // activeTask shape and, until now, written null and never read. Shape:
+  //   { cycleCount: number, phase: 'work'|'shortBreak'|'longBreak'|null,
+  //     phaseEndsAt: number|null }
+  // phase === null means "not running" (cycleCount may still be > 0 after a Stop
+  // in a later round). Because the state lives ON the activeTask object, every
+  // clear path — switch (fresh object), complete / cancel (clearActiveTask), the
+  // pill's self-heal — drops it for free; there is no separate cleanup to wire.
+  //
+  // Round A1 ships start + stop of a single WORK phase only. Auto-advance, cycle
+  // counting, graceful expiry and pause integration are Round A2 — cycleCount is
+  // written 0 on activation and is never incremented here yet.
+  function emptyPomodoroState() {
+    return { cycleCount: 0, phase: null, phaseEndsAt: null };
+  }
+
+  // Defaulting reader for the phase state: null / legacy / malformed hydrates to
+  // the empty shape, each field validated independently. Pure. phaseEndsAt is
+  // forced null whenever phase is null, so a stale endpoint can never read as a
+  // running phase.
+  function hydratePomodoroState(ps) {
+    if (!ps || typeof ps !== "object") return emptyPomodoroState();
+    var phase = (ps.phase === "work" || ps.phase === "shortBreak" || ps.phase === "longBreak") ? ps.phase : null;
+    return {
+      cycleCount: (typeof ps.cycleCount === "number" && isFinite(ps.cycleCount) && ps.cycleCount >= 0) ? Math.floor(ps.cycleCount) : 0,
+      phase: phase,
+      phaseEndsAt: (phase && typeof ps.phaseEndsAt === "number" && isFinite(ps.phaseEndsAt)) ? ps.phaseEndsAt : null
+    };
+  }
+
+  // Start a WORK phase on the active task: phaseEndsAt = now + workMin. No-op (no
+  // write) when nothing is active. cycleCount is PRESERVED untouched (A2 owns
+  // advancing). Writes through saveAll — a phase boundary is a `data` write like
+  // the active-task setters, and the engine no-ops on it (computeDesired reads
+  // only activeTask.taskId, never pomodoroState).
+  async function startPomodoroPhase(data) {
+    var active = getActiveTask(data);
+    if (!active) return false;
+    var ps = hydratePomodoroState(active.pomodoroState);
+    var settings = getPomodoroSettings(data);
+    ps.phase = "work";
+    ps.phaseEndsAt = Date.now() + settings.workMin * 60000;
+    active.pomodoroState = ps;
+    await saveAll(data);
+    return true;
+  }
+
+  // Stop the running phase: phase / phaseEndsAt cleared, cycleCount PRESERVED,
+  // the task stays active. No-op guard when nothing is running so a stray Stop
+  // emits no spurious write.
+  async function stopPomodoro(data) {
+    var active = getActiveTask(data);
+    if (!active) return false;
+    var ps = hydratePomodoroState(active.pomodoroState);
+    if (ps.phase === null && ps.phaseEndsAt === null) return false;
+    ps.phase = null;
+    ps.phaseEndsAt = null;
+    active.pomodoroState = ps;
     await saveAll(data);
     return true;
   }
@@ -4064,6 +4186,13 @@ var Storage = (function () {
     setCombinedAnalyticsEnabled: setCombinedAnalyticsEnabled,
     setTrackingPaused: setTrackingPaused,
 
+    // [1.0.18] Pomodoro settings — defaulting reader + four per-field updaters.
+    getPomodoroSettings: getPomodoroSettings,
+    setPomodoroWorkMin: setPomodoroWorkMin,
+    setPomodoroShortBreakMin: setPomodoroShortBreakMin,
+    setPomodoroLongBreakMin: setPomodoroLongBreakMin,
+    setPomodoroCyclesBeforeLongBreak: setPomodoroCyclesBeforeLongBreak,
+
     // [1.0.23] Achievements (R1). Public: the defaulting reader + the two engine
     // entry points. The completion entry point is also called internally by
     // completeTask/completeGoal; it is exported for the harness and for R2.
@@ -4201,6 +4330,11 @@ var Storage = (function () {
     resolveActiveTask: resolveActiveTask,
     isActiveTaskCardMinimized: isActiveTaskCardMinimized,
     setActiveTaskCardMinimized: setActiveTaskCardMinimized,
+    // [1.0.18] Pomodoro phase state (rides data.activeTask.pomodoroState).
+    emptyPomodoroState: emptyPomodoroState,
+    hydratePomodoroState: hydratePomodoroState,
+    startPomodoroPhase: startPomodoroPhase,
+    stopPomodoro: stopPomodoro,
     // Due-date hierarchy checks ([1.0.13]) — pure reads, no mutation
     // [1.0.20] utcDay is exported so UI day-comparisons (the Dashboard's
     // due-today / overdue labels) use the SAME basis the due-date engine does,

@@ -381,13 +381,36 @@
       </div>
       <div class="settings-section">
         <h3 class="settings-section-title">Pomodoro timer</h3>
-        <p class="pro-section-subtitle">Coming in v1.0.18</p>
-        <ul class="pro-readonly-list">
-          <li><span>Work</span><span>25 min</span></li>
-          <li><span>Break</span><span>5 min</span></li>
-          <li><span>Long break</span><span>15 min</span></li>
-          <li><span>Cycles before long break</span><span>4</span></li>
-        </ul>
+        <p class="pro-section-subtitle">Focus and break lengths. Changes apply to your next phase.</p>
+        <div class="pomo-settings">
+          <label class="pomo-setting-row">
+            <span class="pomo-setting-label">Work</span>
+            <span class="pomo-setting-field">
+              <input type="number" id="pomo-work-min" class="pomo-setting-input" min="5" max="60" step="1" inputmode="numeric">
+              <span class="pomo-setting-unit">min</span>
+            </span>
+          </label>
+          <label class="pomo-setting-row">
+            <span class="pomo-setting-label">Short break</span>
+            <span class="pomo-setting-field">
+              <input type="number" id="pomo-short-break-min" class="pomo-setting-input" min="1" max="30" step="1" inputmode="numeric">
+              <span class="pomo-setting-unit">min</span>
+            </span>
+          </label>
+          <label class="pomo-setting-row">
+            <span class="pomo-setting-label">Long break</span>
+            <span class="pomo-setting-field">
+              <input type="number" id="pomo-long-break-min" class="pomo-setting-input" min="5" max="60" step="1" inputmode="numeric">
+              <span class="pomo-setting-unit">min</span>
+            </span>
+          </label>
+          <label class="pomo-setting-row">
+            <span class="pomo-setting-label">Cycles before long break</span>
+            <span class="pomo-setting-field">
+              <input type="number" id="pomo-cycles" class="pomo-setting-input" min="2" max="10" step="1" inputmode="numeric">
+            </span>
+          </label>
+        </div>
       </div>
       <div class="settings-section settings-about">
         <h3 class="settings-section-title">About</h3>

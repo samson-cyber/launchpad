@@ -3868,6 +3868,83 @@ html.bg-light { --sat-amber: #8a6d09; }
 }
 .sat-btn-resume:hover { background: rgba(241, 196, 15, 0.28); }
 
+/* [1.0.18] Pomodoro — running-phase card + Start control (Round A1). */
+
+/* Start control: its own row above the standard actions, full-width and subtle
+   so it reads as an option, not a crowded fifth action button. */
+.sat-pomo-start-row { margin-top: 10px; }
+.sat-btn-pomo-start {
+  width: 100%;
+  height: 30px;
+  gap: 6px;
+  color: var(--sat-accent);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+.sat-btn-pomo-start:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+/* Running phase: ring + centered countdown + phase label, then a single Stop. */
+.sat-pomo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.sat-pomo-ring-wrap { position: relative; width: 104px; height: 104px; }
+
+/* Rotate so the ring depletes from 12 o'clock. */
+.sat-pomo-ring { transform: rotate(-90deg); display: block; }
+
+.sat-pomo-ring-track { fill: none; stroke: rgba(255, 255, 255, 0.14); stroke-width: 7; }
+
+.sat-pomo-ring-fill {
+  fill: none;
+  stroke: var(--sat-accent);
+  stroke-width: 7;
+  stroke-linecap: round;
+  /* Smooth the once-a-second offset step so the ring glides rather than jumps. */
+  transition: stroke-dashoffset 0.95s linear;
+}
+
+.sat-pomo-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.sat-pomo-time {
+  font-size: 24px;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.sat-pomo-phase {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.sat-expanded-pomo .sat-actions { margin-top: 12px; width: 100%; }
+.sat-btn-pomo-stop { flex: 1; }
+.sat-btn-pomo-stop:hover {
+  background: rgba(231, 76, 60, 0.22);
+  border-color: rgba(231, 76, 60, 0.5);
+}
+
 /* D6: the brief green sweep on complete — the dopamine mechanic, on the most
    visible surface Pro has. Runs on the widget itself, independent of the task
    row's own celebration (which may not even be mounted: the widget completes
@@ -4215,6 +4292,12 @@ html.bg-light .sat-focused-label,
 html.bg-light .sat-foreign { color: var(--text-secondary); }
 
 html.bg-light .sat-foreign { background: rgba(0, 0, 0, 0.04); }
+
+/* [1.0.18] Pomodoro ink on light wallpapers (the ring fill uses the luminance-
+   aware --sat-accent token, so only the ink + track need flipping). */
+html.bg-light .sat-pomo-time { color: var(--text-primary); text-shadow: none; }
+html.bg-light .sat-pomo-phase { color: var(--text-secondary); text-shadow: none; }
+html.bg-light .sat-pomo-ring-track { stroke: rgba(0, 0, 0, 0.12); }
 
 html.bg-light .sat-btn {
   background: rgba(0, 0, 0, 0.04);
@@ -5324,6 +5407,59 @@ html.has-bg .pro-readonly-list li {
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
+/* [1.0.18] Pomodoro duration inputs (Pro Settings). Rows mirror the
+   .pro-readonly-list label-left / value-right rhythm, but the value is now an
+   editable number field. */
+.pomo-settings { display: flex; flex-direction: column; }
+
+.pomo-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.pomo-setting-row:last-child { border-bottom: none; }
+
+html.has-bg .pomo-setting-row {
+  color: rgba(255, 255, 255, 0.7);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.pomo-setting-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.pomo-setting-unit { font-size: 12px; opacity: 0.75; }
+
+.pomo-setting-input {
+  width: 56px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pomo-setting-input:focus { outline: none; border-color: var(--accent); }
+
+html.has-bg .pomo-setting-input {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
 #pro-settings-privacy-link {
   color: var(--accent);
   text-decoration: none;
@@ -5639,6 +5775,17 @@ html.bg-light .pro-toggle-row {
 html.bg-light .pro-readonly-list li {
   color: var(--text-secondary);
   border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+html.bg-light .pomo-setting-row {
+  color: var(--text-secondary);
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+html.bg-light .pomo-setting-input {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.14);
+  color: var(--text-primary);
 }
 
 /* Pro Settings — Tags */
