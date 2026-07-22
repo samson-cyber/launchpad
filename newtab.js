@@ -8667,6 +8667,18 @@
     return { phase: ps.phase, phaseEndsAt: ps.phaseEndsAt, totalMs: totalMs, cycleCount: ps.cycleCount };
   }
 
+  // [E1] The session-complete DISPLAY state: phase null + cycleCount > 0 + the
+  // stored sessionComplete marker (set only by a completed break — Stop and
+  // expiry never set it; hydration enforces the encoding). Pure read; null when
+  // not in that state. Stored on pomodoroState, so it survives re-render and
+  // reload, stays cross-tab consistent, and dies with activeTask like the rest.
+  function satSessionComplete() {
+    var a = Storage.getActiveTask(data);
+    if (!a) return null;
+    var ps = Storage.hydratePomodoroState(a.pomodoroState);
+    return ps.sessionComplete ? ps : null;
+  }
+
   // Remaining ms in the running phase, floored at 0. [A2 D4] While tracking is
   // paused the countdown FREEZES: it reads phaseEndsAt - pausedAt, exactly what
   // setTrackingPaused's resume shift restores continuity against. Caller passes
@@ -8680,9 +8692,16 @@
     return Math.max(0, pomo.phaseEndsAt - ref);
   }
 
-  // Toast copy for an auto-advance into the given phase (D7 cue).
-  function satPomoAdvanceToast(toPhase) {
-    return toPhase === "work" ? "Break over. Back to work." : "Work phase complete. Break time.";
+  // [E2] Toast copy for a work-phase completion — focus is the protagonist. The
+  // minutes are the COMPLETED phase's stamped phaseDurationMs, NOT current
+  // settings (a mid-phase settings edit must not misreport what was done); a
+  // legacy A1 phase without a stamp falls back to the current work length.
+  // 'advanced' only ever means work -> break under E1 semantics, so there is no
+  // break-over variant — break end is a session completion (satMaybeReconcile).
+  function satPomoAdvanceToast(res) {
+    var ms = (typeof res.fromDurationMs === "number" && res.fromDurationMs > 0)
+      ? res.fromDurationMs : satPomoPhaseTotalMs("work");
+    return "Nice — " + Math.round(ms / 60000) + " min focused. Break time.";
   }
 
   // [A2] Reconcile the running phase against the clock, fire-and-forget. Cheap
@@ -8700,7 +8719,12 @@
     Storage.reconcilePomodoro(data)
       .then(function (res) {
         if (res.action === "advanced") {
-          showToast(satPomoAdvanceToast(res.to));
+          showToast(satPomoAdvanceToast(res));
+          renderActiveTaskWidget();
+        } else if (res.action === "completed") {
+          // [E1/E2] Break finished — the session is over; the card re-renders
+          // into its session-complete state. Work never auto-starts.
+          showToast("Session complete — ready for another?");
           renderActiveTaskWidget();
         } else if (res.action === "expired") {
           showToast("Focus session ended while you were away.");
@@ -8919,7 +8943,10 @@
       var remaining = satPomoRemainingMs(pomo);
       var frac = pomo.totalMs > 0 ? Math.max(0, Math.min(1, remaining / pomo.totalMs)) : 0;
       var offset = SAT_POMO_RING_C * (1 - frac);
-      var phaseLabel = SAT_POMO_PHASE_LABEL[pomo.phase] || "Focus";
+      // [E3] The ring center reads FOCUS during a work phase (the protagonist,
+      // per E2's copy direction); break phases keep their phase label. The CSS
+      // uppercases. Phase text labels elsewhere (pill eyebrow) stay Work/Break.
+      var phaseLabel = pomo.phase === "work" ? "Focus" : (SAT_POMO_PHASE_LABEL[pomo.phase] || "Focus");
       return '<div class="sat-expanded sat-expanded-pomo">' +
           head +
           '<div class="sat-pomo">' +
@@ -8937,6 +8964,28 @@
             '</div>' +
             '<div class="sat-pomo-stop-row">' +
               '<button type="button" class="sat-btn sat-btn-pomo-stop" data-sat-act="pomo-stop" title="Stop focus session">■ Stop</button>' +
+            '</div>' +
+          '</div>' +
+          actionsRow +
+        '</div>';
+    }
+
+    // [E1] Session COMPLETE (a break ran to its end): summary + explicit
+    // restart. Work NEVER auto-starts — '▶ Start next session' routes through
+    // the normal start path (pomo-start clears the marker and begins a work
+    // phase), so the long-break cadence math simply continues from cycleCount.
+    // User Stop and expiry never set the marker, so they land on the plain
+    // card below instead.
+    var done = satSessionComplete();
+    if (done) {
+      var cadence = Storage.getPomodoroSettings(data).cyclesBeforeLongBreak;
+      return '<div class="sat-expanded sat-expanded-pomo' + (paused ? ' is-paused' : '') + '">' +
+          head +
+          '<div class="sat-pomo sat-pomo-done">' +
+            '<div class="sat-pomo-done-msg">Session done · cycle ' + done.cycleCount + ' of ' + cadence + '</div>' +
+            '<div class="sat-pomo-start-row">' +
+              '<button type="button" class="sat-btn sat-btn-pomo-start" data-sat-act="pomo-start" ' +
+                'title="Start the next focus session">▶ Start next session</button>' +
             '</div>' +
           '</div>' +
           actionsRow +

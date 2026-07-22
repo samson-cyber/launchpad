@@ -2310,8 +2310,9 @@ var Storage = (function () {
   //
   // isPaused is written but never read here (the pause control is [1.0.17],
   // global via data.trackingPaused). pomodoroState now carries the [1.0.18]
-  // phase shape { cycleCount, phase, phaseEndsAt } — emptyPomodoroState() on a
-  // fresh activation, read back through hydratePomodoroState. It rides the
+  // phase shape { cycleCount, phase, phaseEndsAt, phaseDurationMs,
+  // sessionComplete } — emptyPomodoroState() on a fresh activation, read back
+  // through hydratePomodoroState. It rides the
   // activeTask object precisely so every clear path (switch / complete / cancel /
   // self-heal) drops the pomodoro with it, no separate cleanup to wire.
   //
@@ -2438,17 +2439,24 @@ var Storage = (function () {
   //
   // Phase state rides data.activeTask.pomodoroState — the slot reserved on the
   // activeTask shape and, until [1.0.18], written null and never read. Shape
-  // ([1.0.18 A2] D1-AMEND — widened with phaseDurationMs):
+  // ([1.0.18 A2] D1-AMEND widened with phaseDurationMs; [E1] sessionComplete):
   //   { cycleCount: number, phase: 'work'|'shortBreak'|'longBreak'|null,
-  //     phaseEndsAt: number|null, phaseDurationMs: number|null }
+  //     phaseEndsAt: number|null, phaseDurationMs: number|null,
+  //     sessionComplete: boolean }
   // phase === null means "not running" (cycleCount may still be > 0 after a Stop).
   // phaseDurationMs is stamped at every phase START and is the source of truth for
   // the ring fraction and long-break arithmetic, so a mid-phase settings edit no
-  // longer skews the running phase (A1 self-flag #2). Because the state lives ON
-  // the activeTask object, every clear path — switch (fresh object), complete /
-  // cancel (clearActiveTask), the pill's self-heal — drops it for free.
+  // longer skews the running phase (A1 self-flag #2). [E1] sessionComplete is the
+  // transient marker distinguishing "break finished — session complete" from a
+  // user Stop or an expiry (all three land on phase:null): set ONLY by the
+  // break-end reconcile, cleared by start/Stop, defaulted by hydration. Stored
+  // (not in-memory) so it survives re-render AND reload — work must never restart
+  // without an explicit click — and so the multi-tab loser adopts the same card.
+  // Because the state lives ON the activeTask object, every clear path — switch
+  // (fresh object), complete / cancel (clearActiveTask), the pill's self-heal —
+  // drops it for free.
   function emptyPomodoroState() {
-    return { cycleCount: 0, phase: null, phaseEndsAt: null, phaseDurationMs: null };
+    return { cycleCount: 0, phase: null, phaseEndsAt: null, phaseDurationMs: null, sessionComplete: false };
   }
 
   // Defaulting reader for the phase state: null / legacy / malformed hydrates to
@@ -2460,11 +2468,16 @@ var Storage = (function () {
   function hydratePomodoroState(ps) {
     if (!ps || typeof ps !== "object") return emptyPomodoroState();
     var phase = (ps.phase === "work" || ps.phase === "shortBreak" || ps.phase === "longBreak") ? ps.phase : null;
+    var cycleCount = (typeof ps.cycleCount === "number" && isFinite(ps.cycleCount) && ps.cycleCount >= 0) ? Math.floor(ps.cycleCount) : 0;
     return {
-      cycleCount: (typeof ps.cycleCount === "number" && isFinite(ps.cycleCount) && ps.cycleCount >= 0) ? Math.floor(ps.cycleCount) : 0,
+      cycleCount: cycleCount,
       phase: phase,
       phaseEndsAt: (phase && typeof ps.phaseEndsAt === "number" && isFinite(ps.phaseEndsAt)) ? ps.phaseEndsAt : null,
-      phaseDurationMs: (phase && typeof ps.phaseDurationMs === "number" && isFinite(ps.phaseDurationMs) && ps.phaseDurationMs > 0) ? Math.floor(ps.phaseDurationMs) : null
+      phaseDurationMs: (phase && typeof ps.phaseDurationMs === "number" && isFinite(ps.phaseDurationMs) && ps.phaseDurationMs > 0) ? Math.floor(ps.phaseDurationMs) : null,
+      // [E1] Only meaningful on phase:null with at least one completed work phase
+      // (the addendum's encoding); forced false otherwise so a malformed blob can
+      // never paint the session-complete card over a running phase.
+      sessionComplete: (phase === null && cycleCount > 0 && ps.sessionComplete === true)
     };
   }
 
@@ -2495,55 +2508,69 @@ var Storage = (function () {
     ps.phase = "work";
     ps.phaseDurationMs = durMs;
     ps.phaseEndsAt = Date.now() + durMs;
+    ps.sessionComplete = false;   // [E1] "Start next session" is this same path
     active.pomodoroState = ps;
     await saveAll(data);
     return true;
   }
 
   // Stop the running phase: phase / phaseEndsAt / phaseDurationMs cleared,
-  // cycleCount PRESERVED, the task stays active. No-op guard when nothing is
-  // running so a stray Stop emits no spurious write.
+  // cycleCount PRESERVED, the task stays active. [E1] Also clears the
+  // sessionComplete marker — a user Stop always lands on the plain elapsed
+  // display, never the session-complete card. No-op guard when nothing is
+  // running AND no marker is set, so a stray Stop emits no spurious write.
   async function stopPomodoro(data) {
     var active = getActiveTask(data);
     if (!active) return false;
     var ps = hydratePomodoroState(active.pomodoroState);
-    if (ps.phase === null && ps.phaseEndsAt === null) return false;
+    if (ps.phase === null && ps.phaseEndsAt === null && !ps.sessionComplete) return false;
     ps.phase = null;
     ps.phaseEndsAt = null;
     ps.phaseDurationMs = null;
+    ps.sessionComplete = false;
     active.pomodoroState = ps;
     await saveAll(data);
     return true;
   }
 
-  // [1.0.18 A2] Compute the NEXT phase's state from a running phase (P3):
+  // [1.0.18 A2] Compute the NEXT state from a running phase ([E1] supersedes
+  // P3's endless loop — a session is something you start and FINISH):
   //   work  -> break: cycleCount++, and every cyclesBeforeLongBreak-th COMPLETED
-  //            work phase yields a longBreak (else shortBreak).
-  //   break -> work:  cycleCount unchanged (it counts completed work phases).
-  // Fresh phaseEndsAt = now + duration; phaseDurationMs stamped from settings at
-  // that moment. Pure — no storage. Exported for the harness.
+  //            work phase yields a longBreak (else shortBreak). Automatic —
+  //            resting needs no decision.
+  //   break -> the session COMPLETES: phase cleared, cycleCount KEPT (it counts
+  //            completed work phases), sessionComplete marker set. Work NEVER
+  //            begins without explicit user action — when [1.2.0] auto-arms site
+  //            blocking during work phases, blocking therefore never re-arms
+  //            without consent.
+  // A started break stamps fresh phaseEndsAt = now + duration, phaseDurationMs
+  // from settings at that moment. Pure — no storage. Exported for the harness.
   function nextPomodoroPhase(ps, settings, now) {
-    var next = { cycleCount: ps.cycleCount, phase: null, phaseEndsAt: null, phaseDurationMs: null };
+    var next = { cycleCount: ps.cycleCount, phase: null, phaseEndsAt: null, phaseDurationMs: null, sessionComplete: false };
     if (ps.phase === "work") {
       var completed = ps.cycleCount + 1;
       next.cycleCount = completed;
       var isLong = (completed % settings.cyclesBeforeLongBreak) === 0;
       next.phase = isLong ? "longBreak" : "shortBreak";
+      next.phaseDurationMs = pomodoroPhaseDurationMs(next.phase, settings);
+      next.phaseEndsAt = now + next.phaseDurationMs;
     } else {
-      next.phase = "work";
+      next.sessionComplete = true;   // [E1] break end -> session complete, no auto work
     }
-    next.phaseDurationMs = pomodoroPhaseDurationMs(next.phase, settings);
-    next.phaseEndsAt = now + next.phaseDurationMs;
     return next;
   }
 
   // [1.0.18 A2] Reconcile the running phase against the clock — called from the
   // pill on tick / render / visibilitychange. Returns
-  //   { action: 'none' | 'advanced' | 'expired', ... }.
-  // NEVER fires while paused (a frozen phase cannot cross its boundary — pause
-  // slides phaseEndsAt forward on resume instead, see setTrackingPaused). D3
-  // graceful expiry: past phaseEndsAt + grace, clear the phase but KEEP cycleCount
-  // (an expiry mid-work does NOT count that work phase). Within grace, auto-advance.
+  //   { action: 'none' | 'advanced' | 'completed' | 'expired', ... }.
+  // 'advanced' now only ever means work -> break and carries fromDurationMs (the
+  // COMPLETED phase's stamp, for the E2 toast); [E1] a break crossing its
+  // boundary within grace returns 'completed' (session over, marker set — see
+  // nextPomodoroPhase). NEVER fires while paused (a frozen phase cannot cross
+  // its boundary — pause slides phaseEndsAt forward on resume instead, see
+  // setTrackingPaused). D3 graceful expiry: past phaseEndsAt + grace, clear the
+  // phase but KEEP cycleCount and set NO marker (an unattended boundary is an
+  // expiry, not a completion). Within grace, auto-advance.
   //
   // Multi-tab safe: the write re-reads fresh storage and commits ONLY if the
   // boundary it decided on is still current (the setActiveTask-style no-op guard),
@@ -2562,11 +2589,13 @@ var Storage = (function () {
     var decidedPhase = ps.phase, decidedEndsAt = ps.phaseEndsAt;
     var nextPs, result;
     if (now > ps.phaseEndsAt + grace) {
-      nextPs = { cycleCount: ps.cycleCount, phase: null, phaseEndsAt: null, phaseDurationMs: null };
+      nextPs = { cycleCount: ps.cycleCount, phase: null, phaseEndsAt: null, phaseDurationMs: null, sessionComplete: false };
       result = { action: "expired" };
     } else {
       nextPs = nextPomodoroPhase(ps, getPomodoroSettings(data), now);
-      result = { action: "advanced", from: decidedPhase, to: nextPs.phase, cycleCount: nextPs.cycleCount };
+      result = nextPs.phase
+        ? { action: "advanced", from: decidedPhase, to: nextPs.phase, cycleCount: nextPs.cycleCount, fromDurationMs: ps.phaseDurationMs }
+        : { action: "completed", cycleCount: nextPs.cycleCount };
     }
 
     // Guard: re-read fresh; if another tab already moved this exact boundary,

@@ -3993,6 +3993,17 @@ html.bg-light { --sat-amber: #8a6d09; }
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
+/* [E1] Session-complete state: summary line, then the full-width restart button
+   (which reuses the .sat-pomo-start-row / .sat-btn-pomo-start start treatment). */
+.sat-pomo-done { width: 100%; margin-top: 8px; }
+.sat-pomo-done-msg {
+  font-size: 13px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+.sat-pomo-done .sat-pomo-start-row { width: 100%; }
+
 .sat-pomo-stop-row { margin-top: 12px; width: 100%; display: flex; }
 .sat-btn-pomo-stop { flex: 1; }
 .sat-btn-pomo-stop:hover {
@@ -4357,6 +4368,7 @@ html.bg-light .sat-pomo-chip { color: var(--text-primary); border-color: rgba(0,
 html.bg-light .sat-pomo-dur-input { color: var(--text-primary); border-color: rgba(0, 0, 0, 0.14); background: rgba(0, 0, 0, 0.04); }
 html.bg-light .sat-btn-pomo-dur { color: var(--text-secondary); }
 html.bg-light .sat-pomo-phase { color: var(--text-secondary); text-shadow: none; }
+html.bg-light .sat-pomo-done-msg { color: var(--text-primary); text-shadow: none; }
 html.bg-light .sat-pomo-ring-track { stroke: rgba(0, 0, 0, 0.12); }
 
 html.bg-light .sat-btn {
