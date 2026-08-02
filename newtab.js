@@ -8552,6 +8552,7 @@
   var satSwitchOutsideHandler = null;
   var satSwitchEscapeHandler = null;
   var satSwitchScrollHandler = null;
+  var satSwitchResizeHandler = null;
   var satHealing = false;
 
   function satHasPro() {
@@ -9371,6 +9372,10 @@
       window.removeEventListener("scroll", satSwitchScrollHandler, true);
       satSwitchScrollHandler = null;
     }
+    if (satSwitchResizeHandler) {
+      window.removeEventListener("resize", satSwitchResizeHandler);
+      satSwitchResizeHandler = null;
+    }
     if (satSwitchMenuEl.parentNode) satSwitchMenuEl.parentNode.removeChild(satSwitchMenuEl);
     satSwitchMenuEl = null;
   }
@@ -9520,6 +9525,14 @@
       closeSatSwitchMenu();
     };
     window.addEventListener("scroll", satSwitchScrollHandler, true);
+
+    // Same drift-close rationale for viewport resize (DevTools toggle, window
+    // resize, zoom): the menu is position:fixed at open-time coords, so a resize
+    // that reflows the anchor widget leaves it orphaned mid-screen. Close rather
+    // than reposition — matches the transient picker intent (bug 1217092468273137).
+    // Paired teardown in closeSatSwitchMenu.
+    satSwitchResizeHandler = function () { closeSatSwitchMenu(); };
+    window.addEventListener("resize", satSwitchResizeHandler);
   }
 
   function bindActiveTaskWidget() {
@@ -12200,6 +12213,30 @@
       var iconDialog = document.getElementById("variant-icon-dialog");
       if ((ctxMenu && !ctxMenu.classList.contains("hidden")) || (iconDialog && !iconDialog.classList.contains("hidden"))) return;
       closeVariantDropdown();
+    });
+
+    // Close anchored transient popovers on viewport resize (DevTools toggle,
+    // window resize, zoom). Each is position:fixed at coords computed once against
+    // an anchor that reflows on resize, so it orphans mid-screen otherwise — the
+    // resize analogue of the scroll drift-close above (bug 1217092468273137). One
+    // bind-once permanent listener; every close* is a no-op when nothing is open,
+    // so no per-open teardown and no leak. closeVariantDropdown cascades to the
+    // variant ctx menu + icon dialog. The Switch dropdown self-closes via its own
+    // per-open resize listener. Deliberately EXCLUDED: the #nest-rename-dialog —
+    // it appears automatically to capture a just-nested group's name, so closing
+    // it on resize would silently discard the prompt (it has no scroll-close
+    // either, by the same design); a rare visual drift is the lesser evil.
+    window.addEventListener("resize", function () {
+      hideMenu();
+      hideGroupMenu();
+      closeVariantDropdown();
+      closeGoalContextMenu();
+      closeUpgradePopover();
+      closeWorkspaceDropdown();
+      closeNestSubmenu();
+      closeTagSubmenu();
+      closeTagCreatePopover();
+      closeRestoreDropdown();
     });
 
     // Click outside to close variant dropdown
