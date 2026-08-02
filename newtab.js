@@ -8980,10 +8980,16 @@
     var done = satSessionComplete();
     if (done) {
       var cadence = Storage.getPomodoroSettings(data).cyclesBeforeLongBreak;
+      // [1.0.18 Round E, self-flag 1] Show MODULAR position within the cadence,
+      // not the raw running total: cycle 5 of a 4-cadence reads "cycle 1 of 4",
+      // cycle 8 reads "cycle 4 of 4". cycleCount stays the raw total in storage
+      // (reset-hint + long-break math unchanged). Guard cycleCount < 1 -> 1
+      // (defensive; the sessionComplete marker encoding requires cycleCount > 0).
+      var cyclePos = done.cycleCount < 1 ? 1 : (((done.cycleCount - 1) % cadence) + 1);
       return '<div class="sat-expanded sat-expanded-pomo' + (paused ? ' is-paused' : '') + '">' +
           head +
           '<div class="sat-pomo sat-pomo-done">' +
-            '<div class="sat-pomo-done-msg">Session done · cycle ' + done.cycleCount + ' of ' + cadence + '</div>' +
+            '<div class="sat-pomo-done-msg">Session done · cycle ' + cyclePos + ' of ' + cadence + '</div>' +
             '<div class="sat-pomo-start-row">' +
               '<button type="button" class="sat-btn sat-btn-pomo-start" data-sat-act="pomo-start" ' +
                 'title="Start the next focus session">▶ Start next session</button>' +
