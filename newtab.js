@@ -9508,8 +9508,17 @@
 
     // v3 scroll-close: the menu is position:fixed off a one-time rect, so any
     // scroll of an ancestor region drifts it. Same rationale as the Tasks-tab
-    // popovers.
-    satSwitchScrollHandler = function () { closeSatSwitchMenu(); };
+    // popovers. But this is a CAPTURE-phase window listener, so it also receives
+    // the menu's OWN list scroll — scroll doesn't bubble, yet capture still reaches
+    // ancestors from any scrollable descendant. Unscoped, the first wheel/drag tick
+    // on .sat-switch-list slammed the menu shut before it could move: the "list
+    // won't scroll" bug (1217092237076418). Ignore scrolls that originate inside
+    // the menu; still close on any ancestor/page scroll. Mirrors the contains()
+    // guard in satSwitchOutsideHandler above.
+    satSwitchScrollHandler = function (e) {
+      if (e && e.target && menu.contains(e.target)) return;
+      closeSatSwitchMenu();
+    };
     window.addEventListener("scroll", satSwitchScrollHandler, true);
   }
 
