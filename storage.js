@@ -64,7 +64,7 @@ var Storage = (function () {
       // trackingPaused above. It governs CARD SELECTION ONLY; every figure the
       // Dashboard reports stays local-midnight-based, because the tracking
       // engine's day aggregates are pre-split at local midnight (D4).
-      settings: { columns: 6, collapsedGroups: {}, combinedAnalyticsEnabled: false, endOfDayMinutes: 1020, pomodoro: { workMin: 25, shortBreakMin: 5, longBreakMin: 15, cyclesBeforeLongBreak: 4 } },
+      settings: { columns: 6, collapsedGroups: {}, combinedAnalyticsEnabled: false, endOfDayMinutes: 1020, pomodoro: { workMin: 25, shortBreakMin: 5, longBreakMin: 15, cyclesBeforeLongBreak: 4, notificationsEnabled: false } },
       pro: {
         licenseKey: null,
         instanceId: null,
@@ -205,7 +205,12 @@ var Storage = (function () {
       workMin: clampPomodoroField("workMin", p.workMin),
       shortBreakMin: clampPomodoroField("shortBreakMin", p.shortBreakMin),
       longBreakMin: clampPomodoroField("longBreakMin", p.longBreakMin),
-      cyclesBeforeLongBreak: clampPomodoroField("cyclesBeforeLongBreak", p.cyclesBeforeLongBreak)
+      cyclesBeforeLongBreak: clampPomodoroField("cyclesBeforeLongBreak", p.cyclesBeforeLongBreak),
+      // [1.0.18 B-1] Desktop-notifications opt-in. Boolean (not a clamped numeric),
+      // so it defaults at read time to false and coerces strictly — anything but a
+      // literal `true` reads false. This is the fork that authorizes the SW to
+      // advance phases in the background (background.js).
+      notificationsEnabled: (p.notificationsEnabled === true)
     };
   }
 
@@ -226,6 +231,21 @@ var Storage = (function () {
   function setPomodoroShortBreakMin(data, val) { return setPomodoroField(data, "shortBreakMin", val); }
   function setPomodoroLongBreakMin(data, val) { return setPomodoroField(data, "longBreakMin", val); }
   function setPomodoroCyclesBeforeLongBreak(data, val) { return setPomodoroField(data, "cyclesBeforeLongBreak", val); }
+
+  // [1.0.18 B-1] Boolean sibling of the numeric per-field writers — separate path
+  // because clampPomodoroField coerces to an integer range. Strict-coerce to a
+  // boolean, ensure the bag, no-op guard, saveAll. Read-time default is false
+  // (getPomodoroSettings). The permission itself is requested/held separately in
+  // the page (B5); this flag is only the user's intent.
+  async function setPomodoroNotificationsEnabled(data, val) {
+    if (!data || !data.settings) return false;
+    var next = (val === true);
+    if (!data.settings.pomodoro || typeof data.settings.pomodoro !== "object") data.settings.pomodoro = {};
+    if (data.settings.pomodoro.notificationsEnabled === next) return false;
+    data.settings.pomodoro.notificationsEnabled = next;
+    await saveAll(data);
+    return true;
+  }
 
   // [1.0.20 F2] The combined-analytics CONTROL's setter. Same shape as
   // setTrackingPaused: a per-field settings write with a no-op guard, flowing
@@ -4330,6 +4350,7 @@ var Storage = (function () {
     setPomodoroShortBreakMin: setPomodoroShortBreakMin,
     setPomodoroLongBreakMin: setPomodoroLongBreakMin,
     setPomodoroCyclesBeforeLongBreak: setPomodoroCyclesBeforeLongBreak,
+    setPomodoroNotificationsEnabled: setPomodoroNotificationsEnabled,
 
     // [1.0.23] Achievements (R1). Public: the defaulting reader + the two engine
     // entry points. The completion entry point is also called internally by

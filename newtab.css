@@ -5547,6 +5547,12 @@ html.has-bg .pomo-setting-input {
 .pomo-reset-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
 .pomo-reset-btn:disabled { opacity: 0.45; cursor: default; }
 .pomo-reset-hint { font-size: 12px; opacity: 0.7; }
+/* [1.0.18 B-1] The notifications toggle is interactive (unlike the disabled
+   analytics toggle the base .pro-toggle-row cursor was written for). :has scopes
+   the pointer cursor to this row only; min Chrome 116 supports it. */
+.pro-toggle-row:has(#pomo-notifications-toggle),
+#pomo-notifications-toggle { cursor: pointer; }
+.pomo-notif-note { margin: 6px 0 0; font-size: 12px; opacity: 0.8; }
 html.has-bg .pomo-reset-btn { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.14); color: #fff; }
 html.bg-light .pomo-reset-btn { background: rgba(0, 0, 0, 0.04); border-color: rgba(0, 0, 0, 0.14); color: var(--text-primary); }
 

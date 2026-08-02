@@ -5900,6 +5900,46 @@
       renderProPomodoroSettings();
     });
 
+    // [1.0.18 B-1 / B5] Desktop-notifications toggle — permission-gated. Turning ON
+    // requests the 'notifications' optional permission from THIS user gesture (the
+    // change event); the request call must stay synchronous within the handler, so
+    // it is the first thing the ON branch does. Denied/dismissed -> revert the box,
+    // show a soft note, and never flip the flag. Granted -> persist the flag (the SW
+    // reconciler then schedules the alarm if a phase is running). Turning OFF flips
+    // the flag only and KEEPS the permission, so re-enabling never prompts again.
+    safeOn("#pomo-notifications-toggle", "change", async function (e) {
+      var box = e.target;
+      var note = $("#pomo-notifications-note");
+      if (note) note.hidden = true;
+      if (box.checked) {
+        var granted = false;
+        try {
+          granted = await new Promise(function (resolve) {
+            chrome.permissions.request({ permissions: ["notifications"] }, function (g) { resolve(!!g); });
+          });
+        } catch (err) {
+          console.error("[LaunchPad] Focus session: notifications permission request failed", err);
+          granted = false;
+        }
+        if (!granted) {
+          box.checked = false;
+          if (note) { note.textContent = "Notifications permission was declined."; note.hidden = false; }
+          return;
+        }
+        try {
+          await Storage.setPomodoroNotificationsEnabled(data, true);
+        } catch (err) {
+          console.error("[LaunchPad] Focus session: enable notifications failed", err);
+        }
+      } else {
+        try {
+          await Storage.setPomodoroNotificationsEnabled(data, false);
+        } catch (err) {
+          console.error("[LaunchPad] Focus session: disable notifications failed", err);
+        }
+      }
+    });
+
     bindProTagsControls();
   }
 
@@ -6256,6 +6296,22 @@
     var ps = active ? Storage.hydratePomodoroState(active.pomodoroState) : null;
     if (resetBtn) resetBtn.disabled = !ps || ps.cycleCount === 0;
     if (hint) hint.textContent = ps ? (ps.cycleCount + " completed this task") : "No active task";
+    // [1.0.18 B-1 / B5] Reflect the toggle as flag AND permission-actually-held: if
+    // the user revoked 'notifications' via chrome://settings behind our back, show
+    // OFF regardless of the stored flag (async contains check). Clear any stale
+    // decline note on every (re)render.
+    var notifToggle = $("#pomo-notifications-toggle");
+    var notifNote = $("#pomo-notifications-note");
+    if (notifNote) notifNote.hidden = true;
+    if (notifToggle) {
+      if (!s.notificationsEnabled || !chrome.permissions) {
+        notifToggle.checked = false;
+      } else {
+        chrome.permissions.contains({ permissions: ["notifications"] }, function (has) {
+          notifToggle.checked = !!has;
+        });
+      }
+    }
   }
 
   // ===== Pro Settings: Tags section ([1.0.9.1]) =====

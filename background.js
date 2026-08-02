@@ -396,6 +396,160 @@ async function pruneOldSessions() {
   }
 }
 
+// ===== [1.0.18 B-1] Focus session notifications + SW scheduling authority =====
+//
+// The SW owns ONE 'pomodoro-phase' alarm as a PURE DERIVATION of storage: it exists
+// iff (notificationsEnabled && a phase is running && not paused). Start/stop/pause/
+// resume/switch/complete all flow through `data`, so re-deriving on every `data`
+// change (+ on startup/install) keeps the alarm correct with no per-action alarm
+// code in the page. The notifications toggle is the user's consent for the SW to
+// advance phases in the BACKGROUND; with it OFF, behavior is exactly today's page-
+// side-only model (graceful unattended expiry).
+var POMODORO_PHASE_ALARM = "pomodoro-phase";
+var POMODORO_NOTIF_ID = "launchpad-pomodoro";
+
+// PURE (harnessed): the desired alarm fire time (ms epoch) for these derivation
+// inputs, or null for "no alarm". A past `when` is intentional — chrome.alarms
+// fires it ~immediately and reconcilePomodoro then computes the true phase from the
+// stored phaseEndsAt (the missed-alarm pattern, BUGS.md A3), never from alarm timing.
+function desiredPomodoroAlarmWhen(state) {
+  if (!state || !state.notificationsEnabled) return null;      // the toggle IS the background-operation consent
+  if (state.trackingPaused) return null;                       // a frozen phase cannot cross its boundary
+  if (!state.phase || state.phaseEndsAt == null) return null;  // nothing running
+  return state.phaseEndsAt;
+}
+
+// Collapse a `data` snapshot to the four derivation inputs above.
+function pomodoroAlarmStateFromData(data) {
+  var settings = Storage.getPomodoroSettings(data);
+  var active = Storage.getActiveTask(data);
+  var ps = active ? Storage.hydratePomodoroState(active.pomodoroState) : null;
+  return {
+    notificationsEnabled: !!settings.notificationsEnabled,
+    trackingPaused: Storage.isTrackingPaused(data),
+    phase: ps ? ps.phase : null,
+    phaseEndsAt: ps ? ps.phaseEndsAt : null
+  };
+}
+
+// Reconcile the single alarm to match storage. Idempotent: only touches the alarm
+// when the desired time actually changes, so unrelated `data` writes don't thrash
+// it. Writes NO `data`, so it cannot feed back through onChanged.
+async function reconcilePomodoroAlarm() {
+  var data;
+  try { data = await Storage.getAll(); }
+  catch (err) { console.error("[LaunchPad] Focus session: alarm reconcile read failed", err); return; }
+  var when = desiredPomodoroAlarmWhen(pomodoroAlarmStateFromData(data));
+  var existing = await chrome.alarms.get(POMODORO_PHASE_ALARM);
+  if (when == null) {
+    if (existing) await chrome.alarms.clear(POMODORO_PHASE_ALARM);
+    return;
+  }
+  if (!existing || existing.scheduledTime !== when) {
+    chrome.alarms.create(POMODORO_PHASE_ALARM, { when: when });
+  }
+}
+
+// Does the extension actually HOLD the notifications permission right now? The
+// stored flag is intent, not proof — the user may have revoked it via
+// chrome://settings. Every notification post is guarded by this. (Also covers the
+// case where the optional API object is absent before the first grant.)
+function hasNotificationsPermission() {
+  if (!chrome.notifications || !chrome.permissions) return Promise.resolve(false);
+  return chrome.permissions.contains({ permissions: ["notifications"] }).catch(function () { return false; });
+}
+
+function clearPomodoroNotification() {
+  return new Promise(function (resolve) {
+    if (!chrome.notifications) return resolve();
+    chrome.notifications.clear(POMODORO_NOTIF_ID, function () { resolve(); });
+  });
+}
+
+// Post the boundary notification — ONLY when the permission is actually held. One
+// visible at a time (id-keyed): clear the prior before posting. work->break carries
+// no button; break-end (session complete) carries a single 'Start next session'.
+async function firePomodoroNotification(kind, res) {
+  if (!(await hasNotificationsPermission())) return;
+  var opts;
+  if (kind === "advanced") {
+    var mins = Math.round((res.fromDurationMs || 0) / 60000);
+    opts = { type: "basic", iconUrl: "icons/icon128.png", title: "Break time",
+             message: "Nice — " + mins + " min focused." };
+  } else { // "completed"
+    opts = { type: "basic", iconUrl: "icons/icon128.png", title: "Session complete",
+             message: "Ready for another?", buttons: [{ title: "Start next session" }] };
+  }
+  try {
+    await clearPomodoroNotification();
+    chrome.notifications.create(POMODORO_NOTIF_ID, opts);
+  } catch (err) {
+    console.error("[LaunchPad] Focus session: notification create failed", err);
+  }
+}
+
+// Alarm fire (or startup/install catch-up): a boundary may be due, or the SW woke
+// to one that already passed. Reconcile from the stored phaseEndsAt via the SHARED
+// storage.js logic. Serialized through enqueueBgData so it cannot clobber a
+// concurrent `data` writer (BUGS.md L1). reconcilePomodoro does its own fresh
+// re-read guard + saveAll; that write re-triggers reconcilePomodoroAlarm via
+// onChanged, scheduling the next boundary.
+//
+// Gated on notificationsEnabled: with the toggle OFF the SW must NEVER advance a
+// phase in the background (B1 fork). The alarm should not exist then; this is the
+// defensive belt against a toggle-off / alarm-fire race.
+//
+// GRACE UNIFORMITY (D3): reconcilePomodoro advances only within GRACE and expires
+// QUIETLY beyond it — a late fire after sleep produces NO notification. Only
+// 'advanced'/'completed' notify. 'none' means nothing was due OR an OPEN TAB's
+// page-side tick already advanced this boundary and the re-read guard no-oped here
+// — correct: the user watched it happen and saw the toast, so no notification.
+function runPomodoroPhaseBg() {
+  return enqueueBgData("pomodoro-phase", async function () {
+    var data = await Storage.getAll();
+    if (!Storage.getPomodoroSettings(data).notificationsEnabled) return;
+    var res = await Storage.reconcilePomodoro(data);
+    if (res.action === "advanced") {
+      await firePomodoroNotification("advanced", res);
+    } else if (res.action === "completed") {
+      await firePomodoroNotification("completed", res);
+    }
+  });
+}
+
+// [B2] "Start next session" from the break-end notification. SW-initiated `data`
+// write -> enqueueBgData (BUGS.md L1). Guard a STALE notification against a changed
+// world: start only if the sessionComplete marker is still set AND a task is still
+// active (the user may have switched tasks or acted since it posted). Clear the
+// notification either way. startPomodoroPhase's write re-triggers scheduling via
+// onChanged. Guarded registration: chrome.notifications may be absent until the
+// optional permission is first granted, and referencing it unconditionally at SW
+// registration would throw and kill the whole worker (BUGS.md H2). Whenever a
+// notification CAN be shown the permission is held, so the SW startup that shows it
+// also registers this handler.
+if (chrome.notifications && chrome.notifications.onButtonClicked) {
+  chrome.notifications.onButtonClicked.addListener(function (notifId, buttonIndex) {
+    if (notifId !== POMODORO_NOTIF_ID || buttonIndex !== 0) return;
+    enqueueBgData("pomodoro-notif-button", async function () {
+      var data = await Storage.getAll();
+      var active = Storage.getActiveTask(data);
+      var ps = active ? Storage.hydratePomodoroState(active.pomodoroState) : null;
+      if (active && ps && ps.sessionComplete) {
+        await Storage.startPomodoroPhase(data);
+      }
+      await clearPomodoroNotification();
+    });
+  });
+}
+
+// Re-derive the alarm on every `data` change (start/stop/pause/resume/switch/
+// complete/settings all land here). Idempotent + writes no `data`, so no loop.
+chrome.storage.onChanged.addListener(function (changes, areaName) {
+  if (areaName && areaName !== "local") return;
+  if (!changes.data) return;
+  reconcilePomodoroAlarm();
+});
+
 chrome.runtime.onInstalled.addListener(function () {
   requestContextMenuRebuild();
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
@@ -409,6 +563,10 @@ chrome.runtime.onInstalled.addListener(function () {
   runTrashPurgeBg();
   cleanupTrackingPrototype();
   Tracking.start();
+  // [1.0.18 B-1] Catch up a phase boundary crossed before this install/update (no-op
+  // + no notify when notifications are OFF), then reconcile the alarm to match.
+  runPomodoroPhaseBg();
+  reconcilePomodoroAlarm();
 });
 chrome.runtime.onStartup.addListener(function () {
   requestContextMenuRebuild();
@@ -430,6 +588,12 @@ chrome.runtime.onStartup.addListener(function () {
   revalidateLicenseBg("startup");
   cleanupTrackingPrototype();
   Tracking.start();
+  // [1.0.18 B-1] Missed-alarm catch-up (BUGS.md A3): a phase boundary may have
+  // passed while the browser was closed. Reconcile from the stored phaseEndsAt
+  // (advance within GRACE, quiet expiry beyond; gated on notifications ON), then
+  // reschedule the alarm for a still-running phase.
+  runPomodoroPhaseBg();
+  reconcilePomodoroAlarm();
 });
 
 chrome.storage.onChanged.addListener(function (changes) {
@@ -558,6 +722,8 @@ chrome.alarms.onAlarm.addListener(function (alarm) {
     runTrashPurgeBg();
   } else if (alarm.name === LICENSE_VALIDATE_ALARM) {
     revalidateLicenseBg("alarm");
+  } else if (alarm.name === POMODORO_PHASE_ALARM) {
+    runPomodoroPhaseBg();
   }
 });
 
