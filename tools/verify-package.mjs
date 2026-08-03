@@ -120,10 +120,28 @@ function importScriptsRefs(file) {
   return out;
 }
 
+// ---- runtime roots the manifest does not declare ----------------------------
+// Some files Chrome genuinely loads are named only in JS at runtime, so the
+// manifest walk above cannot reach them and a packaging slip would ship a build
+// that silently half-works. Listed here so they are gated like any other asset:
+//
+//   offscreen.html  — created by background.js via chrome.offscreen.createDocument
+//                     ([1.0.18 B-2]); pulls in offscreen.js through the HTML walk.
+//   sounds/*.wav    — resolved through Storage.pomodoroSoundFile + getURL, so no
+//                     scanner can see them. A missing chime is inaudible, not a
+//                     hard error — exactly the kind of defect a gate should catch.
+const EXTRA_ROOTS = [
+  { p: "offscreen.html", field: "(runtime) chrome.offscreen.createDocument", kind: "page" },
+  { p: "sounds/chime1.wav", field: "(runtime) Storage.pomodoroSoundFile", kind: "asset" },
+  { p: "sounds/chime2.wav", field: "(runtime) Storage.pomodoroSoundFile", kind: "asset" },
+  { p: "sounds/chime3.wav", field: "(runtime) Storage.pomodoroSoundFile", kind: "asset" }
+];
+
 // ---- run --------------------------------------------------------------------
 const manifestPath = path.join(repoRoot, "manifest.json");
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 const { refs, globs } = enumerateManifest(manifest);
+EXTRA_ROOTS.forEach((r) => { if (!refs.some((x) => x.p === r.p)) refs.push(r); });
 
 // Recurse into pages and scripts that exist in the repo.
 const seen = new Set(refs.map((r) => r.p));

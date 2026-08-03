@@ -64,7 +64,7 @@ var Storage = (function () {
       // trackingPaused above. It governs CARD SELECTION ONLY; every figure the
       // Dashboard reports stays local-midnight-based, because the tracking
       // engine's day aggregates are pre-split at local midnight (D4).
-      settings: { columns: 6, collapsedGroups: {}, combinedAnalyticsEnabled: false, endOfDayMinutes: 1020, pomodoro: { workMin: 25, shortBreakMin: 5, longBreakMin: 15, cyclesBeforeLongBreak: 4, notificationsEnabled: false } },
+      settings: { columns: 6, collapsedGroups: {}, combinedAnalyticsEnabled: false, endOfDayMinutes: 1020, pomodoro: { workMin: 25, shortBreakMin: 5, longBreakMin: 15, cyclesBeforeLongBreak: 4, notificationsEnabled: false, sound: "none" } },
       pro: {
         licenseKey: null,
         instanceId: null,
@@ -197,6 +197,51 @@ var Storage = (function () {
     return n;
   }
 
+  // [1.0.18 B-2] Boundary chime ids. An ENUM, so neither the numeric clamp nor
+  // the boolean coercion above fits: whitelist-coerce to a known id and degrade
+  // EVERYTHING else — missing, null, 3, "chime9", an object — to 'none'. 'none'
+  // being both the default and the failure mode is deliberate: an unrecognised
+  // stored value must never leave a user hearing a chime they cannot see
+  // selected in settings (and never a 404'd <audio> src).
+  var POMODORO_SOUND_IDS = ["none", "chime1", "chime2", "chime3"];
+
+  function coercePomodoroSound(val) {
+    return POMODORO_SOUND_IDS.indexOf(val) === -1 ? "none" : val;
+  }
+
+  // Resolve a chime id to its packaged asset path, or null for 'none'/invalid.
+  // Extension-relative (callers wrap it in chrome.runtime.getURL) so the page,
+  // the offscreen document and the service worker all name the file one way.
+  function pomodoroSoundFile(sound) {
+    var id = coercePomodoroSound(sound);
+    return id === "none" ? null : "sounds/" + id + ".wav";
+  }
+
+  // [1.0.18 B-2] PURE (harnessed): WHICH context should play the boundary chime.
+  //
+  // The one-cue principle from B-1's notifications, applied to audio: exactly one
+  // context plays per boundary, never two. That falls out of reconcilePomodoro's
+  // fresh re-read guard — only the caller that actually PERFORMED the transition
+  // ever sees 'advanced'/'completed'; a losing tab gets {action:'none', raced}.
+  // So "who plays" is simply "who transitioned", and this function only routes
+  // that winner's playback to a context that can actually produce sound:
+  //
+  //   page transition            -> 'page'          (play right here)
+  //   SW transition, tab open    -> 'page-message'  (borrow an open newtab)
+  //   SW transition, no tab      -> 'offscreen'     (a worker cannot play audio)
+  //
+  // Returns 'none' for every non-boundary action — crucially 'expired', which
+  // stays SILENT by D3/B1 design (an unattended timeout is not an achievement),
+  // and 'none'/raced, where another context already cued the user.
+  function pomodoroSoundTarget(input) {
+    var i = input || {};
+    if (i.action !== "advanced" && i.action !== "completed") return "none";
+    if (coercePomodoroSound(i.sound) === "none") return "none";
+    if (i.context === "page") return "page";
+    if (i.context === "sw") return i.tabOpen ? "page-message" : "offscreen";
+    return "none";
+  }
+
   // Defaulting reader: always returns a complete, in-range object regardless of
   // what (if anything) is stored. Pure — no mutation, no saveAll.
   function getPomodoroSettings(data) {
@@ -210,7 +255,10 @@ var Storage = (function () {
       // so it defaults at read time to false and coerces strictly — anything but a
       // literal `true` reads false. This is the fork that authorizes the SW to
       // advance phases in the background (background.js).
-      notificationsEnabled: (p.notificationsEnabled === true)
+      notificationsEnabled: (p.notificationsEnabled === true),
+      // [1.0.18 B-2] Boundary chime selection. Read-time default 'none' — silence
+      // is opt-OUT-by-default, matching notifications.
+      sound: coercePomodoroSound(p.sound)
     };
   }
 
@@ -243,6 +291,21 @@ var Storage = (function () {
     if (!data.settings.pomodoro || typeof data.settings.pomodoro !== "object") data.settings.pomodoro = {};
     if (data.settings.pomodoro.notificationsEnabled === next) return false;
     data.settings.pomodoro.notificationsEnabled = next;
+    await saveAll(data);
+    return true;
+  }
+
+  // [1.0.18 B-2] Enum sibling of the writers above — third coercion shape (not a
+  // clamped integer, not a strict boolean), so it gets its own path for the same
+  // reason the boolean did. Whitelist-coerce, ensure the bag, no-op guard,
+  // saveAll. Unlike notifications this needs NO permission: the chime is played
+  // from a page or an offscreen document we already own.
+  async function setPomodoroSound(data, val) {
+    if (!data || !data.settings) return false;
+    var next = coercePomodoroSound(val);
+    if (!data.settings.pomodoro || typeof data.settings.pomodoro !== "object") data.settings.pomodoro = {};
+    if (data.settings.pomodoro.sound === next) return false;
+    data.settings.pomodoro.sound = next;
     await saveAll(data);
     return true;
   }
@@ -4351,6 +4414,13 @@ var Storage = (function () {
     setPomodoroLongBreakMin: setPomodoroLongBreakMin,
     setPomodoroCyclesBeforeLongBreak: setPomodoroCyclesBeforeLongBreak,
     setPomodoroNotificationsEnabled: setPomodoroNotificationsEnabled,
+    // [1.0.18 B-2] Boundary chime: the enum setter, the canonical id list (the
+    // settings radios are authored in newtab.html; this is what validates them),
+    // the asset resolver, and the pure playback router shared by page and worker.
+    setPomodoroSound: setPomodoroSound,
+    POMODORO_SOUND_IDS: POMODORO_SOUND_IDS,
+    pomodoroSoundFile: pomodoroSoundFile,
+    pomodoroSoundTarget: pomodoroSoundTarget,
 
     // [1.0.23] Achievements (R1). Public: the defaulting reader + the two engine
     // entry points. The completion entry point is also called internally by

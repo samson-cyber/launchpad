@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LaunchPad audio</title>
+</head>
+<body>
+  <!-- [1.0.18 B-2] Invisible audio host for Focus-session boundary chimes. A
+       service worker has no DOM and therefore no way to play audio, so when a
+       phase boundary fires with no LaunchPad tab open the worker creates this
+       document (reason AUDIO_PLAYBACK), asks it to play one chime, and closes it
+       again. Never user-visible; carries no UI on purpose. -->
+  <script src="offscreen.js"></script>
+</body>
+</html>

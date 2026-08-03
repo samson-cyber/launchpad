@@ -488,6 +488,153 @@ async function firePomodoroNotification(kind, res) {
   }
 }
 
+// ===== [1.0.18 B-2] Boundary chime playback from the worker =====
+//
+// A service worker has no DOM and cannot play audio, so a background boundary
+// has two possible speakers: an open newtab page (messaged), or an offscreen
+// document we create for the occasion. Storage.pomodoroSoundTarget picks; this
+// section only executes the choice.
+//
+// ONE CUE PER BOUNDARY, still: only the context that actually performed the
+// transition reaches here at all (reconcilePomodoro's fresh re-read guard hands
+// exactly one caller 'advanced'/'completed'), so a page-side advance plays
+// page-side and this code never runs for it.
+var POMODORO_OFFSCREEN_URL = "offscreen.html";
+var POMODORO_SOUND_TAB_TIMEOUT_MS = 1500;   // a page that cannot answer this fast is not going to play
+var POMODORO_SOUND_OFFSCREEN_TIMEOUT_MS = 8000; // > offscreen.js's own 6s belt, so it answers first
+var _soundOffscreenReady = null;            // single-flight creation promise
+
+// The tab id of an open LaunchPad newtab page, or null. getContexts (Chrome 116+,
+// our manifest minimum) is the only way a worker can ask "is one of my pages
+// alive right now?" without waking anything.
+async function newtabSoundTabId() {
+  if (!chrome.runtime.getContexts) return null;
+  try {
+    var ctxs = await chrome.runtime.getContexts({ contextTypes: ["TAB"] });
+    var wanted = chrome.runtime.getURL("newtab.html");
+    for (var i = 0; i < (ctxs || []).length; i++) {
+      var c = ctxs[i];
+      // documentUrl can carry a #hash/query; match the page, not the exact string.
+      if (c && c.documentUrl && c.documentUrl.indexOf(wanted) === 0 && c.tabId != null && c.tabId >= 0) {
+        return c.tabId;
+      }
+    }
+  } catch (err) {
+    console.error("[LaunchPad] Focus session: tab context probe failed", err);
+  }
+  return null;
+}
+
+// Ask one open newtab to play the chime. Resolves TRUE only when that page
+// confirms it actually played — a closed tab, a listener-less page, or Chrome's
+// autoplay policy refusing playback in a background tab all resolve false so the
+// caller can fall back to the offscreen document (which is gesture-exempt).
+function sendSoundToTab(tabId, sound) {
+  return new Promise(function (resolve) {
+    var settled = false;
+    var done = function (ok) { if (!settled) { settled = true; resolve(ok); } };
+    var timer = setTimeout(function () { done(false); }, POMODORO_SOUND_TAB_TIMEOUT_MS);
+    try {
+      chrome.tabs.sendMessage(tabId, { type: "lp-pomodoro-sound", sound: sound }, function (resp) {
+        clearTimeout(timer);
+        if (chrome.runtime.lastError) return done(false);   // no receiver / tab gone
+        done(!!(resp && resp.played));
+      });
+    } catch (err) {
+      clearTimeout(timer);
+      done(false);
+    }
+  });
+}
+
+// Create the offscreen document if it isn't already there. Creation is a GLOBAL
+// singleton and inherently racy (two boundaries, or a retry, can overlap), so
+// this is guarded three ways: a getContexts existence probe, a module-level
+// single-flight promise, and — because neither closes the window between the
+// probe and the create — swallowing the "single offscreen document" error as
+// success. The in-flight promise is cleared on settle, since we CLOSE the
+// document after each chime and the next boundary must probe afresh.
+function ensureSoundOffscreen() {
+  if (_soundOffscreenReady) return _soundOffscreenReady;
+  var p = (async function () {
+    if (!chrome.offscreen || !chrome.runtime.getContexts) return false;
+    try {
+      var existing = await chrome.runtime.getContexts({ contextTypes: ["OFFSCREEN_DOCUMENT"] });
+      if (existing && existing.length) return true;
+    } catch (err) { /* fall through to create; the error below is the real signal */ }
+    try {
+      await chrome.offscreen.createDocument({
+        url: POMODORO_OFFSCREEN_URL,
+        reasons: ["AUDIO_PLAYBACK"],
+        justification: "Play the Focus session chime when a work or break phase ends with no LaunchPad tab open."
+      });
+      return true;
+    } catch (err) {
+      if (/single offscreen document/i.test(String(err && err.message))) return true;  // lost the race; it exists
+      console.error("[LaunchPad] Focus session: offscreen create failed", err);
+      return false;
+    }
+  })();
+  _soundOffscreenReady = p;
+  p.catch(function () {}).then(function () { if (_soundOffscreenReady === p) _soundOffscreenReady = null; });
+  return p;
+}
+
+async function closeSoundOffscreen() {
+  if (!chrome.offscreen || !chrome.offscreen.closeDocument) return;
+  try {
+    await chrome.offscreen.closeDocument();
+  } catch (err) {
+    // Already closed (or never opened) — not worth surfacing.
+  }
+}
+
+// Play through a freshly created offscreen document, then close it. Awaiting the
+// response keeps the worker alive for the ~1.5s the chime lasts; the timeout is
+// the backstop for a document that never answers, so we always reach the close.
+async function playSoundViaOffscreen(sound) {
+  var file = Storage.pomodoroSoundFile(sound);
+  if (!file) return;
+  if (!(await ensureSoundOffscreen())) return;
+  var url = chrome.runtime.getURL(file);
+  try {
+    await new Promise(function (resolve) {
+      var settled = false;
+      var done = function () { if (!settled) { settled = true; resolve(); } };
+      var timer = setTimeout(done, POMODORO_SOUND_OFFSCREEN_TIMEOUT_MS);
+      try {
+        chrome.runtime.sendMessage({ type: "lp-offscreen-play", url: url }, function () {
+          clearTimeout(timer);
+          void chrome.runtime.lastError;   // no receiver yet -> the timeout already covered us
+          done();
+        });
+      } catch (err) {
+        clearTimeout(timer);
+        done();
+      }
+    });
+  } finally {
+    await closeSoundOffscreen();
+  }
+}
+
+// Route + play one boundary's chime. Called OUTSIDE the `data` queue (see
+// runPomodoroPhaseBg) so holding the worker alive for the audio never stalls
+// unrelated background writers.
+async function firePomodoroSound(action, sound) {
+  // Cheap silence check before probing contexts: when the answer is 'none' it is
+  // tab-INDEPENDENT (not a boundary, or no chime chosen), so passing tabOpen:false
+  // here cannot mask a case that would otherwise have played.
+  if (Storage.pomodoroSoundTarget({ context: "sw", action: action, sound: sound, tabOpen: false }) === "none") return;
+
+  var tabId = await newtabSoundTabId();
+  var target = Storage.pomodoroSoundTarget({
+    context: "sw", action: action, sound: sound, tabOpen: tabId != null
+  });
+  if (target === "page-message" && await sendSoundToTab(tabId, sound)) return;   // the page played it
+  await playSoundViaOffscreen(sound);   // no tab, or the tab declined to play
+}
+
 // Alarm fire (or startup/install catch-up): a boundary may be due, or the SW woke
 // to one that already passed. Reconcile from the stored phaseEndsAt via the SHARED
 // storage.js logic. Serialized through enqueueBgData so it cannot clobber a
@@ -504,16 +651,27 @@ async function firePomodoroNotification(kind, res) {
 // 'advanced'/'completed' notify. 'none' means nothing was due OR an OPEN TAB's
 // page-side tick already advanced this boundary and the re-read guard no-oped here
 // — correct: the user watched it happen and saw the toast, so no notification.
+//
+// [B-2] The chime rides the same two actions as the notification, but is fired
+// AFTER the queued section returns, not inside it: playback holds the worker
+// alive for a second or two, and doing that inside enqueueBgData would stall
+// every other background `data` writer behind it for no reason. The queued part
+// still owns all the storage work; only the speaker call is handed outward.
 function runPomodoroPhaseBg() {
   return enqueueBgData("pomodoro-phase", async function () {
     var data = await Storage.getAll();
-    if (!Storage.getPomodoroSettings(data).notificationsEnabled) return;
+    var settings = Storage.getPomodoroSettings(data);
+    if (!settings.notificationsEnabled) return null;
     var res = await Storage.reconcilePomodoro(data);
     if (res.action === "advanced") {
       await firePomodoroNotification("advanced", res);
     } else if (res.action === "completed") {
       await firePomodoroNotification("completed", res);
     }
+    return { action: res.action, sound: settings.sound };
+  }).then(function (out) {
+    if (!out) return;
+    return firePomodoroSound(out.action, out.sound);
   });
 }
 

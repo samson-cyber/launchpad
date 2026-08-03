@@ -5556,6 +5556,35 @@ html.has-bg .pomo-setting-input {
 html.has-bg .pomo-reset-btn { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.14); color: #fff; }
 html.bg-light .pomo-reset-btn { background: rgba(0, 0, 0, 0.04); border-color: rgba(0, 0, 0, 0.14); color: var(--text-primary); }
 
+/* [1.0.18 B-2] Boundary-chime picker. The ▶ preview is a SIBLING of the label,
+   never a child: a button inside a <label> would also toggle that label's radio,
+   so auditioning a chime would silently change the selection. */
+.pomo-sound { margin-top: 12px; }
+.pomo-sound-title { display: block; font-size: 13px; opacity: 0.85; margin-bottom: 6px; }
+.pomo-sound-options { display: flex; flex-direction: column; gap: 2px; }
+.pomo-sound-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 2px 0; }
+.pomo-sound-label { display: inline-flex; align-items: center; gap: 8px; flex: 1; cursor: pointer; }
+.pomo-sound-label input { cursor: pointer; }
+.pomo-sound-preview {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+}
+.pomo-sound-preview:hover { background: rgba(255, 255, 255, 0.12); }
+html.has-bg .pomo-sound-preview { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.14); color: #fff; }
+html.bg-light .pomo-sound-preview { background: rgba(0, 0, 0, 0.04); border-color: rgba(0, 0, 0, 0.14); color: var(--text-primary); }
+
 #pro-settings-privacy-link {
   color: var(--accent);
   text-decoration: none;

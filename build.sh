@@ -31,11 +31,14 @@ powershell.exe -NoProfile -Command "
     'pro-access.js',
     'storage.js',
     'tracking.js',
+    'offscreen.html',
+    'offscreen.js',
     'privacy-policy.html',
     'package.json',
     'assets',
     'icons',
-    'lib'
+    'lib',
+    'sounds'
   )
   \$root = (Get-Location).Path
   \$zip = [System.IO.Compression.ZipFile]::Open((Join-Path \$root 'launchpad.zip'), 'Create')

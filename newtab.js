@@ -5940,6 +5940,26 @@
       }
     });
 
+    // [1.0.18 B-2] Boundary chime. Two delegated handlers on one container:
+    //   change -> persist the selection (whitelist-coerced in the setter)
+    //   click on ▶ -> PREVIEW ONLY, writes nothing. Auditioning a chime must not
+    //     change what fires at your next boundary; you pick with the radio.
+    safeOn("#pomo-sound-options", "change", async function (e) {
+      var el = e.target;
+      if (!el || el.name !== "pomo-sound") return;
+      try {
+        await Storage.setPomodoroSound(data, el.value);
+      } catch (err) {
+        console.error("[LaunchPad] Focus session: save sound failed", err);
+      }
+      renderProPomodoroSettings();
+    });
+    safeOn("#pomo-sound-options", "click", function (e) {
+      var btn = e.target.closest(".pomo-sound-preview");
+      if (!btn) return;
+      satPlayPomodoroSound(btn.dataset.sound);
+    });
+
     bindProTagsControls();
   }
 
@@ -6312,6 +6332,12 @@
         });
       }
     }
+    // [1.0.18 B-2] Reflect the chime selection. s.sound is already whitelist-
+    // coerced by the reader, so a legacy/garbage stored id lands on "none" here
+    // and the picker always shows exactly one checked radio.
+    $$("#pomo-sound-options input[name='pomo-sound']").forEach(function (radio) {
+      radio.checked = (radio.value === s.sound);
+    });
   }
 
   // ===== Pro Settings: Tags section ([1.0.9.1]) =====
@@ -8761,6 +8787,58 @@
     return "Nice — " + Math.round(ms / 60000) + " min focused. Break time.";
   }
 
+  // ===== [1.0.18 B-2] Boundary chime =====
+  //
+  // Page-side playback of the selected chime. Two callers: a boundary THIS tab
+  // performed (satFireBoundarySound) and the settings preview buttons.
+  //
+  // Resolves to whether playback actually STARTED, which is not cosmetic: when
+  // the service worker advances a phase in the background it asks an open tab to
+  // play (sendSoundToTab) and falls back to an offscreen document if the answer
+  // is false — Chrome's autoplay policy can refuse audio in a background tab
+  // that has never seen a gesture, and the fallback is what keeps the chime
+  // audible in that case.
+  function satPlayPomodoroSound(sound) {
+    var file = Storage.pomodoroSoundFile(sound);
+    if (!file) return Promise.resolve(false);          // 'none' or an unknown id
+    var audio;
+    try {
+      audio = new Audio(chrome.runtime.getURL(file));
+    } catch (err) {
+      console.error("[LaunchPad] Focus session: audio construct failed", err);
+      return Promise.resolve(false);
+    }
+    var p = audio.play();
+    if (!p || !p.then) return Promise.resolve(true);   // pre-promise play(): assume it started
+    return p.then(function () { return true; }, function (err) {
+      console.warn("[LaunchPad] Focus session: chime blocked", err);
+      return false;
+    });
+  }
+
+  // A boundary THIS tab performed. Routed through the SHARED decision function so
+  // the page and the worker cannot drift on when a chime is due — in particular
+  // 'expired' returns 'none' there, keeping an unattended timeout silent (D3/B1).
+  function satFireBoundarySound(action) {
+    var sound = Storage.getPomodoroSettings(data).sound;
+    var target = Storage.pomodoroSoundTarget({
+      context: "page", action: action, sound: sound, tabOpen: true
+    });
+    if (target !== "page") return;
+    satPlayPomodoroSound(sound);
+  }
+
+  // The worker's "play this" for a boundary it advanced in the background while
+  // this tab happened to be open. Registered at load rather than inside init(),
+  // so a boundary firing during page startup still finds a receiver.
+  if (chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+      if (!msg || msg.type !== "lp-pomodoro-sound") return;
+      satPlayPomodoroSound(msg.sound).then(function (played) { sendResponse({ played: played }); });
+      return true;   // async response — keep the channel open
+    });
+  }
+
   // [A2] Reconcile the running phase against the clock, fire-and-forget. Cheap
   // sync early-outs (not running / paused / not yet due) avoid any storage hit on
   // the vast majority of ticks; only the tick that actually crosses phaseEndsAt
@@ -8777,11 +8855,13 @@
       .then(function (res) {
         if (res.action === "advanced") {
           showToast(satPomoAdvanceToast(res));
+          satFireBoundarySound("advanced");
           renderActiveTaskWidget();
         } else if (res.action === "completed") {
           // [E1/E2] Break finished — the session is over; the card re-renders
           // into its session-complete state. Work never auto-starts.
           showToast("Session complete — ready for another?");
+          satFireBoundarySound("completed");
           renderActiveTaskWidget();
         } else if (res.action === "expired") {
           showToast("Focus session ended while you were away.");
