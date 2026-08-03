@@ -3103,6 +3103,42 @@ var Storage = (function () {
   }
 
   /**
+   * [Trash] Restore a soft-deleted tag by clearing deletedAt — the mirror of
+   * deleteTag, and the ONLY writer that un-deletes a tag. Workspace-threaded
+   * and single-field, like every other tag writer; no partial-object merge.
+   *
+   * COLLISION IS REAL, not theoretical: isDuplicateTagName ignores trashed tags
+   * on purpose, so the name was free to be taken while this one sat in the bin.
+   * Restoring blindly would leave two LIVE tags sharing a name, which createTag
+   * and renameTag both refuse. So this refuses too, returning the same
+   * {err,message} shape those two use. No auto-rename, no silent duplicate —
+   * the user renames the active one first.
+   *
+   * ITEM ASSOCIATIONS NEED NO WORK HERE: deleteTag is a pure soft-delete that
+   * leaves every tagIds array intact, and purgeExpiredTrash is the only thing
+   * that strips them (at day 30, in the same sweep that hard-removes the tag).
+   * So a restore inside the window turns every dimmed "archived tag" badge back
+   * into a normal one with no cascade — trash-bin.md's "everything snaps back".
+   *
+   * @returns {Promise<object|{err:string,message:string}|null>}
+   */
+  async function restoreTag(data, tagId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws) return null;
+    var tags = ensureTagsArray(ws);
+    if (!tags) return null;
+    var tag = tags.find(function (t) { return t.id === tagId; });
+    if (!tag) return null;              // unknown id
+    if (!tag.deletedAt) return tag;     // already active — no-op, no write
+    if (isDuplicateTagName(ws, tag.name, tagId)) {
+      return { err: "duplicate", message: "An active tag already has this name — rename it first." };
+    }
+    tag.deletedAt = null;
+    await saveAll(data);
+    return tag;
+  }
+
+  /**
    * Active (non-deleted) tags.
    */
   function getActiveTags(workspace) {
@@ -4585,6 +4621,8 @@ var Storage = (function () {
     renameTag: renameTag,
     updateTagColor: updateTagColor,
     deleteTag: deleteTag,
+    // [Trash] The un-delete half. Blocks on an active same-name collision.
+    restoreTag: restoreTag,
     getActiveTags: getActiveTags,
     getAllTags: getAllTags,
     getTagById: getTagById,

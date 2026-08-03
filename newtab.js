@@ -5968,6 +5968,11 @@
     if (!panel) return;
     if (!panel.classList.contains("hidden")) { closeProSettingsPanel(); return; }
 
+    // [Trash] Collapse the trashed-tags block on every open. Deliberately not
+    // persisted: revealing it is a momentary "let me look in the bin", not a
+    // preference, so a fresh panel always shows the uncluttered active list.
+    proTagsTrashRevealed = false;
+
     // [1.0.11.12] Cross-panel mutual exclusion is handled by openPanel().
     // hideGroupMenu is kept here because it is orthogonal to the sidebar
     // panel chain (group-context-menu vs. sidebar panel).
@@ -6351,6 +6356,10 @@
 
   var pendingTagDeleteId = null;
   var pendingTagDeleteTimer = null;
+  // [Trash] Is the trashed-tags block revealed? Transient by design — in-memory
+  // only, never written to `data`, and reset to false on every panel open, so
+  // the default view is always active tags only.
+  var proTagsTrashRevealed = false;
   var openTagPalettePopover = null; // current popover element when recolor open
   var tagPaletteOutsideHandler = null;
 
@@ -6395,19 +6404,38 @@
 
     var ws = Storage.getActiveWorkspace(data);
     var tags = ws ? Storage.getAllTags(ws) : [];
-    tags = tags.slice().sort(function (a, b) {
-      return (a.createdAt || 0) - (b.createdAt || 0);
-    });
+    var byCreated = function (a, b) { return (a.createdAt || 0) - (b.createdAt || 0); };
+    // [Trash] Split explicitly instead of sorting the mixed list. The old
+    // createdAt-only sort put trashed tags wherever their age landed — usually
+    // ABOVE the active ones, since they tend to be older — which read as an
+    // intentional inversion. Active-first is now structural, not incidental.
+    var activeTags = tags.filter(function (t) { return !t.deletedAt; }).sort(byCreated);
+    var trashedTags = tags.filter(function (t) { return !!t.deletedAt; }).sort(byCreated);
 
     var subtitle = document.querySelector(".pro-tags-subtitle");
-    var activeCount = tags.filter(function (t) { return !t.deletedAt; }).length;
+    var activeCount = activeTags.length;
+    var archivedCount = trashedTags.length;
     if (subtitle) {
-      if (tags.length === 0) {
-        subtitle.textContent = "";
-      } else {
-        var archivedCount = tags.length - activeCount;
-        subtitle.textContent = activeCount + " active tag" + (activeCount === 1 ? "" : "s") +
-          (archivedCount > 0 ? " · " + archivedCount + " in trash" : "");
+      subtitle.textContent = "";
+      if (tags.length > 0) {
+        subtitle.appendChild(document.createTextNode(
+          activeCount + " active tag" + (activeCount === 1 ? "" : "s") +
+          (archivedCount > 0 ? " · " + archivedCount + " in trash" : "")
+        ));
+        // The counter line doubles as the disclosure. Built as a real element
+        // rather than innerHTML so no tag data is ever re-serialised here.
+        if (archivedCount > 0) {
+          var toggle = document.createElement("button");
+          toggle.type = "button";
+          toggle.className = "pro-tags-trash-toggle";
+          toggle.textContent = proTagsTrashRevealed ? "Hide" : "Show";
+          toggle.addEventListener("click", function () {
+            proTagsTrashRevealed = !proTagsTrashRevealed;
+            renderProTagsSection();
+          });
+          subtitle.appendChild(document.createTextNode(" — "));
+          subtitle.appendChild(toggle);
+        }
       }
     }
 
@@ -6417,20 +6445,38 @@
       else emptyEl.classList.add("hidden");
     }
 
-    listHost.innerHTML = tags.map(function (tag) {
+    // Trashed rows only exist in the DOM while revealed — hidden is the default
+    // on every panel open (proTagsTrashRevealed is transient, never persisted).
+    var visibleTags = activeTags.concat(proTagsTrashRevealed ? trashedTags : []);
+
+    listHost.innerHTML = visibleTags.map(function (tag) {
       var archived = !!tag.deletedAt;
       var rowCls = "pro-tag-row" + (archived ? " archived" : "");
-      var rowTitle = archived ? ' title="Restore via Trash (coming soon)."' : "";
+      var rowTitle = archived ? ' title="In trash — restore within 30 days."' : "";
       return '<li class="' + rowCls + '" data-tag-id="' + escapeHtml(tag.id) + '"' + rowTitle + '>' +
         '<button class="pro-tag-color-swatch" type="button" style="background:' + escapeHtml(tag.color) + '" aria-label="Change color"></button>' +
         '<span class="pro-tag-name">' + escapeHtml(tag.name) + '</span>' +
-        (archived ? '<span class="pro-tag-archived-label">in trash</span>' : '') +
+        (archived
+          ? '<span class="pro-tag-archived-label">in trash</span>' +
+            '<button class="pro-tag-restore" type="button" title="Restore this tag">Restore</button>' +
+            '<span class="pro-tag-restore-error hidden" role="alert"></span>'
+          : '') +
         '<button class="pro-tag-delete" type="button" aria-label="Delete tag" title="Delete tag">🗑</button>' +
       '</li>';
     }).join("");
 
     listHost.querySelectorAll(".pro-tag-row").forEach(function (row) {
-      if (row.classList.contains("archived")) return;
+      var archivedRow = row.classList.contains("archived");
+      if (archivedRow) {
+        // Trashed rows stay read-only apart from Restore: no rename, no
+        // recolor, no re-delete (the delete button is display:none for them).
+        var restoreEl = row.querySelector(".pro-tag-restore");
+        if (restoreEl) restoreEl.addEventListener("click", function (e) {
+          e.stopPropagation();
+          handleTagRestoreClick(row, row.dataset.tagId);
+        });
+        return;
+      }
       var tagId = row.dataset.tagId;
       var nameEl = row.querySelector(".pro-tag-name");
       var swatchEl = row.querySelector(".pro-tag-color-swatch");
@@ -6658,6 +6704,32 @@
     }
   }
 
+  // [Trash] Restore a trashed tag. The one blocking case is a name collision:
+  // an active tag may have taken this name while it sat in the bin, so the
+  // storage layer refuses and we surface its message inline on the row rather
+  // than as a toast — the error belongs next to the row that caused it, and the
+  // user's next action (rename that active tag) is right there in the list.
+  async function handleTagRestoreClick(row, tagId) {
+    var note = row ? row.querySelector(".pro-tag-restore-error") : null;
+    if (note) { note.textContent = ""; note.classList.add("hidden"); }
+    var res;
+    try {
+      res = await Storage.restoreTag(data, tagId);
+    } catch (err) {
+      console.error("[LaunchPad] Tags: restore failed", err);
+      return;
+    }
+    if (res && res.err === "duplicate") {
+      if (note) { note.textContent = res.message; note.classList.remove("hidden"); }
+      return;
+    }
+    if (!res) return;                       // unknown id — nothing to say
+    // Keep the block revealed so the row visibly leaves the trash group and
+    // reappears above; collapsing here would look like the tag vanished.
+    renderProTagsSection();
+    showToast('Tag "' + res.name + '" restored.');
+  }
+
   async function handleTagDeleteClick(btn, tagId) {
     if (pendingTagDeleteId === tagId) {
       // Second click — confirm.
@@ -6670,7 +6742,10 @@
     clearPendingTagDelete();
     pendingTagDeleteId = tagId;
     btn.classList.add("confirming");
-    btn.title = "Click again to confirm — restore from Trash within 30 days.";
+    // The promise this makes is now TRUE: Restore lives on the trashed row,
+    // reachable via the "Show" disclosure on this section's counter line. Before
+    // that existed this tooltip claimed a recovery path that did not exist.
+    btn.title = "Click again to confirm — restore from Pro Settings > Tags within 30 days.";
     btn.textContent = "Delete?";
     pendingTagDeleteTimer = setTimeout(function () { clearPendingTagDelete(); }, 3000);
   }
