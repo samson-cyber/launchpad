@@ -7,6 +7,16 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
+# Ink gate: panel text that sets no colour falls through to --text-primary
+# (#202124) and is invisible on the dark frosted surface a wallpaper produces.
+# Shipped twice (a68dd89 Insights board, [1.0.18 B-2] sound picker) because it
+# looks perfect in the default no-wallpaper theme. Runs before anything is built,
+# so a defective build produces no artifact at all.
+if ! node tools/check-panel-ink.mjs; then
+  echo "ERROR: ink gate failed — panel text would be illegible on a wallpaper." >&2
+  exit 1
+fi
+
 rm -f launchpad.zip
 
 # Package the allowlist. NOTE: do NOT use Compress-Archive — PowerShell 5.1's

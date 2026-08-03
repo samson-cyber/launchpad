@@ -5558,12 +5558,36 @@ html.bg-light .pomo-reset-btn { background: rgba(0, 0, 0, 0.04); border-color: r
 
 /* [1.0.18 B-2] Boundary-chime picker. The ▶ preview is a SIBLING of the label,
    never a child: a button inside a <label> would also toggle that label's radio,
-   so auditioning a chime would silently change the selection. */
+   so auditioning a chime would silently change the selection.
+
+   INK (fix, live-pass finding): every text-bearing row here MUST declare its own
+   colour AND carry an html.has-bg override, exactly like .pro-toggle-row and
+   .pomo-setting-row above. Shipping these rules with no colour at all let the
+   text fall through to body { color: var(--text-primary) } = #202124, which on
+   the dark frosted panel (--pro-frost-floater-bg) is ~1.1:1 — invisible. Same
+   mechanism as a68dd89 (Insights on-card ink). Do not rely on inheritance here:
+   the panel's own surface flips with the wallpaper, the ink must flip with it. */
 .pomo-sound { margin-top: 12px; }
-.pomo-sound-title { display: block; font-size: 13px; opacity: 0.85; margin-bottom: 6px; }
+.pomo-sound-title {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
 .pomo-sound-options { display: flex; flex-direction: column; gap: 2px; }
-.pomo-sound-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 2px 0; }
+.pomo-sound-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 2px 0;
+  color: var(--text-secondary);
+}
 .pomo-sound-label { display: inline-flex; align-items: center; gap: 8px; flex: 1; cursor: pointer; }
+html.has-bg .pomo-sound-title,
+html.has-bg .pomo-sound-row { color: rgba(255, 255, 255, 0.7); }
+html.bg-light .pomo-sound-title,
+html.bg-light .pomo-sound-row { color: var(--text-secondary); }
 .pomo-sound-label input { cursor: pointer; }
 .pomo-sound-preview {
   flex-shrink: 0;
