@@ -5522,9 +5522,22 @@ html.has-bg .pomo-setting-row {
   font-size: 13px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  appearance: textfield;
 }
 
 .pomo-setting-input:focus { outline: none; border-color: var(--accent); }
+
+/* [1.0.18] Hide the native number spinners: on the dark panel Chromium draws
+   them as light-grey widgets that match nothing around them. SCOPED to this
+   class deliberately — three other number inputs exist (.tt-recur-dom-input,
+   .tt-tpl-offset-input, .sat-pomo-dur-input) and keep their spinners.
+   Keyboard ArrowUp/Down still steps the value, so the affordance survives; the
+   clamp on save is storage-side and untouched. */
+.pomo-setting-input::-webkit-outer-spin-button,
+.pomo-setting-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 
 html.has-bg .pomo-setting-input {
   background: rgba(255, 255, 255, 0.08);
@@ -5552,6 +5565,14 @@ html.has-bg .pomo-setting-input {
    the pointer cursor to this row only; min Chrome 116 supports it. */
 .pro-toggle-row:has(#pomo-notifications-toggle),
 #pomo-notifications-toggle { cursor: pointer; }
+/* [1.0.18] Group rhythm. Focus sessions stacks four unrelated control groups —
+   [durations] [reset] [notifications] [sound] — and the notifications row was
+   the one seam with NO gap, so it read as part of the reset group. 12px is the
+   panel's established inter-group step (.settings-section-title margin-bottom,
+   .pomo-reset-row, .pomo-sound all use it), not a new number. Scoped by :has to
+   this instance so the Analytics .pro-toggle-row is unaffected. With the reset
+   row's own 12px above, it now has equal breathing room on both sides. */
+.pro-toggle-row:has(#pomo-notifications-toggle) { margin-top: 12px; }
 .pomo-notif-note { margin: 6px 0 0; font-size: 12px; opacity: 0.8; }
 html.has-bg .pomo-reset-btn { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.14); color: #fff; }
 html.bg-light .pomo-reset-btn { background: rgba(0, 0, 0, 0.04); border-color: rgba(0, 0, 0, 0.14); color: var(--text-primary); }
