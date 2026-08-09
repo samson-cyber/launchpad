@@ -1089,3 +1089,82 @@ chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
     console.error("[LaunchPad] Failed to refresh favicon from tab:", err);
   }
 });
+
+// ===========================================================================
+// [1.2.0 PROBE] SCRATCH BRANCH ONLY — NEVER MERGE TO MASTER.
+//
+// Throwaway fourth chrome.tabs.onUpdated listener that models the real Focus
+// Blocking intercept end to end, so the FLASH can be measured instead of
+// guessed (AUDIT A1, 2026-08-09):
+//   listener entry -> the storage read the real intercept needs -> tabs.update
+//   to the gate page -> update resolution.
+// Every stamp is beaconed to a local collector (127.0.0.1:8899) rather than
+// logged, because SW console output cannot be read without DevTools.
+//
+// performance.now() inside a service worker is relative to the WORKER'S OWN
+// time origin, so its value at listener entry IS the cold-start cost: a warm
+// worker reports a large number (ms since it woke earlier), a worker that
+// booted for this very event reports a small one.
+// ===========================================================================
+var PROBE_COLLECTOR = "http://127.0.0.1:8899";
+var PROBE_HOST = "127.0.0.1:8899";
+var PROBE_SW_BOOT_WALL = Date.now();
+
+function probeBeacon(params) {
+  var qs = Object.keys(params).map(function (k) {
+    return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]);
+  }).join("&");
+  try { return fetch(PROBE_COLLECTOR + "/beacon?" + qs, { keepalive: true }).catch(function () {}); }
+  catch (e) { return Promise.resolve(); }
+}
+
+// Pre-warm the session-cache mitigation sketched in AUDIT A1(b). chrome.storage
+// .session lives in the browser process, so it survives SW suspend within a
+// browser session — the point of the mitigation is to keep the block list off
+// the critical path without relying on module state (BUGS.md A1).
+try {
+  chrome.storage.session.set({
+    probeBlockCache: { hosts: ["127.0.0.1:8899", "youtube.com", "reddit.com"], stampedAt: Date.now() }
+  });
+} catch (e) {}
+
+probeBeacon({ ev: "sw-boot", wall: PROBE_SW_BOOT_WALL, perf: Math.round(performance.now() * 100) / 100 });
+
+chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
+  if (!changeInfo.url) return;
+  var u;
+  try { u = new URL(changeInfo.url); } catch (e) { return; }
+  if (u.host !== PROBE_HOST) return;
+  if (u.pathname !== "/fast" && u.pathname !== "/slow") return;
+
+  var tEntry = Date.now();
+  var perfEntry = performance.now();
+  var nonce = u.searchParams.get("nonce") || "";
+  var mode = u.searchParams.get("mode") || "local";   // 'local' = real read, 'session' = mitigation
+
+  var readPromise = (mode === "session")
+    ? chrome.storage.session.get("probeBlockCache")
+    : chrome.storage.local.get("data");
+
+  readPromise.then(function (got) {
+    var tRead = Date.now();
+    var blobLen = 0;
+    try { blobLen = JSON.stringify(got && (got.data || got.probeBlockCache) || {}).length; } catch (e) {}
+    return chrome.tabs.update(tabId, { url: chrome.runtime.getURL("probe-gate.html") })
+      .then(function () {
+        var tUpdate = Date.now();
+        return probeBeacon({
+          ev: "intercept", nonce: nonce, mode: mode,
+          swBootWall: PROBE_SW_BOOT_WALL,
+          perfAtEntry: Math.round(perfEntry * 100) / 100,   // ms since THIS worker started
+          entryWall: tEntry,
+          readMs: tRead - tEntry,
+          updateMs: tUpdate - tRead,
+          totalMs: tUpdate - tEntry,
+          blobLen: blobLen
+        });
+      });
+  }).catch(function (err) {
+    probeBeacon({ ev: "intercept-failed", nonce: nonce, mode: mode, err: String(err && err.message || err) });
+  });
+});
