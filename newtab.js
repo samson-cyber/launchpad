@@ -9174,12 +9174,28 @@
   // not shown. The delegated handler routes on the innermost data-sat-act, so a
   // click on the glyph resumes while a click anywhere else on the face still
   // opens the Switch dropdown ("pick"). One click out of the paused-no-task hole.
+  // [1.2.0 R3 / C9] Minimized-face armed INDICATOR. Indicator only — C9 is
+  // explicit that the face carries no control, so this is a span with no
+  // data-sat-act and the whole face keeps behaving as one button.
+  //
+  // Placed immediately after the leading glyph in every branch, never at the
+  // trailing edge, because the phase branch's countdown lives there and its width
+  // changes every second. Colour is var(--sat-accent), the ring's own variable,
+  // so it inherits the already-solved three-branch treatment over wallpapers
+  // rather than inventing a second accent.
+  function satFocusPillDot() {
+    if (!Storage.focusBlockingActive(data)) return "";
+    return '<span class="sat-pill-focus" title="Focus blocking is on" ' +
+      'aria-label="Focus blocking is on">●</span>';
+  }
+
   function satPillFaceHtml(res, paused) {
     var inner;
     if (!res) {
       inner = (paused ? '<span class="sat-pill-glyph sat-pill-resume" data-sat-act="resume" ' +
           'role="button" title="Resume tracking" aria-label="Resume tracking">⏸</span>' : '') +
         '<span class="sat-pill-empty">No active task</span>' +
+        satFocusPillDot() +
         '<span class="sat-pill-plus" aria-hidden="true">+</span>';
     } else {
       // [1.0.18] Minimized pill during a running phase: the countdown + phase
@@ -9188,14 +9204,14 @@
       // card on click (act = "restore" below).
       var pomo = satRunningPomo();
       if (pomo) {
-        inner = '<span class="sat-pill-glyph" aria-hidden="true">◷</span>' +
+        inner = '<span class="sat-pill-glyph" aria-hidden="true">◷</span>' + satFocusPillDot() +
           '<span class="sat-pill-main">' +
             '<span class="sat-pill-label">' + escapeHtml(SAT_POMO_PHASE_LABEL[pomo.phase] || 'Focus') + '</span>' +
             '<span class="sat-pill-name">' + escapeHtml(res.task.name) + '</span>' +
           '</span>' +
           '<span class="sat-pill-time sat-pomo-time">' + escapeHtml(satFmtLong(satPomoRemainingMs(pomo))) + '</span>';
       } else {
-        inner = '<span class="sat-pill-glyph" aria-hidden="true">' + (paused ? '⏸' : '▶') + '</span>' +
+        inner = '<span class="sat-pill-glyph" aria-hidden="true">' + (paused ? '⏸' : '▶') + '</span>' + satFocusPillDot() +
           '<span class="sat-pill-main">' +
             '<span class="sat-pill-label">' + (paused ? 'Paused' : 'Active task') + '</span>' +
             '<span class="sat-pill-name">' + escapeHtml(res.task.name) + '</span>' +
@@ -9218,6 +9234,46 @@
   // card takes .is-paused (amber-tinted, frozen timer), the "focused today" label
   // becomes "Paused", and the Pause control shows as Resume. The [1.0.16] paused
   // CHIP is gone — its state is absorbed into the control (D2), not duplicated.
+  // ===== [1.2.0 R3 / C9] The pill's Focus row =====
+  //
+  // A DEDICATED row, not another button in the shared actionsRow: that row already
+  // carries four controls (Done / Pause / x / Switch) across all three card
+  // states, and blocking is a mode rather than an action on the task. The
+  // sat-pomo-start-row / sat-pomo-stop-row precedent is the same shape.
+  //
+  // THE LABEL IS THE TEACHING SURFACE, so the row renders in ALL THREE card
+  // states and whether or not any sites are listed. With an empty block list it
+  // appends a quiet "no sites listed" note — a statement of fact, not a link:
+  // Pro Settings is the manage surface and this round adds no navigation.
+  //
+  // TOGGLE SEMANTICS ARE ADDITIVE, never a fight with the auto path. The control
+  // owns the MANUAL arm only, so a tap is always just "flip my manual arm":
+  //   off        -> manual on   (blocking starts)
+  //   on (auto)  -> manual on   (blocking now SURVIVES the session ending)
+  //   on         -> manual off  (if a work phase is still running the label falls
+  //                              back to "on (auto)" rather than to "off", which
+  //                              is both correct and self-explanatory)
+  // The switch's visual state tracks whether blocking is ON BY ANY ROUTE, so it
+  // always agrees with the label beside it; only the "(auto)" suffix moves.
+  function satFocusRowHtml() {
+    var state = Storage.focusArmState(data);          // "off" | "manual" | "auto"
+    var on = state !== "off";
+    var label = state === "off" ? "Focus blocking: off"
+              : state === "auto" ? "Focus blocking: on (auto)"
+              : "Focus blocking: on";
+    var empty = Storage.getBlockList(data).length === 0;
+    var title = on ? "Turn focus blocking off" : "Turn focus blocking on";
+    return '<div class="sat-focus-row' + (on ? ' is-on' : '') + '">' +
+        '<button type="button" class="sat-focus-toggle" data-sat-act="focus-toggle" ' +
+          'role="switch" aria-checked="' + (on ? 'true' : 'false') + '" ' +
+          'title="' + title + '" aria-label="' + title + '">' +
+          '<span class="sat-focus-knob" aria-hidden="true"></span>' +
+        '</button>' +
+        '<span class="sat-focus-label">' + escapeHtml(label) + '</span>' +
+        (empty ? '<span class="sat-focus-hint">no sites listed</span>' : '') +
+      '</div>';
+  }
+
   function satCardHtml(res, paused) {
     var tagIds = Array.isArray(res.task.tagIds) ? res.task.tagIds : [];
     var tagHtml = "";
@@ -9299,6 +9355,7 @@
               '<button type="button" class="sat-btn sat-btn-pomo-stop" data-sat-act="pomo-stop" title="Stop focus session">■ Stop</button>' +
             '</div>' +
           '</div>' +
+          satFocusRowHtml() +
           actionsRow +
         '</div>';
     }
@@ -9327,6 +9384,7 @@
                 'title="Start the next focus session">▶ Start next session</button>' +
             '</div>' +
           '</div>' +
+          satFocusRowHtml() +
           actionsRow +
         '</div>';
     }
@@ -9349,6 +9407,7 @@
             escapeHtml(String(workMin)) + ' min ▾</button>' +
         '</div>' +
         (satPomoDurOpen ? satPomoDurChipsHtml(workMin) : "") +
+        satFocusRowHtml() +
         actionsRow +
       '</div>';
   }
@@ -9510,6 +9569,26 @@
   // new to show: no eager-render triple, just renderActiveTaskWidget. Foreign tabs
   // pick it up via the `data` watcher. Storage.start/stop no-op safely with no
   // active task, so these are inert if somehow fired without one.
+  // [1.2.0 R3 / C9] Flip the MANUAL arm. That single operation implements all
+  // three tap semantics (off -> on, auto -> manual so it outlives the session,
+  // manual -> off with a fallback to "on (auto)" if a phase is still running),
+  // because the manual flag is the only thing this control owns.
+  //
+  // NO SERVICE-WORKER WORK IS NEEDED, and that is by design rather than an
+  // omission: the intercept re-derives focusBlockingActive from storage on every
+  // navigation, so a write here is the whole handoff. Nothing to notify, nothing
+  // to keep in sync.
+  async function satToggleFocusArm() {
+    try {
+      await Storage.setFocusArmed(data, !Storage.isFocusManuallyArmed(data));
+    } catch (err) {
+      console.error("[LaunchPad] Focus blocking: arm toggle failed", err);
+    }
+    // Own-tab eager render, the sat* convention. Foreign tabs pick it up through
+    // the storage watcher, so no cross-tab messaging here either.
+    renderActiveTaskWidget();
+  }
+
   async function satPomoStart() {
     satPomoDurOpen = false;   // close the duration picker on start
     try {
@@ -9889,6 +9968,7 @@
       if (act === "complete") { await satComplete(); return; }
       if (act === "cancel") { await satCancel(); return; }
       if (act === "pomo-start") { await satPomoStart(); return; }
+      if (act === "focus-toggle") { await satToggleFocusArm(); return; }
       if (act === "pomo-stop") { await satPomoStop(); return; }
       if (act === "pomo-duration") { satPomoDurOpen = !satPomoDurOpen; renderActiveTaskWidget(); return; }
       if (act === "pomo-dur-pick") { await satPomoSetWorkMin(parseInt(actBtn.getAttribute("data-min"), 10)); return; }

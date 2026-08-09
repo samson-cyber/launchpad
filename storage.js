@@ -397,6 +397,25 @@ var Storage = (function () {
     return hydratePomodoroState(active.pomodoroState).phase === "work";
   }
 
+  // [1.2.0 R3 / C9] Which ROUTE has blocking on, for the pill's state label.
+  // Three readings, and the distinction between the last two is the whole point:
+  //   "off"    nothing is arming it
+  //   "manual" the user armed it by hand (survives the session ending)
+  //   "auto"   armed only by a running work phase (ends when the phase does)
+  //
+  // Derived from focusBlockingActive rather than from the phase directly, which
+  // is what keeps it honest: a PAUSED work phase reads "off", because
+  // focusBlockingActive is false and nothing is actually being blocked. A naive
+  // "a phase is running, so it must be auto" reading would say "auto" while the
+  // intercept lets everything through — a label that lies about the feature's
+  // current behaviour. Lives here rather than in the page so it is harnessable
+  // next to the derivation it wraps; the page owns the wording, storage owns the
+  // state.
+  function focusArmState(data) {
+    if (isFocusManuallyArmed(data)) return "manual";
+    return focusBlockingActive(data) ? "auto" : "off";
+  }
+
   // C3 — normalize a user-typed entry to a bare lowercase host. Returns null for
   // anything unusable, so the caller never stores garbage. Accepts a full URL
   // paste, a host:port, a "www." prefix, or a bare host.
@@ -4993,6 +5012,7 @@ var Storage = (function () {
     getFocusSettings: getFocusSettings,
     setFocusAutoArm: setFocusAutoArm,
     focusBlockingActive: focusBlockingActive,
+    focusArmState: focusArmState,
     normalizeBlockEntry: normalizeBlockEntry,
     matchesBlockedDomain: matchesBlockedDomain,
     getBlockList: getBlockList,
