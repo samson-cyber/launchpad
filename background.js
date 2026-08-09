@@ -794,80 +794,102 @@ chrome.contextMenus.onClicked.addListener(async function (info, tab) {
       deletedAt: null
     };
 
-    var data = await Storage.getAll();
-    var ws = Storage.getActiveWorkspace(data);
-    if (!ws) {
-      console.warn("[LaunchPad] No active workspace; cannot add shortcut");
-      return;
-    }
-
-    var targetGroupId = menuId.replace("add-to-group_", "");
-    var targetGroup;
-
-    if (targetGroupId === "new") {
-      var newId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-      targetGroup = { id: newId, name: "New Group", shortcuts: [], deletedAt: null };
-      ws.groups.push(targetGroup);
-      ws.groupOrder.push(newId);
-    } else {
-      targetGroup = ws.groups.find(function (g) { return g.id === targetGroupId; });
-      if (!targetGroup) {
-        targetGroup = ws.groups.find(function (g) { return g.id === "ungrouped"; });
-        if (!targetGroup) {
-          targetGroup = { id: "ungrouped", name: "Ungrouped", shortcuts: [], deletedAt: null };
-          ws.groups.push(targetGroup);
-          ws.groupOrder.push("ungrouped");
-        }
-      }
-    }
-
-    var matchKey = getMatchKeyBg(url);
-    var existingMatch = null;
-    targetGroup.shortcuts.forEach(function (s) {
-      if (!existingMatch) {
-        var sKey = getMatchKeyBg(s.url);
-        if (sKey && matchKey && sKey === matchKey) existingMatch = s;
-      }
-    });
-
-    if (existingMatch) {
-      if (!existingMatch.variants) existingMatch.variants = [];
-      var variantTitle = shortcut.title;
-      try {
-        var variantPath = new URL(url).pathname;
-        var accountMatch = variantPath.match(/\/u\/(\d+)/);
-        if (accountMatch) variantTitle = "Account " + (parseInt(accountMatch[1]) + 1);
-      } catch (e) {}
-      existingMatch.variants.push({
-        id: shortcut.id,
-        url: shortcut.url,
-        title: variantTitle,
-        favicon: shortcut.favicon,
-        deletedAt: null
-      });
-      console.log("[LaunchPad] Auto-nested under", existingMatch.title, ":", shortcut.title);
-    } else {
-      targetGroup.shortcuts.push(shortcut);
-      console.log("[LaunchPad] Shortcut added to", targetGroup.name, ":", shortcut.title);
-    }
-
-    // [R3] Getting-Started ticks ride THIS existing write (no new messaging
-    // infra). A right-click add is always step 1 (added a shortcut) + step 2
-    // (the right-click path itself); step 3 if it auto-nested; step 4 if the
-    // user chose "New Group". Idempotent + permanent; a right-click add is never
-    // demo content, so no exclusion guard is needed here.
-    if (Storage.recordChecklistStep) {
-      Storage.recordChecklistStep(data, Storage.GS_STEPS.SHORTCUT);
-      Storage.recordChecklistStep(data, Storage.GS_STEPS.RIGHTCLICK);
-      if (existingMatch) Storage.recordChecklistStep(data, Storage.GS_STEPS.NEST);
-      if (targetGroupId === "new") Storage.recordChecklistStep(data, Storage.GS_STEPS.GROUP);
-    }
-
-    await Storage.saveAll(data);
+    await addShortcutFromContextMenuBg(shortcut, menuId);
   } catch (err) {
     console.error("[LaunchPad] Failed to add shortcut:", err);
   }
 });
+
+// [L1] The getAll -> mutate -> saveAll tail of the right-click add, serialized —
+// same shape as every other queued background writer in this file
+// (anchorBrowserSessionBg / runRecurringSweepBg / runTrashPurgeBg). Only the
+// storage cycle is in here: URL parsing, title/favicon derivation and the
+// shortcut record are all built by the caller before queueing, since none of
+// them need `data`. Menu and context handling are untouched.
+//
+// The fresh read is INSIDE the job by construction — the caller has no snapshot
+// to hand over, which is the point (reusing a pre-queue snapshot is the L1
+// clobber). Keeps its own try/catch so the original failure log is preserved
+// verbatim rather than being absorbed by the queue's generic handler.
+function addShortcutFromContextMenuBg(shortcut, menuId) {
+  return enqueueBgData("context-menu-add", async function () {
+    try {
+      var data = await Storage.getAll();
+      var ws = Storage.getActiveWorkspace(data);
+      if (!ws) {
+        console.warn("[LaunchPad] No active workspace; cannot add shortcut");
+        return;
+      }
+
+      var url = shortcut.url;
+      var targetGroupId = menuId.replace("add-to-group_", "");
+      var targetGroup;
+
+      if (targetGroupId === "new") {
+        var newId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+        targetGroup = { id: newId, name: "New Group", shortcuts: [], deletedAt: null };
+        ws.groups.push(targetGroup);
+        ws.groupOrder.push(newId);
+      } else {
+        targetGroup = ws.groups.find(function (g) { return g.id === targetGroupId; });
+        if (!targetGroup) {
+          targetGroup = ws.groups.find(function (g) { return g.id === "ungrouped"; });
+          if (!targetGroup) {
+            targetGroup = { id: "ungrouped", name: "Ungrouped", shortcuts: [], deletedAt: null };
+            ws.groups.push(targetGroup);
+            ws.groupOrder.push("ungrouped");
+          }
+        }
+      }
+
+      var matchKey = getMatchKeyBg(url);
+      var existingMatch = null;
+      targetGroup.shortcuts.forEach(function (s) {
+        if (!existingMatch) {
+          var sKey = getMatchKeyBg(s.url);
+          if (sKey && matchKey && sKey === matchKey) existingMatch = s;
+        }
+      });
+
+      if (existingMatch) {
+        if (!existingMatch.variants) existingMatch.variants = [];
+        var variantTitle = shortcut.title;
+        try {
+          var variantPath = new URL(url).pathname;
+          var accountMatch = variantPath.match(/\/u\/(\d+)/);
+          if (accountMatch) variantTitle = "Account " + (parseInt(accountMatch[1]) + 1);
+        } catch (e) {}
+        existingMatch.variants.push({
+          id: shortcut.id,
+          url: shortcut.url,
+          title: variantTitle,
+          favicon: shortcut.favicon,
+          deletedAt: null
+        });
+        console.log("[LaunchPad] Auto-nested under", existingMatch.title, ":", shortcut.title);
+      } else {
+        targetGroup.shortcuts.push(shortcut);
+        console.log("[LaunchPad] Shortcut added to", targetGroup.name, ":", shortcut.title);
+      }
+
+      // [R3] Getting-Started ticks ride THIS existing write (no new messaging
+      // infra). A right-click add is always step 1 (added a shortcut) + step 2
+      // (the right-click path itself); step 3 if it auto-nested; step 4 if the
+      // user chose "New Group". Idempotent + permanent; a right-click add is never
+      // demo content, so no exclusion guard is needed here.
+      if (Storage.recordChecklistStep) {
+        Storage.recordChecklistStep(data, Storage.GS_STEPS.SHORTCUT);
+        Storage.recordChecklistStep(data, Storage.GS_STEPS.RIGHTCLICK);
+        if (existingMatch) Storage.recordChecklistStep(data, Storage.GS_STEPS.NEST);
+        if (targetGroupId === "new") Storage.recordChecklistStep(data, Storage.GS_STEPS.GROUP);
+      }
+
+      await Storage.saveAll(data);
+    } catch (err) {
+      console.error("[LaunchPad] Failed to add shortcut:", err);
+    }
+  });
+}
 
 chrome.alarms.onAlarm.addListener(function (alarm) {
   if (alarm.name === "save-session") {
@@ -939,20 +961,50 @@ async function handleCheckoutReturn(tabId, url) {
     }
     var email = parsed.searchParams.get('email');
 
-    var data = await Storage.getAll();
-    if (!data.pro || typeof data.pro !== 'object') data.pro = {};
-    data.pro.licenseKey = firstKey;
-    if (email) data.pro.email = email;
-    await Storage.saveAll(data);
+    // [L1] Both writes go through the serial queue, inside ONE job, on ONE fresh
+    // in-queue snapshot. Three things about this shape are deliberate:
+    //
+    // 1. THE TWO-WRITE SHAPE IS LOAD-BEARING — kept, not collapsed. The first
+    //    save persists the license key BEFORE the Dodo round-trip, which is what
+    //    makes the tab-close-unconditionally contract above safe: if the network
+    //    call fails, hangs, or the worker dies mid-flight, the key is already on
+    //    disk and the user still has the Pro Settings retry path. Collapsing to a
+    //    single trailing write would silently delete that guarantee on exactly
+    //    the failure it protects against.
+    // 2. THE NETWORK CALL STAYS INSIDE THE JOB. This mirrors revalidateLicenseBg
+    //    (above), the existing precedent for this same ensureValidated call,
+    //    which already holds the queue across the Dodo request — and does so on
+    //    startup, where queue contention is at its worst. The alternative (queue
+    //    the two writes separately and run the network call between them on a
+    //    scratch snapshot) would require merging ensureValidated's mutations back
+    //    into a fresh object field by field. ensureValidated mutates five
+    //    data.pro fields today; an enumerated merge would silently drop any field
+    //    added later, on the license-activation path. A briefly-held queue is the
+    //    cheaper failure mode than a merge that rots, especially for a one-shot
+    //    post-purchase event.
+    // 3. NO MERGE, SO NO DRIFT. One snapshot in, both writes out, byte-identical
+    //    ordering and payloads to the pre-fix code — only the serialization is new.
+    //
+    // Known pre-existing property, unchanged here and NOT introduced by this fix:
+    // LicenseClient's fetch carries no timeout, so a hung Dodo request holds the
+    // queue until the worker is torn down. That is equally true of
+    // revalidateLicenseBg today; worth its own task, out of scope for an L1 fix.
+    await enqueueBgData("checkout-return", async function () {
+      var data = await Storage.getAll();
+      if (!data.pro || typeof data.pro !== 'object') data.pro = {};
+      data.pro.licenseKey = firstKey;
+      if (email) data.pro.email = email;
+      await Storage.saveAll(data);
 
-    var result = await LicenseClient.ensureValidated(data, firstKey);
-    await Storage.saveAll(data);
+      var result = await LicenseClient.ensureValidated(data, firstKey);
+      await Storage.saveAll(data);
 
-    if (result && result.ok) {
-      console.log("[LaunchPad] Checkout return: license activated/validated", result.status || "(cached)");
-    } else {
-      console.warn("[LaunchPad] Checkout return: ensureValidated failed", result && result.stage, result && result.error, result && result.message);
-    }
+      if (result && result.ok) {
+        console.log("[LaunchPad] Checkout return: license activated/validated", result.status || "(cached)");
+      } else {
+        console.warn("[LaunchPad] Checkout return: ensureValidated failed", result && result.stage, result && result.error, result && result.message);
+      }
+    });
   } catch (err) {
     console.error("[LaunchPad] Checkout return handler failed:", err);
   } finally {
@@ -1043,16 +1095,36 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
   Tracking.sync("state-change");
 });
 
-// Refresh stored favicon when user visits a bookmarked site
-chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
+// Refresh stored favicon when user visits a bookmarked site.
+//
+// [L1] Enqueued. This is the highest-frequency background `data` writer in the
+// file — it rides chrome.tabs.onUpdated, so it fires on every completed
+// navigation — and it is the one the [1.2.0] Focus Blocking intercept will share
+// a fan-out with. Two independent getAll -> mutate -> saveAll cycles from a
+// single browser event is the exact clobber shape b72b0a6 fixed for onStartup.
+//
+// Everything that does NOT need `data` is computed BEFORE the queue (the cheap
+// URL parse); the read/mutate/write cycle is the only thing inside it. There is
+// no network work to hoist out here — contrary to how this handler reads at a
+// glance, it never fetches or decodes an icon. `tab.favIconUrl` arrives on the
+// event already, and the whole body is string comparison over the bookmark tree.
+//
+// The `updated` guard is evaluated against the FRESH in-queue snapshot, never a
+// pre-queue one: reusing a snapshot read before the queue would reintroduce the
+// clobber this fix exists to remove (BUGS.md L1).
+chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
   if (changeInfo.status !== "complete" || !tab.favIconUrl || !tab.url) return;
   if (tab.favIconUrl.startsWith("chrome://")) return;
 
+  // From the event payload, not from storage — safe to capture before queueing.
+  var favIconUrl = tab.favIconUrl;
+  var tabDomain;
+  try { tabDomain = new URL(tab.url).hostname; } catch (e) { return; }
+
+  return enqueueBgData("favicon-refresh", async function () {
   try {
     var data = await Storage.getAll();
     if (!data || !Array.isArray(data.workspaces)) return;
-    var tabDomain;
-    try { tabDomain = new URL(tab.url).hostname; } catch (e) { return; }
 
     var updated = false;
     data.workspaces.forEach(function (ws) {
@@ -1060,8 +1132,8 @@ chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
         (group.shortcuts || []).forEach(function (shortcut) {
           try {
             if (new URL(shortcut.url).hostname === tabDomain) {
-              if (tab.favIconUrl !== shortcut.favicon && !(shortcut.favicon && shortcut.favicon.startsWith("data:"))) {
-                shortcut.favicon = tab.favIconUrl;
+              if (favIconUrl !== shortcut.favicon && !(shortcut.favicon && shortcut.favicon.startsWith("data:"))) {
+                shortcut.favicon = favIconUrl;
                 updated = true;
               }
             }
@@ -1070,8 +1142,8 @@ chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
             shortcut.variants.forEach(function (v) {
               try {
                 if (new URL(v.url).hostname === tabDomain) {
-                  if (tab.favIconUrl !== v.favicon && !(v.favicon && v.favicon.startsWith("data:"))) {
-                    v.favicon = tab.favIconUrl;
+                  if (favIconUrl !== v.favicon && !(v.favicon && v.favicon.startsWith("data:"))) {
+                    v.favicon = favIconUrl;
                     updated = true;
                   }
                 }
@@ -1088,4 +1160,5 @@ chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
   } catch (err) {
     console.error("[LaunchPad] Failed to refresh favicon from tab:", err);
   }
+  });
 });
