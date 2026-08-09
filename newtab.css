@@ -188,6 +188,66 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* [1.2.1 fix] THE PANEL IS THE SCROLL PATH FOR ITS TAB.
+     Nothing above this element can ever scroll: html/body are height:100% and
+     #content is height:100vh + overflow:hidden. So a panel child taller than the
+     viewport was simply CLIPPED — no wheel, no keyboard, no scrollbar, no way to
+     reach the rest of it. Measured on the live board: .insights-tab was 1421px
+     inside a 676px panel and 745px of it was unreachable; the wheel moved
+     scrollTop 0 -> 0 on every element in the document.
+     Three of the five surfaces had each solved this privately with an inner
+     scroller (#shortcut-grid-area, .tasks-body, .pro-preview-content). The two
+     live boards had not: Insights lost its tail the moment a fourth module
+     pushed it past the fold, and .dash-tab carries the identical structure with
+     the trap merely latent behind shorter content (confirmed by inflating it —
+     it clips and refuses to scroll exactly the same way). Fixing it HERE rather
+     than on each board is the point: it is what stops the next panel's content
+     from inheriting the trap again.
+     Inert for the three that already scroll — their roots are flex:1 +
+     min-height:0 (or are scroll containers themselves, so their automatic
+     minimum size is 0), which makes them size exactly to the panel, so the panel
+     never overflows and never shows a scrollbar there. Verified per tab.
+     Bottom breathing room deliberately does NOT live here: a padding-bottom on
+     this element would shrink Home's #shortcut-grid-area by the same amount. It
+     belongs to the board roots, which set it themselves. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Unlike a scroller inside the rendered markup, THIS element survives the
+     panel.innerHTML rewrite, so scroll position is kept across the board's eager
+     repaints. Anchoring off for the same reason as #shortcut-grid-area and
+     .tasks-body: the two-phase render fills async surfaces under the reader and
+     must not shift the page beneath them. */
+  overflow-anchor: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+/* Same thin/rounded/transparent-track treatment as .tasks-body — this scrollbar
+   sits over the wallpaper too, so it takes the light thumb and the same
+   html.bg-light override further down. */
+.tab-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.tab-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tab-panel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+}
+
+.tab-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* The panel carries tabindex="-1" solely so it can be the keyboard scroll target
+   (setActiveTab focuses it on a Pro-tab switch). It is a scroll container, not a
+   control — the visible focus indicator belongs to the .tab button that owns the
+   selection, and a ring around the entire board would read as a selected region. */
+.tab-panel:focus {
+  outline: none;
 }
 
 #tab-home #search-form {
@@ -5438,15 +5498,41 @@ html.has-bg .pro-workspace-list li {
   color: rgba(255, 255, 255, 0.9);
 }
 
+/* [1.2.1 fix] THE DEFAULT IS NOW "INTERACTIVE", AND THAT IS THE WHOLE FIX.
+   This rule used to be cursor:not-allowed, written when the only instance was
+   the permanently-disabled Analytics placeholder. Every row added since has been
+   live, so each one had to remember to opt out — the notifications row via
+   :has(), the Focus-blocking row via its section class — and the third row to
+   need it (Analytics itself, once combined analytics shipped) is the one nobody
+   remembered, because it was the row the default was written for. R3's review
+   predicted exactly this ("ANY new interactive row on .pro-toggle-row MUST opt
+   out"); a default that has to be opted out of every single time is the defect.
+   Inverting it means a new row is correct by default and only a genuinely
+   disabled one is special — and there is now exactly one selector deciding that,
+   keyed to the disabled attribute itself rather than to a hard-coded row id, so
+   it cannot go stale when a row goes live.
+   Scope note: the forbidden cursor was the ONLY thing wrong with the Analytics
+   row. The label was reported dead too, but a real mouse click on its text
+   toggles the checkbox and persists the write — measured on all three rows, both
+   directions, and from the row's empty right-hand area. The cursor was lying
+   about the control, not describing it. */
 .pro-toggle-row {
   display: flex;
   align-items: center;
   gap: 10px;
   font-size: 13px;
   color: var(--text-secondary);
-  cursor: not-allowed;
+  cursor: pointer;
 }
 
+/* The box needs it explicitly: cursor does not inherit into a form control, so
+   without this the checkbox itself shows the UA default arrow while the label
+   beside it shows a pointer. */
+.pro-toggle-row input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.pro-toggle-row:has(input[type="checkbox"]:disabled),
 .pro-toggle-row input[type="checkbox"]:disabled {
   cursor: not-allowed;
 }
@@ -5560,11 +5646,11 @@ html.has-bg .pomo-setting-input {
 .pomo-reset-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
 .pomo-reset-btn:disabled { opacity: 0.45; cursor: default; }
 .pomo-reset-hint { font-size: 12px; opacity: 0.7; }
-/* [1.0.18 B-1] The notifications toggle is interactive (unlike the disabled
-   analytics toggle the base .pro-toggle-row cursor was written for). :has scopes
-   the pointer cursor to this row only; min Chrome 116 supports it. */
-.pro-toggle-row:has(#pomo-notifications-toggle),
-#pomo-notifications-toggle { cursor: pointer; }
+/* [1.0.18 B-1] had a pointer-cursor opt-out here for the notifications row.
+   [1.2.1] deleted it: the base .pro-toggle-row is cursor:pointer now, so the
+   opt-out is inherited, not declared. Leaving a rule that opts out of a default
+   that no longer exists is how the next reader concludes the opt-out is still
+   load-bearing and copies it into a fourth row. */
 /* [1.0.18] Group rhythm. Focus sessions stacks four unrelated control groups —
    [durations] [reset] [notifications] [sound] — and the notifications row was
    the one seam with NO gap, so it read as part of the reset group. 12px is the
@@ -7872,6 +7958,10 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   flex-direction: column;
   gap: 16px;
   max-width: 640px;
+  /* [1.2.1 fix] Tail clearance for the .tab-panel scroller. 48px is the step
+     #shortcut-grid-area and .pro-preview-content already use — the last card
+     must clear the window's bottom edge rather than ending flush against it. */
+  padding-bottom: 48px;
 }
 
 .dash-card {
@@ -8472,6 +8562,11 @@ html.has-bg.bg-light .pro-preview-banner-text {
      white-tinted card and win by specificity (0,3,0 > this rule's 0,1,0).
      The Achievements badges set their own explicit colors and are unaffected. */
   color: #fff;
+  /* [1.2.1 fix] Tail clearance for the .tab-panel scroller — same 48px step as
+     #shortcut-grid-area / .pro-preview-content / .dash-tab. Without it the
+     Achievements card ends flush against the window's bottom edge, where the
+     browser's own bottom chrome sits over it. */
+  padding-bottom: 48px;
 }
 .insights-badge-count {
   font-size: 11px;
@@ -9809,15 +9904,18 @@ html.has-bg.bg-light #content-header.is-compact .tab.active {
 
 /* [Tasks v3] Dark scrollbar thumb on light wallpapers, where the light thumb
    would wash out. */
-html.has-bg.bg-light .tasks-body {
+html.has-bg.bg-light .tasks-body,
+html.has-bg.bg-light .tab-panel {
   scrollbar-color: rgba(0, 0, 0, 0.22) transparent;
 }
 
-html.has-bg.bg-light .tasks-body::-webkit-scrollbar-thumb {
+html.has-bg.bg-light .tasks-body::-webkit-scrollbar-thumb,
+html.has-bg.bg-light .tab-panel::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.2);
 }
 
-html.has-bg.bg-light .tasks-body::-webkit-scrollbar-thumb:hover {
+html.has-bg.bg-light .tasks-body::-webkit-scrollbar-thumb:hover,
+html.has-bg.bg-light .tab-panel::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.32);
 }
 
@@ -11717,15 +11815,12 @@ html.has-bg.bg-light .focus-block-error { color: #d93025; }
    notifications row all use it) — measured, not invented.
    Scoped by the section class rather than :has() because this section has one,
    which the notifications row did not; same effect, one less selector feature.
-   The cursor override matters: the BASE .pro-toggle-row is cursor:not-allowed,
-   written for the permanently-disabled Analytics toggle, so an interactive
-   toggle that does not opt out inherits a "you can't click this" cursor. */
+   [1.2.1] The pointer-cursor override that used to live here is gone — the base
+   .pro-toggle-row is cursor:pointer now, so this row inherits it. Only the
+   group-rhythm margin was ever specific to this section. */
 .focus-block-section .pro-toggle-row {
   margin-top: 12px;
-  cursor: pointer;
 }
-
-.focus-block-section .pro-toggle-row input[type="checkbox"] { cursor: pointer; }
 
 /* ===== [1.2.0 R3 / C9] Pill Focus row + minimized-face armed indicator =====
  * Every node here is JS-rendered, so the static ink gate cannot see it (BUGS.md

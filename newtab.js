@@ -381,6 +381,25 @@
       if (insPanel) renderInsightsTab(insPanel, data);
     }
 
+    // [1.2.1 fix] Hand keyboard scrolling to the panel that just became visible.
+    // The panel is the tab's scroll container (see .tab-panel in newtab.css), but a
+    // div is not a keyboard scroll target unless it holds focus — and after a tab
+    // switch focus is on the .tab BUTTON, which lives in #content-header, OUTSIDE
+    // the panel. Measured before this line existed: PageDown after switching moved
+    // nothing on any of the four tabs, including the two that already had inner
+    // scrollers, so this is an app-wide gap the Insights board merely exposed.
+    // tabindex=-1 (set in the markup) makes the panel focusable without adding a
+    // Tab stop; preventScroll keeps the focus call itself from jumping the board.
+    // HOME IS DELIBERATELY EXCLUDED: #search-input owns focus there by autofocus,
+    // and Home is a type-to-search surface first — stealing focus to enable
+    // PageDown would break the affordance the whole tab exists for.
+    if (PRO_TAB_IDS.indexOf(id) !== -1) {
+      var activePanel = document.getElementById("tab-" + id);
+      if (activePanel) {
+        try { activePanel.focus({ preventScroll: true }); } catch (e) { activePanel.focus(); }
+      }
+    }
+
     // Tab switch is treated as a navigation change — close any open popover and
     // re-derive the CTA state (pulse depends on whether we're on a Pro tab).
     closeUpgradePopover();
@@ -1629,7 +1648,9 @@
     return donutSvg + '<div class="pp-donut-legend">' + legend + '</div>';
   }
 
-  // Top Tasks: top 5 by focused ms over the window. Names resolve live (renames
+  // Top Tasks: top 6 by focused ms over the window ([1.2.1] eyeball pass — was 5;
+  // Time by site now sits directly above it at 6, and the one-row asymmetry read
+  // as an accident when the two lists became neighbours). Names resolve live (renames
   // reflected by construction); workspace suffix in combined mode. Orphaned ids
   // (task purged/trashed after rollup) are DROPPED SILENTLY (Q2) — their minutes
   // still count in every total via focusedRangeForScope; an unnameable rank is
@@ -1650,7 +1671,7 @@
     }
 
     var maxMs = rows[0].ms || 1;
-    return rows.slice(0, 5).map(function (r) {
+    return rows.slice(0, 6).map(function (r) {
       var pct = Math.round((r.ms / maxMs) * 100);
       return '<div class="insights-task-row">' +
           '<span class="insights-task-name">' + escapeHtml(r.name) + '</span>' +
