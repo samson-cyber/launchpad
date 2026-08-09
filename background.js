@@ -1154,6 +1154,12 @@ chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
     var tRead = Date.now();
     var blobLen = 0;
     try { blobLen = JSON.stringify((got && (got.data || got.probeBlockCache)) || {}).length; } catch (e) {}
+    // CONTROL KNOB: &delay=N inserts N ms before the redirect. Used to prove the
+    // flash DETECTOR can fail — if sitePainted never flips to true for any
+    // delay, the detector is measuring nothing (BUGS.md: prove the guard can fail).
+    var delayMs = Number(u.searchParams.get("delay") || 0);
+    var waited = delayMs > 0 ? new Promise(function (r) { setTimeout(r, delayMs); }) : Promise.resolve();
+    return waited.then(function () {
     return chrome.tabs.update(tabId, { url: chrome.runtime.getURL("probe-gate.html") }).then(function () {
       var tUpdate = Date.now();
       return probeRecord({
@@ -1164,10 +1170,24 @@ chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
         updateMs: tUpdate - tRead,
         totalMs: tUpdate - tEntry,
         updateWall: tUpdate,
-        blobLen: blobLen
+        blobLen: blobLen,
+        delayMs: delayMs
       });
+    });
     });
   }).catch(function (err) {
     probeRecord({ ev: "intercept-failed", nonce: nonce, mode: mode, err: String((err && err.message) || err) });
   });
+});
+
+// [1.2.0 PROBE 3] Passive observer: does changeInfo.url fire for SAME-DOCUMENT
+// navigations (pushState / replaceState / hash)? Records only — never redirects —
+// so the SPA sequence can run to completion.
+chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
+  if (!changeInfo.url) return;
+  var u;
+  try { u = new URL(changeInfo.url); } catch (e) { return; }
+  if (u.host !== PROBE_HOST || u.pathname.indexOf("/spa") !== 0) return;
+  probeRecord({ ev: "spa-url-event", url: changeInfo.url,
+                status: changeInfo.status || null, wall: Date.now() });
 });
