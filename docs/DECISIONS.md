@@ -1211,3 +1211,96 @@ The evening Dashboard card's future-update teaser is retired: it now shows real 
 - **Optional scope at pickup:** with no running ACTIVE counter, audit what the session-anchor machinery (`onStartup` anchor write, the cold-start fix path) still serves. If the pill was its only consumer it may be removable — but verify nothing else reads it (Day Recap, Insights, Dashboard) first. Removal is optional, not required.
 
 **Amends:** the **2026-07-19** ACTIVE entry. That entry's *definition* of ACTIVE — present-time within this sitting, idle deducted silently, pause deducted loudly — stands and was never the problem; what changes is its **presentation**, from a running counter to a static timestamp. The 2026-07-18 session anchor and the 2026-07-17 dual-counter framing are amended in the same way.
+
+---
+
+## 2026-08-09 — `[1.2.0]` Focus Blocking shipped: the gate is a door, not a wall
+
+**Context:** Second of the v2.0 launch trio (Asana 1216776953648220). A gentle block-page for a small user-managed domain list, active only while focus is armed. Built over four rounds — R1 storage foundations (`b6fa2b6`), R2 intercept + gate page, R2.5 transport change, R3 pill toggle (`c4f8d83`) — after a read-only audit (A1–A7) and a measurement round that never merged.
+
+**Alternatives considered:**
+- **`declarativeNetRequest`** — rejected on three independent blockers, any one of which is fatal: it adds an install-warning permission (the launch constraint forbids it), its rules are static relative to the arm/snooze state that changes second-by-second, and a redirect rule cannot carry the per-navigation context the gate page needs to say anything true.
+- **Block silently / show Chrome's error page** — rejected. A block the user cannot see the reason for is indistinguishable from a broken network.
+- **A hard wall with no escape** — rejected. The product's whole posture is accountability without surveillance; a block you cannot leave is a punishment.
+
+**Outcome (C1–C10):**
+- **The gate is a real extension page** (`gate.html`/`gate.js`/`gate.css`) — the first navigable one in the extension — carrying the blocked host, the focused-time-on-task figure, a **snooze**, and an **end-focus** exit. It refuses any `?to=` that is not `http(s)`.
+- **Two arm states, one predicate.** Manual arm and auto-arm-during-work-phases resolve through a single `focusBlockingActive` reader, so the pill, the settings row and the intercept can never disagree.
+- **The decision chain is ordered cheapest-first and short-circuits**: Pro access → blocking active → domain match → no active snooze. Anything else returns before touching the block list.
+- **A never-block list is hard-coded** (`mylaunchpad.me`, `live.dodopayments.com` and subdomains) so a user can never block themselves out of checkout or license recovery.
+- **Counters are capture-first**: blocks and snoozes accrue per local day from launch, reusing the achievements day-key helper, so the analytics surface arrives pre-populated whenever it ships.
+- **The pill carries the Focus toggle and an armed indicator** (R3); the free tier inherits the pill's existing full hide and renders no focus row at all.
+
+**Favorable behavior worth recording:** a navigation that never commits (dead host, DNS failure) still shows the **gate**, not Chrome's error page — the intercept fires before commit, so the user gets the honest message instead of a network error for a site that was blocked anyway.
+
+**Shipped in:** `b6fa2b6` (R1), R2, `f750170` (R2.5), `c4f8d83` (R3).
+
+---
+
+## 2026-08-09 — The F2 amendment: interception moves to `webNavigation`, and the zero-warning constraint survives a permission ADDITION
+
+**Context:** R2 shipped the intercept on `chrome.tabs.onUpdated`, chosen in the audit because it needs no permission beyond what the extension already had. The pre-PLAN measurement round had probed the flash and concluded there was none. **That conclusion was wrong, and the way it was wrong is the point of this entry.**
+
+**Alternatives considered:**
+- **Keep `tabs.onUpdated` and accept the flash** — rejected once it was measured on shipped code. `changeInfo.url` fires **post-commit**: the blocked page has already begun painting when the listener runs, so the user sees a flash of the site they asked to be blocked from. That is not cosmetic; the whole feature is about not seeing the thing.
+- **Session-cache mitigation** (remember recently blocked hosts to shorten the hot path) — rejected. Measured, and the saving was inside the noise: the flash is structural, caused by *when* the hook fires, not by how long the decision takes.
+- **`webNavigation.onBeforeNavigate`** — chosen. It is a **pre-commit** hook, so the redirect happens before the blocked page paints at all.
+
+**Outcome:**
+- **Transport changed, logic untouched.** R2.5 replaced the listener and nothing else; the decision chain, the never-block list and the gate page are byte-identical. The other three `tabs.onUpdated` listeners (checkout-return, tracking, favicon) were verified unchanged by diff.
+- **`onHistoryStateUpdated` and `onReferenceFragmentUpdated`** are registered alongside, so SPA route changes into a blocked host are caught too.
+- **The zero-install-warning constraint held through a permission addition.** `webNavigation` normally adds a browsing-history warning — but the extension already declares `history`, which carries the broader warning that **absorbs** it. Verified the honest way: two loadable variant builds compared in Samson's real Chrome, permission list against permission list. A doc claim would not have been evidence.
+- **Final authority stays with the Web Store dashboard** at the v2.0.0 upload, which shows the actual install bubble users will see. The variant comparison is strong evidence, not the last word.
+
+**Amends:** the MEASUREMENTS round's "no flash" finding. **The operative rule this leaves behind:** a probe measures a probe. The implementation re-measures its own shipped code, and where the two disagree the shipped measurement wins and the probe's conclusion is retracted in writing rather than quietly dropped. See BUGS.md **P4** for the probe-fidelity candidate cause.
+
+---
+
+## 2026-08-09 — The nest matcher stays literal: no subdomain or `www.` collapsing
+
+**Status: CONFIRMED TWICE by Samson on 2026-08-09.** Do not relitigate without new user data.
+
+**Context:** Two reports — auto-nest not firing, and drag-to-nest "no longer" nesting same-domain tiles — were both investigated at runtime and both proved to be **original behavior, not regressions**: the matcher compares hostnames literally, so `mail.google.com` and `google.com`, or `www.x.com` and `x.com`, have never been the same domain to it. A v1.0.5 worktree comparison confirmed the behavior is unchanged since before the Pro work began.
+
+**Alternatives considered:**
+- **Collapse `www.` and/or registrable-domain-match** — rejected. It would introduce a **fourth** domain-matching semantic beside the three the codebase already carries, and it silently merges tiles the user deliberately kept apart. Convenience bought with unpredictability.
+- **Leave it and say nothing** — rejected. The real defect was never the matcher; it was that a refused drag **looks identical to a bug**, because nothing tells the user why.
+
+**Outcome:** the matcher stays exactly as-is for both auto-nest and drag-to-nest. The genuine gap — **silent refusal** — is resolved separately by a refusal toast (Asana 1217317549419902), which fixes the user's experience without changing what "same domain" means.
+
+---
+
+## 2026-08-09 — `.pro-section-subtitle` on light wallpapers: accepted as-is
+
+**Context:** Repeated ink measurement passes keep surfacing `.pro-section-subtitle` as the lowest-contrast text on a light-solid wallpaper. It has been re-measured and re-reported in several rounds' ink tables.
+
+**Outcome:** **Samson's eyeball verdict, 2026-08-09: accepted as-is.** It reads fine in use, and the deliberate de-emphasis is doing its job. Ink tables from here on report it as **known-accepted** and do not re-flag it as a finding.
+
+**The general rule this sets:** *inheriting* a known-accepted contrast deficit is a decision and needs no re-litigation; *deepening* one — stacking extra opacity or a lighter token on top of it — is a defect. See BUGS.md **O3**.
+
+---
+
+## 2026-08-09 — `[1.2.1]` Time-by-Site shipped: no favicons, ever
+
+**Context:** Third of the v2.0 launch trio (Asana 1216776761472404). One reader plus one Insights card showing top domains over the same 30-day window as the rest of the board.
+
+**Alternatives considered:**
+- **Favicons beside each domain row** — rejected, **absolutely and permanently**. These rows come from *browsing* data, so fetching an icon for one transmits the user's browsing domains to a favicon service. That is the exact thing "nothing leaves the machine" forbids, and no amount of caching makes the first request not happen. Text rows only.
+- **Collapse `www.` / alias domains for a tidier list** — rejected, for the same reason as the nest matcher above: a fourth matching semantic, and a display that no longer says what was measured.
+- **A separate windowed reader written to match its siblings** — rejected in favour of reusing the shared rollup spine, so the three readers are identical **by construction** rather than by imitation and cannot drift apart.
+
+**Outcome:**
+- **`byDomainForScope` lives in the tracking engine**, beside `byTagForScope` and `byTaskForScope`. A reader over the engine's own aggregates is the **engine's own contract**, not a consumer reaching into private state — this is explicitly *not* the Section-H prototype-boundary concern.
+- **Raw hostnames displayed exactly as captured.** `www.reddit.com` renders as `www.reddit.com`; `x.com` and `www.x.com` stay separate rows because they were measured separately.
+- **Both board lists aligned at 6 rows** (Samson, on the eyeball pass) — Time by site sits directly above Top tasks, and a one-row asymmetry between neighbours reads as an accident. `12a7fb4`.
+- **Zero new CSS**: the card reuses the Top Tasks row classes rather than cloning them under `site-*` names, so the two lists cannot drift and the new rows inherit ink that was already measured.
+
+**Shipped in:** `1e19b5d`; row count aligned in `12a7fb4`.
+
+---
+
+## 2026-08-09 — `[1.2.2]` date-range selector filed, with the 30-day retention horizon as its honest constraint
+
+**Context:** Samson's ask on seeing the finished board: every Insights card is hard-wired to "last 30 days", and the natural next question is "what about last week / this month / last quarter?"
+
+**Outcome:** filed as `[1.2.2]`, post-v2.0. **The constraint is recorded with the ask, not discovered during the build:** per-event granularity is retained for 30 days and only **per-day aggregates** are kept beyond that (DECISIONS 2026-07-07, SPECS/tracking-engine.md). So ranges *shorter* than 30 days and ranges built from day aggregates are free, while anything needing per-event detail beyond 30 days does not exist and cannot be back-filled. A range picker that silently offers "last 6 months" over data that only began aggregating at launch would be the pill's honesty problem in a new place. The PLAN decides which ranges are offered and how the horizon is communicated — it does not get to assume the data is there.

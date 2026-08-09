@@ -45,13 +45,25 @@ Paid tier. Pricing: **$4.99/mo or $39/year** (annual ~$3.25/mo). See `SPECS/pro-
 - Recurring tasks: template model + instance generation (templates CRUD shipped in [1.0.10]; generation in [1.0.14])
 - **Task completion = the dopamine moment** — deliberate animation + subtle sound (opt-in)
 
-#### Focus Sessions, Blocking, Time-by-Site (the v2.0 launch trio)
+#### Focus Sessions, Blocking, Time-by-Site (the v2.0 launch trio) — **COMPLETE 2026-08-09**
 
 Locked 2026-07-22 (v2.0 design lock, Asana 1214260527650518). Privacy posture absolute: nothing leaves the machine, zero new install-warning permissions — `optional_permissions` requested at runtime on explicit opt-in only.
 
 - **Focus sessions** (`[1.0.18]`) — **COMPLETE 2026-08-08.** Attached to the active task (no task, no timer); sticky point-of-use duration chips; auto-break with work never self-starting; graceful expiry with grace-uniform honesty; pause integration; desktop notifications via runtime-requested optional permission; three synthesized local chimes with offscreen playback. Rounds A1/A2 `b141d3a`/`29bbb07`, E `1627003`, B-1 `65711b6`, B-2 `a7cf131`. See DECISIONS.md 2026-07-22 (naming/duration, session semantics) and 2026-08-02 (notifications fork).
-- **Focus Blocking** (`[1.2.0]`) — **NEXT ON THE BOARD.** Gentle gate page ("YouTube is blocked — 23m focused on <task>", snooze + end focus), arms manually and auto-arms during focus work phases, global block list in Pro Settings, capture-first block/snooze counters. Tabs-API navigation intercept (zero new permissions); `declarativeNetRequest` is the fallback only if the audit disproves that route.
-- **Time-by-Site** (`[1.2.1]`) — follows `[1.2.0]`. One-card reader round on settled conventions, no open design questions.
+- **Focus Blocking** (`[1.2.0]`) — **COMPLETE 2026-08-09.** Gentle gate page (blocked host, focused-time-on-task, snooze + end focus), manual arm plus auto-arm during focus work phases, global block list in Pro Settings, hard-coded never-block list for checkout/licensing, capture-first block/snooze counters, pill Focus toggle and armed indicator. Interception is **`webNavigation.onBeforeNavigate`**, not the tabs API: the tabs hook fires post-commit and the blocked page flashes. `declarativeNetRequest` rejected on three independent blockers. Rounds R1 `b6fa2b6`, R2, R2.5 `f750170`, R3 `c4f8d83`. See DECISIONS.md 2026-08-09 (shipped entry + the F2 amendment).
+- **Time-by-Site** (`[1.2.1]`) — **COMPLETE 2026-08-09.** `byDomainForScope` reader on the shared rollup spine plus one Insights card; raw hostnames as measured, **no favicons ever** (browsing-domain rows must not be sent to an icon service), zero new CSS. `1e19b5d`; both board lists aligned at 6 rows in `12a7fb4`.
+
+#### Next: v2.0.0 launch prep
+
+The trio is done, so the remaining work before the first Pro store submission is release mechanics rather than features:
+
+- **Manifest version bump to `2.0.0`** — the deliberate major bump that separates the store line (`2.x` = Pro era) from the `[1.x.y]` marker track. See CLAUDE.md "Versioning & Release Tagging".
+- **Flip the trial CTA live** — one line, `TRIAL_CTA_ENABLED` in `newtab.js`, currently teaser-mode (DECISIONS.md 2026-07-21).
+- **Store listing** — Pro screenshots, description, pricing copy.
+- **Permission-bubble check on the Web Store dashboard at upload.** The `webNavigation` addition is expected to be warning-invisible (`history` already carries the broader warning) and was verified by comparing two loadable variant builds in real Chrome — but the dashboard's install bubble is the final authority, and it is only visible at upload time.
+- **Wallpaper Remove fix in the release notes** — `ddba4d3` fixes a Settings > Remove that was inert in both v1.0.4 and v1.0.5; free-tier users are affected and should be told.
+
+Also filed, post-v2.0: **`[1.2.2]` Insights date-range selector** (Samson's ask; the 30-day per-event retention horizon is its honest constraint — DECISIONS.md 2026-08-09), **harness rescue** (recover the pre-`tools/` round suites, Asana 1217302152465697), **nest refusal toast** (Asana 1217317549419902 — the matcher stays literal, the silent refusal does not), the **pill redesign** below, and **`[1.3.0]` Backup & Restore** below.
 
 #### Tracking Engine
 - Ships capture-first: capture/attribution/retention pre-launch ([1.0.25]/[1.0.26], sequenced before [1.0.16]/[1.0.17]); analytics UI including Day Recap content and Deep Diver ships v2.1 — see SPECS/tracking-engine.md and DECISIONS 2026-07-07.

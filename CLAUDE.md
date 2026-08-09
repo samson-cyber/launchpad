@@ -11,7 +11,7 @@ LaunchPad is a Chrome extension that replaces Chrome's default new tab page with
 - **LaunchPad (free)** — Shipped on Chrome Web Store. Unlimited shortcuts, groups, drag-and-drop, session restore, history panel, wallpapers, backup/export. Privacy-first, all data local.
 - **LaunchPad Pro (in development)** — Workspaces (Work/Personal) + task/goal system + tab time tracking + Day Recap + achievements. Positioned as a browser-based productivity companion for portfolio workers, deep-work seekers, and people wanting accountability without surveillance.
 
-Current version shipped: **v1.0.4** (April 23, 2026).
+Current version shipped: **v1.0.5** (free tier, submitted 2026-07-21; confirmed live — a store-installed `1.0.5_0` is present in the local Chrome profiles). v1.0.4 shipped 2026-04-23.
 
 ---
 
@@ -49,7 +49,7 @@ Other projects in the same dev root: `reelabs`, `condence-ai`, `exhale-health`, 
 
 LaunchPad uses **two distinct, parallel numbering tracks**. They look alike but mean different things — never conflate them. Full rationale: `docs/DECISIONS.md` (2026-06-13 entry).
 
-- **Store / manifest version (`manifest.json`)** — `X.Y.Z`, the published build users install. Bumped **manually, only at a Chrome Web Store submission**; nothing else touches it. Currently `1.0.4` (free tier, live 2026-04-23). `1.0.3` is intentionally absent in git (uncommitted-ship incident; `1.0.4` was the recommit). Pro is unreleased, so the manifest has not moved during Pro development.
+- **Store / manifest version (`manifest.json`)** — `X.Y.Z`, the published build users install. Bumped **manually, only at a Chrome Web Store submission**; nothing else touches it. Currently `1.0.5` (free tier, submitted 2026-07-21). `1.0.3` is intentionally absent in git (uncommitted-ship incident; `1.0.4` was the recommit). Pro is unreleased, so the manifest has not moved during Pro development.
 - **Feature-marker track (commit subjects + Asana task names)** — `[X.Y.Z]` for a roadmap task, `[X.Y.Z.W]` for a split / follow-up / multi-round under one task. Internal planning IDs for Pro work units; runs `[1.0.5.3]…[1.0.13]…` and **never touches `manifest.json`**. One task may span many commits. Planning order, not strict chronology; the convention began at `[1.0.9.1]` (commits before it carry no marker).
 - **First Pro store release is a deliberate major bump to `2.0.0`**, permanently separating the store line (`2.x` = Pro era) from the `[1.x.y]` marker track (pre-empts the `[1.1.0]` Notes clash). Plain SemVer from `2.0.0` on.
 
@@ -61,6 +61,7 @@ LaunchPad uses **two distinct, parallel numbering tracks**. They look alike but 
 - Annotated `v<manifest-version>` on the exact commit submitted to the Web Store, **extension repo only** (website is continuous-deploy; docs are append-only — neither is tagged).
 - Tag message: submission date + one-line summary.
 - **From the next store submission forward.** Historical builds `1.0.0`–`1.0.4` are not back-tagged (commit↔build mapping isn't reliably reconstructable; `1.0.3` never existed in git).
+- **`v1.0.5` is UNTAGGED and blocked on Samson, not on evidence (2026-08-09).** The store-installed build was diffed against every candidate commit and the content narrows to exactly **two**: `696ede4` (the `[1.0.5]` Release commit) and `3eb9323` (the zip-separator fix). They are content-indistinguishable **by construction** — `3eb9323` touched only `build.sh` and `tools/verify-package.mjs`, neither of which ships — so no file comparison can ever separate them. `3eb9323` is the recommendation on build evidence (at `696ede4`, `build.sh` still used `Compress-Archive`, whose backslash entry separators break Chrome install; the installed copy has proper subdirectories), but only Samson knows which zip he actually uploaded. Tag on his confirmation.
 
 ---
 
@@ -120,6 +121,25 @@ LaunchPad uses **two distinct, parallel numbering tracks**. They look alike but 
 - **Use Asana for task tracking.** See `ASANA.md` for the workflow.
 - **Update docs as you go.** When a significant decision is made, add it to `DECISIONS.md`. When a spec changes, update the relevant spec file.
 - **Present Claude Code prompts in a single copy-pasteable code block** (not split across prose). This matches Samson's working preference.
+
+---
+
+## Browser Testing
+
+Browser automation runs against an **isolated scratch profile — never Samson's default profile.** A fresh `--user-data-dir` is not by itself isolation: Edge still force-installs extensions from the `HKLM`/`HKCU` `Extensions` registry keys and still pulls extensions and settings through the signed-in OS account, so a "clean" profile came up carrying his real synced extensions (Phantom Wallet among them) and live sessions. That pollutes measurements with third-party listeners and CSS, and exposes personal browser state to test runs.
+
+The standing invocation — profile dir is gitignored (`.scratch-profile*/`):
+
+```
+msedge.exe --user-data-dir=C:\Dev\Git\launchpad\.scratch-profile   --no-first-run --no-default-browser-check --disable-sync   --disable-extensions-except=C:\Dev\Git\launchpad --load-extension=C:\Dev\Git\launchpad   --remote-debugging-port=<port>
+```
+
+- `--disable-extensions-except` **with** `--load-extension`; plain `--disable-extensions` would disable the subject too.
+- The extension's own pages **are** drivable this way — attach over CDP and `Target.createTarget` on `chrome-extension://<id>/newtab.html`. The unpacked ID is derived from the absolute path, so it is stable across profiles.
+- **Teardown kills by PID, never by image name.** `taskkill /IM msedge.exe` closes Samson's real browser along with the test one. Capture the PID at launch, or just close the CDP target.
+- Delete the scratch profile when the round ends.
+
+Full rationale and the failure it came from: BUGS.md **I6**.
 
 ---
 
