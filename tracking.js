@@ -941,6 +941,24 @@
     return rollupBucketOverWindow(workspaceId, keys, "byTask", "taskId");
   }
 
+  // [1.2.1 T1] Windowed byDomain rollup for the scope. Same contract as its two
+  // siblings above — an array of { workspaceId, domain, ms }, one per distinct
+  // (workspaceId, domain), summed across the window — and contract-identical BY
+  // CONSTRUCTION rather than by imitation, because it reuses their shared spine.
+  //
+  // The spine's internal accumulator key joins workspaceId and id with a NUL byte
+  // (BUGS.md M1 - the same NULs that make this file ripgrep-invisible). Safe here
+  // for the same reason it is safe for tag/task ids: a hostname can never contain
+  // a NUL, because domainOf returns URL.hostname, which is punycode/percent-
+  // encoded and cannot carry a control character. That is the one assumption this
+  // reader extends to a new key space.
+  //
+  // No orphan problem to solve, unlike byTask: a domain IS its own label, so
+  // nothing here can become unresolvable and the board drops nothing.
+  async function byDomainForScope(workspaceId, keys) {
+    return rollupBucketOverWindow(workspaceId, keys, "byDomain", "domain");
+  }
+
   // Shared spine for the two windowed rollups — byTag and byTask differ only in
   // which sub-map they read and what the id field is named. Internal accumulator
   // keys on wsId + " " + id (a space never appears in a
@@ -1180,6 +1198,7 @@
     focusedRangeForScope: focusedRangeForScope,
     byTagForScope: byTagForScope,
     byTaskForScope: byTaskForScope,
+    byDomainForScope: byDomainForScope,
     // [2.0] Day Recap "Longest session" line — scope+window-bounded max, settled-only.
     longestSessionForScope: longestSessionForScope,
 

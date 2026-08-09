@@ -1495,6 +1495,10 @@
           '<div class="pp-donut-row" data-ins-donut></div>' +
         '</div>' +
         '<div class="pp-insights-card">' +
+          '<div class="pp-dash-card-title">Time by site — last 30 days</div>' +
+          '<div class="insights-task-list insights-site-list" data-ins-topsites></div>' +
+        '</div>' +
+        '<div class="pp-insights-card">' +
           '<div class="pp-dash-card-title">Top tasks — last 30 days</div>' +
           '<div class="insights-task-list" data-ins-toptasks></div>' +
         '</div>'
@@ -1522,14 +1526,15 @@
     if (typeof Tracking === "undefined" || !Tracking.focusedRangeForScope) return;
     var token = ++insightsReadToken;
     var keys = Tracking.lastNLocalDayKeys(30);
-    var range, byTag, byTask;
+    var range, byTag, byTask, byDomain;
     try {
       var res = await Promise.all([
         Tracking.focusedRangeForScope(scope.workspaceId, keys),
         Tracking.byTagForScope(scope.workspaceId, keys),
-        Tracking.byTaskForScope(scope.workspaceId, keys)
+        Tracking.byTaskForScope(scope.workspaceId, keys),
+        Tracking.byDomainForScope(scope.workspaceId, keys)
       ]);
-      range = res[0]; byTag = res[1]; byTask = res[2];
+      range = res[0]; byTag = res[1]; byTask = res[2]; byDomain = res[3];
     } catch (err) {
       console.error("[LaunchPad] Insights: board read failed", err);
       return;
@@ -1545,6 +1550,7 @@
     insightsFill(panel, "[data-ins-deepwork]",
       insightsBarChartSvg(hours, hours.length - 1, "Deep work over the last 30 days"));
     insightsFill(panel, "[data-ins-donut]", insightsTagDonutHtml(byTag, scopeTotalMs, d, combined));
+    insightsFill(panel, "[data-ins-topsites]", insightsTopSitesHtml(byDomain, d, combined));
     insightsFill(panel, "[data-ins-toptasks]", insightsTopTasksHtml(byTask, d, combined));
   }
 
@@ -1645,6 +1651,55 @@
 
     var maxMs = rows[0].ms || 1;
     return rows.slice(0, 5).map(function (r) {
+      var pct = Math.round((r.ms / maxMs) * 100);
+      return '<div class="insights-task-row">' +
+          '<span class="insights-task-name">' + escapeHtml(r.name) + '</span>' +
+          '<span class="insights-task-bar"><span class="insights-task-bar-fill" style="width:' + pct + '%"></span></span>' +
+          '<span class="insights-task-dur">' + fmtDurationHM(r.ms) + '</span>' +
+        '</div>';
+    }).join("");
+  }
+
+  // [1.2.1 T2/T3/T4] Time by site — top domains over the same 30-day window.
+  //
+  // Deliberately the Top Tasks idiom, down to REUSING ITS CLASSES rather than
+  // cloning them under site-* names: the MINI-PLAN asks for no new visual
+  // language, and duplicated CSS is how two things that must look identical
+  // start drifting. The container carries an extra insights-site-list class as
+  // a targeting hook with no styles attached, so nothing new can drift.
+  //
+  // T3 PRIVACY, ABSOLUTE: no favicons, ever, and no network of any kind. These
+  // rows come from BROWSING data, so fetching an icon for one would transmit
+  // the user's browsing domains to a favicon service — the exact thing
+  // "nothing leaves the machine" forbids. Text rows only. (Top Tasks has no
+  // icons either, so consistency and privacy point the same way.)
+  //
+  // T4 IDENTITY: the RAW hostname as the engine captured it (domainOf =
+  // URL.hostname). No www-stripping, no alias collapsing — we display what
+  // was measured, and we do not add a fourth domain-matching semantic alongside
+  // the three the codebase already carries.
+  //
+  // Unlike Top Tasks there is nothing to resolve and therefore nothing to drop:
+  // a domain is its own label, so every record the reader returns can be shown.
+  function insightsTopSitesHtml(byDomain, d, combined) {
+    var rows = [];
+    (byDomain || []).forEach(function (b) {
+      if (!b || !b.domain) return;
+      var name = b.domain;
+      if (combined) {
+        var ws = Storage.resolveWorkspaceFromData(d, b.workspaceId);
+        if (ws) name = b.domain + " — " + ws.name;
+      }
+      rows.push({ name: name, ms: b.ms });
+    });
+    rows.sort(function (a, b) { return b.ms - a.ms; });
+
+    if (rows.length === 0) {
+      return '<div class="insights-empty">No site time tracked in the last 30 days yet.</div>';
+    }
+
+    var maxMs = rows[0].ms || 1;
+    return rows.slice(0, 6).map(function (r) {
       var pct = Math.round((r.ms / maxMs) * 100);
       return '<div class="insights-task-row">' +
           '<span class="insights-task-name">' + escapeHtml(r.name) + '</span>' +
