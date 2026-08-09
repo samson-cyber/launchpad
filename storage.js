@@ -64,7 +64,16 @@ var Storage = (function () {
       // trackingPaused above. It governs CARD SELECTION ONLY; every figure the
       // Dashboard reports stays local-midnight-based, because the tracking
       // engine's day aggregates are pre-split at local midnight (D4).
-      settings: { columns: 6, collapsedGroups: {}, combinedAnalyticsEnabled: false, endOfDayMinutes: 1020, pomodoro: { workMin: 25, shortBreakMin: 5, longBreakMin: 15, cyclesBeforeLongBreak: 4, notificationsEnabled: false, sound: "none" } },
+      settings: { columns: 6, collapsedGroups: {}, combinedAnalyticsEnabled: false, endOfDayMinutes: 1020, pomodoro: { workMin: 25, shortBreakMin: 5, longBreakMin: 15, cyclesBeforeLongBreak: 4, notificationsEnabled: false, sound: "none" }, focus: { autoArmDuringWork: true } },
+      // [1.2.0 C2/C4/C7/C8] Focus blocking. All four ship in the default shape
+      // even though only the settings + list have UI this round — the same
+      // ship-the-data-model-first discipline as trackingPaused and
+      // endOfDayMinutes above. focusArmed is the MANUAL arm (top-level so it
+      // survives a task switch); the derivation lives in focusBlockingActive.
+      focusArmed: false,
+      blockList: [],
+      focusSnoozes: {},
+      focusStats: emptyFocusStats(),
       pro: {
         licenseKey: null,
         instanceId: null,
@@ -310,6 +319,341 @@ var Storage = (function () {
     return true;
   }
 
+  // ===== [1.2.0] Focus blocking — R1 storage foundations =====
+  //
+  // PLAN C2/C3/C4/C7/C8 (task 1216776953648220, 2026-08-09). Page-side storage
+  // only this round: no intercept, no service-worker code, no gate page (R2).
+  //
+  // NAMING, deliberately disambiguated from the PLAN's prose: the PLAN used
+  // "isFocusArmed" for BOTH the stored flag and the derivation. They are split
+  // here because they answer different questions and R2 needs both —
+  //   isFocusManuallyArmed(data)  reads the raw data.focusArmed flag
+  //   focusBlockingActive(data)   the pure derivation the intercept evaluates
+
+  // C2 — manual arm. Top-level flag, the data.trackingPaused idiom exactly
+  // (default in getDefaultData, backfill in ensureFocusBlockingState, defaulting
+  // reader here). Top-level rather than on activeTask.pomodoroState BECAUSE it
+  // must survive a task switch: pomodoroState is deliberately dropped by every
+  // clear path (switch / complete / cancel / self-heal), which is right for a
+  // phase and wrong for an arm the user set by hand.
+  function isFocusManuallyArmed(data) {
+    return !!(data && data.focusArmed === true);
+  }
+
+  async function setFocusArmed(data, armed) {
+    if (!data) return false;
+    var next = !!armed;
+    if (data.focusArmed === next) return false;   // no-op guard: no redundant write
+    data.focusArmed = next;
+    await saveAll(data);
+    return true;
+  }
+
+  // C2 — auto-arm preference. Pomodoro-settings idiom: read-time defaulting, so
+  // an already-migrated install with no focus bag reads the default rather than
+  // undefined (the getEndOfDayMinutes lesson). DEFAULT TRUE — F1=b's promise is
+  // that a focus session arms blocking, so that is the out-of-box behaviour.
+  var FOCUS_DEFAULTS = { autoArmDuringWork: true };
+
+  function getFocusSettings(data) {
+    var f = (data && data.settings && data.settings.focus) || {};
+    return {
+      autoArmDuringWork: (typeof f.autoArmDuringWork === "boolean")
+        ? f.autoArmDuringWork
+        : FOCUS_DEFAULTS.autoArmDuringWork
+    };
+  }
+
+  async function setFocusAutoArm(data, val) {
+    if (!data) return false;
+    var next = !!val;
+    if (!data.settings || typeof data.settings !== "object") data.settings = {};
+    if (!data.settings.focus || typeof data.settings.focus !== "object") data.settings.focus = {};
+    if (data.settings.focus.autoArmDuringWork === next) return false;
+    data.settings.focus.autoArmDuringWork = next;
+    await saveAll(data);
+    return true;
+  }
+
+  // C2 — THE DERIVATION. Pure, in the desiredPomodoroAlarmWhen mould: no arming
+  // events, no stored "armed because a phase is running" flag to keep in sync.
+  // R2's intercept evaluates this inside the single storage read it already does.
+  //
+  //   active = manualArm OR (autoArmPref AND a WORK phase is running AND not paused)
+  //
+  // The phase term is 'work' ONLY — a break must never block, which is the whole
+  // point of E1's asymmetry. trackingPaused gates it for the same reason
+  // desiredPomodoroAlarmWhen returns null while paused: a frozen phase is not a
+  // running one. Consent is inherited rather than re-checked: E1 guarantees every
+  // work phase starts from an explicit user gesture, so auto-arm can never engage
+  // without one.
+  function focusBlockingActive(data) {
+    if (!data) return false;
+    if (isFocusManuallyArmed(data)) return true;
+    if (!getFocusSettings(data).autoArmDuringWork) return false;
+    if (isTrackingPaused(data)) return false;
+    var active = getActiveTask(data);
+    if (!active) return false;
+    return hydratePomodoroState(active.pomodoroState).phase === "work";
+  }
+
+  // C3 — normalize a user-typed entry to a bare lowercase host. Returns null for
+  // anything unusable, so the caller never stores garbage. Accepts a full URL
+  // paste, a host:port, a "www." prefix, or a bare host.
+  //
+  // IDN/PUNYCODE PASSTHROUGH AS TYPED (PLAN C3): no encoding or decoding happens
+  // here. "münchen.de" stores as "münchen.de" and "xn--mnchen-3ya.de" stores as
+  // itself; a user who types one form matches the form the browser reports. Doing
+  // the conversion would need a punycode implementation this file has no business
+  // carrying, and getting it half-right is worse than being predictable.
+  function normalizeBlockEntry(raw) {
+    if (typeof raw !== "string") return null;
+    var s = raw.trim().toLowerCase();
+    if (!s) return null;
+    s = s.replace(/^[a-z][a-z0-9+.-]*:\/\//, "");        // scheme
+    s = s.split("/")[0].split("?")[0].split("#")[0];      // path / query / fragment
+    var at = s.lastIndexOf("@");
+    if (at !== -1) s = s.slice(at + 1);                   // credentials
+    s = s.split(":")[0];                                  // port
+    if (s.indexOf("www.") === 0) s = s.slice(4);
+    if (!s) return null;
+    // A usable host: no whitespace, and at least two non-empty labels (so
+    // "localhost" and prose are rejected). Hyphen rules are checked PER LABEL,
+    // not on the whole string — "bad-.com" is invalid because a LABEL ends in a
+    // hyphen, which a whole-string check misses entirely (caught by the harness).
+    if (/\s/.test(s)) return null;
+    var labels = s.split(".");
+    if (labels.length < 2) return null;
+    for (var i = 0; i < labels.length; i++) {
+      var label = labels[i];
+      if (!label) return null;                                    // empty label
+      if (label.charAt(0) === "-" || label.charAt(label.length - 1) === "-") return null;
+    }
+    return s;
+  }
+
+  // C3 — suffix match. SUBDOMAINS YES, ALIASES NO: "youtube.com" matches
+  // m./www.youtube.com; "docs.google.com" does NOT match sheets.google.com unless
+  // listed. No DOMAIN_ALIASES involvement — that table is already duplicated in
+  // two files and a third consumer would make it worse.
+  //
+  // The length check is what stops the lookalike class: "notyoutube.com" does not
+  // end with ".youtube.com", and requiring host longer than entry keeps the
+  // endsWith test from ever being satisfied by an equal-length string.
+  //
+  // RETURNS THE MATCHED ENTRY (a string) or null — not a boolean. R2's gate needs
+  // to name the blocked domain, and the snooze key is the matched ENTRY rather
+  // than the visited host, so returning it here avoids a second pass.
+  function matchesBlockedDomain(host, entries) {
+    if (typeof host !== "string" || !Array.isArray(entries) || !entries.length) return null;
+    var h = host.trim().toLowerCase().split(":")[0];
+    if (!h) return null;
+    if (h.indexOf("www.") === 0) h = h.slice(4);
+    for (var i = 0; i < entries.length; i++) {
+      var e = entries[i];
+      if (typeof e !== "string" || !e) continue;
+      if (h === e) return e;
+      if (h.length > e.length && h.slice(-(e.length + 1)) === "." + e) return e;
+    }
+    return null;
+  }
+
+  // C4 — the block list. Top-level array of normalized hosts (the workspaceOrder
+  // precedent: global things take `data` and nothing else, no workspace argument
+  // anywhere in the chain). NO SOFT-DELETE, deliberately: this is settings-shaped,
+  // not tag-shaped. Removal is final, re-adding is one field, and the list stays
+  // outside the trash/purge machinery entirely.
+  function ensureBlockList(data) {
+    if (!data) return [];
+    if (!Array.isArray(data.blockList)) data.blockList = [];
+    return data.blockList;
+  }
+
+  // Defaulting reader. Returns a COPY so a caller cannot mutate stored state by
+  // accident (the list is small; the intercept's cost is the storage read, not this).
+  function getBlockList(data) {
+    return (data && Array.isArray(data.blockList)) ? data.blockList.slice() : [];
+  }
+
+  // Normalize-then-guard. Returns {ok:true, entry} or {ok:false, err, message} —
+  // the {err, message} shape the tag CRUD already uses, so the UI can surface the
+  // reason inline next to the input rather than as a toast.
+  async function addBlockedDomain(data, raw) {
+    if (!data) return { ok: false, err: "invalid", message: "Enter a site to block." };
+    var entry = normalizeBlockEntry(raw);
+    if (!entry) {
+      return { ok: false, err: "invalid", message: "That doesn't look like a site — try youtube.com" };
+    }
+    var list = ensureBlockList(data);
+    if (list.indexOf(entry) !== -1) {
+      return { ok: false, err: "duplicate", message: entry + " is already on the list" };
+    }
+    list.push(entry);
+    await saveAll(data);
+    return { ok: true, entry: entry };
+  }
+
+  // Accepts either a raw user string or an already-stored entry. No-op guarded:
+  // removing something absent writes nothing.
+  async function removeBlockedDomain(data, raw) {
+    if (!data) return false;
+    var list = ensureBlockList(data);
+    var entry = normalizeBlockEntry(raw);
+    var i = entry !== null ? list.indexOf(entry) : -1;
+    if (i === -1 && typeof raw === "string") i = list.indexOf(raw);   // defensive
+    if (i === -1) return false;
+    list.splice(i, 1);
+    await saveAll(data);
+    return true;
+  }
+
+  // C7 — per-site snooze. { normalizedEntry: untilTimestamp }. No alarm: expiry
+  // only matters at the next navigation, which wakes the worker anyway (measured
+  // in this task's MEASUREMENTS comment).
+  var FOCUS_SNOOZE_MS = 5 * 60 * 1000;
+
+  function ensureFocusSnoozes(data) {
+    if (!data) return {};
+    if (!data.focusSnoozes || typeof data.focusSnoozes !== "object" || Array.isArray(data.focusSnoozes)) {
+      data.focusSnoozes = {};
+    }
+    return data.focusSnoozes;
+  }
+
+  // Mutate-only; the caller owns the write. Drops expired AND malformed values.
+  function pruneExpiredFocusSnoozes(data, nowMs) {
+    var now = (typeof nowMs === "number" && isFinite(nowMs)) ? nowMs : Date.now();
+    var map = ensureFocusSnoozes(data);
+    var removed = 0;
+    Object.keys(map).forEach(function (k) {
+      var v = map[k];
+      if (typeof v !== "number" || !isFinite(v) || v <= now) { delete map[k]; removed++; }
+    });
+    return removed;
+  }
+
+  async function setFocusSnooze(data, domain, untilTs) {
+    if (!data) return false;
+    var entry = normalizeBlockEntry(domain);
+    if (!entry) return false;
+    var until = (typeof untilTs === "number" && isFinite(untilTs))
+      ? Math.floor(untilTs)
+      : (Date.now() + FOCUS_SNOOZE_MS);
+    var map = ensureFocusSnoozes(data);
+    // Opportunistic prune (C7): stale keys are cleared on the write path, so the
+    // hot read path never has to.
+    var pruned = pruneExpiredFocusSnoozes(data);
+    if (map[entry] === until && !pruned) return false;   // no-op guard
+    map[entry] = until;
+    await saveAll(data);
+    return true;
+  }
+
+  // PURE — no prune, no write. R2 calls this on the intercept's hot path, where a
+  // write would be indefensible. An expired entry simply reads as null and gets
+  // cleared by the next setFocusSnooze.
+  //
+  // Lookup is EXACT-KEY, not suffix: R2 passes the entry matchesBlockedDomain
+  // returned, so snoozing m.youtube.com against a "youtube.com" rule snoozes the
+  // rule (all of youtube.com), which is what the gate's copy promises.
+  function getActiveFocusSnooze(data, domain, nowMs) {
+    if (!data) return null;
+    var entry = normalizeBlockEntry(domain);
+    if (!entry) return null;
+    var map = (data.focusSnoozes && typeof data.focusSnoozes === "object" && !Array.isArray(data.focusSnoozes))
+      ? data.focusSnoozes : {};
+    var v = map[entry];
+    if (typeof v !== "number" || !isFinite(v)) return null;
+    var now = (typeof nowMs === "number" && isFinite(nowMs)) ? nowMs : Date.now();
+    return v > now ? v : null;
+  }
+
+  // C8 — capture-first counters. Versioned record, the ensureAchievements idiom
+  // (defaulting AND normalizing at read, because migrate() never runs for an
+  // already-migrated install).
+  //
+  // DELIBERATELY NOT IN THE TRACKING ENGINE (PLAN C8, answering audit A4): the
+  // sibling store is workspace-keyed and 30-day-pruned, and this is a global,
+  // longer-lived counter. Leaving tracking.js untouched also avoids its
+  // ripgrep-invisibility (BUGS.md M1) and CRLF costs for zero benefit.
+  //
+  // DAY KEY: reuses achDayKey below rather than adding a helper. PLAN C8 allowed a
+  // small local one "if none exists"; one does — achDayKey is already a pure local
+  // calendar-day key in this file — so the accepted 3-line duplication is not
+  // needed and is not taken. There is no coupling to tracking.js either way.
+  var FOCUS_STATS_VERSION = 1;
+  var FOCUS_STATS_MAX_DAYS = 60;
+
+  function emptyFocusStats() {
+    return { version: FOCUS_STATS_VERSION, byDay: {} };
+  }
+
+  function ensureFocusStats(data) {
+    if (!data) return emptyFocusStats();
+    if (!data.focusStats || typeof data.focusStats !== "object" || Array.isArray(data.focusStats)) {
+      data.focusStats = emptyFocusStats();
+      return data.focusStats;
+    }
+    var f = data.focusStats;
+    if (typeof f.version !== "number" || !isFinite(f.version)) f.version = FOCUS_STATS_VERSION;
+    if (!f.byDay || typeof f.byDay !== "object" || Array.isArray(f.byDay)) f.byDay = {};
+    Object.keys(f.byDay).forEach(function (k) {
+      var b = f.byDay[k];
+      if (!b || typeof b !== "object" || Array.isArray(b)) { f.byDay[k] = { blocked: 0, snoozed: 0 }; return; }
+      b.blocked = (typeof b.blocked === "number" && isFinite(b.blocked) && b.blocked >= 0) ? Math.floor(b.blocked) : 0;
+      b.snoozed = (typeof b.snoozed === "number" && isFinite(b.snoozed) && b.snoozed >= 0) ? Math.floor(b.snoozed) : 0;
+    });
+    return f;
+  }
+
+  // Keep the newest FOCUS_STATS_MAX_DAYS keys. YYYY-MM-DD sorts lexicographically
+  // in chronological order, so a plain sort is the chronological one.
+  function pruneFocusStatDays(stats) {
+    var keys = Object.keys(stats.byDay).sort();
+    if (keys.length <= FOCUS_STATS_MAX_DAYS) return 0;
+    var drop = keys.slice(0, keys.length - FOCUS_STATS_MAX_DAYS);
+    drop.forEach(function (k) { delete stats.byDay[k]; });
+    return drop.length;
+  }
+
+  // R2 calls this from the SW, inside enqueueBgData (BUGS.md L1) — which is why
+  // R0 is a prerequisite for R2, not for this round.
+  async function incrementFocusStat(data, kind, nowMs) {
+    if (!data) return false;
+    if (kind !== "blocked" && kind !== "snoozed") return false;
+    var stats = ensureFocusStats(data);
+    var key = achDayKey(nowMs);
+    if (!stats.byDay[key]) stats.byDay[key] = { blocked: 0, snoozed: 0 };
+    stats.byDay[key][kind] += 1;
+    pruneFocusStatDays(stats);
+    await saveAll(data);
+    return true;
+  }
+
+  // Backfill for installs that predate this feature — the ensureTrackingState
+  // shape, called from the same getAll pass. Every reader above already defaults
+  // at read time, so this is belt-and-braces rather than load-bearing: it makes
+  // the stored shape self-describing (and therefore visible in an export) at the
+  // cost of ONE write on the first load after update, exactly as trackingPaused
+  // paid when it shipped.
+  function ensureFocusBlockingState(data) {
+    var changed = false;
+    if (typeof data.focusArmed !== "boolean") { data.focusArmed = false; changed = true; }
+    if (!Array.isArray(data.blockList)) { data.blockList = []; changed = true; }
+    if (!data.focusSnoozes || typeof data.focusSnoozes !== "object" || Array.isArray(data.focusSnoozes)) {
+      data.focusSnoozes = {}; changed = true;
+    }
+    if (!data.settings || typeof data.settings !== "object") { data.settings = {}; changed = true; }
+    if (!data.settings.focus || typeof data.settings.focus !== "object") {
+      data.settings.focus = { autoArmDuringWork: FOCUS_DEFAULTS.autoArmDuringWork };
+      changed = true;
+    } else if (typeof data.settings.focus.autoArmDuringWork !== "boolean") {
+      data.settings.focus.autoArmDuringWork = FOCUS_DEFAULTS.autoArmDuringWork;
+      changed = true;
+    }
+    return changed;
+  }
+
   // [1.0.20 F2] The combined-analytics CONTROL's setter. Same shape as
   // setTrackingPaused: a per-field settings write with a no-op guard, flowing
   // through saveAll itself. The flag shipped in the data model in [1.0.3] with
@@ -553,10 +897,12 @@ var Storage = (function () {
         // onChanged watcher).
         var patched = ensureDeletedAtFields(existing);
         var trackingSeeded = ensureTrackingState(existing);
-        if (patched || trackingSeeded) {
+        var focusSeeded = ensureFocusBlockingState(existing);
+        if (patched || trackingSeeded || focusSeeded) {
           await chrome.storage.local.set({ data: existing });
           if (patched) console.log("[LaunchPad] Backfilled missing deletedAt fields");
           if (trackingSeeded) console.log("[LaunchPad] Seeded per-workspace tracking state (default ON)");
+          if (focusSeeded) console.log("[LaunchPad] Seeded focus-blocking state (auto-arm default ON)");
         }
         return existing;
       }
@@ -4638,6 +4984,26 @@ var Storage = (function () {
     getRecurringTemplateById: getRecurringTemplateById,
     // [1.0.14] Recurring instance generation
     runRecurringSweep: runRecurringSweep,
-    nextRecurrenceUTC: nextRecurrenceUTC
+    nextRecurrenceUTC: nextRecurrenceUTC,
+    // [1.2.0 R1] Focus blocking — storage foundations. The intercept (R2) reads
+    // focusBlockingActive + getBlockList + matchesBlockedDomain +
+    // getActiveFocusSnooze from a single `data` snapshot.
+    isFocusManuallyArmed: isFocusManuallyArmed,
+    setFocusArmed: setFocusArmed,
+    getFocusSettings: getFocusSettings,
+    setFocusAutoArm: setFocusAutoArm,
+    focusBlockingActive: focusBlockingActive,
+    normalizeBlockEntry: normalizeBlockEntry,
+    matchesBlockedDomain: matchesBlockedDomain,
+    getBlockList: getBlockList,
+    addBlockedDomain: addBlockedDomain,
+    removeBlockedDomain: removeBlockedDomain,
+    setFocusSnooze: setFocusSnooze,
+    getActiveFocusSnooze: getActiveFocusSnooze,
+    pruneExpiredFocusSnoozes: pruneExpiredFocusSnoozes,
+    ensureFocusStats: ensureFocusStats,
+    incrementFocusStat: incrementFocusStat,
+    FOCUS_SNOOZE_MS: FOCUS_SNOOZE_MS,
+    FOCUS_STATS_MAX_DAYS: FOCUS_STATS_MAX_DAYS
   };
 })();

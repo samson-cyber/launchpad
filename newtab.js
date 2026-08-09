@@ -5961,6 +5961,7 @@
     });
 
     bindProTagsControls();
+    bindFocusBlockingControls();
   }
 
   function openProSettingsPanel() {
@@ -5995,6 +5996,7 @@
     renderProWorkspaceList();
     renderProAnalyticsToggle();
     renderProPomodoroSettings();
+    renderFocusBlockingSection();
   }
 
   function closeProSettingsPanel(opts) {
@@ -6342,6 +6344,121 @@
     // and the picker always shows exactly one checked radio.
     $$("#pomo-sound-options input[name='pomo-sound']").forEach(function (radio) {
       radio.checked = (radio.value === s.sound);
+    });
+  }
+
+  // ===== [1.2.0 R1] Pro Settings: Focus blocking section =====
+  //
+  // Pro gating is INHERITED, not re-implemented: the whole Pro Settings panel is
+  // reachable only through the sidebar entry that applySidebarProEntryVisibility
+  // hides for free users, which is exactly how the Focus sessions section above
+  // is gated. No per-section check, no preview stub.
+  //
+  // BUGS.md Section O1: every row below is JS-rendered and therefore invisible to
+  // tools/check-panel-ink.mjs, so its ink was BROWSER-MEASURED in all three theme
+  // branches (ratios in the IMPLEMENTATION comment) rather than assumed. Rows are
+  // built with createElement rather than innerHTML — the tags round's reasoning
+  // applies verbatim: a user-entered domain is never re-serialised into markup,
+  // so it cannot become markup.
+
+  function clearFocusBlockError() {
+    var el = $("#focus-block-error");
+    if (el && !el.classList.contains("hidden")) {
+      el.classList.add("hidden");
+      el.textContent = "";
+    }
+  }
+
+  function showFocusBlockError(message) {
+    var el = $("#focus-block-error");
+    if (!el) return;
+    el.textContent = message;
+    el.classList.remove("hidden");
+  }
+
+  function renderFocusBlockingSection() {
+    var listHost = $("#focus-block-list");
+    if (!listHost) return;
+
+    var entries = Storage.getBlockList(data);
+    listHost.textContent = "";
+    entries.forEach(function (entry) {
+      var li = document.createElement("li");
+      li.className = "focus-block-row";
+
+      var name = document.createElement("span");
+      name.className = "focus-block-domain";
+      name.textContent = entry;
+      name.title = entry + " — subdomains included";
+
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "focus-block-remove";
+      remove.textContent = "×";
+      remove.title = "Remove " + entry;
+      remove.setAttribute("aria-label", "Remove " + entry);
+      remove.addEventListener("click", async function () {
+        try {
+          if (await Storage.removeBlockedDomain(data, entry)) {
+            clearFocusBlockError();
+            renderFocusBlockingSection();
+          }
+        } catch (err) {
+          console.error("[LaunchPad] Focus blocking: remove failed", err);
+        }
+      });
+
+      li.appendChild(name);
+      li.appendChild(remove);
+      listHost.appendChild(li);
+    });
+
+    var emptyEl = document.querySelector(".focus-block-empty");
+    if (emptyEl) emptyEl.classList.toggle("hidden", entries.length > 0);
+
+    var toggle = $("#focus-auto-arm-toggle");
+    if (toggle) toggle.checked = Storage.getFocusSettings(data).autoArmDuringWork;
+  }
+
+  // Empty input is a NO-OP, not an error: pressing Enter on an empty box is a
+  // slip, and answering it with a red note would be scolding the user for nothing.
+  async function commitFocusBlockAdd() {
+    var input = $("#focus-block-input");
+    if (!input) return;
+    if (!(input.value || "").trim()) return;
+
+    var res;
+    try {
+      res = await Storage.addBlockedDomain(data, input.value);
+    } catch (err) {
+      console.error("[LaunchPad] Focus blocking: add failed", err);
+      return;
+    }
+    if (!res || !res.ok) {
+      showFocusBlockError((res && res.message) || "Could not add that site.");
+      return;
+    }
+    input.value = "";
+    clearFocusBlockError();
+    renderFocusBlockingSection();
+  }
+
+  function bindFocusBlockingControls() {
+    safeOn("#focus-block-add-btn", "click", commitFocusBlockAdd);
+    var input = $("#focus-block-input");
+    if (input) {
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); commitFocusBlockAdd(); }
+      });
+      // Typing clears a stale error, matching the tag-create form's behaviour.
+      input.addEventListener("input", clearFocusBlockError);
+    }
+    safeOn("#focus-auto-arm-toggle", "change", async function (e) {
+      try {
+        await Storage.setFocusAutoArm(data, e.target.checked);
+      } catch (err) {
+        console.error("[LaunchPad] Focus blocking: auto-arm save failed", err);
+      }
     });
   }
 

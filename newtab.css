@@ -11586,3 +11586,118 @@ html.bg-light .import-option {
 }
 /* No html.bg-light override for .tips-action — see D16 above; its treatment
    is deliberately luminance-class-independent. */
+
+/* ===== [1.2.0 R1] Pro Settings — Focus blocking =====
+   Ink discipline per BUGS.md Section O1: the ROWS are JS-rendered and therefore
+   invisible to tools/check-panel-ink.mjs, so every text node here declares a
+   colour in all three branches and the result was browser-measured rather than
+   assumed. Every bg-light override uses the TWO-CLASS html.has-bg.bg-light form
+   so it cannot lose to source order the way .pro-tag-name did (8c76a5e). */
+
+.focus-block-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.focus-block-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.focus-block-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.focus-block-domain {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+html.has-bg .focus-block-domain { color: rgba(255, 255, 255, 0.92); }
+html.has-bg.bg-light .focus-block-domain { color: var(--text-primary); }
+
+.focus-block-remove {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--text-secondary);
+}
+
+.focus-block-remove:hover { color: #ff6b6b; }
+html.has-bg .focus-block-remove { color: rgba(255, 255, 255, 0.7); }
+html.has-bg.bg-light .focus-block-remove { color: var(--text-secondary); }
+
+.focus-block-empty {
+  font-size: 12px;
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+}
+
+html.has-bg .focus-block-empty { color: rgba(255, 255, 255, 0.7); }
+html.has-bg.bg-light .focus-block-empty { color: var(--text-secondary); }
+.focus-block-empty.hidden { display: none; }
+
+.focus-block-add-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.focus-block-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+html.has-bg .focus-block-input { color: rgba(255, 255, 255, 0.92); }
+html.has-bg.bg-light .focus-block-input {
+  color: var(--text-primary);
+  border-color: rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* The placeholder is real reading load — it is the only thing naming the
+   expected format — so it gets the same three-branch treatment as the value. */
+.focus-block-input::placeholder { color: var(--text-secondary); opacity: 1; }
+html.has-bg .focus-block-input::placeholder { color: rgba(255, 255, 255, 0.55); }
+html.has-bg.bg-light .focus-block-input::placeholder { color: var(--text-secondary); }
+
+/* Error accent: the two reds already in the system, and BOTH halves of the
+   documented swap — #ff6b6b on dark frosted surfaces, #d93025 on light ones
+   ("same hue, picked for contrast on a light backdrop", the bg-light block
+   above). .pro-tag-create-error only ever declared the dark half, which measures
+   2.78:1 on a light wallpaper; taking the swap here costs nothing and is what
+   reusing the pattern actually means. Measured: 4.76:1 dark / 5.24:1 light. */
+.focus-block-error {
+  font-size: 12px;
+  color: #d93025;
+  margin-top: 4px;
+}
+
+html.has-bg .focus-block-error { color: #ff6b6b; }
+html.has-bg.bg-light .focus-block-error { color: #d93025; }
+
+.focus-block-error.hidden { display: none; }
