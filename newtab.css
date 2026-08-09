@@ -11693,11 +11693,36 @@ html.has-bg.bg-light .focus-block-input::placeholder { color: var(--text-seconda
    reusing the pattern actually means. Measured: 4.76:1 dark / 5.24:1 light. */
 .focus-block-error {
   font-size: 12px;
+  line-height: 1.25;
+  min-height: 15px;        /* exactly one line of 12px/1.25 text, reserved */
   color: #d93025;
-  margin-top: 4px;
+  margin: 6px 0 0;         /* the .pomo-notif-note step, not a new number */
 }
 
 html.has-bg .focus-block-error { color: #ff6b6b; }
 html.has-bg.bg-light .focus-block-error { color: #d93025; }
 
-.focus-block-error.hidden { display: none; }
+/* RESERVED, NOT REMOVED. display:none collapsed the line, so every time the note
+   appeared or cleared the auto-arm toggle below it jumped by 21px (measured) —
+   which is also why the resting gap read as too tight. visibility keeps the
+   line's box, so the toggle never moves.
+   NOTE the bespoke class: the global `.hidden` is `display:none !important`
+   (:8699), which no visibility rule can override. Rather than fight it with a
+   second !important, this element opts out of `.hidden` entirely and uses its
+   own state class. */
+.focus-block-error.is-quiet { visibility: hidden; }
+
+/* Group rhythm: 12px is the panel's established inter-group step
+   (.settings-section-title margin-bottom, .pomo-reset-row, .pomo-sound and the
+   notifications row all use it) — measured, not invented.
+   Scoped by the section class rather than :has() because this section has one,
+   which the notifications row did not; same effect, one less selector feature.
+   The cursor override matters: the BASE .pro-toggle-row is cursor:not-allowed,
+   written for the permanently-disabled Analytics toggle, so an interactive
+   toggle that does not opt out inherits a "you can't click this" cursor. */
+.focus-block-section .pro-toggle-row {
+  margin-top: 12px;
+  cursor: pointer;
+}
+
+.focus-block-section .pro-toggle-row input[type="checkbox"] { cursor: pointer; }
