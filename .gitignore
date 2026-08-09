@@ -4,3 +4,6 @@ node_modules/
 *.crx
 dist/
 demo-data.js
+
+# Browser automation scratch profiles (test isolation; never committed)
+.scratch-profile*/
