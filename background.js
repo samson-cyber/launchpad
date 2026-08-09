@@ -1162,3 +1162,169 @@ chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
   }
   });
 });
+
+// ===========================================================================
+// [1.2.0 R2] Focus blocking — the intercept (PLAN C1/C7-consume/C8-writes/C10)
+//
+// FOURTH chrome.tabs.onUpdated listener, top-level with a stable reference like
+// its three siblings (checkout-return, tracking, favicon refresh), so Chrome
+// dedupes it across service-worker wakes.
+//
+// HOT-PATH BUDGET IS THE DESIGN CONSTRAINT. MEASUREMENTS put the headroom to
+// first-flash at ~20-120ms: commit-to-redirect measured ~232ms worst case
+// against a first observed flash at ~250-350ms. Everything here is arranged to
+// spend as little as possible before tabs.update:
+//   - every bail that does NOT need storage happens first, synchronously
+//   - exactly ONE chrome.storage.local.get, then a pure decision chain
+//   - the decision writes NOTHING; the counter is queued AFTER the redirect
+// Do not add awaits to this path.
+// ===========================================================================
+var FOCUS_GATE_PAGE = "gate.html";
+
+// Hosts that must never be intercepted whatever the block list says.
+// mylaunchpad.me carries the checkout-return flow (the cross-repo coupling in
+// CLAUDE.md — it broke once already, 07f979e); live.dodopayments.com is the
+// billing origin. Subdomains included.
+var FOCUS_NEVER_HOSTS = ["mylaunchpad.me", "live.dodopayments.com"];
+
+// Mirrors newtab.js's isProAccessibleLevel. Duplicated deliberately: that
+// helper lives in the page and is not exported from pro-access.js, and a
+// one-line predicate is a better trade than widening ProAccess's surface for
+// the hot path. Keep the two in step.
+function focusProActive(data) {
+  var level = ProAccess.getProAccessLevel(data);
+  return level === "active" || level === "trialing" || level === "grace";
+}
+
+// SCHEME ALLOWLIST, not a blocklist. Only http(s) is ever intercepted, which
+// covers every entry the audit enumerated — chrome-extension:// (any id,
+// including our own gate page and newtab), chrome://, chrome-untrusted://,
+// about:*, devtools://, view-source:, file:// — in ONE comparison, and fails
+// closed for any scheme invented later. Cheaper and strictly safer than
+// enumerating the exclusions.
+function focusInterceptCandidateHost(rawUrl) {
+  if (!rawUrl) return null;
+  if (rawUrl.lastIndexOf("http://", 0) !== 0 && rawUrl.lastIndexOf("https://", 0) !== 0) return null;
+  var host;
+  try { host = new URL(rawUrl).hostname; } catch (e) { return null; }
+  if (!host) return null;
+  for (var i = 0; i < FOCUS_NEVER_HOSTS.length; i++) {
+    var h = FOCUS_NEVER_HOSTS[i];
+    if (host === h) return null;
+    if (host.length > h.length && host.slice(-(h.length + 1)) === "." + h) return null;
+  }
+  return host;
+}
+
+// PURE decision over one snapshot. Exposed on self for the harness; the
+// listener below is only wiring. Returns the matched block-list entry when the
+// navigation should be gated, or null.
+function focusInterceptDecision(data, host) {
+  if (!data || !host) return null;
+  if (!focusProActive(data)) return null;                                     // C10
+  if (!Storage.focusBlockingActive(data)) return null;                        // C2
+  var entry = Storage.matchesBlockedDomain(host, Storage.getBlockList(data)); // C3
+  if (!entry) return null;
+  if (Storage.getActiveFocusSnooze(data, entry)) return null;                 // C7
+  return entry;
+}
+self.focusInterceptDecision = focusInterceptDecision;
+self.focusInterceptCandidateHost = focusInterceptCandidateHost;
+
+chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
+  if (!changeInfo.url) return;
+  var host = focusInterceptCandidateHost(changeInfo.url);
+  if (!host) return;
+
+  chrome.storage.local.get("data").then(function (got) {
+    var data = got && got.data;
+    var entry = focusInterceptDecision(data, host);
+    if (!entry) return;
+
+    // STATELESS AGAINST STORAGE, which is what makes the SPA case correct: a
+    // same-document route change re-fires changeInfo.url (proven in the
+    // MEASUREMENTS probe-3), re-runs this same decision, and a live snooze
+    // keeps returning null until it expires. Nothing remembers "already allowed
+    // this one", so nothing can get out of step.
+    var gate = chrome.runtime.getURL(FOCUS_GATE_PAGE) +
+      "?to=" + encodeURIComponent(changeInfo.url) +
+      "&entry=" + encodeURIComponent(entry);
+    chrome.tabs.update(tabId, { url: gate });
+
+    // C8: counted AFTER the redirect is issued. Queued per BUGS.md L1 (this is
+    // an SW-context `data` writer) and deliberately not awaited — the user is
+    // already on their way to the gate and a counter must never sit in front of
+    // the navigation.
+    enqueueBgData("focus-blocked-count", async function () {
+      var fresh = await Storage.getAll();
+      await Storage.incrementFocusStat(fresh, "blocked");
+    });
+  }).catch(function (err) {
+    console.error("[LaunchPad] Focus blocking: intercept failed", err);
+  });
+});
+
+// ===== [1.2.0 R2] Gate page <-> worker channel =====
+//
+// gate.js runs in a PAGE context, so its writes would race the intercept's own
+// counter writes. Rather than invent a second queue, the page asks the worker to
+// perform them and they land in the SAME enqueueBgData FIFO as every other
+// background `data` writer (BUGS.md L1). The page awaits the reply, so the write
+// is durable before it navigates — which is what stops the intercept from
+// immediately re-gating the arrival.
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+  if (!msg || typeof msg.type !== "string" || msg.type.indexOf("focus-gate-") !== 0) return;
+
+  if (msg.type === "focus-gate-state") {
+    // Read-only: everything the gate needs to render, computed where storage.js
+    // already lives so the gate page does not have to load it.
+    Storage.getAll().then(function (data) {
+      var active = Storage.getActiveTask(data);
+      var ps = active ? Storage.hydratePomodoroState(active.pomodoroState) : null;
+      var running = !!(ps && ps.phase === "work" && !Storage.isTrackingPaused(data));
+      var elapsedMs = 0;
+      if (running && ps.phaseDurationMs != null && ps.phaseEndsAt != null) {
+        elapsedMs = Math.max(0, ps.phaseDurationMs - (ps.phaseEndsAt - Date.now()));
+      }
+      var task = null;
+      var resolved = Storage.resolveActiveTask(data);
+      if (resolved && !resolved.stale && resolved.task) task = resolved.task.name;
+      sendResponse({
+        ok: true,
+        phaseRunning: running,
+        manualArmed: Storage.isFocusManuallyArmed(data),
+        elapsedMs: elapsedMs,
+        taskName: task
+      });
+    }).catch(function () { sendResponse({ ok: false }); });
+    return true;
+  }
+
+  if (msg.type === "focus-gate-snooze") {
+    enqueueBgData("focus-gate-snooze", async function () {
+      var data = await Storage.getAll();
+      // Both mutate the SAME in-job snapshot and each owns its saveAll, so the
+      // trailing write persists both. Two storage writes rather than one is the
+      // price of reusing the setters; hand-rolling a single write here would
+      // duplicate their guards, which is the worse trade. Not on the hot path.
+      await Storage.setFocusSnooze(data, msg.entry, Date.now() + Storage.FOCUS_SNOOZE_MS);
+      await Storage.incrementFocusStat(data, "snoozed");
+    }).then(function () { sendResponse({ ok: true }); });
+    return true;
+  }
+
+  if (msg.type === "focus-gate-end") {
+    enqueueBgData("focus-gate-end", async function () {
+      var data = await Storage.getAll();
+      // C6: decided from FRESH state, not from what the page rendered. Another
+      // tab may have ended the session since the gate loaded; then there is
+      // nothing to end and navigating back is already correct.
+      var active = Storage.getActiveTask(data);
+      var ps = active ? Storage.hydratePomodoroState(active.pomodoroState) : null;
+      if (ps && ps.phase) { await Storage.stopPomodoro(data); return "session"; }
+      if (Storage.isFocusManuallyArmed(data)) { await Storage.setFocusArmed(data, false); return "manual"; }
+      return "none";
+    }).then(function (what) { sendResponse({ ok: true, ended: what }); });
+    return true;
+  }
+});

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blocked during focus — LaunchPad</title>
+  <!-- [1.2.0 R2 / PLAN C5] Own stylesheet, deliberately NOT newtab.css: this is a
+       full page, not a frosted panel over a wallpaper, so the has-bg surface model
+       does not apply here. extension_pages CSP forbids inline script and style. -->
+  <link rel="stylesheet" href="gate.css">
+</head>
+<body>
+  <main class="gate">
+    <p class="gate-eyebrow">Focus</p>
+    <h1 class="gate-headline"><span id="gate-domain" class="gate-domain"></span> is blocked</h1>
+    <p class="gate-context" id="gate-context"></p>
+
+    <div class="gate-actions">
+      <button type="button" id="gate-snooze" class="gate-btn">5 more minutes</button>
+      <button type="button" id="gate-end" class="gate-btn gate-btn-quiet"></button>
+    </div>
+
+    <p class="gate-footnote" id="gate-footnote"></p>
+  </main>
+  <script src="gate.js"></script>
+</body>
+</html>

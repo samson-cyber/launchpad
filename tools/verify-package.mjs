@@ -130,7 +130,14 @@ function importScriptsRefs(file) {
 //   sounds/*.wav    — resolved through Storage.pomodoroSoundFile + getURL, so no
 //                     scanner can see them. A missing chime is inaudible, not a
 //                     hard error — exactly the kind of defect a gate should catch.
+//   gate.html       — the Focus blocking gate ([1.2.0 R2]), navigated to via
+//                     chrome.tabs.update(chrome.runtime.getURL(...)), so the
+//                     manifest walk cannot see it. A missing gate does NOT throw:
+//                     the redirect just fails and blocking silently does nothing,
+//                     which is precisely the half-working build this gate exists
+//                     to catch. gate.js/gate.css ride the HTML walk transitively.
 const EXTRA_ROOTS = [
+  { p: "gate.html", field: "(runtime) Focus blocking intercept -> tabs.update", kind: "page" },
   { p: "offscreen.html", field: "(runtime) chrome.offscreen.createDocument", kind: "page" },
   { p: "sounds/chime1.wav", field: "(runtime) Storage.pomodoroSoundFile", kind: "asset" },
   { p: "sounds/chime2.wav", field: "(runtime) Storage.pomodoroSoundFile", kind: "asset" },
