@@ -32,6 +32,18 @@
 // That measurement is what proved both the mechanism and the fix; this file is
 // the cheap always-on guard that would have caught either one at commit time.
 //
+// BLIND SPOT — JS-RENDERED PANEL TEXT IS INVISIBLE TO THIS GATE.
+// It parses STATIC newtab.html. A container that ships empty and is filled at
+// runtime (#pro-tags-list is the worked example) presents zero text nodes here,
+// so every row, badge, button and inline note inside it passes vacuously. The
+// tags round found the 8902816 ink bug a THIRD time in exactly such a node.
+// Building a template-string parser for newtab.js was considered and rejected —
+// it would re-implement rendering instead of observing it, the very mistake this
+// file is written to avoid. The obligation therefore sits with the round, not
+// the tool: ANY ROUND THAT ADDS JS-RENDERED PANEL TEXT MUST BROWSER-MEASURE ITS
+// INK via the localhost recipe above, in all three branches (dark photo, bright
+// photo, light solid). See BUGS.md Section O1. (8c76a5e review ruling.)
+//
 // Usage: node tools/check-panel-ink.mjs [repoRoot]
 // Exit 0 = PASS, 1 = FAIL.
 

@@ -45,6 +45,14 @@ Paid tier. Pricing: **$4.99/mo or $39/year** (annual ~$3.25/mo). See `SPECS/pro-
 - Recurring tasks: template model + instance generation (templates CRUD shipped in [1.0.10]; generation in [1.0.14])
 - **Task completion = the dopamine moment** — deliberate animation + subtle sound (opt-in)
 
+#### Focus Sessions, Blocking, Time-by-Site (the v2.0 launch trio)
+
+Locked 2026-07-22 (v2.0 design lock, Asana 1214260527650518). Privacy posture absolute: nothing leaves the machine, zero new install-warning permissions — `optional_permissions` requested at runtime on explicit opt-in only.
+
+- **Focus sessions** (`[1.0.18]`) — **COMPLETE 2026-08-08.** Attached to the active task (no task, no timer); sticky point-of-use duration chips; auto-break with work never self-starting; graceful expiry with grace-uniform honesty; pause integration; desktop notifications via runtime-requested optional permission; three synthesized local chimes with offscreen playback. Rounds A1/A2 `b141d3a`/`29bbb07`, E `1627003`, B-1 `65711b6`, B-2 `a7cf131`. See DECISIONS.md 2026-07-22 (naming/duration, session semantics) and 2026-08-02 (notifications fork).
+- **Focus Blocking** (`[1.2.0]`) — **NEXT ON THE BOARD.** Gentle gate page ("YouTube is blocked — 23m focused on <task>", snooze + end focus), arms manually and auto-arms during focus work phases, global block list in Pro Settings, capture-first block/snooze counters. Tabs-API navigation intercept (zero new permissions); `declarativeNetRequest` is the fallback only if the audit disproves that route.
+- **Time-by-Site** (`[1.2.1]`) — follows `[1.2.0]`. One-card reader round on settled conventions, no open design questions.
+
 #### Tracking Engine
 - Ships capture-first: capture/attribution/retention pre-launch ([1.0.25]/[1.0.26], sequenced before [1.0.16]/[1.0.17]); analytics UI including Day Recap content and Deep Diver ships v2.1 — see SPECS/tracking-engine.md and DECISIONS 2026-07-07.
 - Tab focus tracking via `chrome.tabs.onActivated`, `onUpdated`, `chrome.windows.onFocusChanged`
@@ -59,6 +67,7 @@ Paid tier. Pricing: **$4.99/mo or $39/year** (annual ~$3.25/mo). See `SPECS/pro-
 - **Start of Day** card (morning): today's goals, suggested first task, "Let's go" CTA
 - **Weekly summary**: goals completion, time breakdown, deep work trend (v2.1 — same decision)
 - **Deep Work Time** as primary metric (explicitly not "productivity score") (launch-day surface: the 'Today: Xh Ym focused' Dashboard line from [1.0.20]; full analytics v2.1)
+- **Pill redesign** — FOCUSED TODAY becomes the headline number, ACTIVE becomes a static "Active since …" line. Decided 2026-08-08 (DECISIONS.md), **not yet implemented**; Asana Backlog, candidate pre-v2.0-launch polish.
 
 #### Achievements
 - 5-7 thoughtfully designed badges (First Week, Goal Crusher, Deep Diver, Variety, Consistency, plus 2 TBD)
@@ -91,6 +100,12 @@ Pro-only feature. Sticky-note-styled grid for quick capture, with promote-to-tas
 
 Organizational layer on top of standalone notes. Master-detail layout with left notebook column. Drag-to-combine creates notebooks; drag-out returns notes to standalone. Asana tasks not yet scoped — to be created after v1.1.0 ships and we have usage signal. Target release: ~6-8 weeks after v1.1.0.
 
+**Numbering note (2026-07-22):** this section's `v1.2.0` is a Notes-era release label and is **not** the `[1.2.0]` feature marker, which the v2.0 design lock assigned to Focus Blocking ("Notes owns `[1.1.x]`; the new features take `[1.2.x]`"). The collision is cosmetic — Notebooks has no marker-track tasks scoped yet — and should be reconciled at v2.1 planning.
+
+## [1.3.0] — Backup & Restore
+
+Reframed 2026-07-22 (task 1216777305263735) as **extending the shipped free Settings > Backup export/import**, not building one: full coverage (`data` + `tracking_sessions` + `tracking_days` + license key), schema-stamped with migration on import, old partial-format backups still importable. Export stays free; the Pro layer is **automation** — periodic auto-export via `optional_permissions ["downloads"]`, runtime-requested, default OFF. `chrome.storage.sync` full and hybrid both rejected; see DECISIONS.md 2026-07-22. Post-v2.0, slot early in v2.1. Pre-pickup audit of the existing implementation required before any PLAN.
+
 ---
 
 ## Deferred: Pro v2
@@ -100,7 +115,7 @@ Items worth building but out of scope for v1 to keep the 10-week build shippable
 - Per-shortcut / per-domain time tracking within a workspace
 - Richer analytics: time trends, categories, deep-work detection patterns
 - Manual workspace switching keyboard shortcut
-- Pomodoro / sprint timer integrated into workspaces (deferred from Pro v1 per DECISIONS 2026-07-07)
+- ~~Pomodoro / sprint timer integrated into workspaces (deferred from Pro v1 per DECISIONS 2026-07-07)~~ — **un-deferred 2026-07-22** by the v2.0 design lock and shipped as **Focus sessions `[1.0.18]`**; see Pro v1 scope above
 - Per-domain opt-out for tracking (Personal workspace)
 - Habit tracking specialization for Personal workspace
 

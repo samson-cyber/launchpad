@@ -1108,3 +1108,106 @@ Locked thresholds: First Week = opened on 7 consecutive local calendar days (no 
 ## 2026-07-21 — Day Recap ships at v2.0.0 (the last v2.1 analytics deferral consumed for launch)
 
 The evening Dashboard card's future-update teaser is retired: it now shows real today-scoped recap figures (focused total, most-focused task, longest session, top tag) built on the Insights board's windowed readers plus one small `longestSessionForScope`. Follows the 2026-07-21 Insights amendment above — the same pull-forward reasoning (the readers exist, the risk is read-shape correctness, the surface is calm prose with no new charts). This consumes the last analytics item that the 2026-07-07 capture-first entry had deferred to v2.1; capture-first itself remains unchanged and vindicated (the recap arrives pre-populated). Task 1216745591530862.
+
+---
+
+## 2026-07-22 — "Focus session" is the user-facing name; duration is a sticky, point-of-use choice
+
+**Context:** Locked with Samson after the `[1.0.18]` Round A1 lived-use pass (Asana 1214260527650518, PLAN ADDENDUM). Two findings from his hands-on session: the "Pomodoro" button was unclear — *the builder himself read it and asked where the focus limit was* — and there was no duration control at the point of use, so changing session length meant a trip to Pro Settings.
+
+**Alternatives considered:**
+- **Keep "Pomodoro" in the UI** — rejected. It names the *technique*, not the function. If the person who built it has to ask what it does, a cold user has no chance.
+- **Rename internal identifiers too** (`pomodoro*` functions, storage keys) — rejected. Pure churn risk for zero user-visible benefit.
+- **Per-session one-off duration** (pick a length for this session only, don't persist) — evaluated and deferred until lived use demands it. The button should promise what it will actually do next time.
+
+**Outcome:**
+- **D9 NAMING — "Focus session" replaces "Pomodoro" in ALL user-facing UI:** button, card/pill strings, toasts, the Pro Settings section title. Phase labels stay **Work / Break / Long break**; the ring label becomes **FOCUS** (E3, entry below). **Internal identifiers are NOT renamed** — `pomodoro*` function names, storage keys and `data.settings.pomodoro` are untouched, so the rename carries no refactor risk. **"Pomodoro" survives in marketing copy** as the name of the technique. The task marker and name are unchanged.
+- **The unification is deliberate and forward-looking.** When `[1.2.0]` lands, site blocking is presented as a *property of a focus session* ("block distracting sites during focus") plus its arm toggle — one concept, one word. F1's auto-arm coupling makes that reading natural; two names would have made it two features.
+- **D10 DURATION AT POINT OF USE — STICKY:** the start control reads `▶ Focus session · {workMin} min`; the duration segment is tappable and reveals preset chips **5 / 10 / 15 / 25 / 45 + Custom**. Picking a chip **persists** through the existing `setPomodoroWorkMin` (clamped 5–60, custom input clamped identically), so the button always shows what it will do next time. Pro Settings remains the home for break lengths and cycles.
+
+**Shipped in:** `29bbb07` (Round A2).
+
+---
+
+## 2026-07-22 — A focus session ENDS: the break auto-starts, the next work phase never does
+
+**Context:** Locked with Samson after the Round A2 lived-use pass (Asana 1214260527650518, PLAN ADDENDUM 2). The contradiction was one we created in a single day: **P3** of the 2026-07-22 v2.0 design lock specified auto-advance `work → break → work` forever, locked under the "Pomodoro" framing; **D9** (entry above) then renamed the feature a *Focus session* — and a session is something you start and **finish**. A timer that silently puts you back on the clock is a treadmill, not a session. The sharper stake is downstream: `[1.2.0]` auto-arms site blocking during work phases (F1), so an auto-looping work phase would **re-block the user's sites indefinitely without consent**.
+
+**Alternatives considered:**
+- **Keep P3's endless loop** — rejected. Treadmill semantics, and a consent violation the moment blocking couples to the work phase.
+- **Require explicit user action at BOTH boundaries** (confirm the break too) — rejected. Resting needs no decision; a prompt to start a break is friction that buys nothing.
+- **Asymmetric: break automatic, work explicit** — chosen. The asymmetry *is* the decision: consent is required only where the machine would otherwise put you back to work.
+
+**Outcome:**
+- **E1 SESSION SEMANTICS (supersedes P3's loop, refines D3):** work-phase end → the break starts **automatically**. Break end → the session **COMPLETES**: phase cleared, `cycleCount` kept, and the card shows a session-complete state — *"Session done · cycle {n} of {cyclesBeforeLongBreak}"* — with a one-click **▶ Start next session** that begins the next work phase (long-break cadence math unchanged). **Work never begins without explicit user action**, so when `[1.2.0]` lands, blocking can never re-arm without consent.
+- **Graceful expiry (D3) is unchanged** for unattended boundaries.
+- **Session-complete is a display state, not a stored phase.** `phase: null` + `cycleCount > 0` already encodes it; the render distinguishes "stopped by user" from "completed break" via a small transient flag that survives re-render but need not survive a task switch.
+- **E2 COPY — focus is the protagonist, not the break:** work-phase end → *"Nice — {workMin} min focused. Break time."*; break end → *"Session complete — ready for another?"*; the expiry toast is unchanged (*"Focus session ended while you were away."*).
+- **E3 RING LABEL:** `WORK` inside the ring becomes `FOCUS`. Phase text labels elsewhere stay Work / Break / Long break.
+
+**Supersedes:** the endless-loop clause of **P3** in the 2026-07-22 v2.0 design lock (recorded on Asana 1214260527650518). The rest of P3 — auto-advance mechanics, the gentle boundary cue, pause always available — stands unchanged.
+
+**Shipped in:** `1627003`, with the modular cycle-position display in `b3d3048`.
+
+---
+
+## 2026-07-22 — Backup: sync-based approaches shelved; `[1.3.0]` EXTENDS the shipped export/import rather than building one
+
+**Context:** Asana 1216777305263735. `chrome.storage.local` does **not** travel with Chrome Sync, so a bricked or lost machine means total loss of layout, workspaces, tasks, goals and all accumulated tracking history. The license survives (key + email + unlimited activations); the data does not. This is the highest-blast-radius failure mode for the most invested users, and it grows with every day of accrued tracking data. A same-day premise correction reshaped the scope: the v1.0.5 store-build spot-check showed the shipped **free** build already has **Settings > Backup** with Export/Import covering shortcuts, groups, settings and background. The gap is **coverage**, not existence.
+
+**Alternatives considered:**
+- **(a) Full `chrome.storage.sync`** — REJECTED. ~100 KB total, 8 KB per item, throttled writes: orders of magnitude below the `data` blob plus the tracking stores. A dead end, not a trade-off.
+- **(b) Hybrid partial sync** (layout essentials only) — REJECTED as the primary answer. Custom icons stored as data URLs blow the 8 KB item limit unpredictably; a partial restore ("shortcuts came back, goals vanished") reads to the user as a bug, not a feature boundary; and sync transits Google's servers, fraying the "nothing leaves the machine" posture. **One narrow slice survives as a later enhancement:** settings + license key via `storage.sync`, so a reinstall recovers Pro status and preferences instantly.
+- **(d) Cloud backup to the user's own Drive/Dropbox** — REJECTED. OAuth and identity infrastructure, plus a real privacy-posture hit. Not this product.
+- **(c) Local export/import** — CHOSEN, and rescoped to *extend* what already ships.
+
+**Outcome:**
+- **`[1.3.0]` extends the existing free export/import to full coverage**: `data` + `tracking_sessions` + `tracking_days` + license key, schema-stamped and versioned, validated and migrated on import. **Import of old partial-format backups must keep working** — backward compatibility is a requirement, not a nicety.
+- **Export stays FREE.** Exporting your own data is a right; "pay to not lose your stuff" contradicts the respectful brand.
+- **The Pro layer is AUTOMATION, not access** — periodic auto-export via `optional_permissions: ["downloads"]`, runtime-requested on toggle-ON, default OFF, zero install warning (the same pattern as the focus-session notifications, 2026-08-02 entry below). The quiet superpower: most consumers' Downloads/Documents folders are already synced by OneDrive/Google Drive/iCloud, so an auto-exported snapshot lands off-machine **with the extension never touching a cloud API**.
+- **A pre-pickup AUDIT maps the existing implementation** (format, versioning, exactly what is serialized, import validation) before any PLAN. The task's original "build from scratch" framing is superseded by its own premise-correction comment.
+- **Timing:** post-v2.0 launch, slotted early in v2.1.
+
+**Do not relitigate the sync options.** (a) and (b) were evaluated on the numbers and the posture, and both fail on both.
+
+---
+
+## 2026-08-02 — The notifications toggle is the fork in boundary semantics
+
+**Context:** `[1.0.18]` Round B PLAN (B1), locked with Samson. Flagged in advance by the E-series entry as the first design question of Round B, not an implementation detail: with notifications ON and no tab open, *something* has to happen at a phase boundary, and the three candidate behaviors are not equivalent.
+
+**Alternatives considered:**
+- **Notify without advancing** — rejected. The notification announces a break that has not started. It lies.
+- **Always advance regardless of the toggle** — rejected. Silent background phase churn the user never consented to — the treadmill again, wearing a different hat.
+- **Fork the semantics on the toggle** — chosen. The alarm *is* the consent for background operation.
+
+**Outcome:**
+- **Notifications ON:** the service-worker alarm **PERFORMS** the transition with no tab open. Work-end fires the break notification **and starts the break**; break-end fires *"Session complete — ready for another?"* **and** sets the session-complete marker, carrying one action button (**Start next session**) that begins the next work phase without a tab. The user opted into an ambient timer that runs while they work elsewhere.
+- **Notifications OFF:** today's behavior exactly — page-side only, graceful expiry when unattended.
+- **GRACE UNIFORMITY:** the SW advance obeys the same `GRACE_MS` (90 s) window as the page. An alarm that fires late beyond grace (sleep, suspend) means the boundary passed unattended → **quiet expiry per D3**: no notification barrage, no catch-up cascade, the user returns to an expired card. Notifications ON changes behavior **only for on-time boundaries**. Honesty is preserved in both directions.
+- **Sound is an independent control** (Pro Settings ships a separate picker), but the alarm exists **iff** notifications are ON — so a sound-only user with no tab open simply hears nothing, and expiry applies as before. Documented, not a bug. Expiry itself is **always silent**: an unattended timeout is not an achievement.
+- **The SW-initiated write path routes through `enqueueBgData`** (BUGS.md Section L). Playback is fired *after* the queued section returns, so holding the worker alive for a second of audio cannot stall unrelated background `data` writers.
+
+**Shipped in:** `65711b6` (B-1, notifications), `a7cf131` (B-2, chimes).
+
+---
+
+## 2026-08-08 — Pill honesty: FOCUSED TODAY becomes the headline, ACTIVE becomes an "active since" timestamp
+
+**Status: DECIDED, NOT YET IMPLEMENTED.** Asana 1217301162748887 (Backlog), candidate pre-v2.0-launch polish.
+
+**Context:** Samson's live-use finding, 2026-08-08: ACTIVE displayed **139:52:01** — roughly six days of wall clock — because Chrome had never cold-started. Sleep/lid-close habits plus background-apps mode mean the browser process can live for weeks, and the session anchor only resets on a true process restart. The number was working exactly as designed (2026-07-19, "ACTIVE means this sitting, while present") and was still useless: technically true, practically meaningless. It fails the product's own honesty standard on the flagship surface.
+
+**Alternatives considered:**
+- **Day-bounded ACTIVE** (roll at midnight) — rejected. Honest and cheap, but still *slot time* rather than work, and redundant the moment FOCUSED TODAY is the headline.
+- **A "time while browser window open" accumulator** — rejected. A third metric that neither measures work nor stays cheap: it needs service-worker heartbeat machinery under MV3 and converges on a worse version of the number the tracking engine already produces.
+- **Promote the number that is already accurate** — chosen. The fix is prominence and honesty, not machinery.
+
+**Outcome:**
+- **The pill/card leads with FOCUSED TODAY** as the big headline number — engine-measured, engaged-time-only, restart-proof. It is the number Pro actually sells.
+- **ACTIVE stops being a running counter entirely.** It becomes a quiet static line — *"Active since Aug 2, 9:04"* (activation timestamp; exact copy at the implementation PLAN). A timestamp cannot accumulate into absurdity: it is honest at any age, with zero new machinery.
+- **FOCUSED TODAY's old small slot goes away** — one number, one place.
+- **During a running Focus session the pomodoro display still takes over the face**, exactly as today. `[1.0.18]` behavior is unchanged.
+- **Optional scope at pickup:** with no running ACTIVE counter, audit what the session-anchor machinery (`onStartup` anchor write, the cold-start fix path) still serves. If the pill was its only consumer it may be removable — but verify nothing else reads it (Day Recap, Insights, Dashboard) first. Removal is optional, not required.
+
+**Amends:** the **2026-07-19** ACTIVE entry. That entry's *definition* of ACTIVE — present-time within this sitting, idle deducted silently, pause deducted loudly — stands and was never the problem; what changes is its **presentation**, from a running counter to a static timestamp. The 2026-07-18 session anchor and the 2026-07-17 dual-counter framing are amended in the same way.
