@@ -1231,9 +1231,36 @@ function focusInterceptDecision(data, host) {
 self.focusInterceptDecision = focusInterceptDecision;
 self.focusInterceptCandidateHost = focusInterceptCandidateHost;
 
-chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
-  if (!changeInfo.url) return;
-  var host = focusInterceptCandidateHost(changeInfo.url);
+// [1.2.0 R2.5] THE TRANSPORT, and only the transport.
+//
+// R2 intercepted on chrome.tabs.onUpdated's changeInfo.url edge, which fires at
+// navigation COMMIT — after the renderer already holds the document. The R2
+// re-measure showed the blocked page is therefore PRESENTED TO THE USER before
+// the redirect lands, at every latency from 0 to 400ms, 15/15, on two
+// independent detectors. Server latency does not help because it shifts the
+// commit and the paint by the same amount; the race is (commit -> first paint,
+// ~10-20ms) against (commit -> our redirect, ~40ms at best), and it is not
+// winnable from a post-commit hook.
+//
+// F2 was amended (Samson, 2026-08-09) to move interception PRE-COMMIT, gated on
+// a real-Chrome permission comparison which PASSED: variant-a and variant-b
+// showed character-identical Permissions lists on a clean Chrome profile,
+// because `history` already carries the broader browsing-history warning that
+// `tabs` and `webNavigation` both map to. So the switch costs nothing at the
+// install prompt.
+//
+// WHAT DID NOT CHANGE: the scheme/host bails, the single storage read, the pure
+// decision function, the gate URL, and the queued post-redirect counter are all
+// byte-identical to R2. This round moves WHEN we are asked, not WHAT we decide.
+//
+// REGISTRATION IS UNCONDITIONAL AND MUST STAY THAT WAY. webNavigation is a
+// REQUIRED manifest permission here, not an optional one, so chrome.webNavigation
+// is always present at worker startup. Do NOT add an `if (chrome.webNavigation)`
+// guard "defensively": the B-1 guard on chrome.notifications exists because that
+// API genuinely is absent before its optional permission is granted (BUGS.md H2),
+// and copying that shape here would only hide a broken manifest.
+function focusHandleNavigation(tabId, url) {
+  var host = focusInterceptCandidateHost(url);
   if (!host) return;
 
   chrome.storage.local.get("data").then(function (got) {
@@ -1241,13 +1268,12 @@ chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
     var entry = focusInterceptDecision(data, host);
     if (!entry) return;
 
-    // STATELESS AGAINST STORAGE, which is what makes the SPA case correct: a
-    // same-document route change re-fires changeInfo.url (proven in the
-    // MEASUREMENTS probe-3), re-runs this same decision, and a live snooze
+    // STATELESS AGAINST STORAGE. That is what keeps the same-document cases
+    // correct: each route change re-runs this same decision, and a live snooze
     // keeps returning null until it expires. Nothing remembers "already allowed
     // this one", so nothing can get out of step.
     var gate = chrome.runtime.getURL(FOCUS_GATE_PAGE) +
-      "?to=" + encodeURIComponent(changeInfo.url) +
+      "?to=" + encodeURIComponent(url) +
       "&entry=" + encodeURIComponent(entry);
     chrome.tabs.update(tabId, { url: gate });
 
@@ -1262,7 +1288,26 @@ chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
   }).catch(function (err) {
     console.error("[LaunchPad] Focus blocking: intercept failed", err);
   });
-});
+}
+
+// Top-level frame only. Subframes stay the stated non-goal (PLAN C1): an iframe
+// on a blocked domain inside an allowed page is not what this feature is for,
+// and gating one would replace page content rather than navigate the tab.
+function focusOnNavigation(details) {
+  if (details.frameId !== 0) return;
+  focusHandleNavigation(details.tabId, details.url);
+}
+
+// The real navigation, before it commits — this is the one that removes the flash.
+chrome.webNavigation.onBeforeNavigate.addListener(focusOnNavigation);
+
+// SAME-DOCUMENT NAVIGATIONS. These two replace exactly what changeInfo.url used
+// to catch for pushState / replaceState / hash changes (MEASUREMENTS probe-3
+// proved all three fired on the old transport). onBeforeNavigate does NOT fire
+// for them — no document is fetched — so without these an SPA would be gated on
+// entry and then free to route anywhere inside itself.
+chrome.webNavigation.onHistoryStateUpdated.addListener(focusOnNavigation);
+chrome.webNavigation.onReferenceFragmentUpdated.addListener(focusOnNavigation);
 
 // ===== [1.2.0 R2] Gate page <-> worker channel =====
 //
