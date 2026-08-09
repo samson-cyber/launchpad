@@ -6361,10 +6361,14 @@
   // applies verbatim: a user-entered domain is never re-serialised into markup,
   // so it cannot become markup.
 
+  // The note's line is RESERVED, not collapsed — it uses its own `is-quiet`
+  // state class rather than the global `.hidden` (which is display:none
+  // !important and would collapse the line, moving the toggle below it by 21px
+  // every time the note appeared or cleared).
   function clearFocusBlockError() {
     var el = $("#focus-block-error");
-    if (el && !el.classList.contains("hidden")) {
-      el.classList.add("hidden");
+    if (el && !el.classList.contains("is-quiet")) {
+      el.classList.add("is-quiet");
       el.textContent = "";
     }
   }
@@ -6373,7 +6377,7 @@
     var el = $("#focus-block-error");
     if (!el) return;
     el.textContent = message;
-    el.classList.remove("hidden");
+    el.classList.remove("is-quiet");
   }
 
   function renderFocusBlockingSection() {
@@ -12058,8 +12062,32 @@
       closeSettingsPanel();
       openBgModal();
     });
-    safeOn("#settings-remove-wallpaper", "click", function () {
-      handleBgRemove();
+    // [bug 1217301679156798] Settings > Appearance > Wallpaper > Remove.
+    //
+    // This used to call handleBgRemove(), which is the MODAL's remove — it calls
+    // previewBg(), and previewBg opens with `if (previousBg === null) return;`.
+    // previousBg is only non-null between opening the background modal and
+    // committing/cancelling it, so from the Settings panel the guard was always
+    // true and the whole click did nothing. Even without the guard it would only
+    // have PREVIEWED: persistence lives in commitBgPreview (the modal's Save),
+    // which this button never reaches. Two independent reasons for zero effect.
+    //
+    // Broken by 493c7a6 (2026-04-23, preview-before-commit) which made the shared
+    // helper modal-only without updating this second caller; the button predates
+    // it (cf883c9, 2026-03-10). Shipped broken in v1.0.4 and v1.0.5.
+    //
+    // The fix persists directly, so this button converges on exactly what the
+    // modal's Remove + Save does: paint DEFAULT_BG (applyBackground also updates
+    // currentBg) and write it through. Deliberately does NOT tick the
+    // Getting-Started background step the way commitBgPreview does — removing a
+    // wallpaper is not "you set a background".
+    safeOn("#settings-remove-wallpaper", "click", async function () {
+      try {
+        applyBackground(DEFAULT_BG);
+        await Storage.saveBackground(DEFAULT_BG);
+      } catch (err) {
+        console.error("[LaunchPad] Wallpaper remove failed:", err);
+      }
       updateWallpaperThumb();
     });
     safeOn("#settings-import-bookmarks", "click", function () {
