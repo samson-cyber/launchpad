@@ -7,3 +7,6 @@ demo-data.js
 
 # Browser automation scratch profiles (test isolation; never committed)
 .scratch-profile*/
+
+# Permission-comparison variant trees (built on demand; never committed)
+.permcheck/
