@@ -510,6 +510,42 @@ async function runSuite(ctx, store, stats, listeners) {
     ctx.__dodo = async () => { throw new Error("network unreachable (harness default)"); };
   }
 
+  // ===== CROSS-REPO COUPLING: the checkout redirect_url round trip ========
+  //
+  // The extension builds the Dodo checkout URL with a redirect_url pointing at
+  // the website's post-purchase page; background.js then has to RECOGNISE that
+  // page when the buyer lands on it. Two repos, one string, and it has broken
+  // once already (07f979e, bug 1215525319408075). So this asserts the round
+  // trip rather than trusting it: pull the URL the page actually builds out of
+  // newtab.js, decode the redirect_url it carries, and run it through the REAL
+  // isCheckoutReturnUrl from background.js.
+  {
+    const nt = readSubject("newtab.js");
+    const base = nt.match(/var DODO_CHECKOUT_BASE = "([^"]+)"/)?.[1];
+    const ret = nt.match(/var DODO_RETURN_URL = "([^"]+)"/)?.[1];
+    const builder = nt.match(/return DODO_CHECKOUT_BASE \+ pdtId \+\n\s*"([^"]+)" \+ encodeURIComponent\(DODO_RETURN_URL\);/)?.[1];
+    check("COUPLING: newtab.js still builds the checkout URL from base + product + redirect_url",
+      !!base && !!ret && !!builder, `base=${base} return=${ret} tail=${builder}`);
+
+    if (base && ret && builder) {
+      const built = base + "pdt_TEST" + builder + encodeURIComponent(ret);
+      const decoded = new URL(built).searchParams.get("redirect_url");
+      check("COUPLING: redirect_url is URL-ENCODED in the checkout URL",
+        built.includes(encodeURIComponent(ret)) && !built.includes("?quantity=1&redirect_url=https://"),
+        built);
+      check("COUPLING: it decodes back to the exact return URL", decoded === ret, `decoded=${decoded}`);
+      check("COUPLING: and background.js's REAL matcher accepts that URL",
+        ctx.isCheckoutReturnUrl(decoded) === true, `isCheckoutReturnUrl(${decoded}) = ${ctx.isCheckoutReturnUrl(decoded)}`);
+      check("COUPLING: the .html variant the matcher also accepts still resolves",
+        ctx.isCheckoutReturnUrl(decoded + ".html") === true, `${decoded}.html`);
+      // Negative control: the matcher is host-scoped, so a look-alike host must
+      // NOT satisfy it. Without this, "accepts that URL" could pass against a
+      // matcher that accepts everything.
+      check("COUPLING: negative control — a look-alike host is NOT accepted",
+        ctx.isCheckoutReturnUrl("https://notmylaunchpad.me/checkout-return") === false);
+    }
+  }
+
   // ===== STRUCTURAL: no unqueued `data` writer may exist at all ============
   // The suite races the writers it knows about; this catches a NEW one added
   // later that nobody thought to race. Every Storage.saveAll in background.js

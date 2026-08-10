@@ -295,18 +295,21 @@
     };
   }
 
-  // ===== v1.0.5 teaser-mode gate ([Pre-launch] 1216701870177421) =====
+  // ===== Trial-CTA gate ([Pre-launch] 1216701870177421) =====
   //
-  // The 7-day trial funnel is gated OFF for the v1.0.5 store build. Rationale
-  // (DECISIONS.md 2026-07-19, option c1): billing is not yet smoke-tested and
-  // the trial belongs to the v2.0.0 launch, so a trial started now would burn a
-  // user's one 7-day window against a still-placeholder Pro. Teaser mode keeps
-  // the tab bar, locked Pro tabs and preview-mode clicks (the [1.0.4] pattern)
-  // but renders the trial CTA as an inert "Coming soon" chip — it banks the
-  // curiosity without offering a trial we cannot yet honor.
+  // FLIPPED TRUE AT v2.0.0 — the trial funnel is LIVE. It was gated off for the
+  // v1.0.5 store build (DECISIONS.md 2026-07-19, option c1): billing was not yet
+  // smoke-tested and the trial belonged to this launch, so a trial started then
+  // would have burned a user's one 7-day window against a still-placeholder Pro.
+  // Teaser mode kept the tab bar, locked Pro tabs and preview-mode clicks (the
+  // [1.0.4] pattern) but rendered the CTA as an inert "Coming soon" chip.
   //
-  // Flip this ONE line to true at v2.0.0 to make the trial CTA live everywhere.
-  var TRIAL_CTA_ENABLED = false;
+  // The flag and trialCtaLive() are KEPT rather than deleted along with the
+  // teaser branches: this is the switch that turns the trial funnel off again if
+  // billing ever needs to be pulled in a hurry, and one boolean is a far cheaper
+  // lever than re-deriving which surfaces to gate. The teaser branches below are
+  // its off-state, and they must keep working.
+  var TRIAL_CTA_ENABLED = true;
   //
   // Dev builds ALWAYS keep the live trial CTA so the trial flow stays testable
   // (same IS_UNPACKED signal as the LP.devPro block above / pro-access.js:
@@ -1131,7 +1134,7 @@
   function previewBannerHtml(d) {
     var trialUsed = !!(d && d.pro && d.pro.trialStartedAt);
     if (!trialUsed && !trialCtaLive()) {
-      // v1.0.5 teaser mode — the preview STAYS (locked-tab clicks are untouched),
+      // teaser mode (TRIAL_CTA_ENABLED = false) — the preview STAYS (locked-tab clicks are untouched),
       // but the trial link becomes an inert "Coming soon" chip. Rendered without
       // the data-pro-preview-cta hook, so the click binder below never wires it.
       return '<div class="pro-preview-banner">' +
@@ -5138,7 +5141,7 @@
                   '<span class="tab-cta-trial-text-short">' + shortText + '</span>';
       ariaLabel = fullText;
     } else if (!trialUsed && !trialCtaLive()) {
-      // v1.0.5 teaser mode — the trial funnel is gated off (see trialCtaLive).
+      // teaser mode (TRIAL_CTA_ENABLED = false) — the trial funnel is gated off (see trialCtaLive).
       // Inert "Coming soon" chip: no pulse, no click affordance (bindUpgradeCta
       // also bails, and .tab-cta-teaser sets pointer-events:none). This is the
       // sole trial entry point on the tab bar; gating it here plus the preview
@@ -5173,7 +5176,7 @@
         openPanel("pro-settings");
         return;
       }
-      // v1.0.5 teaser mode: a free user's CTA is an inert "Coming soon" chip.
+      // teaser mode (TRIAL_CTA_ENABLED = false): a free user's CTA is an inert "Coming soon" chip.
       // .tab-cta-teaser already sets pointer-events:none, so this rarely fires —
       // it is the JS backstop so the trial popover cannot open even if the class
       // is missing for any reason.
@@ -5213,12 +5216,29 @@
   };
   var DODO_CHECKOUT_BASE = "https://checkout.dodopayments.com/buy/";
 
+  // Where Dodo sends the buyer after a successful payment. MUST decode to
+  // exactly a path background.js's isCheckoutReturnUrl accepts — host
+  // mylaunchpad.me, path /checkout-return or /checkout-return.html — or the
+  // auto-activation handoff silently does nothing and the buyer is left to
+  // paste a key by hand. That coupling has broken once already (extension
+  // commit 07f979e, bug 1215525319408075), so tools/check-bg-queue.mjs now
+  // asserts the round trip: it extracts this URL, decodes the redirect_url it
+  // carries, and runs it through the real matcher.
+  var DODO_RETURN_URL = "https://mylaunchpad.me/checkout-return";
+
+  // One construction site for the hosted-checkout URL, so the return-URL
+  // contract cannot drift between tiers.
+  function dodoCheckoutUrl(pdtId) {
+    return DODO_CHECKOUT_BASE + pdtId +
+      "?quantity=1&redirect_url=" + encodeURIComponent(DODO_RETURN_URL);
+  }
+
   function popoverTitleForState(d) {
     var trialUsed = !!(d && d.pro && d.pro.trialStartedAt);
     // Trialing / active / grace levels never reach the popover (CTA opens Pro
     // Settings directly per the 2026-04-26 routing decision), so only the
     // free / expired branches need copy here.
-    // In v1.0.5 teaser mode the trial block is suppressed (see openUpgradePopover),
+    // In teaser mode (TRIAL_CTA_ENABLED = false) the trial block is suppressed (see openUpgradePopover),
     // so the "free for 7 days" title would be a promise with no button under it —
     // fall back to the upgrade title.
     return (trialUsed || !trialCtaLive())
@@ -5235,7 +5255,7 @@
     // Trial primary stack only renders when the user hasn't started a trial.
     // Once the trial has been used (active or expired), the popover collapses
     // to "tier buttons + Already have a license?".
-    // v1.0.5 teaser mode also suppresses the trial block (trialCtaLive() false in
+    // teaser mode (TRIAL_CTA_ENABLED = false) also suppresses the trial block (trialCtaLive() false in
     // a packed build). Free-user entry points to this popover are already inert
     // in teaser mode, so this is the defense-in-depth chokepoint: even if a
     // surface routes here, no trial can be started.
@@ -5298,17 +5318,26 @@
       });
     }
 
-    // [1.0.5.4] Section F — tier button → Dodo hosted checkout. Per-product
-    // return_url is configured in the Dodo dashboard; do NOT pass redirect_url
-    // as a query param. Background.js's onUpdated listener picks up the
-    // license_key when checkout returns to mylaunchpad.me/checkout-return.html.
+    // [1.0.5.4] Section F — tier button → Dodo hosted checkout.
+    //
+    // CORRECTED AT v2.0.0. This comment used to read "Per-product return_url is
+    // configured in the Dodo dashboard; do NOT pass redirect_url as a query
+    // param." That is backwards: the website round proved passing redirect_url
+    // ON THE CHECKOUT URL is the mechanism that actually works, and it is what
+    // the checkout-return page and background.js's handler are built around.
+    // The dashboard setting is at best a fallback and was never the contract.
+    //
+    // background.js's tabs.onUpdated listener picks the license_key off the
+    // return navigation and activates Pro; if that fails for any reason the
+    // page stays open with the key and manual instructions (extension commit
+    // 0e76a76 — the close is conditional on a confirmed activation now).
     pop.querySelectorAll(".up-tier").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var tier = btn.dataset.tier;
         var pdtId = DODO_PRODUCT_IDS[tier];
         if (!pdtId) return;
         chrome.tabs.create({
-          url: DODO_CHECKOUT_BASE + pdtId + "?quantity=1"
+          url: dodoCheckoutUrl(pdtId)
         });
         closeUpgradePopover();
       });
@@ -10364,9 +10393,10 @@
 
   // [1.0.19 D17] Tip 5 ("Switch workspaces") is only genuinely actionable when
   // the workspace switcher exists for this user — applyWorkspaceSwitcherState
-  // hides #sb-workspace-switcher for anyone without Pro access. On the
-  // free-only v1.0.5 build that is everyone, so a fixed actionable row would
-  // promise a click that goes nowhere. Computed at panel-open (the same
+  // hides #sb-workspace-switcher for anyone without Pro access. That was
+  // EVERYONE on the free-only v1.0.5 build; from v2.0.0 it is only the users
+  // without Pro, which is exactly why the row is computed rather than fixed —
+  // a fixed actionable row would promise a click that goes nowhere. Computed at panel-open (the same
   // read-at-render discipline as the D4 Clear gate) and demoted to the static
   // treatment when unavailable, so the affordance stays honest either way.
   // [R3] Getting-Started checklist. The six rows reuse the D17 .tip-row shape and

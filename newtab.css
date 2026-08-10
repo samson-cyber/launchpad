@@ -7299,7 +7299,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
   justify-content: center;
 }
 
-/* [v1.0.5 teaser mode] Inert "Coming soon" chip — the trial funnel is gated off
+/* [teaser mode (TRIAL_CTA_ENABLED = false)] Inert "Coming soon" chip — the trial funnel is gated off
    for the store build (see newtab.js trialCtaLive). Quiet, non-interactive:
    no gradient fill, no hover lift, no pointer affordance. */
 .tab-cta-teaser {
@@ -7643,7 +7643,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   opacity: 1;
 }
 
-/* [v1.0.5 teaser mode] Inert variant of the preview-banner CTA — no live trial
+/* [teaser mode (TRIAL_CTA_ENABLED = false)] Inert variant of the preview-banner CTA — no live trial
    link, so it reads as plain "coming soon" text with no interactive affordance. */
 .pro-preview-banner-cta.is-teaser {
   color: rgba(255, 255, 255, 0.6);

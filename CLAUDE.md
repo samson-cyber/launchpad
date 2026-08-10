@@ -13,6 +13,8 @@ LaunchPad is a Chrome extension that replaces Chrome's default new tab page with
 
 Current version shipped: **v1.0.5** (free tier, submitted 2026-07-21; confirmed live — a store-installed `1.0.5_0` is present in the local Chrome profiles). v1.0.4 shipped 2026-04-23.
 
+**The manifest is at `2.0.0` as of 2026-08-10 — the Pro-launch SUBMISSION CANDIDATE, built but NOT yet uploaded.** Until the Web Store approves it, "shipped" still means v1.0.5; do not describe 2.0.0 as live. Asana 1217318434594388.
+
 ---
 
 ## Developer
@@ -49,7 +51,7 @@ Other projects in the same dev root: `reelabs`, `condence-ai`, `exhale-health`, 
 
 LaunchPad uses **two distinct, parallel numbering tracks**. They look alike but mean different things — never conflate them. Full rationale: `docs/DECISIONS.md` (2026-06-13 entry).
 
-- **Store / manifest version (`manifest.json`)** — `X.Y.Z`, the published build users install. Bumped **manually, only at a Chrome Web Store submission**; nothing else touches it. Currently `1.0.5` (free tier, submitted 2026-07-21). `1.0.3` is intentionally absent in git (uncommitted-ship incident; `1.0.4` was the recommit). Pro is unreleased, so the manifest has not moved during Pro development.
+- **Store / manifest version (`manifest.json`)** — `X.Y.Z`, the published build users install. Bumped **manually, only at a Chrome Web Store submission**; nothing else touches it. Currently `2.0.0` (the Pro-launch submission candidate, bumped 2026-08-10; `1.0.5` was the last SHIPPED build, free tier, submitted 2026-07-21). `1.0.3` is intentionally absent in git (uncommitted-ship incident; `1.0.4` was the recommit). The manifest did not move at any point during Pro development — it moved once, here, at submission.
 - **Feature-marker track (commit subjects + Asana task names)** — `[X.Y.Z]` for a roadmap task, `[X.Y.Z.W]` for a split / follow-up / multi-round under one task. Internal planning IDs for Pro work units; runs `[1.0.5.3]…[1.0.13]…` and **never touches `manifest.json`**. One task may span many commits. Planning order, not strict chronology; the convention began at `[1.0.9.1]` (commits before it carry no marker).
 - **First Pro store release is a deliberate major bump to `2.0.0`**, permanently separating the store line (`2.x` = Pro era) from the `[1.x.y]` marker track (pre-empts the `[1.1.0]` Notes clash). Plain SemVer from `2.0.0` on.
 
