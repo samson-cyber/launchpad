@@ -293,6 +293,28 @@
       console.log("[LaunchPad] devPro override:", !!on,
         "→ access level:", ProAccess.getProAccessLevel(data));
     };
+
+    // [2.0] Preview the activation celebration. The trigger deliberately
+    // EXCLUDES the devPro override (a dev toggle is not a purchase), which would
+    // otherwise leave the moment unpreviewable without a real card charge — so
+    // this clears the one-time flag and paints it directly.
+    //
+    // It shows the card unconditionally rather than re-running the trigger,
+    // because the trigger would correctly refuse: a dev machine has no real
+    // entitlement. That is the point of a preview hook, and it is IS_UNPACKED-
+    // gated exactly like devPro, so it cannot exist in the store build.
+    window.LP.replayProCelebration = async () => {
+      // Tear down FIRST: endProTour sets the flag on exit, so clearing before it
+      // would immediately re-set what we just cleared.
+      endProTour();
+      var existing = document.querySelector(".pro-celebrate");
+      if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+      if (Storage.clearProCelebrated(data)) await Storage.saveAll(data);
+      proOnboardingBusy = false;
+      showProCelebration();
+      console.log("[LaunchPad] Pro celebration: replayed (flag cleared).",
+        "Real trigger would fire:", ProAccess.isRealProEntitlement(data));
+    };
   }
 
   // ===== Trial-CTA gate ([Pre-launch] 1216701870177421) =====
@@ -7371,14 +7393,35 @@
       }
     });
 
-    // Check for promo toasts (delayed) and right-click tip
-    setTimeout(checkPromoToast, 2000);
-    checkRightClickTip();
+    // [2.0] Pro activation celebration. FIRST, and synchronously, because the
+    // three guards below consult proOnboardingBusy — this must have decided
+    // before any of them looks. Only ever fires on the first open after a real
+    // purchase; every other open it is a single flag read.
+    try {
+      maybeShowProCelebration();
+    } catch (err) {
+      console.error("[LaunchPad] Pro celebration failed", err);
+      proOnboardingBusy = false;    // never let a throw here mute the surfaces below
+    }
+
+    // Check for promo toasts (delayed) and right-click tip.
+    // [2.0] Both defer to the Pro celebration for THIS open — see the
+    // arbitration note on maybeShowProCelebration for why the guard lives here
+    // and not inside them. The promo one is re-checked at fire time (2s later)
+    // rather than now, so a buyer who dismisses the card quickly still gets it.
+    setTimeout(function () {
+      if (isProOnboardingBusy()) return;
+      checkPromoToast();
+    }, 2000);
+    if (!isProOnboardingBusy()) checkRightClickTip();
 
     // [1.0.23/1.0.24] Achievements on-open — beside the checkPromoToast
     // precedent. Runs the day-opened engine tick then delivers ONE queued badge
     // splash. Fire-and-forget: it owns its try/catch.
-    runAchievementsOnOpen();
+    // [2.0] Also deferred: it PERSISTS its dequeue before painting, so calling
+    // it and suppressing later would eat a badge nobody ever saw. A trial user
+    // who earned badges and then bought is exactly the collision case.
+    if (!isProOnboardingBusy()) runAchievementsOnOpen();
 
     // [R3] Getting-Started one-time HONEST retro — free-tier, runs for everyone.
     // currentBg is set (loadBackground ran above), so we can pass whether a
@@ -7492,6 +7535,344 @@
     // Enter on the next frame so the CSS transition runs from the initial state.
     requestAnimationFrame(function () { overlay.classList.add("is-in"); });
     timer = setTimeout(dismiss, 3000);
+  }
+
+  // ===== [2.0] Pro activation celebration + first-Pro tour =====
+  //
+  // A buyer's auto-activation CLOSES the checkout tab (the earned close,
+  // 0e76a76), so their very next act is opening a new tab — which until now
+  // acknowledged the purchase with nothing but a quietly different badge.
+  //
+  // ARBITRATION: this owns the render. Three other surfaces can auto-fire on
+  // open — the right-click tip, the promo/rate toast, and the achievement badge
+  // splash — and all three are suppressed for THIS open at their CALL SITES in
+  // init, not inside themselves. That placement is the whole trick: each of them
+  // consumes something at the moment it decides to show (the promo scheduler
+  // writes lastPromo/lastPromoOpen and its milestones are exact-equality, and
+  // the badge splash PERSISTS its dequeue before painting), so a guard placed
+  // inside would consume the surface without ever showing it — a silent
+  // permanent loss, not a deferral. Guarded at the call site, nothing is read,
+  // nothing is written, and each fires normally on the next tab open.
+  var proOnboardingBusy = false;
+
+  // True while the celebration card or the tour is on screen.
+  function isProOnboardingBusy() { return proOnboardingBusy; }
+
+  // The trigger. Sync (data is already loaded by init) so that the guards above
+  // can rely on proOnboardingBusy being set before they are consulted.
+  function maybeShowProCelebration() {
+    if (!data || data.proCelebrated === true) return false;
+    if (typeof ProAccess === "undefined" || !ProAccess.isRealProEntitlement) return false;
+    if (!ProAccess.isRealProEntitlement(data)) return false;
+    showProCelebration();
+    return true;
+  }
+
+  var PRO_TOUR_STEPS = [
+    { sel: '.tab[data-tab="tasks"]',     text: "Plan it: tasks, goals, and recurring work live here." },
+    { sel: '.tab[data-tab="dashboard"]', text: "See your focused time add up across every workspace." },
+    { sel: '.tab[data-tab="insights"]',  text: "Deep work, tags, sites, top tasks — measured automatically." },
+    { sel: '#active-task-pill',          text: "Start a focus session here; blocking arms itself while you work." }
+  ];
+
+  function prefersReducedMotion() {
+    return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }
+
+  // Both dismiss actions land here. Per the brief the flag is set on DISMISS
+  // rather than on show, which differs from the badge splash's consume-on-show
+  // (D8) on purpose: a tab closed while the card is still up means the buyer
+  // never acknowledged it, and replaying it once is better than a buyer who paid
+  // and got nothing. The no-op guard in markProCelebrated makes the double call
+  // (dismiss, then the tour's own exit) free.
+  async function setProCelebrated() {
+    try {
+      if (Storage.markProCelebrated(data)) await Storage.saveAll(data);
+    } catch (err) {
+      console.error("[LaunchPad] Pro celebration: flag save failed", err);
+    }
+  }
+
+  function showProCelebration() {
+    var host = document.getElementById("content");
+    if (!host) return;
+    if (document.querySelector(".pro-celebrate")) return;
+    proOnboardingBusy = true;
+
+    var overlay = document.createElement("div");
+    overlay.className = "pro-celebrate";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-labelledby", "pro-celebrate-title");
+    overlay.innerHTML =
+      '<div class="pro-celebrate-card">' +
+        '<div class="pro-celebrate-glow" aria-hidden="true"></div>' +
+        '<div class="pro-celebrate-eyebrow">Pro activated</div>' +
+        '<div class="pro-celebrate-title" id="pro-celebrate-title">You’re Pro</div>' +
+        '<div class="pro-celebrate-desc">Everything is unlocked. Here’s your thirty-second lay of the land.</div>' +
+        '<div class="pro-celebrate-actions">' +
+          '<button type="button" class="pro-celebrate-btn is-primary" data-pro-celebrate-tour>Take the tour</button>' +
+          '<button type="button" class="pro-celebrate-btn" data-pro-celebrate-skip>Explore on my own</button>' +
+        '</div>' +
+      '</div>';
+
+    var burst = null;
+    var teardown = function (startTour) {
+      if (overlay.dataset.closing === "1") return;
+      overlay.dataset.closing = "1";
+      if (burst) burst.stop();
+      document.removeEventListener("keydown", onKey, true);
+      overlay.classList.add("is-leaving");
+      setTimeout(function () {
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        // Hand straight to the tour so the surface is never unowned; only the
+        // no-tour path releases the arbitration lock here.
+        if (startTour) startProTour();
+        else proOnboardingBusy = false;
+      }, 320);
+      setProCelebrated();
+    };
+    function onKey(e) {
+      if (e.key === "Escape") { e.stopPropagation(); teardown(false); }
+    }
+
+    overlay.addEventListener("click", function (e) {
+      if (e.target.closest("[data-pro-celebrate-tour]")) return teardown(true);
+      if (e.target.closest("[data-pro-celebrate-skip]")) return teardown(false);
+    });
+    document.addEventListener("keydown", onKey, true);
+
+    host.appendChild(overlay);
+    requestAnimationFrame(function () { overlay.classList.add("is-in"); });
+
+    // Particle burst: hand-rolled canvas, no library, no asset, no sound.
+    // Under reduce it is not merely stilled but NEVER CREATED — the brief's
+    // "card only" — so there is no canvas to composite and nothing animates.
+    if (!prefersReducedMotion()) burst = startProBurst(overlay);
+    var focusTarget = overlay.querySelector("[data-pro-celebrate-tour]");
+    if (focusTarget) focusTarget.focus();
+  }
+
+  // ~1.4s one-shot burst that settles: particles decelerate under gravity and
+  // fade, then the canvas is removed. Deliberately short of the 2s ceiling.
+  function startProBurst(overlay) {
+    var canvas = document.createElement("canvas");
+    canvas.className = "pro-celebrate-burst";
+    canvas.setAttribute("aria-hidden", "true");
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var w = overlay.clientWidth || window.innerWidth;
+    var h = overlay.clientHeight || window.innerHeight;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    canvas.style.width = w + "px";
+    canvas.style.height = h + "px";
+    overlay.insertBefore(canvas, overlay.firstChild);
+
+    var ctx = canvas.getContext("2d");
+    if (!ctx) { if (canvas.parentNode) canvas.parentNode.removeChild(canvas); return null; }
+    ctx.scale(dpr, dpr);
+
+    // Gold family, matching the badge-splash accent rather than inventing one.
+    var COLORS = ["#ffd66e", "#ffb347", "#ffffff", "#8ab4f8"];
+    var originX = w / 2;
+    var originY = h / 2;
+    var parts = [];
+    for (var i = 0; i < 90; i++) {
+      var angle = (Math.PI * 2 * i) / 90 + (Math.random() * 0.4 - 0.2);
+      var speed = 180 + Math.random() * 260;
+      parts.push({
+        x: originX, y: originY,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 90,     // slight upward bias
+        size: 2 + Math.random() * 3.5,
+        color: COLORS[i % COLORS.length],
+        spin: Math.random() * Math.PI
+      });
+    }
+
+    var DURATION = 1400;
+    var raf = null;
+    var start = null;
+    var stopped = false;
+    function stop() {
+      if (stopped) return;
+      stopped = true;
+      if (raf) cancelAnimationFrame(raf);
+      if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
+    }
+    function frame(ts) {
+      if (stopped) return;
+      if (start === null) start = ts;
+      var elapsed = ts - start;
+      var prev = frame.last === undefined ? ts : frame.last;
+      var dt = Math.min((ts - prev) / 1000, 0.05);   // clamp: a backgrounded tab
+      frame.last = ts;                               // must not teleport particles
+      if (elapsed >= DURATION) return stop();
+
+      var fade = 1 - (elapsed / DURATION);
+      ctx.clearRect(0, 0, w, h);
+      ctx.globalAlpha = fade * fade;                 // ease-out the whole field
+      for (var j = 0; j < parts.length; j++) {
+        var p = parts[j];
+        p.vx *= 0.982;                               // drag, so it SETTLES
+        p.vy = p.vy * 0.982 + 620 * dt;              // gravity
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.spin += dt * 6;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.spin);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+      raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+    return { stop: stop };
+  }
+
+  // ---- The tour ------------------------------------------------------------
+  //
+  // RESIZE: these coach marks REPOSITION, they do not drift-close. Doctrine N2
+  // makes drift-close the default for anchored body-mounted popovers because an
+  // orphaned popover is worse than a closed one — but N2 also carries the
+  // #nest-rename-dialog exception: do not close on resize when closing DESTROYS
+  // something the user cannot get back. That applies here with force. Any exit
+  // sets the one-time flag, so a drift-close on resize would not just interrupt
+  // the tour, it would burn it permanently for a user who merely dragged a
+  // window. Repositioning is the same cost (one rect read) and cannot lose
+  // anything, so both resize and scroll recompute. Listeners are per-tour and
+  // paired with removal in endProTour, the second mechanism N2 sanctions.
+  var proTourState = null;
+
+  function startProTour() {
+    if (proTourState) return;
+    proOnboardingBusy = true;
+    proTourState = { index: 0, mark: null, onMove: null, onKey: null };
+
+    var mark = document.createElement("div");
+    mark.className = "pro-tour-mark";
+    mark.setAttribute("role", "dialog");
+    mark.setAttribute("aria-live", "polite");
+    document.body.appendChild(mark);
+    proTourState.mark = mark;
+
+    mark.addEventListener("click", function (e) {
+      if (e.target.closest("[data-pro-tour-next]")) return advanceProTour();
+      if (e.target.closest("[data-pro-tour-skip]")) return endProTour();
+    });
+    proTourState.onMove = function () { positionProTourMark(); };
+    proTourState.onKey = function (e) {
+      if (e.key === "Escape") { e.stopPropagation(); endProTour(); }
+    };
+    window.addEventListener("resize", proTourState.onMove);
+    window.addEventListener("scroll", proTourState.onMove, true);
+    document.addEventListener("keydown", proTourState.onKey, true);
+
+    renderProTourStep();
+  }
+
+  function advanceProTour() {
+    if (!proTourState) return;
+    if (proTourState.index >= PRO_TOUR_STEPS.length - 1) return endProTour();
+    proTourState.index++;
+    renderProTourStep();
+  }
+
+  // Visible enough to point at. Rect-based on purpose (see the note at the call
+  // site): a fixed-position anchor has no offsetParent but is perfectly visible.
+  function isTourAnchorVisible(el) {
+    var r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return false;
+    var cs = window.getComputedStyle(el);
+    return cs.display !== "none" && cs.visibility !== "hidden";
+  }
+
+  function clearProTourRing() {
+    var ringed = document.querySelectorAll(".pro-tour-target");
+    for (var i = 0; i < ringed.length; i++) ringed[i].classList.remove("pro-tour-target");
+  }
+
+  function renderProTourStep() {
+    if (!proTourState) return;
+    var step = PRO_TOUR_STEPS[proTourState.index];
+    var last = proTourState.index === PRO_TOUR_STEPS.length - 1;
+    var target = document.querySelector(step.sel);
+    // An anchor that is not on screen would strand the mark mid-viewport. Skip
+    // straight past it rather than pointing at nothing. (The pill is hidden for
+    // free users; a Pro user has it, but this keeps the tour honest either way.)
+    //
+    // Measured by RECT, not offsetParent: offsetParent is null for every
+    // position:fixed element, and #active-task-pill is fixed — so the
+    // offsetParent test silently skipped the pill step for everyone, tour of
+    // four quietly becoming a tour of three. Caught at runtime, not by reading.
+    if (!target || !isTourAnchorVisible(target)) {
+      if (last) return endProTour();
+      proTourState.index++;
+      return renderProTourStep();
+    }
+    // Move the ring. It used to be added to each new anchor without being taken
+    // off the previous one, so by step 3 three tabs were ringed at once and only
+    // endProTour's sweep cleaned up.
+    clearProTourRing();
+    proTourState.mark.innerHTML =
+      '<div class="pro-tour-arrow" aria-hidden="true"></div>' +
+      '<div class="pro-tour-text">' + escapeHtml(step.text) + '</div>' +
+      '<div class="pro-tour-foot">' +
+        '<span class="pro-tour-count">' + (proTourState.index + 1) + ' of ' + PRO_TOUR_STEPS.length + '</span>' +
+        '<span class="pro-tour-btns">' +
+          (last ? '' : '<button type="button" class="pro-tour-btn is-quiet" data-pro-tour-skip>Skip</button>') +
+          '<button type="button" class="pro-tour-btn is-primary" data-pro-tour-next>' + (last ? "Done" : "Next") + '</button>' +
+        '</span>' +
+      '</div>';
+    target.classList.add("pro-tour-target");
+    proTourState.targetEl = target;
+    positionProTourMark();
+    var nextBtn = proTourState.mark.querySelector("[data-pro-tour-next]");
+    if (nextBtn) nextBtn.focus();
+  }
+
+  function positionProTourMark() {
+    if (!proTourState || !proTourState.targetEl) return;
+    var mark = proTourState.mark;
+    var r = proTourState.targetEl.getBoundingClientRect();
+    var mw = mark.offsetWidth || 260;
+    var mh = mark.offsetHeight || 96;
+    var GAP = 12;
+    // Below the anchor by default; flip above when there is no room. Clamped to
+    // the viewport on both axes so a tab at the edge cannot push it off screen.
+    var below = (r.bottom + GAP + mh) <= window.innerHeight;
+    var top = below ? (r.bottom + GAP) : (r.top - GAP - mh);
+    var left = r.left + (r.width / 2) - (mw / 2);
+    left = Math.max(8, Math.min(left, window.innerWidth - mw - 8));
+    top = Math.max(8, Math.min(top, window.innerHeight - mh - 8));
+    mark.style.top = Math.round(top) + "px";
+    mark.style.left = Math.round(left) + "px";
+    mark.classList.toggle("is-above", !below);
+    // The arrow tracks the anchor's centre even after the mark has been clamped.
+    var arrow = mark.querySelector(".pro-tour-arrow");
+    if (arrow) {
+      var cx = r.left + r.width / 2 - left;
+      arrow.style.left = Math.round(Math.max(14, Math.min(cx, mw - 14))) + "px";
+    }
+    mark.classList.add("is-in");
+  }
+
+  function endProTour() {
+    if (!proTourState) return;
+    var st = proTourState;
+    proTourState = null;
+    if (st.onMove) {
+      window.removeEventListener("resize", st.onMove);
+      window.removeEventListener("scroll", st.onMove, true);
+    }
+    if (st.onKey) document.removeEventListener("keydown", st.onKey, true);
+    clearProTourRing();
+    if (st.mark && st.mark.parentNode) st.mark.parentNode.removeChild(st.mark);
+    proOnboardingBusy = false;
+    setProCelebrated();
   }
 
   // [1.0.24 item 3] IMMEDIATE, in-place goal-completion celebration (resolves the

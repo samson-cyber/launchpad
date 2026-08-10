@@ -65,6 +65,18 @@ if ! node tools/check-license-line.mjs; then
   exit 1
 fi
 
+# Pro-celebration gate: the one-time activation moment's TRIGGER. Two failure
+# modes, both unrecoverable and in opposite directions — celebrating a purchase
+# nobody made (devPro override, a trial) or burning the one-time flag without
+# showing anything (a buyer who paid and got nothing). Walks the whole matrix
+# against the real ProAccess and the real Storage setter, in both an unpacked and
+# a store-build context, plus the render arbitration and the O1 ink rules for
+# markup no static gate can see. QA 2026-08-10. ~0.2s.
+if ! node tools/check-pro-celebration.mjs; then
+  echo "ERROR: pro-celebration gate failed — the activation trigger or its arbitration has regressed." >&2
+  exit 1
+fi
+
 # L1 serialization gate: every background `data` writer must stay inside the
 # enqueueBgData FIFO. Regressions here are SILENT DATA LOSS — one writer's blob
 # overwrites another's — which is why this is a release gate and not a habit.

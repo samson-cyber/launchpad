@@ -4744,6 +4744,30 @@ var Storage = (function () {
     return true;
   }
 
+  // [2.0] One-time Pro-activation celebration flag. Per-field setter, no-op
+  // guarded, mutate-only — the caller saveAll's, matching dismissGettingStarted.
+  //
+  // TOP-LEVEL, deliberately NOT inside data.pro: clearLicense() wipes the whole
+  // pro block's licence fields, so a flag living there would reset on any
+  // clear-and-reapply and replay the celebration to someone who has already had
+  // it. "Once ever" has to outlive the licence it was triggered by. Same
+  // placement reasoning as __devProOverride.
+  function markProCelebrated(data) {
+    if (!data) return false;
+    if (data.proCelebrated === true) return false;
+    data.proCelebrated = true;
+    return true;
+  }
+
+  // Dev-only replay support (the caller is IS_UNPACKED-gated). Separate from the
+  // setter so nothing in the product can un-set the flag by accident.
+  function clearProCelebrated(data) {
+    if (!data) return false;
+    if (!data.proCelebrated) return false;
+    data.proCelebrated = false;
+    return true;
+  }
+
   // One-time HONEST retro (R3-D3). Existing real content pre-ticks what it
   // proves; DEMO content proves nothing. Step 2 (right-click) is unknowable
   // retroactively and never retro-ticks. Step 6's source (the background) is a
@@ -4840,6 +4864,9 @@ var Storage = (function () {
     recordChecklistStep: recordChecklistStep,
     dismissGettingStarted: dismissGettingStarted,
     retroTickGettingStarted: retroTickGettingStarted,
+    // [2.0] Pro-activation celebration flag (mutate-only; caller saveAll's).
+    markProCelebrated: markProCelebrated,
+    clearProCelebrated: clearProCelebrated,
     GS_STEPS: { SHORTCUT: GS_STEP_SHORTCUT, RIGHTCLICK: GS_STEP_RIGHTCLICK, NEST: GS_STEP_NEST, GROUP: GS_STEP_GROUP, WORKSPACE: GS_STEP_WORKSPACE, BACKGROUND: GS_STEP_BACKGROUND, IDS: GS_STEP_IDS },
     // Underscore hooks — pure condition/helper fns exposed for the R1 harness,
     // not for UI (same discipline as tracking's _ hooks).

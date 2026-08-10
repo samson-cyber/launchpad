@@ -143,6 +143,33 @@
     return Math.ceil(remaining / DAY_MS);
   }
 
+  // [2.0] "Pro because the user actually PAID" — the gate on the one-time
+  // activation celebration. Deliberately does NOT call getProAccessLevel, which
+  // is the whole point: that function honours the dev override and collapses
+  // trial and paid into one "has Pro" answer, and neither of those should ever
+  // fire a purchase celebration.
+  //
+  // Reads data.pro directly, which excludes each non-buyer by construction:
+  //   devPro override  returns "active" WITHOUT touching data.pro, so
+  //                    subscriptionStatus is still whatever it really was
+  //   trialing         subscriptionStatus === "trialing"; the trial has its own
+  //                    moment (the popover) and has not bought anything
+  //   free / invalid   not "active"
+  //
+  // The licenseKey half is a second, independent guard: both real routes in
+  // (auto-activation from the checkout return, and a manual key apply) set a
+  // key, so requiring one means a hand-edited or future status flip cannot
+  // trigger a celebration on its own. Same predicate shape as
+  // shouldShowLicenseControls, for the same reason.
+  //
+  // GRACE COUNTS. Its subscriptionStatus is still "active" — only the
+  // verification is stale — so a buyer who activated while offline is a buyer
+  // and still gets the moment.
+  function isRealProEntitlement(data) {
+    if (!data || !data.pro) return false;
+    return data.pro.subscriptionStatus === "active" && !!data.pro.licenseKey;
+  }
+
   var ProAccess = {
     TRIAL_DURATION_MS: TRIAL_DURATION_MS,
     OFFLINE_GRACE_MS: OFFLINE_GRACE_MS,
@@ -153,7 +180,8 @@
     clearLicense: clearLicense,
     reconcileProState: reconcileProState,
     isReactivationOfferActive: isReactivationOfferActive,
-    trialDaysRemaining: trialDaysRemaining
+    trialDaysRemaining: trialDaysRemaining,
+    isRealProEntitlement: isRealProEntitlement
   };
 
   if (typeof self !== "undefined") self.ProAccess = ProAccess;
