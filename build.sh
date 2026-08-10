@@ -27,6 +27,23 @@ if ! node tools/check-focus-decision.mjs; then
   exit 1
 fi
 
+# Insights reader gate: the windowed rollups behind the Insights board
+# (byDomainForScope and its siblings) against the real tracking.js. A regression
+# here misreports the user's own measured time, which is the one thing the board
+# exists to be trusted about. ~0.1s.
+if ! node tools/check-insights-readers.mjs; then
+  echo "ERROR: insights reader gate failed — windowed rollups have regressed." >&2
+  exit 1
+fi
+
+# Since-format gate: the pill's "Active since" line. Small surface, but it is the
+# honesty fix the [1.2.3] round shipped — a broken today/older branch puts a
+# misleading timestamp on the flagship Pro surface. ~0.1s.
+if ! node tools/check-since-format.mjs; then
+  echo "ERROR: since-format gate failed — the pill's 'Active since' line has regressed." >&2
+  exit 1
+fi
+
 # L1 serialization gate: every background `data` writer must stay inside the
 # enqueueBgData FIFO. Regressions here are SILENT DATA LOSS — one writer's blob
 # overwrites another's — which is why this is a release gate and not a habit.
