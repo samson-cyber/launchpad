@@ -61,7 +61,7 @@ function boot(seeds = []) {
   }
 
   const store = {};
-  const stats = { gets: 0, sets: 0, dataSets: 0, pending: 0 };
+  const stats = { gets: 0, sets: 0, dataSets: 0, pending: 0, tabsRemoved: [] };
   const listeners = {};
   const cap = (name) => ({ addListener: (fn) => { (listeners[name] = listeners[name] || []).push(fn); }, removeListener() {} });
 
@@ -96,7 +96,7 @@ function boot(seeds = []) {
     },
     tabs: {
       query: async () => [], get: async () => ({}), update: async () => ({}),
-      remove: async () => {}, create: async () => ({}), sendMessage: async () => ({}),
+      remove: async (id) => { stats.tabsRemoved.push(id); }, create: async () => ({}), sendMessage: async () => ({}),
       onUpdated: cap("tabs.onUpdated"), onRemoved: cap("tabs.onRemoved"),
       onActivated: cap("tabs.onActivated"), onCreated: cap("tabs.onCreated"),
     },
@@ -130,7 +130,14 @@ function boot(seeds = []) {
     console: { log() {}, warn() {}, error() {}, info() {} },
     Date, Math, JSON, URL, URLSearchParams, Promise, Error, Object, Array, String, Number, Boolean, RegExp, isFinite, isNaN, parseInt, parseFloat,
     setTimeout, clearTimeout, setInterval, clearInterval,
-    fetch: async () => { await sleep(LATENCY_MS); return { ok: false, status: 0, json: async () => ({}) }; },
+    // Programmable Dodo stand-in. Default: a hard network failure, which is what
+    // every scenario except the explicit success ones wants. Scenarios swap
+    // ctx.__dodo to drive activate/validate outcomes without a real key.
+    fetch: async (url, opts) => {
+      await sleep(LATENCY_MS);
+      return ctx.__dodo(String(url), opts);
+    },
+    __dodo: async () => { throw new Error("network unreachable (harness default)"); },
     // THE FAITHFUL UN-QUEUE (BUGS.md Q3). Mutation seeds redirect one label's
     // call site here. The writer STILL RUNS, immediately and concurrently —
     // exactly the pre-5451504 shape. A seed that merely deleted the writer would
@@ -193,7 +200,13 @@ function seedStore(store, opts = {}) {
     focusSnoozes: {},
     focusArmed: true,
     trackingPaused: false,
-    pro: { subscriptionStatus: "active", lastVerifiedAt: Date.now() },
+    // Default is an already-Pro install. The checkout scenarios override this:
+    // a real buyer arrives on the FREE tier with no instanceId and no
+    // lastVerifiedAt, and seeding them Pro silently routes ensureValidated down
+    // its VALIDATE_DEBOUNCE cached branch, which never calls validate at all —
+    // so a "rejected license" fixture would quietly return ok/active and test
+    // nothing (Q7: a fixture must produce the state it claims).
+    pro: opts.pro || { subscriptionStatus: "active", lastVerifiedAt: Date.now() },
     activeTask: {
       taskId: "t1", workspaceId: "main", startedAt: Date.now() - 60000,
       idleAt: null, idleMs: 0, pausedAt: null, pausedMs: 0,
@@ -423,6 +436,80 @@ async function runSuite(ctx, store, stats, listeners) {
       store.data.activeTask.pomodoroState.phase !== "work", `phase=${store.data.activeTask.pomodoroState.phase}`);
   }
 
+  // ===== CHECKOUT-RETURN TAB DISCIPLINE ===================================
+  //
+  // Lives in THIS file rather than a seventh gate because it drives the very
+  // same writer through the very same fake chrome — the checkout-return job is
+  // already booted, raced and seeded here, and the property under test is
+  // "write-work queued, TAB-WORK OUTSIDE, and only on success". A separate file
+  // would duplicate the whole VM boot for four assertions.
+  //
+  // THE BUG THIS PINS: the close used to sit in a `finally`, so EVERY path took
+  // it — no key, empty key, unparseable URL, rejected license, Dodo outage,
+  // thrown handler. Shipped in v1.0.5. The post-purchase page was unviewable on
+  // any machine with the extension installed, and a buyer whose activation
+  // failed lost their fallback instructions with the tab.
+  const dodoOk = async (url) => ({
+    ok: true, status: url.includes("/activate") ? 201 : 200,
+    json: async () => (url.includes("/activate") ? { id: "inst_harness" } : { valid: true }),
+  });
+  const dodoRejects = async (url) => ({
+    ok: true, status: url.includes("/activate") ? 201 : 200,
+    json: async () => (url.includes("/activate") ? { id: "inst_harness" } : { valid: false }),
+  });
+  const fireCheckout = (query) => Promise.all(fire(listeners, "tabs.onUpdated",
+    77, { url: "https://mylaunchpad.me/checkout-return" + query }, { id: 77, url: "https://mylaunchpad.me/checkout-return" + query }));
+  {
+    // (a) KEYLESS visit — the organic visit, and the replaceState refire after a
+    // real activation (the site scrubs the key from the URL, which fires
+    // tabs.onUpdated a second time with no license_key).
+    await seed(ctx, store);
+    stats.tabsRemoved = [];
+    const beforeWrites = stats.dataSets;
+    await fireCheckout("");
+    await settle(ctx, stats);
+    check("CHECKOUT (a) keyless visit does NOT close the tab", stats.tabsRemoved.length === 0, `removed=${JSON.stringify(stats.tabsRemoved)}`);
+    check("CHECKOUT (a) keyless visit writes nothing", stats.dataSets === beforeWrites, `writes=${stats.dataSets - beforeWrites}`);
+
+    // (b) KEY PRESENT, activation FAILS (Dodo unreachable). The buyer keeps the
+    // page — it carries their key, their manual steps and the support address.
+    await seed(ctx, store, { pro: {} });
+    stats.tabsRemoved = [];
+    ctx.__dodo = async () => { throw new Error("network unreachable"); };
+    await fireCheckout("?license_key=GARBAGE-KEY&email=x%40y.z");
+    await settle(ctx, stats);
+    check("CHECKOUT (b) failed activation does NOT close the tab", stats.tabsRemoved.length === 0, `removed=${JSON.stringify(stats.tabsRemoved)}`);
+    check("CHECKOUT (b) ...but the key IS still persisted (Pro Settings retry path)",
+      readLicense(store) === "GARBAGE-KEY", `license=${readLicense(store)}`);
+
+    // (c) THE SHARP EDGE: Dodo ANSWERS, and answers no. ensureValidated returns
+    // ok:true with status 'invalid' here — "the call succeeded", not "the buyer
+    // is activated". Closing on result.ok alone would slam the page shut on
+    // exactly the buyer whose key was REJECTED.
+    await seed(ctx, store, { pro: {} });
+    stats.tabsRemoved = [];
+    ctx.__dodo = dodoRejects;
+    await fireCheckout("?license_key=REJECTED-KEY");
+    await settle(ctx, stats);
+    check("CHECKOUT (c) a REJECTED license (ok:true, status invalid) does NOT close the tab",
+      stats.tabsRemoved.length === 0, `removed=${JSON.stringify(stats.tabsRemoved)} status=${store.data.pro?.subscriptionStatus}`);
+
+    // (d) The success path still closes — the fix must not break the thing that
+    // worked. Driven entirely through the fake Dodo, so no real key is involved.
+    await seed(ctx, store, { pro: {} });
+    stats.tabsRemoved = [];
+    ctx.__dodo = dodoOk;
+    await fireCheckout("?license_key=GOOD-KEY&email=buyer%40example.com");
+    await settle(ctx, stats);
+    check("CHECKOUT (d) a CONFIRMED activation DOES close the tab", stats.tabsRemoved.length === 1 && stats.tabsRemoved[0] === 77,
+      `removed=${JSON.stringify(stats.tabsRemoved)}`);
+    check("CHECKOUT (d) ...and Pro is actually live (status active, email stored)",
+      store.data.pro?.subscriptionStatus === "active" && store.data.pro?.email === "buyer@example.com",
+      `status=${store.data.pro?.subscriptionStatus} email=${store.data.pro?.email}`);
+
+    ctx.__dodo = async () => { throw new Error("network unreachable (harness default)"); };
+  }
+
   // ===== STRUCTURAL: no unqueued `data` writer may exist at all ============
   // The suite races the writers it knows about; this catches a NEW one added
   // later that nobody thought to race. Every Storage.saveAll in background.js
@@ -451,6 +538,38 @@ const SEEDS = [
   { name: "un-queue idle-state", label: "idle-state" },
   { name: "un-queue focus-blocked-count ([1.2.0], newer than R0)", label: "focus-blocked-count" },
   { name: "un-queue focus-gate-snooze ([1.2.0], newer than R0)", label: "focus-gate-snooze" },
+  {
+    // THE REGRESSION SEED: restore the v1.0.5 SHAPE ITSELF — the close back
+    // inside a `finally`, so every path takes it including the three early
+    // returns. This is the actual shipped bug, not an approximation of it. If it
+    // ever ESCAPES, the checkout checks have gone vacuous and v1.0.5 can return.
+    name: "the v1.0.5 `finally` restored — every path closes",
+    label: "checkout-return",
+    seeds: [{
+      file: "background.js",
+      find: '  } catch (err) {\n    console.error("[LaunchPad] Checkout return handler failed:", err);\n  }',
+      replace: '  } catch (err) {\n    console.error("[LaunchPad] Checkout return handler failed:", err);\n  } finally {\n    try { await chrome.tabs.remove(tabId); } catch (e) {}\n  }',
+    }],
+  },
+  {
+    // A narrower variant: the early returns are respected, but the outcome of
+    // the activation is not. Gives the failed-activation checks their own teeth
+    // independently of the shape seed above.
+    name: "checkout closes regardless of activation OUTCOME",
+    label: "checkout-return",
+    seeds: [{ file: "background.js", find: "  if (!activated) return;", replace: "  if (!activated && false) return;" }],
+  },
+  {
+    // The sharp edge, seeded on its own: trust result.ok and nothing else. Dodo
+    // answering a clear NO returns ok:true, so this closes on a REJECTED buyer.
+    name: "checkout trusts result.ok alone (closes on a rejected license)",
+    label: "checkout-return",
+    seeds: [{
+      file: "background.js",
+      find: 'return !!(result && result.ok === true && result.status !== "invalid");',
+      replace: "return !!(result && result.ok === true);",
+    }],
+  },
   {
     name: "QUEUED but handed a PRE-QUEUE snapshot (the subtle one)",
     subtle: true,

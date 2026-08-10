@@ -931,10 +931,16 @@ function isCheckoutReturnUrl(rawUrl) {
 
 // Top-level listener (registered on every SW wake; same listener function
 // reference each time so Chrome dedups). Filters on changeInfo.url so it
-// only does work for matching URLs. Closes the tab unconditionally — the
-// license key is persisted regardless of the validate outcome so the user
-// has a path to retry validation from Pro Settings later if the network
-// call failed.
+// only does work for matching URLs.
+//
+// THE TAB IS CLOSED ONLY ON A CONFIRMED ACTIVATION. It used to close in a
+// `finally`, which meant EVERY path closed it: no key, empty key, unparseable
+// URL, a rejected license, a Dodo outage, a thrown handler. Shipped that way in
+// v1.0.5, and it made the post-purchase page unviewable on any machine with
+// LaunchPad installed — including the machines that needed it most, because a
+// buyer whose auto-activation failed lost their fallback instructions and the
+// support address along with the tab. The page IS the fallback UX; closing it
+// is only correct when there is nothing left for the buyer to read.
 chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
   if (!changeInfo.url) return;
   if (!isCheckoutReturnUrl(changeInfo.url)) return;
@@ -942,6 +948,10 @@ chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
 });
 
 async function handleCheckoutReturn(tabId, url) {
+  // Default false, so every early return and every throw below leaves the tab
+  // alone. The close is now something this function has to EARN, not something
+  // it has to remember to skip.
+  var activated = false;
   try {
     var parsed;
     try { parsed = new URL(url); } catch (e) {
@@ -965,12 +975,15 @@ async function handleCheckoutReturn(tabId, url) {
     // in-queue snapshot. Three things about this shape are deliberate:
     //
     // 1. THE TWO-WRITE SHAPE IS LOAD-BEARING — kept, not collapsed. The first
-    //    save persists the license key BEFORE the Dodo round-trip, which is what
-    //    makes the tab-close-unconditionally contract above safe: if the network
+    //    save persists the license key BEFORE the Dodo round-trip: if the network
     //    call fails, hangs, or the worker dies mid-flight, the key is already on
     //    disk and the user still has the Pro Settings retry path. Collapsing to a
     //    single trailing write would silently delete that guarantee on exactly
-    //    the failure it protects against.
+    //    the failure it protects against. (This used to be described as what made
+    //    the unconditional tab close safe. The close is conditional now, so the
+    //    buyer keeps BOTH the on-disk key and the page telling them what to do
+    //    with it — the guarantee matters just as much, it is simply no longer the
+    //    only thing standing between a failed activation and a lost buyer.)
     // 2. THE NETWORK CALL STAYS INSIDE THE JOB. This mirrors revalidateLicenseBg
     //    (above), the existing precedent for this same ensureValidated call,
     //    which already holds the queue across the Dodo request — and does so on
@@ -989,7 +1002,12 @@ async function handleCheckoutReturn(tabId, url) {
     // LicenseClient's fetch carries no timeout, so a hung Dodo request holds the
     // queue until the worker is torn down. That is equally true of
     // revalidateLicenseBg today; worth its own task, out of scope for an L1 fix.
-    await enqueueBgData("checkout-return", async function () {
+    // The job RETURNS the activation verdict so the tab decision can be made
+    // outside the queue. enqueueBgData resolves to its job's return value
+    // (runPomodoroPhaseBg already relies on this), and a job that throws is
+    // caught by the queue and resolves undefined — which lands on "not
+    // activated", the safe side.
+    activated = (await enqueueBgData("checkout-return", async function () {
       var data = await Storage.getAll();
       if (!data.pro || typeof data.pro !== 'object') data.pro = {};
       data.pro.licenseKey = firstKey;
@@ -1004,15 +1022,34 @@ async function handleCheckoutReturn(tabId, url) {
       } else {
         console.warn("[LaunchPad] Checkout return: ensureValidated failed", result && result.stage, result && result.error, result && result.message);
       }
-    });
+
+      // `result.ok` ALONE IS NOT "ACTIVATED", and this is the sharp edge of the
+      // whole fix. ensureValidated returns ok:true for "the validate call
+      // succeeded", which includes Dodo answering a clear NO — that branch sets
+      // subscriptionStatus to 'invalid' and returns { ok: true, valid: false,
+      // status: 'invalid' }. The cached branch can hand back a stored 'invalid'
+      // the same way. Closing the tab on ok:true alone would therefore slam the
+      // page shut on precisely the buyer whose key was REJECTED, which is the
+      // exact bug this fix exists to remove, reintroduced one level deeper.
+      return !!(result && result.ok === true && result.status !== "invalid");
+    })) === true;
   } catch (err) {
     console.error("[LaunchPad] Checkout return handler failed:", err);
-  } finally {
-    try {
-      await chrome.tabs.remove(tabId);
-    } catch (closeErr) {
-      console.warn("[LaunchPad] Checkout return: tab close failed", closeErr && closeErr.message);
-    }
+  }
+
+  // Not activated -> the page stays. It carries the buyer's key, their manual
+  // activation instructions and the support address; taking the tab away leaves
+  // them with a charge and no guidance.
+  if (!activated) return;
+
+  // Activated -> close. PRODUCT CALL (per the task notes): on a confirmed
+  // auto-activation the extension itself is the confirmation — Pro is live in
+  // the new tab page the moment they look — so a "You're in" page they did not
+  // ask for is one dismissal of ceremony. Tab-work stays OUTSIDE the queue.
+  try {
+    await chrome.tabs.remove(tabId);
+  } catch (closeErr) {
+    console.warn("[LaunchPad] Checkout return: tab close failed", closeErr && closeErr.message);
   }
 }
 
