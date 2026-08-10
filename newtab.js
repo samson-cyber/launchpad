@@ -5320,12 +5320,15 @@
 
     // [1.0.5.4] Section F — tier button → Dodo hosted checkout.
     //
-    // CORRECTED AT v2.0.0. This comment used to read "Per-product return_url is
-    // configured in the Dodo dashboard; do NOT pass redirect_url as a query
-    // param." That is backwards: the website round proved passing redirect_url
-    // ON THE CHECKOUT URL is the mechanism that actually works, and it is what
-    // the checkout-return page and background.js's handler are built around.
-    // The dashboard setting is at best a fallback and was never the contract.
+    // CORRECTED AT v2.0.0. This comment used to assert the opposite of the
+    // truth — that the return URL was configured per-product in the Dodo
+    // dashboard and must never be sent as a query parameter. The website round
+    // proved that sending it ON THE CHECKOUT URL is the mechanism that actually
+    // works, and it is what the checkout-return page and background.js's
+    // handler are built around. The dashboard setting is at best a fallback and
+    // was never the contract. (Deliberately paraphrased rather than quoted: the
+    // old wording was instruction-shaped, and leaving it verbatim in the file
+    // means the next person to grep for it finds the rule that was reversed.)
     //
     // background.js's tabs.onUpdated listener picks the license_key off the
     // return navigation and activates Pro; if that fails for any reason the
