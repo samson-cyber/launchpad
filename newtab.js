@@ -5167,11 +5167,32 @@
     cta.addEventListener("click", function (e) {
       e.stopPropagation();
       var level = ProAccess.getProAccessLevel(data);
-      // Trialing / active / grace go straight to Pro Settings — they already have
-      // an account context, so the upgrade popover would just be a stub-laden
-      // detour. See DECISIONS.md 2026-04-26 "Trialing user CTA click bypasses
-      // popover".
-      if (level === "trialing" || level === "active" || level === "grace") {
+
+      // WHERE EVERY ACCESS STATE'S CLICK LANDS. Only the trialing row changed
+      // in this round; the rest are enumerated so the next reader can see that
+      // at a glance instead of re-deriving it:
+      //
+      //   free, no trial used   -> this popover, WITH "Start free trial"   (unchanged)
+      //   TRIALING              -> this popover, TRIAL VARIANT             (CHANGED)
+      //   active               -> Pro Settings                            (unchanged)
+      //   grace                -> Pro Settings                            (unchanged)
+      //   expired trial        -> this popover, no trial block, "Upgrade"  (unchanged)
+      //   invalid license      -> same as expired: getProAccessLevel maps a
+      //                           'invalid' subscriptionStatus to "free", and
+      //                           trialStartedAt is set, so the chip reads
+      //                           "Upgrade" and lands here                 (unchanged)
+      //   teaser (flag off)    -> nothing; the early return below           (unchanged)
+      //
+      // [QA 2026-08-10] TRIALING NO LONGER GOES TO PRO SETTINGS. The 2026-04-26
+      // routing decision sent it there on the reasoning that a trialing user
+      // "already has an account context" and the popover would be a stub-laden
+      // detour. QA on the packed 2.0.0 build showed the cost of that: the chip
+      // spends seven days counting down a trial and, when clicked, opened a
+      // settings panel with no way to buy. The popover is no longer stub-laden
+      // — it carries live tier buttons into checkout — so the premise the old
+      // decision rested on is gone. Active and grace keep the old routing:
+      // they HAVE Pro, and Pro Settings is genuinely where they want to land.
+      if (level === "active" || level === "grace") {
         closeUpgradePopover();
         openPanel("pro-settings");
         return;
@@ -5233,28 +5254,64 @@
       "?quantity=1&redirect_url=" + encodeURIComponent(DODO_RETURN_URL);
   }
 
-  function popoverTitleForState(d) {
+  // The trial popover's headline. Pure and exported-shaped on purpose so
+  // tools/check-trial-copy.mjs can exercise every branch: the plural boundary
+  // is the kind of thing that reads fine in the one state a developer happens
+  // to be in and embarrassing in the one the user is in.
+  //
+  // n comes from ProAccess.trialDaysRemaining, which already collapses the
+  // final 24 hours to 0 so "ends today" is reachable, and clamps at 0. The
+  // negative guard here is belt-and-braces for a hand-edited or clock-shifted
+  // record: "-2 days left in your trial" would be worse than useless.
+  function trialPopoverHeadline(n) {
+    if (!(n > 0)) return "Trial ends today";        // also folds NaN and negatives
+    if (n === 1) return "1 day left in your trial";
+    return n + " days left in your trial";
+  }
+
+  // Popover copy per access state. Returns { title, subhead }.
+  function popoverCopyForState(d) {
+    var level = (typeof ProAccess !== "undefined" && d) ? ProAccess.getProAccessLevel(d) : "free";
+
+    // [QA 2026-08-10] TRIALING now reaches this popover. It previously could
+    // not: the CTA sent trialing users straight to Pro Settings, which meant a
+    // user watching their trial count down had NO route to buy from the chip
+    // that was doing the counting. The upgrade path is the whole point of that
+    // chip, so the trial state gets its own variant — countdown headline, the
+    // two tier buttons, and the license row. There is deliberately no "Start
+    // free trial" button: they are already in one.
+    if (level === "trialing") {
+      return {
+        title: trialPopoverHeadline(ProAccess.trialDaysRemaining(d)),
+        subhead: "Keep your focus going — upgrade any time, and everything you've set up stays."
+      };
+    }
+
     var trialUsed = !!(d && d.pro && d.pro.trialStartedAt);
-    // Trialing / active / grace levels never reach the popover (CTA opens Pro
-    // Settings directly per the 2026-04-26 routing decision), so only the
-    // free / expired branches need copy here.
-    // In teaser mode (TRIAL_CTA_ENABLED = false) the trial block is suppressed (see openUpgradePopover),
-    // so the "free for 7 days" title would be a promise with no button under it —
-    // fall back to the upgrade title.
-    return (trialUsed || !trialCtaLive())
-      ? "Upgrade to LaunchPad Pro"
-      : "Try LaunchPad Pro free for 7 days";
+    // In teaser mode (TRIAL_CTA_ENABLED = false) the trial block is suppressed
+    // (see openUpgradePopover), so the "free for 7 days" title would be a
+    // promise with no button under it — fall back to the upgrade title.
+    return {
+      title: (trialUsed || !trialCtaLive())
+        ? "Upgrade to LaunchPad Pro"
+        : "Try LaunchPad Pro free for 7 days",
+      subhead: "Workspaces, tasks, time tracking, and more."
+    };
   }
 
   function openUpgradePopover(anchorEl, d) {
     closeUpgradePopover();
     if (!anchorEl) return;
-    var title = popoverTitleForState(d);
+    var copy = popoverCopyForState(d);
+    var title = copy.title;
     var trialUsed = !!(d && d.pro && d.pro.trialStartedAt);
 
     // Trial primary stack only renders when the user hasn't started a trial.
-    // Once the trial has been used (active or expired), the popover collapses
-    // to "tier buttons + Already have a license?".
+    // Once the trial has been used (IN one, active, or expired), the popover
+    // collapses to "tier buttons + Already have a license?". A user mid-trial
+    // has trialStartedAt set, so the trial-variant popover gets no "Start free
+    // trial" button through this same condition — no second gate needed, and
+    // tools/check-trial-copy.mjs asserts that rather than trusting it.
     // teaser mode (TRIAL_CTA_ENABLED = false) also suppresses the trial block (trialCtaLive() false in
     // a packed build). Free-user entry points to this popover are already inert
     // in teaser mode, so this is the defense-in-depth chokepoint: even if a
@@ -5270,7 +5327,7 @@
         '<div class="up-title">' + escapeHtml(title) + '</div>' +
         '<button type="button" class="up-close" aria-label="Close">&times;</button>' +
       '</div>' +
-      '<div class="up-subhead">Workspaces, tasks, time tracking, and more.</div>' +
+      '<div class="up-subhead">' + escapeHtml(copy.subhead) + '</div>' +
       trialBlock +
       '<div class="up-tier-row">' +
         '<button type="button" class="up-tier" data-tier="monthly">Monthly</button>' +
@@ -6172,6 +6229,17 @@
     host.innerHTML = html;
   }
 
+  // [QA 2026-08-10] Both destructive/diagnostic license controls are gated on
+  // a key ACTUALLY BEING STORED. Pure predicate, one source of truth for the
+  // two rows, and harnessable (tools/check-trial-copy.mjs).
+  //
+  // The entry row and Apply are deliberately NOT gated: entering a key is how
+  // the empty state stops being the empty state, and it is the documented
+  // recovery path when auto-activation fails.
+  function shouldShowLicenseControls(d) {
+    return !!(d && d.pro && d.pro.licenseKey);
+  }
+
   function renderProLicenseSection() {
     var host = $("#pro-license-current");
     if (!host) return;
@@ -6183,10 +6251,18 @@
       host.classList.add("pro-license-empty");
       host.textContent = "No license applied.";
     }
+    var show = shouldShowLicenseControls(data);
     // [1.0.5.4] Section C — Check license status now button is only meaningful
     // when a license key is set. Hide it for the empty state.
     var checkRow = $("#pro-license-check-row");
-    if (checkRow) checkRow.classList.toggle("hidden", !key);
+    if (checkRow) checkRow.classList.toggle("hidden", !show);
+    // [QA 2026-08-10] ...and so is Clear license, which until now rendered
+    // unconditionally. A TRIALING user has no stored key, so they were offered
+    // a red "Clear license" button that could only ever answer "No license to
+    // clear." — a destructive-looking control that does nothing, on the one
+    // surface where a user is already nervous about losing access.
+    var clearRow = $("#pro-license-clear-row");
+    if (clearRow) clearRow.classList.toggle("hidden", !show);
   }
 
   function renderProWorkspaceList() {

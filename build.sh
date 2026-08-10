@@ -44,6 +44,15 @@ if ! node tools/check-since-format.mjs; then
   exit 1
 fi
 
+# Trial-copy gate: the trial countdown headline and the license-control gating.
+# Both are QA findings from the 2.0.0 pass — a plural boundary and a destructive
+# button offered to users who cannot use it. Cheap to keep honest, embarrassing
+# to ship wrong on a paywall surface. ~0.1s.
+if ! node tools/check-trial-copy.mjs; then
+  echo "ERROR: trial-copy gate failed — upgrade/trial copy or license gating has regressed." >&2
+  exit 1
+fi
+
 # L1 serialization gate: every background `data` writer must stay inside the
 # enqueueBgData FIFO. Regressions here are SILENT DATA LOSS — one writer's blob
 # overwrites another's — which is why this is a release gate and not a habit.
