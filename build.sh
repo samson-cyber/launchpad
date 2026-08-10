@@ -17,6 +17,30 @@ if ! node tools/check-panel-ink.mjs; then
   exit 1
 fi
 
+# Decision-chain gate: the [1.2.0] Focus Blocking block/allow logic. Guards the
+# flagship Pro feature's correctness — a regression here either lets a blocked
+# site through (the feature silently does nothing) or gates something it must
+# never touch (mylaunchpad.me / the checkout host / our own gate page, which
+# would make the extension unusable). Pure logic over the real modules, ~0.1s.
+if ! node tools/check-focus-decision.mjs; then
+  echo "ERROR: focus decision-chain gate failed — block/allow logic has regressed." >&2
+  exit 1
+fi
+
+# L1 serialization gate: every background `data` writer must stay inside the
+# enqueueBgData FIFO. Regressions here are SILENT DATA LOSS — one writer's blob
+# overwrites another's — which is why this is a release gate and not a habit.
+# ~2.3s: it injects storage latency on purpose so cycles genuinely interleave.
+if ! node tools/check-bg-queue.mjs; then
+  echo 'ERROR: background-queue gate failed — a `data` writer is not serialized (L1).' >&2
+  exit 1
+fi
+
+# NOTE — the mutation passes (`--mutate` on either suite above) are development
+# verification, not release gates: they re-boot the subject once per seed and the
+# queue one takes ~16s. Run them when the code under test changes; the gates here
+# stay fast enough that nobody is tempted to skip the build.
+
 rm -f launchpad.zip
 
 # Package the allowlist. NOTE: do NOT use Compress-Archive — PowerShell 5.1's
