@@ -5435,6 +5435,68 @@ html.has-bg .pro-license-current.pro-license-empty {
   color: rgba(255, 255, 255, 0.55);
 }
 
+/* [QA 2026-08-10] Inline outcome line under "Check license status now".
+   JS-rendered, so tools/check-panel-ink.mjs cannot see it (it reads static
+   markup only) — every value below is browser-measured instead, composited
+   through the real paint stack in all three branches.
+
+   All four tones declare a colour in all three branches ON PURPOSE. A new text
+   rule that omits `color` inherits the body's DARK ink and disappears on the
+   dark frosted panel — the O1 failure that shipped twice (a68dd89, 8902816).
+
+   Tones reuse what the system already has WHERE THAT SURVIVES MEASUREMENT, and
+   the two places it did not are deliberate departures, both measured on the real
+   white panel:
+
+   - idle does NOT take .pro-sub-meta's --text-hint (#9aa0a6, 2.64:1). Inheriting
+     a known-accepted deficit is allowed (BUGS.md O1 companion rule) and the fact
+     this line now carries USED to render in exactly that token — but it used to be
+     passive metadata and is now the primary outcome of a button press. Feedback
+     the whole fix exists to put in front of the eye should not be the least
+     legible text in the panel. --text-secondary: 2.64 -> 6.05.
+   - warn takes .pro-warning's DARK half verbatim (#ffc960) but darkens the light
+     half from #b06b00 to #8a5300 (4.24 -> 6.33, nearest darker neighbour in the
+     same amber family). #b06b00 clears 4.5 on .pro-warning because that sits on
+     its own tinted chip; this line has no background of its own, so it is read
+     against plain white and the same value falls short.
+
+   bad takes BOTH halves of the documented red swap unchanged (#d93025 light,
+   4.77 / #ff6b6b dark). The greens are new — there was no existing text-green,
+   and #34a853 (.gs-check, an icon glyph) is 3.06:1 on white: fine for a 16px
+   checkmark, not for 12px prose. Google green 900/300 instead.
+
+   Measured, all three branches, worst tone per branch:
+     default 4.77 (bad) | wallpaper-dark 6.01 (bad) | wallpaper-light 4.77 (bad)
+
+   The light-wallpaper branch uses html.has-bg.bg-light rather than html.bg-light
+   — same specificity trick as .focus-block-error — so these rules stay correct
+   regardless of where they sit relative to the bg-light block further down. */
+.pro-license-check-status {
+  /* Asymmetric on purpose: tight to the button ABOVE, loose to the "Clear
+     license" row BELOW. At an even 8px/0 the line sat equidistant between the
+     two controls and read as though it might be labelling the destructive one
+     (screenshot-checked). Proximity is what binds it to the button whose
+     outcome it reports. */
+  margin: 6px 0 16px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.pro-license-check-status.pro-license-check-ok { color: #0d652d; }
+.pro-license-check-status.pro-license-check-bad { color: #d93025; }
+.pro-license-check-status.pro-license-check-warn { color: #8a5300; }
+
+html.has-bg .pro-license-check-status { color: rgba(255, 255, 255, 0.6); }
+html.has-bg .pro-license-check-status.pro-license-check-ok { color: #81c995; }
+html.has-bg .pro-license-check-status.pro-license-check-bad { color: #ff6b6b; }
+html.has-bg .pro-license-check-status.pro-license-check-warn { color: #ffc960; }
+
+html.has-bg.bg-light .pro-license-check-status { color: var(--text-secondary); }
+html.has-bg.bg-light .pro-license-check-status.pro-license-check-ok { color: #0d652d; }
+html.has-bg.bg-light .pro-license-check-status.pro-license-check-bad { color: #d93025; }
+html.has-bg.bg-light .pro-license-check-status.pro-license-check-warn { color: #8a5300; }
+
 .pro-license-input-row {
   display: flex;
   gap: 8px;

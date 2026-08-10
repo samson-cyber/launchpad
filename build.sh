@@ -53,6 +53,18 @@ if ! node tools/check-trial-copy.mjs; then
   exit 1
 fi
 
+# License-line gate: the inline status line under "Check license status now".
+# The invariant worth a gate is not the wording but the DIRECTION of failure — a
+# network outage must never render as an invalid licence, so the suite drives the
+# shipped copy against the real LicenseClient.isTransientError and asserts that an
+# unrecognised error with no state flip degrades to "could not reach", not to an
+# accusation. Also holds the O1 ink rules for a line the static ink gate cannot
+# see. QA 2026-08-10. ~0.1s.
+if ! node tools/check-license-line.mjs; then
+  echo "ERROR: license-line gate failed — license status feedback has regressed." >&2
+  exit 1
+fi
+
 # L1 serialization gate: every background `data` writer must stay inside the
 # enqueueBgData FIFO. Regressions here are SILENT DATA LOSS — one writer's blob
 # overwrites another's — which is why this is a release gate and not a habit.

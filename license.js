@@ -98,6 +98,18 @@ var LicenseClient = (function () {
     return { error: 'unknown', message: 'Unexpected response from Dodo (status ' + httpResult.status + ').' };
   }
 
+  // Which failures are TRANSIENT (no answer ever arrived) versus DEFINITIVE
+  // (an answer arrived and it was no). ensureValidated has always drawn this
+  // line -- it is what decides whether offline grace survives -- but the list
+  // used to be inline in one branch, so anything else that needed the same
+  // distinction had to re-derive it. The Pro Settings status line needs exactly
+  // this fact to avoid telling a user their licence is dead when their Wi-Fi
+  // dropped, so it is now a named predicate with one home, exported.
+  // (QA 2026-08-10, Asana 1217318316893989.)
+  function isTransientError(error) {
+    return error === 'network' || error === 'http_5xx' || error === 'unknown';
+  }
+
   async function activate(licenseKey) {
     var name = await deriveInstanceName();
     var result = await postJson('/licenses/activate', { license_key: licenseKey, name: name });
@@ -186,7 +198,7 @@ var LicenseClient = (function () {
     }
     // Transient: network outage, Dodo 5xx, or 200-with-unparseable-shape.
     // Preserve grace.
-    if (val.error === 'network' || val.error === 'http_5xx' || val.error === 'unknown') {
+    if (isTransientError(val.error)) {
       return { ok: false, stage: 'validate', error: val.error, message: val.message };
     }
     // 4xx or Dodo-structured error: explicit "no". Flip to invalid.
@@ -208,6 +220,7 @@ var LicenseClient = (function () {
     validate: validate,
     deactivate: deactivate,
     ensureValidated: ensureValidated,
+    isTransientError: isTransientError,
     isWithinOfflineGrace: isWithinOfflineGrace
   };
 })();

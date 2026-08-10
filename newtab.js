@@ -6210,17 +6210,21 @@
         ? "Trial ends today."
         : "Trial ends in " + days + " day" + (days === 1 ? "" : "s") + ".";
       html += '<p class="pro-sub-line pro-sub-meta">' + escapeHtml(trialMeta) + '</p>';
-    } else if (level === "active" || level === "grace") {
-      var lastVerified = (data.pro && data.pro.lastVerifiedAt) || 0;
-      if (lastVerified) {
-        var diff = Date.now() - lastVerified;
-        var daysAgo = Math.floor(diff / DAY_MS_LOCAL);
-        var label = daysAgo <= 0 ? "today" : (daysAgo + " day" + (daysAgo === 1 ? "" : "s") + " ago");
-        html += '<p class="pro-sub-line pro-sub-meta">Last verified: ' + label + '.</p>';
-      } else {
-        html += '<p class="pro-sub-line pro-sub-meta">Last verified: never.</p>';
-      }
     }
+    // [QA 2026-08-10] "Last verified" USED TO RENDER HERE for active/grace, and
+    // that was the wrong home: it is the outcome of the Check button two
+    // sections down, so the fact sat far from both the control that changes it
+    // and the answer that action reports. It now lives in the inline status line
+    // under that button (licenseStatusLine's idle branch) and appears exactly
+    // once. The grace WARNING stays below, because that is a different fact --
+    // not "when did we last check" but "your access is about to stop".
+    //
+    // In production, level active/grace implies a stored licence key
+    // (clearLicense resets subscriptionStatus to "free"), so moving the fact
+    // behind shouldShowLicenseControls cannot orphan it. The one exception is
+    // the IS_UNPACKED __devProOverride, which reports "active" with no key at
+    // all -- there the line is correctly absent, since there is no licence whose
+    // verification date could be reported.
 
     if (level === "grace") {
       html += '<span class="pro-warning">Verification overdue &mdash; reconnect to keep access.</span>';
@@ -6238,6 +6242,83 @@
   // recovery path when auto-activation fails.
   function shouldShowLicenseControls(d) {
     return !!(d && d.pro && d.pro.licenseKey);
+  }
+
+  // [QA 2026-08-10] The inline status line's copy, as a pure function of the
+  // ensureValidated result plus stored pro state, so tools/check-license-line.mjs
+  // can walk every branch instead of hoping.
+  //
+  // TONE is separate from TEXT because the honest outcomes are not all the same
+  // KIND of bad. "Expired" is a verdict the user must act on; "could not reach
+  // the server" is not a verdict at all and must never be dressed as one. The
+  // toast this replaces collapsed both into whatever string came back, so a
+  // dropped connection could read as a dead licence.
+  //
+  // `result` shapes: null = idle (panel just opened, report the STORED fact),
+  // {checking:true} = in flight, otherwise an ensureValidated return value.
+  function licenseStatusLine(result, pro, nowMs) {
+    var status = (pro && pro.subscriptionStatus) || null;
+    var lastVerifiedAt = (pro && pro.lastVerifiedAt) || 0;
+
+    function ago() {
+      if (!lastVerifiedAt) return "never";
+      var days = Math.floor((nowMs - lastVerifiedAt) / DAY_MS_LOCAL);
+      if (days <= 0) return "today";
+      return days === 1 ? "1 day ago" : days + " days ago";
+    }
+
+    if (result && result.checking) return { tone: "idle", text: "Checking..." };
+
+    // Idle render. This is where the Subscription section's old "Last verified"
+    // line now lives -- one fact, next to the control that changes it.
+    if (!result) {
+      if (status === "active") return { tone: "ok", text: "License active — last verified " + ago() + "." };
+      if (status === "invalid") return { tone: "bad", text: "License is not valid — last checked " + ago() + "." };
+      return { tone: "idle", text: "Not checked yet." };
+    }
+
+    // A real answer came back.
+    if (result.ok) {
+      if (status === "active") return { tone: "ok", text: "License active — verified just now." };
+      if (status === "invalid") return { tone: "bad", text: "License is not valid — it may have expired or been cancelled." };
+      return { tone: "idle", text: "License status: " + (status || "unknown") + "." };
+    }
+
+    // No answer came back. Nothing below may imply a verdict unless we have one.
+    //
+    // Our own fault -- the check never left the building.
+    if (result.error === "invalid_args" || result.error === "module_missing" || result.error === "threw") {
+      return { tone: "warn", text: "Could not run the check — reload the page and try again." };
+    }
+    // Dodo's fault or the network's. State preserved, offline grace lives on.
+    if (typeof LicenseClient !== "undefined" && LicenseClient.isTransientError(result.error)) {
+      return { tone: "warn", text: "Could not reach the license server — try again." };
+    }
+    // A definitive rejection -- but only trusted while it AGREES WITH THE STATE
+    // MACHINE. ensureValidated flips subscriptionStatus to 'invalid' on exactly
+    // the errors it treats as definitive, so if some future error code arrives
+    // here without that flip, we do not actually know it was a rejection. The
+    // honest non-verdict is the default; the accusation needs evidence.
+    if (status === "invalid") {
+      return { tone: "bad", text: result.message || "This license was rejected." };
+    }
+    return { tone: "warn", text: "Could not reach the license server — try again." };
+  }
+
+  // Renders the line under the Check button. Gated on the SAME predicate as the
+  // button itself, so the fact and the control that updates it appear together
+  // or not at all.
+  function renderProLicenseCheckStatus(result) {
+    var host = $("#pro-license-check-status");
+    if (!host) return;
+    if (!shouldShowLicenseControls(data)) {
+      host.className = "pro-license-check-status hidden";
+      host.textContent = "";
+      return;
+    }
+    var line = licenseStatusLine(result, data.pro, Date.now());
+    host.className = "pro-license-check-status pro-license-check-" + line.tone;
+    host.textContent = line.text;
   }
 
   function renderProLicenseSection() {
@@ -6263,6 +6344,10 @@
     // surface where a user is already nervous about losing access.
     var clearRow = $("#pro-license-clear-row");
     if (clearRow) clearRow.classList.toggle("hidden", !show);
+    // Idle render: report the stored verification fact. Passing null (rather
+    // than skipping the call) is what makes the line PERSISTENT -- it carries
+    // the last-known answer on every panel open, not only right after a click.
+    renderProLicenseCheckStatus(null);
   }
 
   function renderProWorkspaceList() {
@@ -7082,40 +7167,46 @@
   // bypasses the 24h debounce in LicenseClient.ensureValidated. Used by Pro
   // users who paid mid-session and want to confirm their entitlement without
   // waiting for the next-day passive refresh.
+  // [QA 2026-08-10] All feedback from this control now lands in the inline line
+  // under the button, including the two precondition failures. The bottom toast
+  // is GONE for this action: it reported the answer at the far edge of the
+  // viewport, which QA found easy to miss and not instinctive. Nothing here is
+  // cross-tab -- the click, the panel, and the answer are all in one tab, and
+  // other tabs learn about the state change through storage.onChanged as
+  // before -- so the toast was carrying no weight the line cannot carry closer
+  // to the eye. Other actions' toasts are untouched.
   async function handleLicenseCheckNow() {
     var btn = $("#pro-license-check");
     if (!btn) return;
     if (!data.pro || !data.pro.licenseKey) {
-      showToast("No license to check.");
+      // Defensive only: shouldShowLicenseControls hides this row without a
+      // stored key, so a click cannot reach here.
+      renderProLicenseCheckStatus({ ok: false, error: "invalid_args" });
       return;
     }
     if (typeof LicenseClient === "undefined") {
-      showToast("License module unavailable. Reload the page and try again.");
+      renderProLicenseCheckStatus({ ok: false, error: "module_missing" });
       return;
     }
-    var oldText = btn.textContent;
+    // ONE indicator, not two competing ones. The LINE owns the progress state;
+    // the button only goes inert and KEEPS its label, so what you clicked is
+    // still readable while it runs.
     btn.disabled = true;
-    btn.textContent = "Checking...";
+    renderProLicenseCheckStatus({ checking: true });
     try {
       var result = await LicenseClient.ensureValidated(data, data.pro.licenseKey, { force: true });
       await Storage.saveAll(data);
       renderProSubscriptionSection();
+      // renderProLicenseSection() would idle-render the line ("last verified
+      // today"), overwriting the fresh "verified just now" we are about to set,
+      // so the status render is ordered LAST on purpose.
       renderProLicenseSection();
       applyCtaState(data);
-      if (result && result.ok) {
-        var status = data.pro.subscriptionStatus;
-        if (status === "active") showToast("License active.");
-        else if (status === "invalid") showToast("License expired.");
-        else showToast("License status: " + (status || "unknown") + ".");
-      } else {
-        var msg = (result && result.message) || "Could not validate license.";
-        showToast(msg);
-      }
+      renderProLicenseCheckStatus(result);
     } catch (err) {
-      showToast((err && err.message) || "Unexpected error validating license.");
+      renderProLicenseCheckStatus({ ok: false, error: "threw", message: (err && err.message) || "" });
     } finally {
       btn.disabled = false;
-      btn.textContent = oldText;
     }
   }
 

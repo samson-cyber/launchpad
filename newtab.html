@@ -343,6 +343,12 @@
         <div class="settings-row" id="pro-license-check-row">
           <button id="pro-license-check" type="button" class="settings-btn">Check license status now</button>
         </div>
+        <!-- The check's outcome renders HERE, directly under its button, and
+             persists. It replaces the bottom-of-viewport toast this action used
+             to fire, which reported the answer a long way from the control that
+             asked the question. role=status announces it, which is the one thing
+             the toast did do for screen readers. -->
+        <p id="pro-license-check-status" class="pro-license-check-status hidden" role="status" aria-live="polite"></p>
         <div class="settings-row" id="pro-license-clear-row">
           <button id="pro-license-clear" type="button" class="settings-btn settings-btn-danger">Clear license</button>
         </div>
