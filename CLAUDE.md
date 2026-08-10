@@ -132,11 +132,13 @@ Browser automation runs against an **isolated scratch profile — never Samson's
 The standing invocation — profile dir is gitignored (`.scratch-profile*/`):
 
 ```
-msedge.exe --user-data-dir=C:\Dev\Git\launchpad\.scratch-profile   --no-first-run --no-default-browser-check --disable-sync   --disable-extensions-except=C:\Dev\Git\launchpad --load-extension=C:\Dev\Git\launchpad   --remote-debugging-port=<port>
+msedge.exe --user-data-dir=C:\Dev\Git\launchpad\.scratch-profile   --no-first-run --no-default-browser-check --disable-sync   --disable-features=DisableLoadExtensionCommandLineSwitch --enable-unsafe-extension-debugging   --disable-extensions-except=C:\Dev\Git\launchpad --load-extension=C:\Dev\Git\launchpad   --remote-debugging-port=<port>
 ```
 
 - `--disable-extensions-except` **with** `--load-extension`; plain `--disable-extensions` would disable the subject too.
-- The extension's own pages **are** drivable this way — attach over CDP and `Target.createTarget` on `chrome-extension://<id>/newtab.html`. The unpacked ID is derived from the absolute path, so it is stable across profiles.
+- **The two `*-extension-debugging` flags are load-bearing on Edge/Chrome 137+**, which otherwise ignores `--load-extension` whenever a remote-debugging port is open. Without them the target navigates to `chrome-error://chromewebdata`, where `chrome.runtime` is undefined and the failure reads as a broken feature.
+- The extension's own pages **are** drivable this way — attach over CDP and `Target.createTarget` on `chrome-extension://<id>/newtab.html`.
+- **Get the ID from `.scratch-profile/Default/Secure Preferences` → `extensions.settings[<id>].path`**, matching on the repo path. Do NOT take "the first `chrome-extension://` target" (Edge's own force-installed extensions get there first) and do not rely on LaunchPad's MV3 service worker being a visible target (it suspends after ~30s). Full trap list: BUGS.md **I7**.
 - **Teardown kills by PID, never by image name.** `taskkill /IM msedge.exe` closes Samson's real browser along with the test one. Capture the PID at launch, or just close the CDP target.
 - Delete the scratch profile when the round ends.
 

@@ -79,7 +79,7 @@ Also filed, post-v2.0: **`[1.2.2]` Insights date-range selector** (Samson's ask;
 - **Start of Day** card (morning): today's goals, suggested first task, "Let's go" CTA
 - **Weekly summary**: goals completion, time breakdown, deep work trend (v2.1 — same decision)
 - **Deep Work Time** as primary metric (explicitly not "productivity score") (launch-day surface: the 'Today: Xh Ym focused' Dashboard line from [1.0.20]; full analytics v2.1)
-- **Pill redesign** — FOCUSED TODAY becomes the headline number, ACTIVE becomes a static "Active since …" line. Decided 2026-08-08 (DECISIONS.md), **not yet implemented**; Asana Backlog, candidate pre-v2.0-launch polish.
+- **Pill redesign** (`[1.2.3]`) — **COMPLETE 2026-08-10.** FOCUSED TODAY is the headline number on the idle card, the minimized face and the session-done card; the old small focused-today row is gone (one number, one place); ACTIVE is deleted as a counter and replaced by a static "Active since 9:04" / "Active since Aug 2, 9:04" line off `startedAt`. Pomodoro takeover byte-identical. The session-anchor machinery is deliberately KEPT despite losing its only reader — the same write normalizes `pausedAt`, which the pomodoro freeze still needs. Asana 1217301162748887; see DECISIONS.md 2026-08-10.
 
 #### Achievements
 - 5-7 thoughtfully designed badges (First Week, Goal Crusher, Deep Diver, Variety, Consistency, plus 2 TBD)

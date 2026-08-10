@@ -3787,7 +3787,12 @@ html.bg-light { --sat-amber: #8a6d09; }
 
 .sat-tags { margin-top: 6px; }
 
-/* The headline metric — the honest number, so it gets the size (D1). */
+/* The headline metric — the honest number, so it gets the size (D1).
+   [1.2.3] That number is now FOCUSED TODAY. It used to be the ACTIVE counter
+   with focused-today demoted to a small line beneath; the counter is gone (it
+   measured "this browser sitting", which reached 139 hours in live use) and its
+   slot went to the number that actually measures work. Same class, same
+   treatment — only the source changed. */
 .sat-time {
   margin-top: 10px;
   font-size: 26px;
@@ -3809,30 +3814,17 @@ html.bg-light { --sat-amber: #8a6d09; }
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
-/* [1.0.17 dual counters] FOCUSED TODAY — the smaller secondary reader beneath the
-   ACTIVE headline. Value + micro-label on one baseline row. Stays its normal muted
-   ink even while paused (only the ACTIVE headline goes amber-frozen). */
-.sat-focused {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-  margin-top: 6px;
-}
-
-.sat-focused-time {
-  font-size: 13px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.85);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-}
-
-.sat-focused-label {
-  font-size: 9px;
+/* [1.2.3] "Active since 9:04" — a quiet STATIC line under the headline, where
+   the old small focused-today row used to sit (that row is gone: one number,
+   one place). Deliberately smaller and dimmer than the headline — it is context
+   for the number above it, not a second metric competing with it. Keeps its
+   muted ink while paused: pause is a statement about tracking, and the
+   activation stamp is not affected by it. */
+.sat-since {
+  margin-top: 5px;
+  font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.55);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
@@ -4406,16 +4398,14 @@ html.bg-light .sat-name,
 html.bg-light .sat-goal,
 html.bg-light .sat-time,
 html.bg-light .sat-time-label,
-html.bg-light .sat-focused-time,
-html.bg-light .sat-focused-label { text-shadow: none; }
+html.bg-light .sat-since { text-shadow: none; }
 
 html.bg-light .sat-name,
-html.bg-light .sat-time,
-html.bg-light .sat-focused-time { color: var(--text-primary); }
+html.bg-light .sat-time { color: var(--text-primary); }
 
 html.bg-light .sat-goal,
 html.bg-light .sat-time-label,
-html.bg-light .sat-focused-label,
+html.bg-light .sat-since,
 html.bg-light .sat-foreign { color: var(--text-secondary); }
 
 html.bg-light .sat-foreign { background: rgba(0, 0, 0, 0.04); }
@@ -11839,7 +11829,7 @@ html.has-bg.bg-light .focus-block-error { color: #d93025; }
   font-size: 12px;
 }
 
-/* Base is WHITE-ALPHA, matching .sat-eyebrow / .sat-time-label / .sat-focused-label:
+/* Base is WHITE-ALPHA, matching .sat-eyebrow / .sat-time-label / .sat-since:
    the card is dark in the DEFAULT theme as well as over photo wallpapers, and only
    html.bg-light flips it. Basing this on --text-secondary (a dark grey) measured
    2.73:1 in the default theme — the a68dd89 class, arrived at from the other

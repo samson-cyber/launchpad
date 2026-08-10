@@ -8943,43 +8943,76 @@
     return satReadout.baseMs + open;
   }
 
-  // ACTIVE — the headline liveness counter, SESSION-ANCHORED: wall-clock since
-  // THIS SITTING began, minus every paused span within it. The origin is
-  // max(startedAt, sessionAnchorAt): activating sets both, and each browser
-  // launch (chrome.runtime.onStartup) moves the anchor forward, so time spent
-  // with Chrome closed is never counted — it is structurally uncountable, and a
-  // plain wall-clock reading of startedAt once produced 46:21:09 across two
-  // nights. max() rather than the anchor alone so a task activated AFTER the
-  // launch anchors on its own activation, and a missing anchor (pre-fix record)
-  // degrades to the old startedAt behavior instead of reading 0.
+  // ACTIVE SINCE — a static timestamp, NOT a counter. [1.2.3]
   //
-  // Pure local arithmetic off data.activeTask, display-only — the engine never
-  // reads these fields. While paused, the (now - pausedAt) term cancels the
-  // (now - origin) growth, so it freezes at the value it held when pause began.
-  // Clamped at 0 (a task born paused, or one re-anchored while still paused
-  // from before a shutdown, reads a frozen 0).
-  // [1.0.17 idle deduct] Idle is deducted the same way pause is, so ACTIVE means
-  // "this sitting, WHILE PRESENT". The idle terms are SILENT — no amber, no
-  // label change, no idle indication anywhere (the loud treatment stays
-  // exclusive to manual pause). The counter simply stops advancing while the
-  // user is away and reads honest on their return.
+  // The running ACTIVE counter is gone. It was wall-clock since this sitting
+  // began (session-anchored, minus paused and idle spans) and it was working as
+  // designed when it read 139:52:01 in live use: Chrome had simply not
+  // cold-started in six days, so "this sitting" was six days long. Technically
+  // true, practically meaningless — a number that fails the product's own
+  // honesty standard. The accurate work-output number already existed one line
+  // below it (FOCUSED TODAY, engine-measured), so the fix is prominence, not
+  // machinery: FOCUSED TODAY takes the headline and activation becomes this
+  // timestamp. A timestamp cannot accumulate into absurdity — it reads honest at
+  // any age, including after a fortnight of sleep/lid-close.
   //
-  // idleAt needs no flag test, unlike pausedAt: a non-null idleAt IS the pending
-  // -idle state, because the setter only ever stamps it on a real transition and
-  // clears it on the way back. (pausedAt has to be gated on isTrackingPaused
-  // because the born-paused and anchor-reset shapes both stamp it while paused.)
+  // startedAt is the activation stamp: written once by setActiveTask, never
+  // rewritten while the task stays active (re-picking the already-active task is
+  // idempotent), and explicitly PRESERVED by anchorBrowserSession. It lives in
+  // chrome.storage.local, so it survives reload and full browser restart — which
+  // is the whole point of showing it instead of a derived elapsed value.
   //
-  // Legacy records predating these fields degrade to zero deduction via the
-  // || 0 / != null guards — the same convention as the sessionAnchorAt fallback
-  // above, so an existing record keeps its old behaviour rather than jumping.
-  function satActiveMs() {
+  // The date is dropped when the activation is today ("Active since 9:04") and
+  // shown when it is older ("Active since Aug 2, 9:04"): a bare time on a
+  // week-old activation would read as this morning. Local calendar-day
+  // comparison, matching achDayKey's convention. Locale-respecting via
+  // toLocaleTimeString / fmtShortDate, like every other date surface here.
+  //
+  // NOTE for future readers: the session-anchor machinery (sessionAnchorAt,
+  // anchorBrowserSession, the onStartup write in background.js) survives this
+  // removal even though the ACTIVE counter was its only READER. The anchor write
+  // also normalizes pausedAt, which the [1.0.18] pomodoro freeze still reads
+  // (satPomoRemainingMs below, plus setTrackingPaused's resume shift). Removing
+  // it would change how a pause held across a browser restart resumes a phase.
+  // It is no longer dead machinery serving a dead counter — pausedAt is now what
+  // it is load-bearing for.
+  function satActiveSinceText() {
     var a = Storage.getActiveTask(data);
-    if (!a || !a.startedAt) return 0;
-    var now = Date.now();
-    var origin = Math.max(a.startedAt, a.sessionAnchorAt || 0);
-    var pausedSpan = (Storage.isTrackingPaused(data) && a.pausedAt != null) ? (now - a.pausedAt) : 0;
-    var idleSpan = (a.idleAt != null) ? (now - a.idleAt) : 0;
-    return Math.max(0, now - origin - (a.pausedMs || 0) - (a.idleMs || 0) - pausedSpan - idleSpan);
+    if (!a || typeof a.startedAt !== "number" || !a.startedAt) return "";
+    var d = new Date(a.startedAt);
+    var now = new Date();
+    var isToday = d.getFullYear() === now.getFullYear() &&
+                  d.getMonth() === now.getMonth() &&
+                  d.getDate() === now.getDate();
+    var time;
+    try {
+      time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    } catch (e) {
+      return "";
+    }
+    return isToday ? ("Active since " + time)
+                   : ("Active since " + fmtShortDate(a.startedAt) + ", " + time);
+  }
+
+  // The since-line markup. Rendered on every card branch that carries the
+  // FOCUSED TODAY headline; omitted entirely (not blank) when there is no usable
+  // stamp, so a legacy record without startedAt leaves no empty row behind.
+  function satSinceHtml() {
+    var txt = satActiveSinceText();
+    return txt ? '<div class="sat-since">' + escapeHtml(txt) + '</div>' : "";
+  }
+
+  // The card's headline block: FOCUSED TODAY as the big number, its label, and
+  // the quiet since-line. ONE number in ONE place — the old small "focused
+  // today" row is gone rather than duplicated under a headline showing the same
+  // value. Shared by the idle card and the session-done card so the two cannot
+  // drift apart. `paused` keeps the [1.0.17] loud treatment: the label swaps to
+  // PAUSED and .is-paused amber-tints the frozen number, which stays honest
+  // because a pause closes the engine session — the value really is frozen.
+  function satHeadlineHtml(paused) {
+    return '<div class="sat-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</div>' +
+      '<div class="sat-time-label">' + (paused ? 'Paused' : 'Focused today') + '</div>' +
+      satSinceHtml();
   }
 
   // ===== Focus sessions (Pomodoro, [1.0.18]) =====
@@ -9159,16 +9192,22 @@
   }
 
   // Repaint the time text without a full re-render (which would fight the Switch
-  // dropdown, kill hover states, reset the search field). The pill's time and the
-  // card's LARGE timer both show ACTIVE; the card's secondary line shows FOCUSED.
+  // dropdown, kill hover states, reset the search field). [1.2.3] The pill's time
+  // and the card's LARGE headline now show the SAME number — FOCUSED TODAY — so
+  // there is one value to paint into both. The card's since-line is deliberately
+  // absent from this path: it is a static timestamp that cannot change while the
+  // task stays active, so ticking it would be pure waste (renderActiveTaskWidget
+  // rebuilds it on the state changes that can actually move it).
   function satPaintTime() {
     var container = $("#active-task-pill");
     if (!container) return;
     // Tab title tracks the countdown (or restores) on every tick.
     satUpdateTabTitle();
     // Pomodoro mode owns the paint: the countdown + ring are the only time
-    // surfaces rendered (the ACTIVE/FOCUSED nodes aren't in the DOM), so update
-    // those and return. .sat-pomo-time covers both the card and the minimized pill.
+    // surfaces rendered (a RUNNING phase replaces the headline entirely, so
+    // .sat-time is not in the DOM), so update those and return. The session-DONE
+    // card is not a running phase, so it falls through and paints its headline
+    // through the normal path below. .sat-pomo-time covers both the card and the minimized pill.
     var pomo = satRunningPomo();
     if (pomo) {
       var remaining = satPomoRemainingMs(pomo);
@@ -9181,13 +9220,11 @@
       }
       return;
     }
-    var activeText = satFmtLong(satActiveMs());
+    var focusedText = satFmtLong(satLiveMs());
     var pillTime = container.querySelector(".sat-pill-time");
-    if (pillTime) pillTime.textContent = activeText;
+    if (pillTime) pillTime.textContent = focusedText;
     var big = container.querySelector(".sat-time");
-    if (big) big.textContent = activeText;
-    var focused = container.querySelector(".sat-focused-time");
-    if (focused) focused.textContent = satFmtLong(satLiveMs());
+    if (big) big.textContent = focusedText;
   }
 
   function satStopTick() {
@@ -9196,9 +9233,13 @@
 
   function satStartTick() {
     satStopTick();
-    // ACTIVE advances every second while running — unlike FOCUSED it does not need
-    // an open session (it is wall-clock). It FREEZES while paused, and there is
-    // nothing to advance with no active task, so the timer is pointless then.
+    // [1.2.3] FOCUSED TODAY is now the only ticking surface. It advances only
+    // while an engine session is open on this task, and freezes while paused, so
+    // the existing gate (no task / paused -> no timer) still holds; the tick is
+    // left ON for an active-but-not-currently-open task rather than tightened to
+    // satReadout.openSince, because openSince is refreshed asynchronously by
+    // satRefreshReadout and a self-stopping tick would depend on that race.
+    // Painting an unchanged string once a second costs nothing.
     // [1.0.18] A running pomodoro also needs the tick, and independently of the
     // ACTIVE gate: the countdown runs even while tracking is paused (pause
     // integration is A2) and needs no engine readout.
@@ -9292,8 +9333,10 @@
             '<span class="sat-pill-label">' + (paused ? 'Paused' : 'Active task') + '</span>' +
             '<span class="sat-pill-name">' + escapeHtml(res.task.name) + '</span>' +
           '</span>' +
-          // ACTIVE ticking time (the pill is the liveness surface); frozen amber when paused.
-          '<span class="sat-pill-time">' + escapeHtml(satFmtLong(satActiveMs())) + '</span>';
+          // [1.2.3] FOCUSED TODAY, the same number the card leads with — not a
+          // wall-clock counter. No since-line on the face: there is no room, and
+          // the card carries it. Frozen amber when paused, as before.
+          '<span class="sat-pill-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</span>';
       }
     }
     var act = res ? "restore" : "pick";
@@ -9453,6 +9496,11 @@
       var cyclePos = done.cycleCount < 1 ? 1 : (((done.cycleCount - 1) % cadence) + 1);
       return '<div class="sat-expanded sat-expanded-pomo' + (paused ? ' is-paused' : '') + '">' +
           head +
+          // [1.2.3] The session-done card leads with the headline too — this is
+          // the moment the number is most worth seeing, and it is the one
+          // pomodoro branch with no time surface of its own to conflict with (a
+          // RUNNING phase keeps its countdown takeover untouched).
+          satHeadlineHtml(paused) +
           '<div class="sat-pomo sat-pomo-done">' +
             '<div class="sat-pomo-done-msg">Session done · cycle ' + cyclePos + ' of ' + cadence + '</div>' +
             '<div class="sat-pomo-start-row">' +
@@ -9470,12 +9518,7 @@
     var workMin = Storage.getPomodoroSettings(data).workMin;
     return '<div class="sat-expanded' + (paused ? ' is-paused' : '') + '">' +
         head +
-        '<div class="sat-time">' + escapeHtml(satFmtLong(satActiveMs())) + '</div>' +
-        '<div class="sat-time-label">' + (paused ? 'Paused' : 'Active') + '</div>' +
-        '<div class="sat-focused">' +
-          '<span class="sat-focused-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</span>' +
-          '<span class="sat-focused-label">focused today</span>' +
-        '</div>' +
+        satHeadlineHtml(paused) +
         '<div class="sat-pomo-start-row">' +
           '<button type="button" class="sat-btn sat-btn-pomo-start" data-sat-act="pomo-start" title="Start a focus session">▶ Focus session</button>' +
           '<button type="button" class="sat-btn sat-btn-pomo-dur" data-sat-act="pomo-duration" ' +

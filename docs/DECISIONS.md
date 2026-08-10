@@ -1304,3 +1304,26 @@ The evening Dashboard card's future-update teaser is retired: it now shows real 
 **Context:** Samson's ask on seeing the finished board: every Insights card is hard-wired to "last 30 days", and the natural next question is "what about last week / this month / last quarter?"
 
 **Outcome:** filed as `[1.2.2]`, post-v2.0. **The constraint is recorded with the ask, not discovered during the build:** per-event granularity is retained for 30 days and only **per-day aggregates** are kept beyond that (DECISIONS 2026-07-07, SPECS/tracking-engine.md). So ranges *shorter* than 30 days and ranges built from day aggregates are free, while anything needing per-event detail beyond 30 days does not exist and cannot be back-filled. A range picker that silently offers "last 6 months" over data that only began aggregating at launch would be the pill's honesty problem in a new place. The PLAN decides which ranges are offered and how the horizon is communicated — it does not get to assume the data is there.
+
+---
+
+## 2026-08-10 — Pill redesign: FOCUSED TODAY is the headline, ACTIVE becomes a timestamp
+
+**Context:** Live use, 2026-08-08 — the card's ACTIVE counter read **139:52:01**. Nothing was broken: ACTIVE measured the current *browser sitting*, the session anchor only moves on a true `chrome.runtime.onStartup`, and with sleep/lid-close habits the browser process had simply not restarted in six days. The number was correct and useless — exactly the kind of technically-true-but-meaningless figure the product's honesty standard exists to prevent.
+
+**Alternatives considered (Samson chose option c of three, 2026-08-08):**
+- **Day-bounded ACTIVE (midnight roll)** — rejected. Honest and cheap, but still "slot time" rather than work, and redundant the moment FOCUSED TODAY takes the headline.
+- **A "time while browser window open" accumulator** — rejected. A third metric that measures neither work nor anything cheap: it needs SW heartbeat machinery under MV3 and converges on a worse copy of the engine's own number.
+- **Prominence, not machinery** — chosen. The accurate number already existed one line below, demoted to a small secondary row.
+
+**Outcome:**
+- **FOCUSED TODAY takes the headline slot** (`.sat-time`), on the idle card, on the minimized pill face, and on the session-done card. The engine's reader and the existing formatter are unchanged — only the source of the headline moved.
+- **The old small "focused today" row is gone.** One number, one place; a headline and a secondary row showing the same value is duplication, not reinforcement.
+- **ACTIVE is deleted as a counter** and replaced by a quiet static line: `Active since 9:04` when the activation is today, `Active since Aug 2, 9:04` when it is older. A timestamp cannot accumulate into absurdity, and the date appears exactly when a bare time would mislead.
+- **`startedAt` is the source** — written once at activation, never rewritten while the task stays active, preserved by `anchorBrowserSession`, and storage-backed, so it survives reload and restart.
+- **The pomodoro takeover is byte-identical.** A running phase still owns the card and the face. The session-*done* card, which previously showed no time surface at all, gains the headline treatment (Samson's call at implementation) — it is the moment the number is most worth seeing.
+- **Per-second repaint covers the headline only.** The since-line is static while the task is active, so it never enters the tick path; no full re-renders were added (A1).
+
+**The session-anchor machinery STAYS, and the audit is why:** `sessionAnchorAt` had exactly one reader — the deleted counter — which invited removing `anchorBrowserSession` and its `onStartup` write as dead weight. It is not dead. The same write also normalizes `pausedAt`, which the `[1.0.18]` pomodoro freeze reads (`satPomoRemainingMs`) and which `setTrackingPaused`'s resume shift restores continuity against. Removing it would change how a pause held across a browser restart resumes a phase — a silent behavioural change in the one area this task required to stay identical. **The general rule:** a "last reader removed" audit is not finished at the field; it has to cover every field the writer touches. `pausedMs` / `idleMs` are now write-only and are left as such — retiring that accounting is a separate scope.
+
+**Shipped in:** `[1.2.3]`, Asana 1217301162748887.
