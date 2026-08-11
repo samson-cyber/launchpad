@@ -61,6 +61,12 @@
   var MORE_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>';
   var RC_FALLBACK_SVG = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>';
   var CHEVRON_RIGHT_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
+  // [2.0 ink] The due-date pill's icon. Deliberately NOT sized in px like its
+  // neighbours above: it replaces a text glyph whose size came from the pill's
+  // font-size, and this round may not change font sizes — so it takes 1em and
+  // the existing .tt-due-icon rules keep owning the size. stroke="currentColor"
+  // is the whole point: the emoji it replaces ignored `color` on every frame.
+  var CALENDAR_SVG = '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
   var CHEVRON_DOWN_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
   var CHEVRONS_DOWN_SVG = '<svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>';
   var CHEVRONS_UP_SVG = '<svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>';
@@ -2194,7 +2200,21 @@
     var aria = has ? ("Due " + label + " — click to change") : "Add date";
     return '<button type="button" class="' + cls + '" data-task-id="' + escapeHtml(task.id) +
       '" data-due="' + escapeHtml(ymd) + '" aria-label="' + escapeHtml(aria) + '" title="' + escapeHtml(aria) + '">' +
-      '<span class="tt-due-icon" aria-hidden="true">🗓</span>' +
+      // [2.0 ink] Was the U+1F5D3 emoji, and it was the one finding in this round
+      // that no colour rule could reach: a colour emoji's pixels come from the
+      // font's own bitmap and ignore `color` entirely. Measured [148,148,148] on
+      // a dark row and [138,138,138] on a light one — the same mid-grey on all
+      // four frames, 2.86:1, moving with the wallpaper not at all.
+      //
+      // The U+FE0E text-presentation selector was tried first and REJECTED on
+      // measurement: it shifted the raster slightly (2.86 -> 3.37) but the glyph
+      // still did not take `color`, so it would have shipped a comment claiming a
+      // fix that had not happened. An inline SVG on currentColor is the real
+      // mechanism — it is the idiom the lock, check and chevron glyphs in this
+      // file already use, and it makes the icon inherit the pill's ink on every
+      // frame by construction rather than by luck. Sized in em, so the existing
+      // font-size rules still own the size and nothing here changes it.
+      '<span class="tt-due-icon" aria-hidden="true">' + CALENDAR_SVG + '</span>' +
       (has ? '<span class="tt-due-pill-label">' + escapeHtml(label) + '</span>'
            : '<span class="tt-due-add-label">Add date</span>') +
     '</button>';

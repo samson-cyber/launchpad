@@ -322,6 +322,103 @@ for (const cls of ["tt-tag-pill", "pp-tag-pill", "tag-pill", "sb-ws-chip", "pws-
     /\.pro-tag-swatch:hover \{[^}]*border-color:/.test(SRC.css));
 }
 
+// ---- the PRIORITY chips: same doctrine, same arithmetic -------------------
+// Priority pills stopped being tinted outlines this round and became real chips:
+// opaque fill, ink derived against it. Which means their ratios are provable
+// here rather than measurable only in a browser — the fill is opaque, so the
+// number is identical on all four frames. Both halves are read out of the CSS,
+// so a change to either the palette variable or the pinned ink is caught.
+{
+  const cssVar = (name) => {
+    const m = SRC.css.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`));
+    return m && m[1];
+  };
+  const rule = (cls) => {
+    const m = SRC.css.match(new RegExp(`\\.tt-prio-pill\\.tt-prio-${cls}\\s*\\{([^}]*)\\}`));
+    if (!m) return null;
+    const color = m[1].match(/color:\s*(#[0-9a-fA-F]{6})/);
+    const bg = m[1].match(/background:\s*var\(--prio-([a-z]+)\)/);
+    return color && bg ? { ink: color[1], fillVar: bg[1] } : null;
+  };
+  const PRIOS = ["urgent", "high", "medium", "low"];
+  let checked = 0;
+  for (const p of PRIOS) {
+    const r = rule(p);
+    if (!r) { check(`priority ${p}: chip rule parses (opaque fill + pinned ink)`, false, "rule not found or not a chip"); continue; }
+    const fill = cssVar("prio-" + r.fillVar);
+    if (!fill) { check(`priority ${p}: --prio-${r.fillVar} resolves`, false); continue; }
+    const got = C.contrastRatio(fill, r.ink);
+    check(`priority ${p}: ${fill} on ${r.ink} clears ${FLOOR}:1`, got >= FLOOR, got.toFixed(2));
+    // The pinned ink must still be what the ONE chooser would produce — the
+    // whole point of pinning it in CSS is that it is the chooser's answer, not
+    // a hand-picked colour that happens to pass today.
+    check(`priority ${p}: the pinned ink IS the chooser's own output`,
+      C.tagTextColorFor(fill).toLowerCase() === r.ink.toLowerCase(),
+      `css ${r.ink} vs chooser ${C.tagTextColorFor(fill)}`);
+    checked++;
+  }
+  check("priority: all four priorities were inspected (anti-vacuity)", checked === 4, `${checked} of 4`);
+  // The unset pill stays a quiet outline and must NOT be given a fill — that is
+  // the whole distinction between "no priority" and "priority set".
+  check("priority: the UNSET pill is still a transparent outline, not a chip",
+    /\.tt-prio-pill \{[^}]*background: transparent;/.test(SRC.css));
+}
+
+// ---- the PROGRESS % label: the dual-layer clip contract --------------------
+// This one needed no colour change: the widget was already correct, and the
+// 1.72:1 that put it on the list was a MEASUREMENT artifact — the DOM-composite
+// harness reads backgroundColor, which is transparent for a gradient-backed
+// element, so it scored the in-fill copy against the track behind the bar. The
+// pixel-diff harness reports 7.68-7.80.
+//
+// So what is guarded here is the DESIGN, not a number: two copies with opposing
+// inks, each revealed only over the region it contrasts. Collapse it to a single
+// static ink and no ink can clear both halves of the bar — which is exactly the
+// regression this section exists to fail.
+{
+  const grad = SRC.css.match(/\.tt-progress-fill \{[^}]*background: linear-gradient\(90deg,\s*(#[0-9a-fA-F]{6})[^,]*,\s*(#[0-9a-fA-F]{6})/);
+  check("progress: the fill is still a two-stop gradient", !!grad, grad ? grad.slice(1, 3).join(" -> ") : "not found");
+  const baseInk = SRC.css.match(/\.tt-progress-pct-base \{[^}]*color:\s*(rgba?\([^)]*\))/);
+  const fillInk = SRC.css.match(/\.tt-progress-pct-fill \{[^}]*color:\s*(rgba?\([^)]*\))/);
+  check("progress: BOTH copies exist and declare their own ink", !!baseInk && !!fillInk,
+    `${baseInk && baseInk[1]} / ${fillInk && fillInk[1]}`);
+  if (grad && fillInk) {
+    // The in-fill copy sits on the gradient, which is opaque — so its ratio is
+    // derivable at both ends of the sweep, and both ends have to clear.
+    const m = fillInk[1].match(/[\d.]+/g).map(Number);
+    const a = m.length > 3 ? m[3] : 1;
+    for (const stop of [grad[1], grad[2]]) {
+      const bg = C.hexToRgb(stop);
+      const comp = "#" + [0, 1, 2].map((i) => Math.round(m[i] * a + bg[i] * (1 - a)).toString(16).padStart(2, "0")).join("");
+      const got = C.contrastRatio(stop, comp);
+      check(`progress: the in-fill % clears ${FLOOR}:1 on gradient stop ${stop}`, got >= FLOOR, got.toFixed(2));
+    }
+  }
+  if (baseInk && fillInk) {
+    // Opposing inks are the mechanism. Same-side inks mean one region is unread.
+    const L = (c) => { const m = c.match(/[\d.]+/g).map(Number); return C.relativeLuminance(
+      "#" + [0, 1, 2].map((i) => Math.round(m[i]).toString(16).padStart(2, "0")).join("")); };
+    check("progress: the two copies sit on OPPOSITE sides of the ink range",
+      (L(baseInk[1]) > 0.5) !== (L(fillInk[1]) > 0.5), `${baseInk[1]} / ${fillInk[1]}`);
+  }
+  check("progress: the markup still emits both copies",
+    /tt-progress-pct-base/.test(SRC.nt) && /tt-progress-pct-fill/.test(SRC.nt));
+  check("progress: the fill still CLIPS its copy (the reveal mechanism)",
+    /\.tt-progress-fill \{[^}]*overflow: hidden;/.test(SRC.css));
+}
+
+// ---- the due-date icon must stay ink-reachable ----------------------------
+// It was a colour emoji, whose pixels come from the font's own bitmap and ignore
+// `color` on every frame — 2.86:1 and immovable. The U+FE0E text-presentation
+// selector was tried and measured: still fixed-colour. An inline SVG on
+// currentColor is what actually made it inherit the pill's ink.
+check("due icon: rendered as an inline SVG, not a colour emoji",
+  /CALENDAR_SVG/.test(SRC.nt) && !/tt-due-icon" aria-hidden="true">🗓/.test(SRC.nt));
+check("due icon: the SVG takes currentColor, so the pill's ink reaches it",
+  /var CALENDAR_SVG[^\n]*stroke="currentColor"/.test(SRC.nt));
+check("due icon: sized in em, so the existing font-size rules still own its size",
+  /var CALENDAR_SVG[^\n]*width="1em" height="1em"/.test(SRC.nt));
+
 // ---- CSS: the ring that a dark ink cannot carry ---------------------------
 check("css: .pp-tag-pill no longer paints a dark ring under a dark ink",
   /\.pp-tag-pill \{[^}]*text-shadow: none;/.test(SRC.css));
@@ -403,6 +500,26 @@ const SEEDS = [
     to: "class=\"pws-chip' + (ws.isReadOnly ? ' is-readonly' : '') + '\" style=\"background:' + color + ';color:#fff\">" },
   { name: "ring: the selected swatch goes back to a hardcoded white ring",
     file: "nt", from: "';--swatch-ink:' + tagTextColorFor(color) + '\" data-color=\"'", to: "';--swatch-ink:#fff\" data-color=\"'" },
+  // THE PROGRESS-LABEL REGRESSION. The widget needed no colour change — but the
+  // thing that makes it correct is the dual-layer clip, and collapsing it to one
+  // static ink is the failure mode a future "simplification" would reach for.
+  // No single ink clears both halves of the bar, which is why this must fail.
+  { name: "progress: dual-layer collapsed to one static ink (the classic straddle bug)",
+    file: "css", from: ".tt-progress-pct-fill {\n  width: 100cqw;\n  color: rgba(0, 0, 0, 0.82);\n}",
+    to: ".tt-progress-pct-fill {\n  width: 100cqw;\n  color: rgba(255, 255, 255, 0.92);\n}" },
+  { name: "progress: the fill stops clipping, so the reveal mechanism dies",
+    file: "css", from: ".tt-progress-fill {\n  height: 100%;\n  background: linear-gradient(90deg, #4a90e2 0%, #6fb1ff 100%);\n  transition: width 0.4s ease;\n  overflow: hidden;",
+    to: ".tt-progress-fill {\n  height: 100%;\n  background: linear-gradient(90deg, #4a90e2 0%, #6fb1ff 100%);\n  transition: width 0.4s ease;\n  overflow: visible;" },
+  // The priority chips regressing to the tinted outline they replaced.
+  { name: "priority: back to a translucent tint with the hue as ink",
+    file: "css", from: ".tt-prio-pill.tt-prio-urgent { color: #240704; border-color: var(--prio-urgent); background: var(--prio-urgent); }",
+    to: ".tt-prio-pill.tt-prio-urgent { color: var(--prio-urgent); border-color: var(--prio-urgent); background: rgba(231, 76, 60, 0.14); }" },
+  { name: "priority: ink hand-picked instead of taken from the chooser",
+    file: "css", from: ".tt-prio-pill.tt-prio-medium { color: #271f02;", to: ".tt-prio-pill.tt-prio-medium { color: #3a2f03;" },
+  // The emoji coming back, which no colour rule can reach.
+  { name: "due icon: back to the ink-unreachable colour emoji",
+    file: "nt", from: `'<span class="tt-due-icon" aria-hidden="true">' + CALENDAR_SVG + '</span>' +`,
+    to: `'<span class="tt-due-icon" aria-hidden="true">\u{1F5D3}</span>' +` },
   // The muddy ring returning under a dark ink.
   { name: "css: .pp-tag-pill paints its dark ring again",
     file: "css", from: "  font-weight: 500;\n  color: #fff;\n  text-shadow: none;", to: "  font-weight: 500;\n  color: #fff;\n  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);" },

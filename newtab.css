@@ -4245,7 +4245,12 @@ html.bg-light { --tt-play-outline: rgba(0, 0, 0, 0.78); }
   border: none;
   border-radius: 4px;
   background: none;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+  /* [2.0 ink] Was var(--text-secondary, ...), and the fallback never applied —
+     --text-secondary IS defined at :root as #5f6368. That is a LIGHT-THEME token
+     sitting on the dark task row: the O3 mirror-image trap, where the name gives
+     no warning that its theme assumption is the opposite of the surface's.
+     White-alpha here; dark ink in the bg-light branch further down. */
+  color: rgba(255, 255, 255, 0.72);
   /* Was 9px — a sliver that read as noise, not a control (Samson couldn't find
      it on the live pass). Legible at rest, unmissable on hover. */
   font-size: 13px;
@@ -9290,10 +9295,16 @@ body.sat-card-open .tasks-header-right {
   font-family: inherit;
   font-size: 12px;
   font-weight: 500;
-  /* No glow: these buttons sit on a tinted fill, so the inherited .tasks-tab
-     body-legibility text-shadow only added fuzz. Weight 500 matches the popover
-     Set/Clear treatment. The .tasks-tab shadow stays for body/row text. */
-  text-shadow: none;
+  /* [2.0 ink] THE RING IS BACK. It was removed on the reading that these sit on
+     a tinted fill — but the fill is 12% alpha, which is not a surface: measured
+     from rendered pixels the label is 3.32:1 over a bright photo. A photo
+     wallpaper carries neither luminance class, so no has-bg/bg-light pair can
+     reach it, and no alpha of THIS blue rescues white ink either (white on a
+     fully opaque #6fb1ff is still 2.23). That leaves the product's standing
+     answer for bare-over-wallpaper text — the D6 ring, which .tasks-title beside
+     it already carries. The bg-light branch below keeps its dark ink and drops
+     the ring, which is where it genuinely would be fuzz. */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
@@ -9303,11 +9314,16 @@ body.sat-card-open .tasks-header-right {
   border-color: rgba(111, 177, 255, 0.85);
 }
 
+/* [2.0 ink] Bare over the wallpaper AND interactive — 1.56:1 over a bright
+   photo. Same treatment as the .tasks-action buttons beside it: the D6 ring,
+   plus a lighter blue for the ring to carry. The underline is a second,
+   colour-independent affordance, which is what lets this stay a link. */
 .tasks-templates-link {
   margin-left: 4px;
-  color: #6fb1ff;
+  color: #b9d6ff;
   font-size: 12px;
   text-decoration: underline;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
   cursor: pointer;
 }
 
@@ -9768,7 +9784,11 @@ body.sat-card-open .tasks-header-right {
   flex-shrink: 0;
   opacity: 0;
   cursor: grab;
-  color: rgba(255, 255, 255, 0.3);
+  /* [2.0 ink] 0.3 measured 2.56:1 in the REVEALED state (opacity 0 at rest, 1 on
+     row hover — an at-rest reading is meaningless for it). A drag affordance is
+     non-text UI and would pass at 3:1, but 0.5 clears the text floor for the same
+     nothing and keeps it a whisper next to the row's real controls. */
+  color: rgba(255, 255, 255, 0.5);
   font-size: 14px;
   line-height: 1;
   padding: 2px 2px;
@@ -9809,9 +9829,13 @@ body.sat-card-open .tasks-header-right {
   white-space: nowrap;
 }
 
+/* [2.0 ink] 0.55 measured 3.62:1 on a light solid — that is not de-emphasis, it
+   is a completed task you cannot read. The line-through already carries "done";
+   the dimming only has to support it. 0.7 keeps the recede and clears the floor.
+   Opacity on the NAME span only, never the row, which holds controls (O2). */
 .tt-task-row.is-completed .tt-task-name {
   text-decoration: line-through;
-  opacity: 0.55;
+  opacity: 0.7;
 }
 
 /* ===== Task-completion celebration =====
@@ -9942,7 +9966,11 @@ body.sat-card-open .tasks-header-right {
   border: 1px solid transparent;
   border-radius: 10px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.45);
+  /* [2.0 ink] The UNSET pill's flag, measured in its revealed state (it sits at
+     opacity 0.55 until the row is hovered). 0.45 gave 3.34:1; 0.62 gives 6.66 on
+     dark and stays quieter than the set chips beside it, which is the whole
+     point of the unset treatment. */
+  color: rgba(255, 255, 255, 0.62);
   font: inherit;
   font-size: 11px;
   line-height: 1.4;
@@ -9952,11 +9980,39 @@ body.sat-card-open .tasks-header-right {
 .tt-prio-pill .tt-prio-flag { font-size: 11px; line-height: 1; }
 .tt-prio-pill.tt-prio-none { opacity: 0.55; }
 .tt-task-row:hover .tt-prio-pill.tt-prio-none { opacity: 1; }
-.tt-prio-pill:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
-.tt-prio-pill.tt-prio-urgent { color: var(--prio-urgent); border-color: var(--prio-urgent); background: rgba(231, 76, 60, 0.14); }
-.tt-prio-pill.tt-prio-high   { color: var(--prio-high);   border-color: var(--prio-high);   background: rgba(230, 126, 34, 0.14); }
-.tt-prio-pill.tt-prio-medium { color: var(--prio-medium); border-color: var(--prio-medium); background: rgba(241, 196, 15, 0.16); }
-.tt-prio-pill.tt-prio-low    { color: var(--prio-low);    border-color: var(--prio-low);    background: rgba(93, 173, 226, 0.16); }
+.tt-prio-pill.tt-prio-none:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+/* [2.0 ink] A SET priority is now a real chip, not a tinted outline.
+
+   The tint was 14-16% alpha, which is not a surface — the ink was effectively
+   the priority hue floating on whatever the wallpaper happened to be. Measured
+   from rendered pixels: 1.42:1 on a light solid across all four priorities, and
+   3.38 (urgent) / 4.27 (high) even on the DEFAULT dark frame. No has-bg/bg-light
+   pair fixes that, because a photo wallpaper carries NEITHER luminance class —
+   the backdrop is genuinely unknown at author time.
+
+   So these adopt the doctrine the product already uses for coloured meaning on
+   an unknown backdrop: an OPAQUE fill with ink derived against it. Tag chips in
+   these very rows already work this way, so a priority chip beside a tag chip
+   now reads as the same kind of object instead of a different one.
+
+   The inks are the shipped chooser's own output for each fill (newtab.js
+   tagTextColorFor — hue-matched, lightness 0.08), pinned here so CSS stays the
+   single source for a CSS-only concern; tools/check-chip-ink.mjs re-derives them
+   and fails if any pair drifts under 4.5. The fill is opaque, so these ratios are
+   frame-independent — identical on all four.
+     urgent #e74c3c on #240704 -> 4.96      medium #f1c40f on #271f02 -> 9.85
+     high   #e67e22 on #251304 -> 6.28      low    #5dade2 on #061723 -> 7.40 */
+.tt-prio-pill.tt-prio-urgent { color: #240704; border-color: var(--prio-urgent); background: var(--prio-urgent); }
+.tt-prio-pill.tt-prio-high   { color: #251304; border-color: var(--prio-high);   background: var(--prio-high); }
+.tt-prio-pill.tt-prio-medium { color: #271f02; border-color: var(--prio-medium); background: var(--prio-medium); }
+.tt-prio-pill.tt-prio-low    { color: #061723; border-color: var(--prio-low);    background: var(--prio-low); }
+
+/* A set chip brightens on hover rather than taking the unset pill's white wash,
+   which would throw away the very fill its ink was derived against. */
+.tt-prio-pill.tt-prio-urgent:hover,
+.tt-prio-pill.tt-prio-high:hover,
+.tt-prio-pill.tt-prio-medium:hover,
+.tt-prio-pill.tt-prio-low:hover { filter: brightness(1.12); }
 
 /* [1.0.13.1] Clickable due-date pill. Mirrors the priority pill: muted
    calendar-only affordance when unset, tinted + labelled when a date is set.
@@ -9978,6 +10034,11 @@ body.sat-card-open .tasks-header-right {
   transition: background 0.12s, color 0.12s, border-color 0.12s, opacity 0.12s;
 }
 .tt-due-pill .tt-due-icon { font-size: 11px; line-height: 1; }
+/* [2.0 ink] The icon is an inline SVG on currentColor now, not an emoji. It is
+   sized in em, so BOTH font-size rules here still own its size exactly as they
+   did for the glyph — this round changes no font sizes. display:block kills the
+   inline baseline gap the glyph did not have. */
+.tt-due-pill .tt-due-icon svg { display: block; }
 .tt-due-pill:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
 
 /* Undated empty state: a muted pill (calendar glyph + "Add date"). Kept
@@ -10046,7 +10107,9 @@ html.has-bg.bg-light .tt-due-pill:hover { background: rgba(0, 0, 0, 0.06); color
 html.has-bg.bg-light .tt-due-pill.tt-due-none {
   background: rgba(0, 0, 0, 0.04);
   border-color: rgba(0, 0, 0, 0.16);
-  color: rgba(0, 0, 0, 0.55);
+  /* [2.0 ink] 0.55 measured 4.47:1 — under the floor by 0.03, which is still
+     under. 0.62 clears it and is visually indistinguishable at this size. */
+  color: rgba(0, 0, 0, 0.62);
 }
 html.has-bg.bg-light .tt-task-row:hover .tt-due-pill.tt-due-none {
   color: rgba(0, 0, 0, 0.72);
@@ -10107,8 +10170,20 @@ html.has-bg.bg-light .tt-task-row:hover .tt-due-pill.tt-due-none:hover {
 
 /* Light-wallpaper: the muted (unset) pill needs a dark glyph against the
    white-tinted card. Colored pills + the dark popover stay legible as-is. */
-html.has-bg.bg-light .tt-prio-pill.tt-prio-none { color: rgba(0, 0, 0, 0.45); }
-html.has-bg.bg-light .tt-prio-pill:hover { background: rgba(0, 0, 0, 0.06); color: #1f1f1f; }
+html.has-bg.bg-light .tt-prio-pill.tt-prio-none { color: rgba(0, 0, 0, 0.62); }
+html.has-bg.bg-light .tt-prio-pill.tt-prio-none:hover { background: rgba(0, 0, 0, 0.06); color: #1f1f1f; }
+
+/* [2.0 ink] The row glyphs had no light branch at all, so their white-alpha base
+   stayed white on the white-tinted rows: measured 2.13 (drag handle) and 2.00
+   (play). Both are measured in their REVEALED state — they sit at opacity 0
+   until the row is hovered, and scoring them at rest reports a meaningless 1.00
+   for a control the user never sees in that condition.
+
+   The play glyph is a CONTROL whose glyph carries its meaning, so it takes the
+   4.5 text floor. The drag handle is a pure affordance with no meaning to read
+   (the row is draggable whether or not you parse the dots), so 3:1 non-text
+   would do — it is given the text floor anyway because it costs nothing. */
+html.has-bg.bg-light .tt-task-play { color: rgba(0, 0, 0, 0.66); }
 
 /* [Tasks] Controls zone on light wallpapers: dark divider + trash ink. */
 html.has-bg.bg-light .tt-task-controls { border-left-color: rgba(0, 0, 0, 0.2); }
@@ -10357,9 +10432,15 @@ html.has-bg.bg-light .tasks-filter option {
 }
 
 html.has-bg.bg-light .tasks-action {
-  color: #1e6fc9;
+  /* [2.0 ink] #1e6fc9 measured 4.07:1 against this button's own tinted fill on
+     the white page — under the floor by a whisker, and a whisker is still under.
+     #1a5fae is the same blue two steps darker: 5.10:1 on the same fill. */
+  color: #1a5fae;
   background: rgba(30, 111, 201, 0.08);
   border-color: rgba(30, 111, 201, 0.5);
+  /* Dark ink on a light page needs no ring, and a dark ring under it would be
+     exactly the muddying the base rule's original comment worried about. */
+  text-shadow: none;
 }
 
 html.has-bg.bg-light .tasks-action:hover {
@@ -10368,6 +10449,7 @@ html.has-bg.bg-light .tasks-action:hover {
 
 html.has-bg.bg-light .tasks-templates-link {
   color: #1e6fc9;
+  text-shadow: none;
 }
 
 /* Goal cards sit INSIDE the white section, so a 0.02 fill + 0.08 border made
@@ -10414,9 +10496,11 @@ html.has-bg.bg-light .tt-recurring-paused {
 }
 
 /* [1.0.11.18] Task drag handle on light wallpaper — flip from white-tinted
-   to black-tinted so the dots remain visible on the light panel surface. */
+   to black-tinted so the dots remain visible on the light panel surface.
+   [2.0 ink] 0.3 measured 2.13:1 in its REVEALED state, and 0.42 still only
+   reached 3.01. 0.58 gives 5.08 and still reads as the quiet affordance it is. */
 html.has-bg.bg-light .tt-task-handle {
-  color: rgba(0, 0, 0, 0.3);
+  color: rgba(0, 0, 0, 0.58);
 }
 
 html.has-bg.bg-light .tt-task-handle:hover {
