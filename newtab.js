@@ -618,28 +618,6 @@
     return "Due " + fmtShortDate(dueAt);
   }
 
-  // Top goals (D6): the user's own ordering, filtered to goals that still have
-  // something to do, first three. Same sortedByDisplayOrder + getActiveGoals
-  // pair the Tasks tab uses, so the Dashboard cannot disagree with it.
-  function dashboardTopGoals(ws) {
-    if (!ws) return [];
-    var allTasks = Storage.getAllTasks(ws);
-    return sortedByDisplayOrder(Storage.getActiveGoals(ws))
-      .map(function (g) {
-        var children = allTasks.filter(function (t) { return t.goalId === g.id; });
-        var done = children.filter(function (t) { return t.completed; }).length;
-        return {
-          goal: g,
-          done: done,
-          total: children.length,
-          pct: children.length ? Math.round((done / children.length) * 100) : 0,
-          openCount: children.length - done
-        };
-      })
-      .filter(function (e) { return e.openCount > 0; })
-      .slice(0, 3);
-  }
-
   // ----- Focused Today line (D5) -----
   //
   // Two-phase, exactly like the active-task card's readout: the panel paints
@@ -684,17 +662,10 @@
     return { mode: "workspace", workspaceId: ws ? ws.id : null };
   }
 
-  function dashFocusedLineHtml(scope) {
-    if (!scope) return "";
-    var label = (scope.mode === "combined")
-      ? "focused today across all workspaces"
-      : "focused today";
-    return '<div class="dash-focused" data-dash-focused="1">' +
-        '<span class="dash-focused-num">—</span>' +
-        '<span class="dash-focused-label">' + label + '</span>' +
-      '</div>';
-  }
-
+  // [2.0 cockpit] The focused figure is now the strip's FIRST TILE rather than a
+  // standalone bar — same reader, same two-phase fill, same staleness token; only
+  // the element it lands in moved. The em-dash placeholder is unchanged: it is the
+  // "not read yet" state, distinct from a measured 0m.
   async function dashRefreshFocused(panel, scope) {
     if (!panel || !scope) return;
     if (typeof Tracking === "undefined" || !Tracking.focusedTodayForWorkspace) return;
@@ -712,7 +683,7 @@
     // period flip). Same staleness guard as satRefreshReadout, token-based
     // because the scope alone does not distinguish two renders of one scope.
     if (token !== dashReadoutToken) return;
-    var el = panel.querySelector('[data-dash-focused] .dash-focused-num');
+    var el = panel.querySelector('[data-dash-focused]');
     if (!el) return;
     var open = r.openSince ? Math.max(0, Date.now() - r.openSince) : 0;
     el.textContent = fmtDurationHM(r.baseMs + open);
@@ -813,20 +784,204 @@
     el.innerHTML = lines.join("");
   }
 
-  // ----- Card markup -----
+  // ===== [2.0] The Today cockpit =====
+  //
+  // The tense split, made structural. The Dashboard owns TODAY — glance between
+  // sessions, then DO something; Insights owns the last thirty days. Before this
+  // round the tab was a single card (greeting + one suggestion + one number),
+  // which competed with Insights for the same job and gave the user nothing to
+  // act on. Five modules replace it: a stat strip, goals progress, a focus
+  // streak, the due-today list, and quick-add.
+  //
+  // ZERO NEW CAPTURE, and zero delta to tracking.js. Every figure composes a
+  // reader that already existed: the engine's focused-today and windowed-range
+  // reads, and the pure cockpit readers added to storage.js this round over
+  // fields existing writers already maintain (focusStats.byDay, task.completedAt,
+  // the goalId back-reference, task.dueAt).
+  //
+  // THE CARD IDIOM IS THE INSIGHTS BOARD'S, reused rather than reinvented — the
+  // [1.2.1] zero-new-CSS precedent. .insights-strip for the strip, .pp-insights-
+  // card + .pp-dash-card-title for the modules, .insights-task-row for the goal
+  // gauges, .insights-empty for empty states. They are the same kind of object on
+  // the same kind of surface, and they already carry their light-wallpaper ink
+  // overrides, which is the half of the reuse that actually protects anything.
 
-  function dashDayCardHtml(d, ws) {
+  // How many goals the progress module shows. A cockpit is a glance surface: past
+  // five bars it stops being one. The list is recency-ordered, so the cap drops
+  // the goals the user has not touched in longest.
+  var DASH_GOALS_MAX = 5;
+  // How many due/overdue rows before the list defers to the Tasks tab. A long
+  // overdue backlog is real and must not be silently truncated, so the overflow
+  // is COUNTED OUT LOUD rather than just cut.
+  var DASH_DUE_MAX = 10;
+
+  // ----- Module 1: the today stat strip -----
+  //
+  // Tile 1 is two-phase (the engine read lands a tick later); tiles 2-4 are
+  // synchronous reads off `data`, so they are correct in the first paint and tick
+  // immediately on a local mutation with no reload.
+  function dashStripHtml(d, ws, scope) {
+    var tiles = [];
+
+    // Suppressed exactly as the old focused line was (D5): with per-workspace
+    // tracking off the reader honestly returns 0, and "0m focused today" would
+    // tell the user they did nothing when the truth is nothing was measured. The
+    // tile is absent rather than zeroed.
+    if (scope) {
+      tiles.push({
+        num: '<span data-dash-focused>—</span>',
+        label: (scope.mode === "combined") ? "focused today · all workspaces" : "focused today"
+      });
+    }
+
+    var todayKey = Storage.localDayKey();
+
+    tiles.push({
+      num: escapeHtml(String(Storage.tasksCompletedOnDay(ws, todayKey))),
+      label: "tasks completed"
+    });
+
+    // A ZERO IS A REAL ANSWER HERE, and this is the one tile where that has to be
+    // said out loud. "0 distractions blocked" means the counter was running and
+    // nothing tried to get through — it is not the focused tile's measured-nothing
+    // case, because focusStats counts whether or not blocking is currently armed.
+    // The figure is global rather than scoped: focusStats is a single all-
+    // workspaces record by design (storage.js C8), so the label claims no scope it
+    // does not have.
+    tiles.push({
+      num: escapeHtml(String(Storage.focusBlockedOnDay(d, todayKey))),
+      label: "distractions blocked"
+    });
+
+    // The pill's tri-state, READ rather than reimplemented. Storage.focusArmState
+    // is the same derivation satFocusRowHtml renders — including its honest
+    // reading that a PAUSED work phase is "off" — so the strip can never disagree
+    // with the pill about whether blocking is on. The wording is the pill's too.
+    var armState = Storage.focusArmState(d);
+    tiles.push({
+      num: armState === "off" ? "Off" : (armState === "auto" ? "On (auto)" : "On"),
+      label: "focus blocking"
+    });
+
+    return tiles.map(function (t) {
+      return '<div class="insights-strip-item">' +
+          '<span class="insights-strip-num">' + t.num + '</span>' +
+          '<span class="insights-strip-label">' + t.label + '</span>' +
+        '</div>';
+    }).join("");
+  }
+
+  // ----- Module 2: goals progress -----
+  //
+  // Recency-ordered done-ratios off Storage.goalProgressList, rendered in the
+  // board's own gauge row: name | bar | ratio, which is exactly .insights-task-
+  // row's three-column grid. Unlike the retired dashboardTopGoals this does NOT
+  // hide a goal whose tasks are all done — a goal sitting at 5 of 5 waiting to be
+  // closed is precisely what a progress module should be showing.
+  function dashGoalsHtml(ws) {
+    var entries = Storage.goalProgressList(ws);
+    if (!entries.length) {
+      return '<div class="dash-note">No active goals — ' +
+          '<button type="button" class="dash-inline-link" data-dash-action="goto-tasks">create one in Tasks</button>.' +
+        '</div>';
+    }
+    var shown = entries.slice(0, DASH_GOALS_MAX);
+    var overflow = entries.length - shown.length;
+    return shown.map(function (e) {
+      return '<div class="insights-task-row">' +
+          '<span class="insights-task-name">' + escapeHtml(e.goal.name) + '</span>' +
+          '<span class="insights-task-bar"><span class="insights-task-bar-fill" style="width:' + e.pct + '%"></span></span>' +
+          '<span class="insights-task-dur">' + e.done + ' of ' + e.total + '</span>' +
+        '</div>';
+    }).join("") + (overflow > 0
+      ? '<div class="dash-note">' + overflow + ' more in ' +
+          '<button type="button" class="dash-inline-link" data-dash-action="goto-tasks">Tasks</button>.' +
+        '</div>'
+      : "");
+  }
+
+  // ----- Module 3: the focus streak -----
+  //
+  // Composed PAGE-SIDE from focusedRangeForScope over the engine's own retention
+  // window, folded by the pure Storage.focusStreakFromRange. A new tracking.js
+  // reader was considered and rejected: the composition is two lines and one
+  // await against a reader that already returns exactly the { dayKey: ms } map a
+  // streak needs, so an engine-side reader would be a second way to say the same
+  // thing — and tracking.js carries the M1 ripgrep-invisibility cost for anything
+  // added to it. tracking.js is untouched by this round.
+  var dashStreakToken = 0;
+
+  // `null` is the pre-read placeholder, the same "not read yet" state the focused
+  // tile's em-dash means, and deliberately distinct from a measured streak of 0.
+  function dashStreakBodyHtml(streak) {
+    var num = "—";
+    var note = "";
+    if (streak) {
+      // capped = the walk ran off the start of the retention window, so the count
+      // is a floor and not a total. "30+" rather than an exact 30 we cannot see.
+      num = streak.capped ? (streak.days + "+") : String(streak.days);
+      if (streak.days === 0) {
+        note = '<div class="dash-note">Focus on something today to start one.</div>';
+      } else if (!streak.todayCounted) {
+        // Today-zero grace: the streak stands, it just has not been extended yet.
+        // Saying so is what stops the number reading as a loss at 09:00.
+        note = '<div class="dash-note">Through yesterday — today is still open.</div>';
+      }
+    }
+    return '<div class="dash-streak">' +
+        '<span class="insights-strip-num">' + escapeHtml(num) + '</span>' +
+        '<span class="insights-strip-label">day streak</span>' +
+      '</div>' + note;
+  }
+
+  async function dashRefreshStreak(panel, scope) {
+    if (!panel || !scope) return;
+    if (typeof Tracking === "undefined" || !Tracking.focusedRangeForScope) return;
+    var token = ++dashStreakToken;
+    // The engine's OWN retention constant, not a restated 30 — a retention change
+    // must not leave the streak silently reading a window that no longer exists.
+    var keys = Tracking.lastNLocalDayKeys(Tracking.RETENTION_DAYS || 30);
+    var range;
+    try {
+      range = await Tracking.focusedRangeForScope(scope.workspaceId, keys);
+    } catch (err) {
+      console.error("[LaunchPad] Dashboard: streak read failed", err);
+      return;
+    }
+    // Own token, for the same reason dashRecapToken is not dashReadoutToken: all
+    // three reads fire from one render, and a shared counter would make each
+    // invalidate the others' guard mid-paint.
+    if (token !== dashStreakToken) return;
+    var el = panel.querySelector("[data-dash-streak]");
+    if (!el) return;
+    el.innerHTML = dashStreakBodyHtml(Storage.focusStreakFromRange(range, keys));
+  }
+
+  // ----- Module 4: due today (+ its header block) -----
+  //
+  // The suggested-next card is no longer a card floating on its own — it is the
+  // HEAD of this module, which is the only thing it was ever pointing at. The day
+  // variants and their arbitration are UNCHANGED (D6): an active task already
+  // answers "what now" and is never argued with; otherwise one suggestion off the
+  // locked tier cascade; otherwise the calm empty line. The evening variant is the
+  // close-out header, likewise unchanged in substance.
+  function dashHeadHtml(d, ws, period) {
+    if (period === "evening") {
+      return '<div class="dash-head" data-dash-variant="evening">' +
+          '<div class="pp-dash-card-title">That’s the day</div>' +
+          '<div class="dash-headline">Work’s done.</div>' +
+        '</div>';
+    }
+
     var res = Storage.resolveActiveTask(d);
     var activeTask = (res && !res.stale) ? res.task : null;
 
-    // VARIANT A — pick up where you left off. An active task already answers
-    // "what now", so offering a fresh suggestion beside it would be arguing
-    // with the user's own last decision (D6).
+    // VARIANT A — pick up where you left off.
     if (activeTask) {
       var goal = activeTask.goalId ? Storage.getGoalById(ws, activeTask.goalId) : null;
       var paused = Storage.isTrackingPaused(d);
-      return '<div class="dash-card" data-dash-variant="pickup">' +
-          '<div class="dash-card-title">Pick up where you left off</div>' +
+      return '<div class="dash-head" data-dash-variant="pickup">' +
+          '<div class="pp-dash-card-title">Pick up where you left off</div>' +
           '<div class="dash-headline">' + escapeHtml(activeTask.name) + '</div>' +
           (goal ? '<div class="dash-sub">in ' + escapeHtml(goal.name) + '</div>' : '') +
           '<button type="button" class="dash-cta" data-dash-action="continue">' +
@@ -837,69 +992,82 @@
 
     var suggestion = dashboardPickSuggestion(ws);
 
-    // VARIANT C — nothing to do at all.
+    // VARIANT C — nothing to do at all. The copy changed with the module: there
+    // is now an input directly below, so sending the user to another tab to add
+    // their first task would be pointing past the thing in front of them.
     if (!suggestion) {
-      return '<div class="dash-card" data-dash-variant="empty">' +
-          '<div class="dash-card-title">' + escapeHtml(dashGreeting()) + '</div>' +
+      return '<div class="dash-head" data-dash-variant="empty">' +
           '<div class="dash-headline">Nothing on the list.</div>' +
-          '<div class="dash-sub">When you are ready, add something in the Tasks tab.</div>' +
+          '<div class="dash-sub">Add something below when you are ready.</div>' +
         '</div>';
     }
 
-    // VARIANT B — greeting + top goals + one suggestion.
-    var goals = dashboardTopGoals(ws);
-    var goalsHtml = goals.length
-      ? '<div class="dash-goals">' + goals.map(function (e) {
-          return '<div class="dash-goal">' +
-              '<div class="dash-goal-row">' +
-                '<span class="dash-goal-name">' + escapeHtml(e.goal.name) + '</span>' +
-                '<span class="dash-goal-count">' + e.done + ' of ' + e.total + '</span>' +
-              '</div>' +
-              '<div class="dash-progress-bar">' +
-                '<div class="dash-progress-fill" style="width:' + e.pct + '%"></div>' +
-              '</div>' +
-            '</div>';
-        }).join("") + '</div>'
-      : "";
-
+    // VARIANT B — one suggestion. The goals gauges that used to sit inside this
+    // card are now their own module, so the card is the suggestion and nothing
+    // else.
     var dueLabel = dashboardDueLabel(suggestion.dueAt);
     var prioLabel = suggestion.priority ? PRIORITY_LABELS[suggestion.priority] : "";
     var metaBits = [];
     if (dueLabel) metaBits.push('<span class="dash-meta-due' + (dueLabel === "Overdue" ? " is-overdue" : "") + '">' + escapeHtml(dueLabel) + '</span>');
     if (prioLabel) metaBits.push('<span class="dash-meta-prio">' + escapeHtml(prioLabel) + '</span>');
 
-    return '<div class="dash-card" data-dash-variant="suggestion">' +
-        '<div class="dash-card-title">' + escapeHtml(dashGreeting()) + '</div>' +
-        goalsHtml +
-        '<div class="dash-suggest">' +
-          '<div class="dash-suggest-label">Suggested next</div>' +
-          '<div class="dash-headline">' + escapeHtml(suggestion.name) + '</div>' +
-          (metaBits.length ? '<div class="dash-meta">' + metaBits.join("") + '</div>' : '') +
-        '</div>' +
+    return '<div class="dash-head" data-dash-variant="suggestion">' +
+        '<div class="pp-dash-card-title">Suggested next</div>' +
+        '<div class="dash-headline">' + escapeHtml(suggestion.name) + '</div>' +
+        (metaBits.length ? '<div class="dash-meta">' + metaBits.join("") + '</div>' : '') +
         '<button type="button" class="dash-cta" data-dash-action="lets-go" data-task-id="' + escapeHtml(suggestion.id) + '">' +
           'Let’s go' +
         '</button>' +
       '</div>';
   }
 
-  // No name to greet with — LaunchPad has never asked for one and this card is
+  // Due-today + overdue, earliest first so overdue leads naturally. Overdue is
+  // visually distinct but CALM — the existing .dash-meta-due.is-overdue chip,
+  // reused, rather than a red row: a backlog the user already knows about does not
+  // need to be shouted at every time they open a tab.
+  function dashDueListHtml(ws) {
+    var todayUtc = dashboardTodayAsUtcDay();
+    var due = Storage.tasksDueByDay(ws, todayUtc);
+    if (!due.length) return '<div class="dash-note">Nothing due today.</div>';
+
+    var shown = due.slice(0, DASH_DUE_MAX);
+    var overflow = due.length - shown.length;
+    return shown.map(function (t) {
+      var overdue = Storage.utcDay(t.dueAt) < todayUtc;
+      return '<div class="dash-due-row">' +
+          '<input type="checkbox" class="tt-task-check dash-due-check" data-task-id="' + escapeHtml(t.id) + '" ' +
+            'aria-label="Complete ' + escapeHtml(t.name) + '">' +
+          '<span class="dash-due-name">' + escapeHtml(t.name) + '</span>' +
+          (overdue ? '<span class="dash-meta-due is-overdue">Overdue</span>' : '') +
+        '</div>';
+    }).join("") + (overflow > 0
+      // Counted out loud, never silently cut — a list that stops at ten and says
+      // nothing reads as "that is all of them".
+      ? '<div class="dash-note">' + overflow + ' more due or overdue in ' +
+          '<button type="button" class="dash-inline-link" data-dash-action="goto-tasks">Tasks</button>.' +
+        '</div>'
+      : "");
+  }
+
+  // ----- Module 5: quick-add -----
+  //
+  // At the foot of the due-today module because that is what it adds to. Type,
+  // Enter, done — no due-date picker, no priority, no goal: anything more is the
+  // Tasks tab's job, and a cockpit input that opens a form is not a quick-add.
+  function dashQuickAddHtml() {
+    return '<div class="dash-quickadd">' +
+        '<input type="text" class="tt-add-task-input dash-quickadd-input" data-dash-quickadd ' +
+          'placeholder="Add a task due today…" aria-label="Add a task due today">' +
+      '</div>';
+  }
+
+  // No name to greet with — LaunchPad has never asked for one and this line is
   // not the place to start.
   function dashGreeting() {
     var h = new Date().getHours();
     if (h < 12) return "Good morning";
     if (h < 17) return "Good afternoon";
     return "Good evening";
-  }
-
-  // VARIANT D — evening (D7 + [2.0] Day Recap). Calm close-out. The future-update
-  // teaser sentence is retired: the recap figures (rendered beneath this card as
-  // the focused line + dashRecap lines) now deliver the recap the teaser only
-  // promised. The card itself stays pure calm-header copy — no numbers on it.
-  function dashEveningCardHtml() {
-    return '<div class="dash-card" data-dash-variant="evening">' +
-        '<div class="dash-card-title">That’s the day</div>' +
-        '<div class="dash-headline">Work’s done.</div>' +
-      '</div>';
   }
 
   function renderDashboardTab(panel, d, periodOverride) {
@@ -913,23 +1081,53 @@
     var period = periodOverride || dashboardPeriod(Date.now(), Storage.getEndOfDayMinutes(d));
     var scope = dashFocusedScope(d);
 
-    // [2.0] Day Recap: the evening card gains today-scoped recap lines beneath the
-    // focused line (which stays the recap's first figure, unchanged). The shell is
-    // an empty container filled two-phase by dashRefreshRecap — same pattern as the
-    // focused num, and gated on the SAME scope: null scope (per-workspace tracking
-    // off) suppresses the whole recap, exactly as it suppresses the focused line.
-    // Evening-only; :empty collapses it when every line suppresses.
+    // [2.0] Day Recap: today-scoped recap lines in the evening, unchanged, filled
+    // two-phase by dashRefreshRecap and gated on the SAME scope that gates the
+    // focused tile. :empty collapses it when every line suppresses.
     var recapShell = (period === "evening" && scope) ? '<div class="dash-recap" data-dash-recap></div>' : '';
+
+    // The streak is a TRACKING-derived module, so it obeys the same suppression
+    // rule as the focused tile: with tracking off the engine legitimately measures
+    // nothing, and a "0 day streak" would read as a failure the user did not have.
+    var streakCard = scope
+      ? '<div class="pp-insights-card">' +
+          '<div class="pp-dash-card-title">Focus streak</div>' +
+          '<div data-dash-streak>' + dashStreakBodyHtml(null) + '</div>' +
+        '</div>'
+      : '';
+
     panel.dataset.dashPeriod = period;
+    // LAYOUT: greeting, then the full-width strip, then two columns — due-today
+    // primary, goals + streak secondary — collapsing to one column at narrow
+    // width. The greeting is the TAB's header line now rather than a card title
+    // buried in two of five variants, so it is the one thing that is always there.
     panel.innerHTML =
       '<div class="dash-tab" data-period="' + period + '">' +
-        (period === "day" ? dashDayCardHtml(d, ws) : dashEveningCardHtml()) +
-        dashFocusedLineHtml(scope) +
-        recapShell +
+        '<div class="dash-greeting">' + escapeHtml(dashGreeting()) + '</div>' +
+        '<div class="insights-strip">' + dashStripHtml(d, ws, scope) + '</div>' +
+        '<div class="dash-cockpit">' +
+          '<div class="dash-col dash-col-primary">' +
+            '<div class="pp-insights-card">' +
+              dashHeadHtml(d, ws, period) +
+              '<div class="pp-dash-card-title dash-due-title">Due today</div>' +
+              '<div class="dash-due-list">' + dashDueListHtml(ws) + '</div>' +
+              dashQuickAddHtml() +
+            '</div>' +
+          '</div>' +
+          '<div class="dash-col dash-col-secondary">' +
+            '<div class="pp-insights-card">' +
+              '<div class="pp-dash-card-title">Goals</div>' +
+              '<div class="insights-task-list">' + dashGoalsHtml(ws) + '</div>' +
+            '</div>' +
+            streakCard +
+            recapShell +
+          '</div>' +
+        '</div>' +
       '</div>';
 
     bindDashboardEvents(panel);
     dashRefreshFocused(panel, scope);
+    if (scope) dashRefreshStreak(panel, scope);
     if (period === "evening" && scope) dashRefreshRecap(panel, scope, d);
 
     // [1.0.20 F1] Reconcile the first paint against the FRESH stored boundary.
@@ -939,6 +1137,18 @@
     // this tab's cached `data` can lag storage after a provenance-suppressed
     // own-tab settings write.
     if (!periodOverride) dashSyncPeriod(panel);
+  }
+
+  // Own-tab eager repaint after a cockpit mutation. Our own write is provenance-
+  // suppressed by design (the storage.onChanged gate skips the own-tab refresh so
+  // DOM state survives), so nothing else will repaint this panel — this call is
+  // what makes the strip's completed-today count tick and the completed row leave
+  // the list WITHOUT a reload. The Tasks panel gets the same courtesy the Tasks
+  // tab already pays the Dashboard (D8 F3), since both hold the same task.
+  function dashRepaintAfterMutation(panel) {
+    renderDashboardTab(panel, data);
+    var tasksPanel = document.getElementById("tab-tasks");
+    if (tasksPanel) renderTasksTab(tasksPanel, data);
   }
 
   function bindDashboardEvents(panel) {
@@ -975,7 +1185,84 @@
         // (which would be a no-op write the engine could read as a boundary).
         if (Storage.isTrackingPaused(data)) await satSetPaused(false);
         setActiveTab("home");
+        return;
       }
+
+      if (action === "goto-tasks") {
+        setActiveTab("tasks");
+      }
+    });
+
+    // Due-row completion. `change` rather than `click` for the same reason the
+    // Tasks tab uses it: it is the checkbox's own state event, so keyboard
+    // activation works without a second handler.
+    panel.addEventListener("change", async function (e) {
+      var box = e.target;
+      if (!box || !box.classList || !box.classList.contains("dash-due-check")) return;
+
+      // This list holds INCOMPLETE tasks only, so an unchecked box has no meaning
+      // here — restore it rather than silently swallowing the gesture.
+      if (!box.checked) { box.checked = true; return; }
+
+      var taskId = box.getAttribute("data-task-id");
+      if (!taskId) return;
+      box.disabled = true;
+
+      // COMPLETING THE ACTIVE TASK GOES THROUGH satComplete, always. A bare
+      // completeTask leaves data.activeTask pointing at a finished task — the pill
+      // keeps showing it, and, worse, the engine never gets the boundary that
+      // closes the session: satComplete's clearActiveTask IS that boundary, and
+      // its ordering is what makes focus right up to the moment of completion
+      // still attribute to the task. Same single-funnel rule as satActivate.
+      var active = Storage.resolveActiveTask(data);
+      if (active && !active.stale && active.task.id === taskId) {
+        await satComplete();   // owns its own renders, toast and goal celebration
+        return;
+      }
+
+      try {
+        await Storage.completeTask(data, taskId);
+      } catch (err) {
+        console.error("[LaunchPad] Dashboard: task complete failed", err);
+      }
+      dashRepaintAfterMutation(panel);
+    });
+
+    // Quick-add. Enter commits; the input is not in a <form>, so there is no
+    // submit to suppress and no page-navigation risk to guard against.
+    panel.addEventListener("keydown", async function (e) {
+      var input = e.target;
+      if (!input || !input.hasAttribute || !input.hasAttribute("data-dash-quickadd")) return;
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+
+      var name = (input.value || "").trim();
+      if (!name) return;
+      input.disabled = true;
+
+      // dueAt is UTC-midnight of the LOCAL calendar date — the space dueAt
+      // actually lives in. See dashboardTodayAsUtcDay's note for the two ways to
+      // get this wrong by a day, one of which bites in UTC+8 specifically.
+      var created;
+      try {
+        created = await Storage.createTask(data, { name: name, dueAt: dashboardTodayAsUtcDay() });
+      } catch (err) {
+        console.error("[LaunchPad] Dashboard: quick-add failed", err);
+      }
+      if (!created) {
+        // createTask rejects (empty name, bad field) by returning null and warning.
+        // Re-enable and leave the text in place rather than clearing the user's
+        // typing on a failure they can still fix.
+        input.disabled = false;
+        return;
+      }
+
+      dashRepaintAfterMutation(panel);
+      // The panel was re-rendered, so the focused element is gone with it. Put the
+      // caret back in the FRESH input: quick-add is a repeat action, and losing
+      // focus after every entry turns adding three tasks into three clicks.
+      var next = panel.querySelector("[data-dash-quickadd]");
+      if (next) next.focus();
     });
   }
 

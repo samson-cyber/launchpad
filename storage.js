@@ -4809,6 +4809,180 @@ var Storage = (function () {
     return true;
   }
 
+  // ============================================================
+  // [2.0] Today cockpit readers
+  // ============================================================
+  //
+  // The Dashboard's "today" surface composes its five modules from these. They
+  // live HERE rather than in the page for the reason focusArmState states in its
+  // own comment: the page owns the wording, storage owns the state — and state
+  // that lives here is harnessable in a Node VM against the real module, which
+  // page-side logic is not (BUGS.md P5 / Q1). Every one of them is PURE: no
+  // clock, no storage read, no mutation. The caller supplies the day key, the
+  // "today" stamp and the range map, so every boundary case is testable without
+  // mocking Date.
+  //
+  // ZERO NEW CAPTURE. Each reads a field some existing writer already maintains:
+  // focusStats.byDay (incrementFocusStat, since [1.2.0]), task.completedAt
+  // (completeTask), the goalId back-reference (createTask), task.dueAt, and the
+  // tracking engine's own windowed range map.
+
+  // The local calendar day key, PUBLIC. Same function the focusStats writer keys
+  // on (achDayKey) — deliberately the same one, not a copy, so a reader can never
+  // disagree with the writer about which bucket "today" is. Byte-identical in
+  // output to Tracking._localDayKey (both are YYYY-MM-DD off the local calendar
+  // date), which is what lets the strip's blocked count and the streak's day
+  // window speak about the same days. The suite asserts that equality rather than
+  // assuming it, because the two are separate implementations in separate files.
+  function localDayKey(ts) {
+    return achDayKey(ts);
+  }
+
+  // Distractions blocked on a given local day. focusStats is GLOBAL, not
+  // workspace-keyed (the C8 decision — see FOCUS_STATS_VERSION above), so this is
+  // deliberately an all-workspaces figure regardless of the Dashboard's scope;
+  // the page labels it plainly rather than implying a scope it does not have.
+  //
+  // An absent day is 0, never NaN or undefined — the honest reading of "nothing
+  // was blocked today" and of "this install has never blocked anything". Runs
+  // through ensureFocusStats so a malformed or missing record normalizes instead
+  // of throwing, but takes a COPY of the count: this is a read, and callers on
+  // the render path must not be mutating `data`.
+  function focusBlockedOnDay(data, dayKey) {
+    if (!data || typeof dayKey !== "string") return 0;
+    var stats = ensureFocusStats(data);
+    var bucket = stats.byDay[dayKey];
+    return (bucket && typeof bucket.blocked === "number") ? bucket.blocked : 0;
+  }
+
+  // Tasks completed on a given local day, in one workspace.
+  //
+  // Three filters, each load-bearing:
+  //   - !deletedAt   a trashed task KEEPS its completedAt, so trash would
+  //                  otherwise inflate today's count (the getAllTasks/J5 trap in
+  //                  the other direction).
+  //   - completed    reactivateTask nulls completedAt, so this is belt-and-
+  //                  braces; a task can never carry a stamp while incomplete.
+  //   - day match    on the LOCAL calendar day, which is what makes the count
+  //                  roll over at the user's midnight rather than UTC's.
+  function tasksCompletedOnDay(workspace, dayKey) {
+    if (!workspace || typeof dayKey !== "string") return 0;
+    var tasks = ensureTasksArray(workspace);
+    if (!tasks) return 0;
+    var n = 0;
+    tasks.forEach(function (t) {
+      if (!t || t.deletedAt || !t.completed) return;
+      if (typeof t.completedAt !== "number") return;
+      if (achDayKey(t.completedAt) === dayKey) n++;
+    });
+    return n;
+  }
+
+  // Active goals with their done-ratios, most-recently-ACTIVE first.
+  //
+  // "Recently active" is DERIVED, and that is a deliberate call rather than an
+  // oversight: a goal record carries createdAt / completedAt / deletedAt /
+  // displayOrder and NOTHING that any writer touches when work happens under it.
+  // There is no lastActiveAt to read. Rather than add a writer (this round ships
+  // zero new capture), recency is the newest signal its own tasks already carry —
+  // a child's completedAt if it has one, else its createdAt — falling back to the
+  // goal's createdAt for a goal with no tasks yet. displayOrder breaks ties so the
+  // order is total and the list cannot flicker between two equal-recency goals.
+  //
+  // The done-ratio counts over getAllTasks' population (live, completed included),
+  // which is the only population a ratio can be taken over — getActiveTasks drops
+  // the completed half of the fraction. Unlike the Dashboard's previous top-goals
+  // reader this does NOT filter out fully-done goals: a goal at 5 of 5 that has
+  // not yet been closed is exactly what a progress module should be showing.
+  function goalProgressList(workspace) {
+    if (!workspace) return [];
+    var all = getAllTasks(workspace);
+    return getActiveGoals(workspace).map(function (g) {
+      var children = all.filter(function (t) { return t.goalId === g.id; });
+      var done = 0;
+      var lastActiveAt = (typeof g.createdAt === "number") ? g.createdAt : 0;
+      children.forEach(function (t) {
+        if (t.completed) done++;
+        var at = (t.completed && typeof t.completedAt === "number")
+          ? t.completedAt
+          : (typeof t.createdAt === "number" ? t.createdAt : 0);
+        if (at > lastActiveAt) lastActiveAt = at;
+      });
+      return {
+        goal: g,
+        done: done,
+        total: children.length,
+        // A goal with no tasks is 0%, not NaN — the division is guarded, and 0
+        // is the truthful reading of "nothing done under it yet".
+        pct: children.length ? Math.round((done / children.length) * 100) : 0,
+        lastActiveAt: lastActiveAt
+      };
+    }).sort(function (a, b) {
+      if (a.lastActiveAt !== b.lastActiveAt) return b.lastActiveAt - a.lastActiveAt;
+      var ao = typeof a.goal.displayOrder === "number" ? a.goal.displayOrder : 0;
+      var bo = typeof b.goal.displayOrder === "number" ? b.goal.displayOrder : 0;
+      return ao - bo;
+    });
+  }
+
+  // Incomplete, live tasks due on or before `todayUtcDay`, earliest first — so
+  // overdue tasks lead naturally, oldest first, without a second pass or a second
+  // sort key. The caller decides which of them to badge as overdue by comparing
+  // utcDay(dueAt) against the same stamp it passed in.
+  //
+  // `todayUtcDay` is UTC-MIDNIGHT OF THE LOCAL CALENDAR DATE, the space dueAt
+  // actually lives in — see the long note on the page's dashboardTodayAsUtcDay
+  // for why neither a local-midnight timestamp nor utcDay(Date.now()) is that
+  // stamp. Taking it as an argument keeps this function pure and puts the one
+  // encoding decision at a single call site.
+  function tasksDueByDay(workspace, todayUtcDay) {
+    if (!workspace || typeof todayUtcDay !== "number") return [];
+    return getActiveTasks(workspace)
+      .filter(function (t) { return typeof t.dueAt === "number" && utcDay(t.dueAt) <= todayUtcDay; })
+      .sort(function (a, b) {
+        if (a.dueAt !== b.dueAt) return a.dueAt - b.dueAt;
+        return (a.createdAt || 0) - (b.createdAt || 0);
+      });
+  }
+
+  // Consecutive days with focused time, ending today. Composed page-side from the
+  // Insights range reader's output ({ dayKey: ms }, oldest-first keys, last =
+  // today) — which is why it takes the map rather than reading anything: it adds
+  // ZERO delta to tracking.js.
+  //
+  // TODAY-ZERO GRACE. A day is not over until it is over, so a zero today does
+  // not break a streak — it just does not extend it. Walking back from today when
+  // today is 0 would report a 0-day streak at 09:00 to someone who has focused
+  // every day for a month. So: if today has time, the count starts at today; if it
+  // does not, the count is the streak through YESTERDAY and the page says so.
+  //
+  // RETENTION CAP. The map only holds the days that were asked for, and the
+  // engine only retains 30, so a walk that runs off the START of the window
+  // learned nothing about the day before it — the count is a FLOOR, not a total.
+  // `capped` says which of the two it is, so the page can render "30+ days"
+  // instead of asserting an exact 30 it cannot see. It is returned rather than
+  // re-derived page-side from a window length the page would have to restate.
+  // (With the today-zero grace below, a user mid-streak before their first
+  // focused minute of the day caps one lower — "29+" — which is the honest
+  // number: 29 whole days observed, and an unknown beyond the window.)
+  function focusStreakFromRange(range, keys) {
+    var out = { days: 0, capped: false, todayCounted: false };
+    if (!range || !Array.isArray(keys) || keys.length === 0) return out;
+    var i = keys.length - 1;
+    if ((range[keys[i]] || 0) > 0) {
+      out.todayCounted = true;
+    } else {
+      i--;   // today is still open — count the streak through yesterday
+    }
+    for (; i >= 0; i--) {
+      if ((range[keys[i]] || 0) <= 0) break;
+      out.days++;
+    }
+    // Ran off the start of the window rather than stopping at a zero day.
+    out.capped = (i < 0 && out.days > 0);
+    return out;
+  }
+
   return {
     // [1.0.11.2] Write-provenance hooks — see saveAll() above.
     TAB_INSTANCE_ID: TAB_INSTANCE_ID,
@@ -5051,6 +5225,14 @@ var Storage = (function () {
     ensureFocusStats: ensureFocusStats,
     incrementFocusStat: incrementFocusStat,
     FOCUS_SNOOZE_MS: FOCUS_SNOOZE_MS,
-    FOCUS_STATS_MAX_DAYS: FOCUS_STATS_MAX_DAYS
+    FOCUS_STATS_MAX_DAYS: FOCUS_STATS_MAX_DAYS,
+    // [2.0] Today cockpit readers — all pure, all over data an existing writer
+    // already maintains. See the section above for why they live here.
+    localDayKey: localDayKey,
+    focusBlockedOnDay: focusBlockedOnDay,
+    tasksCompletedOnDay: tasksCompletedOnDay,
+    goalProgressList: goalProgressList,
+    tasksDueByDay: tasksDueByDay,
+    focusStreakFromRange: focusStreakFromRange
   };
 })();

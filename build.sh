@@ -77,6 +77,20 @@ if ! node tools/check-pro-celebration.mjs; then
   exit 1
 fi
 
+# Today-cockpit gate: the five Dashboard modules' arithmetic. Every figure on
+# that surface fails the same quiet way — a wrong number that still looks like a
+# number — so the boundaries are asserted rather than eyeballed: the streak's
+# today-zero grace and retention cap, the completed-today count's LOCAL midnight,
+# the done-ratio's divide-by-zero, an absent blocked count reading 0 and not
+# undefined, and quick-add's UTC-midnight-of-the-local-date dueAt encoding (the
+# off-by-one-day trap that bites in UTC+8 specifically). Also holds the O1 ink
+# rules for markup the static ink gate cannot see, since the whole cockpit is
+# JS-rendered. ~0.3s. `--mutate` re-boots it against 13 seeded defects.
+if ! node tools/check-today-cockpit.mjs; then
+  echo "ERROR: today-cockpit gate failed — a Dashboard figure or its ink has regressed." >&2
+  exit 1
+fi
+
 # L1 serialization gate: every background `data` writer must stay inside the
 # enqueueBgData FIFO. Regressions here are SILENT DATA LOSS — one writer's blob
 # overwrites another's — which is why this is a release gate and not a habit.

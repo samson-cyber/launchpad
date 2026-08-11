@@ -7995,45 +7995,131 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   opacity: 0.5;
 }
 
-/* ===== [1.0.20] Live Dashboard tab ([1.0.21] Start of Day card) =====
-   D3: MIRRORS the free-preview card language (.pp-dash-card) rather than
-   inventing a second one — the preview is the promise, this is the delivery.
-   Parallel classes, not shared ones: coupling live markup to demo-only
-   internals would make either surface unsafe to change alone.
-   All ink here sits ON a surface, so it is ring-free per [1.0.19] D16 — the
-   card provides the contrast, and a text-shadow over an opaque fill only
-   muddies it. The bare-over-wallpaper ring convention does not apply inside
-   a card. */
+/* ===== [1.0.20 → 2.0] Live Dashboard tab — the Today cockpit =====
+   Five modules on one tense. The card idiom is the INSIGHTS BOARD'S, reused
+   rather than reinvented (the [1.2.1] precedent): .insights-strip for the stat
+   strip, .pp-insights-card + .pp-dash-card-title for the module frames,
+   .insights-task-row for the goal gauges, .insights-empty for empty states. That
+   reuse is not only visual — those classes already carry their html.has-bg.bg-
+   light ink overrides, which is the half that actually protects anything.
+   What remains here is layout, plus the handful of elements the board has no
+   equivalent for: the greeting, the due rows, quick-add, the streak stack.
+
+   All ink inside a card is ring-free per [1.0.19] D16 — the card provides the
+   contrast, and a text-shadow over an opaque fill only muddies it. The one
+   element that sits BARE over the wallpaper is the greeting, and it takes the
+   ring for exactly that reason. */
 
 .dash-tab {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 640px;
+  width: 100%;
+  /* Wider than the retired single card's 640px because the cockpit is two
+     columns; the board's 720px is a one-column measure. */
+  max-width: 960px;
+  padding: 0 16px;
+  /* [2.0 contrast fix] ON-CARD INK IS SET ONCE AT THE ROOT, exactly as
+     .insights-tab does and for exactly the same reason. Until this round every
+     .dash-tab descendant that carried text was inside .dash-card, which declared
+     color:#fff itself. The cockpit's modules are .pp-insights-card frames, which
+     declare no colour — so without this line every card title, goal name, strip
+     label and empty line would inherit body's var(--text-primary) = #202124 and
+     composite to ~1.5:1 dark-on-dark over the frost. That is the a68dd89 /
+     8902816 class verbatim, a third time. The html.has-bg.bg-light rules
+     re-darken to #222 on the white-tinted card and win on specificity (0,3,0
+     against this rule's 0,1,0). */
+  color: #fff;
   /* [1.2.1 fix] Tail clearance for the .tab-panel scroller. 48px is the step
-     #shortcut-grid-area and .pro-preview-content already use — the last card
-     must clear the window's bottom edge rather than ending flush against it. */
+     #shortcut-grid-area, .pro-preview-content and .insights-tab already use —
+     the last card must clear the window's bottom edge rather than ending flush
+     against it. The panel is the scroll path (R1); clearance belongs here, never
+     on the shared panel, which Home's grid scroller also sizes against. */
   padding-bottom: 48px;
 }
 
-.dash-card {
-  padding: 22px 24px;
-  border-radius: 12px;
-  background: var(--pro-frost-card-bg);
-  backdrop-filter: var(--pro-frost-card-blur);
-  -webkit-backdrop-filter: var(--pro-frost-card-blur);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-  color: #fff;
+/* The tab's header line, and the ONLY thing on this surface that sits bare over
+   the wallpaper rather than on a card — so it is the only thing here that takes
+   the D6 ring, and the only one whose ink has to be keyed to THREE frames rather
+   than two.
+
+   THE DEFAULT FRAME IS THE ONE THAT IS EASY TO MISS. With no wallpaper set,
+   `html` carries neither has-bg nor bg-light and the page is `--bg: #fff` — a
+   white page. A bare `color: #fff` here measured 1.37:1 in the live profile,
+   i.e. invisible, and the ring cannot rescue white-on-white. Every other Dashboard
+   element was immune to this because it sits on the dark frosted card, which looks
+   the same with or without a wallpaper; this one does not. So the base rule takes
+   the PAGE's own ink and the white is scoped to has-bg, rather than the other way
+   round. Two-class guard on the light-solid override per O1 (html.has-bg.bg-light,
+   never html.bg-light alone) so it cannot lose to source order.
+
+   The remaining case — white + ring over a BRIGHT PHOTO — is the product's
+   established bare-text convention and measures like the rest of it: photo
+   wallpapers never carry .bg-light (only colour backgrounds do), so the ring is
+   what carries every bare label on the page, the shortcut grid included. */
+.dash-greeting {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text-primary);
   text-shadow: none;
 }
 
-.dash-card-title {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  opacity: 0.7;
-  margin-bottom: 12px;
+html.has-bg .dash-greeting {
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+html.has-bg.bg-light .dash-greeting {
+  color: rgba(0, 0, 0, 0.82);
+  text-shadow: none;
+}
+
+/* Two columns: due-today primary, goals + streak secondary. Collapses to one at
+   narrow width, where the primary column keeps its source order and lands first —
+   which is the right order on a phone-width window too. minmax(0, …) on both
+   tracks so a long task name ellipsises instead of blowing the grid out. */
+.dash-cockpit {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .dash-cockpit {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.dash-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* .pp-insights-card carries a margin-bottom for the board's plain block flow.
+   Inside a gapped flex column that margin double-spaces every module, so it is
+   zeroed here rather than removed from the shared class (the board still wants
+   it). */
+.dash-cockpit .pp-insights-card {
+  margin-bottom: 0;
+}
+
+/* ----- Module 4's header block ----- */
+
+/* The suggestion / pick-up / empty / evening head, now the top of the due-today
+   card rather than a card of its own. A rule, not a bare margin, because the
+   separator is what tells the eye where the head ends and the list begins. */
+.dash-head {
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+html.has-bg.bg-light .dash-head {
+  border-bottom-color: rgba(0, 0, 0, 0.1);
 }
 
 .dash-headline {
@@ -8046,59 +8132,6 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   margin-top: 6px;
   font-size: 14px;
   color: rgba(255, 255, 255, 0.75);
-}
-
-/* Top goals — same gauge shape as the Tasks tab's, at card scale. */
-.dash-goals {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 18px;
-}
-
-.dash-goal-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  font-size: 13px;
-  margin-bottom: 4px;
-}
-
-.dash-goal-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dash-goal-count {
-  flex: none;
-  color: rgba(255, 255, 255, 0.7);
-  font-variant-numeric: tabular-nums;
-}
-
-.dash-progress-bar {
-  height: 6px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.16);
-  overflow: hidden;
-}
-
-.dash-progress-fill {
-  height: 100%;
-  border-radius: 3px;
-  background: #4da3ff;
-  transition: width 0.3s ease;
-}
-
-.dash-suggest {
-  margin-bottom: 18px;
-}
-
-.dash-suggest-label {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
-  margin-bottom: 4px;
 }
 
 .dash-meta {
@@ -8116,12 +8149,16 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   color: #fff;
 }
 
+/* Overdue is DISTINCT BUT CALM. A backlog the user already knows about does not
+   need to be shouted at every time they open a tab, so it is a chip on the row
+   rather than a red row. Ink-on-fill measures 8.9:1 and the fill is opaque, so it
+   reads the same on every wallpaper — which is why it needs no light override. */
 .dash-meta-due.is-overdue {
   background: rgba(255, 107, 107, 0.9);
   color: #2a0000;
 }
 
-/* The one real CONTROL on the Dashboard, so it carries the stricter bar the
+/* The one primary CONTROL on the Dashboard, so it carries the stricter bar the
    [1.0.19] D16 sweep applied to controls.
 
    Ink-vs-fill is 5.51:1 on all three frames. Fill-vs-surface CANNOT be solved
@@ -8136,7 +8173,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
    a border contrasts against BOTH the fill and the surface regardless of what
    the wallpaper does to the card underneath. */
 .dash-cta {
-  margin-top: 4px;
+  margin-top: 12px;
   padding: 10px 22px;
   border: 1px solid rgba(255, 255, 255, 0.85);
   border-radius: 8px;
@@ -8152,50 +8189,15 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   background: #1d7ae0;
 }
 
-/* The tracking engine's one launch surface. Deliberately a slim bar, not a
-   card: no charts, no breakdowns — those are v2.1.
-
-   It sits ON the frosted surface rather than bare over the wallpaper. Measured
-   bare it was 1.00:1 white-on-white against a bright image wallpaper — the ring
-   convention tolerates that for the exempt grid text, but this is a NUMBER, and
-   the whole point of the line is that the number is readable. Putting it on the
-   card surface makes it ring-free on-surface ink like the rest of the Dashboard
-   (D16) instead of an exception that has to be argued for. */
-.dash-focused {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: 10px;
-  background: var(--pro-frost-card-bg);
-  backdrop-filter: var(--pro-frost-card-blur);
-  -webkit-backdrop-filter: var(--pro-frost-card-blur);
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.85);
-  text-shadow: none;
-  align-self: flex-start;
+/* On a light wallpaper the card is near-white, so the white outline would
+   vanish into it — the edge flips dark, same pattern as every other override
+   in this block. */
+html.has-bg.bg-light .dash-cta {
+  border-color: rgba(0, 0, 0, 0.7);
 }
 
-.dash-focused-num {
-  font-size: 16px;
-  font-weight: 600;
-  color: #fff;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Light-wallpaper luminance overrides, matching the preview's block below. */
-html.has-bg.bg-light .dash-card {
-  color: #222;
-}
-
-html.has-bg.bg-light .dash-sub,
-html.has-bg.bg-light .dash-goal-count,
-html.has-bg.bg-light .dash-suggest-label {
+html.has-bg.bg-light .dash-sub {
   color: rgba(0, 0, 0, 0.65);
-}
-
-html.has-bg.bg-light .dash-progress-bar {
-  background: rgba(0, 0, 0, 0.12);
 }
 
 html.has-bg.bg-light .dash-meta-due,
@@ -8204,31 +8206,124 @@ html.has-bg.bg-light .dash-meta-prio {
   color: #222;
 }
 
-html.has-bg.bg-light .dash-focused {
+/* ----- Module 4: the due-today list ----- */
+
+.dash-due-title {
+  margin-bottom: 10px;
+}
+
+.dash-due-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dash-due-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  font-size: 14px;
+}
+
+/* The checkbox is the Tasks tab's own .tt-task-check — same size, same accent,
+   same affordance, so completing a task looks identical wherever the user does
+   it. This class adds only the flex behaviour the row needs. */
+.dash-due-check {
+  flex-shrink: 0;
+}
+
+.dash-due-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ----- Module 5: quick-add ----- */
+
+/* The input is the Tasks tab's .tt-add-task-input, reused whole: it declares its
+   own background and #fff ink, so it is self-contained and reads on every
+   wallpaper without an override of its own. */
+.dash-quickadd {
+  display: flex;
+  margin-top: 14px;
+}
+
+.dash-quickadd-input {
+  width: 100%;
+}
+
+/* ----- Module 3: the streak stack ----- */
+
+/* Number over label, borrowing the strip's two type classes rather than minting
+   a pair that would have to be kept in step with them (and would need their own
+   light overrides). Layout only. */
+.dash-streak {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+/* ----- Shared: note and empty lines ----- */
+
+/* The cockpit's empty states, notes and overflow lines. Deliberately NOT the
+   board's .insights-empty, which dims with `opacity: 0.6` on the CONTAINER:
+   three of these lines hold a real <button> (the Tasks link), and container
+   opacity flattens the whole subtree into one translucent layer that no child
+   can climb back out of — not with opacity:1, not with z-index (O2). The button
+   would have shipped at 60% strength with no local override possible, which is
+   the exact defect O2 was written from. Measured in the live profile before the
+   fix: every one of these lines came back at effective opacity 0.6.
+
+   So the de-emphasis lives in the COLOUR's alpha instead. It composites
+   identically and leaves the control at a measured effective opacity of 1. It
+   also clears 4.5:1 on all four frames, where .insights-empty's 0.6 on the
+   white-tinted light-solid card measured 4.23:1. */
+.dash-note {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.78);
+  padding: 4px 0;
+}
+
+html.has-bg.bg-light .dash-note {
   color: rgba(0, 0, 0, 0.7);
-  text-shadow: none;
 }
 
-/* On a light wallpaper the card is near-white, so the white outline would
-   vanish into it — the edge flips dark, same pattern as every other override
-   in this block. */
-html.has-bg.bg-light .dash-cta {
-  border-color: rgba(0, 0, 0, 0.7);
+/* ----- Shared: the inline tab-switch link ----- */
+
+/* A real <button> because it performs an action rather than navigating, styled
+   as a link. Colour is declared explicitly on BOTH frames rather than inherited:
+   an accent that reads on the dark frost is the O3 mirror-image failure on the
+   near-white light card. */
+.dash-inline-link {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: #8ec3ff;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
-html.has-bg.bg-light .dash-focused,
-html.has-bg.bg-light .dash-card {
-  border: 1px solid rgba(0, 0, 0, 0.08);
+.dash-inline-link:hover {
+  color: #b3d8ff;
 }
 
-html.has-bg.bg-light .dash-focused-num {
-  color: #111;
+html.has-bg.bg-light .dash-inline-link {
+  color: #1155a8;
 }
 
-/* [2.0] Day Recap — the evening recap tile. Same frost-card + explicit-white
-   treatment as .dash-focused (a68dd89 doctrine: on-card ink is chosen once, not
-   inherited), so it reads on any wallpaper. :empty collapses the tile when every
-   recap line suppresses, leaving the card's calm header + focused line alone. */
+html.has-bg.bg-light .dash-inline-link:hover {
+  color: #0d3f7d;
+}
+
+/* ----- [2.0] Day Recap — the evening recap tile -----
+   Same frost-card + explicit-white treatment as the module cards (a68dd89
+   doctrine: on-card ink is chosen once, not inherited), so it reads on any
+   wallpaper. :empty collapses the tile when every recap line suppresses. */
 .dash-recap {
   display: flex;
   flex-direction: column;
@@ -8241,7 +8336,6 @@ html.has-bg.bg-light .dash-focused-num {
   font-size: 13px;
   color: rgba(255, 255, 255, 0.85);
   text-shadow: none;
-  align-self: flex-start;
 }
 .dash-recap:empty {
   display: none;
