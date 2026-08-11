@@ -5340,30 +5340,132 @@
     errorEl.classList.remove("hidden");
   }
 
-  // hex -> relative luminance in [0, 1]. Simplified Rec 601 weights —
-  // sufficient for tag pill contrast decisions and avoids the sRGB
-  // gamma-correction code path. Storage validates 6-char hex via
-  // /^#[0-9A-Fa-f]{6}$/, but the helper accepts 3-char too (and a missing
-  // leading #) so a future caller passing CSS shorthand still works.
-  // Returns 0 for missing/malformed input — that maps to white text via
-  // tagTextColorFor, preserving pre-fix behavior for unrecognized colors.
-  function getLuminance(hex) {
-    if (typeof hex !== "string") return 0;
+  // ===== [2.0] Chip ink — derived per fill, never eyeballed =====
+  //
+  // Chips carry a USER-CHOSEN fill: the tag palette, a workspace colour, or a
+  // hex the user typed into the tag editor. So the ink cannot be a constant —
+  // it has to be computed per fill, and the computation has to be the one the
+  // contrast standard actually defines.
+  //
+  // WHAT WAS WRONG. The previous chooser scored the fill with Rec 601 weights
+  // and switched ink at 0.55. Rec 601 is a perceived-brightness formula for
+  // analogue video; it is NOT WCAG relative luminance, which linearises each
+  // channel through the sRGB transfer function first. The two disagree most in
+  // the middle of the range — which is exactly where a chip palette lives. The
+  // casualty was #4A90E2: it scores 0.519 on Rec 601, just under the threshold,
+  // so it took WHITE ink at 3.29:1. That colour is the FIRST entry in both the
+  // tag palette and the workspace palette, so it is the chip on almost every
+  // user's first goal and first workspace. Measured across both palettes plus
+  // the two accent fills, FIVE of nineteen failed 4.5:1 the same way.
+  //
+  // THE REPLACEMENT MAKES NO THRESHOLD JUDGEMENT. It computes the real contrast
+  // against both candidate inks and takes the better one. A threshold is a guess
+  // about where the crossover sits; the ratio IS the crossover, and it costs two
+  // multiplications to ask directly.
+  //
+  // THE DARK CANDIDATE follows the product's own light-fill precedent rather
+  // than inventing one: the gold button is #241a00 on #ffd66e — a very dark
+  // version of the fill's OWN hue, not a neutral grey. Generalised here as same
+  // hue, saturation capped so it cannot go muddy, lightness CHIP_INK_LIGHTNESS.
+  //
+  // A chip fill is OPAQUE, so every ratio here is wallpaper-independent: the
+  // same on the default frame, on a photo, and on a light solid. That is why
+  // chips need no has-bg branch, and why this is the one ink rule in the product
+  // that can be proved arithmetically instead of measured in a browser.
+
+  // Parses #rgb and #rrggbb, with or without the leading #. Returns null for
+  // anything unusable so a caller can fall back rather than compute over
+  // garbage — storage validates /^#[0-9A-Fa-f]{6}$/ on write, but the tag
+  // editor's fallback fills and any future caller passing CSS shorthand still
+  // have to land somewhere defined.
+  function hexToRgb(hex) {
+    if (typeof hex !== "string") return null;
     var h = hex.charAt(0) === "#" ? hex.slice(1) : hex;
     if (h.length === 3) {
       h = h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2);
     }
-    if (!/^[0-9a-fA-F]{6}$/.test(h)) return 0;
-    var r = parseInt(h.slice(0, 2), 16);
-    var g = parseInt(h.slice(2, 4), 16);
-    var b = parseInt(h.slice(4, 6), 16);
-    return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
   }
 
-  // Threshold 0.55 (slightly above the 0.5 midpoint) so borderline pills
-  // err toward dark text — the safer accessibility failure mode.
+  // The sRGB transfer function, which is the step the old formula skipped.
+  function srgbToLinear(v) {
+    v = v / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  }
+
+  // WCAG 2.x relative luminance. 0 for an unusable fill — the same "treat it as
+  // black" fallback the old helper had, so an unparseable colour still resolves
+  // to white ink and matches the CSS class default underneath it.
+  function relativeLuminance(hex) {
+    var rgb = hexToRgb(hex);
+    if (!rgb) return 0;
+    return 0.2126 * srgbToLinear(rgb[0]) + 0.7152 * srgbToLinear(rgb[1]) + 0.0722 * srgbToLinear(rgb[2]);
+  }
+
+  function contrastRatio(a, b) {
+    var la = relativeLuminance(a);
+    var lb = relativeLuminance(b);
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+  }
+
+  function rgbToHsl(rgb) {
+    var r = rgb[0] / 255, g = rgb[1] / 255, b = rgb[2] / 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    var d = mx - mn;
+    var l = (mx + mn) / 2;
+    var h = 0, s = 0;
+    if (d !== 0) {
+      s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+      h = (mx === r) ? ((g - b) / d + (g < b ? 6 : 0))
+        : (mx === g) ? ((b - r) / d + 2)
+        : ((r - g) / d + 4);
+      h /= 6;
+    }
+    return [h, s, l];
+  }
+
+  function hslToHex(h, s, l) {
+    var f = function (n) {
+      var k = (n + h * 12) % 12;
+      var a = s * Math.min(l, 1 - l);
+      return l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)));
+    };
+    var to = function (v) {
+      var n = Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16);
+      return n.length === 1 ? "0" + n : n;
+    };
+    return "#" + to(f(0)) + to(f(8)) + to(f(4));
+  }
+
+  // DERIVED, not chosen by eye. At lightness 0.12 the worst fill in the product
+  // (#A569BD, workspace 4) lands at 4.45 and fails the 4.5 floor; 0.08 puts that
+  // same worst case at 4.83 with margin. The saturation cap keeps a fully
+  // saturated fill from producing an ink that reads as a colour rather than as
+  // near-black.
+  var CHIP_INK_LIGHTNESS = 0.08;
+  var CHIP_INK_MAX_SATURATION = 0.9;
+  var CHIP_INK_LIGHT = "#ffffff";
+
+  function chipDarkInkFor(hex) {
+    var rgb = hexToRgb(hex);
+    if (!rgb) return "#111111";
+    var hsl = rgbToHsl(rgb);
+    return hslToHex(hsl[0], Math.min(hsl[1], CHIP_INK_MAX_SATURATION), CHIP_INK_LIGHTNESS);
+  }
+
+  // THE chip ink chooser. Every chip that paints text on a colour fill goes
+  // through this one function — tag pills in the Tasks tab, the goal auto-tag
+  // chip, the shortcut tag pills, the free preview's demo pills, and the
+  // workspace initial chips — so no surface can drift from the others.
+  //
+  // Ties go to dark (>=), which is the same "err toward dark on a borderline
+  // fill" instinct the old 0.55 threshold was reaching for, now applied where it
+  // is actually a tie rather than as a guess about where ties happen.
   function tagTextColorFor(hex) {
-    return getLuminance(hex) > 0.55 ? "#1a1a1a" : "#ffffff";
+    if (!hexToRgb(hex)) return CHIP_INK_LIGHT;
+    var dark = chipDarkInkFor(hex);
+    return contrastRatio(hex, dark) >= contrastRatio(hex, CHIP_INK_LIGHT) ? dark : CHIP_INK_LIGHT;
   }
 
   // Date input <-> epoch ms helpers. <input type="date"> reads/writes
@@ -5935,7 +6037,12 @@
     var name = btn.querySelector(".sb-ws-name");
     var idx = workspaceIndexInOrder(d, ws.id);
     if (chip) {
-      chip.style.background = workspaceColorForIndex(idx);
+      var chipColor = workspaceColorForIndex(idx);
+      chip.style.background = chipColor;
+      // Same chooser as every other chip (see tagTextColorFor). The workspace
+      // palette shares #4A90E2 with the tag palette, so this letter shipped
+      // white at 3.29:1 for anyone who never renamed Main.
+      chip.style.color = tagTextColorFor(chipColor);
       chip.textContent = workspaceFirstLetter(ws.name);
       chip.classList.toggle("is-readonly", !!ws.isReadOnly);
     }
@@ -6023,7 +6130,7 @@
         ? '<svg class="ws-dd-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>'
         : '';
       row.innerHTML =
-        '<span class="sb-ws-chip' + (ws.isReadOnly ? ' is-readonly' : '') + '" style="background:' + color + '">' + escapeHtml(workspaceFirstLetter(ws.name)) + '</span>' +
+        '<span class="sb-ws-chip' + (ws.isReadOnly ? ' is-readonly' : '') + '" style="background:' + color + ';color:' + tagTextColorFor(color) + '">' + escapeHtml(workspaceFirstLetter(ws.name)) + '</span>' +
         '<span class="ws-dd-name">' + escapeHtml(ws.name || ws.id) + '</span>' +
         lockHtml + checkHtml;
       row.addEventListener("click", function () {
@@ -6684,7 +6791,7 @@
         var trackChecked = Storage.isTrackingEnabled(ws) ? " checked" : "";
         return '<li class="pro-workspace-row' + roCls + '" data-workspace-id="' + escapeHtml(ws.id) + '">' +
           '<span class="pws-drag-handle" title="Drag to reorder">☰</span>' +
-          '<span class="pws-chip' + (ws.isReadOnly ? ' is-readonly' : '') + '" style="background:' + color + '">' + escapeHtml(workspaceFirstLetter(ws.name)) + '</span>' +
+          '<span class="pws-chip' + (ws.isReadOnly ? ' is-readonly' : '') + '" style="background:' + color + ';color:' + tagTextColorFor(color) + '">' + escapeHtml(workspaceFirstLetter(ws.name)) + '</span>' +
           '<span class="pws-name' + roCls + '">' + escapeHtml(ws.name || ws.id) + '</span>' +
           '<label class="pws-tracking" title="Track focus time while this workspace is active">' +
             '<input type="checkbox" class="pws-tracking-check"' + trackChecked + ' aria-label="Track focus time in this workspace">' +
@@ -7192,9 +7299,18 @@
     });
   }
 
+  // The SELECTION RING is ink-on-fill too, and it was white on every fill. A
+  // 2px white ring on #F8E71C measures 1.28:1 against the swatch it is meant to
+  // mark — four of the eight palette colours failed the 3:1 non-text floor, and
+  // on a light wallpaper the settings panel is white glass, so the ring loses its
+  // outer edge as well and the selected state disappears entirely.
+  //
+  // Carried as a custom property rather than an inline border-color so the hover
+  // rule still wins when the pointer is over the swatch: an inline declaration
+  // would beat :hover and silently kill that affordance.
   function tagPaletteSwatchHTML(color, selected) {
     var cls = "pro-tag-swatch" + (selected ? " selected" : "");
-    return '<button type="button" class="' + cls + '" style="background:' + escapeHtml(color) + '" data-color="' + escapeHtml(color) + '" aria-label="Color ' + escapeHtml(color) + '"></button>';
+    return '<button type="button" class="' + cls + '" style="background:' + escapeHtml(color) + ';--swatch-ink:' + tagTextColorFor(color) + '" data-color="' + escapeHtml(color) + '" aria-label="Color ' + escapeHtml(color) + '"></button>';
   }
 
   function openTagCreateForm() {
@@ -9443,7 +9559,7 @@
 
     paletteHost.innerHTML = palette.map(function (c) {
       var selected = c === defaultColor;
-      return '<button type="button" class="pro-tag-swatch' + (selected ? " selected" : "") + '" data-color="' + c + '" style="background:' + c + '"></button>';
+      return '<button type="button" class="pro-tag-swatch' + (selected ? " selected" : "") + '" data-color="' + c + '" style="background:' + c + ';--swatch-ink:' + tagTextColorFor(c) + '"></button>';
     }).join("");
 
     paletteHost.querySelectorAll(".pro-tag-swatch").forEach(function (sw) {

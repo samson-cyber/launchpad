@@ -77,6 +77,20 @@ if ! node tools/check-pro-celebration.mjs; then
   exit 1
 fi
 
+# Chip-ink gate: the ink a chip paints on a colour fill. The one ink rule in the
+# product that is ARITHMETIC rather than a browser measurement — a chip fill is
+# opaque, so the ratio is identical on every wallpaper frame, which makes it
+# provable from source across every fill the product can produce. It guards the
+# defect that started the round (a Rec-601 threshold sent #4A90E2 — the first
+# colour in BOTH the tag and workspace palettes — to white ink at 3.29:1) and,
+# just as importantly, catches any NEW chip that paints text on a fill without
+# going through the one chooser. ~0.2s. `--mutate` seeds 9 defects; `--table`
+# prints the per-fill ink table.
+if ! node tools/check-chip-ink.mjs; then
+  echo "ERROR: chip-ink gate failed — a chip's ink on its fill has regressed." >&2
+  exit 1
+fi
+
 # Today-cockpit gate: the five Dashboard modules' arithmetic. Every figure on
 # that surface fails the same quiet way — a wrong number that still looks like a
 # number — so the boundaries are asserted rather than eyeballed: the streak's

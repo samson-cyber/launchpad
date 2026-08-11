@@ -7108,8 +7108,12 @@ html.has-bg.bg-light .pro-tags-trash-toggle { color: var(--accent); }
   transition: border-color 0.12s;
 }
 
+/* The ring reads against the swatch's OWN fill, so it takes the same derived
+   ink every chip does — set as --swatch-ink inline by tagPaletteSwatchHTML. The
+   #fff fallback only applies if a swatch is ever rendered without it. Kept as a
+   var rather than an inline border-color so :hover below still wins. */
 .pro-tag-swatch.selected {
-  border-color: #fff;
+  border-color: var(--swatch-ink, #fff);
 }
 
 .pro-tag-swatch:hover {
@@ -7943,6 +7947,12 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   white-space: nowrap;
 }
 
+/* Ink is set INLINE per fill by tagTextColorFor — this colour is only the
+   fallback for a fill the chooser could not parse. The dark ring that used to
+   sit here is gone: it was written when every pill took white ink, and a dark
+   shadow under the dark ink the chooser now returns on a light fill only muddies
+   the glyph edges. The fill is opaque, so the ink needs no ring to carry it —
+   the same reason the live .tt-tag-pill has always set text-shadow: none. */
 .pp-tag-pill {
   display: inline-flex;
   align-items: center;
@@ -7952,7 +7962,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   font-size: 11px;
   font-weight: 500;
   color: #fff;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+  text-shadow: none;
   white-space: nowrap;
 }
 
@@ -8209,7 +8219,11 @@ html.has-bg.bg-light .dash-meta-prio {
 /* ----- Module 4: the due-today list ----- */
 
 .dash-due-title {
-  margin-bottom: 10px;
+  /* 12px, the card's established inter-group step (d47daaf) — which is exactly
+     what .pp-dash-card-title already sets, so this override existed only to
+     deviate from it by 2px. Kept as an explicit declaration rather than deleted
+     so the intent reads: this seam is deliberately the standard one. */
+  margin-bottom: 12px;
 }
 
 .dash-due-list {
@@ -8248,7 +8262,10 @@ html.has-bg.bg-light .dash-meta-prio {
    wallpaper without an override of its own. */
 .dash-quickadd {
   display: flex;
-  margin-top: 14px;
+  /* Was 14px — neither the 12px inter-group step nor the 16px card gap, and the
+     only 14 on the surface. The seam between the due list and quick-add is an
+     inter-group seam, so it takes the 12px step (d47daaf). */
+  margin-top: 12px;
 }
 
 .dash-quickadd-input {
@@ -8722,18 +8739,13 @@ html.has-bg.bg-light .pro-preview-banner-text {
   opacity: 0.6;
   margin-left: 6px;
 }
-/* The calm "trends coming" line sits BARE over the wallpaper (not on a card),
-   so it takes the ring per D6 — the opposite of on-card ink. */
-.insights-soon {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.75);
-  padding: 2px 4px;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-}
-html.has-bg.bg-light .insights-soon {
-  color: rgba(0, 0, 0, 0.7);
-  text-shadow: none;
-}
+/* .insights-soon is GONE, not fixed. It was banked in the cockpit round as
+   carrying the same unconditional-white the greeting had — correct about the
+   rule, but the ELEMENT was retired when the live analytics board replaced the
+   "trends coming" placeholder (D4, board comment in newtab.js). Nothing has
+   rendered the class since; no markup in any file emits it. Re-basing the ink on
+   a node that cannot exist would have been a fix for a phantom and a rule the
+   next reader has to re-verify, so the two dead rules are deleted instead. */
 
 /* ===== [2.0] Insights live analytics board ===== */
 
