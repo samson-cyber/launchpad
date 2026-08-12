@@ -1327,3 +1327,31 @@ The evening Dashboard card's future-update teaser is retired: it now shows real 
 **The session-anchor machinery STAYS, and the audit is why:** `sessionAnchorAt` had exactly one reader — the deleted counter — which invited removing `anchorBrowserSession` and its `onStartup` write as dead weight. It is not dead. The same write also normalizes `pausedAt`, which the `[1.0.18]` pomodoro freeze reads (`satPomoRemainingMs`) and which `setTrackingPaused`'s resume shift restores continuity against. Removing it would change how a pause held across a browser restart resumes a phase — a silent behavioural change in the one area this task required to stay identical. **The general rule:** a "last reader removed" audit is not finished at the field; it has to cover every field the writer touches. `pausedMs` / `idleMs` are now write-only and are left as such — retiring that accounting is a separate scope.
 
 **Shipped in:** `[1.2.3]`, Asana 1217301162748887.
+
+---
+
+## 2026-08-12 — Text size ships as a token ramp, not a rem conversion; Medium is the default and carries the bump
+
+**Context:** The last planned change before the v2.0.0 store submission. Settings > Appearance needed a Text size control (Small / Medium / Large) beside Icon Size — a **free** setting, never Pro-gated, because text size is accessibility. The locked semantics (Samson, 2026-08-11): Medium is the default and carries a global bump of the small/secondary tiers; Small is today's exact sizing so existing users who prefer density lose nothing; Large is one notch above Medium.
+
+The audit found the sheet is **entirely px**: 342 `font-size` declarations, no `em`, no `rem`, no `%`, and no `font:` shorthand carrying a size. Bucketed: micro 8–10px (16), secondary 11–12.5px (159), body 13–14px (123), headline/display 15px+ (44).
+
+**Alternatives considered:**
+- **A rem conversion with a root `font-size`.** Rejected. It touches all 342 declarations, and a root scale moves the headline and display tiers with everything else — 42px brand text and 36px recap numerals grow for no reason, and the tiers can no longer be steered independently. It also collides with `.icon-size-*`, which already scales the grid's own type.
+- **Root-class overrides that re-declare `font-size` per selector.** Rejected. Medium bumps ~300 declarations, so the override blocks would have to enumerate hundreds of selectors — more churn than the conversion it was meant to avoid, and it goes stale the moment a rule is added.
+- **A CSS `zoom` on a container.** Rejected outright. It scales icons, spacing and layout, not text.
+- **A token ramp** — chosen.
+
+**Outcome:**
+- **Eleven tokens, `--fs-8` … `--fs-15`**, defined three times: on `:root` (Medium, the unclassed base), under `html.text-size-small`, and under `html.text-size-large`. 308 declarations at or below 15px became `var(--fs-N)`; the 34 at 16px and above are untouched literals.
+- **A token is named after its own SMALL value.** `--fs-11` is `11px` under `text-size-small`. Because every replacement swapped `font-size: Npx` for `font-size: var(--fs-N)`, Small is today's sheet reconstructed **by construction** — which is Small's whole contract. Verified at the commit as well: substituting the Small values back reproduces the previous `newtab.css` byte for byte.
+- **The ramp is non-decreasing and compresses at the top.** +1/+2 for micro and secondary; the body tier follows so a bumped 12px cannot overtake an unbumped 13px; the 15px tier moves only at Large so a bumped 14px cannot overtake it either. Nothing passes the untouched 16px tier — 14 and 15 both meet it at Large and stop. Headlines, display numerals and glyph buttons stand at every tier.
+- **Applied exactly like Icon Size**: a root class on `<html>` (`text-size-small` / `text-size-large`), Medium unclassed, re-applied on boot, on backup restore, and on the foreign-write re-render so a change in one tab lands in every other open new tab.
+- **Storage deviates from Icon Size in one place, deliberately.** `Storage.getTextSize` / `setTextSize` are a reader/setter pair rather than Icon Size's bare `data.settings.iconSize || "medium"`. Coercion has to be provable, and a page-side `||` is unreachable from a Node VM. Icon Size's own idiom is left as it shipped — this round does not refactor working free-tier code on the way to the store.
+- **Migration is the default.** Absence means "never configured", so every existing install reads Medium and gets the bump. That is the intended product change; a user who wants today's density picks Small.
+
+**Known boundary:** `gate.html` carries its own stylesheet, is already set in large type, and is a transient interstitial nobody configures from. It is out of scope, stated rather than discovered.
+
+**Gate:** `tools/check-text-size.mjs`, build.sh gate #12 — the naming invariant, the locked table, the no-inversion ordering across all three tiers, the "no hard literal below the floor" rule that stops a future rule escaping the setting, the reader's coercion, and the fact that the row is never Pro-gated.
+
+**Shipped in:** `[2.0]`, the v2.0.0 store-submission candidate.

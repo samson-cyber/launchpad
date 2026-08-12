@@ -181,6 +181,42 @@ var Storage = (function () {
     return Math.floor(v);
   }
 
+  // ===== [2.0] Text size =====
+  //
+  // A FREE accessibility setting — never Pro-gated, in any branch. Three tiers,
+  // applied page-side as a root class exactly the way Icon Size is.
+  //
+  // Reader/setter live HERE rather than as a bare `data.settings.textSize ||
+  // "medium"` at each call site (which is what Icon Size does) for one reason:
+  // coercion has to be provable. A page-side `||` is unreachable from a Node VM,
+  // and this setting's whole contract is that an install which has never touched
+  // it reads "medium" and a corrupted value never reaches the DOM as a class
+  // name. Icon Size's own idiom is left exactly as it shipped — this round does
+  // not refactor working free-tier code on the way to the store.
+  //
+  // MIGRATION IS THE DEFAULT. Absence means "never configured", so every
+  // existing install reads "medium" and gets the bump. That IS the intended
+  // product change; a user who wants today's density picks Small.
+  var TEXT_SIZES = ["small", "medium", "large"];
+  var DEFAULT_TEXT_SIZE = "medium";
+
+  function getTextSize(data) {
+    var v = data && data.settings && data.settings.textSize;
+    return TEXT_SIZES.indexOf(v) === -1 ? DEFAULT_TEXT_SIZE : v;
+  }
+
+  async function setTextSize(data, val) {
+    if (!data || !data.settings) return false;
+    // An unrecognised value is NOT written. The alternative — storing it and
+    // letting the reader coerce — leaves a junk value in the user's backup that
+    // reads as a setting they chose.
+    if (TEXT_SIZES.indexOf(val) === -1) return false;
+    if (getTextSize(data) === val && data.settings.textSize === val) return false;
+    data.settings.textSize = val;
+    await saveAll(data);
+    return true;
+  }
+
   // ===== Pomodoro settings ([1.0.18]) =====
   //
   // Four durations under data.settings.pomodoro, following the endOfDayMinutes
@@ -5002,6 +5038,10 @@ var Storage = (function () {
     isTrackingPaused: isTrackingPaused,
     // [1.0.20] Dashboard end-of-day boundary (minutes since local midnight).
     getEndOfDayMinutes: getEndOfDayMinutes,
+    // [2.0] Text size — free accessibility setting, small | medium | large.
+    getTextSize: getTextSize,
+    setTextSize: setTextSize,
+    TEXT_SIZES: TEXT_SIZES.slice(),
     // [1.0.20 F2] Combined-analytics toggle setter (Dashboard's cross-workspace view).
     setCombinedAnalyticsEnabled: setCombinedAnalyticsEnabled,
     setTrackingPaused: setTrackingPaused,

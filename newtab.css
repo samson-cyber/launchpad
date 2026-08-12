@@ -46,6 +46,103 @@ html.bg-light {
   --pro-frost-floater-bg: rgba(255, 255, 255, 0.92);
 }
 
+/* ===== [2.0] Text size (Settings > Appearance) =====
+ *
+ * A FREE, never-gated accessibility setting, applied the way Icon Size is: a
+ * root class on <html> (`text-size-small` / `text-size-large`), with MEDIUM as
+ * the unclassed base. Three tiers, one token ramp.
+ *
+ * WHY TOKENS AND NOT A rem CONVERSION. Every size in this sheet is px — 342
+ * declarations, no em/rem anywhere, and no `font:` shorthand carries a size.
+ * A rem conversion would have to touch all 342 and would move the headline
+ * and display tiers with the rest, which is not what the setting is for. The
+ * ramp instead names each existing size once and lets the three tiers redefine
+ * it, so the 308 declarations at or below 15px change tier together and the 34
+ * at 16px and above never move at all.
+ *
+ * THE NAMING INVARIANT IS THE PROOF OF THE SMALL TIER. A token is named after
+ * its own SMALL value: `--fs-11` is `11px` under `text-size-small`, `--fs-12-5`
+ * is `12.5px`. Every replacement swapped `font-size: Npx` for
+ * `font-size: var(--fs-N)`, so Small is today's sheet reconstructed exactly —
+ * identity by construction, not by inspection. That is Small's whole contract:
+ * a user who prefers density loses nothing by choosing it.
+ * (Verified once at the commit as well: substituting the Small values back into
+ * this file reproduces the previous newtab.css byte for byte.)
+ *
+ * THE RAMP IS NON-DECREASING, AND IT COMPRESSES AT THE TOP. +1 / +2 for the
+ * micro and secondary tiers is the whole point of the setting. The body tier
+ * follows so a bumped 12px can never overtake an unbumped 13px, and the 15px
+ * tier moves only at Large so a bumped 14px cannot overtake it either. Nothing
+ * lands above the untouched 16px tier: 14 and 15 both meet it at Large and stop
+ * there. Headlines, display numerals and glyph buttons (16px+) stand at every
+ * tier — they were never the readability problem.
+ *
+ *      token       small    medium   large
+ *      --fs-8       8        9       10
+ *      --fs-9       9       10       11
+ *      --fs-10     10       11       12
+ *      --fs-11     11       12       13
+ *      --fs-11-5   11.5     12.5     13.5
+ *      --fs-12     12       13       14
+ *      --fs-12-5   12.5     13.5     14.5
+ *      --fs-13     13       14       15
+ *      --fs-13-5   13.5     14.5     15.5
+ *      --fs-14     14       15       16
+ *      --fs-15     15       15       16
+ *
+ * SCOPE: this sheet, so the whole new-tab page — every tab, the pill, panels,
+ * modals, the celebration and the coach marks. gate.html carries its own
+ * stylesheet and is deliberately OUT of scope this round (see the note in
+ * applyTextSize).
+ */
+
+/* MEDIUM — the default tier, and the product change: an install that has never
+   touched the setting reads one notch larger than v1.0.5 did. */
+:root {
+  --fs-8: 9px;
+  --fs-9: 10px;
+  --fs-10: 11px;
+  --fs-11: 12px;
+  --fs-11-5: 12.5px;
+  --fs-12: 13px;
+  --fs-12-5: 13.5px;
+  --fs-13: 14px;
+  --fs-13-5: 14.5px;
+  --fs-14: 15px;
+  --fs-15: 15px;
+}
+
+/* SMALL — today's sizing, byte for byte. Every value equals its token name. */
+html.text-size-small {
+  --fs-8: 8px;
+  --fs-9: 9px;
+  --fs-10: 10px;
+  --fs-11: 11px;
+  --fs-11-5: 11.5px;
+  --fs-12: 12px;
+  --fs-12-5: 12.5px;
+  --fs-13: 13px;
+  --fs-13-5: 13.5px;
+  --fs-14: 14px;
+  --fs-15: 15px;
+}
+
+/* LARGE — one notch above Medium, compressed at the top so nothing overtakes
+   the untouched 16px tier. */
+html.text-size-large {
+  --fs-8: 10px;
+  --fs-9: 11px;
+  --fs-10: 12px;
+  --fs-11: 13px;
+  --fs-11-5: 13.5px;
+  --fs-12: 14px;
+  --fs-12-5: 14.5px;
+  --fs-13: 15px;
+  --fs-13-5: 15.5px;
+  --fs-14: 16px;
+  --fs-15: 16px;
+}
+
 html {
   height: 100%;
   background: var(--bg);
@@ -146,7 +243,7 @@ body {
   cursor: pointer;
   color: #fff;
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 500;
   letter-spacing: 0.2px;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -275,7 +372,7 @@ body {
 }
 
 .tab-placeholder-text {
-  font-size: 13px;
+  font-size: var(--fs-13);
   line-height: 1.55;
   opacity: 0.85;
 }
@@ -438,7 +535,7 @@ body {
 }
 
 .group-name {
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 500;
   color: var(--text-hint);
   cursor: text;
@@ -459,7 +556,7 @@ body {
 }
 
 .group-count {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-hint);
   font-weight: 400;
   margin-left: 2px;
@@ -472,7 +569,7 @@ body {
 }
 
 .group-name-input {
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 500;
   color: var(--text-primary);
   background: var(--bg-card);
@@ -520,7 +617,7 @@ html.has-bg .group-name-input {
   border: none;
   background: transparent;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-family: inherit;
   color: rgba(0, 0, 0, 0.4);
   opacity: 0;
@@ -631,7 +728,7 @@ html.has-bg .sb-group-more:hover {
   border: none;
   background: transparent;
   color: rgba(255, 255, 255, 0.85);
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-family: inherit;
   cursor: pointer;
   text-align: left;
@@ -686,7 +783,7 @@ html.has-bg .sb-group-more:hover {
 }
 
 #gd-message {
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-secondary);
   line-height: 1.5;
   margin-bottom: 16px;
@@ -701,7 +798,7 @@ html.has-bg .sb-group-more:hover {
 
 #gd-move-section label {
   display: block;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-secondary);
   margin-bottom: 8px;
 }
@@ -713,7 +810,7 @@ html.has-bg .sb-group-more:hover {
   border-radius: 6px;
   background: var(--bg);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-family: inherit;
   margin-bottom: 8px;
 }
@@ -728,7 +825,7 @@ html.has-bg .sb-group-more:hover {
   padding: 8px 16px;
   border: none;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-family: inherit;
   cursor: pointer;
   font-weight: 500;
@@ -846,7 +943,7 @@ html.has-bg .gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
 }
 
 .shortcut-name {
-  font-size: 13px;
+  font-size: var(--fs-13);
   line-height: 16px;
   max-width: 96px;
   overflow: hidden;
@@ -891,7 +988,7 @@ html.has-bg .gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
 }
 
 .add-tile-label {
-  font-size: 13px;
+  font-size: var(--fs-13);
   line-height: 16px;
   color: var(--text-primary);
 }
@@ -942,7 +1039,7 @@ html.has-bg .gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
   background: none;
   border: none;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--fs-13);
   cursor: pointer;
   text-align: left;
   font-family: inherit;
@@ -964,7 +1061,7 @@ html.has-bg .gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
   right: -2px;
   background: rgba(0, 0, 0, 0.75);
   color: #fff;
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
   width: 18px;
   height: 18px;
@@ -1044,7 +1141,7 @@ html.has-bg .variant-badge {
   cursor: pointer;
   transition: background 0.1s;
   color: rgba(255, 255, 255, 0.9);
-  font-size: 13px;
+  font-size: var(--fs-13);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -1149,7 +1246,7 @@ html:not(.has-bg) .variant-dropdown-more:hover {
   background: none;
   border: none;
   color: #fff;
-  font-size: 12px;
+  font-size: var(--fs-12);
   cursor: pointer;
   text-align: left;
   font-family: inherit;
@@ -1183,7 +1280,7 @@ html:not(.has-bg) .variant-dropdown-more:hover {
 }
 
 .vid-header {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: rgba(255, 255, 255, 0.6);
   margin-bottom: 8px;
 }
@@ -1194,7 +1291,7 @@ html:not(.has-bg) .variant-dropdown-more:hover {
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 4px;
   color: #fff;
-  font-size: 12px;
+  font-size: var(--fs-12);
   padding: 6px 8px;
   outline: none;
   font-family: inherit;
@@ -1215,7 +1312,7 @@ html:not(.has-bg) .variant-dropdown-more:hover {
   padding: 5px 8px;
   border: none;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   cursor: pointer;
   font-family: inherit;
   background: rgba(255, 255, 255, 0.1);
@@ -1253,7 +1350,7 @@ html:not(.has-bg) .variant-dropdown-more:hover {
 
 .nest-submenu-header {
   padding: 6px 12px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-hint);
   font-weight: 500;
 }
@@ -1267,7 +1364,7 @@ html:not(.has-bg) .variant-dropdown-more:hover {
   background: none;
   border: none;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--fs-13);
   cursor: pointer;
   text-align: left;
   font-family: inherit;
@@ -1334,7 +1431,7 @@ html.has-bg .nest-submenu-item:hover {
 }
 
 #modal-title {
-  font-size: 15px;
+  font-size: var(--fs-15);
   font-weight: 500;
   color: var(--text-primary);
   margin: 0;
@@ -1346,7 +1443,7 @@ html.has-bg .nest-submenu-item:hover {
 
 #modal-body label {
   display: block;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-secondary);
   margin-bottom: 4px;
 }
@@ -1356,7 +1453,7 @@ html.has-bg .nest-submenu-item:hover {
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 4px;
-  font-size: 14px;
+  font-size: var(--fs-14);
   color: var(--text-primary);
   background: var(--bg);
   outline: none;
@@ -1384,7 +1481,7 @@ html.has-bg .nest-submenu-item:hover {
 
 #modal-import-link a {
   color: var(--text-hint);
-  font-size: 12px;
+  font-size: var(--fs-12);
   text-decoration: none;
 }
 
@@ -1404,7 +1501,7 @@ html.has-bg .nest-submenu-item:hover {
 #modal-save {
   padding: 8px 24px;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 500;
   cursor: pointer;
   border: none;
@@ -1435,7 +1532,7 @@ html.has-bg .nest-submenu-item:hover {
 
 #modal-icon-row label {
   display: block;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-secondary);
   margin-bottom: 4px;
 }
@@ -1458,7 +1555,7 @@ html.has-bg .nest-submenu-item:hover {
 
 .modal-icon-btn {
   padding: 4px 10px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--accent);
   background: transparent;
   border: 1px solid var(--border);
@@ -1604,7 +1701,7 @@ html.has-bg .modal-icon-btn:hover {
 }
 
 #bookmark-modal-header p {
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-secondary);
   margin: 0;
 }
@@ -1623,7 +1720,7 @@ html.has-bg .modal-icon-btn:hover {
   background: none;
   border: none;
   color: var(--accent);
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 500;
   cursor: pointer;
   padding: 4px 0;
@@ -1641,7 +1738,7 @@ html.has-bg .modal-icon-btn:hover {
   padding: 8px 4px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-primary);
 }
 
@@ -1664,7 +1761,7 @@ html.has-bg .modal-icon-btn:hover {
 }
 
 .bookmark-folder-count {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-hint);
   flex-shrink: 0;
 }
@@ -1680,7 +1777,7 @@ html.has-bg .modal-icon-btn:hover {
 #bookmark-import-btn {
   padding: 8px 24px;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 500;
   cursor: pointer;
   border: none;
@@ -1718,7 +1815,7 @@ html.has-bg .modal-icon-btn:hover {
 }
 
 .rc-heading {
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 500;
   color: var(--text-hint);
   text-transform: uppercase;
@@ -1734,7 +1831,7 @@ html.has-bg .modal-icon-btn:hover {
   border: 1px solid var(--border);
   cursor: pointer;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-secondary);
   padding: 2px 8px;
   border-radius: 4px;
@@ -1778,7 +1875,7 @@ html.has-bg .modal-icon-btn:hover {
   background: none;
   border: none;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-family: inherit;
   text-align: left;
   cursor: pointer;
@@ -1807,7 +1904,7 @@ html.has-bg .modal-icon-btn:hover {
   padding: 4px 6px;
   border: 1px solid var(--border);
   border-radius: 4px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-family: inherit;
   color: var(--text-primary);
   background: var(--bg);
@@ -1821,7 +1918,7 @@ html.has-bg .modal-icon-btn:hover {
 
 .rc-date-sep {
   color: var(--text-hint);
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 
 #rc-date-apply {
@@ -1830,7 +1927,7 @@ html.has-bg .modal-icon-btn:hover {
   border-radius: 4px;
   background: var(--accent);
   color: var(--accent-text);
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
@@ -1868,7 +1965,7 @@ html.has-bg .modal-icon-btn:hover {
   border: none;
   outline: none;
   background: transparent;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-family: inherit;
   color: var(--text-primary);
   width: 140px;
@@ -1916,7 +2013,7 @@ html.has-bg .modal-icon-btn:hover {
 }
 
 .rc-empty {
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-hint);
   padding: 12px 0;
   grid-column: 1 / -1;
@@ -1976,7 +2073,7 @@ html.has-bg .modal-icon-btn:hover {
   border-radius: 9px;
   background: #4285F4;
   color: #fff;
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 700;
   line-height: 18px;
   text-align: center;
@@ -1984,7 +2081,7 @@ html.has-bg .modal-icon-btn:hover {
 }
 
 .rc-name {
-  font-size: 12px;
+  font-size: var(--fs-12);
   line-height: 16px;
   max-width: 80px;
   overflow: hidden;
@@ -2016,7 +2113,7 @@ html.has-bg .modal-icon-btn:hover {
 }
 
 .rc-panel-title {
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -2076,7 +2173,7 @@ html.has-bg .modal-icon-btn:hover {
 .rc-panel-item-title {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2084,7 +2181,7 @@ html.has-bg .modal-icon-btn:hover {
 }
 
 .rc-panel-item-meta {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-hint);
   white-space: nowrap;
   flex-shrink: 0;
@@ -2153,7 +2250,7 @@ html.has-bg .rc-panel-item-meta {
 }
 
 #bg-modal-header h2 {
-  font-size: 15px;
+  font-size: var(--fs-15);
   font-weight: 500;
   color: var(--text-primary);
   margin: 0 0 12px;
@@ -2169,7 +2266,7 @@ html.has-bg .rc-panel-item-meta {
   padding: 8px 16px;
   border: none;
   background: transparent;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 500;
   font-family: inherit;
   color: var(--text-secondary);
@@ -2252,12 +2349,12 @@ html.has-bg .rc-panel-item-meta {
   justify-content: center;
   flex-direction: column;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-hint);
 }
 
 .bg-section-heading {
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
   color: var(--text-secondary);
   margin: 4px 0 8px;
@@ -2281,7 +2378,7 @@ html.has-bg .rc-panel-item-meta {
 }
 
 .bg-tip-text {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-hint);
   font-style: italic;
   margin: 0 0 8px;
@@ -2304,7 +2401,7 @@ html.has-bg .rc-panel-item-meta {
   border-radius: 8px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--fs-14);
   font-family: inherit;
   cursor: pointer;
   transition: background-color 0.15s, border-color 0.15s;
@@ -2326,7 +2423,7 @@ html.has-bg .rc-panel-item-meta {
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 4px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-primary);
   background: var(--bg);
   outline: none;
@@ -2340,7 +2437,7 @@ html.has-bg .rc-panel-item-meta {
 #bg-url-apply {
   padding: 8px 16px;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 500;
   cursor: pointer;
   border: none;
@@ -2355,7 +2452,7 @@ html.has-bg .rc-panel-item-meta {
 
 #bg-error {
   margin-top: 8px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: #d93025;
   padding: 6px 8px;
   background: rgba(217, 48, 37, 0.08);
@@ -2370,7 +2467,7 @@ html.has-bg .rc-panel-item-meta {
 #bg-remove {
   padding: 8px 16px;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 500;
   cursor: pointer;
   border: none;
@@ -2386,7 +2483,7 @@ html.has-bg .rc-panel-item-meta {
 #bg-cancel {
   padding: 8px 24px;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 500;
   cursor: pointer;
   border: none;
@@ -2407,7 +2504,7 @@ html.has-bg .rc-panel-item-meta {
 #bg-save {
   padding: 8px 24px;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 500;
   cursor: pointer;
   border: none;
@@ -2618,7 +2715,7 @@ html.has-bg:not(.bg-light) #rc-search-input::placeholder {
 .empty-group-hint {
   grid-column: 1 / -1;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-style: italic;
   color: rgba(0, 0, 0, 0.35);
   padding: 0 0 8px;
@@ -2660,7 +2757,7 @@ html.bg-image .empty-group-hint {
 }
 
 .rc-tip-text {
-  font-size: 13px;
+  font-size: var(--fs-13);
   line-height: 1.4;
   color: var(--text-primary);
 }
@@ -2671,7 +2768,7 @@ html.bg-image .empty-group-hint {
   border: none;
   border-radius: 6px;
   padding: 5px 12px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
@@ -2712,7 +2809,7 @@ html.has-bg .rc-tip-text {
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   color: rgba(255, 255, 255, 0.9);
-  font-size: 13px;
+  font-size: var(--fs-13);
   z-index: 9000;
   opacity: 0;
   transition: opacity 0.3s ease, transform 0.3s ease;
@@ -2740,7 +2837,7 @@ html.has-bg .rc-tip-text {
   color: #fff;
   border-radius: 6px;
   text-decoration: none;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   transition: background 0.15s;
 }
@@ -2787,7 +2884,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
   transform: translateX(-50%) translateY(20px);
   background: rgba(32, 33, 36, 0.9);
   color: #fff;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-family: inherit;
   padding: 10px 20px;
   border-radius: 24px;
@@ -2880,7 +2977,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
   cursor: pointer;
   text-decoration: none;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-family: inherit;
   white-space: nowrap;
   border-left: 3px solid transparent;
@@ -2979,7 +3076,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
   border-radius: 8px;
   cursor: pointer;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-family: inherit;
   white-space: nowrap;
   border-left: 3px solid transparent;
@@ -2997,7 +3094,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
   opacity: 0;
   cursor: grab;
   color: rgba(255, 255, 255, 0.3);
-  font-size: 12px;
+  font-size: var(--fs-12);
   padding: 4px 2px;
   transition: opacity 0.15s ease;
   user-select: none;
@@ -3061,7 +3158,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
   padding: 4px 8px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: rgba(255, 255, 255, 0.8);
   white-space: nowrap;
   overflow: hidden;
@@ -3090,7 +3187,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
 .sidebar-shortcut-empty {
   display: block;
   padding: 6px 8px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: rgba(255, 255, 255, 0.4);
   font-style: italic;
 }
@@ -3100,7 +3197,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
   opacity: 0;
   cursor: grab;
   color: rgba(255, 255, 255, 0.3);
-  font-size: 10px;
+  font-size: var(--fs-10);
   padding: 2px;
   transition: opacity 0.15s ease;
   flex-shrink: 0;
@@ -3122,7 +3219,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
 
 /* Variant count badge in sidebar */
 .sidebar-shortcut-variant-badge {
-  font-size: 9px;
+  font-size: var(--fs-9);
   background: rgba(255, 255, 255, 0.15);
   color: rgba(255, 255, 255, 0.7);
   border-radius: 6px;
@@ -3134,7 +3231,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
 /* Sidebar variant chevron */
 .sidebar-variant-chevron {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: rgba(255, 255, 255, 0.4);
   transition: transform 0.2s ease;
   cursor: pointer;
@@ -3163,7 +3260,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
 
 .sidebar-variant-item {
   padding-left: 20px !important;
-  font-size: 11px !important;
+  font-size: var(--fs-11) !important;
   color: rgba(255, 255, 255, 0.6) !important;
 }
 
@@ -3184,7 +3281,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.3);
   color: white;
-  font-size: 12px;
+  font-size: var(--fs-12);
   padding: 2px 4px;
   border-radius: 3px;
   width: 100%;
@@ -3214,7 +3311,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
 
 .sb-ctx-option {
   padding: 7px 14px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: rgba(255, 255, 255, 0.85);
   cursor: pointer;
   white-space: nowrap;
@@ -3343,7 +3440,7 @@ html:not(.has-bg) .sidebar-variant-item:hover {
 }
 
 .nrd-title {
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: rgba(255, 255, 255, 0.9);
   margin-bottom: 10px;
 }
@@ -3353,7 +3450,7 @@ html:not(.has-bg) .sidebar-variant-item:hover {
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.3);
   color: white;
-  font-size: 13px;
+  font-size: var(--fs-13);
   padding: 6px 8px;
   border-radius: 5px;
   outline: none;
@@ -3375,7 +3472,7 @@ html:not(.has-bg) .sidebar-variant-item:hover {
   border: none;
   border-radius: 5px;
   padding: 5px 12px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   cursor: pointer;
   font-family: inherit;
 }
@@ -3439,7 +3536,7 @@ html:not(.has-bg) .nrd-skip {
 }
 
 .sb-group-count {
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: var(--text-hint);
   background: var(--icon-bg);
   border-radius: 8px;
@@ -3626,7 +3723,7 @@ html.bg-light { --sat-amber: #8a6d09; }
 
 .sat-pill-glyph {
   flex-shrink: 0;
-  font-size: 13px;
+  font-size: var(--fs-13);
   line-height: 1;
   color: var(--sat-accent);
 }
@@ -3645,7 +3742,7 @@ html.bg-light { --sat-amber: #8a6d09; }
 }
 
 .sat-pill-label {
-  font-size: 8px;
+  font-size: var(--fs-8);
   font-weight: 600;
   line-height: 1;
   letter-spacing: 0.6px;
@@ -3660,14 +3757,14 @@ html.bg-light { --sat-amber: #8a6d09; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 500;
 }
 
 .sat-pill-time {
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 600;
   color: var(--sat-accent);
 }
@@ -3679,7 +3776,7 @@ html.bg-light { --sat-amber: #8a6d09; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-secondary, rgba(255, 255, 255, 0.75));
 }
 
@@ -3710,7 +3807,7 @@ html.bg-light { --sat-amber: #8a6d09; }
 }
 
 .sat-eyebrow {
-  font-size: 9px;
+  font-size: var(--fs-9);
   font-weight: 600;
   letter-spacing: 0.7px;
   text-transform: uppercase;
@@ -3729,7 +3826,7 @@ html.bg-light { --sat-amber: #8a6d09; }
   border-radius: 5px;
   background: none;
   color: rgba(255, 255, 255, 0.6);
-  font-size: 15px;
+  font-size: var(--fs-15);
   line-height: 1;
   cursor: pointer;
 }
@@ -3743,7 +3840,7 @@ html.bg-light { --sat-amber: #8a6d09; }
   flex-shrink: 0;
   width: 20px;
   height: 20px;
-  font-size: 15px;
+  font-size: var(--fs-15);
   line-height: 1;
   color: var(--sat-accent);
 }
@@ -3763,7 +3860,7 @@ html.bg-light { --sat-amber: #8a6d09; }
    fix: the sidebar widget got white text by inheritance, but a body-mounted
    panel does not, so the color must be explicit.) */
 .sat-name {
-  font-size: 14px;
+  font-size: var(--fs-14);
   font-weight: 600;
   line-height: 1.35;
   color: #fff;
@@ -3777,7 +3874,7 @@ html.bg-light { --sat-amber: #8a6d09; }
 
 .sat-goal {
   margin-top: 2px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: rgba(255, 255, 255, 0.7);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   overflow: hidden;
@@ -3806,7 +3903,7 @@ html.bg-light { --sat-amber: #8a6d09; }
 
 .sat-time-label {
   margin-top: 1px;
-  font-size: 10px;
+  font-size: var(--fs-10);
   font-weight: 500;
   letter-spacing: 0.6px;
   text-transform: uppercase;
@@ -3822,7 +3919,7 @@ html.bg-light { --sat-amber: #8a6d09; }
    activation stamp is not affected by it. */
 .sat-since {
   margin-top: 5px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 500;
   color: rgba(255, 255, 255, 0.55);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -3855,7 +3952,7 @@ html.bg-light { --sat-amber: #8a6d09; }
   padding: 6px 8px;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: rgba(255, 255, 255, 0.7);
 }
 
@@ -3896,7 +3993,7 @@ html.bg-light { --sat-amber: #8a6d09; }
   border: 1px solid rgba(255, 255, 255, 0.15);
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -3959,7 +4056,7 @@ html.bg-light { --sat-amber: #8a6d09; }
   border: 1px solid rgba(255, 255, 255, 0.15);
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition: background-color 0.15s, border-color 0.15s;
@@ -3980,7 +4077,7 @@ html.bg-light { --sat-amber: #8a6d09; }
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -4033,11 +4130,11 @@ html.bg-light { --sat-amber: #8a6d09; }
 /* On the minimized pill the same JS-hook class must NOT take the card's big size,
    and [A2 fix, A1 self-flag #4] must NOT inherit the is-paused amber bleed — the
    frozen countdown reads clean; the Resume control conveys pause. */
-.sat-pill-face .sat-pomo-time { font-size: 13px; font-weight: 600; }
+.sat-pill-face .sat-pomo-time { font-size: var(--fs-13); font-weight: 600; }
 #active-task-pill.is-paused .sat-pill-face .sat-pomo-time { color: #fff; }
 
 .sat-pomo-phase {
-  font-size: 9px;
+  font-size: var(--fs-9);
   font-weight: 600;
   letter-spacing: 0.7px;
   text-transform: uppercase;
@@ -4049,7 +4146,7 @@ html.bg-light { --sat-amber: #8a6d09; }
    (which reuses the .sat-pomo-start-row / .sat-btn-pomo-start start treatment). */
 .sat-pomo-done { width: 100%; margin-top: 8px; }
 .sat-pomo-done-msg {
-  font-size: 13px;
+  font-size: var(--fs-13);
   text-align: center;
   color: rgba(255, 255, 255, 0.85);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -4111,7 +4208,7 @@ html.bg-light { --sat-amber: #8a6d09; }
   background: rgba(0, 0, 0, 0.25);
   color: inherit;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   outline: none;
 }
 
@@ -4143,7 +4240,7 @@ html.bg-light { --sat-amber: #8a6d09; }
      dark ink in the bg-light overrides below. */
   color: rgba(255, 255, 255, 0.6);
   font: inherit;
-  font-size: 10px;
+  font-size: var(--fs-10);
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -4162,7 +4259,7 @@ html.bg-light { --sat-amber: #8a6d09; }
 
 .sat-goal-header {
   padding: 5px 8px 3px 18px;
-  font-size: 10px;
+  font-size: var(--fs-10);
   font-weight: 600;
   color: rgba(255, 255, 255, 0.5);
   overflow: hidden;
@@ -4181,7 +4278,7 @@ html.bg-light { --sat-amber: #8a6d09; }
   border: none;
   color: rgba(255, 255, 255, 0.92);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   cursor: pointer;
   text-align: left;
 }
@@ -4200,7 +4297,7 @@ html.bg-light { --sat-amber: #8a6d09; }
 .sat-switch-empty {
   padding: 14px 10px;
   text-align: center;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: rgba(255, 255, 255, 0.5);
 }
 
@@ -4253,7 +4350,7 @@ html.bg-light { --tt-play-outline: rgba(0, 0, 0, 0.78); }
   color: rgba(255, 255, 255, 0.72);
   /* Was 9px — a sliver that read as noise, not a control (Samson couldn't find
      it on the live pass). Legible at rest, unmissable on hover. */
-  font-size: 13px;
+  font-size: var(--fs-13);
   line-height: 1;
   cursor: pointer;
   opacity: 0;
@@ -4723,7 +4820,7 @@ html.has-bg #history-panel-body .rc-toolbar {
 }
 
 .rc-empty-state-text {
-  font-size: 14px;
+  font-size: var(--fs-14);
   color: var(--text-hint);
   line-height: 1.4;
 }
@@ -4771,7 +4868,7 @@ html.has-bg .rc-empty-state-text {
 }
 
 .restore-header span {
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -4791,7 +4888,7 @@ html.has-bg .rc-empty-state-text {
   background: none;
   border: 1px solid var(--border);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 500;
   font-family: inherit;
   padding: 5px 10px;
@@ -4835,7 +4932,7 @@ html.has-bg .rc-empty-state-text {
   background: none;
   border: none;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-family: inherit;
   text-align: left;
   cursor: pointer;
@@ -4862,7 +4959,7 @@ html.has-bg .rc-empty-state-text {
 }
 
 #restore-tab-count {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-secondary);
 }
 
@@ -4872,7 +4969,7 @@ html.has-bg .rc-empty-state-text {
   border-radius: 4px;
   background: var(--accent);
   color: var(--accent-text);
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 500;
   cursor: pointer;
   font-family: inherit;
@@ -4917,7 +5014,7 @@ html.has-bg .rc-empty-state-text {
 
 .restore-tab-title {
   flex: 1;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4925,7 +5022,7 @@ html.has-bg .rc-empty-state-text {
 }
 
 .restore-tab-domain {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-hint);
   flex-shrink: 0;
   max-width: 100px;
@@ -4935,7 +5032,7 @@ html.has-bg .rc-empty-state-text {
 }
 
 #restore-empty {
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-hint);
   padding: 24px 14px;
   text-align: center;
@@ -5068,7 +5165,7 @@ html.has-bg #restore-empty {
 }
 
 .settings-header span {
-  font-size: 15px;
+  font-size: var(--fs-15);
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -5104,7 +5201,7 @@ html.has-bg #restore-empty {
 }
 
 .settings-section-title {
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
   color: var(--text-hint);
   text-transform: uppercase;
@@ -5122,7 +5219,7 @@ html.has-bg #restore-empty {
 
 .settings-label {
   display: block;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-secondary);
   margin-bottom: 6px;
 }
@@ -5143,7 +5240,7 @@ html.has-bg #restore-empty {
   border: none;
   background: transparent;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 500;
   font-family: inherit;
   color: var(--text-secondary);
@@ -5177,7 +5274,7 @@ html.has-bg #restore-empty {
   border-radius: 6px;
   background: var(--bg);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-family: inherit;
   cursor: pointer;
   transition: border-color 0.15s, background-color 0.15s;
@@ -5217,7 +5314,7 @@ html.has-bg #restore-empty {
   border: none;
   background: transparent;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-family: inherit;
   text-align: left;
   cursor: pointer;
@@ -5241,7 +5338,7 @@ html.has-bg #restore-empty {
   border-radius: 6px;
   background: var(--bg);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
@@ -5266,7 +5363,7 @@ html.has-bg #restore-empty {
 .settings-btn-full {
   width: 100%;
   padding: 10px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   text-align: center;
 }
 
@@ -5292,13 +5389,13 @@ html.has-bg #restore-empty {
 /* --- About --- */
 
 .settings-version {
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-secondary);
   margin: 0 0 4px;
 }
 
 .settings-privacy {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-hint);
   margin: 0;
 }
@@ -5358,7 +5455,7 @@ html.has-bg #pro-settings-close:hover {
 }
 
 .pro-section-subtitle {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-hint);
   margin: 0 0 10px;
 }
@@ -5368,13 +5465,13 @@ html.has-bg .pro-section-subtitle {
 }
 
 .pro-sub-line {
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-primary);
   margin: 0 0 4px;
 }
 
 .pro-sub-line.pro-sub-meta {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-hint);
 }
 
@@ -5390,7 +5487,7 @@ html.has-bg .pro-sub-line.pro-sub-meta {
   display: block;
   margin-top: 6px;
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   border-radius: 6px;
   background: rgba(255, 176, 32, 0.12);
   color: #b06b00;
@@ -5416,7 +5513,7 @@ html.has-bg .pro-warning {
 
 .pro-license-current {
   font-family: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
-  font-size: 12px;
+  font-size: var(--fs-12);
   padding: 8px 10px;
   border-radius: 6px;
   background: var(--icon-bg);
@@ -5483,7 +5580,7 @@ html.has-bg .pro-license-current.pro-license-empty {
      (screenshot-checked). Proximity is what binds it to the button whose
      outcome it reports. */
   margin: 6px 0 16px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   line-height: 1.45;
   color: var(--text-secondary);
 }
@@ -5517,7 +5614,7 @@ html.has-bg.bg-light .pro-license-check-status.pro-license-check-warn { color: #
   background: var(--bg);
   color: var(--text-primary);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 
 #pro-license-input:focus {
@@ -5545,7 +5642,7 @@ html.has-bg #pro-license-input::placeholder {
   padding: 8px 10px;
   border-radius: 6px;
   background: var(--icon-bg);
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-primary);
   margin-bottom: 6px;
 }
@@ -5577,7 +5674,7 @@ html.has-bg .pro-workspace-list li {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-secondary);
   cursor: pointer;
 }
@@ -5608,7 +5705,7 @@ html.has-bg .pro-toggle-row {
   display: flex;
   justify-content: space-between;
   padding: 6px 0;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border);
 }
@@ -5633,7 +5730,7 @@ html.has-bg .pro-readonly-list li {
   justify-content: space-between;
   gap: 10px;
   padding: 6px 0;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border);
 }
@@ -5652,7 +5749,7 @@ html.has-bg .pomo-setting-row {
   flex-shrink: 0;
 }
 
-.pomo-setting-unit { font-size: 12px; opacity: 0.75; }
+.pomo-setting-unit { font-size: var(--fs-12); opacity: 0.75; }
 
 .pomo-setting-input {
   width: 56px;
@@ -5662,7 +5759,7 @@ html.has-bg .pomo-setting-row {
   background: rgba(255, 255, 255, 0.06);
   color: inherit;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-13);
   text-align: right;
   font-variant-numeric: tabular-nums;
   appearance: textfield;
@@ -5697,12 +5794,12 @@ html.has-bg .pomo-setting-input {
   background: rgba(255, 255, 255, 0.06);
   color: inherit;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-13);
   cursor: pointer;
 }
 .pomo-reset-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
 .pomo-reset-btn:disabled { opacity: 0.45; cursor: default; }
-.pomo-reset-hint { font-size: 12px; opacity: 0.7; }
+.pomo-reset-hint { font-size: var(--fs-12); opacity: 0.7; }
 /* [1.0.18 B-1] had a pointer-cursor opt-out here for the notifications row.
    [1.2.1] deleted it: the base .pro-toggle-row is cursor:pointer now, so the
    opt-out is inherited, not declared. Leaving a rule that opts out of a default
@@ -5716,7 +5813,7 @@ html.has-bg .pomo-setting-input {
    this instance so the Analytics .pro-toggle-row is unaffected. With the reset
    row's own 12px above, it now has equal breathing room on both sides. */
 .pro-toggle-row:has(#pomo-notifications-toggle) { margin-top: 12px; }
-.pomo-notif-note { margin: 6px 0 0; font-size: 12px; opacity: 0.8; }
+.pomo-notif-note { margin: 6px 0 0; font-size: var(--fs-12); opacity: 0.8; }
 html.has-bg .pomo-reset-btn { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.14); color: #fff; }
 html.bg-light .pomo-reset-btn { background: rgba(0, 0, 0, 0.04); border-color: rgba(0, 0, 0, 0.14); color: var(--text-primary); }
 
@@ -5734,7 +5831,7 @@ html.bg-light .pomo-reset-btn { background: rgba(0, 0, 0, 0.04); border-color: r
 .pomo-sound { margin-top: 12px; }
 .pomo-sound-title {
   display: block;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-secondary);
   margin-bottom: 6px;
 }
@@ -5743,7 +5840,7 @@ html.bg-light .pomo-reset-btn { background: rgba(0, 0, 0, 0.04); border-color: r
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   padding: 2px 0;
   color: var(--text-secondary);
 }
@@ -5765,7 +5862,7 @@ html.bg-light .pomo-sound-row { color: var(--text-secondary); }
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.06);
   color: inherit;
-  font-size: 9px;
+  font-size: var(--fs-9);
   line-height: 1;
   cursor: pointer;
 }
@@ -6264,7 +6361,7 @@ html.bg-light .rc-panel-item-meta {
 
 .icon-size-small .shortcut-name,
 .icon-size-small .add-tile-label {
-  font-size: 11px;
+  font-size: var(--fs-11);
   max-width: 72px;
 }
 
@@ -6285,7 +6382,7 @@ html.bg-light .rc-panel-item-meta {
 
 .icon-size-large .shortcut-name,
 .icon-size-large .add-tile-label {
-  font-size: 14px;
+  font-size: var(--fs-14);
   max-width: 120px;
 }
 
@@ -6396,7 +6493,7 @@ html.bg-light .rc-panel-item-meta {
   position: fixed;
   background: rgba(0, 0, 0, 0.8);
   color: #fff;
-  font-size: 11px;
+  font-size: var(--fs-11);
   padding: 3px 8px;
   border-radius: 10px;
   pointer-events: none;
@@ -6425,7 +6522,7 @@ html.bg-light .rc-panel-item-meta {
   background: rgba(0, 200, 180, 0.1);
   border-top: 2px dashed rgba(0, 200, 180, 0.3);
   color: rgba(0, 200, 180, 0.7);
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-family: inherit;
   z-index: 1001;
   opacity: 0;
@@ -6453,7 +6550,7 @@ html.bg-light .rc-panel-item-meta {
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.85);
   color: #fff;
-  font-size: 13px;
+  font-size: var(--fs-13);
   padding: 10px 18px;
   border-radius: 12px;
   display: flex;
@@ -6480,7 +6577,7 @@ html.bg-light .rc-panel-item-meta {
   background: rgba(255, 255, 255, 0.2);
   border: none;
   color: #fff;
-  font-size: 12px;
+  font-size: var(--fs-12);
   padding: 4px 10px;
   border-radius: 8px;
   cursor: pointer;
@@ -6511,7 +6608,7 @@ html.has-bg #nesting-tooltip {
   cursor: pointer;
   color: var(--text-secondary);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--fs-13);
   position: relative;
   white-space: nowrap;
   transition: background-color 0.15s;
@@ -6531,7 +6628,7 @@ html.has-bg #nesting-tooltip {
   height: 28px;
   border-radius: 50%;
   color: #fff;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   letter-spacing: 0.3px;
   text-transform: uppercase;
@@ -6606,7 +6703,7 @@ html.has-bg #nesting-tooltip {
   padding: 8px 10px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: #fff;
   background: transparent;
   border: none;
@@ -6675,7 +6772,7 @@ html.has-bg #nesting-tooltip {
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   outline: none;
 }
 
@@ -6691,7 +6788,7 @@ html.has-bg #nesting-tooltip {
   background: rgba(111, 177, 255, 0.18);
   color: #6fb1ff;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   cursor: pointer;
 }
@@ -6719,7 +6816,7 @@ html.has-bg #nesting-tooltip {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 
 .pws-drag-handle {
@@ -6728,7 +6825,7 @@ html.has-bg #nesting-tooltip {
   color: rgba(255, 255, 255, 0.35);
   cursor: grab;
   user-select: none;
-  font-size: 14px;
+  font-size: var(--fs-14);
   line-height: 1;
   text-align: center;
 }
@@ -6751,7 +6848,7 @@ html.has-bg #nesting-tooltip {
   height: 24px;
   border-radius: 50%;
   color: #fff;
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
   text-transform: uppercase;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
@@ -6847,7 +6944,7 @@ html.has-bg #nesting-tooltip {
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   outline: none;
 }
 
@@ -6868,7 +6965,7 @@ html.has-bg #nesting-tooltip {
   align-items: center;
   gap: 5px;
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: rgba(255, 255, 255, 0.55);
   cursor: pointer;
   user-select: none;
@@ -6900,7 +6997,7 @@ html.bg-light .pws-add-tracking input:checked + span {
 }
 
 .pws-section-subtitle {
-  font-size: 11px;
+  font-size: var(--fs-11);
   opacity: 0.6;
   margin: 0 0 8px;
 }
@@ -7004,7 +7101,7 @@ html.has-bg .pro-tag-name {
    dimming, which would have compounded to near-invisible. */
 .pro-tag-archived-label {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-hint);
 }
 
@@ -7019,7 +7116,7 @@ html.has-bg.bg-light .pro-tag-archived-label { color: var(--text-hint); }
   border-radius: 4px;
   padding: 2px 8px;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-style: normal;
   color: var(--accent);
   cursor: pointer;
@@ -7033,7 +7130,7 @@ html.has-bg.bg-light .pro-tag-restore { color: var(--accent); border-color: rgba
    row is flex-wrap:wrap when archived), matching .pro-tag-create-error. */
 .pro-tag-restore-error {
   flex-basis: 100%;
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-style: normal;
   color: #ff6b6b;
   margin-top: 2px;
@@ -7050,7 +7147,7 @@ html.has-bg.bg-light .pro-tag-restore { color: var(--accent); border-color: rgba
   border: none;
   padding: 0;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--accent);
   cursor: pointer;
   text-decoration: underline;
@@ -7067,7 +7164,7 @@ html.has-bg.bg-light .pro-tags-trash-toggle { color: var(--accent); }
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: var(--fs-14);
   line-height: 1;
   transition: color 0.15s, background 0.15s;
 }
@@ -7148,7 +7245,7 @@ html.has-bg.bg-light .pro-tags-trash-toggle { color: var(--accent); }
    it reads as an error without introducing a new red. */
 .pro-tag-create-error {
   flex-basis: 100%;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: #ff6b6b;
   margin-top: 2px;
 }
@@ -7159,7 +7256,7 @@ html.has-bg.bg-light .pro-tags-trash-toggle { color: var(--accent); }
 
 .pro-tag-rename-error {
   display: block;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: #ff6b6b;
   margin-top: 2px;
   line-height: 1.3;
@@ -7181,7 +7278,7 @@ html.has-bg.bg-light .pro-tags-trash-toggle { color: var(--accent); }
 }
 
 .pro-tags-empty {
-  font-size: 12px;
+  font-size: var(--fs-12);
   opacity: 0.6;
   margin: 6px 0 0;
 }
@@ -7209,7 +7306,7 @@ html.has-bg.bg-light .pro-tags-trash-toggle { color: var(--accent); }
   border: 1px solid rgba(255, 214, 110, 0.3);
   border-radius: 8px;
   color: #fff;
-  font-size: 13px;
+  font-size: var(--fs-13);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   opacity: 0.95;
 }
@@ -7305,7 +7402,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
   border: none;
   border-radius: 999px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   letter-spacing: 0.2px;
   cursor: pointer;
@@ -7438,7 +7535,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
 }
 
 .up-title {
-  font-size: 14px;
+  font-size: var(--fs-14);
   font-weight: 600;
   line-height: 1.3;
   flex: 1;
@@ -7460,7 +7557,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
 .up-close:hover { opacity: 1; }
 
 .up-subhead {
-  font-size: 12px;
+  font-size: var(--fs-12);
   opacity: 0.78;
   line-height: 1.45;
   margin-bottom: 14px;
@@ -7475,7 +7572,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
   background: linear-gradient(135deg, #4a90e2 0%, #6fb1ff 100%);
   color: #fff;
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 600;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(74, 144, 226, 0.4);
@@ -7499,7 +7596,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
   border: none;
   color: #6fb1ff;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   cursor: pointer;
   padding: 0;
   text-decoration: underline;
@@ -7524,7 +7621,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   outline: none;
 }
 
@@ -7540,7 +7637,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
   background: rgba(111, 177, 255, 0.2);
   color: #6fb1ff;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   cursor: pointer;
   border: 1px solid rgba(111, 177, 255, 0.5);
@@ -7557,7 +7654,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
   align-items: center;
   gap: 10px;
   margin: 12px 0 10px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   opacity: 0.6;
@@ -7585,7 +7682,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
   background: rgba(111, 177, 255, 0.08);
   color: #fff;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
@@ -7603,7 +7700,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
   background: rgba(208, 2, 27, 0.16);
   border: 1px solid rgba(208, 2, 27, 0.4);
   color: #ff8a8a;
-  font-size: 12px;
+  font-size: var(--fs-12);
   line-height: 1.4;
 }
 
@@ -7691,7 +7788,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   color: #fff;
-  font-size: 13px;
+  font-size: var(--fs-13);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   opacity: 0.92;
   z-index: 1;
@@ -7777,7 +7874,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: #fff;
   cursor: not-allowed;
   pointer-events: none;
@@ -7795,7 +7892,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   align-items: center;
   gap: 6px;
   margin: 18px 4px 8px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 600;
   letter-spacing: 0.4px;
   text-transform: uppercase;
@@ -7818,7 +7915,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   margin: 0 0 8px;
   border-radius: 10px;
   background: rgba(30, 30, 30, 0.55);
-  font-size: 13px;
+  font-size: var(--fs-13);
   opacity: 0.7;
   font-style: italic;
 }
@@ -7854,7 +7951,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
 }
 
 .pp-goal-name {
-  font-size: 15px;
+  font-size: var(--fs-15);
   font-weight: 600;
 }
 
@@ -7865,7 +7962,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
 }
 
 .pp-goal-deadline {
-  font-size: 12px;
+  font-size: var(--fs-12);
   opacity: 0.7;
 }
 
@@ -7907,7 +8004,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
 }
 
 .pp-progress-text {
-  font-size: 11px;
+  font-size: var(--fs-11);
   opacity: 0.7;
   min-width: 28px;
   text-align: right;
@@ -7928,7 +8025,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.04);
   border-left: 3px solid transparent;
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 
 .pp-prio-urgent { border-left-color: #e74c3c; }
@@ -7964,7 +8061,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   height: 18px;
   padding: 0 8px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 500;
   color: #fff;
   text-shadow: none;
@@ -7980,7 +8077,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   background: rgba(46, 204, 113, 0.18);
   border: 1px solid rgba(46, 204, 113, 0.4);
   color: #58e89a;
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 500;
 }
 
@@ -8003,7 +8100,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   background: transparent;
   border: 1px dashed rgba(255, 255, 255, 0.18);
   color: #fff;
-  font-size: 12px;
+  font-size: var(--fs-12);
   padding: 6px 12px;
   border-radius: 6px;
   cursor: not-allowed;
@@ -8145,7 +8242,7 @@ html.has-bg.bg-light .dash-head {
 
 .dash-sub {
   margin-top: 6px;
-  font-size: 14px;
+  font-size: var(--fs-14);
   color: rgba(255, 255, 255, 0.75);
 }
 
@@ -8157,7 +8254,7 @@ html.has-bg.bg-light .dash-head {
 
 .dash-meta-due,
 .dash-meta-prio {
-  font-size: 12px;
+  font-size: var(--fs-12);
   padding: 3px 9px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.14);
@@ -8194,7 +8291,7 @@ html.has-bg.bg-light .dash-head {
   border-radius: 8px;
   background: #1668c4;
   color: #ffffff;
-  font-size: 14px;
+  font-size: var(--fs-14);
   font-weight: 600;
   cursor: pointer;
   text-shadow: none;
@@ -8242,7 +8339,7 @@ html.has-bg.bg-light .dash-meta-prio {
   align-items: center;
   gap: 10px;
   padding: 7px 0;
-  font-size: 14px;
+  font-size: var(--fs-14);
 }
 
 /* The checkbox is the Tasks tab's own .tt-task-check — same size, same accent,
@@ -8305,7 +8402,7 @@ html.has-bg.bg-light .dash-meta-prio {
    also clears 4.5:1 on all four frames, where .insights-empty's 0.6 on the
    white-tinted light-solid card measured 4.23:1. */
 .dash-note {
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: rgba(255, 255, 255, 0.78);
   padding: 4px 0;
 }
@@ -8355,7 +8452,7 @@ html.has-bg.bg-light .dash-inline-link:hover {
   background: var(--pro-frost-card-bg);
   backdrop-filter: var(--pro-frost-card-blur);
   -webkit-backdrop-filter: var(--pro-frost-card-blur);
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: rgba(255, 255, 255, 0.85);
   text-shadow: none;
 }
@@ -8403,7 +8500,7 @@ html.has-bg.bg-light .dash-recap-value {
 }
 
 .pp-dash-card-title {
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -8425,7 +8522,7 @@ html.has-bg.bg-light .dash-recap-value {
 }
 
 .pp-recap-big-label {
-  font-size: 13px;
+  font-size: var(--fs-13);
   opacity: 0.75;
 }
 
@@ -8434,7 +8531,7 @@ html.has-bg.bg-light .dash-recap-value {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  font-size: 13px;
+  font-size: var(--fs-13);
   margin-bottom: 8px;
   opacity: 0.92;
 }
@@ -8462,7 +8559,7 @@ html.has-bg.bg-light .dash-recap-value {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-12);
 }
 
 .pp-tag-breakdown-dur {
@@ -8476,7 +8573,7 @@ html.has-bg.bg-light .dash-recap-value {
 }
 
 .pp-mood-q {
-  font-size: 12px;
+  font-size: var(--fs-12);
   opacity: 0.75;
   margin-bottom: 6px;
 }
@@ -8526,7 +8623,7 @@ html.has-bg.bg-light .dash-recap-value {
 
 .pp-bar-label {
   fill: #fff;
-  font-size: 10px;
+  font-size: var(--fs-10);
   text-anchor: middle;
   opacity: 0.75;
   font-family: inherit;
@@ -8534,14 +8631,14 @@ html.has-bg.bg-light .dash-recap-value {
 
 .pp-axis-label {
   fill: #fff;
-  font-size: 10px;
+  font-size: var(--fs-10);
   opacity: 0.75;
   font-family: inherit;
 }
 
 .pp-axis-label-sub {
   fill: #fff;
-  font-size: 10px;
+  font-size: var(--fs-10);
   opacity: 0.55;
   font-family: inherit;
 }
@@ -8596,7 +8693,7 @@ html.has-bg.bg-light .dash-recap-value {
   grid-template-columns: 14px 1fr auto;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  font-size: var(--fs-12);
 }
 
 .pp-donut-legend-swatch {
@@ -8646,14 +8743,14 @@ html.has-bg.bg-light .dash-recap-value {
 }
 
 .pp-badge-title {
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   color: #fff;
   margin-bottom: 2px;
 }
 
 .pp-badge-sub {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: #fff;
   opacity: 0.7;
   line-height: 1.35;
@@ -8737,7 +8834,7 @@ html.has-bg.bg-light .pro-preview-banner-text {
   padding-bottom: 48px;
 }
 .insights-badge-count {
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
@@ -8780,7 +8877,7 @@ html.has-bg.bg-light .pro-preview-banner-text {
   font-variant-numeric: tabular-nums;
 }
 .insights-strip-label {
-  font-size: 11px;
+  font-size: var(--fs-11);
   opacity: 0.7;
   text-transform: uppercase;
   letter-spacing: 0.4px;
@@ -8798,7 +8895,7 @@ html.has-bg.bg-light .pro-preview-banner-text {
   grid-template-columns: minmax(0, 1fr) 90px auto;
   align-items: center;
   gap: 12px;
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 .insights-task-name {
   overflow: hidden;
@@ -8822,7 +8919,7 @@ html.has-bg.bg-light .pro-preview-banner-text {
   font-variant-numeric: tabular-nums;
 }
 .insights-empty {
-  font-size: 13px;
+  font-size: var(--fs-13);
   opacity: 0.6;
   padding: 4px 0;
 }
@@ -8901,14 +8998,14 @@ html.has-bg.bg-light .insights-task-bar {
 }
 .badge-splash-icon svg { width: 34px; height: 34px; }
 .badge-splash-eyebrow {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 1.2px;
   text-transform: uppercase;
   font-weight: 700;
   color: #ffd66e;
 }
 .badge-splash-title { font-size: 20px; font-weight: 700; color: #fff; }
-.badge-splash-desc { font-size: 13px; color: rgba(255, 255, 255, 0.82); }
+.badge-splash-desc { font-size: var(--fs-13); color: rgba(255, 255, 255, 0.82); }
 
 /* Light-wallpaper: the floater glass flips to white, so the ink and the gold
    accent must darken to keep >= 3:1. */
@@ -8991,7 +9088,7 @@ html.has-bg.bg-light .badge-splash-icon { color: #8a5a00; border-color: rgba(138
   animation: badge-splash-glow 2.4s ease-in-out infinite;   /* reuse, not a new keyframe */
 }
 .pro-celebrate-eyebrow {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 1.2px;
   text-transform: uppercase;
   font-weight: 700;
@@ -8999,7 +9096,7 @@ html.has-bg.bg-light .badge-splash-icon { color: #8a5a00; border-color: rgba(138
 }
 .pro-celebrate-title { font-size: 26px; font-weight: 700; color: #fff; }
 .pro-celebrate-desc {
-  font-size: 13.5px;
+  font-size: var(--fs-13-5);
   line-height: 1.5;
   color: rgba(255, 255, 255, 0.86);
 }
@@ -9012,7 +9109,7 @@ html.has-bg.bg-light .badge-splash-icon { color: #8a5a00; border-color: rgba(138
 }
 .pro-celebrate-btn {
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 600;
   padding: 9px 16px;
   border-radius: 8px;
@@ -9096,7 +9193,7 @@ html.has-bg.bg-light .pro-celebrate-btn:not(.is-primary):hover { background: rgb
   border-bottom: 1px solid rgba(255, 255, 255, 0.16);
 }
 
-.pro-tour-text { font-size: 13px; line-height: 1.5; color: #fff; }
+.pro-tour-text { font-size: var(--fs-13); line-height: 1.5; color: #fff; }
 .pro-tour-foot {
   display: flex;
   align-items: center;
@@ -9104,11 +9201,11 @@ html.has-bg.bg-light .pro-celebrate-btn:not(.is-primary):hover { background: rgb
   gap: 10px;
   margin-top: 12px;
 }
-.pro-tour-count { font-size: 11px; color: rgba(255, 255, 255, 0.6); }
+.pro-tour-count { font-size: var(--fs-11); color: rgba(255, 255, 255, 0.6); }
 .pro-tour-btns { display: flex; gap: 6px; }
 .pro-tour-btn {
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   padding: 5px 12px;
   border-radius: 6px;
@@ -9244,7 +9341,7 @@ html.has-bg.bg-light .pro-celebrate-btn:not(.is-primary):hover { background: rgb
   -webkit-backdrop-filter: blur(12px);
   color: #fff;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   cursor: pointer;
   background-image: linear-gradient(45deg, transparent 50%, rgba(255, 255, 255, 0.7) 50%),
                     linear-gradient(135deg, rgba(255, 255, 255, 0.7) 50%, transparent 50%);
@@ -9293,7 +9390,7 @@ body.sat-card-open .tasks-header-right {
   background: rgba(111, 177, 255, 0.12);
   color: #fff;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 500;
   /* [2.0 ink] THE RING IS BACK. It was removed on the reading that these sit on
      a tinted fill — but the fill is 12% alpha, which is not a surface: measured
@@ -9321,7 +9418,7 @@ body.sat-card-open .tasks-header-right {
 .tasks-templates-link {
   margin-left: 4px;
   color: #b9d6ff;
-  font-size: 12px;
+  font-size: var(--fs-12);
   text-decoration: underline;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
   cursor: pointer;
@@ -9379,7 +9476,7 @@ body.sat-card-open .tasks-header-right {
 
 .tt-section-title {
   margin: 0 0 12px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -9390,7 +9487,7 @@ body.sat-card-open .tasks-header-right {
 }
 
 .tt-section-count {
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
   padding: 1px 7px;
   border-radius: 999px;
@@ -9401,7 +9498,7 @@ body.sat-card-open .tasks-header-right {
 
 .tt-empty-state {
   padding: 14px 4px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   opacity: 0.62;
   font-style: italic;
 }
@@ -9474,7 +9571,7 @@ body.sat-card-open .tasks-header-right {
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
   font-family: inherit;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0;
   text-transform: none;
   padding: 3px 8px;
@@ -9518,7 +9615,7 @@ body.sat-card-open .tasks-header-right {
 
 .tt-completed-kind {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: var(--fs-12);
   opacity: 0.55;
   width: 14px;
   text-align: center;
@@ -9532,12 +9629,12 @@ body.sat-card-open .tasks-header-right {
   white-space: nowrap;
   text-decoration: line-through;
   opacity: 0.62;
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 
 .tt-completed-date {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--fs-11);
   opacity: 0.5;
   font-variant-numeric: tabular-nums;
 }
@@ -9557,7 +9654,7 @@ body.sat-card-open .tasks-header-right {
 
 .tt-deleted-kind {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: var(--fs-12);
   opacity: 0.5;
   width: 14px;
   text-align: center;
@@ -9569,13 +9666,13 @@ body.sat-card-open .tasks-header-right {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--fs-13);
   opacity: 0.85;
 }
 
 .tt-trash-days {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -9610,7 +9707,7 @@ body.sat-card-open .tasks-header-right {
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
   font-family: inherit;
-  font-size: 11px;
+  font-size: var(--fs-11);
   padding: 3px 8px;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
@@ -9659,7 +9756,7 @@ body.sat-card-open .tasks-header-right {
 }
 
 .tt-goal-name {
-  font-size: 15px;
+  font-size: var(--fs-15);
   /* One weight step down (600 → 500) to shed the heavy look while staying
      visibly heavier than task-row names (normal/400). Glow removed; the
      .tasks-tab body-legibility shadow stays for other Tasks text. */
@@ -9668,12 +9765,12 @@ body.sat-card-open .tasks-header-right {
 }
 
 .tt-goal-deadline {
-  font-size: 12px;
+  font-size: var(--fs-12);
   opacity: 0.78;
 }
 
 .tt-overdue-badge {
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
   padding: 2px 7px;
   border-radius: 999px;
@@ -9727,7 +9824,7 @@ body.sat-card-open .tasks-header-right {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -9744,7 +9841,7 @@ body.sat-card-open .tasks-header-right {
 }
 
 .tt-progress-text {
-  font-size: 12px;
+  font-size: var(--fs-12);
   opacity: 0.78;
   white-space: nowrap;
 }
@@ -9766,7 +9863,7 @@ body.sat-card-open .tasks-header-right {
   gap: 8px;
   padding: 6px 8px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   transition: background 0.15s;
 }
 
@@ -9789,7 +9886,7 @@ body.sat-card-open .tasks-header-right {
      non-text UI and would pass at 3:1, but 0.5 clears the text floor for the same
      nothing and keeps it a whisper next to the row's real controls. */
   color: rgba(255, 255, 255, 0.5);
-  font-size: 14px;
+  font-size: var(--fs-14);
   line-height: 1;
   padding: 2px 2px;
   user-select: none;
@@ -9933,7 +10030,7 @@ body.sat-card-open .tasks-header-right {
 }
 .tt-tag-more {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: var(--fs-10);
   font-weight: 600;
   color: rgba(255, 255, 255, 0.6);
   white-space: nowrap;
@@ -9972,12 +10069,12 @@ body.sat-card-open .tasks-header-right {
      point of the unset treatment. */
   color: rgba(255, 255, 255, 0.62);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--fs-11);
   line-height: 1.4;
   cursor: pointer;
   transition: background 0.12s, color 0.12s, border-color 0.12s, opacity 0.12s;
 }
-.tt-prio-pill .tt-prio-flag { font-size: 11px; line-height: 1; }
+.tt-prio-pill .tt-prio-flag { font-size: var(--fs-11); line-height: 1; }
 .tt-prio-pill.tt-prio-none { opacity: 0.55; }
 .tt-task-row:hover .tt-prio-pill.tt-prio-none { opacity: 1; }
 .tt-prio-pill.tt-prio-none:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
@@ -10028,12 +10125,12 @@ body.sat-card-open .tasks-header-right {
   background: transparent;
   color: rgba(255, 255, 255, 0.75);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--fs-11);
   line-height: 1.4;
   cursor: pointer;
   transition: background 0.12s, color 0.12s, border-color 0.12s, opacity 0.12s;
 }
-.tt-due-pill .tt-due-icon { font-size: 11px; line-height: 1; }
+.tt-due-pill .tt-due-icon { font-size: var(--fs-11); line-height: 1; }
 /* [2.0 ink] The icon is an inline SVG on currentColor now, not an emoji. It is
    sized in em, so BOTH font-size rules here still own its size exactly as they
    did for the glyph — this round changes no font sizes. display:block kills the
@@ -10049,8 +10146,8 @@ body.sat-card-open .tasks-header-right {
   border-color: rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.55);
 }
-.tt-due-pill.tt-due-none .tt-due-icon { font-size: 13px; }
-.tt-due-add-label { font-size: 11px; }
+.tt-due-pill.tt-due-none .tt-due-icon { font-size: var(--fs-13); }
+.tt-due-add-label { font-size: var(--fs-11); }
 .tt-task-row:hover .tt-due-pill.tt-due-none {
   color: rgba(255, 255, 255, 0.72);
   border-color: rgba(255, 255, 255, 0.2);
@@ -10076,7 +10173,7 @@ body.sat-card-open .tasks-header-right {
   background: rgba(255, 255, 255, 0.06);
   color: inherit;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 .tt-due-popover-actions {
   display: flex;
@@ -10161,12 +10258,12 @@ html.has-bg.bg-light .tt-task-row:hover .tt-due-pill.tt-due-none:hover {
   padding: 6px 8px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 .tt-filter-row:hover { background: rgba(111, 177, 255, 0.18); }
 .tt-filter-check { width: 14px; height: 14px; accent-color: #6fb1ff; cursor: pointer; flex-shrink: 0; }
 .tt-filter-row-label { flex: 1; min-width: 0; }
-.tt-filter-empty { padding: 8px 10px; font-size: 12px; color: rgba(255, 255, 255, 0.6); }
+.tt-filter-empty { padding: 8px 10px; font-size: var(--fs-12); color: rgba(255, 255, 255, 0.6); }
 
 /* Light-wallpaper: the muted (unset) pill needs a dark glyph against the
    white-tinted card. Colored pills + the dark popover stay legible as-is. */
@@ -10195,7 +10292,7 @@ html.has-bg.bg-light .tt-task-trash:hover { color: #d0021b; background: rgba(208
 .tt-task-empty {
   list-style: none;
   padding: 6px 8px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   opacity: 0.6;
   font-style: italic;
 }
@@ -10216,7 +10313,7 @@ html.has-bg.bg-light .tt-task-trash:hover { color: #d0021b; background: rgba(208
 
 /* Recurring rows */
 .tt-recurring-icon {
-  font-size: 13px;
+  font-size: var(--fs-13);
   opacity: 0.7;
   width: 16px;
   text-align: center;
@@ -10228,12 +10325,12 @@ html.has-bg.bg-light .tt-task-trash:hover { color: #d0021b; background: rgba(208
 
 .tt-recurring-hint {
   flex: 1;
-  font-size: 12px;
+  font-size: var(--fs-12);
   opacity: 0.62;
 }
 
 .tt-recurring-paused {
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
   padding: 2px 7px;
   border-radius: 999px;
@@ -10246,7 +10343,7 @@ html.has-bg.bg-light .tt-task-trash:hover { color: #d0021b; background: rgba(208
   display: inline-block;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
   color: #fff;
   text-shadow: none;
@@ -10580,7 +10677,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   opacity: 0.7;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, opacity 0.15s;
@@ -10609,7 +10706,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
   background: rgba(0, 0, 0, 0.25);
   color: #fff;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-13);
   outline: none;
 }
 
@@ -10626,7 +10723,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
   background: rgba(255, 255, 255, 0.06);
   color: inherit;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
@@ -10690,7 +10787,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
 }
 
 .tt-modal-title {
-  font-size: 15px;
+  font-size: var(--fs-15);
   font-weight: 600;
 }
 
@@ -10730,7 +10827,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
 }
 
 .tt-modal-label {
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -10748,7 +10845,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
   background: rgba(0, 0, 0, 0.25);
   color: #fff;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-13);
   outline: none;
 }
 
@@ -10827,7 +10924,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--fs-12);
 }
 
 .tt-modal-dow-toggle input { accent-color: #4a90e2; }
@@ -10838,12 +10935,12 @@ html.has-bg.bg-light .tt-task-handle:hover {
   border-radius: 6px;
   background: rgba(208, 2, 27, 0.16);
   color: #ff8a8a;
-  font-size: 12px;
+  font-size: var(--fs-12);
 }
 
 .tt-modal-message {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-13);
   line-height: 1.5;
 }
 
@@ -10867,7 +10964,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
   background: rgba(255, 255, 255, 0.06);
   color: inherit;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
@@ -10905,13 +11002,13 @@ html.has-bg.bg-light .tt-task-handle:hover {
 }
 
 .tt-templates-empty-title {
-  font-size: 15px;
+  font-size: var(--fs-15);
   font-weight: 600;
   margin-bottom: 4px;
 }
 
 .tt-templates-empty-sub {
-  font-size: 12px;
+  font-size: var(--fs-12);
   opacity: 0.7;
   line-height: 1.5;
 }
@@ -10920,7 +11017,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
    template is selected). Inherits the modal text color, so it themes with the
    modal on light + dark; muted so it reads as informational, not editable. */
 .tt-goal-deadline-computed {
-  font-size: 13px;
+  font-size: var(--fs-13);
   padding: 6px 0;
   opacity: 0.82;
 }
@@ -10959,14 +11056,14 @@ html.has-bg.bg-light .tt-task-handle:hover {
 }
 
 .tt-tpl-name {
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.tt-tpl-meta { font-size: 11px; opacity: 0.6; }
+.tt-tpl-meta { font-size: var(--fs-11); opacity: 0.6; }
 
 .tt-tpl-actions {
   flex-shrink: 0;
@@ -10985,7 +11082,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
   font-family: inherit;
-  font-size: 11px;
+  font-size: var(--fs-11);
   padding: 3px 8px;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
@@ -11002,7 +11099,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
   background: transparent;
   color: #6fb1ff;
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--fs-13);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
 }
@@ -11033,7 +11130,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
   flex-shrink: 0;
   cursor: grab;
   color: rgba(255, 255, 255, 0.35);
-  font-size: 14px;
+  font-size: var(--fs-14);
   user-select: none;
 }
 
@@ -11062,7 +11159,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
   background: transparent;
   color: rgba(255, 255, 255, 0.75);
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   cursor: pointer;
 }
 
@@ -11121,7 +11218,7 @@ html.has-bg.bg-light .tt-tpl-task-remove {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-13);
   cursor: pointer;
   transition: background 0.12s;
 }
@@ -11149,7 +11246,7 @@ html.has-bg.bg-light .tt-tpl-task-remove {
    ellipsis backstops the ~24-char JS truncation for very wide glyphs. */
 .tt-ctx-header {
   padding: 5px 10px 4px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 500;
   color: rgba(255, 255, 255, 0.72);
   white-space: nowrap;
@@ -11298,7 +11395,7 @@ html.has-bg.bg-light .tt-ctx-header {
 
 .tag-submenu-header {
   padding: 6px 12px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-hint);
   font-weight: 500;
 }
@@ -11317,7 +11414,7 @@ html.has-bg.bg-light .tt-ctx-header {
   background: none;
   border: none;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--fs-13);
   cursor: pointer;
   text-align: left;
   font-family: inherit;
@@ -11357,7 +11454,7 @@ html.has-bg.bg-light .tt-ctx-header {
 
 .tag-submenu-empty {
   padding: 8px 12px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-hint);
   font-style: italic;
 }
@@ -11377,7 +11474,7 @@ html.has-bg.bg-light .tt-ctx-header {
   background: none;
   border: none;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--fs-13);
   cursor: pointer;
   text-align: left;
   font-family: inherit;
@@ -11447,7 +11544,7 @@ html.has-bg .tag-submenu-swatch {
 }
 
 .tag-create-title {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-hint);
   font-weight: 500;
 }
@@ -11461,7 +11558,7 @@ html.has-bg .tag-submenu-swatch {
 .tag-create-input {
   width: 100%;
   padding: 6px 8px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-card);
@@ -11471,7 +11568,7 @@ html.has-bg .tag-submenu-swatch {
 }
 
 .tag-create-error {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: #ff6b6b;
   margin-top: -2px;
   line-height: 1.3;
@@ -11489,7 +11586,7 @@ html.has-bg .tag-submenu-swatch {
 
 .tag-create-btn {
   padding: 5px 10px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-card);
@@ -11599,7 +11696,7 @@ html.has-bg .tag-create-btn:hover:not(:disabled) {
 .group-tag-pills .tag-pill {
   height: 18px;
   padding: 0 8px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   line-height: 18px;
 }
 
@@ -11657,14 +11754,14 @@ html.has-bg .tag-create-btn:hover:not(:disabled) {
 }
 
 .demo-tile-title {
-  font-size: 14px;
+  font-size: var(--fs-14);
   font-weight: 600;
   line-height: 1.3;
 }
 
 .demo-tile-body {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--fs-12-5);
   line-height: 1.5;
   color: rgba(255, 255, 255, 0.78);
 }
@@ -11725,7 +11822,7 @@ button.demo-tile-background:hover {
    window is tight enough that eyeballing will not catch a regression. */
 .demo-clear {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   padding: 5px 12px;
   border-radius: 6px;
@@ -11758,7 +11855,7 @@ button.demo-tile-background:hover {
   max-width: 240px;
   padding: 6px 10px;
   border-radius: 6px;
-  font-size: 11.5px;
+  font-size: var(--fs-11-5);
   line-height: 1.4;
   background: var(--pro-frost-menu-bg, rgba(30, 30, 30, 0.95));
   backdrop-filter: var(--pro-frost-menu-blur, blur(12px));
@@ -11854,7 +11951,7 @@ html.bg-light #tips-close:hover { color: #202124; background: rgba(0, 0, 0, 0.06
 
 .import-intro {
   margin: 0 0 12px;
-  font-size: 12.5px;
+  font-size: var(--fs-12-5);
   line-height: 1.5;
   color: rgba(255, 255, 255, 0.78);
 }
@@ -11878,9 +11975,9 @@ html.bg-light #tips-close:hover { color: #202124; background: rgba(0, 0, 0, 0.06
   border-color: var(--sat-accent, #8ab4f8);
   background: rgba(138, 180, 248, 0.12);
 }
-.import-option-title { font-size: 13px; font-weight: 600; }
+.import-option-title { font-size: var(--fs-13); font-weight: 600; }
 .import-option-desc {
-  font-size: 11.5px;
+  font-size: var(--fs-11-5);
   color: rgba(255, 255, 255, 0.78);
 }
 
@@ -11902,7 +11999,7 @@ html.bg-light #tips-close:hover { color: #202124; background: rgba(0, 0, 0, 0.06
   width: 100%;
   text-align: left;
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--fs-12-5);
   line-height: 1.45;
   padding: 8px 10px;
   border: 1px solid transparent;
@@ -11941,7 +12038,7 @@ button.tip-row.is-actionable:focus-visible {
   padding: 2px 10px 6px;
 }
 .gs-title {
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
   letter-spacing: 0.4px;
   text-transform: uppercase;
@@ -11949,7 +12046,7 @@ button.tip-row.is-actionable:focus-visible {
   text-shadow: none;
 }
 .gs-count {
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   color: rgba(255, 255, 255, 0.72);
   text-shadow: none;
@@ -11964,7 +12061,7 @@ button.tip-row.is-actionable:focus-visible {
 .gs-row.is-checked { opacity: 0.7; }
 .gs-row.is-checked .tip-visual { opacity: 0.7; }
 .gs-doneline {
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 600;
   color: #34a853;
   padding: 6px 10px 8px;
@@ -11977,7 +12074,7 @@ button.tip-row.is-actionable:focus-visible {
   border: none;
   padding: 4px 10px;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: rgba(255, 255, 255, 0.55);
   cursor: pointer;
   text-decoration: underline;
@@ -12098,7 +12195,7 @@ html.bg-light .tip-vis-swatch i:nth-child(3) { background: rgba(0,0,0,0.25); }
    buttons read as one system and share one solved luminance window. */
 .tips-action {
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--fs-12-5);
   font-weight: 600;
   width: 100%;
   padding: 8px 12px;
@@ -12118,14 +12215,14 @@ html.bg-light .tip-vis-swatch i:nth-child(3) { background: rgba(0,0,0,0.25); }
 
 .tips-restore-note {
   margin: 6px 0 0;
-  font-size: 11.5px;
+  font-size: var(--fs-11-5);
   line-height: 1.4;
   color: rgba(255, 255, 255, 0.66);
 }
 
 .tips-pro-seed {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-12);
   line-height: 1.5;
   font-style: italic;
   color: rgba(255, 255, 255, 0.7);
@@ -12181,7 +12278,7 @@ html.bg-light .import-option {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-primary);
 }
 
@@ -12193,7 +12290,7 @@ html.has-bg.bg-light .focus-block-domain { color: var(--text-primary); }
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 15px;
+  font-size: var(--fs-15);
   line-height: 1;
   padding: 2px 6px;
   border-radius: 4px;
@@ -12205,7 +12302,7 @@ html.has-bg .focus-block-remove { color: rgba(255, 255, 255, 0.7); }
 html.has-bg.bg-light .focus-block-remove { color: var(--text-secondary); }
 
 .focus-block-empty {
-  font-size: 12px;
+  font-size: var(--fs-12);
   margin: 6px 0 0;
   color: var(--text-secondary);
 }
@@ -12224,7 +12321,7 @@ html.has-bg.bg-light .focus-block-empty { color: var(--text-secondary); }
 .focus-block-input {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-13);
   padding: 5px 8px;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -12252,7 +12349,7 @@ html.has-bg.bg-light .focus-block-input::placeholder { color: var(--text-seconda
    2.78:1 on a light wallpaper; taking the swap here costs nothing and is what
    reusing the pattern actually means. Measured: 4.76:1 dark / 5.24:1 light. */
 .focus-block-error {
-  font-size: 12px;
+  font-size: var(--fs-12);
   line-height: 1.25;
   min-height: 15px;        /* exactly one line of 12px/1.25 text, reserved */
   color: #d93025;
@@ -12298,7 +12395,7 @@ html.has-bg.bg-light .focus-block-error { color: #d93025; }
   align-items: center;
   gap: 8px;
   margin-top: 12px;          /* the panel/card inter-group step, not a new number */
-  font-size: 12px;
+  font-size: var(--fs-12);
 }
 
 /* Base is WHITE-ALPHA, matching .sat-eyebrow / .sat-time-label / .sat-since:
@@ -12328,7 +12425,7 @@ html.bg-light .sat-focus-label { color: var(--text-secondary); }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: var(--fs-11);
   /* Same family, same reasoning. No extra opacity either: --text-hint on a light
      background is a known-accepted ~2.6:1 (Samson, 2026-08-09), and dimming it
      further would push this node BELOW the level that was accepted — a new
@@ -12385,7 +12482,7 @@ html.bg-light .sat-focus-row.is-on .sat-focus-knob { background: #fff; }
    where the phase branch's countdown changes width every second. */
 .sat-pill-focus {
   flex: 0 0 auto;
-  font-size: 8px;
+  font-size: var(--fs-8);
   line-height: 1;
   color: var(--sat-accent);
   margin-left: -2px;

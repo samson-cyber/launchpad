@@ -105,6 +105,20 @@ if ! node tools/check-today-cockpit.mjs; then
   exit 1
 fi
 
+# Text-size gate: the [2.0] Settings > Appearance tier ramp. The defect this
+# exists for is SILENT — Small's contract is that it is today's sizing byte for
+# byte, and one wrong value in the small block breaks it while everything still
+# renders. The suite holds that as a structural invariant (a token is named after
+# its own Small value), plus the no-inversion ordering across all three tiers, the
+# "no hard literal below the floor" rule that stops a future rule escaping the
+# setting, the reader's coercion, and the fact that an accessibility setting is
+# never Pro-gated. ~0.2s. `--mutate` re-boots it against 16 seeded defects;
+# `--table` prints the ramp.
+if ! node tools/check-text-size.mjs; then
+  echo "ERROR: text-size gate failed — the tier ramp, its wiring or its coercion has regressed." >&2
+  exit 1
+fi
+
 # L1 serialization gate: every background `data` writer must stay inside the
 # enqueueBgData FIFO. Regressions here are SILENT DATA LOSS — one writer's blob
 # overwrites another's — which is why this is a release gate and not a habit.

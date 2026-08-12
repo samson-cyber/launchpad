@@ -7770,6 +7770,7 @@
 
     await loadBackground();
     applyIconSize(data.settings.iconSize || "medium");
+    applyTextSize(Storage.getTextSize(data));
     applySearch();
 
     // [1.0.19 D2] First-run seeding, behind the SAME latch the wizard used.
@@ -8804,6 +8805,14 @@
       btn.classList.toggle("active", btn.dataset.value === iconSize);
     });
 
+    // [2.0] Text size segmented control — same shape, one row below. Reads
+    // through the coercing reader, so a junk stored value shows Medium selected
+    // rather than no selection at all.
+    var textSize = Storage.getTextSize(data);
+    $$(".seg-btn", $("#settings-text-size")).forEach(function (btn) {
+      btn.classList.toggle("active", btn.dataset.value === textSize);
+    });
+
     // Wallpaper thumbnail
     updateWallpaperThumb();
   }
@@ -8832,6 +8841,25 @@
     html.classList.remove("icon-size-small", "icon-size-large");
     if (size === "small") html.classList.add("icon-size-small");
     else if (size === "large") html.classList.add("icon-size-large");
+  }
+
+  // [2.0] Text size — the same root-class mechanism as applyIconSize above,
+  // deliberately: one apply path, one shape, and MEDIUM is the unclassed base.
+  // The class flips the --fs-* ramp in newtab.css and nothing else, so every
+  // surface this stylesheet owns moves together — all four tabs, the pill, the
+  // panels and modals, the activation celebration, the coach marks.
+  //
+  // KNOWN BOUNDARY: gate.html is NOT covered. It loads its own gate.css, is
+  // already set in large type, and is a transient interstitial the user does not
+  // configure from. Out of scope this round, stated rather than discovered.
+  //
+  // Takes the coerced value from Storage.getTextSize, so an unrecognised stored
+  // value can never reach classList as a class name.
+  function applyTextSize(size) {
+    var html = document.documentElement;
+    html.classList.remove("text-size-small", "text-size-large");
+    if (size === "small") html.classList.add("text-size-small");
+    else if (size === "large") html.classList.add("text-size-large");
   }
 
   function applySearch() {
@@ -8995,6 +9023,7 @@
       if (!data.settings.collapsedGroups) data.settings.collapsedGroups = {};
       await loadBackground();
       applyIconSize(data.settings.iconSize || "medium");
+      applyTextSize(Storage.getTextSize(data));
       refreshOldFavicons();
       render();
       showToast("Backup restored.");
@@ -11198,12 +11227,15 @@
     renderReadOnlyBanner();
     // [1.0.11.9] Re-apply document-root settings so a foreign-write render
     // also surfaces wallpaper + icon-size changes (previously one-time init
-    // only). Idempotent — applyBackground / applyIconSize replace classes
-    // and inline styles wholesale, so a re-run with unchanged values is a
-    // visual no-op. loadBackground is async fire-and-forget; the brief
-    // delay before background-image lands is acceptable for foreign sync.
+    // only). Idempotent — applyBackground / applyIconSize / applyTextSize
+    // replace classes and inline styles wholesale, so a re-run with unchanged
+    // values is a visual no-op. loadBackground is async fire-and-forget; the
+    // brief delay before background-image lands is acceptable for foreign sync.
+    // [2.0] Text size rides this path too, so a change made in one tab lands in
+    // every other open new tab without a reload — same as the wallpaper.
     loadBackground();
     applyIconSize((data && data.settings && data.settings.iconSize) || "medium");
+    applyTextSize(Storage.getTextSize(data));
   }
 
   function groupHTML(group, singleGroup) {
@@ -13286,6 +13318,22 @@
       applyIconSize(btn.dataset.value);
       updateSettingsUI();
       console.log("[LaunchPad] Icon size set to:", btn.dataset.value);
+    });
+    // [2.0] Text size. Applies LIVE on click — the class flip is the whole
+    // apply, so there is nothing to re-render. applyTextSize runs before the
+    // await so the user sees the change on the click and not one storage round
+    // trip later; setTextSize then validates and persists (and no-ops on a
+    // re-click of the active tier).
+    safeOn("#settings-text-size", "click", async function (e) {
+      var btn = e.target.closest(".seg-btn");
+      if (!btn) return;
+      applyTextSize(btn.dataset.value);
+      await Storage.setTextSize(data, btn.dataset.value);
+      // Re-read: setTextSize refuses an unrecognised value, so the control must
+      // show what is STORED, never what was clicked.
+      applyTextSize(Storage.getTextSize(data));
+      updateSettingsUI();
+      console.log("[LaunchPad] Text size set to:", Storage.getTextSize(data));
     });
     safeOn("#settings-change-wallpaper", "click", function () {
       closeSettingsPanel();
