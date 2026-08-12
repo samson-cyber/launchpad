@@ -416,8 +416,12 @@ const SEEDS = [
   { name: "INK: the windowed line loses its light-wallpaper override",
     file: "css", from: "html.bg-light .sat-live,\nhtml.bg-light .sat-window { color: var(--text-secondary); text-shadow: none; }",
     to: "html.bg-light .sat-live { color: var(--text-secondary); text-shadow: none; }" },
+  // NOTE: this anchor carries the CURRENT alpha (0.65, raised from 0.55 by the
+  // live ink pass in this same round). A seed anchored on the pre-fix value
+  // reported an anchor-miss on the re-run — Q2 catching a stale seed rather than
+  // scoring it, which is exactly what the miss category is for.
   { name: "INK: the task-row chip ships with no colour of its own",
-    file: "css", from: ".tt-time-chip {\n  font-size: var(--fs-11);\n  font-variant-numeric: tabular-nums;\n  color: rgba(255, 255, 255, 0.55);",
+    file: "css", from: ".tt-time-chip {\n  font-size: var(--fs-11);\n  font-variant-numeric: tabular-nums;\n  color: rgba(255, 255, 255, 0.65);",
     to: ".tt-time-chip {\n  font-size: var(--fs-11);\n  font-variant-numeric: tabular-nums;" },
 ];
 
