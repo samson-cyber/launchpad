@@ -119,6 +119,19 @@ if ! node tools/check-text-size.mjs; then
   exit 1
 fi
 
+# Pill-clarity gate: the flagship widget's consequence labels, its liveness
+# indicator, the collision reserve and the windowed per-task time. The one that
+# earns the gate is the LABEL/ACTION BINDING: a control that says "Complete" but
+# routes to deactivate — or the reverse — is a silent, user-visible data event
+# (a task closed that the user meant to keep), and it is exactly the defect this
+# round removed. Also holds the indicator's truthfulness against the engine's own
+# open session rather than mere activation, and the "last 30 days" copy against
+# the calendar-month lie. ~0.2s. `--mutate` re-boots it against 23 seeded defects.
+if ! node tools/check-pill-clarity.mjs; then
+  echo "ERROR: pill-clarity gate failed — an action label, the tracking claim, the reserve or the window copy has regressed." >&2
+  exit 1
+fi
+
 # L1 serialization gate: every background `data` writer must stay inside the
 # enqueueBgData FIFO. Regressions here are SILENT DATA LOSS — one writer's blob
 # overwrites another's — which is why this is a release gate and not a habit.

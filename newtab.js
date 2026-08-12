@@ -2431,12 +2431,64 @@
       playHtml +
       '<span class="tt-task-name" title="' + escapeHtml(task.name) + '">' + escapeHtml(task.name) + '</span>' +
       '<div class="tt-task-controls">' +
+        // [2.0 pill clarity] Windowed tracked time. Rendered EMPTY and filled by
+        // ttPaintTaskTimes a tick later — the byTask read is async and taskRowHtml
+        // is a synchronous builder, the same two-phase shape the cockpit uses. The
+        // slot is always present so it holds width whether or not it has a value,
+        // matching the priority/date slots' rule; a task with no measured time
+        // shows nothing at all rather than a "0m" that cannot tell "never worked
+        // on" from "worked on before the window".
+        '<span class="tt-task-slot tt-slot-time" data-task-time="' + escapeHtml(task.id) + '"></span>' +
         '<span class="tt-task-slot tt-slot-priority">' + priorityPillHtml(task) + '</span>' +
         '<span class="tt-task-slot tt-slot-date">' + dueDatePillHtml(task) + '</span>' +
         '<span class="tt-task-slot tt-slot-tags">' + tagHtml + '</span>' +
         '<button type="button" class="tt-task-slot tt-task-trash" data-task-id="' + escapeHtml(task.id) + '" aria-label="Delete task" title="Delete task">' + TRASH_SM_SVG + '</button>' +
       '</div>' +
     '</li>';
+  }
+
+  // [2.0 pill clarity] Windowed per-task time for the Tasks tab's rows.
+  //
+  // ONE read for the whole panel, not one per row: byTaskForScope returns every
+  // task's total for the window in a single pass, so N rows cost N lookups in a
+  // map rather than N engine reads.
+  //
+  // Patches the DOM instead of re-rendering, deliberately — renderTasksTab
+  // rebuilds the panel wholesale, which would blur an open inline rename and
+  // reset the scroller. The slots were rendered empty, so this only ever fills
+  // them in.
+  //
+  // Same honesty rules as the pill's line: the label says "last N days" off the
+  // engine's own retention constant (never "this month" — the window is rolling,
+  // and on the 3rd it would claim thirty days of data), and zero renders NOTHING.
+  var ttTaskTimesToken = 0;
+
+  async function ttRefreshTaskTimes(panel) {
+    if (!panel) return;
+    if (typeof Tracking === "undefined" || !Tracking.byTaskForScope) return;
+    var token = ++ttTaskTimesToken;
+    var scope = dashFocusedScope(data);
+    // Tracking off: the reader would honestly return nothing, and painting an
+    // empty chip on every row would suggest "no time" rather than "not measured".
+    if (!scope) return;
+    var rows;
+    try {
+      rows = await Tracking.byTaskForScope(scope.workspaceId, Tracking.lastNLocalDayKeys(satWindowDays()));
+    } catch (err) {
+      console.error("[LaunchPad] Tasks tab: windowed task times read failed", err);
+      return;
+    }
+    if (token !== ttTaskTimesToken) return;
+    var byId = {};
+    (rows || []).forEach(function (r) { if (r && r.taskId) byId[r.taskId] = (byId[r.taskId] || 0) + (r.ms || 0); });
+    var days = satWindowDays();
+    panel.querySelectorAll("[data-task-time]").forEach(function (slot) {
+      var ms = byId[slot.getAttribute("data-task-time")] || 0;
+      if (!(ms > 0)) { slot.innerHTML = ""; return; }
+      var txt = fmtDurationHM(ms);
+      slot.innerHTML = '<span class="tt-time-chip" title="' +
+        escapeHtml(txt + " tracked in the last " + days + " days") + '">' + escapeHtml(txt) + '</span>';
+    });
   }
 
   function goalCardHtml(workspace, goal, allTasks) {
@@ -3092,6 +3144,10 @@
 
     bindTasksTabEvents(panel);
     bindTasksTabSortables(panel, d);
+    // [2.0 pill clarity] Fill the per-task time slots. Two-phase and fire-and-
+    // forget: the rows are already on screen, and the chips land a tick later
+    // without re-rendering anything (a repaint here would fight inline rename).
+    ttRefreshTaskTimes(panel);
 
     // [1.0.11.17] D4 v2 — restore scrollTop on the fresh scroller. If the
     // saved value exceeds the new scrollHeight (e.g., a tab with fewer items
@@ -9960,6 +10016,12 @@
 
   var satTickTimer = null;
   var satReadout = { taskId: null, baseMs: 0, openSince: null };
+  // [2.0 pill clarity] The active task's total over the retention window. Its own
+  // cache and its own staleness token, for the same reason dashRecapToken is not
+  // dashReadoutToken: both reads fire from one render and a shared counter would
+  // make each invalidate the other's guard mid-paint.
+  var satTaskWindow = { taskId: null, ms: 0 };
+  var satWindowToken = 0;
   var satSwitchMenuEl = null;
   var satSwitchOutsideHandler = null;
   var satSwitchEscapeHandler = null;
@@ -10067,10 +10129,93 @@
   // drift apart. `paused` keeps the [1.0.17] loud treatment: the label swaps to
   // PAUSED and .is-paused amber-tints the frozen number, which stays honest
   // because a pause closes the engine session — the value really is frozen.
+  // [2.0 pill clarity] THE LIVENESS INDICATOR, and the honesty problem in it.
+  //
+  // The report: an active task sitting at 0:00 reads dead — nothing says the
+  // engine is recording. The obvious fix is a pulsing "tracking" dot. The audit
+  // says that exact wording would be a lie most of the time, and here is why.
+  //
+  // The engine only holds an open session when computeDesired resolves a
+  // TRACKABLE focused tab, and domainOf() returns null for anything that is not
+  // http/https — including this page. So while the user is looking at the pill,
+  // the focused tab IS the new-tab page, there is no open session, and nothing
+  // is accruing. A dot claiming "tracking" would be claiming it in the one
+  // moment it is reliably false.
+  //
+  // The signal that IS truthful page-side is satReadout.openSince: it is set
+  // from Tracking.focusedTodayForTask, which reports openSince only when the
+  // engine's own open session is stamped to THIS task. Non-null means genuine
+  // accrual, right now. It is null in the normal case above — and also
+  // (correctly) when idle, when the window is blurred, when paused, and when
+  // tracking is off.
+  //
+  // So the indicator says two different true things and never conflates them:
+  //   openSince set   -> a pulsing dot and the word "Tracking". Genuine accrual.
+  //                      Reachable when the page is visible in a non-focused
+  //                      window while a tracked site is focused in another.
+  //   armed, not open -> a static dot and "Active", with the explanation in the
+  //                      tooltip. This is the fallback the brief names, and it
+  //                      is what a user looking at the card will nearly always
+  //                      see: the task is active and time records as they browse.
+  // Paused and tracking-off render NOTHING: the amber .is-paused treatment and
+  // the absent readout already own those states, and a second signal beside them
+  // would be the duplication [1.2.3] deleted.
+  //
+  // Reduced motion drops the animation only — the dot and the words are
+  // unchanged, so no information lives in the movement.
+  function satTrackingIndicatorHtml(paused) {
+    if (paused) return "";
+    var res = Storage.resolveActiveTask(data);
+    if (!res || res.stale) return "";
+    if (!Storage.isTrackingEnabled(res.workspace)) return "";
+    var live = satReadout.taskId === res.task.id && satReadout.openSince != null;
+    var label = live ? "Tracking" : "Active";
+    var title = live
+      ? "Recording time for this task right now."
+      : "Time records while you browse a site. This page is not tracked, so the number holds here.";
+    return '<span class="sat-live' + (live ? " is-live" : "") + '" title="' + escapeHtml(title) + '">' +
+        '<span class="sat-live-dot" aria-hidden="true"></span>' +
+        '<span class="sat-live-word">' + escapeHtml(label) + '</span>' +
+      '</span>';
+  }
+
+  // [2.0 pill clarity] The task's own total over the engine's retention window.
+  //
+  // Filled two-phase like every other engine read on this surface (satTaskWindow
+  // is the cache; satRefreshTaskWindow does the read), so the card paints
+  // synchronously and the number lands a tick later.
+  //
+  // THE LABEL IS THE HONESTY CONSTRAINT. The window is the engine's rolling
+  // RETENTION_DAYS, not a calendar month, so it cannot say "this month" — on the
+  // 3rd of the month that would claim three days of data as thirty. It says
+  // "last 30 days", derived from the engine's own constant rather than a
+  // restated 30.
+  //
+  // Zero renders NOTHING. A task with no measured time showing "0m" is noise on
+  // every row it touches, and it is also ambiguous: it cannot distinguish "never
+  // worked on" from "worked on before the window".
+  //
+  // It does NOT restate today's figure. The headline directly above is today's
+  // number for this task, and a secondary row repeating a value shown above it
+  // is exactly the duplication [1.2.3] removed when it deleted the old small
+  // "focused today" row.
+  function satWindowLineHtml() {
+    var ms = satTaskWindow.taskId && satTaskWindow.ms > 0 ? satTaskWindow.ms : 0;
+    if (!ms) return "";
+    var txt = fmtDurationHM(ms) + " · last " + satWindowDays() + " days";
+    return '<div class="sat-window" title="Tracked time for this task over the last ' +
+      satWindowDays() + ' days — the engine keeps no more history than that.">' +
+      escapeHtml(txt) + '</div>';
+  }
+
   function satHeadlineHtml(paused) {
     return '<div class="sat-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</div>' +
-      '<div class="sat-time-label">' + (paused ? 'Paused' : 'Focused today') + '</div>' +
-      satSinceHtml();
+      '<div class="sat-time-label">' +
+        '<span class="sat-time-label-text">' + (paused ? 'Paused' : 'Focused today') + '</span>' +
+        satTrackingIndicatorHtml(paused) +
+      '</div>' +
+      satSinceHtml() +
+      satWindowLineHtml();
   }
 
   // ===== Focus sessions (Pomodoro, [1.0.18]) =====
@@ -10283,6 +10428,18 @@
     if (pillTime) pillTime.textContent = focusedText;
     var big = container.querySelector(".sat-time");
     if (big) big.textContent = focusedText;
+    // [2.0] The liveness indicator is a time surface too, and its truth comes
+    // from satReadout.openSince — which is refreshed ASYNCHRONOUSLY, after the
+    // card's markup was built. Repainting it here (rather than only at render)
+    // is what makes the dot flip when the engine actually opens or closes a
+    // session, instead of showing whatever was true at the last full paint.
+    var live = container.querySelector(".sat-live");
+    if (live) {
+      var label = container.querySelector(".sat-time-label");
+      var html = satTrackingIndicatorHtml(Storage.isTrackingPaused(data));
+      if (!html) live.remove();
+      else if (label) live.outerHTML = html;
+    }
   }
 
   function satStopTick() {
@@ -10310,6 +10467,53 @@
 
   // Re-read the engine's numbers. Async, but never blocks a render: the pill
   // paints from the cached readout and the fresh value lands a tick later.
+  // The engine's OWN retention constant, never a restated 30 — if retention ever
+  // moves, the label moves with it rather than lying by one digit.
+  function satWindowDays() {
+    return (typeof Tracking !== "undefined" && Tracking.RETENTION_DAYS) || 30;
+  }
+
+  // [2.0 pill clarity] Per-task windowed total, through the EXISTING [1.2.1]
+  // byTask reader — no new capture, no new engine surface. Scope follows the same
+  // rule the Insights board and the cockpit use (dashFocusedScope): combined
+  // analytics reads across workspaces, otherwise the active workspace, and
+  // tracking-off suppresses entirely rather than reporting a measured-nothing 0.
+  async function satRefreshTaskWindow(taskId) {
+    var token = ++satWindowToken;
+    if (!taskId || typeof Tracking === "undefined" || !Tracking.byTaskForScope) {
+      satTaskWindow = { taskId: null, ms: 0 };
+      return;
+    }
+    var scope = dashFocusedScope(data);
+    if (!scope) { satTaskWindow = { taskId: null, ms: 0 }; return; }
+    var rows;
+    try {
+      rows = await Tracking.byTaskForScope(scope.workspaceId, Tracking.lastNLocalDayKeys(satWindowDays()));
+    } catch (err) {
+      console.error("[LaunchPad] Active task: windowed task total read failed", err);
+      return;
+    }
+    if (token !== satWindowToken) return;
+    var ms = 0;
+    (rows || []).forEach(function (r) { if (r && r.taskId === taskId) ms += r.ms || 0; });
+    satTaskWindow = { taskId: taskId, ms: ms };
+    // Patch in place rather than re-rendering the card: a full repaint here would
+    // fight the 1s tick and drop any open duration-chip picker.
+    var el = document.querySelector("#active-task-pill .sat-expanded");
+    if (!el) return;
+    var line = el.querySelector(".sat-window");
+    var html = satWindowLineHtml();
+    if (line) {
+      if (!html) line.remove();
+      else line.outerHTML = html;
+    } else if (html) {
+      var since = el.querySelector(".sat-since");
+      var label = el.querySelector(".sat-time-label");
+      var anchor = since || label;
+      if (anchor) anchor.insertAdjacentHTML("afterend", html);
+    }
+  }
+
   async function satRefreshReadout(taskId) {
     if (!taskId || typeof Tracking === "undefined" || !Tracking.focusedTodayForTask) {
       satReadout = { taskId: null, baseMs: 0, openSince: null };
@@ -10492,12 +10696,52 @@
     var pauseBtn = paused
       ? '<button type="button" class="sat-btn sat-btn-resume" data-sat-act="resume" title="Resume tracking">▶ Resume</button>'
       : '<button type="button" class="sat-btn" data-sat-act="pause" title="Pause tracking">⏸ Pause</button>';
+
+    // [2.0 pill clarity] EVERY ACTION WEARS ITS CONSEQUENCE.
+    //
+    // The trap this replaces: "✓ Done" permanently completed the task, while
+    // "done for this session — stop working, the task stays open" hid behind an
+    // unlabeled ×. A user finishing a work stretch tapped Done and closed a task
+    // they meant to keep. Samson's own framing is the spec: you either have a
+    // focus session that tracks the task, or you complete the task — and the
+    // missing middle, SET IT DOWN WITHOUT FINISHING, deserves a real name.
+    //
+    // So the two consequence-bearing actions are labeled, side by side, at equal
+    // dignity, and each says what it does to the TASK:
+    //   Complete    -> the task ends. It moves to Completed.
+    //   End for now -> tracking stops. The task stays open.
+    // No confirmation dialog on either: the label is the fix, and friction on an
+    // action the user meant is a worse tax than the one it prevents.
+    //
+    // COMPLETE IS RECOVERABLE, and that is why a label is sufficient rather than
+    // a dialog. Verified, not assumed: the Tasks tab's row checkbox unchecks a
+    // completed task straight back to open through Storage.reactivateTask (the
+    // `if (!willComplete)` branch of the row's change handler), and the Completed
+    // box keeps the row reachable. The tooltip says so in as many words.
+    //
+    // LAYOUT, and the trade it makes. The card is 280px; four labeled controls do
+    // not fit on one row and would truncate. Hierarchy per the brief: the two
+    // destructive-or-final actions get the labels and the first row; the two
+    // NON-destructive session controls take the second row, where Pause keeps its
+    // label (it is the [1.0.17] loud amber recovery control when paused —
+    // demoting Resume to a bare glyph would weaken the one state that most needs
+    // to be obvious) and Switch, the only action with no consequence for the task
+    // at all, stays a compact glyph WITH a tooltip and an aria-label.
     var actionsRow =
       '<div class="sat-actions">' +
-        '<button type="button" class="sat-btn sat-btn-complete" data-sat-act="complete" title="Complete task">✓ Done</button>' +
-        pauseBtn +
-        '<button type="button" class="sat-btn" data-sat-act="cancel" title="Deactivate (task is kept)">×</button>' +
-        '<button type="button" class="sat-btn" data-sat-act="switch" title="Switch active task">⇄</button>' +
+        '<div class="sat-actions-primary">' +
+          '<button type="button" class="sat-btn sat-btn-complete" data-sat-act="complete" ' +
+            'title="Complete the task — it moves to Completed. You can uncheck it in Tasks to reopen it.">' +
+            '✓ Complete</button>' +
+          '<button type="button" class="sat-btn sat-btn-setdown" data-sat-act="cancel" ' +
+            'title="Stop tracking for now — the task stays open and keeps its time.">' +
+            'End for now</button>' +
+        '</div>' +
+        '<div class="sat-actions-session">' +
+          pauseBtn +
+          '<button type="button" class="sat-btn sat-btn-icon" data-sat-act="switch" ' +
+            'title="Switch active task" aria-label="Switch active task">⇄</button>' +
+        '</div>' +
       '</div>';
 
     // [A2] Focus session RUNNING: ring + countdown + phase label + Stop, PLUS the
@@ -10682,6 +10926,7 @@
       // double-start from satRefreshReadout's own call is harmless).
       satPaintTime();
       satRefreshReadout(res.task.id);
+      satRefreshTaskWindow(res.task.id);
       satStartTick();
       satMaybeReconcile();   // [A2] render is a reconcile point (D3) — catch a boundary crossed while unpainted
     } else {
@@ -11189,7 +11434,11 @@
         if (areaName !== "local") return;
         if (!changes[Tracking.STORE_KEY] && !changes[Tracking.DAYS_KEY]) return;
         var res = Storage.resolveActiveTask(data);
-        if (res && !res.stale) satRefreshReadout(res.task.id);
+        if (res && !res.stale) {
+          satRefreshReadout(res.task.id);
+          // A rollup landing (DAYS_KEY) moves the windowed total too.
+          if (changes[Tracking.DAYS_KEY]) satRefreshTaskWindow(res.task.id);
+        }
         // [2.0] The Insights board is driven by these same keys: a rollup landing
         // (DAYS_KEY) or a session boundary (STORE_KEY, which shifts today's open
         // share) changes what the board shows. renderInsightsPanelEager is

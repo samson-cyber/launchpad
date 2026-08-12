@@ -3903,11 +3903,73 @@ html.bg-light { --sat-amber: #8a6d09; }
 
 .sat-time-label {
   margin-top: 1px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: var(--fs-10);
   font-weight: 500;
   letter-spacing: 0.6px;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.55);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* [2.0 pill clarity] The liveness indicator, beside FOCUSED TODAY.
+   Two states, two different claims (see satTrackingIndicatorHtml): a STATIC dot
+   + "Active" while the task is armed but nothing is accruing — which is what a
+   user looking at this card almost always sees, because this page is not a
+   trackable site — and a PULSING dot + "Tracking" only when the engine genuinely
+   holds an open session for the task. The pulse carries no information the words
+   do not; it is emphasis, which is why reduced motion can drop it outright. */
+.sat-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.sat-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+  flex: 0 0 auto;
+}
+
+.sat-live.is-live { color: var(--sat-accent); }
+
+.sat-live.is-live .sat-live-dot {
+  background: var(--sat-accent);
+  animation: sat-live-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes sat-live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.35; transform: scale(0.72); }
+}
+
+/* Reduced motion drops the ANIMATION ONLY. The dot stays, the accent colour
+   stays, and the word beside it still says "Tracking" — no information lives in
+   the movement, which is the test for whether an animation may be removed. */
+@media (prefers-reduced-motion: reduce) {
+  .sat-live.is-live .sat-live-dot { animation: none; }
+}
+
+/* [2.0 pill clarity] The task's total over the engine's retention window. Quiet,
+   below the since-line, and absent entirely at zero. Never says "this month":
+   the window is a rolling 30 days, and the copy is built from the engine's own
+   RETENTION_DAYS.
+
+   Ink alpha is 0.52, not the 0.42 it started at: MEASURED live, 0.42 put it at
+   3.68:1 on the default frame and 3.74 on a bright photo — under the 4.5:1 the
+   on-card standard holds, on a line whose whole job is to be trusted with a
+   number. 0.52 measures 4.72 and is still quieter than the .sat-since line above
+   it (0.55), which is the hierarchy this line wanted. */
+.sat-window {
+  margin-top: 3px;
+  font-size: var(--fs-11);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.52);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
@@ -3974,15 +4036,37 @@ html.bg-light { --sat-amber: #8a6d09; }
 /* --- Actions: Complete / Pause-Resume / Cancel / Switch ([1.0.17]). No
        Pomodoro (deferred). --- */
 
+/* [2.0 pill clarity] TWO ROWS, and the hierarchy is the point.
+   Row 1 carries the two actions that change what happens to the TASK, labeled
+   and at equal dignity — 280px cannot hold four labels without truncating one of
+   them into meaninglessness, which is the defect this round exists to fix. Row 2
+   carries the session controls, which do nothing to the task: Pause keeps its
+   label (it is the loud amber recovery control when paused) and Switch, alone,
+   is a compact glyph — with a tooltip and an aria-label, never a bare mark. */
 .sat-actions {
   display: flex;
+  flex-direction: column;
   gap: 5px;
   margin-top: 12px;
 }
 
+.sat-actions-primary,
+.sat-actions-session {
+  display: flex;
+  gap: 5px;
+}
+
+/* End for now — the action that was an unlabeled ×. Same weight as Complete,
+   deliberately: they are the two halves of one decision, and the whole defect
+   was that one of them looked like the only choice. */
+.sat-btn-setdown:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
 .sat-btn {
   flex: 1;
-  min-width: 0;                /* four buttons now — let them share the row */
+  min-width: 0;                /* labels share their row — let them shrink */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4001,6 +4085,17 @@ html.bg-light { --sat-amber: #8a6d09; }
 }
 
 .sat-btn:hover { background: rgba(255, 255, 255, 0.14); }
+
+/* The glyph-only control does not stretch: it takes a fixed slot so the labeled
+   Pause beside it keeps the room its word needs. Declared AFTER .sat-btn on
+   purpose — both are single-class selectors, so source order is what decides,
+   and placing it first (where it started) let `.sat-btn { flex: 1 }` win and
+   the glyph measured 121px wide next to a 121px Pause. Caught by measuring the
+   rendered button, not by reading the cascade. */
+.sat-btn-icon {
+  flex: 0 0 40px;
+  font-size: var(--fs-13);
+}
 
 .sat-btn-complete:hover {
   background: rgba(46, 204, 113, 0.25);
@@ -4509,6 +4604,18 @@ html.bg-light .sat-goal,
 html.bg-light .sat-time-label,
 html.bg-light .sat-since,
 html.bg-light .sat-foreign { color: var(--text-secondary); }
+
+/* [2.0 pill clarity] The two new quiet lines on the card. Both declare their own
+   ink on BOTH frames rather than inheriting — the a68dd89 / B-2 failure was a new
+   text rule with no colour falling through to the page's dark --text-primary and
+   vanishing on frosted dark, and these are JS-rendered so the static ink gate
+   cannot see them. The armed dot follows its text. */
+html.bg-light .sat-live,
+html.bg-light .sat-window { color: var(--text-secondary); text-shadow: none; }
+html.bg-light .sat-live-dot { background: var(--text-secondary); }
+html.bg-light .sat-live.is-live,
+html.bg-light .sat-live.is-live .sat-live-dot { color: var(--sat-accent); background-color: var(--sat-accent); }
+html.bg-light .sat-live.is-live { background-color: transparent; }
 
 html.bg-light .sat-foreign { background: rgba(0, 0, 0, 0.04); }
 
@@ -9365,22 +9472,36 @@ html.has-bg.bg-light .pro-celebrate-btn:not(.is-primary):hover { background: rgb
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  /* Slides (not jumps) as the docked card opens/closes — see the sat-card-open
-     reserve below; ~200ms to match the card's minimize feel. */
-  transition: margin-right 200ms ease;
 }
 
-/* [1.0.16 v3] Docked-card collision reserve. While the active-task card is
-   expanded (body.sat-card-open, set by renderActiveTaskWidget), push this cluster
-   ~300px left of the viewport's right edge so it clears the 280px card at
-   right:14. Only when open: the slim pill/empty states sit above the cluster and
-   need no gutter, so they release it. The header is flex-wrap, so at widths where
-   the shifted cluster no longer fits beside the title/filter bar it WRAPS to its
-   own line rather than overlapping them. In the ≤720px stacked layout the reserve
-   is released (below) — a right gutter on a full-width stacked row is just dead
-   space. */
-body.sat-card-open .tasks-header-right {
-  margin-right: 300px;
+/* [2.0 pill clarity] THE COLLISION RESERVE — one rule, on the shared panel root.
+   [1.0.16] gave the reserve to ONE cluster, the Tasks header (`body.sat-card-open
+   .tasks-header-right { margin-right: 300px }`), and the BODY below it never got
+   one — so the docked card sat on top of the goal cards' right edge, which is
+   Samson's screenshot. Measured live with the card open: Tasks overlapped at BOTH
+   1280 and 1920 (its body is full-width by design — 6 elements, worst 4029px²),
+   Dashboard and Insights overlapped at 1280 where their centered max-width
+   columns still reach past the card's left edge at 986px, and Home escaped only
+   because the fixture was sparse — a full shortcut grid runs under it too.
+   Per BUGS.md R1 the fix goes on the SHARED .tab-panel root rather than being
+   solved a fifth time per surface, and THE OLD HEADER RULE IS DELETED rather than
+   kept: .tasks-header lives inside .tab-panel, so the two reserves would have
+   compounded to 600px and thrown the header cluster into the middle of the page.
+   One reserve, inherited by every panel including the next one.
+   300px is the value that rule already established (the 280px card at right:14,
+   plus breathing room). It applies only while the card is EXPANDED, so minimizing
+   gives the lane back — the honest trade for a persistent docked surface, and
+   what the minimize chevron is for. Released in the ≤720px stacked layout for the
+   same reason the header rule released it there: a right gutter on a full-width
+   stacked column is dead space. The transition keeps it a slide, not a jump,
+   matching the card's own minimize feel. */
+body.sat-card-open .tab-panel {
+  padding-right: 300px;
+  transition: padding-right 200ms ease;
+}
+
+@media (max-width: 720px) {
+  body.sat-card-open .tab-panel { padding-right: 0; }
 }
 
 .tasks-action {
@@ -10008,13 +10129,34 @@ body.sat-card-open .tasks-header-right {
   flex: 0 0 auto;
   margin-left: auto;
   display: grid;
-  grid-template-columns: 72px 78px 66px 24px;
+  /* [2.0 pill clarity] A fifth column, first in the zone: the windowed tracked
+     time. Narrow (the widest value the formatter produces here is "12h30m") and
+     a fixed slot like its neighbours, so rows stay aligned whether or not a task
+     has measured time — the column holds its width and simply renders empty. */
+  grid-template-columns: 54px 72px 78px 66px 24px;
   align-items: center;
   gap: 6px;
   padding-left: 12px;
   /* Subtle but visibly-present divider between the task info and the zone. */
   border-left: 1px solid rgba(255, 255, 255, 0.22);
 }
+
+/* The chip itself. Quiet by design — it is reference, not a control, and it must
+   not compete with the priority pill beside it. Absent entirely at zero (built
+   in ttRefreshTaskTimes), so no row ever carries a "0m". Declares its ink on
+   both frames: this is JS-rendered, so the static ink gate never sees it.
+
+   0.65, not 0.55: the task row sits on a lighter frost than the pill card, so the
+   same alpha that reads 5.x there measured only 4.21:1 here on the default frame
+   and 4.39 on a bright photo. Quiet is a design goal; under 4.5:1 is a defect. */
+.tt-time-chip {
+  font-size: var(--fs-11);
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.65);
+  white-space: nowrap;
+}
+
+html.has-bg.bg-light .tt-time-chip { color: rgba(0, 0, 0, 0.55); }
 .tt-task-slot {
   display: flex;
   align-items: center;
@@ -10607,9 +10749,6 @@ html.has-bg.bg-light .tt-task-handle:hover {
 @media (max-width: 720px) {
   .tasks-header { flex-direction: column; align-items: stretch; }
   .tasks-header-right { justify-content: flex-start; }
-  /* Header is stacked here (cluster on its own full-width row), so the docked-card
-     reserve would only add dead space on the right — release it. */
-  body.sat-card-open .tasks-header-right { margin-right: 0; }
   /* [Tasks] Stack the Completed / Deleted boxes on narrow viewports. */
   .tt-trash-row { flex-direction: column; }
 }
