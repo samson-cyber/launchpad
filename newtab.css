@@ -10270,20 +10270,6 @@ html.has-bg.bg-light .tt-time-chip { color: rgba(0, 0, 0, 0.65); }
   background: color-mix(in srgb, var(--sat-accent-ink) 16%, transparent);
 }
 
-/* The label. Text-only on purpose — a FILLED chip would be a new ink-on-fill
-   surface, and ink on a fill belongs to the chip-ink chooser rather than to a
-   literal picked here. Micro-caps, matching the .sat-eyebrow idiom the pill
-   already uses for exactly this kind of state word. */
-.tt-active-badge {
-  flex: 0 0 auto;
-  font-size: var(--fs-9);
-  font-weight: 700;
-  letter-spacing: 0.7px;
-  text-transform: uppercase;
-  color: var(--sat-accent-ink);
-  white-space: nowrap;
-}
-
 /* The active row's live figure, painted by satPaintTime on the shared 1s tick.
    Tabular numerals so a ticking second never shifts the row's layout. */
 .tt-task-live {
@@ -10319,6 +10305,24 @@ html.has-bg.bg-light .tt-time-chip { color: rgba(0, 0, 0, 0.65); }
 }
 
 .tt-live-unit:empty { display: none; }
+
+/* [2.0] THE WORK-PHASE HIGHLIGHT. Same number, louder — the count does not reset
+   or change meaning when a session starts, it just becomes the thing you are
+   meant to be looking at. A tint behind the figure, and the row's existing accent
+   bar widens and gains a glow ("a blue highlighted bar").
+   :has() rather than a class on the row, because the row is NOT re-rendered when
+   a phase starts — the 1s tick toggles .is-work on the live slot, and the bar has
+   to follow from that without a repaint. */
+.tt-task-live.is-work .tt-live-val {
+  background: color-mix(in srgb, var(--sat-accent-ink) 16%, transparent);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.tt-task-row.is-active-task:has(.tt-task-live.is-work)::after {
+  width: 4px;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--sat-accent-ink) 70%, transparent);
+}
 .tt-task-slot {
   display: flex;
   align-items: center;

@@ -44,7 +44,16 @@ function extract(name) {
 // negative control at the end — a suite that cannot be made to fail is not a
 // suite (BUGS.md P2/Q1).
 function subject({ activeTask, mutate }) {
-  let body = extract("fmtShortDate") + "\n" + extract("satActiveSinceText");
+  // [2.0] The line now LEADS with the activation stopwatch ("Active 12:04 ·
+  // since 5:03 PM"), so its helpers come with it. satActiveElapsedMs reads the
+  // same fake Storage.getActiveTask this factory already injects, so the count
+  // is driven by the fixture's own startedAt — the very thing the date
+  // assertions below vary. The date rules themselves are unchanged; only the
+  // prefix they sit behind moved, and the patterns were updated to match rather
+  // than loosened.
+  let body = extract("fmtShortDate") + "\n" + extract("satFmtLong") + "\n" +
+    extract("satFmtStopwatch") + "\n" + extract("satActiveElapsedMs") + "\n" +
+    extract("satActiveSinceText");
   if (mutate) {
     const before = body;
     body = mutate(body);
@@ -74,7 +83,7 @@ const localMidnight = at(0, 0, 0);
 // --- today: the date is DROPPED (a bare time is unambiguous) -----------------
 {
   const out = run(at(0, 12, 34));
-  check("today -> no date component", /^Active since [^,]+$/.test(out), out);
+  check("today -> no date component", /^Active .+ · since [^,]+$/.test(out), out);
   check("today -> carries an h:mm time", /\d{1,2}:\d{2}/.test(out), out);
 }
 
@@ -82,28 +91,43 @@ const localMidnight = at(0, 0, 0);
 {
   const ts = at(-7, 9, 4);
   const out = run(ts);
-  check("7 days ago -> date shown", /^Active since .+, .+$/.test(out), out);
+  check("7 days ago -> date shown", /^Active .+ · since .+, .+$/.test(out), out);
   const expected = new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   check("the date is fmtShortDate's own output", out.includes(expected), `want "${expected}" in "${out}"`);
 }
 {
   const out = run(at(-1, 23, 0));
-  check("yesterday -> date shown (not just 'older than a day')", /^Active since .+, .+$/.test(out), out);
+  check("yesterday -> date shown (not just 'older than a day')", /^Active .+ · since .+, .+$/.test(out), out);
 }
 
 // --- the boundary itself: local midnight, to the millisecond -----------------
 {
   const onIt = run(localMidnight);
   const justBefore = run(localMidnight - 1);
-  check("local midnight today -> still today, no date", /^Active since [^,]+$/.test(onIt), onIt);
-  check("1ms before local midnight -> yesterday, date shown", /^Active since .+, .+$/.test(justBefore), justBefore);
+  check("local midnight today -> still today, no date", /^Active .+ · since [^,]+$/.test(onIt), onIt);
+  check("1ms before local midnight -> yesterday, date shown", /^Active .+ · since .+, .+$/.test(justBefore), justBefore);
   check("the two sides of the boundary differ", onIt !== justBefore, `${onIt} | ${justBefore}`);
 }
 
 // --- same day-of-year, different year: the year must participate ------------
 {
   const lastYear = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate(), 9, 4, 0).getTime();
-  check("same month+day one year ago -> date shown", /^Active since .+, .+$/.test(run(lastYear)), run(lastYear));
+  check("same month+day one year ago -> date shown", /^Active .+ · since .+, .+$/.test(run(lastYear)), run(lastYear));
+}
+
+// --- [2.0] the stopwatch prefix: the count is real, and it is not the date ---
+// The date rules above all pass through the new prefix, but none of them would
+// notice if the count itself vanished or read 0:00 forever, so it gets its own
+// rows. The count derives from the SAME startedAt the date branch reads, which
+// is what makes "Active 7d 8h · since Aug 5, 9:04 am" internally consistent.
+{
+  check("the line LEADS with the count, then the timestamp", /^Active \S+ · since /.test(run(Date.now() - 5 * 60000)),
+    run(Date.now() - 5 * 60000));
+  check("a five-minute-old activation counts about five minutes",
+    /^Active 5:0\d · since /.test(run(Date.now() - 5 * 60000)), run(Date.now() - 5 * 60000));
+  check("a multi-day activation uses the day form rather than a 3-digit hour count",
+    /^Active 7d \d+h · since /.test(run(at(-7, 9, 4))), run(at(-7, 9, 4)));
+  check("the count is not frozen at zero", !/^Active 0:00 · /.test(run(Date.now() - 90 * 1000)), run(Date.now() - 90 * 1000));
 }
 
 // --- degenerate records render NOTHING, so no empty row is left behind ------
@@ -125,7 +149,7 @@ check("no active task -> empty string", subject({ activeTask: null })() === "");
     })();
   } catch (e) { applied = false; }
   check("NEGATIVE CONTROL: an always-today mutant drops the date (assertions are live)",
-    applied && /^Active since [^,]+$/.test(mutantOut || ""), applied ? String(mutantOut) : "control failed to apply");
+    applied && /^Active .+ · since [^,]+$/.test(mutantOut || ""), applied ? String(mutantOut) : "control failed to apply");
 }
 
 let pass = 0, fail = 0;
@@ -136,7 +160,7 @@ for (const r of rows) {
 }
 // Anti-vacuity floor: a suite that silently stops asserting is a green light
 // that checks nothing (the check-panel-ink.mjs lesson, BUGS.md P2).
-const MIN = 14;
+const MIN = 18;
 if (rows.length < MIN) {
   console.log(`\nSINCE FORMAT: FAIL — only ${rows.length} assertions ran (expected >= ${MIN}); the suite is broken, not clean.\n`);
   process.exit(1);

@@ -2441,7 +2441,6 @@
         // owns that switch). Painted by the SAME 1s text path as the pill
         // (satPaintTime), so there is no second timer and no re-render per tick.
         (isActiveTask ? satRowLiveHtml() : "") +
-        (isActiveTask ? '<span class="tt-active-badge">Active</span>' : '') +
         // Windowed tracked time. Rendered EMPTY and filled by ttRefreshTaskTimes a
         // tick later — the byTask read is async and taskRowHtml is a synchronous
         // builder, the same two-phase shape the cockpit uses. A task with no
@@ -10121,8 +10120,16 @@
     } catch (e) {
       return "";
     }
-    return isToday ? ("Active since " + time)
-                   : ("Active since " + fmtShortDate(a.startedAt) + ", " + time);
+    // [2.0] THE SAME STOPWATCH THE ROW SHOWS, on the card, from the same helper —
+    // cross-surface consistency was the brief's lean and it is the right call:
+    // two surfaces showing "how long have I been on this" with different numbers
+    // would be the drift this line's own [1.2.3] note warns about.
+    //
+    // The timestamp STAYS, and is why the count can be allowed to run long: the
+    // count answers "how long", the timestamp answers "since when", and a bare
+    // 31:04:12 is uninterpretable without it.
+    var since = isToday ? time : (fmtShortDate(a.startedAt) + ", " + time);
+    return "Active " + satFmtStopwatch(satActiveElapsedMs()) + " · since " + since;
   }
 
   // The since-line markup. Rendered on every card branch that carries the
@@ -10452,13 +10459,21 @@
     // not engine time — the exact blend the switch exists to prevent. The unit
     // word and the tooltip are written in the same pass, so the figure and its
     // label can never be one tick out of step with each other.
+    // [2.0] The card's since-line now carries the SAME stopwatch, so it is a
+    // ticking surface too and has to be repainted here rather than only at
+    // render. Text-only, like every other write in this function.
+    var sinceEl = container.querySelector(".sat-since");
+    if (sinceEl) {
+      var sinceTxt = satActiveSinceText();
+      if (sinceTxt) sinceEl.textContent = sinceTxt;
+    }
     var liveState = satRowLiveState();
     document.querySelectorAll(".tt-task-live").forEach(function (el) {
       var val = el.querySelector(".tt-live-val");
       var unit = el.querySelector(".tt-live-unit");
       if (val) val.textContent = liveState.text;
       if (unit) unit.textContent = liveState.unit;
-      el.classList.toggle("is-session", liveState.session);
+      el.classList.toggle("is-work", liveState.work);
       el.title = liveState.title;
     });
     // [2.0] The liveness indicator is a time surface too, and its truth comes
@@ -10527,57 +10542,82 @@
   // pill and the task row cannot explain themselves differently.
   var SAT_LIVE_TITLE = "Time records while you browse a site. This page is not tracked, so the number holds here.";
 
-  // [2.0] The session clock's own sentence. It says the quiet part out loud: this
-  // is a wall-clock, not the engine's measurement, and the two are different
-  // numbers about different things.
-  var SAT_SESSION_TITLE = "Elapsed in the current focus session — wall-clock, not measured browsing time.";
+  // [2.0] The stopwatch's own sentence. It says the quiet part out loud: this is
+  // a wall-clock, not the engine's measurement, and the two are different numbers
+  // about different things.
+  var SAT_ACTIVE_TITLE = "Wall-clock since you activated this task, pauses excluded — not measured browsing time.";
 
-  // [2.0] THE ACTIVE ROW'S LIVE SLOT HOLDS TWO DIFFERENT TRUTHS, and switches
-  // between them. It never blends them, and this is the only place that decides.
+  // [2.0] THE ACTIVATION STOPWATCH — time since this task was activated, pauses
+  // excluded. ONE number, ONE regime, and it always counts.
   //
-  //   a WORK phase is running -> SESSION ELAPSED. Wall-clock, derived from the
-  //     very timestamps the pill's ring already draws: the phase's stamped
-  //     duration minus the countdown's own remaining. Same arithmetic, opposite
-  //     direction, so the row counting up and the ring counting down can never
-  //     disagree — they sum to the phase length by construction, and they freeze
-  //     together on pause because satPomoRemainingMs freezes.
-  //   anything else -> the ENGINE's focused-today for the task, exactly as
-  //     shipped. That includes BREAK phases, deliberately: the accent doctrine
-  //     says the highlight marks the stretch that counts, and a break is the
-  //     product telling you to stop. A break has nothing to count up.
+  // This SUPERSEDES the session-elapsed switch from the previous round, and its
+  // machinery is removed rather than left running alongside. That round showed
+  // session-elapsed during a work phase and the engine's figure otherwise, which
+  // meant the number RESET when a session started and FROZE whenever one was not
+  // running — and a frozen number on an active task reads as broken, which is the
+  // report this round answers. The model is simply: an active task's clock
+  // counts. A work phase does not reset or replace it; the same count continues
+  // and gains the accent.
   //
-  // THE HONESTY GUARD IS THE SWITCH ITSELF. These two numbers measure different
-  // things — one is time on a clock, the other is time the engine actually saw
-  // on a trackable site — so they are never added, averaged or shown as one
-  // figure. Presentation swaps; data never mixes. The unit word is what stops
-  // the swap from being a lie: "session" appears iff the wall-clock is showing.
+  //   now − startedAt − (activePausedMs + any span still open)
   //
-  // LANGUAGE, checked against the card (the audit the brief asked for): the card
-  // never says "this session" in words — its ring shows the countdown with FOCUS
-  // in the middle, and FOCUSED TODAY beneath. So the only word to keep straight
-  // is "focused", which the product reserves for ENGINE time. The row's session
-  // clock therefore says "session" and never "focused", and its tooltip names
-  // the wall-clock outright.
-  function satRowLiveState() {
-    var pomo = satRunningPomo();
-    if (pomo && pomo.phase === "work") {
-      return {
-        session: true,
-        text: satFmtLong(Math.max(0, pomo.totalMs - satPomoRemainingMs(pomo))),
-        unit: "session",
-        title: SAT_SESSION_TITLE
-      };
-    }
-    return { session: false, text: satFmtLong(satLiveMs()), unit: "", title: SAT_LIVE_TITLE };
+  // WHAT EACH PIECE IS FOR:
+  //   startedAt is the activation stamp, preserved across restarts and by
+  //     anchorBrowserSession, so the count CONTINUES across a browser restart.
+  //     That is truthful — it is time since you said you were working on this,
+  //     not time you were at the machine — and it is why the "since" timestamp
+  //     stays beside it: a bare 31:04:12 needs the date to be interpretable.
+  //     "End for now" is the lifecycle answer to a count that has gone stale.
+  //   activePausedMs is the ACTIVATION-LIFETIME paused total (storage.js), NOT
+  //     pausedMs, which the browser-session anchor zeroes. Using pausedMs would
+  //     make the stopwatch quietly stop deducting every pause taken before the
+  //     last launch.
+  //   the open span is added live, so the number freezes the instant Pause is
+  //     pressed rather than one storage round trip later.
+  //
+  // HONESTY. This is a WALL-CLOCK. The engine's figures are a different kind of
+  // number — time the engine actually saw on a trackable site — and the two are
+  // never added, averaged or shown as one figure: the stopwatch lives on the row,
+  // FOCUSED TODAY lives on the card. The word "focused" is reserved for the
+  // engine and never appears here. The unit word is "active", which is what this
+  // number actually measures.
+  function satActiveElapsedMs() {
+    var a = Storage.getActiveTask(data);
+    if (!a || typeof a.startedAt !== "number" || !a.startedAt) return 0;
+    var pausedTotal = (a.activePausedMs || 0) + (a.pausedAt != null ? Math.max(0, Date.now() - a.pausedAt) : 0);
+    return Math.max(0, Date.now() - a.startedAt - pausedTotal);
   }
 
-  // Built once for the row's first paint and re-read by the tick. The unit span
-  // is ALWAYS present, empty when there is no unit, so the tick only ever writes
-  // text into existing nodes — no structural change, nothing an open inline
-  // rename can trip over.
+  // M:SS under an hour, H:MM:SS under a day, then Xd Yh. The day form exists
+  // because this count legitimately reaches it — a task left active over a
+  // weekend is a real state, and "54:12:07" is a number nobody can read.
+  function satFmtStopwatch(ms) {
+    if (!(ms > 0)) ms = 0;
+    var totalSec = Math.floor(ms / 1000);
+    if (totalSec < 86400) return satFmtLong(ms);
+    var days = Math.floor(totalSec / 86400);
+    var hours = Math.floor((totalSec % 86400) / 3600);
+    return days + "d " + hours + "h";
+  }
+
+  // The row's live slot. `work` is PRESENTATION ONLY — the same count, with the
+  // accent treatment while a work phase runs.
+  function satRowLiveState() {
+    var pomo = satRunningPomo();
+    return {
+      work: !!(pomo && pomo.phase === "work"),
+      text: satFmtStopwatch(satActiveElapsedMs()),
+      unit: "active",
+      title: SAT_ACTIVE_TITLE
+    };
+  }
+
+  // Built once for the row's first paint and re-read by the tick, which only ever
+  // writes text into these existing nodes — no structural change, nothing an open
+  // inline rename can trip over.
   function satRowLiveHtml() {
     var s = satRowLiveState();
-    return '<span class="tt-task-live' + (s.session ? ' is-session' : '') + '" title="' + escapeHtml(s.title) + '">' +
+    return '<span class="tt-task-live' + (s.work ? ' is-work' : '') + '" title="' + escapeHtml(s.title) + '">' +
         '<span class="tt-live-val">' + escapeHtml(s.text) + '</span>' +
         '<span class="tt-live-unit">' + escapeHtml(s.unit) + '</span>' +
       '</span>';

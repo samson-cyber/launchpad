@@ -764,6 +764,11 @@ var Storage = (function () {
       } else if (active.pausedAt != null) {
         var pausedSpan = pnow - active.pausedAt;
         active.pausedMs = (active.pausedMs || 0) + pausedSpan;
+        // [2.0] The SAME span into the activation-lifetime accumulator. See its
+        // note on the record shape: pausedMs is per-SITTING (anchorBrowserSession
+        // zeroes it), and the stopwatch counts from startedAt across restarts, so
+        // it needs a paused total that the anchor does not reset.
+        active.activePausedMs = (active.activePausedMs || 0) + pausedSpan;
         active.pausedAt = null;
         // [1.0.18 A2 D4] A running focus phase's endpoint slides forward by the
         // paused span, so the countdown resumes exactly where it froze (the pill
@@ -853,6 +858,14 @@ var Storage = (function () {
     if (!active) return false; // nothing to anchor; no spurious write
 
     var now = Date.now();
+    // [2.0] Fold any span still open into the ACTIVATION-LIFETIME total BEFORE the
+    // per-sitting fields are reset below, or a pause held across a shutdown would
+    // vanish from the stopwatch's accounting entirely. This is the one place the
+    // two accumulators must be handled differently: pausedMs is about to be
+    // zeroed by design, activePausedMs must not be.
+    if (active.pausedAt != null) {
+      active.activePausedMs = (active.activePausedMs || 0) + Math.max(0, now - active.pausedAt);
+    }
     active.sessionAnchorAt = now;
     active.pausedMs = 0;
     active.pausedAt = isTrackingPaused(data) ? now : null;
@@ -2854,7 +2867,9 @@ var Storage = (function () {
       // continues from where it froze instead of restarting.
       if (clearPause && isTrackingPaused(data)) {
         if (current.pausedAt != null) {
-          current.pausedMs = (current.pausedMs || 0) + (now - current.pausedAt);
+          var repickSpan = now - current.pausedAt;
+          current.pausedMs = (current.pausedMs || 0) + repickSpan;
+          current.activePausedMs = (current.activePausedMs || 0) + repickSpan;
           current.pausedAt = null;
         }
         // [1.0.17 idle deduct] Fold pending idle the same way, defensively.
@@ -2889,6 +2904,23 @@ var Storage = (function () {
       pomodoroState: emptyPomodoroState(),
       pausedAt: (!clearPause && isTrackingPaused(data)) ? now : null,
       pausedMs: 0,
+      // [2.0] ACTIVATION-LIFETIME paused total, in ms, and the one field the
+      // stopwatch needs that nothing else could supply.
+      //
+      // pausedMs sits directly above it and looks like the same thing. It is not:
+      // anchorBrowserSession ZEROES pausedMs on every browser launch, because it
+      // backed the retired ACTIVE counter, whose whole meaning was "this
+      // sitting". The [2.0] stopwatch counts from startedAt and deliberately
+      // CONTINUES across restarts, so a per-sitting paused total would silently
+      // stop deducting every pause taken before the last launch — the number
+      // would drift upward, exactly the kind of quiet wrongness the pill's
+      // honesty standard exists to prevent.
+      //
+      // Kept as a SEPARATE field rather than by removing the anchor's reset:
+      // that reset is deliberate and documented, and adding a parallel
+      // accumulator leaves every existing behaviour byte-identical. Display-only
+      // like the rest of this accounting — computeDesired never reads it.
+      activePausedMs: 0,
       // [1.0.17 idle deduct] Fresh per task, like the pause accounting. No
       // born-idle counterpart: activating is an input event, so the user is by
       // definition present at this instant.

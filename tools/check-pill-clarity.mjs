@@ -101,7 +101,7 @@ function boot(src) {
   vm.runInContext(
     [
       extractDecl(src.nt, "SAT_LIVE_TITLE"),
-      extractDecl(src.nt, "SAT_SESSION_TITLE"),
+      extractDecl(src.nt, "SAT_ACTIVE_TITLE"),
       extractDecl(src.nt, "SAT_ALL_WORKSPACES"),
       extractFn(src.nt, "escapeHtml"),
       extractFn(src.nt, "fmtDurationHM"),
@@ -115,6 +115,8 @@ function boot(src) {
       extractFn(src.nt, "satPomoPhaseTotalMs"),
       extractFn(src.nt, "satPomoRemainingMs"),
       extractFn(src.nt, "satRunningPomo"),
+      extractFn(src.nt, "satActiveElapsedMs"),
+      extractFn(src.nt, "satFmtStopwatch"),
       extractFn(src.nt, "satRowLiveState"),
       extractFn(src.nt, "satRowLiveHtml"),
     ].join("\n"), ctx, { filename: "newtab.js#pill" });
@@ -367,13 +369,22 @@ await (async () => {
   // ================= 6. THE ACTIVE ROW ======================================
   {
     const row = extractFn(SRC.nt, "taskRowHtml");
-    check("active row: it carries a live ticking figure and an Active label",
-      /\(isActiveTask \? satRowLiveHtml\(\) : ""\)/.test(row) && /isActiveTask \? '<span class="tt-active-badge">Active<\/span>'/.test(row));
+    // REWRITTEN: the static Active badge this row also asserted is superseded —
+    // the stopwatch's own ticking "active" word says the same thing and says it
+    // live, so keeping both would have been the word twice. Section 8 asserts
+    // the badge is gone from the markup AND the sheet.
+    check("active row: it carries a live ticking figure",
+      /\(isActiveTask \? satRowLiveHtml\(\) : ""\)/.test(row));
     check("active row: ...only on the active row, never on the others",
       !/satRowLiveHtml/.test(row.replace(/\(isActiveTask \? satRowLiveHtml\(\) : ""\)/g, "")));
-    check("active row: the live figure carries the SAME honesty sentence as the pill",
-      /title: SAT_LIVE_TITLE/.test(extractFn(SRC.nt, "satRowLiveState")) &&
-      /escapeHtml\(s\.title\)/.test(extractFn(SRC.nt, "satRowLiveHtml")));
+    // REWRITTEN: the row no longer shows the ENGINE figure at all, so it no
+    // longer carries the engine's sentence — it carries the stopwatch's, which
+    // section 8 holds to naming the wall-clock and excluding measured browsing.
+    // SAT_LIVE_TITLE stays the pill indicator's, unchanged.
+    check("active row: the live figure explains itself, and the pill's own sentence is untouched",
+      /title: SAT_ACTIVE_TITLE/.test(extractFn(SRC.nt, "satRowLiveState")) &&
+      /escapeHtml\(s\.title\)/.test(extractFn(SRC.nt, "satRowLiveHtml")) &&
+      /SAT_LIVE_TITLE/.test(extractFn(SRC.nt, "satTrackingIndicatorHtml")));
     check("active row: it is painted by the SHARED 1s tick, not a second timer",
       /document\.querySelectorAll\("\.tt-task-live"\)\.forEach/.test(extractFn(SRC.nt, "satPaintTime")) &&
       !/setInterval/.test(extractAsyncFn(SRC.nt, "ttRefreshTaskTimes")));
@@ -384,83 +395,120 @@ await (async () => {
         !/\.tt-task-live[\s\S]{0,300}innerHTML/.test(paint));
     }
 
-    // ============= 8. THE SESSION CLOCK — the switch, executed ==============
+    // ============= 8. THE ACTIVATION STOPWATCH — executed ===================
     //
-    // Driven, not pattern-matched: the question is WHICH number comes out and
-    // what the row calls it. The fixture puts a real phase on the active task
-    // and reads satRowLiveState's answer.
+    // SUPERSEDES the session-elapsed section that stood here. Those rows asserted
+    // the two-regime switch (engine figure / session elapsed with a "session"
+    // unit) and they are REWRITTEN rather than quietly deleted: the model changed
+    // — an active task's clock always counts, and a work phase continues it
+    // rather than replacing it — so an assertion protecting the old behaviour
+    // would now be protecting the defect (a frozen number on an active task).
+    //
+    // Driven, not pattern-matched: the fixture puts a real activation stamp and a
+    // real phase on the task and reads what comes out.
     {
-      const withPhase = (phase, endsInMs, durMs) => {
+      const AGO = (ms) => Date.now() - ms;
+      const fix = (over) => {
         const d = mkData();
-        d.activeTask.pomodoroState = phase
-          ? { phase: phase, phaseEndsAt: Date.now() + endsInMs, phaseDurationMs: durMs, cycleCount: 1, sessionComplete: false }
-          : null;
+        Object.assign(d.activeTask, { startedAt: AGO(5 * 60000), activePausedMs: 0, pausedAt: null, pomodoroState: null }, over || {});
         ctx.data = d;
-        ctx.satReadout = { taskId: "t1", baseMs: 7 * 60000, openSince: null };  // engine says 7:00
+        ctx.satReadout = { taskId: "t1", baseMs: 7 * 60000, openSince: null };  // the ENGINE says 7:00
         return ctx.satRowLiveState();
       };
-      // Q7: the fixture verifies its own seeding — hydratePomodoroState could
-      // normalise the shape, and every row below would then be about no phase
-      // at all.
-      check("session: FIXTURE PRECONDITION — a seeded work phase really is running",
-        (() => { withPhase("work", 20 * 60000, 25 * 60000); return !!ctx.satRunningPomo(); })());
+      const phase = (p, endsIn, dur) => ({ pomodoroState: { phase: p, phaseEndsAt: Date.now() + endsIn, phaseDurationMs: dur, cycleCount: 1, sessionComplete: false } });
 
-      const work = withPhase("work", 20 * 60000, 25 * 60000);   // 25min phase, 20 left
-      eq("session: a running WORK phase shows the elapsed wall-clock", work.text, "5:00");
-      eq("session: ...labeled, so it cannot be read as engine time", work.unit, "session");
-      eq("session: ...with the wall-clock named outright in its tooltip", work.title, ctx.SAT_SESSION_TITLE);
-      check("session: ...and the tooltip says it is NOT measured browsing", /not measured browsing/i.test(work.title));
-      check("session: the label never borrows the word the product reserves for engine time",
-        !/focus/i.test(work.unit) && !/focused/i.test(work.text));
+      // IT ALWAYS COUNTS. No phase, nothing running: the clock still reads.
+      const idle = fix();
+      eq("stopwatch: an active task with NO session running still counts", idle.text, "5:00");
+      eq("stopwatch: ...labeled 'active', which is what it measures", idle.unit, "active");
+      check("stopwatch: ...and it is NOT the engine's figure", idle.text !== "7:00");
 
-      const idle = withPhase(null);
-      eq("session: NO phase running -> the engine's figure, exactly as shipped", idle.text, "7:00");
-      eq("session: ...with no unit word at all", idle.unit, "");
-      eq("session: ...and the engine sentence", idle.title, ctx.SAT_LIVE_TITLE);
-      check("session: ...so the switch is legible from the markup alone",
-        !/session/.test(ctx.satRowLiveHtml()) === true);
+      // CONTINUITY — the spec. A work phase does not reset or replace it.
+      //
+      // Q8: the phase is 25min with 22 left, so its OWN elapsed is 3:00 —
+      // deliberately different from both the activation age (5:00) and the engine
+      // figure (7:00). The first version used 20 left, whose 5:00 elapsed happened
+      // to equal the stopwatch, and the "it resets when a session starts" seed
+      // ESCAPED through that tie: two different behaviours produced the same
+      // string, so the assertion could not tell them apart.
+      const work = fix(phase("work", 22 * 60000, 25 * 60000));
+      eq("stopwatch: a WORK phase CONTINUES the same count — no reset, no replacement", work.text, idle.text);
+      eq("stopwatch: ...and takes the accent treatment", work.work, true);
+      eq("stopwatch: ...with the unit word unchanged", work.unit, "active");
+      const brk = fix(phase("shortBreak", 3 * 60000, 5 * 60000));
+      eq("stopwatch: a BREAK also continues the same count", brk.text, idle.text);
+      eq("stopwatch: ...without the accent (the accent marks the stretch that counts)", brk.work, false);
 
-      const brk = withPhase("shortBreak", 3 * 60000, 5 * 60000);
-      eq("session: a BREAK falls back to the engine figure — a break is not the stretch that counts", brk.text, "7:00");
-      eq("session: ...and takes no unit word", brk.unit, "");
+      // PAUSE FREEZES IT, and the pending span counts from the first tick.
+      const paused = fix({ startedAt: AGO(10 * 60000), pausedAt: AGO(4 * 60000) });
+      eq("stopwatch: a pause in flight is excluded live, not one round trip later", paused.text, "6:00");
+      const resumed = fix({ startedAt: AGO(10 * 60000), activePausedMs: 4 * 60000, pausedAt: null });
+      eq("stopwatch: a settled pause stays excluded after resume", resumed.text, "6:00");
+      eq("stopwatch: pauses accumulate across several cycles",
+        fix({ startedAt: AGO(30 * 60000), activePausedMs: 12 * 60000, pausedAt: AGO(3 * 60000) }).text, "15:00");
 
-      // THE HONESTY GUARD. 7:00 engine + 5:00 session must never appear as 12:00,
-      // and neither figure may be contaminated by the other.
-      check("session: the two figures are NEVER summed or blended — one or the other, never both",
-        work.text === "5:00" && idle.text === "7:00" && work.text !== "12:00" &&
-        [work, idle, brk].every((s) => s.text !== "12:00"));
-      check("session: ...and nothing in the switch adds them",
-        !/satLiveMs\(\)\s*\+/.test(extractFn(SRC.nt, "satRowLiveState")) &&
-        !/\+\s*satLiveMs\(\)/.test(extractFn(SRC.nt, "satRowLiveState")));
-      // Same timestamps as the ring, opposite direction: elapsed + remaining must
-      // be the phase length, or the row and the dial are telling different stories.
-      check("session: elapsed is derived from the RING's own numbers (stamped duration − remaining)",
-        /pomo\.totalMs - satPomoRemainingMs\(pomo\)/.test(extractFn(SRC.nt, "satRowLiveState")));
-      {
-        withPhase("work", 20 * 60000, 25 * 60000);
-        const pomo = ctx.satRunningPomo();
-        const remaining = ctx.satPomoRemainingMs(pomo);
-        const elapsed = pomo.totalMs - remaining;
-        check("session: ...so elapsed + remaining is exactly the phase length",
-          Math.abs((elapsed + remaining) - pomo.totalMs) < 2, `${elapsed}+${remaining} vs ${pomo.totalMs}`);
-      }
-      eq("session: a phase already over floors at the full duration, never past it",
-        withPhase("work", -60000, 25 * 60000).text, "25:00");
-      // The markup carries the unit node even when empty, so the tick only ever
-      // writes into nodes that already exist.
-      check("session: the unit node is always present, so the tick never restructures the row",
+      // IT COUNTS FROM ACTIVATION, not from the browser sitting — that is what
+      // makes it survive a restart.
+      check("stopwatch: it counts from startedAt, never from the per-sitting anchor",
+        /a\.startedAt/.test(extractFn(SRC.nt, "satActiveElapsedMs")) &&
+        !/sessionAnchorAt/.test(extractFn(SRC.nt, "satActiveElapsedMs")));
+      check("stopwatch: ...and deducts the ACTIVATION-LIFETIME paused total, not the per-sitting one",
+        /a\.activePausedMs/.test(extractFn(SRC.nt, "satActiveElapsedMs")) &&
+        !/a\.pausedMs/.test(extractFn(SRC.nt, "satActiveElapsedMs")));
+      check("stopwatch: the lifetime total is maintained on every path that folds a paused span",
+        (SRC.storage.match(/activePausedMs = \(/g) || []).length >= 3);
+      check("stopwatch: ...and the browser anchor folds the open span BEFORE zeroing the per-sitting one",
+        /if \(active\.pausedAt != null\) \{[\s\S]{0,200}activePausedMs[\s\S]{0,160}active\.sessionAnchorAt = now;/.test(SRC.storage));
+      eq("stopwatch: a legacy record with no stamp reads 0 rather than an epoch-sized number",
+        (() => { const d = mkData(); d.activeTask = { taskId: "t1", workspaceId: "w1" }; ctx.data = d; return ctx.satActiveElapsedMs(); })(), 0);
+
+      // FORMAT.
+      eq("format: under an hour is M:SS", ctx.satFmtStopwatch(5 * 60000 + 12000), "5:12");
+      eq("format: under a day is H:MM:SS", ctx.satFmtStopwatch(3 * 3600000 + 4 * 60000 + 9000), "3:04:09");
+      eq("format: a day or more is Xd Yh", ctx.satFmtStopwatch(2 * 86400000 + 5 * 3600000), "2d 5h");
+      eq("format: exactly 24h crosses to the day form", ctx.satFmtStopwatch(86400000), "1d 0h");
+      eq("format: zero is 0:00, never blank", ctx.satFmtStopwatch(0), "0:00");
+
+      // HONESTY GUARDS.
+      check("stopwatch: the word the product reserves for ENGINE time never appears on it",
+        !/focused/i.test(work.unit) && !/focused/i.test(work.title) && !/focused/i.test(idle.unit));
+      check("stopwatch: the tooltip names the wall-clock AND excludes measured browsing",
+        /wall-clock/i.test(work.title) && /not measured browsing/i.test(work.title) && /pauses excluded/i.test(work.title));
+      check("stopwatch: it is never blended with the engine figure — the switch does not read satLiveMs at all",
+        !/satLiveMs/.test(extractFn(SRC.nt, "satRowLiveState")) && !/satLiveMs/.test(extractFn(SRC.nt, "satActiveElapsedMs")));
+      check("stopwatch: ...and no surface sums the two",
+        !/satActiveElapsedMs\(\)\s*\+\s*satLiveMs/.test(SRC.nt) && !/satLiveMs\(\)\s*\+\s*satActiveElapsedMs/.test(SRC.nt));
+      check("stopwatch: FOCUSED TODAY still comes from the ENGINE, untouched",
+        /satFmtLong\(satLiveMs\(\)\)/.test(extractFn(SRC.nt, "satHeadlineHtml")));
+
+      // THE CARD CARRIES THE SAME COUNT, from the same helper.
+      const since = extractFn(SRC.nt, "satActiveSinceText");
+      check("cross-surface: the card's since-line shows the SAME stopwatch, from the same helper",
+        /satFmtStopwatch\(satActiveElapsedMs\(\)\)/.test(since));
+      check("cross-surface: ...and keeps the timestamp, which is what makes a long count readable",
+        /since " \+ since/.test(since) && /toLocaleTimeString/.test(since));
+      check("cross-surface: the card's since-line is repainted by the tick, or it would freeze",
+        /\.sat-since"\)[\s\S]{0,200}satActiveSinceText\(\)/.test(extractFn(SRC.nt, "satPaintTime")));
+
+      // The unit node is always present; the tick only writes into it.
+      check("stopwatch: the unit node is always present, so the tick never restructures the row",
         /<span class="tt-live-unit">/.test(ctx.satRowLiveHtml()));
-      check("session: an empty unit collapses rather than leaving a gap",
-        /\.tt-live-unit:empty \{ display: none; \}/.test(SRC.css));
-      // Measured: at opacity 0.75 the unit read 3.48-3.81:1 across the frames.
-      // The word that stops a wall-clock being mistaken for engine time is the
-      // last label in the product that may be hard to read, so its subordination
-      // is size and weight only (also the O2 preference: colour, never opacity).
-      check("session: the unit word is NOT dimmed — size and weight subordinate it, not opacity",
+      check("stopwatch: the paint reads the shared state, not a second derivation",
+        /var liveState = satRowLiveState\(\);/.test(extractFn(SRC.nt, "satPaintTime")));
+      check("stopwatch: the unit word is NOT dimmed — size and weight subordinate it, not opacity",
         !/\.tt-live-unit \{[^}]*opacity:/.test(SRC.css) &&
         /\.tt-live-unit \{[^}]*font-size: var\(--fs-10\)/.test(SRC.css));
-      check("session: the paint reads the SWITCH, not the engine text it sits beside",
-        /var liveState = satRowLiveState\(\);/.test(extractFn(SRC.nt, "satPaintTime")));
+      // The work highlight has to follow the TICK, because the row is not
+      // re-rendered when a phase starts.
+      check("stopwatch: the row's bar intensifies from the tick's own class, via :has()",
+        /\.tt-task-row\.is-active-task:has\(\.tt-task-live\.is-work\)::after \{/.test(SRC.css) &&
+        /el\.classList\.toggle\("is-work", liveState\.work\)/.test(extractFn(SRC.nt, "satPaintTime")));
+      check("stopwatch: ...and the figure itself takes a tint while a work phase runs",
+        /\.tt-task-live\.is-work \.tt-live-val \{/.test(SRC.css));
+      // The retired badge: the ticking word replaced it, and nothing may still
+      // render a class the stylesheet no longer defines.
+      check("stopwatch: the superseded static Active badge is gone from BOTH the markup and the sheet",
+        !/tt-active-badge/.test(SRC.nt) && !/tt-active-badge/.test(SRC.css));
     }
 
     // ============= 9. THE FOCUS-ROW OVERFLOW =================================
@@ -624,30 +672,51 @@ const SEEDS = [
   { name: "INK: the windowed line loses its light-wallpaper override",
     file: "css", from: "html.bg-light .sat-live,\nhtml.bg-light .sat-window { color: var(--text-secondary); text-shadow: none; }",
     to: "html.bg-light .sat-live { color: var(--text-secondary); text-shadow: none; }" },
-  // ── the session clock ───────────────────────────────────────────────────
-  // The four the brief names as load-bearing, plus the ones around them.
-  { name: "SESSION CLOCK: the label is dropped — a wall-clock claiming to be engine time",
-    file: "nt", from: '        unit: "session",', to: '        unit: "",' },
-  { name: "SESSION CLOCK: the two figures are BLENDED (session added to engine time)",
-    file: "nt", from: "        text: satFmtLong(Math.max(0, pomo.totalMs - satPomoRemainingMs(pomo))),",
-    to: "        text: satFmtLong(satLiveMs() + Math.max(0, pomo.totalMs - satPomoRemainingMs(pomo)))," },
-  { name: "SESSION CLOCK: it ticks with NO phase running (the engine figure is replaced outright)",
-    file: "nt", from: "    var pomo = satRunningPomo();\n    if (pomo && pomo.phase === \"work\") {",
-    to: "    var pomo = satRunningPomo() || { phase: \"work\", totalMs: 1500000, phaseEndsAt: Date.now() + 1200000 };\n    if (pomo && pomo.phase === \"work\") {" },
-  { name: "SESSION CLOCK: the engine fallback is lost (every state shows the clock)",
-    file: "nt", from: '    return { session: false, text: satFmtLong(satLiveMs()), unit: "", title: SAT_LIVE_TITLE };',
-    to: '    return { session: true, text: satFmtLong(0), unit: "session", title: SAT_SESSION_TITLE };' },
-  { name: "SESSION CLOCK: a BREAK phase takes the clock too",
-    file: "nt", from: '    if (pomo && pomo.phase === "work") {', to: "    if (pomo) {" },
-  { name: "SESSION CLOCK: elapsed stops deriving from the ring's own numbers",
-    file: "nt", from: "pomo.totalMs - satPomoRemainingMs(pomo)", to: "Date.now() % 1500000" },
-  { name: "SESSION CLOCK: the tooltip stops naming the wall-clock",
-    file: "nt", from: 'var SAT_SESSION_TITLE = "Elapsed in the current focus session — wall-clock, not measured browsing time.";',
-    to: 'var SAT_SESSION_TITLE = "Session time.";' },
-  { name: "SESSION CLOCK: the tick paints the engine text over the session figure",
-    file: "nt", from: "      if (val) val.textContent = liveState.text;", to: "      if (val) val.textContent = focusedText;" },
-  { name: "SESSION CLOCK: the unit node is dropped from the markup, so the tick has nowhere to write",
-    file: "nt", from: `        '<span class="tt-live-unit">' + escapeHtml(s.unit) + '</span>' +`, to: "" },
+  // ── the activation stopwatch ────────────────────────────────────────────
+  // SUPERSEDES the session-clock seeds. Those broke a two-regime switch that no
+  // longer exists; re-pointing them at the stopwatch is the honest move, because
+  // a seed that cannot apply is not coverage. The four the brief names as
+  // load-bearing are the first four here.
+  { name: "STOPWATCH: it FREEZES while active and unpaused (Samson's 'looks broken')",
+    file: "nt", from: "    return Math.max(0, Date.now() - a.startedAt - pausedTotal);",
+    to: "    return Math.max(0, (a.frozenAt || a.startedAt) - a.startedAt - pausedTotal);" },
+  { name: "STOPWATCH: it RESETS when a session starts (continuity is the spec)",
+    file: "nt", from: "      text: satFmtStopwatch(satActiveElapsedMs()),",
+    to: "      text: satFmtStopwatch(pomo && pomo.phase === \"work\" ? Math.max(0, pomo.totalMs - satPomoRemainingMs(pomo)) : satActiveElapsedMs())," },
+  { name: "STOPWATCH: it keeps COUNTING while paused",
+    file: "nt", from: "    var pausedTotal = (a.activePausedMs || 0) + (a.pausedAt != null ? Math.max(0, Date.now() - a.pausedAt) : 0);",
+    to: "    var pausedTotal = (a.activePausedMs || 0);" },
+  { name: "STOPWATCH: it claims to be FOCUSED time (the word reserved for the engine)",
+    file: "nt", from: '      unit: "active",', to: '      unit: "focused",' },
+  { name: "STOPWATCH: it is BLENDED with the engine figure",
+    file: "nt", from: "      text: satFmtStopwatch(satActiveElapsedMs()),",
+    to: "      text: satFmtStopwatch(satActiveElapsedMs() + satLiveMs())," },
+  { name: "STOPWATCH: it counts from the per-SITTING anchor, so a restart resets it",
+    file: "nt", from: "    return Math.max(0, Date.now() - a.startedAt - pausedTotal);",
+    to: "    return Math.max(0, Date.now() - (a.sessionAnchorAt || a.startedAt) - pausedTotal);" },
+  { name: "STOPWATCH: it deducts the per-sitting paused total, so pre-restart pauses stop counting",
+    file: "nt", from: "    var pausedTotal = (a.activePausedMs || 0) + (a.pausedAt != null",
+    to: "    var pausedTotal = (a.pausedMs || 0) + (a.pausedAt != null" },
+  { name: "STOPWATCH: the lifetime paused total stops accruing on resume",
+    file: "storage", from: "        active.activePausedMs = (active.activePausedMs || 0) + pausedSpan;", to: "" },
+  { name: "STOPWATCH: the browser anchor drops the open paused span instead of folding it",
+    file: "storage", from: "    if (active.pausedAt != null) {\n      active.activePausedMs = (active.activePausedMs || 0) + Math.max(0, now - active.pausedAt);\n    }\n", to: "" },
+  { name: "STOPWATCH: the tooltip stops naming the wall-clock",
+    file: "nt", from: 'var SAT_ACTIVE_TITLE = "Wall-clock since you activated this task, pauses excluded — not measured browsing time.";',
+    to: 'var SAT_ACTIVE_TITLE = "Active time.";' },
+  { name: "STOPWATCH: the day form is dropped, so a weekend reads as 54:12:07",
+    file: "nt", from: "    if (totalSec < 86400) return satFmtLong(ms);", to: "    if (true) return satFmtLong(ms);" },
+  { name: "STOPWATCH: the work highlight fires on BREAK phases too",
+    file: "nt", from: '      work: !!(pomo && pomo.phase === "work"),', to: "      work: !!pomo," },
+  { name: "STOPWATCH: the row's bar stops following the tick's class",
+    file: "css", from: ".tt-task-row.is-active-task:has(.tt-task-live.is-work)::after {", to: ".tt-task-row.is-active-task-never:has(.tt-task-live.is-work)::after {" },
+  { name: "CROSS-SURFACE: the card's since-line loses the count and drifts from the row",
+    file: "nt", from: 'return "Active " + satFmtStopwatch(satActiveElapsedMs()) + " · since " + since;', to: 'return "Active since " + since;' },
+  { name: "CROSS-SURFACE: the card's since-line stops being repainted, so it freezes",
+    file: "nt", from: "    var sinceEl = container.querySelector(\".sat-since\");", to: "    var sinceEl = null;" },
+  { name: "CROSS-SURFACE: FOCUSED TODAY is switched to the wall-clock",
+    file: "nt", from: "    return '<div class=\"sat-time\">' + escapeHtml(satFmtLong(satLiveMs())) + '</div>' +",
+    to: "    return '<div class=\"sat-time\">' + escapeHtml(satFmtStopwatch(satActiveElapsedMs())) + '</div>' +" },
   // ── the focus row ───────────────────────────────────────────────────────
   { name: "SESSION CLOCK: the unit word goes back to being opacity-dimmed (3.48:1)",
     file: "css", from: ".tt-live-unit {\n  font-size: var(--fs-10);", to: ".tt-live-unit {\n  opacity: 0.75;\n  font-size: var(--fs-10);" },
@@ -690,11 +759,6 @@ const SEEDS = [
     file: "nt", from: '    document.querySelectorAll(".tt-task-live").forEach(function (el) {', to: '    document.querySelectorAll(".tt-task-live-gone").forEach(function (el) {' },
   { name: "ACTIVE ROW: the live figure appears on EVERY row, not just the active one",
     file: "nt", from: '(isActiveTask ? satRowLiveHtml() : "")', to: '(true ? satRowLiveHtml() : "")' },
-  { name: "ACTIVE ROW: the live figure explains itself differently from the pill",
-    file: "nt", from: 'unit: "", title: SAT_LIVE_TITLE };', to: 'unit: "", title: "Tracking now" };' },
-  { name: "ACTIVE ROW: the Active label becomes a filled chip with a hand-picked ink",
-    file: "css", from: ".tt-active-badge {\n  flex: 0 0 auto;", to: ".tt-active-badge {\n  background: #4A90E2;\n  color: #fff;\n  flex: 0 0 auto;" },
-  // TAKEOVER
   { name: "TAKEOVER: FOCUSED TODAY disappears again when a phase runs",
     file: "nt", from: `          '<div class="sat-pomo-today">' + satHeadlineHtml(paused) + '</div>' +\n`, to: "" },
   { name: "TAKEOVER: the ring highlight fires on BREAK phases too",
