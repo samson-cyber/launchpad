@@ -82,6 +82,22 @@ function boot(src) {
   ctx.__extracted = null;
   vm.runInContext(`__extracted = (function(){ ${fn} ; return dashboardTodayAsUtcDay; })();`, ctx, { filename: "newtab.js#extract" });
   ctx.dashboardTodayAsUtcDay = ctx.__extracted;
+
+  // The module-4 header block, likewise from its REAL source. Its arbitration is
+  // the subject of the 2026-08-11 follow-up ("Work’s done." rendered above five
+  // Overdue rows), and a restatement of the branch here would be a suite that
+  // tests the restatement. Everything the branch reaches for comes with it —
+  // the suggestion cascade, the escaper, the two label maps — so the fixtures
+  // drive the shipped decision and not a stand-in for it.
+  const PAGE_DECLS = ["PRIORITY_LABELS", "PRIORITY_RANK", "DASH_DUE_MAX"];
+  const PAGE_FNS = [
+    "escapeHtml", "fmtShortDate", "dashboardSuggestionTier", "dashboardCompareSuggestions",
+    "dashboardPickSuggestion", "dashboardDueLabel", "dashHeadHtml", "dashDueListHtml",
+  ];
+  vm.runInContext(
+    PAGE_DECLS.map((n) => extractDecl(src.nt, n)).join("\n") + "\n" +
+      PAGE_FNS.map((n) => extractFn(src.nt, n)).join("\n"),
+    ctx, { filename: "newtab.js#head" });
   return { ctx, store };
 }
 
@@ -96,6 +112,15 @@ function extractFn(src, name) {
   const end = src.indexOf("\n  }\n", first);
   if (end === -1) throw new Error(`anchor unterminated: ${name}`);
   return src.slice(first, end + 4);
+}
+
+// Same rule for a top-level `var NAME = …;` constant: exactly one match, or the
+// extraction is guessing.
+function extractDecl(src, name) {
+  const m = src.match(new RegExp(`^  var ${name} = .*$`, "gm"));
+  if (!m) throw new Error(`decl anchor miss: ${name} not found in newtab.js`);
+  if (m.length !== 1) throw new Error(`decl anchor ambiguous: ${name} declared ${m.length} times`);
+  return m[0];
 }
 
 let ctx, store;
@@ -114,6 +139,9 @@ for (const fn of ["focusedRangeForScope", "lastNLocalDayKeys", "_localDayKey"]) 
   if (!T || typeof T[fn] !== "function") { console.error(`TODAY COCKPIT: SUBJECT DID NOT LOAD — Tracking.${fn} missing`); process.exit(2); }
 }
 if (typeof ctx.dashboardTodayAsUtcDay !== "function") { console.error("TODAY COCKPIT: SUBJECT DID NOT LOAD — dashboardTodayAsUtcDay did not extract"); process.exit(2); }
+for (const fn of ["dashHeadHtml", "dashDueListHtml", "dashboardPickSuggestion", "escapeHtml"]) {
+  if (typeof ctx[fn] !== "function") { console.error(`TODAY COCKPIT: SUBJECT DID NOT LOAD — ${fn} did not extract`); process.exit(2); }
+}
 
 // ---------------------------------------------------------------------------
 // Assertions.
@@ -353,6 +381,171 @@ await (async () => {
   eq("due: null workspace", S.tasksDueByDay(null, TODAY_UTC), []);
   eq("due: a non-numeric today stamp", S.tasksDueByDay(mkWs(), "today"), []);
 
+  // ======================= the header's claim about the board ==============
+  // FOLLOW-UP, live finding 2026-08-11: the evening head read "Work’s done."
+  // while five Overdue rows sat directly beneath it, in the very module the head
+  // belongs to. The header was gated on the CLOCK alone, and the clock does not
+  // know what is on the board.
+  //
+  // The whole point is that the head and the list cannot disagree, so every row
+  // below drives the REAL dashHeadHtml and the REAL dashDueListHtml off the same
+  // fixture and reads both.
+  {
+    const head = (d, ws, period) => ctx.dashHeadHtml(d, ws, period, S.tasksDueByDay(ws, TODAY_UTC));
+    const list = (ws) => ctx.dashDueListHtml(ws, S.tasksDueByDay(ws, TODAY_UTC));
+    const variantOf = (html) => (html.match(/data-dash-variant="([^"]+)"/) || [])[1] || "";
+    const headlineOf = (html) => (html.match(/<div class="dash-headline">([\s\S]*?)<\/div>/) || [])[1] || "";
+    const DONE = "Work’s done.";
+    const ONE = "One still on the board.";
+    const FEW = "Still a few on the board.";
+
+    const wsWith = (tasks) => mkWs({ tasks: tasks });
+    const dataFor = (ws) => ({ workspaces: [ws], activeWorkspaceId: "main" });
+    const overdue = (n) => Array.from({ length: n }, (_, i) => mkTask({ dueAt: TODAY_UTC - (i + 1) * DAY }));
+    const dueToday = (n) => Array.from({ length: n }, () => mkTask({ dueAt: TODAY_UTC }));
+
+    // --- evening, nothing open: the close-out line stands, unchanged ---
+    {
+      const ws = wsWith([
+        mkTask({ dueAt: TODAY_UTC, completed: true, completedAt: Date.now() }),  // done today
+        mkTask({ dueAt: TODAY_UTC + DAY }),                                      // tomorrow
+        mkTask({ dueAt: null }),                                                 // undated
+        mkTask({ dueAt: TODAY_UTC - DAY, deletedAt: 1 }),                        // trashed
+      ]);
+      const h = head(dataFor(ws), ws, "evening");
+      eq("header: evening + an EMPTY board -> the close-out line, unchanged", headlineOf(h), DONE);
+      eq("header: ...under the unchanged evening variant", variantOf(h), "evening");
+      check("header: ...and the list beneath it agrees there is nothing", /Nothing due today\./.test(list(ws)));
+      check("header: ...with the title unchanged", /That’s the day/.test(h));
+    }
+
+    // --- evening with work still open: the defect, in both plural forms ---
+    {
+      const ws = wsWith(overdue(5));  // the screenshot, exactly
+      const h = head(dataFor(ws), ws, "evening");
+      check("header: evening + five OVERDUE rows never says the work is done", !h.includes(DONE), h);
+      eq("header: ...it says so plainly instead", headlineOf(h), FEW);
+      eq("header: ...under its own variant, so the two states are distinguishable", variantOf(h), "evening-open");
+      check("header: ...and the list beneath it is not empty", !/Nothing due today\./.test(list(ws)) && (list(ws).match(/dash-due-row/g) || []).length === 5);
+      check("header: ...with the same close-out title — the day IS over", /That’s the day/.test(h));
+    }
+    {
+      const ws = wsWith(overdue(1));
+      eq("header: evening + exactly ONE open item takes the singular", headlineOf(head(dataFor(ws), ws, "evening")), ONE);
+    }
+    {
+      const ws = wsWith(overdue(1).concat(dueToday(1)));
+      eq("header: evening + TWO is the plural boundary", headlineOf(head(dataFor(ws), ws, "evening")), FEW);
+    }
+    {
+      const ws = wsWith(dueToday(3));
+      eq("header: due-today with nothing overdue is open work too", headlineOf(head(dataFor(ws), ws, "evening")), FEW);
+      eq("header: ...and still the open variant", variantOf(head(dataFor(ws), ws, "evening")), "evening-open");
+    }
+    {
+      // Completing the last open row must take the header back to the close-out,
+      // driven through the REAL completeTask rather than by swapping fixtures.
+      const ws = wsWith(overdue(1));
+      const d = dataFor(ws);
+      eq("header: one open row -> the open line", headlineOf(head(d, ws, "evening")), ONE);
+      await S.completeTask(d, ws.tasks[0].id);
+      eq("header: ...ticking it off earns the close-out line", headlineOf(head(d, ws, "evening")), DONE);
+    }
+
+    // --- copy register: a statement, not a scolding ---
+    for (const [label, line] of [["singular", ONE], ["plural", FEW]]) {
+      check(`header: the ${label} open line is a calm statement — no exclamation, no second person`,
+        !/[!]/.test(line) && !/\byou(r|’ve|'ve)?\b/i.test(line) && /\.$/.test(line), line);
+    }
+
+    // --- precedence, unchanged in every direction ---
+    {
+      // Evening still wins over an active task and over the suggestion cascade —
+      // that arbitration is NOT what this round changes.
+      const ws = wsWith([mkTask({ id: "act", dueAt: TODAY_UTC })]);
+      const d = dataFor(ws);
+      d.activeTask = { taskId: "act", workspaceId: "main", startedAt: Date.now() };
+      const res = S.resolveActiveTask(d);
+      check("header: FIXTURE PRECONDITION — the active task resolves non-stale",
+        !!(res && !res.stale && res.task && res.task.id === "act"), JSON.stringify(res && res.reason));
+      const evening = head(d, ws, "evening");
+      eq("header: evening still outranks an active task (precedence unchanged)", variantOf(evening), "evening-open");
+      check("header: ...and the pick-up copy does not leak into it", !/Pick up where you left off/.test(evening));
+      eq("header: an active task in the DAY is still the pick-up head", variantOf(head(d, ws, "day")), "pickup");
+      eq("header: ...with the active task's own name on the line", headlineOf(head(d, ws, "day")), ws.tasks[0].name);
+    }
+    {
+      // Suggestion present: the day head is the suggestion, whether or not the
+      // due module has open rows. The new gate must not have reached this branch.
+      const ws = wsWith([mkTask({ id: "sug", name: "write the thing", dueAt: TODAY_UTC })]);
+      const d = dataFor(ws);
+      const h = head(d, ws, "day");
+      eq("header: day + a suggestion -> the suggestion head (precedence unchanged)", variantOf(h), "suggestion");
+      eq("header: ...carrying the picked task's name", headlineOf(h), "write the thing");
+      check("header: ...and it is the SAME task the cascade picks", ctx.dashboardPickSuggestion(ws).id === "sug");
+      check("header: ...with the open board changing nothing about it", !h.includes(DONE) && !h.includes(FEW) && !h.includes(ONE));
+    }
+    {
+      const ws = wsWith([]);
+      eq("header: day + an empty board -> the calm empty head (unchanged)", variantOf(head(dataFor(ws), ws, "day")), "empty");
+      eq("header: ...with its unchanged line", headlineOf(head(dataFor(ws), ws, "day")), "Nothing on the list.");
+    }
+    {
+      // Only "evening" opts into the close-out at all — an unknown period must
+      // fall through to the day cascade, never to a bare "Work’s done.".
+      const ws = wsWith([]);
+      check("header: only the evening period reaches the close-out branch",
+        !head(dataFor(ws), ws, "day").includes(DONE) && !head(dataFor(ws), ws, "").includes(DONE));
+    }
+
+    // --- the invariant, stated once over the whole matrix ---
+    {
+      const boards = [[], overdue(1), overdue(5), dueToday(2), overdue(2).concat(dueToday(2))];
+      const coherent = boards.every((tasks) => {
+        const ws = wsWith(tasks);
+        const empty = /Nothing due today\./.test(list(ws));
+        return head(dataFor(ws), ws, "evening").includes(DONE) === empty;
+      });
+      check("header: over every board shape, \"Work’s done.\" appears IF AND ONLY IF the list below is empty", coherent);
+    }
+
+    // --- one read, structurally: the head cannot read a different list ---
+    {
+      const headBody = extractFn(SRC.nt, "dashHeadHtml");
+      const renderBody = (() => {
+        const i = SRC.nt.indexOf("\n  function renderDashboardTab(");
+        return SRC.nt.slice(i, SRC.nt.indexOf("\n  }\n", i));
+      })();
+      check("header: the head does NOT read the due set itself — it is handed the render's array",
+        !/tasksDueByDay/.test(headBody) && /dueOpen/.test(headBody), headBody.slice(0, 60));
+      check("header: the render reads it exactly ONCE and feeds both builders",
+        (renderBody.match(/tasksDueByDay/g) || []).length === 1 &&
+        /dashHeadHtml\(d, ws, period, dueOpen\)/.test(renderBody) &&
+        /dashDueListHtml\(ws, dueOpen\)/.test(renderBody));
+    }
+
+    // --- O1: no new ink surface. The two new lines are .dash-headline inside
+    // .dash-head, the same classes the evening variant already shipped, so the
+    // rules the live pass measured cover them unchanged. Asserted rather than
+    // asserted-by-comment: a new class here would be a new unmeasured surface.
+    {
+      const headBody = extractFn(SRC.nt, "dashHeadHtml");
+      // Cut at the first quote: one attribute is built by concatenation
+      // (`class="dash-meta-due' + (dueLabel === …`), so the literal head of the
+      // value is the part that is actually a class list.
+      const classes = new Set((headBody.match(/class="([^"]+)"/g) || [])
+        .flatMap((m) => m.slice(7, -1).split("'")[0].split(/\s+/)).filter(Boolean));
+      const known = ["dash-head", "pp-dash-card-title", "dash-headline", "dash-sub", "dash-cta", "dash-meta", "dash-meta-due", "is-overdue", "dash-meta-prio"];
+      check("header: the new variant introduces NO new class — nothing unmeasured ships with it",
+        [...classes].every((c) => known.includes(c)), [...classes].join(" "));
+      check("header: ...and the evening-open line rides .dash-headline like every other head",
+        /data-dash-variant="evening-open"[\s\S]{0,300}class="dash-headline"/.test(headBody));
+      check("header: ...so the ink rules already in the sheet cover it",
+        /\.dash-head \{/.test(SRC.css) && /\.dash-headline \{/.test(SRC.css) &&
+        !/\.dash-head\[data-dash-variant/.test(SRC.css));
+    }
+  }
+
   // ======================= quick-add ======================================
   // THE ENCODING IS THE WHOLE RISK. dueAt is UTC-midnight of the user's LOCAL
   // calendar date; both a local-midnight timestamp and utcDay(Date.now()) are
@@ -516,7 +709,7 @@ if (!MUTATE) {
 // P2 anti-vacuity floor: a suite that silently stops asserting is a green light
 // that checked nothing. Set below the current count with room to edit, far above
 // the "parser slipped and inspected zero nodes" failure this exists to catch.
-const MIN = 70;
+const MIN = 130;
 if (!MUTATE && rows.length < MIN) {
   console.log(`\nTODAY COCKPIT: FAIL — only ${rows.length} assertions ran (expected >= ${MIN}); the suite is broken, not clean.\n`);
   process.exit(1);
@@ -582,6 +775,22 @@ const SEEDS = [
     to: ".dash-greeting {\n  font-size: 22px;\n  font-weight: 600;\n  line-height: 1.2;\n  color: #fff;" },
   { name: "ink: note lines go back to the opacity-dimmed class (the O2 button trap)",
     file: "nt", from: "'<div class=\"dash-note\">No active goals — '", to: "'<div class=\"insights-empty\">No active goals — '" },
+  // The 2026-08-11 follow-up, seeded from both sides of the condition it added.
+  { name: "header: the board gate removed — evening claims 'Work’s done.' over open rows again",
+    file: "nt", from: "      if (open > 0) {", to: "      if (false) {" },
+  { name: "header: the gate inverted — the close-out line can never render",
+    file: "nt", from: "      var open = (dueOpen || []).length;\n      if (open > 0) {", to: "      var open = (dueOpen || []).length;\n      if (open >= 0) {" },
+  { name: "header: the gate counts ALL tasks, not the open due set (done work keeps the day open)",
+    file: "nt", from: "      var open = (dueOpen || []).length;", to: "      var open = ((ws && ws.tasks) || []).length;" },
+  { name: "header: the plural boundary slips by one (a single item reads as 'a few')",
+    file: "nt", from: "(open === 1 ? 'One still on the board.'", to: "(open === 2 ? 'One still on the board.'" },
+  // The declaration line matches the same call text, so the anchor carries the
+  // render's indentation and trailing `+` — reported as an anchor-miss on the
+  // first run of this seed, which is the Q2 failure mode working.
+  { name: "header: the head is fed an empty array instead of the render's read",
+    file: "nt", from: "\n              dashHeadHtml(d, ws, period, dueOpen) +", to: "\n              dashHeadHtml(d, ws, period, []) +" },
+  { name: "header: evening precedence yields to an active task",
+    file: "nt", from: "    if (period === \"evening\") {", to: "    if (period === \"evening\" && !Storage.resolveActiveTask(d)) {" },
 ];
 
 const FILEKEY = { storage: "storage", nt: "nt", css: "css" };

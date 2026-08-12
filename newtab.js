@@ -969,10 +969,28 @@
   // HEAD of this module, which is the only thing it was ever pointing at. The day
   // variants and their arbitration are UNCHANGED (D6): an active task already
   // answers "what now" and is never argued with; otherwise one suggestion off the
-  // locked tier cascade; otherwise the calm empty line. The evening variant is the
-  // close-out header, likewise unchanged in substance.
-  function dashHeadHtml(d, ws, period) {
+  // locked tier cascade; otherwise the calm empty line.
+  //
+  // `dueOpen` is the due-today module's OWN open set, read once by the render and
+  // handed to both this head and the list below it — see the evening branch.
+  function dashHeadHtml(d, ws, period, dueOpen) {
     if (period === "evening") {
+      // "Work’s done." is a claim about the BOARD, not about the clock, and the
+      // clock was the only thing it used to check. Live finding 2026-08-11: the
+      // line rendered directly above five Overdue rows in the very list this head
+      // belongs to. So the close-out is gated on the same open set that list
+      // renders — zero open items and it stands; anything still open and the
+      // header says so. The day is still over either way; that is why the title
+      // does not move and the line is a statement rather than a nudge.
+      var open = (dueOpen || []).length;
+      if (open > 0) {
+        return '<div class="dash-head" data-dash-variant="evening-open">' +
+            '<div class="pp-dash-card-title">That’s the day</div>' +
+            '<div class="dash-headline">' +
+              (open === 1 ? 'One still on the board.' : 'Still a few on the board.') +
+            '</div>' +
+          '</div>';
+      }
       return '<div class="dash-head" data-dash-variant="evening">' +
           '<div class="pp-dash-card-title">That’s the day</div>' +
           '<div class="dash-headline">Work’s done.</div>' +
@@ -1031,9 +1049,13 @@
   // visually distinct but CALM — the existing .dash-meta-due.is-overdue chip,
   // reused, rather than a red row: a backlog the user already knows about does not
   // need to be shouted at every time they open a tab.
-  function dashDueListHtml(ws) {
+  //
+  // `dueOpen` comes from the render's single read so this list and the header
+  // above it are literally the same array. The fallback keeps the builder
+  // callable on its own — it is the identical pure read, one tick later.
+  function dashDueListHtml(ws, dueOpen) {
     var todayUtc = dashboardTodayAsUtcDay();
-    var due = Storage.tasksDueByDay(ws, todayUtc);
+    var due = dueOpen || Storage.tasksDueByDay(ws, todayUtc);
     if (!due.length) return '<div class="dash-note">Nothing due today.</div>';
 
     var shown = due.slice(0, DASH_DUE_MAX);
@@ -1086,6 +1108,10 @@
     // cache can be stale.
     var period = periodOverride || dashboardPeriod(Date.now(), Storage.getEndOfDayMinutes(d));
     var scope = dashFocusedScope(d);
+    // ONE read of the open due/overdue set, feeding both the module's header and
+    // its list. The evening header now makes a claim ABOUT this list, and a second
+    // read would be a second chance for the two to disagree.
+    var dueOpen = Storage.tasksDueByDay(ws, dashboardTodayAsUtcDay());
 
     // [2.0] Day Recap: today-scoped recap lines in the evening, unchanged, filled
     // two-phase by dashRefreshRecap and gated on the SAME scope that gates the
@@ -1114,9 +1140,9 @@
         '<div class="dash-cockpit">' +
           '<div class="dash-col dash-col-primary">' +
             '<div class="pp-insights-card">' +
-              dashHeadHtml(d, ws, period) +
+              dashHeadHtml(d, ws, period, dueOpen) +
               '<div class="pp-dash-card-title dash-due-title">Due today</div>' +
-              '<div class="dash-due-list">' + dashDueListHtml(ws) + '</div>' +
+              '<div class="dash-due-list">' + dashDueListHtml(ws, dueOpen) + '</div>' +
               dashQuickAddHtml() +
             '</div>' +
           '</div>' +
