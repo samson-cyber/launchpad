@@ -51,6 +51,14 @@ function extractFn(src, name) {
   if (end === -1) throw new Error(`anchor unterminated: ${name}`);
   return src.slice(first, end + 4);
 }
+// Top-level `var NAME = …;` constants, from their real declaration. Exactly one
+// match or the extraction is guessing.
+function extractDecl(src, name) {
+  const m = src.match(new RegExp(`^  var ${name} = .*$`, "gm"));
+  if (!m) throw new Error(`decl anchor miss: ${name}`);
+  if (m.length !== 1) throw new Error(`decl anchor ambiguous: ${name} (${m.length})`);
+  return m[0];
+}
 // async siblings need their own anchor form.
 function extractAsyncFn(src, name) {
   const anchor = `\n  async function ${name}(`;
@@ -92,6 +100,8 @@ function boot(src) {
   // claim is a function of the readout, and that is what gets varied.
   vm.runInContext(
     [
+      extractDecl(src.nt, "SAT_LIVE_TITLE"),
+      extractDecl(src.nt, "SAT_ALL_WORKSPACES"),
       extractFn(src.nt, "escapeHtml"),
       extractFn(src.nt, "fmtDurationHM"),
       extractFn(src.nt, "satWindowDays"),
@@ -279,8 +289,13 @@ await (async () => {
     !/this month/i.test(extractAsyncFn(SRC.nt, "ttRefreshTaskTimes")));
   {
     const tt = extractAsyncFn(SRC.nt, "ttRefreshTaskTimes");
+    // The scope ARGUMENT is asserted in section 5; this row is only about there
+    // being ONE reader rather than two. It was written against scope.workspaceId
+    // and widened when the 2026-08-12 diagnosis changed the read to every
+    // workspace — leaving the old literal here would have made the suite argue
+    // with its own section 5.
     check("window: the Tasks-row chip uses the SAME windowed reader, not a second one",
-      /Tracking\.byTaskForScope\(scope\.workspaceId, Tracking\.lastNLocalDayKeys\(satWindowDays\(\)\)\)/.test(tt));
+      /Tracking\.byTaskForScope\([A-Za-z_.]+, Tracking\.lastNLocalDayKeys\(satWindowDays\(\)\)\)/.test(tt));
     check("window: ...ONE read for the whole panel, not one per row",
       (tt.match(/Tracking\.byTaskForScope\(/g) || []).length === 1 && /querySelectorAll\("\[data-task-time\]"\)/.test(tt));
     check("window: ...zero renders an EMPTY slot, never a chip", /if \(!\(ms > 0\)\) \{ slot\.innerHTML = ""; return; \}/.test(tt));
@@ -293,6 +308,97 @@ await (async () => {
       /satWindowToken/.test(satWin) && /if \(token !== satWindowToken\) return;/.test(satWin));
     check("window: no new engine capture was added for this — byTask already existed",
       !/byTaskForScope/.test(SRC.storage));
+  }
+
+  // ================= 5. THE INVISIBLE CHIPS (2026-08-12 residual) ===========
+  //
+  // Samson tracked time and saw no chips. Two separate things were wrong, and
+  // only one of them was where the hypothesis pointed.
+  //
+  // (a) THE READ WAS WORKSPACE-SCOPED. A day aggregate is keyed by the workspace
+  //     ACTIVE AT CAPTURE, not by the task's own workspace, and
+  //     rollupBucketOverWindow drops every aggregate outside the scope. The
+  //     active task is global, so a two-workspace user's tasks read zero. This is
+  //     the load-bearing correctness row: both readers must pass the
+  //     all-workspaces sentinel, exactly as focusedTodayForTask does.
+  // (b) THE CHIP SAT IN THE CONTROLS ZONE, past the divider at the far right of a
+  //     1000px row. It was never hover-gated — measured opacity 1 at rest — but
+  //     it belonged beside the name. VISIBLE AT REST is now asserted
+  //     structurally: in the name cluster, and gated by no :hover rule anywhere.
+  {
+    const ttBody = extractAsyncFn(SRC.nt, "ttRefreshTaskTimes");
+    const satWin = extractAsyncFn(SRC.nt, "satRefreshTaskWindow");
+    const row = extractFn(SRC.nt, "taskRowHtml");
+    check("chips: BOTH windowed readers read across every workspace, never the active one",
+      /byTaskForScope\(SAT_ALL_WORKSPACES,/.test(ttBody) && /byTaskForScope\(SAT_ALL_WORKSPACES,/.test(satWin) &&
+      !/byTaskForScope\(scope\.workspaceId/.test(ttBody) && !/byTaskForScope\(scope\.workspaceId/.test(satWin));
+    check("chips: ...and the sentinel really is 'every workspace' (null), matching focusedTodayForTask",
+      ctx.SAT_ALL_WORKSPACES === null);
+    check("chips: tracking-off still suppresses — the fix widened the SCOPE, not the gate",
+      /if \(!scope\) return;/.test(ttBody) && /if \(!scope\) \{ satTaskWindow/.test(satWin));
+    // VISIBLE AT REST — the load-bearing new row.
+    check("chips: the time slot lives in the NAME CLUSTER, not the right-hand controls zone",
+      /tt-task-main[\s\S]*data-task-time[\s\S]*<\/span>'[\s\S]*tt-task-controls/.test(row) &&
+      !/tt-task-controls[\s\S]*data-task-time/.test(row), row.slice(0, 80));
+    check("chips: ...and the controls grid went back to its four original columns",
+      /grid-template-columns: 72px 78px 66px 24px;/.test(SRC.css));
+    {
+      // No :hover rule anywhere may gate the readouts or their container — that
+      // is what "visible at rest" means mechanically.
+      const cssCode = SRC.css.replace(/\/\*[\s\S]*?\*\//g, "");
+      const gated = /:hover[^{]*\b(tt-task-main|tt-time-chip|tt-task-live|tt-active-badge)\b[^{]*\{/.test(cssCode) ||
+        /\.(tt-task-main|tt-time-chip|tt-task-live|tt-active-badge)[^{]*\{[^}]*(display: none|visibility: hidden|opacity: 0(\.0*)?;)/.test(cssCode);
+      check("chips: NOTHING hover-gates or hides the readouts at rest", !gated);
+      check("chips: ...and the cluster itself is not opacity-dimmed (O2)",
+        !/\.tt-task-main \{[^}]*opacity:/.test(cssCode));
+    }
+  }
+
+  // ================= 6. THE ACTIVE ROW ======================================
+  {
+    const row = extractFn(SRC.nt, "taskRowHtml");
+    check("active row: it carries a live ticking figure and an Active label",
+      /isActiveTask[\s\S]{0,400}tt-task-live/.test(row) && /isActiveTask \? '<span class="tt-active-badge">Active<\/span>'/.test(row));
+    check("active row: ...only on the active row, never on the others",
+      !/tt-task-live/.test(row.replace(/isActiveTask[\s\S]*?: ''\) \+/g, "")));
+    check("active row: the live figure carries the SAME honesty sentence as the pill",
+      /title="' \+ escapeHtml\(SAT_LIVE_TITLE\)/.test(row));
+    check("active row: it is painted by the SHARED 1s tick, not a second timer",
+      /document\.querySelectorAll\("\.tt-task-live"\)\.forEach/.test(extractFn(SRC.nt, "satPaintTime")) &&
+      !/setInterval/.test(extractAsyncFn(SRC.nt, "ttRefreshTaskTimes")));
+    check("active row: ...and the tick writes TEXT only, so an open rename survives",
+      /\.tt-task-live"\)\.forEach\(function \(el\) \{ el\.textContent = focusedText; \}\)/.test(extractFn(SRC.nt, "satPaintTime")));
+    // The highlight, and the three-way collision it had to avoid.
+    check("highlight: the accent bar is ::after — not a border (priority owns it), not an outline (paused), not a box-shadow (drag lift)",
+      /\.tt-task-row\.is-active-task::after \{/.test(SRC.css) &&
+      !/\.tt-task-row\.is-active-task \{[^}]*(border-left|outline|box-shadow)/.test(SRC.css));
+    check("highlight: ...with a row tint, and a hover state that still reads as hover",
+      /\.tt-task-row\.is-active-task \{[^}]*background: color-mix\(in srgb, var\(--sat-accent-ink\) 10%/.test(SRC.css) &&
+      /\.tt-task-row\.is-active-task:hover \{[^}]*16%/.test(SRC.css));
+    check("highlight: every part of it derives from a THEME TOKEN, never a literal colour",
+      (SRC.css.match(/\.tt-(task-row\.is-active-task[^{]*|active-badge|task-live) \{[^}]*\}/g) || [])
+        .every((b) => !/#[0-9a-f]{3,6}/i.test(b)));
+    check("highlight: the Active label is text-only — no fill, so no un-chosen ink on a colour",
+      !/\.tt-active-badge \{[^}]*background/.test(SRC.css));
+  }
+
+  // ================= 7. THE UNIFIED TIMER ===================================
+  {
+    const card = CARD;
+    check("takeover: FOCUSED TODAY is rendered beneath the ring during a running phase",
+      /sat-pomo-stop-row[\s\S]*?sat-pomo-today">' \+ satHeadlineHtml\(paused\)[\s\S]*?satFocusRowHtml/.test(card));
+    check("takeover: ...through the SAME builder the idle card uses, not a copy",
+      (card.match(/satHeadlineHtml\(/g) || []).length >= 2 && !/class="sat-time"/.test(card));
+    check("takeover: only its SCALE changes, and only in CSS",
+      /\.sat-pomo-today \.sat-time \{[^}]*font-size: var\(--fs-15\)/.test(SRC.css));
+    check("takeover: the paint no longer returns early, so the kept headline still ticks",
+      !/fill\.style\.strokeDashoffset[\s\S]{0,200}\n      return;/.test(extractFn(SRC.nt, "satPaintTime")));
+    check("highlight: the ring is emphasised for a WORK phase only",
+      /var pomoWork = pomo\.phase === "work";/.test(card) &&
+      /sat-expanded-pomo' \+ \(pomoWork \? ' is-work' : ''\)/.test(card) &&
+      /\.sat-expanded-pomo\.is-work \.sat-pomo-ring-fill \{/.test(SRC.css));
+    check("highlight: ...as a drop-shadow, because a box-shadow on an SVG circle draws a rectangle",
+      /\.sat-expanded-pomo\.is-work \.sat-pomo-ring-fill \{[^}]*filter: drop-shadow/.test(SRC.css));
   }
 
   // ================= 3. OVERLAP: the reserve ================================
@@ -420,6 +526,46 @@ const SEEDS = [
   // live ink pass in this same round). A seed anchored on the pre-fix value
   // reported an anchor-miss on the re-run — Q2 catching a stale seed rather than
   // scoring it, which is exactly what the miss category is for.
+  // ── 2026-08-12 residuals ────────────────────────────────────────────────
+  // THE LOAD-BEARING ONE: the chip goes back into the right-hand controls zone,
+  // which is where it was when Samson could not find it.
+  { name: "VISIBLE AT REST: the chip returns to the right-hand controls zone",
+    file: "nt", from: `        '<span class="tt-task-time" data-task-time="' + escapeHtml(task.id) + '"></span>' +\n      '</span>' +\n      '<div class="tt-task-controls">' +`,
+    to: `      '</span>' +\n      '<div class="tt-task-controls">' +\n        '<span class="tt-task-time" data-task-time="' + escapeHtml(task.id) + '"></span>' +` },
+  { name: "VISIBLE AT REST: the readouts are hover-gated (the original hypothesis, seeded)",
+    file: "css", from: ".tt-task-main {\n  flex: 1;", to: ".tt-task-main {\n  opacity: 0;\n  flex: 1;" },
+  { name: "VISIBLE AT REST: the chip is hidden until the row is hovered",
+    file: "css", from: ".tt-time-chip {\n  font-size: var(--fs-11);", to: ".tt-time-chip {\n  display: none;\n  font-size: var(--fs-11);" },
+  // THE READ SCOPE — the actual cause of the empty chips.
+  { name: "SCOPE: the Tasks chips go back to a workspace-scoped read (foreign tasks read zero)",
+    file: "nt", from: "      rows = await Tracking.byTaskForScope(SAT_ALL_WORKSPACES, Tracking.lastNLocalDayKeys(satWindowDays()));\n    } catch (err) {\n      console.error(\"[LaunchPad] Tasks tab: windowed task times read failed\", err);",
+    to: "      rows = await Tracking.byTaskForScope(scope.workspaceId, Tracking.lastNLocalDayKeys(satWindowDays()));\n    } catch (err) {\n      console.error(\"[LaunchPad] Tasks tab: windowed task times read failed\", err);" },
+  { name: "SCOPE: the pill's window line goes back to a workspace-scoped read",
+    file: "nt", from: "      rows = await Tracking.byTaskForScope(SAT_ALL_WORKSPACES, Tracking.lastNLocalDayKeys(satWindowDays()));\n    } catch (err) {\n      console.error(\"[LaunchPad] Active task: windowed task total read failed\", err);",
+    to: "      rows = await Tracking.byTaskForScope(scope.workspaceId, Tracking.lastNLocalDayKeys(satWindowDays()));\n    } catch (err) {\n      console.error(\"[LaunchPad] Active task: windowed task total read failed\", err);" },
+  { name: "SCOPE: the sentinel stops meaning 'every workspace'",
+    file: "nt", from: "  var SAT_ALL_WORKSPACES = null;", to: '  var SAT_ALL_WORKSPACES = "main";' },
+  { name: "SCOPE: tracking-off stops suppressing the chips (0m painted as measured)",
+    file: "nt", from: "    if (!scope) return;\n    var rows;", to: "    var rows;" },
+  // ACTIVE ROW
+  { name: "ACTIVE ROW: the highlight goes back to a border-left, fighting the priority indicator",
+    file: "css", from: ".tt-task-row.is-active-task::after {\n  content: \"\";", to: ".tt-task-row.is-active-task { border-left-color: var(--sat-accent); }\n.tt-task-row.is-active-task-unused::after {\n  content: \"\";" },
+  { name: "ACTIVE ROW: the live figure stops riding the shared tick (freezes at first paint)",
+    file: "nt", from: '    document.querySelectorAll(".tt-task-live").forEach(function (el) { el.textContent = focusedText; });', to: "" },
+  { name: "ACTIVE ROW: the live figure appears on EVERY row, not just the active one",
+    file: "nt", from: "        (isActiveTask\n          // The ACTIVE row's live figure.", to: "        (true\n          // The ACTIVE row's live figure." },
+  { name: "ACTIVE ROW: the live figure explains itself differently from the pill",
+    file: "nt", from: `'<span class="tt-task-live" title="' + escapeHtml(SAT_LIVE_TITLE) + '">'`, to: `'<span class="tt-task-live" title="Tracking now">'` },
+  { name: "ACTIVE ROW: the Active label becomes a filled chip with a hand-picked ink",
+    file: "css", from: ".tt-active-badge {\n  flex: 0 0 auto;", to: ".tt-active-badge {\n  background: #4A90E2;\n  color: #fff;\n  flex: 0 0 auto;" },
+  // TAKEOVER
+  { name: "TAKEOVER: FOCUSED TODAY disappears again when a phase runs",
+    file: "nt", from: `          '<div class="sat-pomo-today">' + satHeadlineHtml(paused) + '</div>' +\n`, to: "" },
+  { name: "TAKEOVER: the ring highlight fires on BREAK phases too",
+    file: "nt", from: '      var pomoWork = pomo.phase === "work";', to: "      var pomoWork = true;" },
+  { name: "TAKEOVER: the kept headline stops ticking (the early return comes back)",
+    file: "nt", from: "      // [2.0 timing] The takeover now keeps FOCUSED TODAY beneath the ring, so",
+    to: "      return;\n      // [2.0 timing] The takeover now keeps FOCUSED TODAY beneath the ring, so" },
   { name: "INK: the task-row chip ships with no colour of its own",
     file: "css", from: ".tt-time-chip {\n  font-size: var(--fs-11);\n  font-variant-numeric: tabular-nums;\n  color: rgba(255, 255, 255, 0.65);",
     to: ".tt-time-chip {\n  font-size: var(--fs-11);\n  font-variant-numeric: tabular-nums;" },

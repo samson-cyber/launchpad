@@ -3660,6 +3660,26 @@ html.has-bg:not(.bg-light) #sb-rate:hover {
 html.has-bg { --sat-accent: #8ab4f8; }
 html.has-bg.bg-light { --sat-accent: var(--accent); }
 
+/* [2.0 timing] ACCENT INK ON A FROSTED CARD — a second token, and the reason it
+   has to exist.
+   --sat-accent above is keyed to the WALLPAPER: dark blue with no wallpaper,
+   bright blue on one, dark again on a light one. But the frosted card is DARK
+   whether or not a wallpaper is set — the no-wallpaper frame renders the same
+   rgba(30,30,30,0.85) surface — so on the default frame the token puts #1a73e8
+   on near-black. Measured live: 2.38:1 for the active row's live figure and its
+   ACTIVE label, and 3.30:1 on a light solid where #1a73e8 sits on white frost.
+   Both under the 4.5:1 the on-card standard holds, and the second one was
+   already reachable by the pill's own is-live state.
+   This token is keyed to the SURFACE instead: bright on the dark frost (default
+   and dark wallpapers alike), and a darker blue once the frost flips white.
+   #15539b, not the #1e6fc9 the filter pills use: measured on the light-solid
+   frame, #1e6fc9 came to 3.69:1 on the frosted white card — the card is not pure
+   white, and the value that clears on a page background does not clear on this
+   one. #15539b measures 5.6. Same reason the amber token needed its own
+   #8a6d09 rather than reusing #f1c40f. */
+:root { --sat-accent-ink: #8ab4f8; }
+html.bg-light { --sat-accent-ink: #15539b; }
+
 /* [1.0.17] Amber for the loud PAUSED state. The pill/card frost is DARK by
    default (base theme + dark wallpaper) where #f1c40f reads bright; only a light
    wallpaper flips the frost white, where a darker amber (#8a6d09) keeps the
@@ -3936,10 +3956,10 @@ html.bg-light { --sat-amber: #8a6d09; }
   flex: 0 0 auto;
 }
 
-.sat-live.is-live { color: var(--sat-accent); }
+.sat-live.is-live { color: var(--sat-accent-ink); }
 
 .sat-live.is-live .sat-live-dot {
-  background: var(--sat-accent);
+  background: var(--sat-accent-ink);
   animation: sat-live-pulse 1.8s ease-in-out infinite;
 }
 
@@ -4201,6 +4221,45 @@ html.bg-light { --sat-amber: #8a6d09; }
   /* Smooth the once-a-second offset step so the ring glides rather than jumps. */
   transition: stroke-dashoffset 0.95s linear;
 }
+
+/* [2.0 timing] THE HIGHLIGHTED TIMER. While a WORK phase runs the ring is not
+   just present, it is emphasised: a soft accent glow around the dial and a
+   brighter track behind it. Break phases keep the plain ring — the accent means
+   "this is the stretch that counts", and a break is the product telling you to
+   stop, so lighting it up would be arguing with itself.
+   A drop-shadow filter rather than a box-shadow: the ring is an SVG circle, so a
+   box-shadow would draw a rectangle around its bounding box. */
+.sat-expanded-pomo.is-work .sat-pomo-ring-fill {
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--sat-accent) 65%, transparent));
+}
+
+.sat-expanded-pomo.is-work .sat-pomo-ring-track {
+  stroke: color-mix(in srgb, var(--sat-accent) 22%, transparent);
+}
+
+.sat-expanded-pomo.is-work .sat-pomo-time { color: var(--sat-accent); }
+
+/* [2.0 timing] TODAY, KEPT IN VIEW under the countdown. Same satHeadlineHtml the
+   idle card renders — only the scale changes, and only here, so the two can
+   never drift. Small enough that the ring stays the hero: this session above,
+   today below, read as one system. */
+.sat-pomo-today {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.sat-pomo-today .sat-time {
+  font-size: var(--fs-15);
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.sat-pomo-today .sat-time-label {
+  justify-content: center;
+}
+
+.sat-pomo-today .sat-since,
+.sat-pomo-today .sat-window { margin-top: 2px; }
 
 .sat-pomo-center {
   position: absolute;
@@ -4614,7 +4673,7 @@ html.bg-light .sat-live,
 html.bg-light .sat-window { color: var(--text-secondary); text-shadow: none; }
 html.bg-light .sat-live-dot { background: var(--text-secondary); }
 html.bg-light .sat-live.is-live,
-html.bg-light .sat-live.is-live .sat-live-dot { color: var(--sat-accent); background-color: var(--sat-accent); }
+html.bg-light .sat-live.is-live .sat-live-dot { color: var(--sat-accent-ink); background-color: var(--sat-accent-ink); }
 html.bg-light .sat-live.is-live { background-color: transparent; }
 
 html.bg-light .sat-foreign { background: rgba(0, 0, 0, 0.04); }
@@ -10039,7 +10098,9 @@ body.sat-card-open .tab-panel {
 }
 
 .tt-task-name {
-  flex: 1;
+  /* Was flex:1. The cluster around it is the flex:1 element now, so the name
+     takes only the width it needs and the readouts hug it. */
+  flex: 0 1 auto;
   min-width: 0;
   /* [Tasks] Truncate before invading the controls zone so the divider stays put. */
   overflow: hidden;
@@ -10129,16 +10190,32 @@ body.sat-card-open .tab-panel {
   flex: 0 0 auto;
   margin-left: auto;
   display: grid;
-  /* [2.0 pill clarity] A fifth column, first in the zone: the windowed tracked
-     time. Narrow (the widest value the formatter produces here is "12h30m") and
-     a fixed slot like its neighbours, so rows stay aligned whether or not a task
-     has measured time — the column holds its width and simply renders empty. */
-  grid-template-columns: 54px 72px 78px 66px 24px;
+  grid-template-columns: 72px 78px 66px 24px;
   align-items: center;
   gap: 6px;
   padding-left: 12px;
   /* Subtle but visibly-present divider between the task info and the zone. */
   border-left: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+/* [2.0 timing] THE NAME CLUSTER. The time readouts moved OUT of the right-hand
+   controls zone and in beside the name.
+
+   Why they moved, diagnosed live: the chip was never hover-gated — it measured
+   opacity 1 at rest — but it sat past the divider among four other controls, at
+   the far right of a row that can be 1000px wide, which is a poor place to read
+   a number that belongs to the task's identity. (The reason Samson saw NO chips
+   at all was separate and is fixed in newtab.js: a workspace-scoped read.)
+
+   The name shrinks and truncates; the readouts never do. That keeps the divider
+   and the controls zone exactly where they were — the cluster as a whole is the
+   flex:1 element the name used to be. */
+.tt-task-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* The chip itself. Quiet by design — it is reference, not a control, and it must
@@ -10156,7 +10233,67 @@ body.sat-card-open .tab-panel {
   white-space: nowrap;
 }
 
-html.has-bg.bg-light .tt-time-chip { color: rgba(0, 0, 0, 0.55); }
+html.has-bg.bg-light .tt-time-chip { color: rgba(0, 0, 0, 0.65); }
+
+/* [2.0 timing] THE ACTIVE ROW, unmistakable at a glance.
+   Three signals, none of which can collide with what the row already uses:
+     - an ACCENT BAR as ::after, absolutely positioned inside the padding box.
+       Not a border (the left border IS the priority indicator), not a
+       box-shadow (that is the SortableJS drag lift), not an outline (that is
+       the paused-active ring) — the same three-way collision the [Polish step
+       8] note documents. ::before is taken by the completion sweep; ::after was
+       free. Sitting inside the border means a prioritised active task shows
+       BOTH its priority colour and the accent bar, side by side.
+     - a SUBTLE ACCENT TINT on the row, well under the hover wash's weight so
+       hovering an active row still reads as hover.
+     - a small ACTIVE label beside the name.
+   --sat-accent is the luminance-aware token the pill already uses, so all three
+   follow the wallpaper automatically and need no bg-light override of their own. */
+.tt-task-row.is-active-task {
+  position: relative;
+  background: color-mix(in srgb, var(--sat-accent-ink) 10%, transparent);
+}
+
+.tt-task-row.is-active-task::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--sat-accent-ink);
+  pointer-events: none;
+}
+
+.tt-task-row.is-active-task:hover {
+  background: color-mix(in srgb, var(--sat-accent-ink) 16%, transparent);
+}
+
+/* The label. Text-only on purpose — a FILLED chip would be a new ink-on-fill
+   surface, and ink on a fill belongs to the chip-ink chooser rather than to a
+   literal picked here. Micro-caps, matching the .sat-eyebrow idiom the pill
+   already uses for exactly this kind of state word. */
+.tt-active-badge {
+  flex: 0 0 auto;
+  font-size: var(--fs-9);
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--sat-accent-ink);
+  white-space: nowrap;
+}
+
+/* The active row's live today-figure, painted by satPaintTime on the shared 1s
+   tick. Tabular numerals so a ticking second never shifts the row's layout. */
+.tt-task-live {
+  flex: 0 0 auto;
+  font-size: var(--fs-11);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--sat-accent-ink);
+  white-space: nowrap;
+}
 .tt-task-slot {
   display: flex;
   align-items: center;

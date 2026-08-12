@@ -2429,16 +2429,31 @@
       '<span class="tt-task-handle" aria-hidden="true" title="Drag to reorder">⠇</span>' +
       '<input type="checkbox" class="tt-task-check" data-task-id="' + escapeHtml(task.id) + '"' + checked + ' aria-label="Toggle task complete">' +
       playHtml +
-      '<span class="tt-task-name" title="' + escapeHtml(task.name) + '">' + escapeHtml(task.name) + '</span>' +
+      // [2.0 timing] The name and its time readouts are ONE cluster now, so both
+      // numbers sit beside the task they describe instead of at the far right of
+      // the row. See .tt-task-main — the name shrinks and truncates, the readouts
+      // never do. Inline rename still targets .tt-task-name and replaceWith()s it
+      // inside this wrapper, so the readouts survive an open edit.
+      '<span class="tt-task-main">' +
+        '<span class="tt-task-name" title="' + escapeHtml(task.name) + '">' + escapeHtml(task.name) + '</span>' +
+        (isActiveTask
+          // The ACTIVE row's live figure. Same value and same honesty as the
+          // pill's headline — the engine's focused-today for this task — and
+          // painted by the SAME 1s text path (satPaintTime), so there is no
+          // second timer and no re-render per tick (A1).
+          ? '<span class="tt-task-live" title="' + escapeHtml(SAT_LIVE_TITLE) + '">' +
+              escapeHtml(satFmtLong(satLiveMs())) +
+            '</span>'
+          : '') +
+        (isActiveTask ? '<span class="tt-active-badge">Active</span>' : '') +
+        // Windowed tracked time. Rendered EMPTY and filled by ttRefreshTaskTimes a
+        // tick later — the byTask read is async and taskRowHtml is a synchronous
+        // builder, the same two-phase shape the cockpit uses. A task with no
+        // measured time shows nothing at all rather than a "0m" that cannot tell
+        // "never worked on" from "worked on before the window".
+        '<span class="tt-task-time" data-task-time="' + escapeHtml(task.id) + '"></span>' +
+      '</span>' +
       '<div class="tt-task-controls">' +
-        // [2.0 pill clarity] Windowed tracked time. Rendered EMPTY and filled by
-        // ttPaintTaskTimes a tick later — the byTask read is async and taskRowHtml
-        // is a synchronous builder, the same two-phase shape the cockpit uses. The
-        // slot is always present so it holds width whether or not it has a value,
-        // matching the priority/date slots' rule; a task with no measured time
-        // shows nothing at all rather than a "0m" that cannot tell "never worked
-        // on" from "worked on before the window".
-        '<span class="tt-task-slot tt-slot-time" data-task-time="' + escapeHtml(task.id) + '"></span>' +
         '<span class="tt-task-slot tt-slot-priority">' + priorityPillHtml(task) + '</span>' +
         '<span class="tt-task-slot tt-slot-date">' + dueDatePillHtml(task) + '</span>' +
         '<span class="tt-task-slot tt-slot-tags">' + tagHtml + '</span>' +
@@ -2473,7 +2488,7 @@
     if (!scope) return;
     var rows;
     try {
-      rows = await Tracking.byTaskForScope(scope.workspaceId, Tracking.lastNLocalDayKeys(satWindowDays()));
+      rows = await Tracking.byTaskForScope(SAT_ALL_WORKSPACES, Tracking.lastNLocalDayKeys(satWindowDays()));
     } catch (err) {
       console.error("[LaunchPad] Tasks tab: windowed task times read failed", err);
       return;
@@ -10170,9 +10185,7 @@
     if (!Storage.isTrackingEnabled(res.workspace)) return "";
     var live = satReadout.taskId === res.task.id && satReadout.openSince != null;
     var label = live ? "Tracking" : "Active";
-    var title = live
-      ? "Recording time for this task right now."
-      : "Time records while you browse a site. This page is not tracked, so the number holds here.";
+    var title = live ? "Recording time for this task right now." : SAT_LIVE_TITLE;
     return '<span class="sat-live' + (live ? " is-live" : "") + '" title="' + escapeHtml(title) + '">' +
         '<span class="sat-live-dot" aria-hidden="true"></span>' +
         '<span class="sat-live-word">' + escapeHtml(label) + '</span>' +
@@ -10421,13 +10434,22 @@
         var frac = pomo.totalMs > 0 ? Math.max(0, Math.min(1, remaining / pomo.totalMs)) : 0;
         fill.style.strokeDashoffset = String(SAT_POMO_RING_C * (1 - frac));
       }
-      return;
+      // [2.0 timing] The takeover now keeps FOCUSED TODAY beneath the ring, so
+      // this branch can no longer return early — .sat-time IS in the DOM during a
+      // running phase and would otherwise freeze at whatever it read when the
+      // phase started. Falls through to the shared paint below.
     }
     var focusedText = satFmtLong(satLiveMs());
     var pillTime = container.querySelector(".sat-pill-time");
     if (pillTime) pillTime.textContent = focusedText;
     var big = container.querySelector(".sat-time");
     if (big) big.textContent = focusedText;
+    // [2.0 timing] The ACTIVE task's row in the Tasks tab rides this same paint —
+    // one 1s text write, no second timer, no re-render (A1). Queried from the
+    // document rather than the pill container because the row lives in another
+    // panel; a text write cannot disturb an open inline rename, which replaces a
+    // SIBLING element (.tt-task-name) and leaves this one untouched.
+    document.querySelectorAll(".tt-task-live").forEach(function (el) { el.textContent = focusedText; });
     // [2.0] The liveness indicator is a time surface too, and its truth comes
     // from satReadout.openSince — which is refreshed ASYNCHRONOUSLY, after the
     // card's markup was built. Repainting it here (rather than only at render)
@@ -10467,6 +10489,33 @@
 
   // Re-read the engine's numbers. Async, but never blocks a render: the pill
   // paints from the cached readout and the fresh value lands a tick later.
+  // [2.0 timing] A PER-TASK total must be read ACROSS EVERY WORKSPACE, and this
+  // constant is here so the two callers below cannot drift apart on it.
+  //
+  // Diagnosed live 2026-08-12, after Samson reported no chips on tasks he had
+  // demonstrably tracked. The hover hypothesis was wrong — the chip's computed
+  // opacity is 1 at rest and nothing gates the controls zone. The real cause is
+  // in tracking.js: a day aggregate is keyed by the workspace that was ACTIVE AT
+  // CAPTURE, not by the task's own workspace, and rollupBucketOverWindow drops
+  // every aggregate whose workspaceId does not match the scope
+  // (tracking.js:977). The active task is GLOBAL and may belong to a different
+  // workspace than the one being browsed, so a scoped read returns nothing for
+  // exactly the tasks a two-workspace user tracks. Reproduced: aggregates under
+  // w2 with the rows in w1 -> 0 chips and a blank window line, while the pill's
+  // headline read 25 minutes for the same task on the same data. Turning
+  // combined analytics on made the chips reappear, which is the scope filter
+  // confessing.
+  //
+  // focusedTodayForTask — the pill headline's own reader — already sums across
+  // every workspace's aggregate for precisely this reason, and says so in its
+  // comment. These readers now match it. That is also what stops the card's new
+  // "last 30 days" line from contradicting the headline directly above it.
+  var SAT_ALL_WORKSPACES = null;
+
+  // One sentence, shared by every surface that shows the live figure, so the
+  // pill and the task row cannot explain themselves differently.
+  var SAT_LIVE_TITLE = "Time records while you browse a site. This page is not tracked, so the number holds here.";
+
   // The engine's OWN retention constant, never a restated 30 — if retention ever
   // moves, the label moves with it rather than lying by one digit.
   function satWindowDays() {
@@ -10488,7 +10537,7 @@
     if (!scope) { satTaskWindow = { taskId: null, ms: 0 }; return; }
     var rows;
     try {
-      rows = await Tracking.byTaskForScope(scope.workspaceId, Tracking.lastNLocalDayKeys(satWindowDays()));
+      rows = await Tracking.byTaskForScope(SAT_ALL_WORKSPACES, Tracking.lastNLocalDayKeys(satWindowDays()));
     } catch (err) {
       console.error("[LaunchPad] Active task: windowed task total read failed", err);
       return;
@@ -10757,7 +10806,22 @@
       // per E2's copy direction); break phases keep their phase label. The CSS
       // uppercases. Phase text labels elsewhere (pill eyebrow) stay Work/Break.
       var phaseLabel = pomo.phase === "work" ? "Focus" : (SAT_POMO_PHASE_LABEL[pomo.phase] || "Focus");
-      return '<div class="sat-expanded sat-expanded-pomo">' +
+      // [2.0 timing] TWO NUMBERS, ONE SYSTEM. The takeover used to replace the
+      // headline outright, so starting a focus session made today's total vanish
+      // — the user traded the number they are accumulating for the number
+      // counting down. Now the ring stays the hero and FOCUSED TODAY sits
+      // beneath it, quieter (CSS shrinks it under .sat-expanded-pomo) but
+      // present: this session above, today below.
+      //
+      // It is the SAME satHeadlineHtml the idle card uses, deliberately — a
+      // second copy of the headline markup is how the two drift apart. Only its
+      // scale changes, and only in CSS.
+      //
+      // .is-work is the highlight: accent emphasis while a WORK phase runs.
+      // Break phases deliberately do NOT take it — the accent means "this is the
+      // stretch that counts", and a break is the product telling you to stop.
+      var pomoWork = pomo.phase === "work";
+      return '<div class="sat-expanded sat-expanded-pomo' + (pomoWork ? ' is-work' : '') + '">' +
           head +
           '<div class="sat-pomo">' +
             '<div class="sat-pomo-ring-wrap">' +
@@ -10776,6 +10840,11 @@
               '<button type="button" class="sat-btn sat-btn-pomo-stop" data-sat-act="pomo-stop" title="Stop focus session">■ Stop</button>' +
             '</div>' +
           '</div>' +
+          // Today's total, kept in view under the countdown. Paused cannot be
+          // true here in practice (a pause freezes the phase), but the flag is
+          // passed through rather than hard-coded false so this call site can
+          // never be the one that disagrees with the others.
+          '<div class="sat-pomo-today">' + satHeadlineHtml(paused) + '</div>' +
           satFocusRowHtml() +
           actionsRow +
         '</div>';
