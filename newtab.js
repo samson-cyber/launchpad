@@ -2436,15 +2436,11 @@
       // inside this wrapper, so the readouts survive an open edit.
       '<span class="tt-task-main">' +
         '<span class="tt-task-name" title="' + escapeHtml(task.name) + '">' + escapeHtml(task.name) + '</span>' +
-        (isActiveTask
-          // The ACTIVE row's live figure. Same value and same honesty as the
-          // pill's headline — the engine's focused-today for this task — and
-          // painted by the SAME 1s text path (satPaintTime), so there is no
-          // second timer and no re-render per tick (A1).
-          ? '<span class="tt-task-live" title="' + escapeHtml(SAT_LIVE_TITLE) + '">' +
-              escapeHtml(satFmtLong(satLiveMs())) +
-            '</span>'
-          : '') +
+        // The ACTIVE row's live figure — the engine's focused-today for this
+        // task, or the SESSION ELAPSED while a work phase runs (satRowLiveState
+        // owns that switch). Painted by the SAME 1s text path as the pill
+        // (satPaintTime), so there is no second timer and no re-render per tick.
+        (isActiveTask ? satRowLiveHtml() : "") +
         (isActiveTask ? '<span class="tt-active-badge">Active</span>' : '') +
         // Windowed tracked time. Rendered EMPTY and filled by ttRefreshTaskTimes a
         // tick later — the byTask read is async and taskRowHtml is a synchronous
@@ -10449,7 +10445,22 @@
     // document rather than the pill container because the row lives in another
     // panel; a text write cannot disturb an open inline rename, which replaces a
     // SIBLING element (.tt-task-name) and leaves this one untouched.
-    document.querySelectorAll(".tt-task-live").forEach(function (el) { el.textContent = focusedText; });
+    //
+    // The VALUE comes from satRowLiveState, not from focusedText above: while a
+    // work phase runs the row shows the session wall-clock instead. Writing
+    // focusedText here would make the row claim engine time for a number that is
+    // not engine time — the exact blend the switch exists to prevent. The unit
+    // word and the tooltip are written in the same pass, so the figure and its
+    // label can never be one tick out of step with each other.
+    var liveState = satRowLiveState();
+    document.querySelectorAll(".tt-task-live").forEach(function (el) {
+      var val = el.querySelector(".tt-live-val");
+      var unit = el.querySelector(".tt-live-unit");
+      if (val) val.textContent = liveState.text;
+      if (unit) unit.textContent = liveState.unit;
+      el.classList.toggle("is-session", liveState.session);
+      el.title = liveState.title;
+    });
     // [2.0] The liveness indicator is a time surface too, and its truth comes
     // from satReadout.openSince — which is refreshed ASYNCHRONOUSLY, after the
     // card's markup was built. Repainting it here (rather than only at render)
@@ -10515,6 +10526,62 @@
   // One sentence, shared by every surface that shows the live figure, so the
   // pill and the task row cannot explain themselves differently.
   var SAT_LIVE_TITLE = "Time records while you browse a site. This page is not tracked, so the number holds here.";
+
+  // [2.0] The session clock's own sentence. It says the quiet part out loud: this
+  // is a wall-clock, not the engine's measurement, and the two are different
+  // numbers about different things.
+  var SAT_SESSION_TITLE = "Elapsed in the current focus session — wall-clock, not measured browsing time.";
+
+  // [2.0] THE ACTIVE ROW'S LIVE SLOT HOLDS TWO DIFFERENT TRUTHS, and switches
+  // between them. It never blends them, and this is the only place that decides.
+  //
+  //   a WORK phase is running -> SESSION ELAPSED. Wall-clock, derived from the
+  //     very timestamps the pill's ring already draws: the phase's stamped
+  //     duration minus the countdown's own remaining. Same arithmetic, opposite
+  //     direction, so the row counting up and the ring counting down can never
+  //     disagree — they sum to the phase length by construction, and they freeze
+  //     together on pause because satPomoRemainingMs freezes.
+  //   anything else -> the ENGINE's focused-today for the task, exactly as
+  //     shipped. That includes BREAK phases, deliberately: the accent doctrine
+  //     says the highlight marks the stretch that counts, and a break is the
+  //     product telling you to stop. A break has nothing to count up.
+  //
+  // THE HONESTY GUARD IS THE SWITCH ITSELF. These two numbers measure different
+  // things — one is time on a clock, the other is time the engine actually saw
+  // on a trackable site — so they are never added, averaged or shown as one
+  // figure. Presentation swaps; data never mixes. The unit word is what stops
+  // the swap from being a lie: "session" appears iff the wall-clock is showing.
+  //
+  // LANGUAGE, checked against the card (the audit the brief asked for): the card
+  // never says "this session" in words — its ring shows the countdown with FOCUS
+  // in the middle, and FOCUSED TODAY beneath. So the only word to keep straight
+  // is "focused", which the product reserves for ENGINE time. The row's session
+  // clock therefore says "session" and never "focused", and its tooltip names
+  // the wall-clock outright.
+  function satRowLiveState() {
+    var pomo = satRunningPomo();
+    if (pomo && pomo.phase === "work") {
+      return {
+        session: true,
+        text: satFmtLong(Math.max(0, pomo.totalMs - satPomoRemainingMs(pomo))),
+        unit: "session",
+        title: SAT_SESSION_TITLE
+      };
+    }
+    return { session: false, text: satFmtLong(satLiveMs()), unit: "", title: SAT_LIVE_TITLE };
+  }
+
+  // Built once for the row's first paint and re-read by the tick. The unit span
+  // is ALWAYS present, empty when there is no unit, so the tick only ever writes
+  // text into existing nodes — no structural change, nothing an open inline
+  // rename can trip over.
+  function satRowLiveHtml() {
+    var s = satRowLiveState();
+    return '<span class="tt-task-live' + (s.session ? ' is-session' : '') + '" title="' + escapeHtml(s.title) + '">' +
+        '<span class="tt-live-val">' + escapeHtml(s.text) + '</span>' +
+        '<span class="tt-live-unit">' + escapeHtml(s.unit) + '</span>' +
+      '</span>';
+  }
 
   // The engine's OWN retention constant, never a restated 30 — if retention ever
   // moves, the label moves with it rather than lying by one digit.

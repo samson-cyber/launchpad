@@ -101,12 +101,22 @@ function boot(src) {
   vm.runInContext(
     [
       extractDecl(src.nt, "SAT_LIVE_TITLE"),
+      extractDecl(src.nt, "SAT_SESSION_TITLE"),
       extractDecl(src.nt, "SAT_ALL_WORKSPACES"),
       extractFn(src.nt, "escapeHtml"),
       extractFn(src.nt, "fmtDurationHM"),
       extractFn(src.nt, "satWindowDays"),
       extractFn(src.nt, "satTrackingIndicatorHtml"),
       extractFn(src.nt, "satWindowLineHtml"),
+      // The session-clock switch, executed rather than pattern-matched: the
+      // whole point is WHICH number it returns and what it calls it.
+      extractFn(src.nt, "satFmtLong"),
+      extractFn(src.nt, "satLiveMs"),
+      extractFn(src.nt, "satPomoPhaseTotalMs"),
+      extractFn(src.nt, "satPomoRemainingMs"),
+      extractFn(src.nt, "satRunningPomo"),
+      extractFn(src.nt, "satRowLiveState"),
+      extractFn(src.nt, "satRowLiveHtml"),
     ].join("\n"), ctx, { filename: "newtab.js#pill" });
   ctx.data = null;
   ctx.satReadout = { taskId: null, baseMs: 0, openSince: null };
@@ -358,16 +368,108 @@ await (async () => {
   {
     const row = extractFn(SRC.nt, "taskRowHtml");
     check("active row: it carries a live ticking figure and an Active label",
-      /isActiveTask[\s\S]{0,400}tt-task-live/.test(row) && /isActiveTask \? '<span class="tt-active-badge">Active<\/span>'/.test(row));
+      /\(isActiveTask \? satRowLiveHtml\(\) : ""\)/.test(row) && /isActiveTask \? '<span class="tt-active-badge">Active<\/span>'/.test(row));
     check("active row: ...only on the active row, never on the others",
-      !/tt-task-live/.test(row.replace(/isActiveTask[\s\S]*?: ''\) \+/g, "")));
+      !/satRowLiveHtml/.test(row.replace(/\(isActiveTask \? satRowLiveHtml\(\) : ""\)/g, "")));
     check("active row: the live figure carries the SAME honesty sentence as the pill",
-      /title="' \+ escapeHtml\(SAT_LIVE_TITLE\)/.test(row));
+      /title: SAT_LIVE_TITLE/.test(extractFn(SRC.nt, "satRowLiveState")) &&
+      /escapeHtml\(s\.title\)/.test(extractFn(SRC.nt, "satRowLiveHtml")));
     check("active row: it is painted by the SHARED 1s tick, not a second timer",
       /document\.querySelectorAll\("\.tt-task-live"\)\.forEach/.test(extractFn(SRC.nt, "satPaintTime")) &&
       !/setInterval/.test(extractAsyncFn(SRC.nt, "ttRefreshTaskTimes")));
-    check("active row: ...and the tick writes TEXT only, so an open rename survives",
-      /\.tt-task-live"\)\.forEach\(function \(el\) \{ el\.textContent = focusedText; \}\)/.test(extractFn(SRC.nt, "satPaintTime")));
+    {
+      const paint = extractFn(SRC.nt, "satPaintTime");
+      check("active row: ...and the tick writes TEXT only, so an open rename survives",
+        /val\.textContent = liveState\.text/.test(paint) && /unit\.textContent = liveState\.unit/.test(paint) &&
+        !/\.tt-task-live[\s\S]{0,300}innerHTML/.test(paint));
+    }
+
+    // ============= 8. THE SESSION CLOCK — the switch, executed ==============
+    //
+    // Driven, not pattern-matched: the question is WHICH number comes out and
+    // what the row calls it. The fixture puts a real phase on the active task
+    // and reads satRowLiveState's answer.
+    {
+      const withPhase = (phase, endsInMs, durMs) => {
+        const d = mkData();
+        d.activeTask.pomodoroState = phase
+          ? { phase: phase, phaseEndsAt: Date.now() + endsInMs, phaseDurationMs: durMs, cycleCount: 1, sessionComplete: false }
+          : null;
+        ctx.data = d;
+        ctx.satReadout = { taskId: "t1", baseMs: 7 * 60000, openSince: null };  // engine says 7:00
+        return ctx.satRowLiveState();
+      };
+      // Q7: the fixture verifies its own seeding — hydratePomodoroState could
+      // normalise the shape, and every row below would then be about no phase
+      // at all.
+      check("session: FIXTURE PRECONDITION — a seeded work phase really is running",
+        (() => { withPhase("work", 20 * 60000, 25 * 60000); return !!ctx.satRunningPomo(); })());
+
+      const work = withPhase("work", 20 * 60000, 25 * 60000);   // 25min phase, 20 left
+      eq("session: a running WORK phase shows the elapsed wall-clock", work.text, "5:00");
+      eq("session: ...labeled, so it cannot be read as engine time", work.unit, "session");
+      eq("session: ...with the wall-clock named outright in its tooltip", work.title, ctx.SAT_SESSION_TITLE);
+      check("session: ...and the tooltip says it is NOT measured browsing", /not measured browsing/i.test(work.title));
+      check("session: the label never borrows the word the product reserves for engine time",
+        !/focus/i.test(work.unit) && !/focused/i.test(work.text));
+
+      const idle = withPhase(null);
+      eq("session: NO phase running -> the engine's figure, exactly as shipped", idle.text, "7:00");
+      eq("session: ...with no unit word at all", idle.unit, "");
+      eq("session: ...and the engine sentence", idle.title, ctx.SAT_LIVE_TITLE);
+      check("session: ...so the switch is legible from the markup alone",
+        !/session/.test(ctx.satRowLiveHtml()) === true);
+
+      const brk = withPhase("shortBreak", 3 * 60000, 5 * 60000);
+      eq("session: a BREAK falls back to the engine figure — a break is not the stretch that counts", brk.text, "7:00");
+      eq("session: ...and takes no unit word", brk.unit, "");
+
+      // THE HONESTY GUARD. 7:00 engine + 5:00 session must never appear as 12:00,
+      // and neither figure may be contaminated by the other.
+      check("session: the two figures are NEVER summed or blended — one or the other, never both",
+        work.text === "5:00" && idle.text === "7:00" && work.text !== "12:00" &&
+        [work, idle, brk].every((s) => s.text !== "12:00"));
+      check("session: ...and nothing in the switch adds them",
+        !/satLiveMs\(\)\s*\+/.test(extractFn(SRC.nt, "satRowLiveState")) &&
+        !/\+\s*satLiveMs\(\)/.test(extractFn(SRC.nt, "satRowLiveState")));
+      // Same timestamps as the ring, opposite direction: elapsed + remaining must
+      // be the phase length, or the row and the dial are telling different stories.
+      check("session: elapsed is derived from the RING's own numbers (stamped duration − remaining)",
+        /pomo\.totalMs - satPomoRemainingMs\(pomo\)/.test(extractFn(SRC.nt, "satRowLiveState")));
+      {
+        withPhase("work", 20 * 60000, 25 * 60000);
+        const pomo = ctx.satRunningPomo();
+        const remaining = ctx.satPomoRemainingMs(pomo);
+        const elapsed = pomo.totalMs - remaining;
+        check("session: ...so elapsed + remaining is exactly the phase length",
+          Math.abs((elapsed + remaining) - pomo.totalMs) < 2, `${elapsed}+${remaining} vs ${pomo.totalMs}`);
+      }
+      eq("session: a phase already over floors at the full duration, never past it",
+        withPhase("work", -60000, 25 * 60000).text, "25:00");
+      // The markup carries the unit node even when empty, so the tick only ever
+      // writes into nodes that already exist.
+      check("session: the unit node is always present, so the tick never restructures the row",
+        /<span class="tt-live-unit">/.test(ctx.satRowLiveHtml()));
+      check("session: an empty unit collapses rather than leaving a gap",
+        /\.tt-live-unit:empty \{ display: none; \}/.test(SRC.css));
+      // Measured: at opacity 0.75 the unit read 3.48-3.81:1 across the frames.
+      // The word that stops a wall-clock being mistaken for engine time is the
+      // last label in the product that may be hard to read, so its subordination
+      // is size and weight only (also the O2 preference: colour, never opacity).
+      check("session: the unit word is NOT dimmed — size and weight subordinate it, not opacity",
+        !/\.tt-live-unit \{[^}]*opacity:/.test(SRC.css) &&
+        /\.tt-live-unit \{[^}]*font-size: var\(--fs-10\)/.test(SRC.css));
+      check("session: the paint reads the SWITCH, not the engine text it sits beside",
+        /var liveState = satRowLiveState\(\);/.test(extractFn(SRC.nt, "satPaintTime")));
+    }
+
+    // ============= 9. THE FOCUS-ROW OVERFLOW =================================
+    check("focus row: it wraps, so the hint takes a second line instead of being cut",
+      /\.sat-focus-row \{[^}]*flex-wrap: wrap;/.test(SRC.css));
+    check("focus row: ...and the hint cannot be squeezed into an ellipsis instead of wrapping",
+      /\.sat-focus-hint \{[^}]*flex: 0 0 auto;/.test(SRC.css));
+    check("focus row: both strings are kept whole — neither the state nor the hint was shortened away",
+      /Focus blocking: on \(auto\)/.test(SRC.nt) && /no sites listed/.test(SRC.nt));
     // The highlight, and the three-way collision it had to avoid.
     check("highlight: the accent bar is ::after — not a border (priority owns it), not an outline (paused), not a box-shadow (drag lift)",
       /\.tt-task-row\.is-active-task::after \{/.test(SRC.css) &&
@@ -522,6 +624,37 @@ const SEEDS = [
   { name: "INK: the windowed line loses its light-wallpaper override",
     file: "css", from: "html.bg-light .sat-live,\nhtml.bg-light .sat-window { color: var(--text-secondary); text-shadow: none; }",
     to: "html.bg-light .sat-live { color: var(--text-secondary); text-shadow: none; }" },
+  // ── the session clock ───────────────────────────────────────────────────
+  // The four the brief names as load-bearing, plus the ones around them.
+  { name: "SESSION CLOCK: the label is dropped — a wall-clock claiming to be engine time",
+    file: "nt", from: '        unit: "session",', to: '        unit: "",' },
+  { name: "SESSION CLOCK: the two figures are BLENDED (session added to engine time)",
+    file: "nt", from: "        text: satFmtLong(Math.max(0, pomo.totalMs - satPomoRemainingMs(pomo))),",
+    to: "        text: satFmtLong(satLiveMs() + Math.max(0, pomo.totalMs - satPomoRemainingMs(pomo)))," },
+  { name: "SESSION CLOCK: it ticks with NO phase running (the engine figure is replaced outright)",
+    file: "nt", from: "    var pomo = satRunningPomo();\n    if (pomo && pomo.phase === \"work\") {",
+    to: "    var pomo = satRunningPomo() || { phase: \"work\", totalMs: 1500000, phaseEndsAt: Date.now() + 1200000 };\n    if (pomo && pomo.phase === \"work\") {" },
+  { name: "SESSION CLOCK: the engine fallback is lost (every state shows the clock)",
+    file: "nt", from: '    return { session: false, text: satFmtLong(satLiveMs()), unit: "", title: SAT_LIVE_TITLE };',
+    to: '    return { session: true, text: satFmtLong(0), unit: "session", title: SAT_SESSION_TITLE };' },
+  { name: "SESSION CLOCK: a BREAK phase takes the clock too",
+    file: "nt", from: '    if (pomo && pomo.phase === "work") {', to: "    if (pomo) {" },
+  { name: "SESSION CLOCK: elapsed stops deriving from the ring's own numbers",
+    file: "nt", from: "pomo.totalMs - satPomoRemainingMs(pomo)", to: "Date.now() % 1500000" },
+  { name: "SESSION CLOCK: the tooltip stops naming the wall-clock",
+    file: "nt", from: 'var SAT_SESSION_TITLE = "Elapsed in the current focus session — wall-clock, not measured browsing time.";',
+    to: 'var SAT_SESSION_TITLE = "Session time.";' },
+  { name: "SESSION CLOCK: the tick paints the engine text over the session figure",
+    file: "nt", from: "      if (val) val.textContent = liveState.text;", to: "      if (val) val.textContent = focusedText;" },
+  { name: "SESSION CLOCK: the unit node is dropped from the markup, so the tick has nowhere to write",
+    file: "nt", from: `        '<span class="tt-live-unit">' + escapeHtml(s.unit) + '</span>' +`, to: "" },
+  // ── the focus row ───────────────────────────────────────────────────────
+  { name: "SESSION CLOCK: the unit word goes back to being opacity-dimmed (3.48:1)",
+    file: "css", from: ".tt-live-unit {\n  font-size: var(--fs-10);", to: ".tt-live-unit {\n  opacity: 0.75;\n  font-size: var(--fs-10);" },
+  { name: "FOCUS ROW: the wrap is removed and the hint truncates again",
+    file: "css", from: "  flex-wrap: wrap;\n  row-gap: 2px;", to: "  row-gap: 2px;" },
+  { name: "FOCUS ROW: the hint becomes shrinkable, so it ellipsises instead of wrapping",
+    file: "css", from: "  flex: 0 0 auto;\n  min-width: 0;\n  overflow: hidden;", to: "  flex: 0 1 auto;\n  min-width: 0;\n  overflow: hidden;" },
   // NOTE: this anchor carries the CURRENT alpha (0.65, raised from 0.55 by the
   // live ink pass in this same round). A seed anchored on the pre-fix value
   // reported an anchor-miss on the re-run — Q2 catching a stale seed rather than
@@ -550,12 +683,15 @@ const SEEDS = [
   // ACTIVE ROW
   { name: "ACTIVE ROW: the highlight goes back to a border-left, fighting the priority indicator",
     file: "css", from: ".tt-task-row.is-active-task::after {\n  content: \"\";", to: ".tt-task-row.is-active-task { border-left-color: var(--sat-accent); }\n.tt-task-row.is-active-task-unused::after {\n  content: \"\";" },
+  // Re-anchored: the row's paint gained the session switch, so the one-line
+  // forEach this seed was written against no longer exists. Reported as an
+  // anchor-miss on the re-run and fixed rather than scored (Q2).
   { name: "ACTIVE ROW: the live figure stops riding the shared tick (freezes at first paint)",
-    file: "nt", from: '    document.querySelectorAll(".tt-task-live").forEach(function (el) { el.textContent = focusedText; });', to: "" },
+    file: "nt", from: '    document.querySelectorAll(".tt-task-live").forEach(function (el) {', to: '    document.querySelectorAll(".tt-task-live-gone").forEach(function (el) {' },
   { name: "ACTIVE ROW: the live figure appears on EVERY row, not just the active one",
-    file: "nt", from: "        (isActiveTask\n          // The ACTIVE row's live figure.", to: "        (true\n          // The ACTIVE row's live figure." },
+    file: "nt", from: '(isActiveTask ? satRowLiveHtml() : "")', to: '(true ? satRowLiveHtml() : "")' },
   { name: "ACTIVE ROW: the live figure explains itself differently from the pill",
-    file: "nt", from: `'<span class="tt-task-live" title="' + escapeHtml(SAT_LIVE_TITLE) + '">'`, to: `'<span class="tt-task-live" title="Tracking now">'` },
+    file: "nt", from: 'unit: "", title: SAT_LIVE_TITLE };', to: 'unit: "", title: "Tracking now" };' },
   { name: "ACTIVE ROW: the Active label becomes a filled chip with a hand-picked ink",
     file: "css", from: ".tt-active-badge {\n  flex: 0 0 auto;", to: ".tt-active-badge {\n  background: #4A90E2;\n  color: #fff;\n  flex: 0 0 auto;" },
   // TAKEOVER

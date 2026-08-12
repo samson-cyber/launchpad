@@ -10284,16 +10284,41 @@ html.has-bg.bg-light .tt-time-chip { color: rgba(0, 0, 0, 0.65); }
   white-space: nowrap;
 }
 
-/* The active row's live today-figure, painted by satPaintTime on the shared 1s
-   tick. Tabular numerals so a ticking second never shifts the row's layout. */
+/* The active row's live figure, painted by satPaintTime on the shared 1s tick.
+   Tabular numerals so a ticking second never shifts the row's layout. */
 .tt-task-live {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
   font-size: var(--fs-11);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--sat-accent-ink);
   white-space: nowrap;
 }
+
+/* [2.0] The unit word — "session" — present ONLY while the wall-clock is what is
+   showing, and empty (so it collapses) the rest of the time. It is the thing
+   that stops the switch between the two figures from being a silent swap: a
+   number with no unit is the engine's, a number followed by "session" is the
+   clock's. Quieter and lighter than the figure it qualifies, because it is a
+   label and not a second measurement. :empty keeps the gap from rendering when
+   there is no word.
+
+   ITS HIERARCHY IS SIZE AND WEIGHT, NOT DIMMING. It started at opacity 0.75 and
+   measured 3.48–3.81:1 across the frames — under 4.5, on the one word that
+   stops a wall-clock being mistaken for engine time, which is the last label in
+   the product that should be hard to read. Full-strength ink; a smaller size and
+   a lighter weight carry the subordination instead. (Also the O2 preference:
+   colour, never opacity.) */
+.tt-live-unit {
+  font-size: var(--fs-10);
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
+.tt-live-unit:empty { display: none; }
 .tt-task-slot {
   display: flex;
   align-items: center;
@@ -12669,6 +12694,17 @@ html.has-bg.bg-light .focus-block-error { color: #d93025; }
 .sat-focus-row {
   display: flex;
   align-items: center;
+  /* [2.0] WRAP, so the hint takes a second line instead of being cut in half.
+     The overflow this fixes only appears in the auto-armed state, because
+     "Focus blocking: on (auto)" is the longest the label ever gets: the row read
+     "Focus blocking: on (a…" and "no sites lis…" inside the 280px card.
+     Wrapping rather than shortening the strings is the choice the label doctrine
+     points at — both of these ARE the teaching surface, and the hint matters
+     MOST in exactly the state that overflowed (blocking armed with nothing
+     listed to block). Truncating either one, or dropping the hint when the state
+     is long, would delete the teaching precisely where it is needed. */
+  flex-wrap: wrap;
+  row-gap: 2px;
   gap: 8px;
   margin-top: 12px;          /* the panel/card inter-group step, not a new number */
   font-size: var(--fs-12);
@@ -12696,7 +12732,11 @@ html.bg-light .sat-focus-label { color: var(--text-secondary); }
    at all. One state signal, in the control that owns the state. */
 
 .sat-focus-hint {
-  flex: 0 1 auto;
+  /* SHRINK-PROOF, so the wrap above actually happens. With flex-shrink:1 the
+     hint squeezed itself into an ellipsis on the first line instead of moving to
+     the second — the ellipsis rules below are now a last-resort guard rather
+     than the everyday behaviour. */
+  flex: 0 0 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
