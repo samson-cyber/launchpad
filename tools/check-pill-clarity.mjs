@@ -146,6 +146,12 @@ function boot(src) {
       // tell those apart.
       extractFn(src.nt, "fmtShortDate"),
       extractFn(src.nt, "satActiveSinceText"),
+      // [2.0 hero swap] Both headline builders, executed. Which number is the
+      // HERO and which is demoted is the whole change; asserting it by regex on
+      // the source would pass on markup that never renders.
+      extractFn(src.nt, "satSinceHtml"),
+      extractFn(src.nt, "satHeadlineHtml"),
+      extractFn(src.nt, "satIdleHeadlineHtml"),
     ].join("\n"), ctx, { filename: "newtab.js#pill" });
   ctx.data = null;
   ctx.satReadout = { taskId: null, baseMs: 0, openSince: null };
@@ -506,7 +512,78 @@ await (async () => {
       check("stopwatch: ...and no surface sums the two",
         !/satActiveElapsedMs\(\)\s*\+\s*satLiveMs/.test(SRC.nt) && !/satLiveMs\(\)\s*\+\s*satActiveElapsedMs/.test(SRC.nt));
       check("stopwatch: FOCUSED TODAY still comes from the ENGINE, untouched",
-        /satFmtLong\(satLiveMs\(\)\)/.test(extractFn(SRC.nt, "satHeadlineHtml")));
+        /satFmtLong\(satLiveMs\(\)\)/.test(extractFn(SRC.nt, "satHeadlineHtml")) &&
+        /satFmtLong\(satLiveMs\(\)\)/.test(extractFn(SRC.nt, "satIdleHeadlineHtml")));
+
+      // ── THE HERO SWAP, EXECUTED ───────────────────────────────────────────
+      //
+      // SWAPPED, not added: the rows below used to assert that FOCUSED TODAY
+      // held the hero slot on the idle card ([1.2.3]). That decision is amended
+      // — the hero of a live widget must be alive, and FOCUSED TODAY cannot move
+      // while this page is the focused tab — so the assertions move with it
+      // rather than being deleted. What did NOT change is asserted just as hard:
+      // the takeover and session-done cards still lead with FOCUSED TODAY, and
+      // the two numbers are still never blended.
+      {
+        const d = mkData();
+        Object.assign(d.activeTask, { startedAt: Date.now() - 5 * 60000, activePausedMs: 0, pausedAt: null, pomodoroState: null });
+        ctx.data = d;
+        ctx.satReadout = { taskId: "t1", baseMs: 7 * 60000, openSince: null };   // engine says 7:00, stopwatch says 5:00
+        ctx.satTaskWindow = { taskId: "t1", ms: 42 * 60000 };
+        const idleHtml = ctx.satIdleHeadlineHtml(false);
+        const doneHtml = ctx.satHeadlineHtml(false);
+        const heroText = (idleHtml.match(/<div class="sat-hero-time">([^<]*)</) || [])[1];
+        const todayText = (idleHtml.match(/<span class="sat-time">([^<]*)</) || [])[1];
+
+        eq("hero: the idle card LEADS with the activation stopwatch", heroText, "5:00");
+        eq("hero: ...labeled 'Active' — the unit of a wall-clock, never 'focused'", (idleHtml.match(/class="sat-hero-label"[^>]*>([^<]*)</) || [])[1], "Active");
+        check("hero: ...and carries the wall-clock tooltip to its new position",
+          idleHtml.indexOf(ctx.escapeHtml(ctx.SAT_ACTIVE_TITLE)) !== -1 && /wall-clock/i.test(ctx.SAT_ACTIVE_TITLE));
+        eq("hero: FOCUSED TODAY is DEMOTED, NOT DROPPED — still rendered, from the engine", todayText, "7:00");
+        check("hero: ...with its label intact", /class="sat-time-label-text">Focused today</.test(idleHtml));
+        check("hero: ...and its liveness indicator intact", /class="sat-live/.test(idleHtml));
+        check("hero: the two are never blended — both numbers appear, each once, neither summed",
+          heroText !== todayText && idleHtml.indexOf("12:00") === -1);
+        check("hero: the stopwatch sits ABOVE the engine figure (that is the swap)",
+          idleHtml.indexOf('class="sat-hero-time"') < idleHtml.indexOf('class="sat-time"'));
+        check("hero: the timestamp stays WITH the stopwatch, and drops the count it used to lead with",
+          /class="sat-since">since /.test(idleHtml) && !/class="sat-since">Active /.test(idleHtml));
+        check("hero: the windowed total still trails the block",
+          idleHtml.indexOf('class="sat-window"') > idleHtml.indexOf('class="sat-today"'));
+
+        // UNCHANGED, and asserted so the swap cannot silently reach them.
+        eq("hero: the takeover / session-done builder STILL leads with FOCUSED TODAY",
+          (doneHtml.match(/<div class="sat-time">([^<]*)</) || [])[1], "7:00");
+        check("hero: ...and its since-line still leads with the count, which has no other home there",
+          /class="sat-since">Active /.test(doneHtml) && !/class="sat-hero-time"/.test(doneHtml));
+
+        // PAUSED: both numbers are frozen, and the word is said exactly once.
+        const pausedHtml = ctx.satIdleHeadlineHtml(true);
+        eq("hero: a pause renames the HERO's unit word", (pausedHtml.match(/class="sat-hero-label"[^>]*>([^<]*)</) || [])[1], "Paused");
+        check("hero: ...exactly once — FOCUSED TODAY keeps its own label rather than repeating it",
+          (pausedHtml.match(/Paused/g) || []).length === 1 && /Focused today/.test(pausedHtml));
+        check("hero: ...and the amber treatment covers BOTH frozen numbers",
+          /\.sat-expanded\.is-paused[\s\S]{0,200}\.sat-hero-time,/.test(SRC.css) &&
+          /\.sat-expanded\.is-paused \.sat-time,/.test(SRC.css));
+
+        // The hero is a TICKING surface — the entire point of the swap.
+        check("hero: the tick repaints it, from the shared clock edge",
+          /heroEl\.textContent = stopwatch;/.test(extractFn(SRC.nt, "satPaintTime")));
+        check("hero: ...and it does NOT wear .sat-time, which the paint fills with the ENGINE figure",
+          !/class="sat-hero-time sat-time|class="sat-time sat-hero-time/.test(SRC.nt));
+        // The light-frame rows bind the selector to the DECLARATION it must sit
+        // in — `[^{}]*` cannot cross a brace, so a hero listed only in the
+        // neighbouring text-shadow group no longer satisfies a colour check.
+        // Written loosely the first time, and the "ink is left to inherit" seed
+        // ESCAPED straight through it (Q2: an assertion that matches the wrong
+        // rule is not coverage).
+        check("hero: its ink is declared on the dark frame and overridden on the light one",
+          /\.sat-hero-time \{[^}]*color: #fff;/.test(SRC.css) &&
+          /html\.bg-light \.sat-hero-time,[^{}]*\{ color: var\(--text-primary\)/.test(SRC.css) &&
+          /\.sat-hero-label \{[^}]*color: rgba\(255, 255, 255/.test(SRC.css) &&
+          /html\.bg-light \.sat-hero-label,[^{}]*\{ color: var\(--text-secondary\)/.test(SRC.css));
+        ctx.satTaskWindow = { taskId: null, ms: 0 };
+      }
 
       // THE CARD CARRIES THE SAME COUNT, from the same helper.
       const since = extractFn(SRC.nt, "satActiveSinceText");
@@ -515,8 +592,12 @@ await (async () => {
         /satStopwatchText\(\)/.test(since) && /satFmtStopwatch\(satActiveElapsedMs\(\)\)/.test(extractFn(SRC.nt, "satStopwatchText")));
       check("cross-surface: ...and keeps the timestamp, which is what makes a long count readable",
         /since " \+ since/.test(since) && /toLocaleTimeString/.test(since));
+      // Re-pointed [2.0 hero swap]: the window widened from 200 to 500 because
+      // the branch note explaining the leadWithCount flag now sits between the
+      // query and the call. The ASSERTION is unchanged — this line is painted by
+      // the tick — only the distance the anchor has to reach.
       check("cross-surface: the card's since-line is repainted by the tick, or it would freeze",
-        /\.sat-since"\)[\s\S]{0,200}satActiveSinceText\(/.test(paintFn));
+        /\.sat-since"\)[\s\S]{0,500}satActiveSinceText\(/.test(paintFn));
       check("cross-surface: ...and a sentence that stops computing REMOVES the line instead of leaving the last one frozen",
         /sinceEl\.textContent = sinceTxt;\s*\n\s*else sinceEl\.remove\(\);/.test(paintFn));
 
@@ -576,10 +657,15 @@ await (async () => {
         eq("clock edge: ...and so does the row", ctx.satRowLiveState().text, "0:10");
         setClock(null);
       }
-      check("clock edge: the paint reads the stopwatch ONCE and passes it to both surfaces",
+      // Re-pointed [2.0 hero swap]: satActiveSinceText now takes a second
+      // argument (the branch flag), and the HERO joined the same shared read —
+      // so the row asserts three consumers of one call instead of two. The
+      // single-read rule it protects is unchanged and is still counted.
+      check("clock edge: the paint reads the stopwatch ONCE and passes it to every surface",
         /var stopwatch = satStopwatchText\(\);/.test(paintFn) &&
-        /satActiveSinceText\(stopwatch\)/.test(paintFn) &&
+        /satActiveSinceText\(stopwatch, /.test(paintFn) &&
         /satRowLiveState\(stopwatch\)/.test(paintFn) &&
+        /heroEl\.textContent = stopwatch;/.test(paintFn) &&
         (paintFn.match(/satStopwatchText\(\)/g) || []).length === 1);
 
       // The unit node is always present; the tick only writes into it.
@@ -828,6 +914,38 @@ const SEEDS = [
     file: "nt", from: "      text: countText != null ? countText : satStopwatchText(),", to: "      text: satStopwatchText()," },
   { name: "CLOCK EDGE: the paint reads the clock twice, once per surface",
     file: "nt", from: "    var liveState = satRowLiveState(stopwatch);", to: "    var liveState = satRowLiveState(satStopwatchText());" },
+  // ── THE HERO SWAP ────────────────────────────────────────────────────────
+  // The three the brief names as load-bearing come first. The first is the
+  // reason the swap exists at all: a hero that cannot move while it is watched.
+  { name: "HERO: the headline is frozen while the task is active and unpaused",
+    file: "nt", from: '    return \'<div class="sat-hero-time">\' + escapeHtml(satStopwatchText()) + \'</div>\' +',
+    to: '    return \'<div class="sat-hero-time">\' + escapeHtml(satFmtLong(satLiveMs())) + \'</div>\' +' },
+  { name: "HERO: ...or frozen by the tick skipping it (same symptom, other end)",
+    file: "nt", from: "    if (heroEl) heroEl.textContent = stopwatch;", to: "" },
+  { name: "HERO: the FOCUSED TODAY line is dropped, so the engine figure leaves the card",
+    file: "nt", from: `      '<div class="sat-today">' +\n        '<span class="sat-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</span>' +`,
+    to: `      '<div class="sat-today">' +\n        '<span class="sat-time-gone">' + escapeHtml(satFmtLong(satLiveMs())) + '</span>' +` },
+  { name: "HERO: the two numbers are BLENDED into one figure",
+    file: "nt", from: '    return \'<div class="sat-hero-time">\' + escapeHtml(satStopwatchText()) + \'</div>\' +',
+    to: '    return \'<div class="sat-hero-time">\' + escapeHtml(satFmtStopwatch(satActiveElapsedMs() + satLiveMs())) + \'</div>\' +' },
+  { name: "HERO: the hero claims to be FOCUSED time, the word reserved for the engine",
+    file: "nt", from: "        (paused ? 'Paused' : 'Active') +", to: "        (paused ? 'Paused' : 'Focused') +" },
+  { name: "HERO: the demoted line loses its label, leaving a bare unexplained number",
+    file: "nt", from: `          '<span class="sat-time-label-text">Focused today</span>' +`, to: "" },
+  { name: "HERO: the demoted line loses its liveness indicator",
+    file: "nt", from: "          satTrackingIndicatorHtml(paused) +\n        '</span>' +\n      '</div>' +\n      satWindowLineHtml();", to: "        '</span>' +\n      '</div>' +\n      satWindowLineHtml();" },
+  { name: "HERO: the since-line repeats the count already shown in the hero above it",
+    file: "nt", from: "      satSinceHtml(false) +", to: "      satSinceHtml() +" },
+  { name: "HERO: the swap reaches the phase takeover, which must keep FOCUSED TODAY",
+    file: "nt", from: "          '<div class=\"sat-pomo-today\">' + satHeadlineHtml(paused) + '</div>' +",
+    to: "          '<div class=\"sat-pomo-today\">' + satIdleHeadlineHtml(paused) + '</div>' +" },
+  { name: "HERO: the hero wears .sat-time, so the tick paints it with the ENGINE figure",
+    file: "nt", from: '    return \'<div class="sat-hero-time">\'', to: '    return \'<div class="sat-time sat-hero-time">\'' },
+  { name: "HERO: the hero's ink is left to inherit on the light frame",
+    file: "css", from: "html.bg-light .sat-name,\nhtml.bg-light .sat-hero-time,\nhtml.bg-light .sat-time { color: var(--text-primary); }",
+    to: "html.bg-light .sat-name,\nhtml.bg-light .sat-time { color: var(--text-primary); }" },
+  { name: "HERO: the paused amber covers only the demoted number, not the hero",
+    file: "css", from: ".sat-expanded.is-paused .sat-time,\n.sat-expanded.is-paused .sat-hero-time,", to: ".sat-expanded.is-paused .sat-time," },
   { name: "CROSS-SURFACE: an uncomputable sentence leaves the last one standing, frozen",
     file: "nt", from: "      if (sinceTxt) sinceEl.textContent = sinceTxt;\n      else sinceEl.remove();",
     to: "      if (sinceTxt) sinceEl.textContent = sinceTxt;" },

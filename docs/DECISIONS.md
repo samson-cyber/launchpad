@@ -1382,3 +1382,35 @@ The pre-`ed84aa6` line read `Active since 2:49 PM` with no count at all, so the 
 **Runtime:** activate → 6 samples climbing in lockstep; pause → both frozen; resume → both continue. 15 samples, 0 splits, against the patched file (provenance asserted before measuring, so the pass cannot be the old code wearing the new commit's name).
 
 **Shipped in:** `[2.0]`, the v2.0.0 store-submission candidate.
+
+---
+
+## 2026-08-13 — The hero swap: the activation stopwatch leads the idle card, FOCUSED TODAY sits beneath (amends [1.2.3])
+
+**This amends the [1.2.3] hero decision recorded above.** That entry moved FOCUSED TODAY into the headline slot and deleted the ACTIVE counter; this one gives the slot to the activation stopwatch and demotes FOCUSED TODAY one line. Both rationales are kept in full, because the second only makes sense against the first — and because the first was right when it was made.
+
+**The original demotion's rationale ([1.2.3], 2026-08-08), unchanged and still correct on its own terms:** the ACTIVE counter measured *the current browser sitting*. In live use it read **139:52:01** — nothing was broken; Chrome had simply not cold-started in six days. A number that can grow to "139 hours" while meaning "you have not rebooted" fails the product's honesty standard, and the accurate work-output number already existed one line below it. Prominence, not machinery: FOCUSED TODAY took the headline and activation became a static timestamp.
+
+**Today's reversal-in-part, and why it is not a round trip.** FOCUSED TODAY only advances while a **trackable site** is the focused tab — and the new-tab page is not one (`domainOf()` returns null for anything that is not http/https). So the headline a user is looking at is, *by construction*, the number that cannot move while they are looking at it. Samson reported the widget as frozen more than once on numbers behaving exactly as designed. That is not a bug report about arithmetic; it is the product saying the slot is wrong. **The hero of a live widget must be alive.**
+
+**What changed between the two decisions — the mitigations that make the stopwatch safe in the slot the old counter was thrown out of:**
+- **It counts from `startedAt`, an ACTIVATION** — not from a browser sitting. A six-day-old browser process no longer inflates anything; only a six-day-old *task activation* does, and that is a true statement about the user's own decision.
+- **Pause-aware.** The paused span is excluded (`activePausedMs` + the open `pausedAt` span), so the count cannot claim hours the user explicitly stopped. The old counter had no such notion.
+- **"End for now" gives it a lifecycle.** The count is bounded by an action the user takes. The old counter was bounded by whether Chrome happened to restart, which is why it read as meaningless.
+- **The day form.** `2d 5h` past 24 hours, instead of letting the figure grow into an unreadable `54:12:07`.
+- **The timestamp stays directly beneath it** (`since 5:03 PM`), so a large figure always carries the "since when" that makes it interpretable.
+
+**Outcome:**
+- **Idle/active card only.** `satIdleHeadlineHtml` renders the stopwatch as `.sat-hero-time` with `Active` as its quiet unit word, the timestamp beneath it, then FOCUSED TODAY on one line — smaller, **always visible**, label and liveness indicator intact — then the windowed total. The phase takeover, the session-done card and the task row are **untouched** and still go through `satHeadlineHtml`; the takeover already has a live hero (the ring) and the done card is a terminal summary, so neither has the problem this solves.
+- **Two classes, two numbers, one paint.** The hero deliberately does **not** wear `.sat-time`: `satPaintTime` fills every `.sat-time` it finds with the engine figure, so a hero wearing that class would be painted with the wrong number every second. `.sat-time` still means exactly one thing everywhere — the engine's figure.
+- **The since-line drops its count on the idle card** (`since 5:03 PM`, not `Active 0:06 · since 5:03 PM`): the stopwatch is directly above it, and repeating it is the duplication [1.2.3] deleted. Every other branch keeps the leading count, because there it has no other home.
+- **Honesty guards unchanged.** Never blended, never summed, "focused" still reserved for engine time, and the wall-clock tooltip moved with the number to the hero's unit word.
+- **The pause statement is made once.** The hero's unit word becomes `Paused` and both frozen numbers take the amber treatment; FOCUSED TODAY keeps its own label rather than becoming a second "PAUSED" on the same card.
+
+**Known copy collision, flagged not fixed:** the hero's unit word (`ACTIVE`, the unit of a wall-clock) and the liveness indicator's armed word (`● ACTIVE`, meaning *armed but not accruing*) now sit two lines apart saying the same word about different things. Both are individually correct and both were specified; the collision is only visible once they share a card. Cheapest fixes if it grates in use: rename the indicator's armed state (`Armed`), or the hero's unit (`Active time`). Left to Samson rather than decided here.
+
+**Gate:** `tools/check-pill-clarity.mjs` — the hero assertions **swap rather than disappear** (the rows that asserted FOCUSED TODAY held the slot now assert the stopwatch does, with in-file notes recording the amendment), both builders are **executed** so the claim is about rendered markup, and the takeover/session-done branches are asserted unchanged. Twelve new seeds including the three the brief names — the hero frozen while active-unpaused, the FOCUSED TODAY line dropped, the two numbers blended. **74 caught, 0 escaped, 0 anchor-miss.** One ink seed escaped the first run through a selector list that matched the neighbouring `text-shadow` group instead of the `color` rule; the assertion now binds the selector to its declaration (Q2).
+
+**Runtime:** fresh profile, live extension. Activation → the big number is counting **within one tick** and equals the row at every sample; FOCUSED TODAY visible, labeled and carrying its dot; pause freezes both with the word said once; the takeover is unchanged (ring counting, FOCUSED TODAY beneath, no hero, since-line still leading with its count). Rendered-pixel ink across **four frames × three text sizes**: worst contrast **4.56**, nothing absent.
+
+**Shipped in:** `[2.0]`, the v2.0.0 store-submission candidate.

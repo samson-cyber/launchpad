@@ -3909,7 +3909,16 @@ html.bg-light { --sat-amber: #8a6d09; }
    with focused-today demoted to a small line beneath; the counter is gone (it
    measured "this browser sitting", which reached 139 hours in live use) and its
    slot went to the number that actually measures work. Same class, same
-   treatment — only the source changed. */
+   treatment — only the source changed.
+   [2.0 hero swap] THE IDLE CARD NO LONGER USES THIS AS ITS HERO. FOCUSED TODAY
+   is still the honest number and still always on screen, but the slot went to
+   the ticking stopwatch (.sat-hero-time) because a hero that cannot move while
+   it is watched reads broken — the full accounting is in DECISIONS.md. This
+   class keeps the big treatment where it is still the hero (the session-done
+   card) and is shrunk in context by .sat-today (the idle card's demoted line)
+   and .sat-pomo-today (beneath the ring). The class still means ONE thing
+   everywhere — the ENGINE's figure — which is what lets satPaintTime fill every
+   instance of it from a single read. */
 .sat-time {
   margin-top: 10px;
   font-size: 26px;
@@ -3933,6 +3942,61 @@ html.bg-light { --sat-amber: #8a6d09; }
   color: rgba(255, 255, 255, 0.55);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
+
+/* [2.0 hero swap] THE IDLE CARD'S HERO — the activation stopwatch.
+   It carries .sat-time's treatment but NOT its class, deliberately: satPaintTime
+   writes the ENGINE figure into every .sat-time it finds, so a hero wearing that
+   class would be painted with the wrong number every second. Two classes, two
+   numbers, one paint that cannot confuse them.
+   Its ink is declared on BOTH frames below rather than inherited — a JS-rendered
+   text rule with no colour of its own falls through to the page's dark
+   --text-primary and vanishes on frosted dark (the a68dd89 / B-2 failure), and
+   the static ink gate cannot see markup that only exists at runtime. */
+.sat-hero-time {
+  margin-top: 10px;
+  font-size: 26px;
+  font-weight: 300;
+  line-height: 1.1;
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* The hero's quiet unit word. Same tier as .sat-time-label — it is the same kind
+   of thing (a label under a number), and matching it keeps the card reading as
+   one system after the swap. */
+.sat-hero-label {
+  margin-top: 1px;
+  font-size: var(--fs-10);
+  font-weight: 500;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* FOCUSED TODAY, demoted to one line beneath — smaller, always present, its
+   label and liveness indicator intact. Laid out as a row (figure then label) so
+   the demotion costs one line rather than three, and baseline-aligned so the
+   number and its label read as a single statement. It wraps rather than
+   truncates: the label is the half that makes the figure mean anything. */
+.sat-today {
+  margin-top: 7px;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sat-today .sat-time {
+  margin-top: 0;
+  font-size: var(--fs-15);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.sat-today .sat-time-label { margin-top: 0; }
 
 /* [2.0 pill clarity] The liveness indicator, beside FOCUSED TODAY.
    Two states, two different claims (see satTrackingIndicatorHtml): a STATIC dot
@@ -4027,9 +4091,17 @@ html.bg-light { --sat-amber: #8a6d09; }
 .sat-pill-resume { cursor: pointer; border-radius: 4px; transition: filter 0.12s, background-color 0.12s; }
 .sat-pill-resume:hover { filter: brightness(1.25); background: rgba(241, 196, 15, 0.16); }
 
-/* Docked card: the frozen number and its "PAUSED" label go amber. */
+/* Docked card: the frozen number and its "PAUSED" label go amber.
+   [2.0 hero swap] BOTH numbers take it on the idle card, and both are telling
+   the truth: the stopwatch excludes the paused span and the engine session is
+   closed, so neither figure is moving. The WORD "Paused" is said once, by the
+   hero's unit label — a second copy under FOCUSED TODAY would be the
+   duplication [1.2.3] removed, and the amber already marks it frozen. */
 .sat-expanded.is-paused .sat-time,
+.sat-expanded.is-paused .sat-hero-time,
+.sat-expanded.is-paused .sat-hero-label,
 .sat-expanded.is-paused .sat-time-label { color: var(--sat-amber); }
+.sat-expanded.is-paused .sat-hero-label,
 .sat-expanded.is-paused .sat-time-label { font-weight: 700; }
 
 /* D8: foreign active task — say where it lives, offer the switch. */
@@ -4658,13 +4730,21 @@ html.bg-light .sat-name,
 html.bg-light .sat-goal,
 html.bg-light .sat-time,
 html.bg-light .sat-time-label,
+html.bg-light .sat-hero-time,
+html.bg-light .sat-hero-label,
 html.bg-light .sat-since { text-shadow: none; }
 
+/* [2.0 hero swap] The hero is the card's primary ink on a light wallpaper, the
+   same as .sat-time was before the swap; its unit word joins the secondary tier
+   with the other labels. Both are listed explicitly — a new number that inherits
+   its way onto a light frame is how this surface lost its ink twice before. */
 html.bg-light .sat-name,
+html.bg-light .sat-hero-time,
 html.bg-light .sat-time { color: var(--text-primary); }
 
 html.bg-light .sat-goal,
 html.bg-light .sat-time-label,
+html.bg-light .sat-hero-label,
 html.bg-light .sat-since,
 html.bg-light .sat-foreign { color: var(--text-secondary); }
 

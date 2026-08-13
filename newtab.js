@@ -10106,7 +10106,7 @@
   // it would change how a pause held across a browser restart resumes a phase.
   // It is no longer dead machinery serving a dead counter — pausedAt is now what
   // it is load-bearing for.
-  function satActiveSinceText(countText) {
+  function satActiveSinceText(countText, leadWithCount) {
     var a = Storage.getActiveTask(data);
     if (!a || typeof a.startedAt !== "number" || !a.startedAt) return "";
     var d = new Date(a.startedAt);
@@ -10132,22 +10132,37 @@
     // countText is THE CLOCK EDGE, handed down by the paint so this sentence and
     // the row's figure are the same read of the same clock (satStopwatchText).
     // Omitted on the render path, where there is no tick to share.
+    // [2.0 hero swap] leadWithCount === false drops the count and leaves the
+    // TIMESTAMP ALONE ("since 5:03 PM"). That is the idle card, where the
+    // stopwatch is now the headline directly above this line: repeating it here
+    // would be the same number twice on one card, which is exactly the
+    // duplication [1.2.3] deleted. Every other branch — the phase takeover and
+    // the session-done card — has no other home for the count, so it keeps
+    // leading with it, and those surfaces are unchanged by the swap.
+    if (leadWithCount === false) return "since " + since;
     return "Active " + (countText != null ? countText : satStopwatchText()) + " · since " + since;
   }
 
-  // The since-line markup. Rendered on every card branch that carries the
-  // FOCUSED TODAY headline; omitted entirely (not blank) when there is no usable
-  // stamp, so a legacy record without startedAt leaves no empty row behind.
-  function satSinceHtml() {
-    var txt = satActiveSinceText();
+  // The since-line markup. Rendered on every card branch that carries a time
+  // headline; omitted entirely (not blank) when there is no usable stamp, so a
+  // legacy record without startedAt leaves no empty row behind.
+  function satSinceHtml(leadWithCount) {
+    var txt = satActiveSinceText(null, leadWithCount);
     return txt ? '<div class="sat-since">' + escapeHtml(txt) + '</div>' : "";
   }
 
   // The card's headline block: FOCUSED TODAY as the big number, its label, and
   // the quiet since-line. ONE number in ONE place — the old small "focused
   // today" row is gone rather than duplicated under a headline showing the same
-  // value. Shared by the idle card and the session-done card so the two cannot
-  // drift apart. `paused` keeps the [1.0.17] loud treatment: the label swaps to
+  // value.
+  //
+  // [2.0 hero swap] THE IDLE CARD NO LONGER USES THIS. It now leads with the
+  // activation stopwatch (satIdleHeadlineHtml below); this builder keeps the
+  // PHASE TAKEOVER and the SESSION-DONE card exactly as they shipped, which is
+  // the point — those two surfaces already have a live hero (the ring) or are a
+  // terminal summary, so neither has the problem the swap solves. The pair still
+  // shares one builder, so they cannot drift from each other.
+  // `paused` keeps the [1.0.17] loud treatment: the label swaps to
   // PAUSED and .is-paused amber-tints the frozen number, which stays honest
   // because a pause closes the engine session — the value really is frozen.
   // [2.0 pill clarity] THE LIVENESS INDICATOR, and the honesty problem in it.
@@ -10234,6 +10249,58 @@
         satTrackingIndicatorHtml(paused) +
       '</div>' +
       satSinceHtml() +
+      satWindowLineHtml();
+  }
+
+  // [2.0 hero swap] THE IDLE CARD'S HEADLINE — the activation stopwatch leads.
+  //
+  // This AMENDS [1.2.3], which put FOCUSED TODAY in the hero slot. That call was
+  // right about the number and wrong about the slot, and the correction comes
+  // from repeated lived use rather than taste: FOCUSED TODAY only moves while a
+  // TRACKABLE site is focused, and this page is not one — so the number a user
+  // watches on the card is, by construction, the number that cannot move while
+  // they are watching it. A hero that holds still reads broken. Samson reported
+  // the widget as frozen more than once on numbers that were behaving exactly as
+  // designed, which is the product telling us the slot is wrong: THE HERO OF A
+  // LIVE WIDGET MUST BE ALIVE.
+  //
+  // What makes the reversal safe now, where the [1.2.3] demotion was the right
+  // call at the time (its counter reached 139:52:01 in live use and read as
+  // absurd — the full accounting is in DECISIONS.md):
+  //   - it counts from `startedAt`, an ACTIVATION, not from a browser sitting;
+  //   - PAUSE-AWARE: the paused span is excluded, so the number cannot claim
+  //     hours the user explicitly stopped;
+  //   - "End for now" gives the count a LIFECYCLE — it is bounded by an action
+  //     the user takes, not by whether Chrome happened to restart;
+  //   - the DAY FORM ("2d 5h") keeps a long count readable instead of letting it
+  //     grow into an unreadable 54:12:07;
+  //   - the timestamp stays directly beneath it, so a large figure always has
+  //     the "since when" that makes it interpretable.
+  //
+  // FOCUSED TODAY is DEMOTED, NOT DROPPED. It keeps its label, its liveness
+  // indicator and its own class, one line below — the engine's measurement is
+  // still the honest number and still always on screen. The two are never
+  // blended and never summed; "focused" remains reserved for engine time and the
+  // hero's unit word is "active", which is what a wall-clock measures.
+  //
+  // The pause statement is made ONCE, by the hero's unit word going to "Paused"
+  // with the amber treatment. FOCUSED TODAY keeps its own label below rather
+  // than becoming a second "PAUSED" on the same card — both numbers are frozen
+  // and both are tinted, so the state is unmistakable without saying it twice.
+  function satIdleHeadlineHtml(paused) {
+    return '<div class="sat-hero-time">' + escapeHtml(satStopwatchText()) + '</div>' +
+      '<div class="sat-hero-label" title="' + escapeHtml(SAT_ACTIVE_TITLE) + '">' +
+        (paused ? 'Paused' : 'Active') +
+      '</div>' +
+      // The stamp alone: the count it used to lead with is the headline above.
+      satSinceHtml(false) +
+      '<div class="sat-today">' +
+        '<span class="sat-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</span>' +
+        '<span class="sat-time-label">' +
+          '<span class="sat-time-label-text">Focused today</span>' +
+          satTrackingIndicatorHtml(paused) +
+        '</span>' +
+      '</div>' +
       satWindowLineHtml();
   }
 
@@ -10477,9 +10544,17 @@
     // timestamp half moves too: at midnight `isToday` flips and the line has to
     // gain its date, which a count-only write would never deliver.
     var stopwatch = satStopwatchText();
+    // [2.0 hero swap] THE HERO IS A TICKING SURFACE — it is the whole point of
+    // the swap, and it takes the same shared read as everything else here.
+    var heroEl = container.querySelector(".sat-hero-time");
+    if (heroEl) heroEl.textContent = stopwatch;
     var sinceEl = container.querySelector(".sat-since");
     if (sinceEl) {
-      var sinceTxt = satActiveSinceText(stopwatch);
+      // The hero's presence IS the branch: where it exists the count is already
+      // on screen above, so this line stays the timestamp alone. One rule, read
+      // from the DOM that was actually rendered, rather than a second copy of
+      // the card's branching that could disagree with it.
+      var sinceTxt = satActiveSinceText(stopwatch, !heroEl);
       // A sentence that has stopped being computable must not leave the last one
       // standing: a stale count on a live task is exactly the freeze this path
       // exists to prevent. Absent, never stale — the rule satSinceHtml already
@@ -10701,9 +10776,14 @@
       if (!html) line.remove();
       else line.outerHTML = html;
     } else if (html) {
-      var since = el.querySelector(".sat-since");
-      var label = el.querySelector(".sat-time-label");
-      var anchor = since || label;
+      // [2.0 hero swap] .sat-today is the LAST line of the idle card's headline
+      // block, so it anchors first — the since-line now sits ABOVE it there, and
+      // anchoring on that would slot the window total into the middle of the
+      // block. The takeover and session-done cards have no .sat-today and fall
+      // through to the order they always used.
+      var anchor = el.querySelector(".sat-today") ||
+        el.querySelector(".sat-since") ||
+        el.querySelector(".sat-time-label");
       if (anchor) anchor.insertAdjacentHTML("afterend", html);
     }
   }
@@ -11034,7 +11114,9 @@
     var workMin = Storage.getPomodoroSettings(data).workMin;
     return '<div class="sat-expanded' + (paused ? ' is-paused' : '') + '">' +
         head +
-        satHeadlineHtml(paused) +
+        // [2.0 hero swap] The stopwatch leads HERE and only here — the two
+        // branches above keep satHeadlineHtml untouched.
+        satIdleHeadlineHtml(paused) +
         '<div class="sat-pomo-start-row">' +
           '<button type="button" class="sat-btn sat-btn-pomo-start" data-sat-act="pomo-start" title="Start a focus session">▶ Focus session</button>' +
           '<button type="button" class="sat-btn sat-btn-pomo-dur" data-sat-act="pomo-duration" ' +
