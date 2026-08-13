@@ -272,11 +272,22 @@ await (async () => {
   };
   {
     const armed = ind({ openSince: null });
-    check("liveness: armed but not accruing -> a dot and the word Active", /sat-live-dot/.test(armed) && />Active</.test(armed), armed);
+    // RE-POINTED [2.0]: the holding word was "Active" and is now "Ready". The
+    // rename is the assertion, not a loosening of it — the hero swap put the
+    // stopwatch's unit word ("Active") two lines above this indicator, where the
+    // same word meant armed-not-accruing, so the row now asserts the word that
+    // ends the collision AND asserts the colliding one is gone.
+    check("liveness: armed but not accruing -> a dot and the word Ready", /sat-live-dot/.test(armed) && />Ready</.test(armed), armed);
+    check("liveness: ...and it never says Active, which is the HERO's unit word two lines above",
+      !/>Active</.test(armed), armed);
     check("liveness: ...and it does NOT claim to be tracking", !/Tracking/.test(armed), armed);
     check("liveness: ...and it is not the live variant", !/is-live/.test(armed), armed);
     check("liveness: ...with the reason in the tooltip, not left as a mystery",
-      /not tracked|while you browse/i.test(armed), armed);
+      /not tracked|while you browse|as soon as you browse/i.test(armed), armed);
+    check("liveness: ...and the tooltip was reworded WITH the label, not left explaining the old one",
+      /Ready/.test(armed.match(/title="([^"]*)"/)[1]) && !/\bActive\b/.test(armed.match(/title="([^"]*)"/)[1]), armed);
+    check("liveness: the rename emitted no new classes — same three nodes, same ink coverage",
+      (armed.match(/class="[^"]*"/g) || []).join(" ") === 'class="sat-live" class="sat-live-dot" class="sat-live-word"', armed);
 
     const live = ind({ openSince: Date.now() - 60000 });
     check("liveness: an OPEN engine session -> the live variant and the word Tracking",
@@ -816,6 +827,12 @@ const SEEDS = [
   { name: "LIVENESS: the dot claims 'tracking' from mere ACTIVATION",
     file: "nt", from: "var live = satReadout.taskId === res.task.id && satReadout.openSince != null;",
     to: "var live = true;" },
+  // The collision returning: the holding word going back to the hero's unit word.
+  { name: "LIVENESS: the holding state reads 'Active' again, colliding with the hero's unit word",
+    file: "nt", from: 'var label = live ? "Tracking" : "Ready";', to: 'var label = live ? "Tracking" : "Active";' },
+  { name: "LIVENESS: the label is renamed but the tooltip is left explaining the old word",
+    file: "nt", from: 'var SAT_LIVE_TITLE = "Ready — time records as soon as you browse a site. This page is not tracked, so the number holds here.";',
+    to: 'var SAT_LIVE_TITLE = "Active — time records while you browse a site. This page is not tracked, so the number holds here.";' },
   { name: "LIVENESS: the indicator lights for a readout belonging to another task",
     file: "nt", from: "var live = satReadout.taskId === res.task.id && satReadout.openSince != null;",
     to: "var live = satReadout.openSince != null;" },

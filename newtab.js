@@ -10189,10 +10189,23 @@
   //   openSince set   -> a pulsing dot and the word "Tracking". Genuine accrual.
   //                      Reachable when the page is visible in a non-focused
   //                      window while a tracked site is focused in another.
-  //   armed, not open -> a static dot and "Active", with the explanation in the
+  //   armed, not open -> a static dot and "Ready", with the explanation in the
   //                      tooltip. This is the fallback the brief names, and it
   //                      is what a user looking at the card will nearly always
-  //                      see: the task is active and time records as they browse.
+  //                      see: the task is armed and time records as they browse.
+  //
+  // [2.0] THE HOLDING WORD IS "READY", not "Active" — one word was doing two
+  // jobs two lines apart. The hero swap put the stopwatch's unit word ("Active",
+  // the unit of a wall-clock) directly above this indicator, whose "Active"
+  // meant something else entirely: armed, not accruing. Two adjacent lines, one
+  // word, two meanings.
+  //
+  // "Ready" says what the state actually is — it will count when you browse —
+  // and it was chosen over "Armed" deliberately: this product already spends
+  // "armed" on FOCUS BLOCKING (focusArmed, isFocusManuallyArmed, the armed dot
+  // on the pill face), and borrowing it here would trade a collision with the
+  // hero for a collision with the blocking vocabulary. The PULSING accruing
+  // state keeps "Tracking", which was never ambiguous.
   // Paused and tracking-off render NOTHING: the amber .is-paused treatment and
   // the absent readout already own those states, and a second signal beside them
   // would be the duplication [1.2.3] deleted.
@@ -10205,7 +10218,7 @@
     if (!res || res.stale) return "";
     if (!Storage.isTrackingEnabled(res.workspace)) return "";
     var live = satReadout.taskId === res.task.id && satReadout.openSince != null;
-    var label = live ? "Tracking" : "Active";
+    var label = live ? "Tracking" : "Ready";
     var title = live ? "Recording time for this task right now." : SAT_LIVE_TITLE;
     return '<span class="sat-live' + (live ? " is-live" : "") + '" title="' + escapeHtml(title) + '">' +
         '<span class="sat-live-dot" aria-hidden="true"></span>' +
@@ -10633,9 +10646,14 @@
   // "last 30 days" line from contradicting the headline directly above it.
   var SAT_ALL_WORKSPACES = null;
 
-  // One sentence, shared by every surface that shows the live figure, so the
-  // pill and the task row cannot explain themselves differently.
-  var SAT_LIVE_TITLE = "Time records while you browse a site. This page is not tracked, so the number holds here.";
+  // The HOLDING state's sentence — the one the indicator shows when it reads
+  // "Ready". It leads with the word it is explaining, so the tooltip and the
+  // label are the same statement at two lengths, and it keeps the reason the
+  // number is standing still: this page is not a tracked site.
+  // [2.0] Reworded with the word ("Active" -> "Ready"). A tooltip left behind
+  // explaining a label that no longer exists is how a rename becomes a second
+  // vocabulary; the register is unchanged — a full sentence, plain, no jargon.
+  var SAT_LIVE_TITLE = "Ready — time records as soon as you browse a site. This page is not tracked, so the number holds here.";
 
   // [2.0] The stopwatch's own sentence. It says the quiet part out loud: this is
   // a wall-clock, not the engine's measurement, and the two are different numbers

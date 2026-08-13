@@ -4000,7 +4000,7 @@ html.bg-light { --sat-amber: #8a6d09; }
 
 /* [2.0 pill clarity] The liveness indicator, beside FOCUSED TODAY.
    Two states, two different claims (see satTrackingIndicatorHtml): a STATIC dot
-   + "Active" while the task is armed but nothing is accruing — which is what a
+   + "Ready" while the task is armed but nothing is accruing — which is what a
    user looking at this card almost always sees, because this page is not a
    trackable site — and a PULSING dot + "Tracking" only when the engine genuinely
    holds an open session for the task. The pulse carries no information the words

@@ -1414,3 +1414,22 @@ The pre-`ed84aa6` line read `Active since 2:49 PM` with no count at all, so the 
 **Runtime:** fresh profile, live extension. Activation → the big number is counting **within one tick** and equals the row at every sample; FOCUSED TODAY visible, labeled and carrying its dot; pause freezes both with the word said once; the takeover is unchanged (ring counting, FOCUSED TODAY beneath, no hero, since-line still leading with its count). Rendered-pixel ink across **four frames × three text sizes**: worst contrast **4.56**, nothing absent.
 
 **Shipped in:** `[2.0]`, the v2.0.0 store-submission candidate.
+
+---
+
+## 2026-08-13 — The liveness indicator's holding word: Active → Ready (closes the collision flagged in the hero swap)
+
+**Context:** The hero swap entry above flagged a copy collision and left it to Samson: the hero's unit word (`ACTIVE`, the unit of a wall-clock) and the liveness indicator's armed-not-accruing word (`● ACTIVE`, meaning *armed, nothing accruing*) ended up two lines apart on the same card, one word doing two jobs. Called, 2026-08-13: rename the indicator's holding state.
+
+**Outcome:** the holding state reads **`● Ready`**. The PULSING accruing state keeps **`Tracking`**, which was never ambiguous, and the hero's unit word stays **`Active`**, which is what a wall-clock measures.
+
+- **"Ready" over "Armed".** `Armed` is the obvious synonym and is the wrong word here: this product already spends "armed" on FOCUS BLOCKING (`focusArmed`, `isFocusManuallyArmed`, the armed dot on the pill face). Borrowing it would have traded a collision with the hero for a collision with the blocking vocabulary. "Ready" says what the state *is* — it will count when you browse — and collides with neither.
+- **The tooltip was reworded WITH the label**, not left behind explaining a word that no longer renders: `"Ready — time records as soon as you browse a site. This page is not tracked, so the number holds here."` Same register, same reason-for-the-stillness, leading with the word it explains. The hero's tooltip and the row's are untouched.
+- **One renderer, audited.** `satTrackingIndicatorHtml` is the only producer of this state; its two call sites are the idle card and the takeover/session-done builder. There is no Dashboard or Insights copy of the indicator — the sweep found the other `Active` strings in the codebase to be a task-status filter option and a recurring-task checkbox, neither related.
+- **No new classes.** The markup is the same three nodes (`.sat-live`, `.sat-live-dot`, `.sat-live-word`), so the existing ink coverage on both wallpaper frames carries over untouched — a rename that emitted a new class would need its own ink declaration, which is the failure mode this repo has paid for twice.
+
+**Gate:** the holding-word rows in `tools/check-pill-clarity.mjs` are re-pointed with in-file notes — the row now asserts `Ready` AND asserts the colliding word is absent, plus that the tooltip was reworded with the label and that no new classes were emitted. Two seeds: the holding state reading `Active` again (the collision returning), and the label renamed while the tooltip is left explaining the old word. **76 caught, 0 escaped, 0 anchor-miss.**
+
+**Runtime:** one glance — card reads `0:01 / Active / since 5:27 pm / 7:00 Focused today ● Ready`, row reads `0:01 active`, and the only remaining `Active` strings on the card are the widget's own eyebrow (`ACTIVE TASK`) and the hero's unit, which mean the same thing as each other. Forcing an open engine session flips it to `Tracking` with `is-live` and its own tooltip — verified after a **fixture read-back**, because the first pass seeded `{taskId, startedAt}` where the engine's open record is `{activeTaskId, start}` and the indicator correctly stayed in its holding state (Q7: that read as a broken live branch and was a broken fixture).
+
+**Shipped in:** `[2.0]`, the v2.0.0 store-submission candidate — the final change before submission.
