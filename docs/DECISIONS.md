@@ -1433,3 +1433,133 @@ The pre-`ed84aa6` line read `Active since 2:49 PM` with no count at all, so the 
 **Runtime:** one glance — card reads `0:01 / Active / since 5:27 pm / 7:00 Focused today ● Ready`, row reads `0:01 active`, and the only remaining `Active` strings on the card are the widget's own eyebrow (`ACTIVE TASK`) and the hero's unit, which mean the same thing as each other. Forcing an open engine session flips it to `Tracking` with `is-live` and its own tooltip — verified after a **fixture read-back**, because the first pass seeded `{taskId, startedAt}` where the engine's open record is `{activeTaskId, start}` and the indicator correctly stayed in its holding state (Q7: that read as a broken live branch and was a broken fixture).
 
 **Shipped in:** `[2.0]`, the v2.0.0 store-submission candidate — the final change before submission.
+
+---
+
+# BACKFILL — the launch-campaign ledger, synced 2026-08-13
+
+The six entries below were decided between 2026-08-09 and 2026-08-13 and lived only in Asana review comments until this sync. **They are appended rather than interleaved**, because this log is append-only and rewriting history to look tidy is how a log stops being trustworthy. Read their own dates, not their position. The pre-submission run is now fully recorded.
+
+---
+
+## 2026-08-09 — v2.0.0 launch scope LOCKED (three items in, everything else fast-follow or parked)
+
+**Context:** Samson reviewed the full Backlog and found nothing already-done. The lock exists so the run to submission cannot be widened by a good idea arriving late.
+
+**IN before submission:**
+1. **Pill redesign** (1217301162748887) — flagship-surface honesty at first impression.
+2. **Harness rescue, PRIORITY PAIR ONLY** (1217302152465697) — the `[1.2.0]` decision-chain suite and the L1 serialization suite, committed *before* release churn so they protect it. Remainder opportunistic post-launch.
+3. **`[2.0]` Checkout return flow** (1216759422045146) — Dodo `redirect_url` on both payment links plus the return page; closes the documented conversion gap on the purchase path.
+
+**FAST-FOLLOW (v2.0.1+):** `[1.2.2]` date-range selector (1217301997679347), the refusal toast (1217317549419902), the harness-rescue remainder.
+
+**PARKED, unchanged:** Notes `[1.1.0]`–`[1.1.4]` (v2.1 headline); `[1.3.0]` Backup & Restore (early v2.1 — its task notes predate the extend-existing discovery; **this document governs**: it extends the shipped Settings backup rather than building a new one).
+
+**Execution order:** harness rescue first, pill redesign second, checkout-return in parallel (website repo + Dodo dashboard, Samson-involved). Launch workstreams filed alongside: release engineering, store listing / ASO, pre-submission QA (one real trial → checkout → activation loop), marketing runway.
+
+**What actually happened, recorded because the lock held in spirit rather than to the letter:** the three IN items shipped, and the run then absorbed several *findings from Samson living in the product* — the Today cockpit, the pre-launch ink rounds, the celebration, the text-size setting, and the pill-clarity arc. Each was filed as its own task and each closed before submission. The lock did its job: nothing new was invented, and every addition came from use rather than from ambition.
+
+---
+
+## 2026-08-10 — Pro activation celebration + first-Pro tour: a REAL-ENTITLEMENT trigger, and arbitration at the call sites
+
+**Context:** A buyer completing checkout got no acknowledgement inside the product. The celebration is the one moment the product is allowed to be loud.
+
+**The trigger is `ProAccess.isRealProEntitlement` — `subscriptionStatus === "active"` AND a non-empty `licenseKey` — and it deliberately does NOT call `getProAccessLevel`.** That function's whole job is collapsing trial / devPro / paid into one "has Pro" answer, and that is exactly the collapse a *purchase* celebration must not inherit. Reading `data.pro` directly excludes every non-buyer **by construction**: `devPro` returns "active" without touching `data.pro`, a trial's status is `trialing`, free and invalid are not `active`. The `licenseKey` half is a second independent guard, so no single flipped field can celebrate. **Grace counts** — in grace only the verification is stale; the buyer is real.
+
+**The flag is TOP-LEVEL `data.proCelebrated`, not inside `data.pro`,** because `clearLicense()` wipes that block — a flag living there would replay the moment on any clear-and-reapply. *"Once ever" has to outlive the licence that triggered it.*
+
+**Arbitration:** three rival surfaces (right-click tip, promo/rate toast, badge splash) are suppressed by one module flag with **three guards at the call sites**. Rationale is now BUGS.md **D13** — each rival consumes something at the moment it decides to show, so a guard inside a callee converts a deferral into a silent permanent loss.
+
+**The tour REPOSITIONS on resize rather than drift-closing** — N2's `#nest-rename-dialog` exception, invoked with force: any exit sets the once-ever flag, so a resize-close would burn the tour permanently for someone who dragged a window. Repositioning costs one rect read and cannot lose anything.
+
+**Two bugs only the runtime pass could find:** `offsetParent` is `null` for **every** `position: fixed` element, and `#active-task-pill` is fixed — the anchor-visibility test silently dropped the pill step, shipping a four-stop tour as three with no error anywhere; and the anchor ring accumulated rather than moving, so by step 3 three tabs were ringed. The runtime check now asserts **exactly one** ringed node per step.
+
+**Gate:** `tools/check-pro-celebration.mjs` (84 checks), run against the real `ProAccess` and the real `Storage` setter in **both** an unpacked and a store-build context — so "devPro does not celebrate" is proved alongside the premise that devPro really does grant Pro. 12 mutations, 12 caught. Two harness faults recorded: a zero-node ink pass that reported three empty rows and **added zero assertions** (hence the node-floor doctrine), and a leaked tab whose 10s tip timer wrote the very flag a later assertion was reading.
+
+**Shipped in:** `c2afed6`.
+
+---
+
+## 2026-08-11 — The Dashboard is TODAY; Insights is the PAST. The tense split governs which surface a number belongs to
+
+**Context:** The Dashboard grew from a two-variant card into the "Today" cockpit (stat strip, goals progress, streak, due-today, quick-add) while Insights already owned the analytics board. Without a rule, every new number has two plausible homes and the two surfaces drift into being the same page twice.
+
+**The rule: the Dashboard answers "what about today", Insights answers "what has happened".** Present tense versus past tense, and it decides placement mechanically — focused *today*, tasks completed *today*, distractions blocked *today*, what is due *today*, the streak *as it stands now* are cockpit; per-day history, time-by-site, the 30-day window and the trend board are Insights. The evening recap stays on the Dashboard **because it is today-scoped**, not because it is a summary.
+
+**Consequences ratified in the same round:**
+- **No new capture, ever, for a placement question.** "5 most-recently-active goals" had no `lastActiveAt` to read, so recency is **derived** from the newest signal a goal's own tasks already carry (a child's `completedAt`, else its `createdAt`), with `displayOrder` as a total-order tie-break so it cannot flicker.
+- **A fully-done active goal now SHOWS** where `dashboardTopGoals` hid it — a 5-of-5 goal awaiting closure is a progress module's proudest row.
+- **Absorbing surfaces route through their owners.** Completing the ACTIVE task from a due row goes through `satComplete`, never a bare `completeTask`, because `clearActiveTask` IS the engine's session boundary.
+- **Readers live in `storage.js`, wording lives in the page** — state that lives there is harnessable in a VM against the real module.
+
+**Follow-up, same doctrine (`28f5324`):** the evening close-out read the clock and never the board, so "Work's done." sat above five overdue rows. The header now gates on the module's own open set, rendered from **one read** handed to both header and list, with the invariant stated as: *"Work's done." appears if and only if the list beneath renders "Nothing due today."*
+
+**Shipped in:** `5d7a1ec`, `28f5324`. Gate: `tools/check-today-cockpit.mjs` (142 assertions).
+
+---
+
+## 2026-08-11 — The pill-clarity arc: consequence-labeled actions, the activation stopwatch, and one honest number per claim
+
+**One entry for one arc.** It ran from a near-miss on a destructive control to a one-word coda, and every step came from Samson living in his own product. The individual rounds are recorded above and below this entry (`2026-08-08` FOCUSED TODAY headline, `2026-08-10` pill redesign, `2026-08-13` clock edge / hero swap / "Ready"); this entry is what the arc **decided**.
+
+**1. CONSEQUENCE-LABELED ACTIONS — the defect that started it.** "✓ Done" permanently completed the task while "stop for now, keep the task" hid behind an unlabeled ×. The failure is silent and feels unrecoverable: the user taps the labeled button and the task closes. **A control is labeled with its consequence, not its sentiment** — Complete and *End for now*, with the binding between label and action asserted in both directions and seeded both ways.
+
+**2. THE ACTIVATION STOPWATCH — "an active task is a running stopwatch".** Samson's model, adopted whole. One number, one regime, and **it always counts**: from `startedAt` (an activation, storage-backed, surviving restart), pauses excluded, continuing through a work phase rather than resetting, degrading to a day form (`2d 5h`) past 24 hours. It replaced a session-elapsed switch that reset when a session started and froze when none was running — **a frozen number on an active task reads as broken**, which is the report it answered.
+
+**3. WALL-CLOCK AND ENGINE TIME ARE NEVER BLENDED, and "focused" is reserved for engine time.** The stopwatch is a wall-clock and says so in its tooltip; FOCUSED TODAY is the engine's measurement. They are never summed, never shown as one figure, and the row's unit word is "active" — never "focused". Asserted, and seeded from both directions.
+
+**4. THE TWO-TRUTH LIVENESS INDICATOR.** BUGS.md **D11**: a pulsing "tracking" dot would be a lie in the one moment it is reliably read. Two states, two claims — pulsing **"Tracking"** only on a genuine open session, static **"Ready"** when armed but not accruing. Paused and tracking-off render nothing.
+
+**5. THE HERO SWAP amends the `2026-08-08` decision** — recorded inline in its own entry (`1efcab2`, below), cross-referenced here so the arc reads in one place: the stopwatch takes the headline, FOCUSED TODAY is demoted but always visible. *The hero of a live widget must be alive.*
+
+**6. "● Ready" as the holding word** (`3c719d6`) — the coda. "Active" was doing two jobs two lines apart once the hero landed. "Armed" was rejected because the product already spends that word on focus blocking.
+
+**Also in the arc:** the overlap reserve moved to the shared panel root; per-task time became the 30-day chips, read **across every workspace** (BUGS.md D12 — the aggregate-keying trap that made chips vanish for exactly the tasks a two-workspace user tracks).
+
+**Gate:** `tools/check-pill-clarity.mjs`, 153 rows, 76 seeds, all caught. **Task 1217412345143493 CLOSED 2026-08-13 — the build phase of v2.0.0 ended with it.**
+
+---
+
+## 2026-08-11 — The website brand pass: tokens DERIVED from the extension, gold is earned, and the beacon comes off
+
+**Context:** mylaunchpad.me did not look like the product it sells, and the styling predated everything Pro.
+
+**Tokens are extracted, not invented — and `gate.css` is the true precedent.** Two sources with different jobs: `newtab.css` gives the surface model (the three frost tiers), and the focus-blocking gate page is **the only place the product renders a standalone FULL PAGE rather than panels over a wallpaper**, which is exactly what a website is — so the ink ramp comes from there. **Blue is `#8ab4f8`, not `#1a73e8`:** the old stylesheet's comment claimed `#1a73e8` "matches the extension", and it matched the branch the site never renders (BUGS.md **O5**). The logomark is the real 2x2 four-dot SVG, not a typeset colon pair.
+
+**GOLD IS EARNED — locked as doctrine.** `#ffd66e` belongs to achievements and `.pro-celebrate`: recognition for something completed. It appears on **exactly one surface site-wide**, the confirmed-key success state. The fallback state deliberately does not get it, and neither does the og share card — *a share card is an ad, not an earned moment*. Written into the website README so it cannot spread by precedent.
+
+**Every byte comes from this origin, and that is an ASSERTED property** — a CDP network audit fails the build if any request leaves the origin. Landing page 37.7 KB uncompressed against a 300 KB budget, three requests, no webfont and no CDN; later 99.5 KB at first paint once real screenshots landed, argued against the budget rather than asserted.
+
+**Copy corrections the pass forced:** the pricing card and FAQ both promised a **Day Recap** that `RELEASE-NOTES-2.0.0` explicitly lists under claims-not-made — the site was contradicting the build's own honesty ledger. And the 7-day trial is local, instant and card-free, so it is deliberately **not** attached to either Dodo button: "start your free trial" on a checkout link would describe the wrong mechanism.
+
+**THE BEACON — the round's real finding, and the reason S1/S2 exist.** The live site was loading Cloudflare's `beacon.min.js`, injected at the edge and absent from git, while the landing page promised "no Cloudflare Insights, no beacon of any kind" — and it rode `/checkout-return`, where Navigation Timing still holds the pre-scrub URL including `license_key`. **Decision: Web Analytics disabled for the site entirely**, matching the posture the site sells, which makes the copy true again and closes the exposure path at its root rather than papering it with an exclusion rule.
+
+**Shipped in:** website `ae3b3c5`, `54ae560`, `3330fd3`, `eb2b95d`.
+
+---
+
+## 2026-08-10 — Checkout-return status buckets: terminal vs in-flight vs unknown, and the honest default
+
+**Context:** A wrong-CVV decline redirected to `/checkout-return` and rendered the **processing** state — promising a licence key that was never coming. Samson caught it in live QA.
+
+**The defect was the branch SHAPE, not the copy.** The test was `status && status !== 'succeeded'` → processing: one narrow success case, and **every other value in the universe** — declines, cancellations, typos, statuses Dodo has not shipped yet — inherited a promise. Rewriting the copy would have left the shape intact.
+
+**Dodo documents the 11-value enum thoroughly and documents the REDIRECT's values almost not at all** (one example URL, `succeeded` the only value in it). So "which of these can land here" is inference, and the page must not guess. Two small **allowlists**, and the default is the honest state:
+
+| bucket | members | claim |
+|---|---|---|
+| **success** | a `license_key` present (regardless of status), or `succeeded` | key + activation steps |
+| **processing** | `processing`, `requires_capture` | key is coming — the ONLY two branches permitted to promise one |
+| **failed** | `failed`, `cancelled`, `canceled`, `requires_payment_method` | not charged, try again |
+| **unconfirmed** (default) | `requires_customer_action`, `requires_confirmation`, `requires_merchant_action`, `partially_captured*`, **anything unknown or future** | check email first; try again offered *secondary* |
+
+**Two judgment calls, stated as such.** (a) `requires_payment_method` → failed: pre-capture under both readings ("no card entered" and "declined, another needed"), so the copy's only claim — no charge — holds either way. (b) `requires_*_action` → **unconfirmed, not processing**, overruling the original brief: these mean an unfinished step, usually an abandoned 3-D Secure, and promising "your key will arrive shortly" for an authentication nobody completed is the same lie one bucket over. They cannot be called failures either, since the redirect may simply have raced the buyer.
+
+**Confidence is encoded in button weight:** a solid *Try again* where failure is known, an outlined one where it is not — because if the payment actually landed, buying twice is the wrong move.
+
+**Observed value closing the table:** the declined attempt read **`failed`** in Samson's Dodo dashboard, consistent with the interstitial. It routes correctly, as would any other value — which is the point of the allowlist design.
+
+**Related:** the page is a **UX surface, not fulfilment** (Dodo's own guidance is to fulfil on the `payment.succeeded` webhook), which is why every non-success state points at email and support rather than trying to be authoritative. The inverse default is recorded one round later in the licence line: there the dangerous default was optimism, here it is **accusation** — an unrecognised error degrades to "could not reach" and never to "your licence is invalid" unless the state machine agrees.
+
+**Shipped in:** website `8dcad5e` (buckets), `ccf3f14` (key-alone success), `6cb4b59` (fallback copy). 21 cases verified over HTTP, proven able to fail against the pre-fix page.

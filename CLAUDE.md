@@ -15,6 +15,12 @@ Current version shipped: **v1.0.5** (free tier, submitted 2026-07-21; confirmed 
 
 **The manifest is at `2.0.0` as of 2026-08-10 — the Pro-launch SUBMISSION CANDIDATE, built but NOT yet uploaded.** Until the Web Store approves it, "shipped" still means v1.0.5; do not describe 2.0.0 as live. Asana 1217318434594388.
 
+**The v2.0.0 BUILD PHASE IS COMPLETE as of 2026-08-13, at commit `3c719d6`.** Nothing further is queued for this version.
+
+- **FINAL ARTIFACT: `launchpad-2.0.0-3c719d6.zip`** — sha256 `580e6b4ca81186c2a7636260cbe48091b06f4576fd9f50a914c56d83d4177a2a`, 608,574 bytes, clean tree, **thirteen gates green**.
+- **At submission the annotated `v2.0.0` tag goes on `3c719d6`** — the commit the uploaded artifact was built from.
+- **ARTIFACT-STAMPING IS STANDING PRACTICE.** Every build that leaves the tree is stamped `launchpad-<version>-<shorthash>.zip`, published with its sha256 and byte count, and **the superseded zip is deleted in the same step**. An unstamped `launchpad.zip` cannot identify itself, and a stale zip left on disk is the one that eventually gets uploaded.
+
 ---
 
 ## Developer
