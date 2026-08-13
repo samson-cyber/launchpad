@@ -10106,7 +10106,7 @@
   // it would change how a pause held across a browser restart resumes a phase.
   // It is no longer dead machinery serving a dead counter — pausedAt is now what
   // it is load-bearing for.
-  function satActiveSinceText() {
+  function satActiveSinceText(countText) {
     var a = Storage.getActiveTask(data);
     if (!a || typeof a.startedAt !== "number" || !a.startedAt) return "";
     var d = new Date(a.startedAt);
@@ -10129,7 +10129,10 @@
     // count answers "how long", the timestamp answers "since when", and a bare
     // 31:04:12 is uninterpretable without it.
     var since = isToday ? time : (fmtShortDate(a.startedAt) + ", " + time);
-    return "Active " + satFmtStopwatch(satActiveElapsedMs()) + " · since " + since;
+    // countText is THE CLOCK EDGE, handed down by the paint so this sentence and
+    // the row's figure are the same read of the same clock (satStopwatchText).
+    // Omitted on the render path, where there is no tick to share.
+    return "Active " + (countText != null ? countText : satStopwatchText()) + " · since " + since;
   }
 
   // The since-line markup. Rendered on every card branch that carries the
@@ -10413,10 +10416,14 @@
   // Repaint the time text without a full re-render (which would fight the Switch
   // dropdown, kill hover states, reset the search field). [1.2.3] The pill's time
   // and the card's LARGE headline now show the SAME number — FOCUSED TODAY — so
-  // there is one value to paint into both. The card's since-line is deliberately
-  // absent from this path: it is a static timestamp that cannot change while the
-  // task stays active, so ticking it would be pure waste (renderActiveTaskWidget
-  // rebuilds it on the state changes that can actually move it).
+  // there is one value to paint into both.
+  //
+  // [2.0] EVERY TIME SURFACE ON THE WIDGET IS PAINTED HERE. The card's
+  // since-line used to be exempt on the grounds that it was a static timestamp
+  // — true when it read "Active since 9:04", false the moment it started
+  // carrying a running count. A line that acquires a moving number has to join
+  // the tick in the same change; the exemption note outliving the static line is
+  // how a surface ends up frozen while its twin ticks beside it.
   function satPaintTime() {
     var container = $("#active-task-pill");
     if (!container) return;
@@ -10459,15 +10466,28 @@
     // not engine time — the exact blend the switch exists to prevent. The unit
     // word and the tooltip are written in the same pass, so the figure and its
     // label can never be one tick out of step with each other.
-    // [2.0] The card's since-line now carries the SAME stopwatch, so it is a
-    // ticking surface too and has to be repainted here rather than only at
-    // render. Text-only, like every other write in this function.
+    // [2.0] The card's since-line carries the SAME stopwatch, so it is a ticking
+    // surface too and is repainted here rather than only at render. Text-only,
+    // like every other write in this function.
+    //
+    // ONE READ OF THE CLOCK, painted into BOTH surfaces — the row below and the
+    // card here. Two independent reads inside one pass can straddle a second
+    // boundary and show the same count one second apart (satStopwatchText).
+    // The whole SENTENCE is rebuilt rather than a count substring, because the
+    // timestamp half moves too: at midnight `isToday` flips and the line has to
+    // gain its date, which a count-only write would never deliver.
+    var stopwatch = satStopwatchText();
     var sinceEl = container.querySelector(".sat-since");
     if (sinceEl) {
-      var sinceTxt = satActiveSinceText();
+      var sinceTxt = satActiveSinceText(stopwatch);
+      // A sentence that has stopped being computable must not leave the last one
+      // standing: a stale count on a live task is exactly the freeze this path
+      // exists to prevent. Absent, never stale — the rule satSinceHtml already
+      // follows when it omits the line rather than rendering it blank.
       if (sinceTxt) sinceEl.textContent = sinceTxt;
+      else sinceEl.remove();
     }
-    var liveState = satRowLiveState();
+    var liveState = satRowLiveState(stopwatch);
     document.querySelectorAll(".tt-task-live").forEach(function (el) {
       var val = el.querySelector(".tt-live-val");
       var unit = el.querySelector(".tt-live-unit");
@@ -10600,13 +10620,31 @@
     return days + "d " + hours + "h";
   }
 
+  // [2.0] THE CLOCK EDGE — the count as one string, read once.
+  //
+  // The row and the card's since-line already shared the FORMATTER and the
+  // TICK. What they did not share was the MOMENT: each called
+  // satActiveElapsedMs() from its own Date.now() inside the same paint, so a
+  // pass that straddles a second boundary hands the row 1:12 and the card 1:11
+  // — two surfaces disagreeing about one count, which is the drift the
+  // cross-surface rule exists to prevent. satPaintTime now reads this ONCE per
+  // tick and passes the string to both, so they cannot be one second apart even
+  // in principle.
+  //
+  // Both callers keep a self-serve fallback for the RENDER path, where there is
+  // no tick to share and each surface is built independently.
+  function satStopwatchText() {
+    return satFmtStopwatch(satActiveElapsedMs());
+  }
+
   // The row's live slot. `work` is PRESENTATION ONLY — the same count, with the
-  // accent treatment while a work phase runs.
-  function satRowLiveState() {
+  // accent treatment while a work phase runs. countText is the shared clock edge
+  // (see satStopwatchText); absent on the render path.
+  function satRowLiveState(countText) {
     var pomo = satRunningPomo();
     return {
       work: !!(pomo && pomo.phase === "work"),
-      text: satFmtStopwatch(satActiveElapsedMs()),
+      text: countText != null ? countText : satStopwatchText(),
       unit: "active",
       title: SAT_ACTIVE_TITLE
     };

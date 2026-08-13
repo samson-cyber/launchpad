@@ -51,9 +51,13 @@ function subject({ activeTask, mutate }) {
   // assertions below vary. The date rules themselves are unchanged; only the
   // prefix they sit behind moved, and the patterns were updated to match rather
   // than loosened.
+  // [2.0] satStopwatchText is the SHARED CLOCK EDGE the paint hands down (the
+  // card and the task row must not read the clock separately inside one pass),
+  // and this line's self-serve fallback goes through it — so it comes along or
+  // the subject does not load.
   let body = extract("fmtShortDate") + "\n" + extract("satFmtLong") + "\n" +
     extract("satFmtStopwatch") + "\n" + extract("satActiveElapsedMs") + "\n" +
-    extract("satActiveSinceText");
+    extract("satStopwatchText") + "\n" + extract("satActiveSinceText");
   if (mutate) {
     const before = body;
     body = mutate(body);

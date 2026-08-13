@@ -3993,12 +3993,16 @@ html.bg-light { --sat-amber: #8a6d09; }
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
-/* [1.2.3] "Active since 9:04" — a quiet STATIC line under the headline, where
+/* [1.2.3] "Active 12:04 · since 9:04" — a quiet line under the headline, where
    the old small focused-today row used to sit (that row is gone: one number,
    one place). Deliberately smaller and dimmer than the headline — it is context
    for the number above it, not a second metric competing with it. Keeps its
    muted ink while paused: pause is a statement about tracking, and the
-   activation stamp is not affected by it. */
+   activation stamp is not affected by it.
+   [2.0] NO LONGER STATIC — it LEADS with the activation stopwatch and is
+   repainted every second by satPaintTime, in lockstep with the task row's copy
+   of the same count. Width changes once a second: keep this line free of any
+   layout that would reflow its neighbours as the figure grows. */
 .sat-since {
   margin-top: 5px;
   font-size: var(--fs-11);

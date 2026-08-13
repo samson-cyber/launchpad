@@ -1355,3 +1355,30 @@ The audit found the sheet is **entirely px**: 342 `font-size` declarations, no `
 **Gate:** `tools/check-text-size.mjs`, build.sh gate #12 — the naming invariant, the locked table, the no-inversion ordering across all three tiers, the "no hard literal below the floor" rule that stops a future rule escaping the setting, the reader's coercion, and the fact that the row is never Pro-gated.
 
 **Shipped in:** `[2.0]`, the v2.0.0 store-submission candidate.
+
+---
+
+## 2026-08-13 — The stopwatch's two surfaces share one clock edge; and the reported card freeze did not reproduce
+
+**Context:** Samson reported, with a screenshot, that the task row's stopwatch ticked while the card's `Active 0:06 · since 2:49 PM` held still — same number at render time, stale seconds later.
+
+**The diagnosis is that it does not reproduce at `ed84aa6`, and that is the finding.** The three candidate causes were checked directly against the live extension over CDP (isolated scratch profile, real `chrome.*`, the actual `newtab.html`):
+- **"Never joined `satPaintTime`"** — false. `ed84aa6` put the count on the line and the `.sat-since` repaint into the tick **in the same commit**; the built `launchpad-2.0.0-ed84aa6.zip` carries both.
+- **"Gated to the wrong card states"** — false. Idle, work-phase takeover, session-done, minimize/restore, both tabs, paused, resumed, workspace switch, reload, deactivate/reactivate: **24 interaction states, 0 divergences**, plus a 46-sample soak across a real browsing tab and a background/foreground cycle.
+- **"A node-identity miss"** — false. One `.sat-since`, inside `#active-task-pill`, connected and visible, its `textContent` mutating once a second (MutationObserver: 77 writes to the card against 79 to the row over ~80s).
+
+The pre-`ed84aa6` line read `Active since 2:49 PM` with no count at all, so the screenshot is of a build where the count had landed and the repaint had not — an intermediate state, not committed code. **Recorded rather than quietly closed:** a symptom that cannot be reproduced is a result, and the round still owed the guard that makes it un-recurrable.
+
+**What was actually wrong, and is now fixed — the two surfaces did not share the clock EDGE.** They shared the formatter (`satFmtStopwatch`) and the tick (`satPaintTime`), but each called `satActiveElapsedMs()` from its own `Date.now()` inside the same pass. A paint that straddles a second boundary hands the row `1:12` and the card `1:11`: rare, real, and indistinguishable from the reported freeze in a screenshot.
+
+**Outcome:**
+- **`satStopwatchText()`** is the count as one string. `satPaintTime` reads it **once per tick** and passes it to both `satActiveSinceText(stopwatch)` and `satRowLiveState(stopwatch)`. Both keep a self-serve fallback for the render path, where there is no tick to share.
+- **The whole SENTENCE is still rebuilt**, not a count substring — at midnight `isToday` flips and the line has to gain its date, which a count-only write would never deliver.
+- **An uncomputable sentence now REMOVES the line** instead of leaving the last one standing. The old `if (sinceTxt)` skipped silently, which is the one code path that could still strand a stale count under a live task.
+- **The stale docs went with it.** `satPaintTime`'s header still recorded the since-line as deliberately exempt "static timestamp, ticking it would be pure waste" (the `[1.2.3]` entry above says the same), and the `.sat-since` CSS comment still called it a STATIC line. That note is the ancestor of this report: **an exemption that outlives the static line is how a surface ends up frozen while its twin ticks beside it.** A line that acquires a moving number joins the tick in the same change, and its documentation moves with it.
+
+**Gate:** `tools/check-pill-clarity.mjs` — lockstep is now **executed, not pattern-matched**, against a pinned clock (`ClockDate`): both producers at one instant, both again 3s later, both advanced, equal at every sample. The clock-edge rows pin time forward *between* the two calls, so a surface that re-reads desynchronises deterministically. Seven new seeds, including the reported symptom itself (the card's count frozen while the row's moves) and its mirror on the row. **62 caught, 0 escaped, 0 anchor-miss.** Two clock-edge seeds escaped the first run through a temporal tie — recorded as BUGS.md **Q10**.
+
+**Runtime:** activate → 6 samples climbing in lockstep; pause → both frozen; resume → both continue. 15 samples, 0 splits, against the patched file (provenance asserted before measuring, so the pass cannot be the old code wearing the new commit's name).
+
+**Shipped in:** `[2.0]`, the v2.0.0 store-submission candidate.

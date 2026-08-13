@@ -393,6 +393,8 @@ Run whenever a round claims a suite has teeth. **P3** says *why* to mutation-see
 
 - **Q9. Synthetic clicks assert `document.elementFromPoint(x, y)` hits the intended element BEFORE dispatching.** A first pass scored all three `.pro-toggle-row` labels as dead controls; the coordinates were below the fold in a scrolled panel and the clicks landed nowhere. A click that misses its target is reported as a **MISS**, never as a result — an off-target click produces a confident, entirely fictional finding. `12a7fb4`.
 
+- **Q10. A TIME-based fixture must cross the boundary it claims to test — Q8's tie, in the time dimension.** The `[2.0]` clock-edge seeds ("this surface re-reads the clock instead of taking the paint's read") both **ESCAPED** on the first run. The subject was pinned at an activation stamp of a whole second and stepped forward 999ms, so the re-read landed inside the *same displayed second* and printed the identical string a sharing surface would — two different behaviours, one output, exactly Q8's ambiguity with `Date.now()` in place of a sort key. Offsetting the stamp by 6500ms makes the same 999ms step cross a real boundary (`0:06` → `0:07`) and both seeds die. **A formatter that truncates (`M:SS`, day keys, `fmtDurationHM`) swallows any step smaller than its own resolution; size the step against what the string can actually show, not against the raw millisecond arithmetic.** `[2.0]`, this round.
+
 ### Section R: Panel Layout, Scroll Containment and Reserved Space
 
 Run when the task adds content to a tab panel, changes a panel's height/overflow chain, or reserves space for a message that appears and disappears.

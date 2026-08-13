@@ -73,6 +73,26 @@ function extractAsyncFn(src, name) {
 // ---------------------------------------------------------------------------
 // Boot: real storage.js, plus the page-side renderers from their real source.
 // ---------------------------------------------------------------------------
+// [2.0] A CONTROLLABLE CLOCK, so lockstep can be asserted at all.
+//
+// The claim under test is "these two surfaces show the same count at the same
+// instant, and both advance". Real time cannot demonstrate that: two reads
+// microseconds apart agree by luck, not by construction, and the failure this
+// round is about — one surface taking a LATER read than the other inside the
+// same pass — is exactly what luck hides. Pinning the clock makes a straddled
+// second-boundary reproducible on demand instead of one paint in a thousand.
+//
+// Subclassing keeps `new Date(ts)` / toLocaleTimeString real; only `now()` and
+// the argument-less constructor answer to the pin. `Date` inside the static
+// resolves to the host's real Date (the class binding is ClockDate), so there
+// is no recursion.
+let CLOCK = null;
+class ClockDate extends Date {
+  constructor(...a) { if (a.length === 0 && CLOCK !== null) super(CLOCK); else super(...a); }
+  static now() { return CLOCK !== null ? CLOCK : Date.now(); }
+}
+const setClock = (t) => { CLOCK = t; };
+
 function boot(src) {
   const store = {};
   const ctx = {
@@ -88,7 +108,7 @@ function boot(src) {
       runtime: { lastError: null, getManifest: () => ({ version: "0.0.0" }) },
     },
     console: { log() {}, warn() {}, error() {} },
-    Date, Math, JSON, Object, Array, String, Number, Boolean, Promise, Set, Map,
+    Date: ClockDate, Math, JSON, Object, Array, String, Number, Boolean, Promise, Set, Map,
     isFinite, isNaN, parseInt, parseFloat, setTimeout, clearTimeout,
   };
   ctx.self = ctx; ctx.globalThis = ctx; ctx.window = ctx;
@@ -117,8 +137,15 @@ function boot(src) {
       extractFn(src.nt, "satRunningPomo"),
       extractFn(src.nt, "satActiveElapsedMs"),
       extractFn(src.nt, "satFmtStopwatch"),
+      extractFn(src.nt, "satStopwatchText"),
       extractFn(src.nt, "satRowLiveState"),
       extractFn(src.nt, "satRowLiveHtml"),
+      // [2.0] The CARD's copy of the same count, so LOCKSTEP can be executed
+      // rather than pattern-matched: the reported symptom was one surface moving
+      // while the other held still, and only running both against one clock can
+      // tell those apart.
+      extractFn(src.nt, "fmtShortDate"),
+      extractFn(src.nt, "satActiveSinceText"),
     ].join("\n"), ctx, { filename: "newtab.js#pill" });
   ctx.data = null;
   ctx.satReadout = { taskId: null, baseMs: 0, openSince: null };
@@ -483,18 +510,83 @@ await (async () => {
 
       // THE CARD CARRIES THE SAME COUNT, from the same helper.
       const since = extractFn(SRC.nt, "satActiveSinceText");
+      const paintFn = extractFn(SRC.nt, "satPaintTime");
       check("cross-surface: the card's since-line shows the SAME stopwatch, from the same helper",
-        /satFmtStopwatch\(satActiveElapsedMs\(\)\)/.test(since));
+        /satStopwatchText\(\)/.test(since) && /satFmtStopwatch\(satActiveElapsedMs\(\)\)/.test(extractFn(SRC.nt, "satStopwatchText")));
       check("cross-surface: ...and keeps the timestamp, which is what makes a long count readable",
         /since " \+ since/.test(since) && /toLocaleTimeString/.test(since));
       check("cross-surface: the card's since-line is repainted by the tick, or it would freeze",
-        /\.sat-since"\)[\s\S]{0,200}satActiveSinceText\(\)/.test(extractFn(SRC.nt, "satPaintTime")));
+        /\.sat-since"\)[\s\S]{0,200}satActiveSinceText\(/.test(paintFn));
+      check("cross-surface: ...and a sentence that stops computing REMOVES the line instead of leaving the last one frozen",
+        /sinceEl\.textContent = sinceTxt;\s*\n\s*else sinceEl\.remove\(\);/.test(paintFn));
+
+      // ── LOCKSTEP, EXECUTED ────────────────────────────────────────────────
+      //
+      // The reported symptom (2026-08-13): the task row's stopwatch ticked while
+      // the card's "Active 0:06 · since 2:49 PM" held still. Both are the same
+      // count; a user seeing them disagree has no way to know which is lying.
+      // These rows run the two REAL producers against ONE pinned clock, so a
+      // surface that freezes, lags, or takes its own later read fails here
+      // rather than in a screenshot.
+      const cardCount = (s) => (s.match(/^Active (.+?) · since /) || [])[1];
+      {
+        const T0 = Date.UTC(2026, 7, 13, 6, 49, 0);
+        const at = (t, startedAt) => {
+          setClock(t);
+          const d = mkData();
+          Object.assign(d.activeTask, { startedAt, activePausedMs: 0, pausedAt: null, pomodoroState: null });
+          ctx.data = d;
+          ctx.satReadout = { taskId: "t1", baseMs: 7 * 60000, openSince: null };
+          return { card: cardCount(ctx.satActiveSinceText()), row: ctx.satRowLiveState().text };
+        };
+        const s0 = at(T0, T0 - 6000);
+        eq("lockstep: at one instant the card and the row show the SAME count", s0.card, s0.row);
+        eq("lockstep: ...and it is the real elapsed, not a placeholder", s0.card, "0:06");
+        const s3 = at(T0 + 3000, T0 - 6000);
+        eq("lockstep: three seconds later BOTH have advanced — neither holds still", s3.card, "0:09");
+        eq("lockstep: ...and they are still within one tick of each other", s3.card, s3.row);
+        check("lockstep: the card genuinely MOVED between the two samples", s0.card !== s3.card);
+
+        // THE CLOCK EDGE. The paint takes one read and hands it to both. Pin the
+        // clock forward BETWEEN the two calls: a surface that honours the shared
+        // read is unmoved, a surface that re-reads jumps a second and the pair
+        // desynchronises — the 1:11/1:12 split, made deterministic.
+        //
+        // The activation is a HALF-second old on purpose. With a whole-second
+        // stamp, +999ms lands inside the same displayed second and a re-reading
+        // surface prints the same string as a sharing one — the seeds for both
+        // escaped through exactly that tie on the first run. Offset by 6500 and
+        // the 999ms step really does cross a boundary (0:06 -> 0:07).
+        setClock(T0);
+        const d = mkData();
+        Object.assign(d.activeTask, { startedAt: T0 - 6500, activePausedMs: 0, pausedAt: null, pomodoroState: null });
+        ctx.data = d;
+        const shared = ctx.satStopwatchText();
+        setClock(T0 + 999);                      // the boundary moves under the pass
+        const cardTxt = cardCount(ctx.satActiveSinceText(shared));
+        const rowTxt = ctx.satRowLiveState(shared).text;
+        eq("clock edge: the card paints the read the tick handed it, not a fresh one", cardTxt, shared);
+        eq("clock edge: ...and so does the row", rowTxt, shared);
+        eq("clock edge: ...so a pass that straddles a second cannot split the two surfaces", cardTxt, rowTxt);
+
+        // The RENDER path has no tick to share, so both must still self-serve.
+        setClock(T0 + 4000);
+        eq("clock edge: with no shared read (the render path) the card still computes its own",
+          cardCount(ctx.satActiveSinceText()), "0:10");
+        eq("clock edge: ...and so does the row", ctx.satRowLiveState().text, "0:10");
+        setClock(null);
+      }
+      check("clock edge: the paint reads the stopwatch ONCE and passes it to both surfaces",
+        /var stopwatch = satStopwatchText\(\);/.test(paintFn) &&
+        /satActiveSinceText\(stopwatch\)/.test(paintFn) &&
+        /satRowLiveState\(stopwatch\)/.test(paintFn) &&
+        (paintFn.match(/satStopwatchText\(\)/g) || []).length === 1);
 
       // The unit node is always present; the tick only writes into it.
       check("stopwatch: the unit node is always present, so the tick never restructures the row",
         /<span class="tt-live-unit">/.test(ctx.satRowLiveHtml()));
       check("stopwatch: the paint reads the shared state, not a second derivation",
-        /var liveState = satRowLiveState\(\);/.test(extractFn(SRC.nt, "satPaintTime")));
+        /var liveState = satRowLiveState\(stopwatch\);/.test(paintFn));
       check("stopwatch: the unit word is NOT dimmed — size and weight subordinate it, not opacity",
         !/\.tt-live-unit \{[^}]*opacity:/.test(SRC.css) &&
         /\.tt-live-unit \{[^}]*font-size: var\(--fs-10\)/.test(SRC.css));
@@ -681,7 +773,7 @@ const SEEDS = [
     file: "nt", from: "    return Math.max(0, Date.now() - a.startedAt - pausedTotal);",
     to: "    return Math.max(0, (a.frozenAt || a.startedAt) - a.startedAt - pausedTotal);" },
   { name: "STOPWATCH: it RESETS when a session starts (continuity is the spec)",
-    file: "nt", from: "      text: satFmtStopwatch(satActiveElapsedMs()),",
+    file: "nt", from: "      text: countText != null ? countText : satStopwatchText(),",
     to: "      text: satFmtStopwatch(pomo && pomo.phase === \"work\" ? Math.max(0, pomo.totalMs - satPomoRemainingMs(pomo)) : satActiveElapsedMs())," },
   { name: "STOPWATCH: it keeps COUNTING while paused",
     file: "nt", from: "    var pausedTotal = (a.activePausedMs || 0) + (a.pausedAt != null ? Math.max(0, Date.now() - a.pausedAt) : 0);",
@@ -689,7 +781,7 @@ const SEEDS = [
   { name: "STOPWATCH: it claims to be FOCUSED time (the word reserved for the engine)",
     file: "nt", from: '      unit: "active",', to: '      unit: "focused",' },
   { name: "STOPWATCH: it is BLENDED with the engine figure",
-    file: "nt", from: "      text: satFmtStopwatch(satActiveElapsedMs()),",
+    file: "nt", from: "      text: countText != null ? countText : satStopwatchText(),",
     to: "      text: satFmtStopwatch(satActiveElapsedMs() + satLiveMs())," },
   { name: "STOPWATCH: it counts from the per-SITTING anchor, so a restart resets it",
     file: "nt", from: "    return Math.max(0, Date.now() - a.startedAt - pausedTotal);",
@@ -711,9 +803,34 @@ const SEEDS = [
   { name: "STOPWATCH: the row's bar stops following the tick's class",
     file: "css", from: ".tt-task-row.is-active-task:has(.tt-task-live.is-work)::after {", to: ".tt-task-row.is-active-task-never:has(.tt-task-live.is-work)::after {" },
   { name: "CROSS-SURFACE: the card's since-line loses the count and drifts from the row",
-    file: "nt", from: 'return "Active " + satFmtStopwatch(satActiveElapsedMs()) + " · since " + since;', to: 'return "Active since " + since;' },
+    file: "nt", from: 'return "Active " + (countText != null ? countText : satStopwatchText()) + " · since " + since;',
+    to: 'return "Active since " + since;' },
   { name: "CROSS-SURFACE: the card's since-line stops being repainted, so it freezes",
     file: "nt", from: "    var sinceEl = container.querySelector(\".sat-since\");", to: "    var sinceEl = null;" },
+  // ── THE REPORTED SYMPTOM, seeded ─────────────────────────────────────────
+  // Samson, 2026-08-13: the row's stopwatch ticked and the card's held still.
+  // This is that failure written as code — the card's count pinned at its first
+  // value while every other surface keeps moving. It must be caught by the
+  // EXECUTED lockstep rows, not by a pattern: a frozen number is a behaviour.
+  { name: "LOCKSTEP: the card's count freezes at its first value while the row's keeps moving",
+    file: "nt", from: 'return "Active " + (countText != null ? countText : satStopwatchText()) + " · since " + since;',
+    to: 'return "Active " + (satActiveSinceText.__frozen || (satActiveSinceText.__frozen = (countText != null ? countText : satStopwatchText()))) + " · since " + since;' },
+  { name: "LOCKSTEP: the row's count freezes instead (the same failure, other surface)",
+    file: "nt", from: "      text: countText != null ? countText : satStopwatchText(),",
+    to: "      text: satRowLiveState.__frozen || (satRowLiveState.__frozen = (countText != null ? countText : satStopwatchText()))," },
+  { name: "LOCKSTEP: the card lags the row by a fixed second, so the two never agree",
+    file: "nt", from: 'return "Active " + (countText != null ? countText : satStopwatchText()) + " · since " + since;',
+    to: 'return "Active " + satFmtStopwatch(Math.max(0, satActiveElapsedMs() - 1000)) + " · since " + since;' },
+  { name: "CLOCK EDGE: the card ignores the paint's read and takes its own",
+    file: "nt", from: 'return "Active " + (countText != null ? countText : satStopwatchText()) + " · since " + since;',
+    to: 'return "Active " + satStopwatchText() + " · since " + since;' },
+  { name: "CLOCK EDGE: the row ignores the paint's read and takes its own",
+    file: "nt", from: "      text: countText != null ? countText : satStopwatchText(),", to: "      text: satStopwatchText()," },
+  { name: "CLOCK EDGE: the paint reads the clock twice, once per surface",
+    file: "nt", from: "    var liveState = satRowLiveState(stopwatch);", to: "    var liveState = satRowLiveState(satStopwatchText());" },
+  { name: "CROSS-SURFACE: an uncomputable sentence leaves the last one standing, frozen",
+    file: "nt", from: "      if (sinceTxt) sinceEl.textContent = sinceTxt;\n      else sinceEl.remove();",
+    to: "      if (sinceTxt) sinceEl.textContent = sinceTxt;" },
   { name: "CROSS-SURFACE: FOCUSED TODAY is switched to the wall-clock",
     file: "nt", from: "    return '<div class=\"sat-time\">' + escapeHtml(satFmtLong(satLiveMs())) + '</div>' +",
     to: "    return '<div class=\"sat-time\">' + escapeHtml(satFmtStopwatch(satActiveElapsedMs())) + '</div>' +" },
