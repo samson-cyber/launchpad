@@ -881,6 +881,139 @@ var Storage = (function () {
     return true;
   }
 
+  // ===== [2.0] BROWSER-CLOSED TIME IS PAUSED TIME =====
+  //
+  // AMENDS the continuity-across-restarts decision (2026-08-12). The stopwatch
+  // measures ACTIVE time WHILE THE BROWSER EXISTS. A closed browser is not a
+  // long pause somebody forgot to take; it is definitionally not-working time.
+  // The evidence that overturned the old decision: an overnight task greeted
+  // its owner at 18:14:35.
+  //
+  // Two pieces. A liveness HEARTBEAT, stamped about once a minute by a service
+  // worker alarm while a task is active and unpaused; and a COLD-START FOLD on
+  // onStartup that adds (now - the last beat) to the activation-lifetime paused
+  // total and pauses the task. The error per shutdown is therefore at most one
+  // beat period, and it is always in the safe direction: a span slightly
+  // shorter than the true closure is folded, never longer.
+  //
+  // WHY THE HEARTBEAT GETS ITS OWN KEY AND NOT A FIELD ON `data`.
+  // Every `data` write fans out: the engine re-syncs (`Tracking.sync`), the
+  // context menu rebuilds, the pomodoro alarm re-derives, and EVERY other open
+  // new-tab page runs a full render(). A service worker cannot even opt out of
+  // that last one — the `__lastWrite` provenance suppression is keyed by TAB
+  // instance, so an SW write can never claim it. A once-a-minute beat in the
+  // blob would pay that whole fan-out forever, for one timestamp. This is the
+  // tracking_sessions precedent exactly: the high-frequency writer gets a key
+  // nobody watches. It also means the beat needs no enqueueBgData — it is a
+  // single-key set, not a getAll -> mutate -> saveAll cycle, so it has nothing
+  // to clobber and nothing can clobber it. The FOLD does touch `data` and does
+  // ride the queue.
+  var HEARTBEAT_KEY = "launchpad_heartbeat";
+
+  async function readHeartbeat() {
+    try {
+      var result = await chrome.storage.local.get(HEARTBEAT_KEY);
+      return result[HEARTBEAT_KEY] || null;
+    } catch (err) {
+      console.error("[LaunchPad] Heartbeat read failed:", err);
+      return null;
+    }
+  }
+
+  // Stamped with the task it belongs to, not just a bare time. A beat left by a
+  // DIFFERENT activation must never be folded into this one — see the taskId
+  // guard in closedBrowserFoldMs.
+  async function writeHeartbeat(taskId, now) {
+    try {
+      await chrome.storage.local.set({
+        launchpad_heartbeat: { at: now || Date.now(), taskId: taskId || null }
+      });
+    } catch (err) {
+      console.error("[LaunchPad] Heartbeat write failed:", err);
+    }
+  }
+
+  async function clearHeartbeat() {
+    try {
+      await chrome.storage.local.remove(HEARTBEAT_KEY);
+    } catch (err) {
+      console.error("[LaunchPad] Heartbeat clear failed:", err);
+    }
+  }
+
+  // PURE (harnessed): how much closed-browser time to fold, in ms. 0 means
+  // "no usable evidence" — and 0 is also the signal not to pause at all.
+  //
+  // THE EPOCH-FOLD CATASTROPHE is what most of this function is for. An absent
+  // or zero `at` is the shape a legacy profile has on its first launch after
+  // this update, and `now - 0` is fifty-six years. Folded into activePausedMs
+  // that pins the stopwatch at 0:00 forever, with no user-reachable way back.
+  // Every rejection below therefore returns 0 rather than trying to guess:
+  //   - no heartbeat at all, or a non-numeric / zero / negative `at`
+  //   - a beat belonging to a different task (an activation switch that
+  //     happened without an intervening beat)
+  //   - a beat older than the activation itself (corrupt or clock-shifted;
+  //     folding it could exceed the elapsed time and pin the count at zero)
+  //   - a beat in the FUTURE (the clock moved back) — Math.max clamps to 0
+  function closedBrowserFoldMs(active, heartbeat, now) {
+    if (!active || typeof active.startedAt !== "number" || !active.startedAt) return 0;
+    if (!heartbeat || typeof heartbeat.at !== "number") return 0;
+    if (!isFinite(heartbeat.at) || heartbeat.at <= 0) return 0;
+    if (heartbeat.taskId !== active.taskId) return 0;
+    if (heartbeat.at < active.startedAt) return 0;
+    return Math.max(0, now - heartbeat.at);
+  }
+
+  // The cold-start fold. Called from onStartup ONLY, and AFTER
+  // anchorBrowserSession — see the ordering note in background.js.
+  //
+  // NO EVIDENCE MEANS NO FOLD **AND NO PAUSE**, deliberately. Pausing without
+  // folding would freeze a number that already contains the closed hours: the
+  // user gets a wrong count that is now also stuck, and must click Resume to
+  // get back to a state we could have just left alone. Not pausing preserves
+  // exactly the old behavior for ONE more cycle, and the heartbeat starts on
+  // this very launch, so the next shutdown is covered.
+  //
+  // Reuses setTrackingPaused rather than writing the flag directly. That is the
+  // canonical pause path: it stamps pausedAt, folds any pending idle span in
+  // the same write, and slides a running pomodoro phase — and it means Resume
+  // needs no new code, because this pause is not a special kind of pause. It IS
+  // a pause; the browser took it on the user's behalf.
+  async function foldClosedBrowserSpan(data, heartbeat) {
+    if (!data) return false;
+    var active = getActiveTask(data);
+    if (!active) return false;                  // nothing active; no spurious write
+    if (isTrackingPaused(data)) return false;   // already paused: the pause term owns the span
+
+    var now = Date.now();
+    var fold = closedBrowserFoldMs(active, heartbeat, now);
+    if (fold <= 0) return false;                // no usable evidence -> leave it alone
+
+    active.activePausedMs = (active.activePausedMs || 0) + fold;
+    // The one-time reopen notice. It lives ON THE ACTIVATION RECORD rather than
+    // in settings (the hint/latch convention) because it is not a preference or
+    // a permanent latch — it describes THIS activation and should die with it.
+    // "End for now" clears the record, and the notice evaporates with it, which
+    // is the correct behavior for a message about a task you no longer have.
+    active.closedPauseNoticeAt = now;
+
+    var wrote = await setTrackingPaused(data, true);   // saveAll's internally
+    if (!wrote) await saveAll(data);                    // defensive: guarded above
+    return true;
+  }
+
+  // Consume-on-show: clears the notice and reports whether there was one.
+  // MUTATE-ONLY — the caller saves — so the page can fold this into the write
+  // it was already making. Clearing BEFORE painting is the D8 contract: a toast
+  // that paints first and clears second shows twice if two tabs open together.
+  function consumeClosedPauseNotice(data) {
+    if (!data) return false;
+    var active = getActiveTask(data);
+    if (!active || active.closedPauseNoticeAt == null) return false;
+    active.closedPauseNoticeAt = null;
+    return true;
+  }
+
   function migrate(data) {
     if (data && Array.isArray(data.workspaces)) return data;
 
@@ -5141,6 +5274,16 @@ var Storage = (function () {
       BADGES: { FIRST_WEEK: BADGE_FIRST_WEEK, GOAL_CRUSHER: BADGE_GOAL_CRUSHER, DEEP_DIVER: BADGE_DEEP_DIVER, VARIETY: BADGE_VARIETY, CONSISTENCY: BADGE_CONSISTENCY, CURATOR: BADGE_CURATOR }
     },
     anchorBrowserSession: anchorBrowserSession,
+
+    // [2.0] Browser-closed time is paused time. The heartbeat lives in its own
+    // storage key (see the note above HEARTBEAT_KEY for why it is not in `data`).
+    HEARTBEAT_KEY: HEARTBEAT_KEY,
+    readHeartbeat: readHeartbeat,
+    writeHeartbeat: writeHeartbeat,
+    clearHeartbeat: clearHeartbeat,
+    closedBrowserFoldMs: closedBrowserFoldMs,
+    foldClosedBrowserSpan: foldClosedBrowserSpan,
+    consumeClosedPauseNotice: consumeClosedPauseNotice,
     setIdleState: setIdleState,
     // [1.0.19] First-run example content
     seedDemoContent: seedDemoContent,

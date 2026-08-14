@@ -36,7 +36,10 @@ const rd = (f) => fs.readFileSync(path.join(repoRoot, f), "utf8").replace(/\r\n/
 
 let SRC;
 try {
-  SRC = { storage: rd("storage.js"), nt: rd("newtab.js"), css: rd("newtab.css") };
+  // [2.0] background.js joins the subject list: the heartbeat derivation and
+  // the onStartup ordering it depends on both live there, and the stopwatch's
+  // number is what goes wrong when either is off.
+  SRC = { storage: rd("storage.js"), nt: rd("newtab.js"), css: rd("newtab.css"), bg: rd("background.js") };
 } catch (e) {
   console.error(`PILL CLARITY: SUBJECT DID NOT LOAD — ${e.message}`);
   process.exit(2);
@@ -50,6 +53,23 @@ function extractFn(src, name) {
   const end = src.indexOf("\n  }\n", first);
   if (end === -1) throw new Error(`anchor unterminated: ${name}`);
   return src.slice(first, end + 4);
+}
+// A TOP-LEVEL function (background.js is not wrapped in an IIFE, so its
+// functions sit at column 0 and extractFn's two-space anchor cannot see them).
+function extractTopFn(src, name) {
+  // `async function` too — reconcileHeartbeatAlarm and heartbeatBg are async,
+  // and a plain-`function` anchor silently misses them (it threw mid-suite once,
+  // which is a worse failure than a red row because it skips everything after).
+  const hits = [];
+  for (const anchor of [`\nfunction ${name}(`, `\nasync function ${name}(`]) {
+    let i = src.indexOf(anchor);
+    while (i !== -1) { hits.push(i); i = src.indexOf(anchor, i + 1); }
+  }
+  if (hits.length === 0) throw new Error(`top anchor miss: ${name}`);
+  if (hits.length > 1) throw new Error(`top anchor ambiguous: ${name}`);
+  const end = src.indexOf("\n}\n", hits[0]);
+  if (end === -1) throw new Error(`top anchor unterminated: ${name}`);
+  return src.slice(hits[0], end + 2);
 }
 // Top-level `var NAME = …;` constants, from their real declaration. Exactly one
 // match or the extraction is guessing.
@@ -499,8 +519,21 @@ await (async () => {
       check("stopwatch: ...and deducts the ACTIVATION-LIFETIME paused total, not the per-sitting one",
         /a\.activePausedMs/.test(extractFn(SRC.nt, "satActiveElapsedMs")) &&
         !/a\.pausedMs/.test(extractFn(SRC.nt, "satActiveElapsedMs")));
-      check("stopwatch: the lifetime total is maintained on every path that folds a paused span",
-        (SRC.storage.match(/activePausedMs = \(/g) || []).length >= 3);
+      // Per-path, NOT a count. This was `>= 3` and it went slack the moment
+      // [2.0] added a fourth accrual path: removing one of the original three
+      // still left three, so a real regression passed. A threshold over a
+      // growing population stops testing anything — name the paths instead.
+      for (const [label, fn] of [
+        ["resume (setTrackingPaused)", "setTrackingPaused"],
+        ["the browser-session anchor", "anchorBrowserSession"],
+        ["re-picking the same task (setActiveTask)", "setActiveTask"],
+        ["the closed-browser fold", "foldClosedBrowserSpan"],
+      ]) {
+        const i = SRC.storage.indexOf(`  async function ${fn}(`);
+        const body = i === -1 ? "" : SRC.storage.slice(i, SRC.storage.indexOf("\n  }\n", i));
+        check(`stopwatch: the lifetime total accrues on the path that folds a span — ${label}`,
+          /activePausedMs = \(/.test(body), fn);
+      }
       check("stopwatch: ...and the browser anchor folds the open span BEFORE zeroing the per-sitting one",
         /if \(active\.pausedAt != null\) \{[\s\S]{0,200}activePausedMs[\s\S]{0,160}active\.sessionAnchorAt = now;/.test(SRC.storage));
       eq("stopwatch: a legacy record with no stamp reads 0 rather than an epoch-sized number",
@@ -778,6 +811,268 @@ await (async () => {
   check("ink: the new frosted surfaces added no literal rgba(30,30,30) or blur()",
     !/\.sat-(live|window)[^{]*\{[^}]*rgba\(30, ?30, ?30/.test(SRC.css));
 
+  // ================= [2.0] BROWSER-CLOSED TIME IS PAUSED TIME ===============
+  //
+  // The stopwatch's semantics changed under it: closed-browser spans are now
+  // folded out retroactively. This section owns the ARITHMETIC (the pill's
+  // number is what goes wrong) — check-bg-queue owns the serialization.
+  //
+  // The defect that started the round is a NUMBER, so it is asserted as a
+  // number, end to end: fold, then run the REAL satActiveElapsedMs over the
+  // REAL storage record and compare the string a user would read.
+  //
+  // THE EPOCH-FOLD CATASTROPHE is the one to fear more than the bug being
+  // fixed. `now - 0` is fifty-six years; folded into activePausedMs it pins the
+  // stopwatch at 0:00 permanently with no user-reachable way back. Every
+  // no-evidence shape is therefore asserted to fold NOTHING and — just as
+  // importantly — to leave the task RUNNING, because a pause without a fold
+  // freezes a count that still contains the closed hours.
+  const H = 3600000;
+  const T0 = 1755000000000;
+  const seedActive = (over) => Object.assign({
+    workspaces: [{ id: "main", name: "Main", groups: [], shortcuts: [], tasks: [{ id: "t1", name: "Test task" }] }],
+    activeWorkspaceId: "main",
+    trackingPaused: false,
+    activeTask: {
+      taskId: "t1", workspaceId: "main", startedAt: T0, sessionAnchorAt: T0,
+      activePausedMs: 0, pausedAt: null, pausedMs: 0, idleAt: null, idleMs: 0
+    }
+  }, over || {});
+
+  // --- the pure fold, every shape ---
+  const fold = (hb, now, over) => S.closedBrowserFoldMs(seedActive(over).activeTask, hb, now);
+  check("fold: a good beat folds exactly the closed span",
+    fold({ at: T0 + 2 * H, taskId: "t1" }, T0 + 20 * H) === 18 * H);
+  check("fold: NO heartbeat at all folds nothing", fold(null, T0 + 20 * H) === 0);
+  check("fold: an undefined heartbeat folds nothing", fold(undefined, T0 + 20 * H) === 0);
+  // The catastrophe, stated as the arithmetic it would produce.
+  check("fold: at === 0 folds NOTHING, not fifty-six years",
+    fold({ at: 0, taskId: "t1" }, T0 + 20 * H) === 0);
+  check("fold: a missing `at` field folds nothing", fold({ taskId: "t1" }, T0 + 20 * H) === 0);
+  check("fold: a non-numeric `at` folds nothing",
+    fold({ at: "1755000000000", taskId: "t1" }, T0 + 20 * H) === 0);
+  check("fold: NaN / Infinity fold nothing",
+    fold({ at: NaN, taskId: "t1" }, T0 + 20 * H) === 0 &&
+    fold({ at: Infinity, taskId: "t1" }, T0 + 20 * H) === 0);
+  check("fold: a negative `at` folds nothing", fold({ at: -1, taskId: "t1" }, T0 + 20 * H) === 0);
+  // A beat from another activation would fold that task's closure into this one.
+  check("fold: a beat belonging to ANOTHER task folds nothing",
+    fold({ at: T0 + 2 * H, taskId: "other" }, T0 + 20 * H) === 0);
+  check("fold: a beat with no taskId folds nothing",
+    fold({ at: T0 + 2 * H }, T0 + 20 * H) === 0);
+  // Older than the activation = corrupt; folding it could exceed the elapsed
+  // time and pin the count at zero, which is the catastrophe by another route.
+  check("fold: a beat older than the activation folds nothing",
+    fold({ at: T0 - 1, taskId: "t1" }, T0 + 20 * H) === 0);
+  check("fold: a beat in the FUTURE clamps to 0 (clock moved back)",
+    fold({ at: T0 + 30 * H, taskId: "t1" }, T0 + 20 * H) === 0);
+  check("fold: an activation with no startedAt folds nothing",
+    S.closedBrowserFoldMs({ taskId: "t1" }, { at: T0, taskId: "t1" }, T0 + H) === 0);
+  check("fold: the fold can never exceed the elapsed activation time",
+    fold({ at: T0, taskId: "t1" }, T0 + 20 * H) === 20 * H);
+
+  // --- end to end: the morning the round exists for ---
+  // 2h of real work, the browser dies, 18h closed, relaunch.
+  await (async () => {
+    setClock(T0 + 20 * H);
+    const d = seedActive();
+    d.activeTask.lastBeat = undefined;
+    const wrote = await S.foldClosedBrowserSpan(d, { at: T0 + 2 * H, taskId: "t1" });
+    ctx.data = d;
+    check("THE 18-HOUR MORNING: the closed span is folded out", wrote === true);
+    check("THE 18-HOUR MORNING: the stopwatch reads the WORK, not the night",
+      ctx.satStopwatchText() === "2:00:00", ctx.satStopwatchText());
+    check("THE 18-HOUR MORNING: the task comes back PAUSED", S.isTrackingPaused(d) === true);
+    check("THE 18-HOUR MORNING: pausedAt is stamped, so the count is frozen",
+      d.activeTask.pausedAt === T0 + 20 * H);
+    check("THE 18-HOUR MORNING: the reopen notice is armed exactly once",
+      d.activeTask.closedPauseNoticeAt === T0 + 20 * H);
+    // Frozen means frozen: an hour of staring at it must not move the number.
+    setClock(T0 + 21 * H);
+    check("THE 18-HOUR MORNING: an hour later it still reads the same",
+      ctx.satStopwatchText() === "2:00:00", ctx.satStopwatchText());
+    // And the double-fold: a second startup must not re-charge the same span.
+    const again = await S.foldClosedBrowserSpan(d, { at: T0 + 2 * H, taskId: "t1" });
+    ctx.data = d;
+    check("NO DOUBLE FOLD: a second fold on an already-paused task is a no-op",
+      again === false && ctx.satStopwatchText() === "2:00:00", ctx.satStopwatchText());
+  })();
+
+  // --- no evidence: the legacy profile's first launch after this update ---
+  await (async () => {
+    setClock(T0 + 20 * H);
+    const d = seedActive();
+    const wrote = await S.foldClosedBrowserSpan(d, null);
+    ctx.data = d;
+    check("NO EVIDENCE: nothing is folded", wrote === false && d.activeTask.activePausedMs === 0);
+    // The load-bearing half. Pausing here would freeze a number that STILL
+    // contains the closed hours — a wrong count, now also stuck.
+    check("NO EVIDENCE: and the task is NOT paused", S.isTrackingPaused(d) === false);
+    check("NO EVIDENCE: no reopen notice is armed", d.activeTask.closedPauseNoticeAt == null);
+    check("NO EVIDENCE: the count is the old behavior, unchanged",
+      ctx.satStopwatchText() === "20:00:00", ctx.satStopwatchText());
+  })();
+
+  // --- already paused before the shutdown: the ANCHOR owns that span ---
+  // This is the mutual exclusion the onStartup ordering depends on. If both
+  // accounted for the closure the night would be deducted twice and the
+  // stopwatch would run backwards.
+  await (async () => {
+    setClock(T0 + 2 * H);
+    const d = seedActive();
+    await S.setTrackingPaused(d, true);          // paused at T0+2h
+    setClock(T0 + 20 * H);
+    await S.anchorBrowserSession(d);             // onStartup, FIRST
+    const wrote = await S.foldClosedBrowserSpan(d, { at: T0 + 2 * H, taskId: "t1" });
+    ctx.data = d;
+    check("PAUSED BEFORE SHUTDOWN: the fold declines (the anchor already folded)",
+      wrote === false);
+    check("PAUSED BEFORE SHUTDOWN: the night is deducted exactly ONCE",
+      ctx.satStopwatchText() === "2:00:00", ctx.satStopwatchText());
+    check("PAUSED BEFORE SHUTDOWN: activePausedMs holds one night, not two",
+      d.activeTask.activePausedMs === 18 * H, d.activeTask.activePausedMs);
+  })();
+
+  // --- the notice is consume-on-show, exactly once ---
+  await (async () => {
+    setClock(T0 + 20 * H);
+    const d = seedActive();
+    await S.foldClosedBrowserSpan(d, { at: T0 + 2 * H, taskId: "t1" });
+    check("NOTICE: the first consume reports it", S.consumeClosedPauseNotice(d) === true);
+    check("NOTICE: the second consume reports nothing (fires once per fold)",
+      S.consumeClosedPauseNotice(d) === false);
+    check("NOTICE: consuming clears the field", d.activeTask.closedPauseNoticeAt == null);
+    check("NOTICE: an ordinary startup has nothing to consume",
+      S.consumeClosedPauseNotice(seedActive()) === false);
+    check("NOTICE: no active task is safe", S.consumeClosedPauseNotice({}) === false);
+    check("NOTICE: null data is safe", S.consumeClosedPauseNotice(null) === false);
+  })();
+
+  // --- legacy state: no new fields anywhere ---
+  await (async () => {
+    setClock(T0 + 20 * H);
+    const legacy = seedActive();
+    delete legacy.activeTask.activePausedMs;      // pre-[2.0] record shape
+    delete legacy.activeTask.closedPauseNoticeAt;
+    const wrote = await S.foldClosedBrowserSpan(legacy, { at: T0 + 2 * H, taskId: "t1" });
+    ctx.data = legacy;
+    check("LEGACY: a record with no activePausedMs folds without throwing", wrote === true);
+    check("LEGACY: ...and the arithmetic still lands", ctx.satStopwatchText() === "2:00:00", ctx.satStopwatchText());
+    check("LEGACY: consuming a notice on a pre-[2.0] record is safe",
+      S.consumeClosedPauseNotice(seedActive()) === false);
+  })();
+  setClock(null);
+
+  // --- the SW derivation: heartbeat exists IFF active AND unpaused ---
+  const hbOn = extractTopFn(SRC.bg, "desiredHeartbeatOn");
+  const runHbOn = new Function(hbOn + "\nreturn desiredHeartbeatOn;")();
+  check("heartbeat: ON for an active, unpaused task",
+    runHbOn({ activeTaskId: "t1", trackingPaused: false }) === true);
+  check("heartbeat: OFF while PAUSED (a frozen clock has no liveness to claim)",
+    runHbOn({ activeTaskId: "t1", trackingPaused: true }) === false);
+  check("heartbeat: OFF with no active task",
+    runHbOn({ activeTaskId: null, trackingPaused: false }) === false);
+  check("heartbeat: OFF for both at once",
+    runHbOn({ activeTaskId: null, trackingPaused: true }) === false);
+  check("heartbeat: a null state is OFF, not a crash", runHbOn(null) === false);
+  // The bootstrap must never overwrite a stored beat, or the cold-start fold
+  // loses the only record of when the previous session died — the bug would
+  // survive its own fix and look like the feature simply did not work.
+  check("heartbeat: the create-time bootstrap is NON-destructive",
+    /var stored = await Storage\.readHeartbeat\(\);\s*\n\s*if \(!stored\) await Storage\.writeHeartbeat\(/.test(SRC.bg));
+  // Scoped to reconcileHeartbeatAlarm's own body. An unscoped search matches
+  // heartbeatBg's identical off-branch and passes even when this one is gutted.
+  check("heartbeat: turning it off also DROPS the stored beat",
+    (() => {
+      const b = extractTopFn(SRC.bg, "reconcileHeartbeatAlarm");
+      const off = b.slice(b.indexOf("if (!desiredHeartbeatOn(state))"), b.indexOf("if (!existing)"));
+      return /chrome\.alarms\.clear\(HEARTBEAT_ALARM\)/.test(off) && /Storage\.clearHeartbeat\(\)/.test(off);
+    })());
+  check("heartbeat: the beat re-checks state rather than trusting the alarm",
+    /async function heartbeatBg\(\)[\s\S]{0,600}?if \(!desiredHeartbeatOn\(state\)\)/.test(SRC.bg));
+  check("heartbeat: it is its OWN alarm, not a rider on the pomodoro's",
+    /var HEARTBEAT_ALARM = "active-heartbeat"/.test(SRC.bg) &&
+    SRC.bg.includes('var POMODORO_PHASE_ALARM = "pomodoro-phase"'));
+  check("heartbeat: it is periodic, not a one-shot `when`",
+    /chrome\.alarms\.create\(HEARTBEAT_ALARM, \{ periodInMinutes: HEARTBEAT_PERIOD_MINUTES \}\)/.test(SRC.bg));
+  check("heartbeat: the alarm has its own listener branch",
+    /alarm\.name === HEARTBEAT_ALARM\) \{\s*\n\s*heartbeatBg\(\);/.test(SRC.bg));
+  // The write must stay OUT of the `data` blob, or every beat costs a full
+  // render() in every open tab plus an engine sync. This is the whole reason
+  // the key exists; a "tidy-up" that moves it back would be silent.
+  check("heartbeat: it writes its OWN key, never the `data` blob",
+    /var HEARTBEAT_KEY = "launchpad_heartbeat"/.test(SRC.storage) &&
+    /launchpad_heartbeat: \{ at:/.test(SRC.storage));
+  check("heartbeat: the beat writer never calls saveAll",
+    !/async function writeHeartbeat[\s\S]{0,400}?saveAll/.test(SRC.storage));
+
+  // --- ORDERING on startup: anchor first, fold second ---
+  const startup = SRC.bg.slice(SRC.bg.indexOf("chrome.runtime.onStartup.addListener"));
+  // Two rows, because they fail differently and one hides the other: a
+  // commented-out call still satisfies an indexOf-based ordering test, which is
+  // exactly how the load-bearing seed (the fold never runs) escaped once.
+  // Match the CALL at statement position, not the identifier anywhere.
+  const CALLS = (s) => (s.match(/^  (\w+)\(\);$/gm) || []).map((x) => x.trim());
+  check("startup: the fold is actually CALLED, not commented out",
+    CALLS(startup).includes("foldClosedBrowserSpanBg();"));
+  check("startup: the fold is queued AFTER the anchor (never before)",
+    CALLS(startup).indexOf("anchorBrowserSessionBg();") !== -1 &&
+    CALLS(startup).indexOf("anchorBrowserSessionBg();") < CALLS(startup).indexOf("foldClosedBrowserSpanBg();"));
+  check("startup: the fold rides the serialized queue",
+    /function foldClosedBrowserSpanBg\(\)[\s\S]{0,400}?enqueueBgData\("closed-browser-fold"/.test(SRC.bg));
+  check("startup: the beat is read BEFORE the queue, so nothing can overwrite it",
+    /var heartbeatRead = Storage\.readHeartbeat\(\);\s*\n\s*return enqueueBgData\("closed-browser-fold"/.test(SRC.bg));
+  check("startup: the spent beat is cleared after the fold",
+    /foldClosedBrowserSpan\(data, heartbeat\);[\s\S]{0,300}?Storage\.clearHeartbeat\(\)/.test(SRC.bg));
+  // onInstalled is an update, not a browser launch: there is no closed span.
+  const installed = SRC.bg.slice(SRC.bg.indexOf("chrome.runtime.onInstalled.addListener"),
+    SRC.bg.indexOf("chrome.runtime.onStartup.addListener"));
+  check("install/update does NOT fold (it is not a browser launch)",
+    !installed.includes("foldClosedBrowserSpanBg"));
+  check("install/update still reconciles the alarm", installed.includes("reconcileHeartbeatAlarm"));
+
+  // --- the reopen toast ---
+  // Consume, PERSIST, then paint — in that order. Persisting between the two is
+  // what makes it once-per-fold across tabs rather than once per tab.
+  check("toast: it consumes and PERSISTS before it paints (D8)",
+    /if \(!Storage\.consumeClosedPauseNotice\(data\)\) return;[\s\S]{0,900}?await Storage\.saveAll\(data\);[\s\S]{0,300}?showToast\(/.test(SRC.nt));
+  check("toast: it names the task and says why",
+    /Paused "' \+ name \+ '" while the browser was closed — resume when ready\./.test(SRC.nt));
+  check("toast: it has a fallback when the task name cannot be resolved",
+    /"Paused while the browser was closed — resume when ready\."/.test(SRC.nt));
+  check("toast: it is guarded at the CALL SITE, not inside the callee (D13)",
+    /if \(!isProOnboardingBusy\(\)\) \{\s*\n\s*try \{\s*\n\s*await maybeShowClosedBrowserPauseToast\(\);/.test(SRC.nt) &&
+    !(() => {
+      const i = SRC.nt.indexOf("  async function maybeShowClosedBrowserPauseToast() {");
+      return i === -1 ? "ProOnboardingBusy" : SRC.nt.slice(i, SRC.nt.indexOf("\n  }\n", i));
+    })().includes("ProOnboardingBusy"));
+  check("toast: a throw in it cannot break init",
+    /await maybeShowClosedBrowserPauseToast\(\);\s*\n\s*\} catch/.test(SRC.nt));
+
+  // --- the blast radius: what this round must NOT have touched ---
+  // FOCUSED TODAY reads the engine's day aggregates and knows nothing about any
+  // of this. If a fold ever reached it, measured time would start moving.
+  check("UNTOUCHED: the fold never writes an engine field",
+    !/async function foldClosedBrowserSpan[\s\S]{0,1400}?(focusedToday|tracking_sessions|dayAggregates|idleMs)/.test(SRC.storage));
+  check("UNTOUCHED: the fold touches only the four fields it declares",
+    (() => {
+      const body = SRC.storage.slice(SRC.storage.indexOf("async function foldClosedBrowserSpan"));
+      const head = body.slice(0, body.indexOf("\n  }\n"));
+      const writes = (head.match(/active\.(\w+) =/g) || []).map((s) => s.slice(7, -2));
+      return writes.every((f) => ["activePausedMs", "closedPauseNoticeAt"].includes(f));
+    })());
+  // The pomodoro's own code is not touched. Its BEHAVIOR under a pause is the
+  // pre-existing paused-across-a-shutdown path, which this round simply routes
+  // more cases into — a frozen phase resumes rather than expiring, which is
+  // what "the browser was paused" has always meant here.
+  check("UNTOUCHED: the pomodoro alarm derivation is unchanged",
+    /function desiredPomodoroAlarmWhen\(state\) \{[\s\S]*?if \(state\.trackingPaused\) return null;/.test(SRC.bg));
+  check("UNTOUCHED: reconcilePomodoro still gates on the SAME pause flag it always did",
+    /async function reconcilePomodoro\(data, graceMs\) \{\s*\n\s*if \(!data \|\| isTrackingPaused\(data\)\) return \{ action: "none" \};/.test(SRC.storage));
+  check("UNTOUCHED: the fold reuses setTrackingPaused rather than writing the flag raw",
+    /async function foldClosedBrowserSpan[\s\S]{0,1400}?await setTrackingPaused\(data, true\)/.test(SRC.storage) &&
+    !/async function foldClosedBrowserSpan[\s\S]{0,1400}?data\.trackingPaused =/.test(SRC.storage));
+
 })();
 
 let pass = 0, fail = 0;
@@ -804,6 +1099,65 @@ if (!MUTATE) {
 console.log("\nPILL CLARITY — mutation seeding\n");
 
 const SEEDS = [
+  // ===== [2.0] BROWSER-CLOSED TIME IS PAUSED TIME =====
+  // THE LOAD-BEARING SEED: the fold is skipped and the 18-hour morning returns.
+  // This is the defect the round exists to remove, seeded at its root.
+  { name: "CLOSED-TIME: the fold is never called on startup (the 18-hour morning returns)",
+    file: "bg", from: `  foldClosedBrowserSpanBg();`, to: `  // foldClosedBrowserSpanBg();` },
+  { name: "CLOSED-TIME: the fold declines every time, so nothing is ever folded",
+    file: "storage", from: `    if (fold <= 0) return false;`, to: `    if (fold >= 0) return false;` },
+  // The catastrophe in the other direction. Both of these fold garbage.
+  { name: "CLOSED-TIME: EPOCH FOLD — a zero beat is folded (56 years, count pinned at 0:00)",
+    file: "storage", from: `    if (!isFinite(heartbeat.at) || heartbeat.at <= 0) return 0;`, to: `` },
+  { name: "CLOSED-TIME: an absent beat is treated as epoch instead of no-evidence",
+    file: "storage", from: `    if (!heartbeat || typeof heartbeat.at !== "number") return 0;`,
+    to: `    if (!heartbeat) heartbeat = { at: 0, taskId: active.taskId };` },
+  { name: "CLOSED-TIME: a beat from ANOTHER task is folded into this activation",
+    file: "storage", from: `    if (heartbeat.taskId !== active.taskId) return 0;`, to: `` },
+  { name: "CLOSED-TIME: a beat older than the activation is folded (count pinned at zero)",
+    file: "storage", from: `    if (heartbeat.at < active.startedAt) return 0;`, to: `` },
+  // Double-fold: the anchor and the fold both accounting for one closure.
+  { name: "CLOSED-TIME: the fold runs on an ALREADY-PAUSED task (the night deducted twice)",
+    file: "storage", from: `    if (isTrackingPaused(data)) return false;   // already paused: the pause term owns the span`, to: `` },
+  { name: "CLOSED-TIME: the fold is queued BEFORE the anchor (ordering inverted)",
+    file: "bg", from: `  anchorBrowserSessionBg();\n  // [2.0] IMMEDIATELY AFTER the anchor`,
+    to: `  foldClosedBrowserSpanBg();\n  anchorBrowserSessionBg();\n  // [2.0] IMMEDIATELY AFTER the anchor` },
+  // No-evidence must not pause. Pausing here freezes a still-wrong number.
+  { name: "CLOSED-TIME: no evidence still PAUSES (freezing a count that has the night in it)",
+    file: "storage", from: `    if (fold <= 0) return false;                // no usable evidence -> leave it alone`,
+    to: `    if (fold < 0) return false;` },
+  // The heartbeat's own lifecycle.
+  { name: "HEARTBEAT: it survives into the PAUSED state (a frozen clock claiming liveness)",
+    file: "bg", from: `  if (state.trackingPaused) return false;\n  return true;`, to: `  return true;` },
+  { name: "HEARTBEAT: it runs with no active task at all",
+    file: "bg", from: `  if (!state.activeTaskId) return false;`, to: `` },
+  { name: "HEARTBEAT: the bootstrap OVERWRITES a stored beat (the fix erases its own evidence)",
+    file: "bg", from: `    var stored = await Storage.readHeartbeat();\n    if (!stored) await Storage.writeHeartbeat(state.activeTaskId, Date.now());`,
+    to: `    await Storage.writeHeartbeat(state.activeTaskId, Date.now());` },
+  { name: "HEARTBEAT: the beat is read INSIDE the queue, where the bootstrap can beat it",
+    file: "bg", from: `  var heartbeatRead = Storage.readHeartbeat();\n  return enqueueBgData("closed-browser-fold", async function () {\n    var heartbeat = await heartbeatRead;`,
+    to: `  return enqueueBgData("closed-browser-fold", async function () {\n    var heartbeat = await Storage.readHeartbeat();` },
+  { name: "HEARTBEAT: turning it off leaves the stale beat in storage",
+    file: "bg", from: `    if (existing) await chrome.alarms.clear(HEARTBEAT_ALARM);\n    await Storage.clearHeartbeat();`,
+    to: `    if (existing) await chrome.alarms.clear(HEARTBEAT_ALARM);` },
+  { name: "HEARTBEAT: it moves into the `data` blob (a full render in every tab, every minute)",
+    file: "storage", from: `        launchpad_heartbeat: { at: now || Date.now(), taskId: taskId || null }`,
+    to: `        launchpad_heartbeat_moved: { at: now || Date.now(), taskId: taskId || null }` },
+  { name: "HEARTBEAT: it rides the pomodoro's alarm instead of owning one",
+    file: "bg", from: `var HEARTBEAT_ALARM = "active-heartbeat";`, to: `var HEARTBEAT_ALARM = "pomodoro-phase";` },
+  // The toast.
+  { name: "TOAST: it fires on every startup, not only after a fold",
+    file: "nt", from: `    if (!Storage.consumeClosedPauseNotice(data)) return;   // mutate-only; nothing to show`, to: `` },
+  { name: "TOAST: it paints BEFORE consuming, so two tabs both show it",
+    file: "storage", from: `    active.closedPauseNoticeAt = null;\n    return true;`, to: `    return true;` },
+  { name: "TOAST: the guard migrates INSIDE the callee, eating the notice it suppresses",
+    file: "nt", from: `    if (!Storage.consumeClosedPauseNotice(data)) return;   // mutate-only; nothing to show`,
+    to: `    if (isProOnboardingBusy()) return;\n    if (!Storage.consumeClosedPauseNotice(data)) return;` },
+  // The blast radius.
+  { name: "UNTOUCHED: the fold writes the pause flag raw, bypassing the canonical setter",
+    file: "storage", from: `    var wrote = await setTrackingPaused(data, true);   // saveAll's internally`,
+    to: `    data.trackingPaused = true; var wrote = false;` },
+
   // THE LOAD-BEARING PAIR — the label/consequence binding, broken in BOTH
   // directions. Either one ships the exact defect this round exists to remove.
   { name: "LABEL->ACTION: the button that says Complete routes to DEACTIVATE",
@@ -1023,7 +1377,7 @@ const SEEDS = [
     to: ".tt-time-chip {\n  font-size: var(--fs-11);\n  font-variant-numeric: tabular-nums;" },
 ];
 
-const FILEKEY = { storage: "storage", nt: "nt", css: "css" };
+const FILEKEY = { storage: "storage", nt: "nt", css: "css", bg: "bg" };
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "lp-pill-mut-"));
@@ -1032,6 +1386,7 @@ function materialize(src) {
   fs.writeFileSync(path.join(dir, "storage.js"), src.storage);
   fs.writeFileSync(path.join(dir, "newtab.js"), src.nt);
   fs.writeFileSync(path.join(dir, "newtab.css"), src.css);
+  fs.writeFileSync(path.join(dir, "background.js"), src.bg);
   return dir;
 }
 const runAgainst = (dir) => spawnSync(process.execPath, [new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"), dir], { encoding: "utf8" });

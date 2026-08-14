@@ -436,6 +436,85 @@ async function runSuite(ctx, store, stats, listeners) {
       store.data.activeTask.pomodoroState.phase !== "work", `phase=${store.data.activeTask.pomodoroState.phase}`);
   }
 
+  // ===== S7 — [2.0] the cold-start fold is a `data` writer =================
+  //
+  // foldClosedBrowserSpanBg mutates activePausedMs, the pause flag and the
+  // reopen notice, so it is squarely inside the L1 contract. It also runs at the
+  // single busiest moment in the extension's life: onStartup fires the anchor,
+  // the sweeps, the purge, the licence re-validation and this, all at once. If
+  // it were unqueued, the write it loses is the one that removes the overnight
+  // hours — and the user sees the bug this round exists to fix, intermittently,
+  // which is worse than seeing it every time.
+  {
+    await seed(ctx, store);
+    const now = ctx.Date.now();
+    store.data.activeTask.startedAt = now - 20 * 3600000;
+    store.data.activeTask.activePausedMs = 0;
+    store.data.trackingPaused = false;
+    store.launchpad_heartbeat = { at: now - 18 * 3600000, taskId: store.data.activeTask.taskId };
+    const baseCount = readShortcutCount(store);
+    // The fold racing the two writers most likely to be in flight beside it.
+    await Promise.all([
+      ctx.foldClosedBrowserSpanBg(),
+      WRITERS.favicon(ctx, listeners),
+      WRITERS.contextAdd(ctx, listeners),
+    ]);
+    await settle(ctx, stats);
+    // Windowed, not exact: this harness runs on the real clock and injects
+    // latency on purpose, so the fold's own Date.now() lands tens of ms after
+    // the seed's. The invariant is "the whole night, and nothing beyond it".
+    const folded = store.data.activeTask.activePausedMs;
+    check("S7: the fold survives a three-way race — the closed span is deducted",
+      folded >= 18 * 3600000 && folded < 18 * 3600000 + 5000, `activePausedMs=${folded}`);
+    check("S7: ...and the task comes back paused",
+      store.data.trackingPaused === true, `paused=${store.data.trackingPaused}`);
+    check("S7: ...and the reopen notice survives the race",
+      store.data.activeTask.closedPauseNoticeAt != null, `notice=${store.data.activeTask.closedPauseNoticeAt}`);
+    check("S7: ...while the favicon writer beside it also lands",
+      readFavicon(store) === FAVICON_NEW, `favicon=${readFavicon(store)}`);
+    check("S7: ...and the context-menu shortcut beside it also lands",
+      readShortcutCount(store) === baseCount + 1, `count=${readShortcutCount(store)}`);
+    check("S7: the spent beat is cleared, so a later launch cannot re-fold it",
+      store.launchpad_heartbeat === undefined, `beat=${JSON.stringify(store.launchpad_heartbeat)}`);
+  }
+
+  // ===== S8 — [2.0] the HEARTBEAT is deliberately NOT a `data` writer ======
+  //
+  // The one writer in the file that must stay OUT of the queue, and the reason
+  // is not performance-through-laziness: it does not touch `data` at all. It
+  // owns launchpad_heartbeat, which nothing else writes and nothing watches.
+  // Queueing it would only make a once-a-minute beat wait behind sweeps.
+  //
+  // The property that matters is asserted BEHAVIOURALLY, not from the source: a
+  // beat must leave the `data` blob byte-identical. If someone ever moves the
+  // timestamp back onto the activeTask record, this row goes red and the L1
+  // contract will demand the queue back.
+  {
+    await seed(ctx, store);
+    store.data.trackingPaused = false;
+    const before = JSON.stringify(store.data);
+    const dataSetsBefore = stats.dataSets;
+    await Promise.all(fire(listeners, "alarms.onAlarm", { name: "active-heartbeat" }));
+    await settle(ctx, stats);
+    check("S8: a beat leaves the `data` blob byte-identical",
+      JSON.stringify(store.data) === before, "data changed");
+    check("S8: ...and performs no `data` write at all",
+      stats.dataSets === dataSetsBefore, `writes=${stats.dataSets - dataSetsBefore}`);
+    check("S8: ...but it DOES stamp its own key",
+      store.launchpad_heartbeat && typeof store.launchpad_heartbeat.at === "number",
+      JSON.stringify(store.launchpad_heartbeat));
+    check("S8: ...stamped with the task it belongs to",
+      store.launchpad_heartbeat && store.launchpad_heartbeat.taskId === store.data.activeTask.taskId,
+      JSON.stringify(store.launchpad_heartbeat));
+    // And the inverse: a beat that fires against a paused task must not claim
+    // liveness. The alarm can outlive its condition by one tick.
+    store.data.trackingPaused = true;
+    await Promise.all(fire(listeners, "alarms.onAlarm", { name: "active-heartbeat" }));
+    await settle(ctx, stats);
+    check("S8: a beat firing against a PAUSED task clears itself instead of stamping",
+      store.launchpad_heartbeat === undefined, JSON.stringify(store.launchpad_heartbeat));
+  }
+
   // ===== CHECKOUT-RETURN TAB DISCIPLINE ===================================
   //
   // Lives in THIS file rather than a seventh gate because it drives the very
@@ -574,6 +653,10 @@ const SEEDS = [
   { name: "un-queue idle-state", label: "idle-state" },
   { name: "un-queue focus-blocked-count ([1.2.0], newer than R0)", label: "focus-blocked-count" },
   { name: "un-queue focus-gate-snooze ([1.2.0], newer than R0)", label: "focus-gate-snooze" },
+  // [2.0] The cold-start fold runs at onStartup, elbow to elbow with the anchor,
+  // three sweeps and the licence re-validation. Un-queued, the write it loses is
+  // the one that removes the overnight hours.
+  { name: "un-queue closed-browser-fold ([2.0], the cold-start fold)", label: "closed-browser-fold" },
   {
     // THE REGRESSION SEED: restore the v1.0.5 SHAPE ITSELF — the close back
     // inside a `finally`, so every path takes it including the three early

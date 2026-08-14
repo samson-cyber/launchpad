@@ -148,6 +148,9 @@ msedge.exe --user-data-dir=C:\Dev\Git\launchpad\.scratch-profile   --no-first-ru
 - The extension's own pages **are** drivable this way — attach over CDP and `Target.createTarget` on `chrome-extension://<id>/newtab.html`.
 - **Get the ID from `.scratch-profile/Default/Secure Preferences` → `extensions.settings[<id>].path`**, matching on the repo path. Do NOT take "the first `chrome-extension://` target" (Edge's own force-installed extensions get there first) and do not rely on LaunchPad's MV3 service worker being a visible target (it suspends after ~30s). Full trap list: BUGS.md **I7**.
 - **Teardown kills by PID, never by image name.** `taskkill /IM msedge.exe` closes Samson's real browser along with the test one. Capture the PID at launch, or just close the CDP target.
+- **`chrome.runtime.onStartup` NEVER FIRES under `--load-extension`** — a command-line unpacked extension is reinstalled into the profile each launch, so the browser fires `onInstalled` instead. Nothing hanging off onStartup (the session anchor, the closed-browser fold) can be tested end to end this way. Attach to the service-worker target and invoke the startup *work* directly; prove the *listener* wiring with a build gate. BUGS.md **I8**.
+- **Close gracefully over CDP (`Browser.close`) before relaunching** — a hard `taskkill /F` discards unflushed `chrome.storage` writes, so the relaunch reads pre-test state. BUGS.md **I9**.
+- **Run `LP.devPro(true)` before asserting on any Pro surface** (the pill renders as an empty node on a free profile), and **click real controls rather than writing storage from the console** (the write-provenance gate suppresses the own-tab re-render). BUGS.md **I10**, **I11**.
 - Delete the scratch profile when the round ends.
 
 Full rationale and the failure it came from: BUGS.md **I6**.

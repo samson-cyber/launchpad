@@ -7939,6 +7939,24 @@
     // who earned badges and then bought is exactly the collision case.
     if (!isProOnboardingBusy()) runAchievementsOnOpen();
 
+    // [2.0] The reopen moment. The amber paused card is the real surface — it
+    // already shows the frozen count, the PAUSED state and Resume — so this is
+    // only the one line that explains WHY a task the user left running is
+    // paused. Without it the card is honest but inexplicable.
+    //
+    // Guarded at the CALL SITE like its three siblings above (D13): the notice
+    // is consumed on show, so a guard inside the callee would eat it. Skipping
+    // here leaves it in storage and it fires on the next open — a deferral, not
+    // a loss. Fires once per fold and never on an ordinary startup, because
+    // only foldClosedBrowserSpan ever writes the notice.
+    if (!isProOnboardingBusy()) {
+      try {
+        await maybeShowClosedBrowserPauseToast();
+      } catch (err) {
+        console.error("[LaunchPad] Closed-browser pause notice failed", err);
+      }
+    }
+
     // [R3] Getting-Started one-time HONEST retro — free-tier, runs for everyone.
     // currentBg is set (loadBackground ran above), so we can pass whether a
     // non-default background is persisted for step 6. Guarded by retroDone; step
@@ -8503,6 +8521,29 @@
       toast.classList.remove("visible");
       setTimeout(function () { toast.remove(); }, 300);
     });
+  }
+
+  // ===== [2.0] The reopen moment =====
+  //
+  // The service worker paused the active task on this launch because the
+  // browser had been closed (Storage.foldClosedBrowserSpan). The pill's amber
+  // paused card already carries the state, the frozen count and Resume — this
+  // toast exists only to answer "why is it paused?", which the card cannot.
+  //
+  // CONSUME BEFORE PAINT (D8). The notice is cleared and persisted first, and
+  // only then shown. The reverse order shows it twice when two new tabs open
+  // together, which is the ordinary case after a browser restore.
+  async function maybeShowClosedBrowserPauseToast() {
+    if (!Storage.consumeClosedPauseNotice(data)) return;   // mutate-only; nothing to show
+    // Resolve the name BEFORE the write, while the record is certainly here.
+    var res = Storage.resolveActiveTask(data);
+    var name = (res && !res.stale && res.task) ? res.task.name : null;
+    await Storage.saveAll(data);
+    // showToast uses textContent, so the task name needs no escaping and cannot
+    // inject markup no matter what the user called their task.
+    showToast(name
+      ? 'Paused "' + name + '" while the browser was closed — resume when ready.'
+      : "Paused while the browser was closed — resume when ready.", 6000);
   }
 
   // ===== Right-Click Tip =====

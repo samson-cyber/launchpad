@@ -99,6 +99,137 @@ function anchorBrowserSessionBg() {
   });
 }
 
+// ===== [2.0] Liveness heartbeat + the cold-start fold =====
+//
+// The heartbeat proves the browser was alive at a moment. Everything the
+// stopwatch needs to know about a shutdown is derived from the last beat.
+//
+// Deliberately its OWN alarm with its OWN name and lifecycle — it does not
+// share, extend or ride 'pomodoro-phase'. That alarm is a one-shot `when` for a
+// specific phase boundary; this is a repeating `periodInMinutes` liveness tick.
+// The two derivations happen to share an input (trackingPaused) and nothing
+// else, and collapsing them would tie a liveness signal to whether the user
+// happens to be running a focus session.
+var HEARTBEAT_ALARM = "active-heartbeat";
+var HEARTBEAT_PERIOD_MINUTES = 1;
+
+// PURE (harnessed): does a heartbeat belong right now, for these inputs?
+// A beat means "a task was being actively counted at this instant", so it is
+// gated on exactly what the stopwatch counts: an active task, not paused. While
+// paused the stopwatch is already frozen and the pause term owns the span, so a
+// beat would be noise at best and a false liveness claim at worst.
+function desiredHeartbeatOn(state) {
+  if (!state) return false;
+  if (!state.activeTaskId) return false;
+  if (state.trackingPaused) return false;
+  return true;
+}
+
+function heartbeatStateFromData(data) {
+  var active = Storage.getActiveTask(data);
+  return {
+    activeTaskId: active ? active.taskId : null,
+    trackingPaused: Storage.isTrackingPaused(data)
+  };
+}
+
+// Reconcile the alarm to storage, the same shape as reconcilePomodoroAlarm:
+// idempotent, and it writes NO `data`, so it cannot feed back through onChanged.
+//
+// Creating the alarm also BOOTSTRAPS a beat. Without one, a task activated and
+// then abandoned 30 seconds later would leave no evidence at all, and the fold
+// would have nothing to work from on the next launch. The stamp sits inside the
+// !existing branch, so it happens once per enable transition rather than on
+// every unrelated `data` write.
+//
+// THE BOOTSTRAP IS NON-DESTRUCTIVE, and that is load-bearing. On a cold start
+// this reconcile races the cold-start fold: both run off onStartup, and if the
+// bootstrap overwrote a beat left by the PREVIOUS browser session, it would
+// replace the only record of when that session died with `now` — the fold would
+// then compute a closed span of ~0 and silently do nothing. The overnight bug
+// would survive its own fix, and it would look like the feature simply did not
+// work. So a stored beat is never overwritten here; only the periodic alarm and
+// an explicit clear ever move it.
+//
+// Clearing the alarm also DROPS the stored beat. A beat that outlived its alarm
+// is a liveness claim nobody is maintaining; leaving it would let a stale
+// timestamp be folded after a pause/resume cycle.
+async function reconcileHeartbeatAlarm() {
+  var data;
+  try { data = await Storage.getAll(); }
+  catch (err) { console.error("[LaunchPad] Heartbeat: alarm reconcile read failed", err); return; }
+  var state = heartbeatStateFromData(data);
+  var existing = await chrome.alarms.get(HEARTBEAT_ALARM);
+  if (!desiredHeartbeatOn(state)) {
+    if (existing) await chrome.alarms.clear(HEARTBEAT_ALARM);
+    await Storage.clearHeartbeat();
+    return;
+  }
+  if (!existing) {
+    chrome.alarms.create(HEARTBEAT_ALARM, { periodInMinutes: HEARTBEAT_PERIOD_MINUTES });
+    var stored = await Storage.readHeartbeat();
+    if (!stored) await Storage.writeHeartbeat(state.activeTaskId, Date.now());
+  }
+}
+
+// The beat itself. Re-reads state rather than trusting the alarm's existence:
+// an alarm can outlive the condition that created it by one tick (the user
+// pauses, the alarm fires before the reconcile lands), and a beat written in
+// that window would claim liveness for a paused task.
+//
+// NOT enqueued, and that is deliberate: this writes a single dedicated key, not
+// a getAll -> mutate -> saveAll cycle on the `data` blob, so there is nothing
+// for it to clobber and nothing that can clobber it. enqueueBgData exists to
+// serialize `data` writers (L1); putting a non-`data` writer in it would only
+// make the beat wait behind sweeps for no benefit.
+async function heartbeatBg() {
+  var data;
+  try { data = await Storage.getAll(); }
+  catch (err) { console.error("[LaunchPad] Heartbeat: read failed", err); return; }
+  var state = heartbeatStateFromData(data);
+  if (!desiredHeartbeatOn(state)) {
+    await chrome.alarms.clear(HEARTBEAT_ALARM);
+    await Storage.clearHeartbeat();
+    return;
+  }
+  await Storage.writeHeartbeat(state.activeTaskId, Date.now());
+}
+
+// The cold-start fold. onStartup ONLY, and ENQUEUED because it does mutate the
+// `data` blob (activePausedMs, the pause flag, the reopen notice).
+//
+// ORDERING — this MUST be queued AFTER anchorBrowserSessionBg, and the two
+// cannot fight because they are mutually exclusive by construction:
+//
+//   * The anchor runs first. If the task was PAUSED before the shutdown, the
+//     anchor folds (now - pausedAt) into activePausedMs itself and re-stamps
+//     the born-paused shape. The closed span is then already accounted for.
+//     This fold reads trackingPaused === true and returns without writing.
+//   * If the task was UNPAUSED before the shutdown, the anchor finds pausedAt
+//     null, folds nothing, and leaves it null. This fold then does the work.
+//
+// So exactly one of the two accounts for the closed span — never both, never
+// neither. Reversing the order would break that: this fold would set the pause
+// flag first, and the anchor would then fold (now - pausedAt) a second time on
+// top of it. The overlap is only milliseconds today, but the invariant is what
+// keeps it correct, not the size of the window.
+// The beat is read BEFORE the queue, not inside it — the favicon handler's
+// precedent (everything that does not need `data` is computed ahead of the
+// queue). It also shortens the window in which anything else could touch the
+// key: the read is issued at onStartup time rather than after the anchor's
+// storage round-trips have completed.
+function foldClosedBrowserSpanBg() {
+  var heartbeatRead = Storage.readHeartbeat();
+  return enqueueBgData("closed-browser-fold", async function () {
+    var heartbeat = await heartbeatRead;
+    var data = await Storage.getAll();
+    await Storage.foldClosedBrowserSpan(data, heartbeat);
+    // The beat is spent either way: it described the PREVIOUS browser session,
+    // and this one will stamp its own the moment the alarm is (re)created.
+    await Storage.clearHeartbeat();
+  });
+}
+
 function runRecurringSweepBg() {
   return enqueueBgData("recurring-sweep", async function () {
     var data = await Storage.getAll();
@@ -706,6 +837,10 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
   if (areaName && areaName !== "local") return;
   if (!changes.data) return;
   reconcilePomodoroAlarm();
+  // [2.0] Same trigger, same reasons: activate / pause / resume / switch / end
+  // all land in `data`, and they are exactly the transitions that turn the
+  // liveness beat on and off. Idempotent and writes no `data`, so no loop.
+  reconcileHeartbeatAlarm();
 });
 
 chrome.runtime.onInstalled.addListener(function () {
@@ -725,6 +860,9 @@ chrome.runtime.onInstalled.addListener(function () {
   // + no notify when notifications are OFF), then reconcile the alarm to match.
   runPomodoroPhaseBg();
   reconcilePomodoroAlarm();
+  // [2.0] An install/update is NOT a browser launch, so there is no closed span
+  // to fold here — only the alarm to bring into line with stored state.
+  reconcileHeartbeatAlarm();
 });
 chrome.runtime.onStartup.addListener(function () {
   requestContextMenuRebuild();
@@ -736,6 +874,10 @@ chrome.runtime.onStartup.addListener(function () {
   saveCurrentSession();
   pruneOldSessions();
   anchorBrowserSessionBg();
+  // [2.0] IMMEDIATELY AFTER the anchor, and enqueued behind it. The two are
+  // mutually exclusive by construction — see the ordering note on
+  // foldClosedBrowserSpanBg. Reversing them double-counts the closed span.
+  foldClosedBrowserSpanBg();
   runProReconcile();
   runRecurringSweepBg();
   runTrashPurgeBg();
@@ -752,6 +894,11 @@ chrome.runtime.onStartup.addListener(function () {
   // reschedule the alarm for a still-running phase.
   runPomodoroPhaseBg();
   reconcilePomodoroAlarm();
+  // [2.0] Last, so it observes whatever state the fold above settled on: a task
+  // the fold paused wants NO alarm, and an untouched one wants a beat running.
+  // The bootstrap here cannot destroy the fold's evidence — it never overwrites
+  // a stored beat (see reconcileHeartbeatAlarm).
+  reconcileHeartbeatAlarm();
 });
 
 chrome.storage.onChanged.addListener(function (changes) {
@@ -904,6 +1051,8 @@ chrome.alarms.onAlarm.addListener(function (alarm) {
     revalidateLicenseBg("alarm");
   } else if (alarm.name === POMODORO_PHASE_ALARM) {
     runPomodoroPhaseBg();
+  } else if (alarm.name === HEARTBEAT_ALARM) {
+    heartbeatBg();
   }
 });
 
