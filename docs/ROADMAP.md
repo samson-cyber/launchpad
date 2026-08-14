@@ -25,14 +25,16 @@ The free LaunchPad Chrome extension, live on the Chrome Web Store.
 
 ---
 
-## v2.0.0 — BUILD PHASE COMPLETE (2026-08-13), awaiting submission
+## v2.0.0 — BUILD PHASE COMPLETE (2026-08-14), awaiting submission
 
-**The build phase of v2.0.0 ended at commit `3c719d6`.** Nothing further is queued for this version; what remains is the store upload, the dashboard walk and the project-knowledge re-upload.
+**The build phase of v2.0.0 ended at commit `0335e49`.** Nothing further is queued for this version; what remains is the store upload, the dashboard walk and the project-knowledge re-upload.
 
-- **FINAL ARTIFACT: `launchpad-2.0.0-3c719d6.zip`** — sha256 `580e6b4ca81186c2a7636260cbe48091b06f4576fd9f50a914c56d83d4177a2a`, 608,574 bytes, built from a clean tree. Every earlier stamped zip has been superseded and deleted.
+*It first ended at `3c719d6` on 2026-08-13. The Buy Me a Coffee retirement — a product-surface decision, not a defect — reopened it for exactly one commit and closed it again. The artifact identity and the tag target moved with it.*
+
+- **FINAL ARTIFACT: `launchpad-2.0.0-0335e49.zip`** — sha256 `bf01127a0612fccbd0be99c4a4f685cd66e0bab90c4d4d2da6e66af40ca072fb`, 608,826 bytes, built from a clean tree. Every earlier stamped zip has been superseded and deleted.
 - **Thirteen build gates green** — twelve source suites (`panel-ink`, `focus-decision`, `insights-readers`, `since-format`, `trial-copy`, `license-line`, `pro-celebration`, `chip-ink`, `today-cockpit`, `text-size`, `pill-clarity`, `bg-queue`) plus the package gate (23/23 manifest-declared and referenced files resolve with exact forward-slash entry names).
 - **SHIPPED still means v1.0.5.** The manifest reads `2.0.0` and the artifact exists, but until the Chrome Web Store approves it, nothing about 2.0.0 is live. Do not describe it as shipped.
-- **At submission: the annotated `v2.0.0` tag goes on `3c719d6`** — the exact commit the uploaded artifact was built from, per the v1.0.5 precedent.
+- **At submission: the annotated `v2.0.0` tag goes on `0335e49`** — the exact commit the uploaded artifact was built from, per the v1.0.5 precedent. The target follows the artifact: it moved off `3c719d6` the moment that zip was superseded.
 
 ### Artifact-stamping discipline (standing practice)
 
