@@ -4053,6 +4053,31 @@ html.bg-light { --sat-amber: #8a6d09; }
    repainted every second by satPaintTime, in lockstep with the task row's copy
    of the same count. Width changes once a second: keep this line free of any
    layout that would reflow its neighbours as the figure grows. */
+/* [2.0 worked clock] The card's lifetime line. Sits directly under .sat-since,
+   completing the WALL-CLOCK block (hero stopwatch, stamp, lifetime) before the
+   engine's block begins — the vocabulary law as layout. Same quiet register as
+   .sat-since, one notch brighter because it carries a figure rather than only a
+   timestamp, and its unit word takes the same ink at a smaller size (the
+   .tt-live-unit lesson: never dim the word that names the kind of time).
+   JS-rendered; both frames declared. */
+.sat-worked {
+  margin-top: 3px;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: var(--fs-11);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.6);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.sat-worked-unit {
+  font-size: var(--fs-10);
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
 .sat-since {
   margin-top: 5px;
   font-size: var(--fs-11);
@@ -4718,7 +4743,8 @@ html.bg-light .sat-time,
 html.bg-light .sat-time-label,
 html.bg-light .sat-hero-time,
 html.bg-light .sat-hero-label,
-html.bg-light .sat-since { text-shadow: none; }
+html.bg-light .sat-since,
+html.bg-light .sat-worked { text-shadow: none; }
 
 /* [2.0 hero swap] The hero is the card's primary ink on a light wallpaper, the
    same as .sat-time was before the swap; its unit word joins the secondary tier
@@ -4733,6 +4759,15 @@ html.bg-light .sat-time-label,
 html.bg-light .sat-hero-label,
 html.bg-light .sat-since,
 html.bg-light .sat-foreign { color: var(--text-secondary); }
+
+/* [2.0 worked clock] The card's lifetime line takes --text-primary on a light
+   wallpaper, NOT the --text-secondary its neighbours use.
+   Measured, not assumed: with --text-secondary (#5f6368) over the white-tinted
+   floater frost this line rendered at 3.77:1 — a real defect, caught by the
+   rendered-pixel pass rather than by looking at it. #202124 clears the floor
+   with room to spare. It is the one line in this quiet block that carries a
+   FIGURE rather than only words, which is also why it can afford the weight. */
+html.bg-light .sat-worked { color: var(--text-primary); }
 
 /* [2.0 pill clarity] The two new quiet lines on the card. Both declare their own
    ink on BOTH frames rather than inheriting — the a68dd89 / B-2 failure was a new
@@ -10296,6 +10331,47 @@ body.sat-card-open .tab-panel {
 }
 
 html.has-bg.bg-light .tt-time-chip { color: rgba(0, 0, 0, 0.65); }
+
+/* [2.0 worked clock] THE LIFETIME WORKED TOTAL, and how it stays distinct from
+   the windowed chip sitting immediately beside it.
+
+   The two are inches apart and both are durations, so "visually distinct" has
+   to be a real difference and not a shade of grey:
+     - THE UNIT WORD. This readout says "worked"; the chip says nothing. That is
+       the primary separator and it is a WORD, not a treatment — the same device
+       that keeps the live row's wall-clock from being mistaken for engine time.
+     - WEIGHT. 600 against the chip's normal: this is the row's one always-
+       present number, the chip is conditional and secondary.
+     - It is NOT the accent ink. That belongs to .tt-task-live, which is the
+       ACTIVE row's live figure; a lifetime total on every row wearing the
+       accent would make every row look active.
+
+   Ink is 0.72, above the 0.65 the chip needed here (the task row's frost is
+   lighter than the pill card's, so the alphas that read comfortably there
+   measure low here — the chip's own note records 0.55 measuring 4.21:1). The
+   unit word takes the SAME ink at a smaller size and lighter weight, never a
+   lower alpha: dimming the one word that names which KIND of time this is was
+   the .tt-live-unit mistake, and it is not repeated. JS-rendered, so the static
+   ink gate cannot see any of this — both frames are declared explicitly. */
+.tt-task-worked {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: var(--fs-11);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+}
+
+.tt-worked-unit {
+  font-size: var(--fs-10);
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
+html.has-bg.bg-light .tt-task-worked { color: rgba(0, 0, 0, 0.72); }
 
 /* [2.0 timing] THE ACTIVE ROW, unmistakable at a glance.
    Three signals, none of which can collide with what the row already uses:

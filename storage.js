@@ -3020,6 +3020,18 @@ var Storage = (function () {
       return current;
     }
 
+    // [2.0 worked clock] SWITCHING BANKS THE OUTGOING TASK. This is the second
+    // (and last) write in the codebase that ends an activation — the record
+    // below replaces the old one, and with it the only evidence of the span
+    // just worked. Banked BEFORE the replacement, mutate-only, so it rides the
+    // saveAll at the bottom of this function.
+    //
+    // Note the re-pick branch above does NOT bank, and must not: re-picking the
+    // already-active task KEEPS the record, so the activation continues rather
+    // than ending. Banking there would credit the span twice — once now and
+    // again when the activation really ends.
+    bankWorkedTime(data, now);
+
     // [1.0.17 dual counters] pausedAt/pausedMs back the display-only ACTIVE
     // counter (wall-clock since startedAt, minus paused spans). Fresh per task —
     // switching resets the accounting, which is also why no span needs folding
@@ -3075,13 +3087,118 @@ var Storage = (function () {
    * so callers can fire it unconditionally without producing a spurious
    * storage event the engine would treat as a boundary.
    *
+   * [2.0 worked clock] BANKS the finished activation before dropping the
+   * record. This is one of exactly TWO places in the codebase where an
+   * activation ends — see bankWorkedTime for why the fold lives here and not at
+   * the call sites.
+   *
    * @returns {Promise<boolean>} whether anything was cleared.
    */
   async function clearActiveTask(data) {
     if (!data || data.activeTask == null) return false;
+    bankWorkedTime(data, Date.now());
     data.activeTask = null;
     await saveAll(data);
     return true;
+  }
+
+  // ===== [2.0] THE PER-TASK WORKED CLOCK =====
+  //
+  // Every task accumulates WORKED time — wall-clock active time with pauses
+  // excluded — across all of its activations, for as long as the task exists.
+  // Resume counts, pause freezes, switching away banks the span.
+  //
+  // VOCABULARY IS LOAD-BEARING. "Worked" belongs to the wall-clock family (the
+  // stopwatch, this total). "Focused" is reserved for the ENGINE — time it
+  // actually observed on a trackable site — and the two are never blended,
+  // summed or shown as one figure. That is the standing law the pill's honesty
+  // standard rests on, and this feature adds a second wall-clock surface rather
+  // than a second meaning for an existing word.
+  //
+  // task.workedMs is ABSENT on every task that predates this feature, and
+  // absent reads as 0. Their history was never captured and is NOT invented: a
+  // task that has been worked on for months starts counting from now, which is
+  // honest, where a back-filled guess would not be.
+
+  /**
+   * PURE (harnessed): the worked span of ONE activation record, in ms.
+   *
+   * This is the same derivation the pill's stopwatch paints
+   * (newtab.js satActiveElapsedMs): now - startedAt - (activation-lifetime
+   * paused total + any span still open). It lives here as well because the
+   * BANKING path needs it in the service-worker/storage layer, and because the
+   * two must agree exactly — the live row shows banked + THIS, so a divergence
+   * would make the number jump at the moment of banking. The gate asserts the
+   * two are numerically identical across a matrix of records rather than
+   * trusting the comment.
+   */
+  function activationWorkedMs(active, now) {
+    if (!active || typeof active.startedAt !== "number" || !active.startedAt) return 0;
+    var pausedTotal = (active.activePausedMs || 0) +
+      (active.pausedAt != null ? Math.max(0, now - active.pausedAt) : 0);
+    return Math.max(0, now - active.startedAt - pausedTotal);
+  }
+
+  /**
+   * Fold the CURRENT activation's worked span into its task's lifetime total.
+   * MUTATE-ONLY — the caller persists it in the same write it was already
+   * making, so banking never costs an extra storage round trip.
+   *
+   * WHY THIS LIVES IN THE TWO PRIMITIVES AND NOT AT THE CALL SITES.
+   * A missed deactivation path is a silently leaking span: the user works for
+   * an hour, the total does not move, and nothing anywhere reports an error.
+   * There are EIGHT ways an activation can end (End for now, Complete from the
+   * card, Complete from a row or the context menu, switching tasks, the pill's
+   * self-heal, a task deleted while active, a recurring instance completing, a
+   * hard purge) — but only TWO writes actually end one: this function's callers
+   * `clearActiveTask` and `setActiveTask`'s replace branch. Every one of the
+   * eight terminates at one of those two. Folding here covers all of them by
+   * construction, including any path added later; folding at call sites would
+   * cover the ones somebody remembered.
+   *
+   * The task is looked up RAW rather than through getTaskById/findLiveTask,
+   * both of which skip a trashed task. A task soft-deleted while active must
+   * still be credited: deletion is reversible, and restoring a task that had
+   * lost its worked history would be a silent data loss. Only a HARD purge
+   * loses the span, and there the task itself is gone with it.
+   *
+   * @returns {number} the span banked, in ms (0 when there was nothing to bank).
+   */
+  function bankWorkedTime(data, now) {
+    if (!data) return 0;
+    var active = getActiveTask(data);
+    if (!active) return 0;
+    var span = activationWorkedMs(active, now);
+    if (!(span > 0)) return 0;
+    var ws = resolveWorkspaceFromData(data, active.workspaceId);
+    var tasks = ws && ws.tasks;
+    if (!Array.isArray(tasks)) return 0;
+    var task = null;
+    for (var i = 0; i < tasks.length; i++) {
+      if (tasks[i] && tasks[i].id === active.taskId) { task = tasks[i]; break; }
+    }
+    if (!task) return 0;              // hard-purged mid-activation: nothing to credit
+    task.workedMs = (task.workedMs || 0) + span;
+    return span;
+  }
+
+  /**
+   * The number the UI shows for a task: everything banked, PLUS the current
+   * activation if this is the task running right now.
+   *
+   * One definition for both surfaces (the Tasks row and the pill card), so the
+   * live row and the card cannot disagree, and so the figure cannot jump when a
+   * running activation is banked — banked + live is exactly what the fold turns
+   * into banked.
+   */
+  function taskWorkedMs(data, task, now) {
+    if (!task) return 0;
+    var total = task.workedMs || 0;
+    var active = getActiveTask(data);
+    if (active && active.taskId === task.id) {
+      total += activationWorkedMs(active, typeof now === "number" ? now : Date.now());
+    }
+    return total;
   }
 
   // ===== Pomodoro phase state ([1.0.18]) =====
@@ -5373,6 +5490,13 @@ var Storage = (function () {
     getActiveTask: getActiveTask,
     setActiveTask: setActiveTask,
     clearActiveTask: clearActiveTask,
+
+    // [2.0] The per-task worked clock. activationWorkedMs is the one definition
+    // of "worked span of an activation"; taskWorkedMs is the one definition of
+    // the number the UI shows.
+    activationWorkedMs: activationWorkedMs,
+    bankWorkedTime: bankWorkedTime,
+    taskWorkedMs: taskWorkedMs,
     resolveActiveTask: resolveActiveTask,
     isActiveTaskCardMinimized: isActiveTaskCardMinimized,
     setActiveTaskCardMinimized: setActiveTaskCardMinimized,

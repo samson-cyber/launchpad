@@ -515,6 +515,35 @@ async function runSuite(ctx, store, stats, listeners) {
       store.launchpad_heartbeat === undefined, JSON.stringify(store.launchpad_heartbeat));
   }
 
+  // ===== S9 — [2.0] banking rides the write it was already making ==========
+  //
+  // The worked clock's fold is MUTATE-ONLY: it credits task.workedMs and lets
+  // clearActiveTask / setActiveTask's own saveAll persist it. That is the
+  // property under test here, because the alternative — a second write — would
+  // put an unqueued `data` cycle on the deactivation path, which is exactly the
+  // L1 clobber shape. Asserted by counting WRITES, not by reading the source.
+  {
+    await seed(ctx, store);
+    // The seed blob ships no tasks; this suite needs one to credit.
+    store.data.workspaces[0].tasks = [{ id: "wt1", name: "Worked clock", displayOrder: 1 }];
+    store.data.activeTask = {
+      taskId: "wt1", workspaceId: store.data.workspaces[0].id,
+      startedAt: ctx.Date.now() - 3600000, activePausedMs: 0, pausedAt: null,
+      pausedMs: 0, idleAt: null, idleMs: 0
+    };
+    store.data.trackingPaused = false;
+    const before = stats.dataSets;
+    const d = await ctx.Storage.getAll();
+    await ctx.Storage.clearActiveTask(d);
+    await settle(ctx, stats);
+    check("S9: deactivating costs exactly ONE `data` write, banking included",
+      stats.dataSets - before === 1, `writes=${stats.dataSets - before}`);
+    const banked = store.data.workspaces[0].tasks[0].workedMs;
+    check("S9: ...and the span really landed in that write",
+      banked >= 3600000 && banked < 3600000 + 60000, `workedMs=${banked}`);
+    check("S9: ...and the activation ended in the same write", store.data.activeTask === null);
+  }
+
   // ===== CHECKOUT-RETURN TAB DISCIPLINE ===================================
   //
   // Lives in THIS file rather than a seventh gate because it drives the very
@@ -668,6 +697,19 @@ const SEEDS = [
       file: "background.js",
       find: '  } catch (err) {\n    console.error("[LaunchPad] Checkout return handler failed:", err);\n  }',
       replace: '  } catch (err) {\n    console.error("[LaunchPad] Checkout return handler failed:", err);\n  } finally {\n    try { await chrome.tabs.remove(tabId); } catch (e) {}\n  }',
+    }],
+  },
+  {
+    // [2.0] Banking must ride the write the deactivation was already making.
+    // Giving it its own saveAll puts a SECOND, unqueued `data` cycle on the
+    // busiest path in the product — the L1 clobber shape, arriving through a
+    // feature that looks like it only touches a display number.
+    name: "the worked-clock fold takes its OWN write instead of riding the deactivation's",
+    label: "session-anchor",
+    seeds: [{
+      file: "storage.js",
+      find: "    task.workedMs = (task.workedMs || 0) + span;\n    return span;",
+      replace: "    task.workedMs = (task.workedMs || 0) + span;\n    saveAll(data);\n    return span;",
     }],
   },
   {

@@ -647,12 +647,24 @@
   // function, so they all read identically. Out of scope: the pill/card H:MM:SS
   // live ticker (satFmtLong) — that is a second-resolution CLOCK, not a duration
   // label, and stays H:MM:SS.
+  // [2.0] SUB-MINUTE HONESTY. A true value between 1s and 59s floored to "0m",
+  // which reads as "nothing was measured" about time that WAS measured — the
+  // same class of quiet wrongness as a stale count on a live task. Under a
+  // minute the label carries SECONDS instead.
+  //
+  // ZERO STILL READS "0m", deliberately: there is no such thing as "0s" worth
+  // showing, and every surface that treats zero as "render nothing" gates on
+  // the VALUE before it ever reaches this function, so this branch only ever
+  // paints where a real zero is meaningful.
   function fmtDurationHM(ms) {
-    var totalMin = Math.floor(Math.max(0, ms) / 60000);
+    var safe = Math.max(0, ms);
+    var totalMin = Math.floor(safe / 60000);
     var h = Math.floor(totalMin / 60);
     var m = totalMin % 60;
     if (h > 0) return m > 0 ? (h + "h" + m + "m") : (h + "h");
-    return m + "m";
+    if (m > 0) return m + "m";
+    var sec = Math.floor(safe / 1000);
+    return sec > 0 ? (sec + "s") : "0m";
   }
 
   // Whether the line renders at all, and in which scope. Suppression is a
@@ -2441,6 +2453,22 @@
         // owns that switch). Painted by the SAME 1s text path as the pill
         // (satPaintTime), so there is no second timer and no re-render per tick.
         (isActiveTask ? satRowLiveHtml() : "") +
+        // [2.0 worked clock] The task's LIFETIME worked total. Synchronous, from
+        // task.workedMs — no async second phase, because this number comes from
+        // the task record itself rather than from an engine read, which is
+        // exactly what lets it satisfy the AT-REST rule: present on first paint,
+        // no hover, no interaction.
+        //
+        // PLACEMENT. Third in the cluster, after the name and the active row's
+        // live stopwatch, before the windowed engine chip. The stopwatch keeps
+        // its position as the active row's hero; at rest (every non-active row)
+        // the stopwatch is absent and this sits immediately beside the name,
+        // which is where the row's one always-present number belongs.
+        //
+        // ZERO RENDERS NOTHING, matching the windowed chip beside it. A task
+        // that has never been started would otherwise paint "0m" on every row
+        // in the list — noise that says nothing the empty space does not.
+        satWorkedChipHtml(task, isActiveTask) +
         // Windowed tracked time. Rendered EMPTY and filled by ttRefreshTaskTimes a
         // tick later — the byTask read is async and taskRowHtml is a synchronous
         // builder, the same two-phase shape the cockpit uses. A task with no
@@ -10350,6 +10378,19 @@
       '</div>' +
       // The stamp alone: the count it used to lead with is the headline above.
       satSinceHtml(false) +
+      // [2.0 worked clock] A quiet lifetime line, and it sits HERE — directly
+      // under the stopwatch and its stamp — rather than beside the windowed
+      // engine line at the bottom. That grouping is the vocabulary law made
+      // visible: the WALL-CLOCK family (hero stopwatch, since, worked lifetime)
+      // reads as one block, and the ENGINE family (Focused today, last-N-days)
+      // as another. Interleaving them would put the two kinds of number in one
+      // column and invite exactly the blend the standard forbids.
+      //
+      // Idle card only. The phase takeover and the session-done card are
+      // deliberately left alone: the first is dominated by a live ring and the
+      // second is a terminal summary, and neither is a place to add a fourth
+      // figure.
+      satWorkedLineHtml() +
       '<div class="sat-today">' +
         '<span class="sat-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</span>' +
         '<span class="sat-time-label">' +
@@ -10618,6 +10659,27 @@
       if (sinceTxt) sinceEl.textContent = sinceTxt;
       else sinceEl.remove();
     }
+    // [2.0 worked clock] The lifetime total is a ticking surface too, on the
+    // ACTIVE task only: banked + the activation currently running. Paused
+    // freezes it for free — the paused span is deducted by the same derivation
+    // the stopwatch uses, so a frozen stopwatch means a frozen worked clock
+    // without a second rule to keep in step.
+    //
+    // ONE READ, BOTH SURFACES: the row's readout and the card's line are
+    // written from this single call, so they cannot straddle a minute boundary
+    // between them and disagree. (The stopwatch above takes its own read; that
+    // pair is second-resolution against minute-resolution, so no shared edge is
+    // needed there — they can never visibly disagree.)
+    var workedRes = Storage.resolveActiveTask(data);
+    var workedTxt = (workedRes && !workedRes.stale && workedRes.task)
+      ? satWorkedText(workedRes.task) : null;
+    if (workedTxt != null) {
+      document.querySelectorAll(".tt-task-worked.is-live .tt-worked-val").forEach(function (el) {
+        el.textContent = workedTxt;
+      });
+      var cardWorked = container.querySelector(".sat-worked-val");
+      if (cardWorked) cardWorked.textContent = workedTxt;
+    }
     var liveState = satRowLiveState(stopwatch);
     document.querySelectorAll(".tt-task-live").forEach(function (el) {
       var val = el.querySelector(".tt-live-val");
@@ -10794,6 +10856,52 @@
     return '<span class="tt-task-live' + (s.work ? ' is-work' : '') + '" title="' + escapeHtml(s.title) + '">' +
         '<span class="tt-live-val">' + escapeHtml(s.text) + '</span>' +
         '<span class="tt-live-unit">' + escapeHtml(s.unit) + '</span>' +
+      '</span>';
+  }
+
+  // [2.0] THE WORKED CLOCK — the row's and the card's lifetime figure.
+  //
+  // VOCABULARY. The unit word is "worked", and it is on screen rather than
+  // implied: this is the wall-clock family (the same family as the stopwatch),
+  // and "focused" is reserved for the engine. The tooltip states the definition
+  // outright so the two readouts sitting inches apart cannot be confused —
+  // "active, pauses excluded" versus the windowed chip's "tracked in the last N
+  // days". Never blended, never summed.
+  var SAT_WORKED_TITLE = "Total time this task has been active, pauses excluded";
+
+  // ONE definition of the number (Storage.taskWorkedMs): banked + the current
+  // activation when this is the running task. The row and the card both come
+  // through here, so they cannot disagree, and the figure cannot jump at the
+  // moment of banking — banked + live is precisely what the fold produces.
+  function satWorkedText(task) {
+    return fmtDurationHM(Storage.taskWorkedMs(data, task));
+  }
+
+  // The card's quiet lifetime line. Zero renders NOTHING, like every other
+  // figure on this card — a freshly activated task shows it the moment the
+  // first second lands, which is honest, where "0m worked" on a task you just
+  // started is noise.
+  function satWorkedLineHtml() {
+    var res = Storage.resolveActiveTask(data);
+    if (!res || res.stale || !res.task) return "";
+    var ms = Storage.taskWorkedMs(data, res.task);
+    if (!(ms > 0)) return "";
+    return '<div class="sat-worked" title="' + escapeHtml(SAT_WORKED_TITLE) + '">' +
+        '<span class="sat-worked-val">' + escapeHtml(fmtDurationHM(ms)) + '</span>' +
+        '<span class="sat-worked-unit">worked on this task</span>' +
+      '</div>';
+  }
+
+  // `isActive` marks the readout as a TICKING surface, so satPaintTime can find
+  // it without re-deriving which row is active during a text-only paint.
+  function satWorkedChipHtml(task, isActive) {
+    if (!task) return "";
+    var ms = Storage.taskWorkedMs(data, task);
+    if (!(ms > 0)) return "";
+    return '<span class="tt-task-worked' + (isActive ? " is-live" : "") +
+        '" title="' + escapeHtml(SAT_WORKED_TITLE) + '">' +
+        '<span class="tt-worked-val">' + escapeHtml(fmtDurationHM(ms)) + '</span>' +
+        '<span class="tt-worked-unit">worked</span>' +
       '</span>';
   }
 

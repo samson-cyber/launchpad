@@ -172,6 +172,13 @@ function boot(src) {
       extractFn(src.nt, "satSinceHtml"),
       extractFn(src.nt, "satHeadlineHtml"),
       extractFn(src.nt, "satIdleHeadlineHtml"),
+      // [2.0] The worked clock's builders, executed rather than pattern-matched:
+      // the whole question is WHICH number they print and what they call it.
+      extractDecl(src.nt, "SAT_WORKED_TITLE"),
+      extractFn(src.nt, "fmtDurationHM"),
+      extractFn(src.nt, "satWorkedText"),
+      extractFn(src.nt, "satWorkedChipHtml"),
+      extractFn(src.nt, "satWorkedLineHtml"),
     ].join("\n"), ctx, { filename: "newtab.js#pill" });
   ctx.data = null;
   ctx.satReadout = { taskId: null, baseMs: 0, openSince: null };
@@ -963,6 +970,296 @@ await (async () => {
   })();
   setClock(null);
 
+  // ================= [2.0] THE PER-TASK WORKED CLOCK ========================
+  //
+  // Lifetime wall-clock active time per task, banked at every deactivation.
+  //
+  // THE FAILURE THIS SECTION EXISTS FOR IS A LEAK: a deactivation path that
+  // does not bank means the user works for an hour, the total does not move,
+  // and nothing anywhere reports an error. So the boundaries are asserted BY
+  // NAME, one row each, executed against the real setters — not counted, and
+  // not sampled. (Last round's lesson: a threshold over a growing population
+  // stops testing anything the moment the population grows.)
+  const WH = 3600000;
+  const WT0 = 1755000000000;
+  const mkWorked = (over) => Object.assign({
+    workspaces: [{
+      id: "main", name: "Main", groups: [], shortcuts: [],
+      tasks: [
+        { id: "t1", name: "Task one", displayOrder: 1 },
+        { id: "t2", name: "Task two", displayOrder: 2 }
+      ]
+    }],
+    activeWorkspaceId: "main",
+    trackingPaused: false,
+    activeTask: null
+  }, over || {});
+  // An activation of `id` that began `agoMs` ago with `pausedMs` already banked.
+  const activation = (id, startedAt, pausedTotal, pausedAt) => ({
+    taskId: id, workspaceId: "main", startedAt: startedAt,
+    activePausedMs: pausedTotal || 0, pausedAt: pausedAt == null ? null : pausedAt,
+    pausedMs: 0, idleAt: null, idleMs: 0, sessionAnchorAt: startedAt
+  });
+  const taskOf = (d, id) => d.workspaces[0].tasks.filter((t) => t.id === id)[0];
+
+  // --- the arithmetic, before any boundary ---
+  check("worked: one activation's span is elapsed minus paused",
+    S.activationWorkedMs(activation("t1", WT0, 30 * 60000), WT0 + 2 * WH) === 2 * WH - 30 * 60000);
+  check("worked: an OPEN paused span counts as paused, live",
+    S.activationWorkedMs(activation("t1", WT0, 0, WT0 + WH), WT0 + 2 * WH) === WH);
+  check("worked: a record with no startedAt is 0, not an epoch-sized number",
+    S.activationWorkedMs({ taskId: "t1" }, WT0 + WH) === 0);
+  check("worked: null activation is 0", S.activationWorkedMs(null, WT0) === 0);
+  check("worked: it can never go negative", S.activationWorkedMs(activation("t1", WT0, 99 * WH), WT0 + WH) === 0);
+  // THE EQUIVALENCE THAT KEEPS THE LIVE ROW HONEST. The row shows banked + this,
+  // and the pill's stopwatch shows this — a divergence would make the number
+  // jump at the instant of banking. Both derivations are EXECUTED against the
+  // same records rather than compared by eye.
+  check("worked: Storage's derivation is numerically IDENTICAL to the pill's stopwatch", (() => {
+    const cases = [
+      activation("t1", WT0, 0), activation("t1", WT0, 30 * 60000),
+      activation("t1", WT0, 0, WT0 + WH), activation("t1", WT0, 15 * 60000, WT0 + WH),
+      { taskId: "t1" }, activation("t1", 0, 0)
+    ];
+    setClock(WT0 + 3 * WH);
+    for (const a of cases) {
+      const d = mkWorked({ activeTask: a });
+      ctx.data = d;
+      if (ctx.satActiveElapsedMs() !== S.activationWorkedMs(a, WT0 + 3 * WH)) return false;
+    }
+    setClock(null);
+    return true;
+  })());
+
+  // --- THE BOUNDARIES, ONE NAMED ROW EACH ---
+  // Every path that ends an activation terminates at clearActiveTask or at
+  // setActiveTask's replace branch. Each row drives the REAL setter.
+  await (async () => {
+    // 1. End for now (pill card) -> clearActiveTask
+    setClock(WT0 + 2 * WH);
+    let d = mkWorked({ activeTask: activation("t1", WT0) });
+    await S.clearActiveTask(d);
+    check("BOUNDARY 1/8 — End for now banks the span", taskOf(d, "t1").workedMs === 2 * WH, taskOf(d, "t1").workedMs);
+    check("BOUNDARY 1/8 — ...and the activation is gone", d.activeTask === null);
+
+    // 2. Complete from the card (D6: completeTask, then clearActiveTask)
+    d = mkWorked({ activeTask: activation("t1", WT0) });
+    await S.completeTask(d, "t1", "main");
+    await S.clearActiveTask(d);
+    check("BOUNDARY 2/8 — Complete from the card banks the span",
+      taskOf(d, "t1").workedMs === 2 * WH, taskOf(d, "t1").workedMs);
+    check("BOUNDARY 2/8 — ...and the total SURVIVES on the completed task",
+      taskOf(d, "t1").completed === true && taskOf(d, "t1").workedMs === 2 * WH);
+
+    // 3. Switching to another task -> setActiveTask's replace branch
+    d = mkWorked({ activeTask: activation("t1", WT0) });
+    await S.setActiveTask(d, "t2", "main", { clearPause: true });
+    check("BOUNDARY 3/8 — switching banks the OUTGOING task",
+      taskOf(d, "t1").workedMs === 2 * WH, taskOf(d, "t1").workedMs);
+    check("BOUNDARY 3/8 — ...and the incoming task is not credited",
+      taskOf(d, "t2").workedMs === undefined || taskOf(d, "t2").workedMs === 0);
+    check("BOUNDARY 3/8 — ...and the new activation starts clean",
+      d.activeTask.taskId === "t2" && d.activeTask.activePausedMs === 0);
+
+    // 4. The pill's self-heal (task completed/deleted anywhere, incl. another tab)
+    d = mkWorked({ activeTask: activation("t1", WT0) });
+    await S.deleteTask(d, "t1", "main");        // now stale; the pill self-heals
+    await S.clearActiveTask(d);
+    check("BOUNDARY 4/8 — the self-heal banks rather than dropping the span",
+      taskOf(d, "t1").workedMs === 2 * WH, taskOf(d, "t1").workedMs);
+
+    // 5. Complete from a task row / the context menu: leaves the record dangling,
+    //    and the next render's self-heal is what actually ends it.
+    d = mkWorked({ activeTask: activation("t1", WT0) });
+    await S.completeTask(d, "t1", "main");
+    check("BOUNDARY 5/8 — completing from a row does NOT bank on its own (it does not deactivate)",
+      taskOf(d, "t1").workedMs === undefined);
+    await S.clearActiveTask(d);
+    check("BOUNDARY 5/8 — ...the self-heal that follows banks it exactly once",
+      taskOf(d, "t1").workedMs === 2 * WH, taskOf(d, "t1").workedMs);
+
+    // 6. Deleted while active — a TRASHED task must still be credited, because
+    //    deletion is reversible and restoring must not lose the history.
+    d = mkWorked({ activeTask: activation("t1", WT0) });
+    await S.deleteTask(d, "t1", "main");
+    await S.clearActiveTask(d);
+    const restored = await S.restoreTask(d, "t1", "main");
+    check("BOUNDARY 6/8 — a task trashed while active keeps its worked total on restore",
+      restored && restored.workedMs === 2 * WH, restored && restored.workedMs);
+
+    // 7. Hard purge while active — the task is gone, so there is nothing to
+    //    credit. The requirement is that banking does not THROW.
+    d = mkWorked({ activeTask: activation("t1", WT0) });
+    await S.deleteTaskPermanent(d, "t1", "main");
+    let threw = false;
+    try { await S.clearActiveTask(d); } catch (e) { threw = true; }
+    check("BOUNDARY 7/8 — a hard purge mid-activation is survivable, not a throw", !threw);
+    check("BOUNDARY 7/8 — ...and the activation still ends", d.activeTask === null);
+
+    // 8. Re-picking the ALREADY-active task must NOT bank: the activation
+    //    continues, so banking here would credit the span twice.
+    d = mkWorked({ activeTask: activation("t1", WT0), trackingPaused: true });
+    d.activeTask.pausedAt = WT0 + WH;
+    await S.setActiveTask(d, "t1", "main", { clearPause: true });
+    check("BOUNDARY 8/8 — re-picking the SAME task does not bank (the activation continues)",
+      taskOf(d, "t1").workedMs === undefined, taskOf(d, "t1").workedMs);
+    check("BOUNDARY 8/8 — ...and the record is kept, not replaced",
+      d.activeTask.startedAt === WT0);
+
+    // NO DOUBLE FOLD across a repeated deactivation.
+    d = mkWorked({ activeTask: activation("t1", WT0) });
+    await S.clearActiveTask(d);
+    await S.clearActiveTask(d);
+    check("no double fold: a second clearActiveTask is a no-op",
+      taskOf(d, "t1").workedMs === 2 * WH, taskOf(d, "t1").workedMs);
+
+    // ACCUMULATION across activations — the whole point of the feature.
+    d = mkWorked({ activeTask: activation("t1", WT0) });
+    await S.clearActiveTask(d);
+    setClock(WT0 + 5 * WH);
+    await S.setActiveTask(d, "t1", "main", { clearPause: true });
+    setClock(WT0 + 6 * WH);
+    await S.clearActiveTask(d);
+    check("ACCUMULATION: two activations sum (2h then 1h = 3h)",
+      taskOf(d, "t1").workedMs === 3 * WH, taskOf(d, "t1").workedMs);
+
+    // PAUSE IS EXCLUDED end to end, through the real pause setter.
+    setClock(WT0);
+    d = mkWorked({ activeTask: activation("t1", WT0) });
+    setClock(WT0 + WH);
+    await S.setTrackingPaused(d, true);          // worked 1h, now paused
+    setClock(WT0 + 3 * WH);
+    await S.setTrackingPaused(d, false);         // 2h of pause
+    setClock(WT0 + 4 * WH);
+    await S.clearActiveTask(d);                  // 1h more worked
+    check("PAUSE EXCLUDED: 4h elapsed, 2h paused, banks 2h",
+      taskOf(d, "t1").workedMs === 2 * WH, taskOf(d, "t1").workedMs);
+    // ...and while still paused, the live figure does not move.
+    setClock(WT0 + WH);
+    d = mkWorked({ activeTask: activation("t1", WT0) });
+    await S.setTrackingPaused(d, true);
+    const frozenA = S.taskWorkedMs(d, taskOf(d, "t1"), WT0 + WH);
+    const frozenB = S.taskWorkedMs(d, taskOf(d, "t1"), WT0 + 9 * WH);
+    check("PAUSE EXCLUDED: the LIVE total is frozen while paused", frozenA === frozenB, `${frozenA} vs ${frozenB}`);
+
+    // THE LIVE ROW = BANKED + CURRENT, and banking must not make it jump.
+    setClock(WT0 + 2 * WH);
+    d = mkWorked({ activeTask: activation("t1", WT0) });
+    taskOf(d, "t1").workedMs = 5 * WH;                       // 5h already banked
+    const liveBefore = S.taskWorkedMs(d, taskOf(d, "t1"), WT0 + 2 * WH);
+    check("LIVE = banked + current", liveBefore === 7 * WH, liveBefore);
+    await S.clearActiveTask(d);
+    check("...and banking does not make the number JUMP",
+      taskOf(d, "t1").workedMs === liveBefore, `${taskOf(d, "t1").workedMs} vs ${liveBefore}`);
+    setClock(null);
+  })();
+
+  // --- legacy: the field is absent on every task that predates the feature ---
+  check("LEGACY: a task with no workedMs field reads 0, not NaN or undefined",
+    S.taskWorkedMs(mkWorked(), { id: "t1", name: "x" }) === 0);
+  check("LEGACY: an inactive task's total is its banked value alone",
+    S.taskWorkedMs(mkWorked(), { id: "t1", workedMs: 42 }) === 42);
+  check("LEGACY: a null task is 0, not a throw", S.taskWorkedMs(mkWorked(), null) === 0);
+  await (async () => {
+    // A legacy blob whose task objects have never seen the field, banked into.
+    setClock(WT0 + WH);
+    const d = mkWorked({ activeTask: activation("t1", WT0) });
+    delete taskOf(d, "t1").workedMs;
+    await S.clearActiveTask(d);
+    check("LEGACY: banking into an absent field starts it at the span, not NaN",
+      taskOf(d, "t1").workedMs === WH, taskOf(d, "t1").workedMs);
+    setClock(null);
+  })();
+
+  // --- the surfaces: vocabulary, distinctness, at-rest ---
+  await (async () => {
+    setClock(WT0 + 2 * WH);
+    const d = mkWorked({ activeTask: activation("t1", WT0) });
+    taskOf(d, "t1").workedMs = 3 * WH;
+    ctx.data = d;
+    const chip = ctx.satWorkedChipHtml(taskOf(d, "t1"), true);
+    const line = ctx.satWorkedLineHtml();
+    check("SURFACE: the row readout renders at rest (no hover, no async phase)", chip.length > 0);
+    check("SURFACE: it shows banked + current (5h)", /5h/.test(chip), chip);
+    check("SURFACE: the unit word is 'worked'", /worked/.test(chip));
+    // THE VOCABULARY LAW. 'focused' is the engine's word and must never appear
+    // on a wall-clock surface; the two are never blended or summed.
+    check("SURFACE: 'focused' NEVER appears on the worked readout", !/focus/i.test(chip), chip);
+    check("SURFACE: ...nor on the card's worked line", !/focus/i.test(line), line);
+    check("SURFACE: the tooltip states the definition (active, pauses excluded)",
+      /pauses excluded/.test(chip) && /pauses excluded/.test(line));
+    check("SURFACE: the tooltip does NOT borrow the engine's 'tracked in the last N days'",
+      !/tracked in the last/.test(chip) && !/tracked in the last/.test(line));
+    // Distinct CLASSES from the windowed chip, so the CSS can tell them apart.
+    check("SURFACE: it does not reuse the engine chip's class",
+      /tt-task-worked/.test(chip) && !/tt-time-chip/.test(chip));
+    check("SURFACE: the active row is marked as a ticking surface", /is-live/.test(chip));
+    check("SURFACE: an INACTIVE row is not marked live", !/is-live/.test(ctx.satWorkedChipHtml(taskOf(d, "t2"), false)));
+    // Zero renders NOTHING, like the chip beside it.
+    check("SURFACE: a never-worked task renders nothing rather than '0m'",
+      ctx.satWorkedChipHtml({ id: "t9", name: "never" }, false) === "");
+    // The card line, and the block it belongs to.
+    check("SURFACE: the card carries the line", /sat-worked/.test(line) && /5h/.test(line));
+    const headline = ctx.satIdleHeadlineHtml(false);
+    check("SURFACE: the card's line sits in the WALL-CLOCK block, above the engine's figures",
+      headline.indexOf("sat-worked") !== -1 &&
+      headline.indexOf("sat-worked") < headline.indexOf("Focused today"), "ordering");
+    check("SURFACE: ...and after the stopwatch and its stamp",
+      headline.indexOf("sat-hero-time") < headline.indexOf("sat-worked"));
+    // The two numbers are never summed into one figure.
+    check("SURFACE: the worked total is never added to the engine's figure",
+      !/taskWorkedMs\([^)]*\)\s*\+\s*satLiveMs/.test(SRC.nt) &&
+      !/satLiveMs\(\)\s*\+\s*Storage\.taskWorkedMs/.test(SRC.nt));
+    setClock(null);
+  })();
+
+  // --- O1 ink: JS-rendered, so the static ink gate cannot see any of it ---
+  const CSSW = SRC.css.replace(/\/\*[\s\S]*?\*\//g, "");
+  check("ink: the row readout declares its own colour on the dark frame",
+    /^\.tt-task-worked \{[^}]*color: /m.test(CSSW));
+  check("ink: ...and has a light-wallpaper correction",
+    /html\.has-bg\.bg-light \.tt-task-worked \{[^}]*color/.test(CSSW));
+  check("ink: the card's line declares its own colour",
+    /^\.sat-worked \{[^}]*color: /m.test(CSSW));
+  // MEASURED, not assumed: with --text-secondary this line rendered 3.77:1 over
+  // the white-tinted floater frost — a real defect the rendered-pixel pass
+  // caught. It takes --text-primary, and inheriting its neighbours' token again
+  // would silently reintroduce it.
+  check("ink: the card's line takes --text-primary on a light wallpaper (3.77:1 with --text-secondary)",
+    /html\.bg-light \.sat-worked \{[^}]*color: var\(--text-primary\)/.test(CSSW));
+  check("ink: ...and is NOT lumped back in with the --text-secondary group",
+    !/html\.bg-light \.sat-worked,[\s\S]{0,120}var\(--text-secondary\)/.test(CSSW));
+  check("ink: the unit words take the same ink as their figure, never a lower alpha",
+    !/\.tt-worked-unit \{[^}]*(opacity|color)/.test(CSSW) &&
+    !/\.sat-worked-unit \{[^}]*(opacity|color)/.test(CSSW));
+  check("ink: neither readout dims a container (O2: colour, never opacity)",
+    !/\.(tt-task-worked|sat-worked) \{[^}]*opacity:/.test(CSSW));
+
+  // --- the tick paints BOTH surfaces from ONE read ---
+  {
+    const paint = extractFn(SRC.nt, "satPaintTime");
+    check("TICK: the worked clock is repainted on the existing paint path",
+      /\.tt-task-worked\.is-live \.tt-worked-val/.test(paint) && /sat-worked-val/.test(paint));
+    check("TICK: ...from a SINGLE read, so the row and the card cannot disagree",
+      (paint.match(/satWorkedText\(/g) || []).length === 1);
+    check("TICK: it repaints text only, never markup (an open rename must survive)",
+      !/\.tt-task-worked[\s\S]{0,200}innerHTML/.test(paint));
+  }
+
+  // --- sub-minute honesty ---
+  eq("SUB-MINUTE: 45s renders as seconds, not 0m", ctx.fmtDurationHM(45000), "45s");
+  eq("SUB-MINUTE: 1s renders", ctx.fmtDurationHM(1000), "1s");
+  eq("SUB-MINUTE: 59s renders", ctx.fmtDurationHM(59999), "59s");
+  eq("SUB-MINUTE: 60s crosses to minutes", ctx.fmtDurationHM(60000), "1m");
+  eq("SUB-MINUTE: ZERO STAYS ZERO", ctx.fmtDurationHM(0), "0m");
+  eq("SUB-MINUTE: sub-second is zero, not '0s'", ctx.fmtDurationHM(999), "0m");
+  eq("SUB-MINUTE: negative is zero", ctx.fmtDurationHM(-5000), "0m");
+  // The minute/hour forms are UNCHANGED — this must not have moved the labels
+  // every Insights and Dashboard surface already reads.
+  eq("SUB-MINUTE: minutes unchanged", ctx.fmtDurationHM(5 * 60000 + 12000), "5m");
+  eq("SUB-MINUTE: hours unchanged", ctx.fmtDurationHM(2 * WH), "2h");
+  eq("SUB-MINUTE: hours+minutes unchanged", ctx.fmtDurationHM(2 * WH + 20 * 60000), "2h20m");
+
   // --- the SW derivation: heartbeat exists IFF active AND unpaused ---
   const hbOn = extractTopFn(SRC.bg, "desiredHeartbeatOn");
   const runHbOn = new Function(hbOn + "\nreturn desiredHeartbeatOn;")();
@@ -1099,6 +1396,67 @@ if (!MUTATE) {
 console.log("\nPILL CLARITY — mutation seeding\n");
 
 const SEEDS = [
+  // ===== [2.0] THE PER-TASK WORKED CLOCK =====
+  // THE LOAD-BEARING SEED: a deactivation path that does not bank. The span is
+  // gone, silently — no error, no warning, just a total that stopped growing.
+  { name: "WORKED LEAK: clearActiveTask stops banking (End for now / Complete / self-heal / delete all leak)",
+    file: "storage", from: `    bankWorkedTime(data, Date.now());\n    data.activeTask = null;`,
+    to: `    data.activeTask = null;` },
+  { name: "WORKED LEAK: switching stops banking (the outgoing task's span vanishes)",
+    file: "storage", from: `    bankWorkedTime(data, now);\n\n    // [1.0.17 dual counters]`, to: `\n    // [1.0.17 dual counters]` },
+  { name: "WORKED LEAK: a task trashed while active loses its history (raw lookup narrowed to live-only)",
+    file: "storage", from: `      if (tasks[i] && tasks[i].id === active.taskId) { task = tasks[i]; break; }`,
+    to: `      if (tasks[i] && tasks[i].id === active.taskId && !tasks[i].deletedAt) { task = tasks[i]; break; }` },
+  // DOUBLE FOLD, both directions.
+  { name: "WORKED DOUBLE FOLD: the re-pick branch banks too (same span credited twice)",
+    file: "storage", from: `        data.trackingPaused = false;\n        await saveAll(data);\n      }\n      return current;`,
+    to: `        data.trackingPaused = false;\n        bankWorkedTime(data, now);\n        await saveAll(data);\n      }\n      return current;` },
+  { name: "WORKED DOUBLE FOLD: clearActiveTask banks twice",
+    file: "storage", from: `    bankWorkedTime(data, Date.now());\n    data.activeTask = null;`,
+    to: `    bankWorkedTime(data, Date.now());\n    bankWorkedTime(data, Date.now());\n    data.activeTask = null;` },
+  // COUNTING WHILE PAUSED — the arithmetic that makes the clock a lie.
+  { name: "WORKED: it counts while PAUSED (the open paused span is dropped)",
+    file: "storage", from: `      (active.pausedAt != null ? Math.max(0, now - active.pausedAt) : 0);`, to: `      0;` },
+  { name: "WORKED: it counts pauses ALREADY TAKEN (the lifetime paused total is dropped)",
+    file: "storage", from: `    var pausedTotal = (active.activePausedMs || 0) +`, to: `    var pausedTotal = (0) +` },
+  // Anchored on the line PLUS its successor: the identical guard also opens
+  // closedBrowserFoldMs (last round), so the bare line matches twice.
+  { name: "WORKED: an absent startedAt folds an epoch-sized span",
+    file: "storage",
+    from: `    if (!active || typeof active.startedAt !== "number" || !active.startedAt) return 0;\n    var pausedTotal = (active.activePausedMs || 0) +`,
+    to: `    if (!active) return 0;\n    var pausedTotal = (active.activePausedMs || 0) +` },
+  { name: "WORKED: the live figure stops including the current activation",
+    file: "storage", from: `      total += activationWorkedMs(active, typeof now === "number" ? now : Date.now());`, to: `` },
+  // VOCABULARY — the standing law.
+  { name: "WORKED VOCABULARY: the row readout calls itself 'focused' (the engine's word)",
+    file: "nt", from: `'<span class="tt-worked-unit">worked</span>'`, to: `'<span class="tt-worked-unit">focused</span>'` },
+  { name: "WORKED VOCABULARY: the card's line calls itself 'focused'",
+    file: "nt", from: `'<span class="sat-worked-unit">worked on this task</span>'`,
+    to: `'<span class="sat-worked-unit">focused on this task</span>'` },
+  { name: "WORKED VOCABULARY: the tooltip borrows the engine's windowed wording",
+    file: "nt", from: `var SAT_WORKED_TITLE = "Total time this task has been active, pauses excluded";`,
+    to: `var SAT_WORKED_TITLE = "Total time tracked in the last 30 days";` },
+  // Dropped from the wall-clock block entirely: the card silently loses its
+  // lifetime line, which is the same failure as never having added it.
+  { name: "WORKED: the card's line disappears from the wall-clock block",
+    file: "nt", from: `      satWorkedLineHtml() +\n      '<div class="sat-today">'`,
+    to: `      '<div class="sat-today">'` },
+  // THE SURFACE.
+  { name: "WORKED: a never-worked task paints '0m' on every row",
+    file: "nt", from: `    if (!(ms > 0)) return "";\n    return '<span class="tt-task-worked'`,
+    to: `    return '<span class="tt-task-worked'` },
+  { name: "WORKED: the row readout reuses the engine chip's class (the two stop being distinct)",
+    file: "nt", from: `'<span class="tt-task-worked'`, to: `'<span class="tt-time-chip tt-task-worked'` },
+  { name: "WORKED: the tick stops repainting it, so the active row freezes",
+    file: "nt", from: `      document.querySelectorAll(".tt-task-worked.is-live .tt-worked-val").forEach(function (el) {\n        el.textContent = workedTxt;\n      });`, to: `` },
+  // SUB-MINUTE HONESTY.
+  { name: "SUB-MINUTE: a real 45s reverts to '0m'",
+    file: "nt", from: `    var sec = Math.floor(safe / 1000);\n    return sec > 0 ? (sec + "s") : "0m";`, to: `    return "0m";` },
+  { name: "SUB-MINUTE: zero starts claiming '0s'",
+    file: "nt", from: `    return sec > 0 ? (sec + "s") : "0m";`, to: `    return sec + "s";` },
+  { name: "SUB-MINUTE: the change leaks into the minute form (5m becomes 312s)",
+    file: "nt", from: `    if (m > 0) return m + "m";`, to: `` },
+
   // ===== [2.0] BROWSER-CLOSED TIME IS PAUSED TIME =====
   // THE LOAD-BEARING SEED: the fold is skipped and the 18-hour morning returns.
   // This is the defect the round exists to remove, seeded at its root.
