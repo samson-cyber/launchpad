@@ -8410,27 +8410,34 @@
   }
 
 
-  // ===== Promo Toast (one-time BMC / Rate) =====
+  // ===== Promo Toast (the rating ask) =====
+  //
+  // [2.0] The coffee leg is retired. With a paid tier live, a tip jar beside a
+  // subscription reads as two hands out; a rating ask is not a payment ask, so
+  // it stays. DECISIONS.md 2026-08-14.
+  //
+  // CADENCE -- the rating ask keeps the rhythm it ALREADY HAD; it does not
+  // inherit the coffee leg's slot. The pair alternated every 20 opens, so a
+  // rating landed roughly every 40. Keeping the 20 here would have DOUBLED the
+  // nag as a side effect of a removal, which is the opposite of the intent.
+  var PROMO_FIRST_OPEN = 3;      // first ask
+  var PROMO_REASK_OPENS = 40;    // opens between asks thereafter
 
   async function checkPromoToast() {
-    // One-time migration from old promo storage keys to promoState
+    // One-time migration from the pre-promoState storage keys. `bmcToastDismissed`
+    // is still READ here -- and still removed -- even though the coffee toast is
+    // gone: it records that the user was already prompted once, and ignoring it
+    // would re-prompt a long-standing user on their next open. It is never
+    // written again, and after this migration the key ceases to exist.
     var raw = await chrome.storage.local.get(["promoState", "tabOpenCount", "bmcToastDismissed", "rateToastDismissed"]);
     if (!raw.promoState && (raw.tabOpenCount || raw.bmcToastDismissed || raw.rateToastDismissed)) {
       var migrated = {
         openCount: raw.tabOpenCount || 0,
-        lastPromo: null,
         lastPromoOpen: 0
       };
-      // Old schedule: BMC at count >= 5, Rate at count >= 12. If Rate was
-      // dismissed the user almost certainly saw BMC too; if only BMC was
-      // dismissed they were between 5 and 12. Set lastPromoOpen to the
-      // migrated openCount so the new alternating cadence (every 20) starts
-      // from now and the user is not immediately re-prompted.
-      if (raw.rateToastDismissed) {
-        migrated.lastPromo = "rate";
-        migrated.lastPromoOpen = migrated.openCount;
-      } else if (raw.bmcToastDismissed) {
-        migrated.lastPromo = "coffee";
+      // Either dismissal means a promo has already been shown, so the re-ask
+      // interval starts from now rather than firing on the very next open.
+      if (raw.rateToastDismissed || raw.bmcToastDismissed) {
         migrated.lastPromoOpen = migrated.openCount;
       }
       await chrome.storage.local.set({ promoState: migrated });
@@ -8438,31 +8445,33 @@
       raw.promoState = migrated;
     }
 
-    var promo = raw.promoState || { openCount: 0, lastPromo: null, lastPromoOpen: 0 };
+    // MIGRATION-SAFE: legacy promoState objects carry a `lastPromo` field naming
+    // which of the two toasts fired last ("rate" / "coffee"). It is neither read
+    // nor written now -- an existing object keeps its own copy untouched as it
+    // rides through the set below, and it decides nothing. openCount and
+    // lastPromoOpen, the two fields that carry the user's actual history, are
+    // read exactly as before.
+    var promo = raw.promoState || { openCount: 0, lastPromoOpen: 0 };
 
     promo.openCount = (promo.openCount || 0) + 1;
 
-    var showType = null;
+    // lastPromoOpen === 0 means "never asked". Anchoring the first ask with >=
+    // rather than the old exact-equality closes a dead end the coffee leg used
+    // to cover: a state migrated in above openCount 3 with nothing ever shown
+    // would otherwise never qualify again.
+    var show = promo.lastPromoOpen > 0
+      ? (promo.openCount - promo.lastPromoOpen) >= PROMO_REASK_OPENS
+      : promo.openCount >= PROMO_FIRST_OPEN;
 
-    if (promo.openCount === 3) {
-      showType = "rate";
-    } else if (promo.openCount === 8) {
-      showType = "coffee";
-    } else if (promo.openCount > 8 && promo.lastPromoOpen > 0 && (promo.openCount - promo.lastPromoOpen) >= 20) {
-      // Alternate: show whichever wasn't shown last
-      showType = (promo.lastPromo === "rate") ? "coffee" : "rate";
-    }
-
-    if (showType) {
-      promo.lastPromo = showType;
+    if (show) {
       promo.lastPromoOpen = promo.openCount;
-      showPromoToast(showType);
+      showPromoToast();
     }
 
     await chrome.storage.local.set({ promoState: promo });
   }
 
-  function showPromoToast(type) {
+  function showPromoToast() {
     // Remove any existing promo toast first
     var existing = document.querySelector(".promo-toast");
     if (existing) existing.remove();
@@ -8470,17 +8479,10 @@
     var toast = document.createElement("div");
     toast.className = "promo-toast";
 
-    if (type === "rate") {
-      toast.innerHTML = '<span class="promo-toast-icon">\u2B50</span>' +
-        '<span class="promo-toast-text">Enjoying LaunchPad? Leave a quick rating!</span>' +
-        '<a href="https://chrome.google.com/webstore/detail/jfmmagapjdionoomkjmkfppcplkjilnp" target="_blank" class="promo-toast-action">Rate</a>' +
-        '<button class="promo-toast-dismiss" title="Dismiss">&times;</button>';
-    } else {
-      toast.innerHTML = '<span class="promo-toast-icon">\u2615</span>' +
-        '<span class="promo-toast-text">LaunchPad is free & ad-free. Support the dev?</span>' +
-        '<a href="https://buymeacoffee.com/cybersamwise" target="_blank" class="promo-toast-action">Buy me a coffee</a>' +
-        '<button class="promo-toast-dismiss" title="Dismiss">&times;</button>';
-    }
+    toast.innerHTML = '<span class="promo-toast-icon">\u2B50</span>' +
+      '<span class="promo-toast-text">Enjoying LaunchPad? Leave a quick rating!</span>' +
+      '<a href="https://chrome.google.com/webstore/detail/jfmmagapjdionoomkjmkfppcplkjilnp" target="_blank" class="promo-toast-action">Rate</a>' +
+      '<button class="promo-toast-dismiss" title="Dismiss">&times;</button>';
 
     document.body.appendChild(toast);
 

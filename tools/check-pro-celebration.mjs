@@ -185,9 +185,9 @@ ok("achievements splash is guarded", /if \(!isProOnboardingBusy\(\)\) runAchieve
 ok("promo toast is guarded INSIDE its timeout (re-checked at fire time)",
   /setTimeout\(function \(\) \{\s*if \(isProOnboardingBusy\(\)\) return;\s*checkPromoToast\(\);/.test(IB));
 // The guards must be at the CALL SITES. If one migrated inside the callee it
-// would consume the surface before suppressing it: the promo scheduler writes
-// lastPromo/lastPromoOpen and its milestones are exact-equality, and the badge
-// splash persists its dequeue before painting.
+// would consume the surface before suppressing it: the promo scheduler
+// increments openCount and writes lastPromoOpen at the moment it decides, and
+// the badge splash persists its dequeue before painting.
 function body(name) {
   let s = NT.indexOf(`  function ${name}(`);
   if (s === -1) s = NT.indexOf(`  async function ${name}(`);
@@ -287,6 +287,124 @@ const zCel = (CSSC.match(/\.pro-celebrate\s*\{[\s\S]*?z-index:\s*(\d+)/) || [])[
 const zMark = (CSSC.match(/\.pro-tour-mark\s*\{[\s\S]*?z-index:\s*(\d+)/) || [])[1];
 ok(`celebration (z ${zCel}) sits above the badge splash (z 9000)`, Number(zCel) > 9000);
 ok(`coach mark (z ${zMark}) sits above the celebration`, Number(zMark) > Number(zCel));
+
+// ---------------------------------------------------------------------------
+// PROMO ROTATION — added 2026-08-14 with the Buy-Me-a-Coffee retirement.
+//
+// This suite already owns the promo toast's ARBITRATION (above), so it owns the
+// rotation's CADENCE too rather than opening a fourteenth gate for it. Three
+// things are asserted, and each of them fails silently in the product:
+//
+//   1. The coffee surfaces are ABSENT. A tip jar beside a live subscription is
+//      the thing the removal exists to prevent, and it comes back the easy way:
+//      a merge, a revert, a copy-paste of the sidebar row.
+//   2. The remaining cadence is the one we chose (3, then every 40) and not the
+//      one that falls out of deleting a branch (3, then every 20 — DOUBLE the
+//      nag, arriving as a side effect nobody decided).
+//   3. Legacy promoState parses. Real users carry `lastPromo: "coffee"` and the
+//      pre-promoState keys; the failure mode is a reset rating history or a
+//      throw inside an init-time async function, neither of which is visible.
+//
+// The cadence rows run the REAL checkPromoToast in a VM against a fake
+// chrome.storage.local that round-trips through JSON, the way the real one does.
+console.log("PROMO — the coffee surfaces are gone");
+ok("no Buy Me a Coffee URL in newtab.js", !NT.includes("buymeacoffee"));
+ok("no Buy Me a Coffee URL in newtab.html", !HTML.includes("buymeacoffee"));
+ok("no #sb-bmc entry in the sidebar markup", !HTML.includes("sb-bmc"));
+ok("no #sb-bmc rules left in the stylesheet", !CSS.includes("sb-bmc"));
+ok("no coffee cup glyph in the toast", !NT.includes("\\u2615") && !NT.includes("☕"));
+ok("no 'coffee' promo type is ever assigned", !/showType|lastPromo\s*=/.test(NT.slice(NT.indexOf("async function checkPromoToast("), NT.indexOf("async function checkPromoToast(") + 3000)));
+ok("the support-the-dev line is gone", !NT.includes("Support the dev"));
+// The inverse: the RATING ask must still be here. Without these rows the four
+// above would pass just as well if someone deleted the whole promo system.
+ok("the rating toast copy survives", NT.includes("Enjoying LaunchPad? Leave a quick rating!"));
+ok("the rating toast links to the real store listing",
+  NT.includes("https://chrome.google.com/webstore/detail/jfmmagapjdionoomkjmkfppcplkjilnp"));
+ok("the sidebar Rate entry survives", HTML.includes('id="sb-rate"'));
+// It shipped pointing at a literal placeholder; fixed alongside the removal.
+ok("...and its href is a real listing, not a placeholder",
+  !HTML.includes("EXTENSION_ID_HERE") &&
+  /id="sb-rate"[^>]*href="https:\/\/chrome\.google\.com\/webstore\/detail\/jfmmagapjdionoomkjmkfppcplkjilnp"/.test(
+    HTML.replace(/(<a )([^>]*?)(id="sb-rate")/g, "$1$3 $2")));
+
+console.log("PROMO CADENCE — the rating ask, alone (real function, faked storage)");
+// Slice the constants through the end of checkPromoToast and run it for real.
+const promoSrc = (() => {
+  const i = NT.indexOf("var PROMO_FIRST_OPEN =");
+  if (i === -1) throw new Error("PROMO_FIRST_OPEN not found");
+  const f = NT.indexOf("async function checkPromoToast(", i);
+  if (f === -1) throw new Error("checkPromoToast not found after the constants");
+  return NT.slice(i, NT.indexOf("\n  }\n", f)) + "\n  }\n";
+})();
+
+// Drives n consecutive new-tab opens against a seeded storage. Returns the open
+// ordinals on which the toast fired, plus the storage as it finally stands.
+async function opens(n, seed) {
+  const store = JSON.parse(JSON.stringify(seed || {}));
+  const shows = [];
+  let at = 0;
+  const ctx = {
+    // JSON round-trip on both sides: chrome.storage serializes, so a test that
+    // hands back live object references would prove less than the product does.
+    chrome: { storage: { local: {
+      get: (keys) => {
+        const o = {};
+        for (const k of keys) if (k in store) o[k] = JSON.parse(JSON.stringify(store[k]));
+        return Promise.resolve(o);
+      },
+      set: (obj) => { Object.assign(store, JSON.parse(JSON.stringify(obj))); return Promise.resolve(); },
+      remove: (keys) => { for (const k of keys) delete store[k]; return Promise.resolve(); },
+    } } },
+    showPromoToast: () => { shows.push(at); },
+    JSON, Object, Promise, Array, Number, String, Boolean,
+    console: { log() {}, warn() {}, error() {} },
+  };
+  ctx.globalThis = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(promoSrc + "\nglobalThis.__run = checkPromoToast;", ctx, { filename: "promo.js" });
+  for (at = 1; at <= n; at++) await ctx.__run();
+  return { shows, store };
+}
+
+const fresh = await opens(200, {});
+eq("fresh install, 200 opens -> asks at 3 then every 40", fresh.shows, [3, 43, 83, 123, 163]);
+eq("...and the count is the plain open count", fresh.store.promoState.openCount, 200);
+eq("...and lastPromoOpen holds the last ask", fresh.store.promoState.lastPromoOpen, 163);
+// The interval is the DECISION, not an artifact of deleting the coffee branch:
+// had the old 20 survived, the first re-ask would land on open 23.
+ok("the re-ask interval is 40, not the pair's 20", !fresh.shows.includes(23));
+ok("nothing fires before the third open", fresh.shows[0] === 3);
+
+console.log("PROMO MIGRATION — legacy state parses, history is not reset");
+// A long-standing user mid-rotation, carrying the retired field.
+const legacy = await opens(60, { promoState: { openCount: 30, lastPromo: "coffee", lastPromoOpen: 28 } });
+eq("legacy promoState: history is carried, not reset", legacy.store.promoState.openCount, 90);
+eq("...next ask honours the stored lastPromoOpen (28 + 40 = 68)", legacy.shows, [38]);
+eq("...the retired lastPromo field rides through UNTOUCHED", legacy.store.promoState.lastPromo, "coffee");
+ok("...and nothing new writes it", legacy.store.promoState.lastPromoOpen === 68);
+// A user whose last promo WAS the coffee toast is not owed a rating ask sooner
+// or later than anyone else; the field naming it simply stops deciding.
+const legacyRate = await opens(60, { promoState: { openCount: 30, lastPromo: "rate", lastPromoOpen: 28 } });
+eq("...identical schedule whichever toast fired last", legacyRate.shows, legacy.shows);
+
+// The pre-promoState keys. bmcToastDismissed is retired as a WRITE but still
+// honoured as a READ: it means "already prompted once".
+const old = await opens(41, { tabOpenCount: 7, bmcToastDismissed: true });
+eq("pre-promoState keys migrate without a reset", old.store.promoState.openCount, 48);
+eq("...an old BMC dismissal still suppresses (no ask on the next open)", old.shows, [40]);
+ok("...and the legacy keys are removed from storage",
+  !("tabOpenCount" in old.store) && !("bmcToastDismissed" in old.store) && !("rateToastDismissed" in old.store));
+ok("...no coffee field is written by the migration", !("lastPromo" in old.store.promoState));
+const oldRate = await opens(41, { tabOpenCount: 7, rateToastDismissed: true });
+eq("...a rate dismissal migrates the same way", oldRate.shows, old.shows);
+// tabOpenCount with NO dismissal is the dead end the coffee leg used to cover:
+// under exact-equality this user would never be asked again.
+const orphan = await opens(3, { tabOpenCount: 40 });
+eq("a never-asked legacy user is asked, not stranded forever", orphan.shows, [1]);
+// Shapes that should not throw inside an init-time async function.
+eq("empty promoState object is safe", (await opens(4, { promoState: {} })).shows, [3]);
+eq("promoState with only openCount is safe", (await opens(2, { promoState: { openCount: 1 } })).shows, [2]);
+eq("a null-ish stored state is safe", (await opens(3, { promoState: null })).shows, [3]);
 
 console.log(`\nPRO CELEBRATION: ${fail ? "FAIL" : "PASS"} — ${pass} passed, ${fail} failed.`);
 process.exit(fail ? 1 : 0);

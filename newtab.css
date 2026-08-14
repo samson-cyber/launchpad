@@ -2791,7 +2791,9 @@ html.has-bg .rc-tip-text {
   color: #fff;
 }
 
-/* ===== Promo Toast (Rate / Coffee) ===== */
+/* ===== Promo Toast (Rate) ===== */
+/* [2.0] The coffee leg is retired; the rating ask is the only member left. The
+   .promo-toast surface itself is unchanged — it was never coffee-specific. */
 
 .promo-toast {
   position: fixed;
@@ -3571,14 +3573,6 @@ html:not(.has-bg) .nrd-skip {
   flex-wrap: wrap;
 }
 
-#sb-bmc {
-  color: var(--text-hint);
-}
-
-#sb-bmc:hover {
-  color: #ffdd00;
-}
-
 #sb-rate {
   color: #f4b400;
   opacity: 0.6;
@@ -3629,14 +3623,6 @@ html.has-bg:not(.bg-light) .sidebar-drag-handle {
 
 html.has-bg:not(.bg-light) .sidebar-drag-handle:hover {
   color: rgba(255, 255, 255, 0.6);
-}
-
-html.has-bg:not(.bg-light) #sb-bmc {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-html.has-bg:not(.bg-light) #sb-bmc:hover {
-  color: #ffdd00;
 }
 
 html.has-bg:not(.bg-light) #sb-rate {
@@ -4847,14 +4833,6 @@ html.bg-light .sidebar-drag-handle {
 
 html.bg-light .sidebar-drag-handle:hover {
   color: rgba(0, 0, 0, 0.5);
-}
-
-html.bg-light #sb-bmc {
-  color: var(--text-secondary);
-}
-
-html.bg-light #sb-bmc:hover {
-  color: #d97706;
 }
 
 html.bg-light #sb-rate {
