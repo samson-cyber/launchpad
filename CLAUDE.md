@@ -15,10 +15,10 @@ Current version shipped: **v1.0.5** (free tier, submitted 2026-07-21; confirmed 
 
 **The manifest is at `2.0.0` as of 2026-08-10 — the Pro-launch SUBMISSION CANDIDATE, built but NOT yet uploaded.** Until the Web Store approves it, "shipped" still means v1.0.5; do not describe 2.0.0 as live. Asana 1217318434594388.
 
-**The v2.0.0 BUILD PHASE IS COMPLETE as of 2026-08-14, at commit `417194b`.** Nothing further is queued for this version. (It first closed at `3c719d6` on 2026-08-13; the Buy Me a Coffee retirement and then the closed-browser-time fix each reopened it for one commit.)
+**The v2.0.0 BUILD PHASE IS COMPLETE as of 2026-08-14, at commit `92eeb68`.** Nothing further is queued for this version. (It first closed at `3c719d6` on 2026-08-13; three rounds have reopened it for one commit each since — the Buy Me a Coffee retirement, the closed-browser-time fix, and the per-task worked clock.)
 
-- **FINAL ARTIFACT: `launchpad-2.0.0-417194b.zip`** — sha256 `f822a0ea240b27ca3bf17754710e23a0cc0b53ff199087c0a4642897e760b52f`, 614,392 bytes, clean tree, **thirteen gates green**. Supersedes `launchpad-2.0.0-0335e49.zip`, which is deleted.
-- **At submission the annotated `v2.0.0` tag goes on `417194b`** — the commit the uploaded artifact was built from. (The target has moved twice as artifacts were superseded; the rule is unchanged — the tag follows the artifact.)
+- **FINAL ARTIFACT: `launchpad-2.0.0-92eeb68.zip`** — sha256 `2bffe33c14e4e562344841e4c973ae78b70068c47eeada1653453521339a9093`, 619,610 bytes, clean tree, **thirteen gates green**. Supersedes `launchpad-2.0.0-417194b.zip`, which is deleted.
+- **At submission the annotated `v2.0.0` tag goes on `92eeb68`** — the commit the uploaded artifact was built from. (The target has moved with each superseded artifact; the rule is unchanged — the tag follows the artifact.)
 - **ARTIFACT-STAMPING IS STANDING PRACTICE.** Every build that leaves the tree is stamped `launchpad-<version>-<shorthash>.zip`, published with its sha256 and byte count, and **the superseded zip is deleted in the same step**. An unstamped `launchpad.zip` cannot identify itself, and a stale zip left on disk is the one that eventually gets uploaded.
 
 ---

@@ -27,14 +27,14 @@ The free LaunchPad Chrome extension, live on the Chrome Web Store.
 
 ## v2.0.0 — BUILD PHASE COMPLETE (2026-08-14), awaiting submission
 
-**The build phase of v2.0.0 ended at commit `417194b`.** Nothing further is queued for this version; what remains is the store upload, the dashboard walk and the project-knowledge re-upload.
+**The build phase of v2.0.0 ended at commit `92eeb68`.** Nothing further is queued for this version; what remains is the store upload, the dashboard walk and the project-knowledge re-upload.
 
-*It first ended at `3c719d6` on 2026-08-13. Two rounds reopened it for exactly one commit each: the Buy Me a Coffee retirement (a product-surface decision) and the closed-browser-time fix (a pre-submission defect found in lived use). The artifact identity and the tag target moved with each.*
+*It first ended at `3c719d6` on 2026-08-13. Three rounds have reopened it for exactly one commit each: the Buy Me a Coffee retirement (a product-surface decision), the closed-browser-time fix (a pre-submission defect found in lived use), and the per-task worked clock (a feature Samson specified on 2026-08-14). The artifact identity and the tag target moved with each.*
 
-- **FINAL ARTIFACT: `launchpad-2.0.0-417194b.zip`** — sha256 `f822a0ea240b27ca3bf17754710e23a0cc0b53ff199087c0a4642897e760b52f`, 614,392 bytes, built from a clean tree. Every earlier stamped zip has been superseded and deleted.
+- **FINAL ARTIFACT: `launchpad-2.0.0-92eeb68.zip`** — sha256 `2bffe33c14e4e562344841e4c973ae78b70068c47eeada1653453521339a9093`, 619,610 bytes, built from a clean tree. Every earlier stamped zip has been superseded and deleted.
 - **Thirteen build gates green** — twelve source suites (`panel-ink`, `focus-decision`, `insights-readers`, `since-format`, `trial-copy`, `license-line`, `pro-celebration`, `chip-ink`, `today-cockpit`, `text-size`, `pill-clarity`, `bg-queue`) plus the package gate (23/23 manifest-declared and referenced files resolve with exact forward-slash entry names).
 - **SHIPPED still means v1.0.5.** The manifest reads `2.0.0` and the artifact exists, but until the Chrome Web Store approves it, nothing about 2.0.0 is live. Do not describe it as shipped.
-- **At submission: the annotated `v2.0.0` tag goes on `417194b`** — the exact commit the uploaded artifact was built from, per the v1.0.5 precedent. The target follows the artifact, and has moved with each superseded zip.
+- **At submission: the annotated `v2.0.0` tag goes on `92eeb68`** — the exact commit the uploaded artifact was built from, per the v1.0.5 precedent. The target follows the artifact, and has moved with each superseded zip.
 
 ### Artifact-stamping discipline (standing practice)
 
