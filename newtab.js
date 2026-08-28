@@ -15225,6 +15225,17 @@
     if (!dragState) return;
     // If dragging over a frozen nest target, prevent SortableJS from inserting there
     var related = evt.related;
+
+    // [1.2.2] Remember the tile SortableJS is about to displace. This is the ONLY
+    // moment the intended drop target is identifiable on a refusal: a non-matching
+    // tile is not frozen (see the nestTarget guard below), so it slides out of the
+    // way before the cursor ever reaches it, and by onEnd the drop point sits over
+    // the dragged tile itself with the intended target a full tile away. Costs
+    // nothing - evt.related is already read on the line above.
+    if (related && related.dataset && related.dataset.id &&
+        related.dataset.id !== dragState.draggedId) {
+      dragState.lastRelatedId = related.dataset.id;
+    }
     if (related && related.dataset && related.dataset.nestTarget === "true") {
       return false; // Prevent SortableJS from placing element near frozen target
     }
@@ -15348,6 +15359,60 @@
           await Storage.saveAll(data);
         }
       })();
+    }
+
+
+    // [1.2.2] Explain the refusal instead of swallowing it (Asana 1217317549419902).
+    // Reaching here with no targetEl means one of two things: the drag swept past
+    // tiles into empty space, which has nothing to explain, or it came to rest on a
+    // tile the matcher declined. Those were indistinguishable, because every target
+    // search above pre-filters by domain - refusal was implemented as never-seeing.
+    //
+    // Runtime finding that shapes this (real drags, isolated profile): a mismatched
+    // tile is never under the cursor at any point. It is not frozen, so SortableJS
+    // slides it aside as the drag approaches and by onEnd the drop point sits on the
+    // dragged tile itself with the target a full tile-width away. So the target is
+    // read from lastRelatedId - the tile onMove was about to displace, captured
+    // before it moved - and the 60px hit test is applied to the SLOT the drag landed
+    // in (evt.item's own final icon centre) rather than to the target, which is the
+    // same geometry the coordinate fallback uses, asked about the landing instead of
+    // the destination. That gate is what keeps a sweep into empty space silent: it
+    // ends far from the row, while a drop onto a tile lands within the radius.
+    //
+    // DETECTION ONLY. The reorder has already proceeded exactly as before and nothing
+    // below mutates data, the matcher, or the nest path. The verdict is the matcher's
+    // own: state.draggedDomain is the getMatchKey value captured at drag start, the
+    // same value the fallbacks above compare against, so there is one notion of
+    // sameness. The COPY names hostnames instead, via getBaseDomain, because match
+    // keys are synthetic for aliased hosts ('meta-ads', 'google-mail') and would read
+    // as gibberish in a sentence about addresses.
+    //
+    // Shift-held drags are excluded: shift is the deliberate nest-anything escape
+    // hatch, so it reaches the nest path above and must never also be explained to.
+    if (!targetEl && !state.shiftHeld && state.lastRelatedId && state.lastX && state.lastY) {
+      var landedIcon = evt && evt.item ? evt.item.querySelector(".shortcut-icon") : null;
+      var landedNear = false;
+      if (landedIcon) {
+        var landedRect = landedIcon.getBoundingClientRect();
+        var landedDx = state.lastX - (landedRect.left + landedRect.width / 2);
+        var landedDy = state.lastY - (landedRect.top + landedRect.height / 2);
+        landedNear = Math.sqrt(landedDx * landedDx + landedDy * landedDy) < 60;
+      }
+
+      if (landedNear) {
+        var missShortcut = findShortcutById(state.lastRelatedId);
+        var missDragged = findShortcutById(state.draggedId);
+        if (missShortcut && missDragged) {
+          var missKey = getMatchKey(missShortcut.url);
+          if (state.draggedDomain && missKey && missKey !== state.draggedDomain) {
+            var missHostA = getBaseDomain(missDragged.url);
+            var missHostB = getBaseDomain(missShortcut.url);
+            if (missHostA && missHostB) {
+              showToast(missHostA + " and " + missHostB + " are different sites. Nest tiles from the same address.");
+            }
+          }
+        }
+      }
     }
 
     return null;
