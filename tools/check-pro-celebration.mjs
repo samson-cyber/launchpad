@@ -319,12 +319,12 @@ ok("the support-the-dev line is gone", !NT.includes("Support the dev"));
 // above would pass just as well if someone deleted the whole promo system.
 ok("the rating toast copy survives", NT.includes("Enjoying LaunchPad? Leave a quick rating!"));
 ok("the rating toast links to the real store listing",
-  NT.includes("https://chrome.google.com/webstore/detail/jfmmagapjdionoomkjmkfppcplkjilnp"));
+  NT.includes("https://chromewebstore.google.com/detail/launchpad-new-tab-shortcu/jfmmagapjdionoomkjmkfppcplkjilnp"));
 ok("the sidebar Rate entry survives", HTML.includes('id="sb-rate"'));
 // It shipped pointing at a literal placeholder; fixed alongside the removal.
 ok("...and its href is a real listing, not a placeholder",
   !HTML.includes("EXTENSION_ID_HERE") &&
-  /id="sb-rate"[^>]*href="https:\/\/chrome\.google\.com\/webstore\/detail\/jfmmagapjdionoomkjmkfppcplkjilnp"/.test(
+  /id="sb-rate"[^>]*href="https:\/\/chromewebstore\.google\.com\/detail\/launchpad-new-tab-shortcu\/jfmmagapjdionoomkjmkfppcplkjilnp"/.test(
     HTML.replace(/(<a )([^>]*?)(id="sb-rate")/g, "$1$3 $2")));
 
 console.log("PROMO CADENCE — the rating ask, alone (real function, faked storage)");
