@@ -8527,7 +8527,7 @@
 
     toast.innerHTML = '<span class="promo-toast-icon">\u2B50</span>' +
       '<span class="promo-toast-text">Enjoying LaunchPad? Leave a quick rating!</span>' +
-      '<a href="https://chromewebstore.google.com/detail/launchpad-new-tab-shortcu/jfmmagapjdionoomkjmkfppcplkjilnp" target="_blank" class="promo-toast-action">Rate</a>' +
+      '<a href="https://chromewebstore.google.com/detail/launchpad-new-tab-shortcu/jfmmagapjdionoomkjmkfppcplkjilnp" target="_blank" rel="noopener noreferrer" class="promo-toast-action">Rate</a>' +
       '<button class="promo-toast-dismiss" title="Dismiss">&times;</button>';
 
     document.body.appendChild(toast);
