@@ -1813,6 +1813,50 @@
     return new Date(+p[0], +p[1] - 1, +p[2]).getTime();
   }
 
+  // [1.2.2] The date-range presets. The VALUE is the day count the board already
+  // parameterizes on, so the selector hands lastNLocalDayKeys(n) its n directly
+  // and no reader logic changes. Labels are the module-title suffix too, which
+  // is why they are lowercase here and title-cased nowhere: one string per range,
+  // so a title and its selector can never disagree.
+  //
+  // "Focused" is deliberately absent from all of this copy. It stays reserved for
+  // engine-measured time; these are window names, not measurements.
+  var INSIGHTS_RANGES = [
+    { days: 1,  label: "today",        btn: "Today" },
+    { days: 7,  label: "past 7 days",  btn: "Past 7 days" },
+    { days: 30, label: "last 30 days", btn: "Last 30 days" }
+  ];
+
+  function insightsRangeLabel(days) {
+    for (var i = 0; i < INSIGHTS_RANGES.length; i++) {
+      if (INSIGHTS_RANGES[i].days === days) return INSIGHTS_RANGES[i].label;
+    }
+    return "last 30 days";
+  }
+
+  // Reuses the settings segmented control verbatim (.settings-segmented/.seg-btn)
+  // rather than inventing a board-local one. That is the whole ink and ring story:
+  // those classes already carry html.has-bg and html.bg-light overrides, including
+  // an explicit box-shadow:none on the active button over a wallpaper, so the new
+  // control needs no colour rule of its own and adds no token. This matters more
+  // than usual here because the board is JS-rendered, which the panel-ink gate
+  // cannot see (its stated blind spot) - inheriting a covered class is the
+  // protection the gate cannot give.
+  function insightsRangeSelectorHtml(activeDays) {
+    return '<div class="insights-range">' +
+        '<div class="settings-segmented insights-range-seg" role="group" aria-label="Date range">' +
+          INSIGHTS_RANGES.map(function (r) {
+            var on = (r.days === activeDays);
+            return '<button type="button" class="seg-btn' + (on ? ' active' : '') + '"' +
+              ' data-ins-range="' + r.days + '"' +
+              ' aria-pressed="' + (on ? 'true' : 'false') + '">' +
+              escapeHtml(r.btn) +
+            '</button>';
+          }).join("") +
+        '</div>' +
+      '</div>';
+  }
+
   // ONE scope for the whole board (D3), the Dashboard convention verbatim:
   // combined -> every workspace; otherwise the active workspace. Returns null to
   // SUPPRESS the tracking-derived surfaces entirely when that workspace has
@@ -1859,22 +1903,27 @@
   function renderInsightsTab(panel, d) {
     if (!panel) return;
     var scope = insightsScope(d);
+    // [1.2.2] One range drives the selector, every title, and the key list the
+    // readers get - the same single-source rule D3 applies to scope.
+    var rangeDays = Storage.getInsightsRangeDays(d);
+    var rangeLabel = insightsRangeLabel(rangeDays);
     var trackingShell = scope
-      ? '<div class="insights-strip" data-ins-strip></div>' +
+      ? insightsRangeSelectorHtml(rangeDays) +
+        '<div class="insights-strip" data-ins-strip></div>' +
         '<div class="pp-insights-card">' +
-          '<div class="pp-dash-card-title">Deep Work — last 30 days</div>' +
+          '<div class="pp-dash-card-title">Deep Work — ' + escapeHtml(rangeLabel) + '</div>' +
           '<div data-ins-deepwork></div>' +
         '</div>' +
         '<div class="pp-insights-card">' +
-          '<div class="pp-dash-card-title">Time by tag — last 30 days</div>' +
+          '<div class="pp-dash-card-title">Time by tag — ' + escapeHtml(rangeLabel) + '</div>' +
           '<div class="pp-donut-row" data-ins-donut></div>' +
         '</div>' +
         '<div class="pp-insights-card">' +
-          '<div class="pp-dash-card-title">Time by site — last 30 days</div>' +
+          '<div class="pp-dash-card-title">Time by site — ' + escapeHtml(rangeLabel) + '</div>' +
           '<div class="insights-task-list insights-site-list" data-ins-topsites></div>' +
         '</div>' +
         '<div class="pp-insights-card">' +
-          '<div class="pp-dash-card-title">Top tasks — last 30 days</div>' +
+          '<div class="pp-dash-card-title">Top tasks — ' + escapeHtml(rangeLabel) + '</div>' +
           '<div class="insights-task-list" data-ins-toptasks></div>' +
         '</div>'
       : "";
@@ -1885,7 +1934,29 @@
         insightsAchievementsCardHtml(d) +
       '</div>';
 
-    if (scope) insightsRefresh(panel, scope, d);
+    bindInsightsEvents(panel);
+    if (scope) insightsRefresh(panel, scope, d, rangeDays);
+  }
+
+  // [1.2.2] Delegated on the panel container, which survives the innerHTML
+  // rewrite, with a dataset flag so N renders cannot stack N listeners - the
+  // bindDashboardEvents shape verbatim.
+  function bindInsightsEvents(panel) {
+    if (panel.dataset.insBound === "1") return;
+    panel.dataset.insBound = "1";
+
+    panel.addEventListener("click", async function (e) {
+      var btn = e.target.closest("[data-ins-range]");
+      if (!btn) return;
+      var days = parseInt(btn.getAttribute("data-ins-range"), 10);
+      if (!days) return;
+      // Storage owns the write AND its saveAll (the setCombinedAnalyticsEnabled
+      // convention); the UI never touches workspace data. A no-op re-pick returns
+      // false and is not re-rendered, so clicking the active preset costs nothing.
+      var changed = await Storage.setInsightsRangeDays(data, days);
+      if (!changed) return;
+      renderInsightsTab(panel, data);
+    });
   }
 
   function insightsFill(panel, selector, html) {
@@ -1896,11 +1967,11 @@
   // Fill the four tracking surfaces from the windowed readers. One scope drives
   // all of them (D3). Reads run in parallel; a stale token (a newer render landed
   // meanwhile) drops the whole paint.
-  async function insightsRefresh(panel, scope, d) {
+  async function insightsRefresh(panel, scope, d, rangeDays) {
     if (!panel || !scope) return;
     if (typeof Tracking === "undefined" || !Tracking.focusedRangeForScope) return;
     var token = ++insightsReadToken;
-    var keys = Tracking.lastNLocalDayKeys(30);
+    var keys = Tracking.lastNLocalDayKeys(rangeDays);
     var range, byTag, byTask, byDomain;
     try {
       var res = await Promise.all([
@@ -1917,16 +1988,24 @@
     if (token !== insightsReadToken) return;
 
     var combined = (scope.mode === "combined");
+    // One label for every range-bearing string the board paints: titles, both
+    // chart aria-labels and all three empty states. They had already drifted
+    // apart - deep work and the donut each carried their own hard-coded "last 30
+    // days" - so they read from one value now and cannot disagree again.
+    var rangeLabelNow = insightsRangeLabel(rangeDays);
     var perDayMs = keys.map(function (k) { return range[k] || 0; });
     var scopeTotalMs = perDayMs.reduce(function (a, b) { return a + b; }, 0);
     var hours = perDayMs.map(function (ms) { return ms / 3600000; });
 
     insightsFill(panel, "[data-ins-strip]", insightsStripHtml(range, keys, scopeTotalMs));
     insightsFill(panel, "[data-ins-deepwork]",
-      insightsBarChartSvg(hours, hours.length - 1, "Deep work over the last 30 days"));
-    insightsFill(panel, "[data-ins-donut]", insightsTagDonutHtml(byTag, scopeTotalMs, d, combined));
-    insightsFill(panel, "[data-ins-topsites]", insightsTopSitesHtml(byDomain, d, combined));
-    insightsFill(panel, "[data-ins-toptasks]", insightsTopTasksHtml(byTask, d, combined));
+      // Em-dash form, matching the visible card title exactly rather than a
+      // second phrasing: "over the " + label reads as "over the today" for the
+      // one-day preset, and a screen-reader string is copy like any other.
+      insightsBarChartSvg(hours, hours.length - 1, "Deep work — " + rangeLabelNow));
+    insightsFill(panel, "[data-ins-donut]", insightsTagDonutHtml(byTag, scopeTotalMs, d, combined, rangeLabelNow));
+    insightsFill(panel, "[data-ins-topsites]", insightsTopSitesHtml(byDomain, d, combined, rangeLabelNow));
+    insightsFill(panel, "[data-ins-toptasks]", insightsTopTasksHtml(byTask, d, combined, rangeLabelNow));
   }
 
   // Summary strip: rolling "Last 7 days" total (deliberately NOT a calendar week
@@ -1934,15 +2013,22 @@
   // and a flat "Daily avg" = total / 30 with zero days included (a calendar
   // average). All local-day-key based, matching the aggregate basis.
   function insightsStripHtml(range, keys, scopeTotalMs) {
-    var last7 = keys.slice(-7).reduce(function (a, k) { return a + (range[k] || 0); }, 0);
+    // [1.2.2] Both figures used to assume a 30-key window: a fixed slice(-7) and
+    // a literal /30 divisor. Under a shorter preset the slice would have silently
+    // labelled fewer days "last 7 days" and the average would have divided a
+    // 1- or 7-day total by 30. Both now come from the key list, so the strip
+    // re-windows with the rest of the board. At 30 keys the output is unchanged,
+    // which is what keeps the default view exactly as it shipped.
+    var leadN = Math.min(7, keys.length);
+    var leadMs = keys.slice(-leadN).reduce(function (a, k) { return a + (range[k] || 0); }, 0);
     var bestKey = null, bestMs = 0;
     keys.forEach(function (k) {
       var v = range[k] || 0;
       if (v > bestMs) { bestMs = v; bestKey = k; }
     });
-    var avgMs = scopeTotalMs / 30;
+    var avgMs = keys.length ? (scopeTotalMs / keys.length) : 0;
     var items = [
-      { num: fmtDurationHM(last7), label: "last 7 days" },
+      { num: fmtDurationHM(leadMs), label: leadN === 1 ? "today" : ("last " + leadN + " days") },
       { num: bestMs > 0 ? fmtDurationHM(bestMs) : "—",
         label: bestMs > 0 ? ("best day · " + escapeHtml(fmtShortDate(insightsKeyToTs(bestKey)))) : "best day" },
       { num: fmtDurationHM(avgMs), label: "daily avg" }
@@ -1970,7 +2056,7 @@
   // buckets can exceed scopeTotal; untagged clamps to 0 and the center reflects
   // the ring's real drawn total rather than understating it. The ring never sums
   // to a number other than its center label.
-  function insightsTagDonutHtml(byTag, scopeTotalMs, d, combined) {
+  function insightsTagDonutHtml(byTag, scopeTotalMs, d, combined, rangeLabel) {
     var slices = [];
     var deletedMs = 0, tagTotalMs = 0;
     byTag.forEach(function (b) {
@@ -1989,14 +2075,14 @@
     if (untaggedMs > 0) ordered.push({ color: INSIGHTS_UNTAGGED_COLOR, name: "Untagged", ms: untaggedMs });
 
     if (scopeTotalMs <= 0 || ordered.length === 0) {
-      return '<div class="insights-empty">No focus time tracked in the last 30 days yet.</div>';
+      return '<div class="insights-empty">No focus time tracked in the ' + escapeHtml(rangeLabel) + ' yet.</div>';
     }
 
     var drawnTotalMs = ordered.reduce(function (a, s) { return a + s.ms; }, 0);
     var donutSvg = insightsDonutSvg(
       ordered.map(function (s) { return { color: s.color, value: s.ms }; }),
       fmtDurationHM(drawnTotalMs),
-      "Time by tag, last 30 days"
+      "Time by tag, " + rangeLabel
     );
     var legend = insightsDonutLegend(
       ordered.map(function (s) { return { color: s.color, name: s.name, valueText: fmtDurationHM(s.ms) }; })
@@ -2011,7 +2097,7 @@
   // (task purged/trashed after rollup) are DROPPED SILENTLY (Q2) — their minutes
   // still count in every total via focusedRangeForScope; an unnameable rank is
   // noise. Quiet empty line when the window holds no task focus.
-  function insightsTopTasksHtml(byTask, d, combined) {
+  function insightsTopTasksHtml(byTask, d, combined, rangeLabel) {
     var rows = [];
     byTask.forEach(function (b) {
       var ws = Storage.resolveWorkspaceFromData(d, b.workspaceId);
@@ -2023,7 +2109,7 @@
     rows.sort(function (a, b) { return b.ms - a.ms; });
 
     if (rows.length === 0) {
-      return '<div class="insights-empty">No task focus tracked in the last 30 days yet.</div>';
+      return '<div class="insights-empty">No task focus tracked in the ' + escapeHtml(rangeLabel) + ' yet.</div>';
     }
 
     var maxMs = rows[0].ms || 1;
@@ -2058,7 +2144,7 @@
   //
   // Unlike Top Tasks there is nothing to resolve and therefore nothing to drop:
   // a domain is its own label, so every record the reader returns can be shown.
-  function insightsTopSitesHtml(byDomain, d, combined) {
+  function insightsTopSitesHtml(byDomain, d, combined, rangeLabel) {
     var rows = [];
     (byDomain || []).forEach(function (b) {
       if (!b || !b.domain) return;
@@ -2072,7 +2158,7 @@
     rows.sort(function (a, b) { return b.ms - a.ms; });
 
     if (rows.length === 0) {
-      return '<div class="insights-empty">No site time tracked in the last 30 days yet.</div>';
+      return '<div class="insights-empty">No site time tracked in the ' + escapeHtml(rangeLabel) + ' yet.</div>';
     }
 
     var maxMs = rows[0].ms || 1;

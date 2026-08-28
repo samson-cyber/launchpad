@@ -709,6 +709,40 @@ var Storage = (function () {
     return changed;
   }
 
+  // [1.2.2] The Insights date-range preset. Round 1 ships three presets, stored
+  // as the DAY COUNT the board already parameterizes on (lastNLocalDayKeys(n))
+  // rather than a label like "week": the number is what every reader consumes,
+  // so storing it keeps one representation instead of a label plus a lookup that
+  // could drift. Round 2's custom range is deliberately NOT persisted (a pinned
+  // calendar range would go stale, then empty, as the 30-day retention rolls
+  // past it), so this field stays a preset field.
+  //
+  // Defaulting reader rather than a skeleton field + migration, the
+  // isTrackingEnabled shape: an absent value means "never chosen", which is
+  // exactly the 30-day default the Insights-is-the-last-30-days doctrine wants.
+  // No migration writes, and an existing user's first visit reads the same
+  // default a fresh profile does.
+  var INSIGHTS_RANGE_DAYS = [1, 7, 30];
+
+  function getInsightsRangeDays(data) {
+    var v = data && data.settings ? data.settings.insightsRangeDays : null;
+    return INSIGHTS_RANGE_DAYS.indexOf(v) === -1 ? 30 : v;
+  }
+
+  // The CONTROL's setter, setCombinedAnalyticsEnabled's shape verbatim: a
+  // per-field settings write with a no-op guard, flowing through saveAll itself
+  // so the board's own click persists without the caller batching a write. The
+  // no-op guard keeps re-picking the active preset from emitting a redundant
+  // storage event that every other open tab would re-render on.
+  async function setInsightsRangeDays(data, days) {
+    if (!data || !data.settings) return false;
+    var next = INSIGHTS_RANGE_DAYS.indexOf(days) === -1 ? 30 : days;
+    if (getInsightsRangeDays(data) === next) return false;
+    data.settings.insightsRangeDays = next;
+    await saveAll(data);
+    return true;
+  }
+
   // [1.0.20 F2] The combined-analytics CONTROL's setter. Same shape as
   // setTrackingPaused: a per-field settings write with a no-op guard, flowing
   // through saveAll itself. The flag shipped in the data model in [1.0.3] with
@@ -5326,6 +5360,8 @@ var Storage = (function () {
     TEXT_SIZES: TEXT_SIZES.slice(),
     // [1.0.20 F2] Combined-analytics toggle setter (Dashboard's cross-workspace view).
     setCombinedAnalyticsEnabled: setCombinedAnalyticsEnabled,
+    getInsightsRangeDays: getInsightsRangeDays,
+    setInsightsRangeDays: setInsightsRangeDays,
     setTrackingPaused: setTrackingPaused,
 
     // [1.0.18] Pomodoro settings — defaulting reader + four per-field updaters.

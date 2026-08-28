@@ -5521,6 +5521,28 @@ html.has-bg #restore-empty {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
+/* --- Insights date-range selector ([1.2.2]) ---
+   LAYOUT ONLY. The control reuses .settings-segmented/.seg-btn, whose base,
+   html.has-bg and html.bg-light rules already declare every colour and already
+   drop the shadow on wallpapers. Declaring a colour here would fork that ink
+   into a second place to keep in sync, which is the bug class the panel-ink
+   gate exists for - and this board is JS-rendered, so the gate cannot see it. */
+.insights-range {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.insights-range-seg {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.insights-range-seg .seg-btn {
+  flex: 0 0 auto;
+  padding: 6px 14px;
+}
+
 /* --- Custom Dropdown --- */
 
 .settings-dropdown {
