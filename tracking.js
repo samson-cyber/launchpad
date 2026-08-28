@@ -961,9 +961,9 @@
 
   // Shared spine for the two windowed rollups — byTag and byTask differ only in
   // which sub-map they read and what the id field is named. Internal accumulator
-  // keys on wsId + " " + id (a space never appears in a
-  // "main"/base36/"tag_"/"task_" id, and the key never leaves this function);
-  // the emitted records carry the parts as explicit fields.
+  // keys on wsId + "\u0000" + id — a NUL composite-key separator, which can
+  // never appear in a "main"/base36/"tag_"/"task_" id, and the key never leaves
+  // this function; the emitted records carry the parts as explicit fields.
   async function rollupBucketOverWindow(workspaceId, keys, mapField, idField) {
     var combined = (workspaceId == null);
     var wanted = {};
@@ -977,7 +977,7 @@
       if (!combined && agg.workspaceId !== workspaceId) return;
       var sub = agg[mapField] || {};
       Object.keys(sub).forEach(function (id) {
-        var bucket = agg.workspaceId + " " + id;
+        var bucket = agg.workspaceId + "\u0000" + id;
         if (!acc[bucket]) acc[bucket] = { workspaceId: agg.workspaceId, id: id, ms: 0 };
         acc[bucket].ms += sub[id] || 0;
       });
