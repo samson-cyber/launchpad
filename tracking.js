@@ -946,8 +946,9 @@
   // (workspaceId, domain), summed across the window — and contract-identical BY
   // CONSTRUCTION rather than by imitation, because it reuses their shared spine.
   //
-  // The spine's internal accumulator key joins workspaceId and id with a NUL byte
-  // (BUGS.md M1 - the same NULs that make this file ripgrep-invisible). Safe here
+  // The spine's internal accumulator key joins workspaceId and id with a NUL,
+  // written in source as the escape "\u0000" so the file greps normally (BUGS.md
+  // M1, resolved 2026-08-28 — the raw NUL bytes it describes are gone). Safe here
   // for the same reason it is safe for tag/task ids: a hostname can never contain
   // a NUL, because domainOf returns URL.hostname, which is punycode/percent-
   // encoded and cannot carry a control character. That is the one assumption this
