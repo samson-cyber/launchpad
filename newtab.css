@@ -9675,7 +9675,8 @@ html.has-bg.bg-light .pro-celebrate-btn:not(.is-primary):hover { background: rgb
   min-width: 0;
 }
 
-.tasks-title {
+.tasks-title,
+.notes-title {
   margin: 0;
   font-size: 22px;
   font-weight: 600;
@@ -13041,3 +13042,187 @@ html.bg-light .sat-focus-row.is-on .sat-focus-knob { background: #fff; }
   margin-left: -2px;
   align-self: center;
 }
+
+/* ===== Notes tab ([1.1.1]) =====
+
+   PAPER PALETTE AS TOKENS. Colour is stored as a token NAME by [1.1.0], never a
+   hex, so the palette lives here and only here: re-tinting the paper is a CSS
+   edit and never a data migration.
+
+   INK ON PAPER IS SAFE BY CONSTRUCTION, and this is the one place the panel-ink
+   doctrine works out differently from the rest of the board. A note card paints
+   its OWN opaque paper background, so its text never composites against the
+   frosted panel and never needs a wallpaper-scoped override. The surfaces that DO
+   sit directly on the panel (header, empty state, the menu) get the usual three
+   tiers. Runtime verification measures all of it, because the static ink gate
+   cannot see a JS-rendered surface (BUGS.md O1). */
+:root {
+  --note-paper-cream: #fdf6e3;
+  --note-paper-butter-yellow: #fff3b0;
+  --note-paper-soft-pink: #ffd9e0;
+  --note-paper-mint: #d4f0e0;
+  --note-paper-sky-blue: #d6ecff;
+  --note-paper-peach: #ffe0cc;
+  --note-paper-lavender: #e6dcff;
+
+  /* One ink for every paper. All seven papers are light, so a single near-black
+     clears 4.5:1 on each; a per-paper ink would be seven values to keep true. */
+  --note-ink: #2c2417;
+  --note-ink-dim: rgba(44, 36, 23, 0.55);
+}
+
+.notes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+/* Size and weight come from the shared .tasks-title rule above, so the two Pro
+   tab titles cannot drift apart; only the ink tiers are declared here. */
+.notes-title {
+  color: var(--text-primary);
+}
+
+html.has-bg .notes-title { color: #fff; }
+html.has-bg.bg-light .notes-title { color: var(--text-primary); }
+
+/* The grid. LAYOUT IS DELIBERATELY SEPARABLE: [1.1.2] replaces this rule set
+   with drag positioning, and nothing outside it encodes placement. */
+.notes-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 22px;
+  min-height: 320px;
+  padding: 6px 2px 40px;
+}
+
+.note-card {
+  position: relative;
+  width: 208px;
+  min-height: 208px;
+  padding: 18px 18px 26px;
+  border-radius: 2px;
+  background-color: var(--note-paper);
+  color: var(--note-ink);
+  font-size: var(--fs-14);
+  line-height: 1.45;
+  cursor: text;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+
+  /* CSS-ONLY PAPER GRAIN, no image asset. Two very low-alpha repeating
+     gradients at odd angles read as fibre rather than as stripes, and a soft
+     radial lifts the centre so the sheet is not flat. */
+  background-image:
+    repeating-linear-gradient(97deg, rgba(0,0,0,0.014) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(7deg, rgba(0,0,0,0.011) 0 1px, transparent 1px 4px),
+    radial-gradient(120% 90% at 30% 20%, rgba(255,255,255,0.5), transparent 60%);
+
+  /* Soft LAYERED shadow: a tight contact shadow plus a wide ambient one. */
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.16),
+    0 8px 18px rgba(0, 0, 0, 0.14);
+
+  /* Rotation comes from the note DATA via an inline custom property, so it is
+     stable per note and never re-rolled at render. */
+  transform: rotate(var(--note-rot, 0deg));
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  will-change: transform;
+}
+
+/* One-corner curl. A pseudo-element, per the spec: a small triangle whose
+   gradient goes from the page behind to a shaded fold, lifting the bottom-right
+   corner off the surface. */
+.note-card::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 22px;
+  height: 22px;
+  background: linear-gradient(315deg, rgba(0,0,0,0.16) 0%, rgba(0,0,0,0.06) 42%, var(--note-paper) 46%);
+  border-bottom-right-radius: 2px;
+  box-shadow: -1px -1px 2px rgba(0, 0, 0, 0.06);
+  pointer-events: none;
+}
+
+/* Hover: VERY subtle. A scale over 1.02 on a rotated card reads as a bounce. */
+.note-card:hover {
+  transform: rotate(var(--note-rot, 0deg)) scale(1.018);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.18),
+    0 14px 28px rgba(0, 0, 0, 0.18);
+}
+
+.note-card.is-editing {
+  cursor: auto;
+  transform: rotate(var(--note-rot, 0deg));
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.2),
+    0 16px 32px rgba(0, 0, 0, 0.2);
+}
+
+.note-editor {
+  width: 100%;
+  min-height: 150px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  line-height: inherit;
+}
+
+.note-placeholder { color: var(--note-ink-dim); }
+
+/* Empty state sits on the PANEL, not on paper, so it takes all three tiers. */
+.notes-empty {
+  width: 100%;
+  padding: 56px 12px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: var(--fs-14);
+}
+
+.notes-empty-title {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text-primary);
+}
+
+html.has-bg .notes-empty { color: rgba(255, 255, 255, 0.72); }
+html.has-bg .notes-empty-title { color: #fff; }
+html.has-bg.bg-light .notes-empty { color: var(--text-secondary); }
+html.has-bg.bg-light .notes-empty-title { color: var(--text-primary); }
+
+/* Colour picker inside the reused .tt-context-menu surface. */
+.note-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 10px 8px;
+  max-width: 168px;
+}
+
+.note-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.22);
+  background: var(--note-paper);
+  cursor: pointer;
+  padding: 0;
+}
+
+.note-swatch.is-active { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Preview mode: the SAME component, pointer-inert. Preview is the promise, so
+   nothing here may alter the card styling path. */
+.notes-preview .notes-grid { pointer-events: none; }

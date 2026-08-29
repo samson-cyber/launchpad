@@ -43,9 +43,9 @@
   var dragHoverTimer = null;
   var HOVER_EXPAND_DELAY_MS = 600;
 
-  var TAB_IDS = ["home", "tasks", "dashboard", "insights"];
-  var PRO_TAB_IDS = ["tasks", "dashboard", "insights"];
-  var TAB_LABELS = { home: "Home", tasks: "Tasks", dashboard: "Dashboard", insights: "Insights" };
+  var TAB_IDS = ["home", "tasks", "notes", "dashboard", "insights"];
+  var PRO_TAB_IDS = ["tasks", "notes", "dashboard", "insights"];
+  var TAB_LABELS = { home: "Home", tasks: "Tasks", notes: "Notes", dashboard: "Dashboard", insights: "Insights" };
 
   var $ = function (s, p) { return (p || document).querySelector(s); };
   var $$ = function (s, p) { return [].slice.call((p || document).querySelectorAll(s)); };
@@ -490,6 +490,11 @@
       // Coming-soon placeholder until their own [1.0.x] tasks land.
       if (id === "tasks") {
         renderTasksTab(panel, data);
+        return;
+      }
+      // [1.1.1] Notes tab.
+      if (id === "notes") {
+        renderNotesTab(panel, data);
         return;
       }
       // [1.0.20] Dashboard shell — a third branch mirroring Tasks (D8 trigger 1).
@@ -2326,6 +2331,7 @@
     var bodyHtml = "";
     if (id === "tasks")          bodyHtml = renderTasksPreview();
     else if (id === "dashboard") bodyHtml = renderDashboardPreview();
+    else if (id === "notes")     bodyHtml = renderNotesPreview();
     else if (id === "insights")  bodyHtml = renderInsightsPreview();
 
     panel.innerHTML =
@@ -2341,6 +2347,246 @@
         openUpgradePopover(cta, data);
       });
     }
+  }
+
+  // ===== Notes Tab ([1.1.1]) =====
+  //
+  // Sticky-note grid over the [1.1.0] storage layer. Every read goes through a
+  // Storage method and every mutation is a pure Storage mutation PAIRED with
+  // saveAll here at the caller, per the persistence convention.
+  //
+  // Layout is deliberately quarantined in .notes-grid so [1.1.2] can replace flow
+  // with drag positioning without touching the card, the editor or the menu.
+
+  var notesEditingId = null;      // note currently in inline edit, or null
+  var notesMenuEl = null;         // single live context menu, body-mounted
+
+  // The demo corpus for the free preview. Deliberately shaped like real notes so
+  // it flows through the SAME renderer: preview is the promise, and the only
+  // difference from a Pro render is where the array came from.
+  var NOTES_DEMO = [
+    { id: "demo1", content: "Call the studio back about the October shoot.", color: "butter-yellow", rotation: -1.4, deletedAt: null },
+    { id: "demo2", content: "Groceries: oat milk, coffee, the good bread.", color: "mint", rotation: 1.1, deletedAt: null },
+    { id: "demo3", content: "Idea: a weekly review ritual on Friday afternoons.", color: "soft-pink", rotation: -0.6, deletedAt: null },
+    { id: "demo4", content: "Book flights before prices climb again.", color: "sky-blue", rotation: 1.8, deletedAt: null },
+    { id: "demo5", content: "Read the piece on deep work that Sam sent.", color: "cream", rotation: -1.9, deletedAt: null }
+  ];
+
+  function notesPaperVar(color) {
+    var list = (Storage.NOTE_COLORS || []);
+    var safe = (list.indexOf(color) !== -1) ? color : (list[0] || "cream");
+    return "var(--note-paper-" + safe + ")";
+  }
+
+  // ONE card renderer, used by the live grid and by the preview alike.
+  function noteCardHtml(note) {
+    var rot = (typeof note.rotation === "number") ? note.rotation : 0;
+    var body = note.content
+      ? escapeHtml(note.content)
+      : '<span class="note-placeholder">Empty note</span>';
+    return '<article class="note-card" data-note-id="' + escapeHtml(note.id) + '"' +
+        ' style="--note-paper: ' + notesPaperVar(note.color) + '; --note-rot: ' + rot + 'deg;">' +
+        '<div class="note-body">' + body + '</div>' +
+      '</article>';
+  }
+
+  function notesGridHtml(notes) {
+    if (!notes.length) {
+      return '<div class="notes-empty">' +
+          '<div class="notes-empty-title">No notes yet</div>' +
+          '<div>Click the empty space here, or use New Note, to write one.</div>' +
+        '</div>';
+    }
+    return notes.map(noteCardHtml).join("");
+  }
+
+  function renderNotesTab(panel, d0) {
+    if (!panel) return;
+    var ws = Storage.getActiveWorkspace(d0);
+    var notes = ws ? Storage.getAllNotes(ws) : [];
+    panel.innerHTML =
+      '<header class="notes-header">' +
+        '<h1 class="notes-title">Notes</h1>' +
+        '<div class="tasks-header-right">' +
+          '<button class="tasks-action" data-action="new-note" type="button">+ New Note</button>' +
+        '</div>' +
+      '</header>' +
+      '<div class="notes-grid" data-notes-grid>' + notesGridHtml(notes) + '</div>';
+    bindNotesEvents(panel);
+  }
+
+  // Free preview: same header, same grid, same card renderer, fixed data. The
+  // pointer-inert rule lives in CSS on .notes-preview so the card styling path is
+  // pixel-identical to the live one.
+  function renderNotesPreview() {
+    return '<div class="notes-preview">' +
+        '<header class="notes-header">' +
+          '<h1 class="notes-title">Notes</h1>' +
+        '</header>' +
+        '<div class="notes-grid">' + NOTES_DEMO.map(noteCardHtml).join("") + '</div>' +
+      '</div>';
+  }
+
+  // ---- inline edit ----------------------------------------------------------
+  //
+  // Esc SAVES rather than cancels, per the PLAN. That is unusual enough to state:
+  // a sticky note is a capture surface, and losing what you typed to a stray key
+  // is the worse failure. Saving empty DELETES rather than persisting a blank,
+  // which is also what makes "create then think better of it" cost nothing.
+  function notesEnterEdit(card) {
+    if (!card || card.classList.contains("is-editing")) return;
+    var id = card.dataset.noteId;
+    var ws = Storage.getActiveWorkspace(data);
+    var note = ws ? Storage.getNoteById(ws, id) : null;
+    if (!note) return;
+    notesCommitEdit();
+    notesEditingId = id;
+    card.classList.add("is-editing");
+    card.innerHTML = '<textarea class="note-editor" spellcheck="true"></textarea>';
+    var ta = card.querySelector(".note-editor");
+    ta.value = note.content || "";
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+    ta.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); notesCommitEdit(); }
+    });
+  }
+
+  function notesCommitEdit() {
+    if (!notesEditingId) return;
+    var id = notesEditingId;
+    notesEditingId = null;
+    var panel = document.getElementById("tab-notes");
+    if (!panel) return;
+    var card = panel.querySelector('.note-card[data-note-id="' + id + '"]');
+    var ta = card && card.querySelector(".note-editor");
+    var text = ta ? ta.value : null;
+    if (text === null) return;
+    var trimmed = text.trim();
+    (async function () {
+      if (!trimmed) {
+        Storage.deleteNote(data, id);
+      } else {
+        Storage.updateNote(data, id, { content: trimmed });
+      }
+      await Storage.saveAll(data);
+      renderNotesTab(panel, data);
+    })();
+  }
+
+  async function notesCreate(panel) {
+    var note = Storage.createNote(data, { content: "" });
+    if (!note) return;
+    await Storage.saveAll(data);
+    renderNotesTab(panel, data);
+    var card = panel.querySelector('.note-card[data-note-id="' + note.id + '"]');
+    if (card) notesEnterEdit(card);
+  }
+
+  // ---- context menu ---------------------------------------------------------
+  //
+  // Reuses the .tt-context-menu / .tt-ctx-item surface the Tasks tab already
+  // owns, including its wallpaper and light-wallpaper ink tiers, rather than
+  // introducing a second menu skin to keep in sync. Viewport clamp is the same
+  // 8px-inset expression every other menu here uses.
+  function closeNotesMenu() {
+    if (notesMenuEl && notesMenuEl.parentNode) notesMenuEl.parentNode.removeChild(notesMenuEl);
+    notesMenuEl = null;
+  }
+
+  function openNotesMenu(x, y, noteId) {
+    closeNotesMenu();
+    var ws = Storage.getActiveWorkspace(data);
+    var note = ws ? Storage.getNoteById(ws, noteId) : null;
+    if (!note) return;
+
+    var swatches = (Storage.NOTE_COLORS || []).map(function (c) {
+      return '<button type="button" class="note-swatch' + (c === note.color ? " is-active" : "") + '"' +
+        ' data-note-color="' + c + '" aria-label="' + escapeHtml(c) + '"' +
+        ' style="--note-paper: ' + notesPaperVar(c) + ';"></button>';
+    }).join("");
+
+    var menu = document.createElement("div");
+    menu.className = "tt-context-menu";
+    menu.innerHTML =
+      ctxEntityHeaderHtml("Note", note.content ? note.content.slice(0, 40) : "Empty note") +
+      '<div class="note-swatches">' + swatches + '</div>' +
+      '<button type="button" class="tt-ctx-item" data-note-action="delete">Delete</button>';
+    document.body.appendChild(menu);
+
+    var w = menu.offsetWidth;
+    var h = menu.offsetHeight;
+    var px = Math.max(8, Math.min(x, window.innerWidth - w - 8));
+    var py = Math.max(8, Math.min(y, window.innerHeight - h - 8));
+    menu.style.left = px + "px";
+    menu.style.top = py + "px";
+    notesMenuEl = menu;
+
+    // Dismissal, matching the tasks-menu lifecycle: outside-click and Escape,
+    // bound on the NEXT tick so the very contextmenu event that opened this menu
+    // cannot immediately close it, and torn down with the menu itself.
+    setTimeout(function () {
+      if (!notesMenuEl) return;
+      var onDoc = function (ev) {
+        if (notesMenuEl && notesMenuEl.contains(ev.target)) return;
+        teardown();
+      };
+      var onKey = function (ev) { if (ev.key === "Escape") teardown(); };
+      function teardown() {
+        document.removeEventListener("mousedown", onDoc, true);
+        document.removeEventListener("contextmenu", onDoc, true);
+        document.removeEventListener("keydown", onKey, true);
+        closeNotesMenu();
+      }
+      document.addEventListener("mousedown", onDoc, true);
+      document.addEventListener("contextmenu", onDoc, true);
+      document.addEventListener("keydown", onKey, true);
+    }, 0);
+
+    menu.addEventListener("click", async function (e) {
+      var sw = e.target.closest("[data-note-color]");
+      if (sw) {
+        Storage.updateNote(data, noteId, { color: sw.getAttribute("data-note-color") });
+        await Storage.saveAll(data);
+        closeNotesMenu();
+        renderNotesTab(document.getElementById("tab-notes"), data);
+        return;
+      }
+      if (e.target.closest('[data-note-action="delete"]')) {
+        Storage.deleteNote(data, noteId);
+        await Storage.saveAll(data);
+        closeNotesMenu();
+        renderNotesTab(document.getElementById("tab-notes"), data);
+      }
+    });
+  }
+
+  // ---- wiring ---------------------------------------------------------------
+  function bindNotesEvents(panel) {
+    if (panel.dataset.notesBound === "1") return;
+    panel.dataset.notesBound = "1";
+
+    panel.addEventListener("click", function (e) {
+      if (e.target.closest('[data-action="new-note"]')) { notesCreate(panel); return; }
+      var card = e.target.closest(".note-card");
+      if (card) {
+        if (!card.classList.contains("is-editing")) notesEnterEdit(card);
+        return;
+      }
+      // Click-outside SAVES the open editor. When the click also landed on empty
+      // grid space, that is a second gesture (create) and it must not fire in the
+      // same click - otherwise finishing a note silently spawns another.
+      if (notesEditingId) { notesCommitEdit(); return; }
+      if (e.target.closest("[data-notes-grid]") || e.target.closest(".notes-empty")) notesCreate(panel);
+    });
+
+    panel.addEventListener("contextmenu", function (e) {
+      var card = e.target.closest(".note-card");
+      if (!card) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openNotesMenu(e.clientX, e.clientY, card.dataset.noteId);
+    });
   }
 
   // ===== Tasks Tab ([1.0.10]) =====
