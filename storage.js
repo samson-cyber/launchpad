@@ -3954,6 +3954,37 @@ var Storage = (function () {
   // a data migration. First entry is the default.
   var NOTE_COLORS = ["cream", "butter-yellow", "soft-pink", "mint", "sky-blue", "peach", "lavender"];
 
+  // Every note used to be born cream: newNoteObject fell back to NOTE_COLORS[0]
+  // and nothing ever passed a colour, so the seven-colour palette was defined,
+  // rendered and never actually used. Notes now CYCLE through it.
+  //
+  // Cycled rather than randomised on purpose. Random repeats — roughly one new
+  // note in seven would be born the same colour as the one above it, which is
+  // the single case the change exists to avoid.
+  //
+  // KEYED ON THE NOTE COUNT, deliberately, and not on "find the most recently
+  // created note and take the next colour after it". That reading looks more
+  // natural and fails two ways, both observed while building this:
+  //
+  //   - createdAt is Date.now(), so notes made in the same millisecond TIE.
+  //     Seeding seven notes in a loop produced cream then butter-yellow six
+  //     times, because no later note ever compared as strictly newer.
+  //   - Array position cannot break that tie either. createNote pushes to the
+  //     END, but the panel then moves the new note to index 0 ([1.1.2] newest
+  //     at top), so "newest" is the lowest index through the UI and the highest
+  //     through a direct call. There is no consistent side to look at.
+  //
+  // The count has neither problem: monotonic, order-independent, unaffected by
+  // the unshift. It relies on notes being SOFT-deleted (deletedAt is set, the
+  // entry stays in the array), which is what deleteNote does — so a deletion
+  // does not rewind the cycle and hand back the colour just discarded. If a hard
+  // purge is ever added the worst outcome is a repeated colour: cosmetic, and no
+  // note data depends on it.
+  function nextNoteColor(ws) {
+    var notes = (ws && Array.isArray(ws.notes)) ? ws.notes : [];
+    return NOTE_COLORS[notes.length % NOTE_COLORS.length];
+  }
+
   // Fixed per-note tilt for the paper aesthetic. Rolled ONCE at creation and
   // stored, so a note never re-rolls its angle on render or reload.
   var NOTE_ROTATION_MIN = -2;
@@ -4017,7 +4048,16 @@ var Storage = (function () {
       return null;
     }
     var notes = ensureNotesArray(ws);
-    var note = newNoteObject(fields);
+
+    // Cycle the palette, but ONLY as a default. An explicit colour still wins,
+    // so the swatch picker and any restore-from-backup keep the colour they ask
+    // for; newNoteObject validates the value either way.
+    var f = fields || {};
+    if (f.color === undefined) {
+      f = Object.assign({}, f, { color: nextNoteColor(ws) });
+    }
+
+    var note = newNoteObject(f);
     notes.push(note);
     return note;
   }
