@@ -13134,7 +13134,7 @@ html.bg-light .sat-focus-row.is-on .sat-focus-knob { background: #fff; }
 }
 
 /* Hover: VERY subtle. A scale over 1.02 on a rotated card reads as a bounce. */
-.note-card:hover {
+.note-card:not(.is-editing):hover {
   transform: rotate(var(--note-rot, 0deg)) scale(1.018);
   box-shadow:
     0 2px 4px rgba(0, 0, 0, 0.18),
@@ -13142,19 +13142,30 @@ html.bg-light .sat-focus-row.is-on .sat-focus-knob { background: #fff; }
 }
 
 .note-card.is-editing {
-  /* [1.1.1 fix] Drop the compositing-layer promotion WHILE EDITING. The card
-     carries will-change:transform so the hover scale stays cheap, but that
-     promotes it to its own layer, and a caret in a promoted layer can fail to
-     repaint until something else dirties the layer - which is exactly the
-     reported symptom, invisible until the first keystroke. Hover no longer
-     matters once you are typing, so the hint is simply withdrawn here.
-     HONEST CAVEAT: this mechanism is plausible and cheap, but it is NOT
-     confirmed - Chromium screenshots do not capture the caret at all (proven
-     against a plain focused input), so the fix could not be verified by
-     measurement. See the Asana note. */
-  will-change: auto;
+  /* [1.1.1 fix] THE EDITING CARD LIES FLAT.
+
+     Four mechanisms for the missing caret were ruled out by measurement, in this
+     order: caret-color was never unset (it already resolved to the ink); the
+     empty editor never collapses (152px tall); focus is never lost (the same
+     textarea stays document.activeElement for seconds, with no re-render); and
+     the card owns NO compositing layer, with or without will-change, so layer
+     promotion is not it either. An earlier will-change override was reverted
+     once the layer measurement disproved its rationale.
+
+     What is left is the rotation itself. A caret inside a transformed element is
+     painted through that transform, but the blink invalidation is not always
+     computed in the same space, so the caret draws once and its next blink
+     repaints the wrong rectangle - which is precisely the reported symptom, one
+     blink and then gone. Flattening the card while it is being edited removes
+     the transform from the caret path entirely.
+
+     This is a VISIBLE change, deliberately: the note straightens while you write
+     on it and tilts back when you are done, which reads as picking a sheet up
+     and putting it down. STILL UNCONFIRMED by me - Chromium screenshots do not
+     capture carets at all (proven against a plain focused input), so this needs
+     one human glance. */
+  transform: none;
   cursor: auto;
-  transform: rotate(var(--note-rot, 0deg));
   box-shadow:
     0 2px 4px rgba(0, 0, 0, 0.2),
     0 16px 32px rgba(0, 0, 0, 0.2);
