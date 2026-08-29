@@ -49,6 +49,7 @@ var Storage = (function () {
         goals: [],
         tasks: [],
         tags: [],
+        notes: [],
         tracking: emptyTrackingState()
       }],
       workspaceOrder: ["main"],
@@ -131,6 +132,28 @@ var Storage = (function () {
       data.trackingPaused = false;
       changed = true;
     }
+    return changed;
+  }
+
+  // [1.1.0] Seed the notes array onto workspaces that predate it. Runs on the
+  // already-migrated path of getAll alongside ensureDeletedAtFields and
+  // ensureTrackingState, in the same defensive-backfill shape: report whether
+  // anything changed, let getAll do the single write.
+  //
+  // IDEMPOTENT BY CONSTRUCTION, which is the property this task is really about:
+  // it only assigns when the field is not already an array, so a workspace that
+  // already carries notes is untouched and re-running can neither wipe existing
+  // notes nor append a second array. That is also why it does NOT normalise the
+  // contents - touching live note objects on every load would be a write loop
+  // against the service worker's storage.onChanged watcher.
+  function ensureNotesArrays(data) {
+    var changed = false;
+    (data.workspaces || []).forEach(function (ws) {
+      if (!Array.isArray(ws.notes)) {
+        ws.notes = [];
+        changed = true;
+      }
+    });
     return changed;
   }
 
@@ -1072,6 +1095,7 @@ var Storage = (function () {
         goals: [],
         tasks: [],
         tags: [],
+        notes: [],
         tracking: emptyTrackingState()
       }],
       workspaceOrder: ["main"],
@@ -1133,11 +1157,13 @@ var Storage = (function () {
         var patched = ensureDeletedAtFields(existing);
         var trackingSeeded = ensureTrackingState(existing);
         var focusSeeded = ensureFocusBlockingState(existing);
-        if (patched || trackingSeeded || focusSeeded) {
+        var notesSeeded = ensureNotesArrays(existing);
+        if (patched || trackingSeeded || focusSeeded || notesSeeded) {
           await chrome.storage.local.set({ data: existing });
           if (patched) console.log("[LaunchPad] Backfilled missing deletedAt fields");
           if (trackingSeeded) console.log("[LaunchPad] Seeded per-workspace tracking state (default ON)");
           if (focusSeeded) console.log("[LaunchPad] Seeded focus-blocking state (auto-arm default ON)");
+          if (notesSeeded) console.log("[LaunchPad] Seeded per-workspace notes array");
         }
         return existing;
       }
@@ -3897,6 +3923,185 @@ var Storage = (function () {
     return found || null;
   }
 
+  // ===== Notes ([1.1.0]) =====
+  //
+  // Workspace-scoped sibling to goals / tasks / tags, and deliberately built to
+  // the same shape as those rather than to anything note-specific.
+  //
+  // TIMESTAMPS ARE EPOCH MILLISECONDS, not ISO strings. docs/SPECS/notes.md
+  // describes createdAt/updatedAt/deletedAt as "ISO timestamp", but trash-bin.md
+  // is explicit that deletedAt is Date.now() and every sibling entity already
+  // stores epoch ms. An ISO island here would break the trash sweep, which does
+  // arithmetic on deletedAt, and would make notes the only entity a shared
+  // helper could not read. Alignment with the siblings wins; notes.md is the
+  // doc that needs the correction.
+  //
+  // TAG REFERENCES ARE `tagIds`, matching tasks and the trash-bin cascade rule
+  // that cleans tag ids out of every item's tagIds array on purge. A `tags`
+  // field would simply be invisible to that sweep.
+  //
+  // These are PURE MUTATIONS: they change the passed-in data object and return,
+  // and the CALLER pairs them with Storage.saveAll. That is the setTrackingEnabled
+  // shape rather than createTask's self-saving shape, per the [1.1.0] addendum.
+  // Notes have no background writer, so none of this is a serial-queue citizen;
+  // if a background path ever writes notes, it becomes one by definition (L1).
+  function genNoteId() {
+    return "note_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  // Palette TOKEN NAMES, never hex. [1.1.1] owns the final palette and its
+  // values; storing the token means a palette restyle is a CSS change and never
+  // a data migration. First entry is the default.
+  var NOTE_COLORS = ["cream", "butter-yellow", "soft-pink", "mint", "sky-blue", "peach", "lavender"];
+
+  // Fixed per-note tilt for the paper aesthetic. Rolled ONCE at creation and
+  // stored, so a note never re-rolls its angle on render or reload.
+  var NOTE_ROTATION_MIN = -2;
+  var NOTE_ROTATION_MAX = 2;
+
+  function randomNoteRotation() {
+    var span = NOTE_ROTATION_MAX - NOTE_ROTATION_MIN;
+    return Math.round((NOTE_ROTATION_MIN + Math.random() * span) * 100) / 100;
+  }
+
+  function ensureNotesArray(workspace) {
+    if (!workspace) return null;
+    if (!Array.isArray(workspace.notes)) workspace.notes = [];
+    return workspace.notes;
+  }
+
+  function findLiveNote(workspace, noteId) {
+    var notes = ensureNotesArray(workspace);
+    if (!notes) return null;
+    var note = notes.find(function (n) { return n.id === noteId; });
+    return (note && !note.deletedAt) ? note : null;
+  }
+
+  function newNoteObject(o) {
+    o = o || {};
+    var now = Date.now();
+    var color = (typeof o.color === "string" && NOTE_COLORS.indexOf(o.color) !== -1)
+      ? o.color
+      : NOTE_COLORS[0];
+    var pos = (o.position && typeof o.position === "object") ? o.position : {};
+    return {
+      id: genNoteId(),
+      content: (o.content === undefined || o.content === null) ? "" : String(o.content),
+      color: color,
+      position: {
+        x: typeof pos.x === "number" ? pos.x : 0,
+        y: typeof pos.y === "number" ? pos.y : 0
+      },
+      rotation: typeof o.rotation === "number" ? o.rotation : randomNoteRotation(),
+      // v1.1 notes are always standalone; [1.2.x] introduces the association.
+      notebookId: (o.notebookId === undefined) ? null : o.notebookId,
+      tagIds: Array.isArray(o.tagIds) ? o.tagIds.slice() : [],
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null
+    };
+  }
+
+  /**
+   * Create a note in the (optionally specified) workspace. Pure mutation: the
+   * caller pairs it with saveAll. Returns the new note, or null if the workspace
+   * cannot be resolved.
+   */
+  function createNote(data, fields, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws) {
+      console.warn("[LaunchPad] createNote: workspace not found");
+      return null;
+    }
+    var notes = ensureNotesArray(ws);
+    var note = newNoteObject(fields);
+    notes.push(note);
+    return note;
+  }
+
+  /**
+   * Patch a note. Only the fields present in `partial` move; createdAt and id
+   * never do. Returns null if the note is missing or soft-deleted (findLiveNote),
+   * which is the same refusal tasks and goals give.
+   */
+  function updateNote(data, noteId, partial, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var note = findLiveNote(ws, noteId);
+    if (!note) return null;
+    var f = partial || {};
+
+    if (f.content !== undefined) note.content = (f.content === null) ? "" : String(f.content);
+    if (f.color !== undefined && NOTE_COLORS.indexOf(f.color) !== -1) note.color = f.color;
+    if (f.position && typeof f.position === "object") {
+      if (typeof f.position.x === "number") note.position.x = f.position.x;
+      if (typeof f.position.y === "number") note.position.y = f.position.y;
+    }
+    if (typeof f.rotation === "number") note.rotation = f.rotation;
+    if (f.notebookId !== undefined) note.notebookId = f.notebookId;
+    if (Array.isArray(f.tagIds)) note.tagIds = f.tagIds.slice();
+
+    note.updatedAt = Date.now();
+    return note;
+  }
+
+  /**
+   * Soft-delete, per docs/SPECS/trash-bin.md: deletedAt = Date.now(), the note
+   * stays in its own workspace array so restore never has to re-home it, and the
+   * 30-day auto-purge sweep removes it later by the same rule as every sibling.
+   */
+  function deleteNote(data, noteId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var note = findLiveNote(ws, noteId);
+    if (!note) return null;
+    note.deletedAt = Date.now();
+    return note;
+  }
+
+  /**
+   * The un-delete half: deletedAt = null, exactly reversing deleteNote. Unlike
+   * restoreTag there is no name-collision to block on, and unlike restoreTask
+   * there is no parent to re-home to in v1.1 - a standalone note simply returns.
+   * updatedAt is deliberately NOT touched: restoring is not editing.
+   */
+  function restoreNote(data, noteId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var notes = ensureNotesArray(ws);
+    if (!notes) return null;
+    var note = notes.find(function (n) { return n.id === noteId; });
+    if (!note || !note.deletedAt) return null;
+    note.deletedAt = null;
+    return note;
+  }
+
+  /**
+   * Active (non-deleted) notes for the workspace. Defensive copy is the SIBLING
+   * pattern and therefore SHALLOW: filter returns a fresh array, so pushing or
+   * splicing the result cannot disturb stored order, but the note objects are
+   * shared by reference exactly as getAllTasks and getAllGoals share theirs.
+   * Callers that need to mutate a note do so through updateNote.
+   */
+  function getAllNotes(workspace) {
+    var notes = ensureNotesArray(workspace);
+    if (!notes) return [];
+    return notes.filter(function (n) { return !n.deletedAt; });
+  }
+
+  /**
+   * Soft-deleted notes, for the [1.1.3] trash surface. Mirrors getDeletedGoals.
+   */
+  function getDeletedNotes(workspace) {
+    var notes = ensureNotesArray(workspace);
+    if (!notes) return [];
+    return notes.filter(function (n) { return !!n.deletedAt; });
+  }
+
+  /**
+   * Lookup by id. Returns null if missing OR soft-deleted, matching getTaskById.
+   */
+  function getNoteById(workspace, noteId) {
+    return findLiveNote(workspace, noteId);
+  }
+
   // ===== Recurring Task Templates =====
   //
   // Schema-only landing in [1.0.10] per the PLAN (D2). The Tasks tab in
@@ -5569,6 +5774,16 @@ var Storage = (function () {
     getTagById: getTagById,
     getTagByName: getTagByName,
     nextAutoTagColor: nextAutoTagColor,
+    // Notes ([1.1.0]) - pure mutations, caller pairs saveAll
+    NOTE_COLORS: NOTE_COLORS,
+    ensureNotesArray: ensureNotesArray,
+    createNote: createNote,
+    updateNote: updateNote,
+    deleteNote: deleteNote,
+    restoreNote: restoreNote,
+    getAllNotes: getAllNotes,
+    getDeletedNotes: getDeletedNotes,
+    getNoteById: getNoteById,
     // Recurring task templates ([1.0.10] schema landing; [1.0.14] adds
     // alarm-driven instance materialization)
     createRecurringTemplate: createRecurringTemplate,
