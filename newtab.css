@@ -9675,8 +9675,7 @@ html.has-bg.bg-light .pro-celebrate-btn:not(.is-primary):hover { background: rgb
   min-width: 0;
 }
 
-.tasks-title,
-.notes-title {
+.tasks-title {
   margin: 0;
   font-size: 22px;
   font-weight: 600;
@@ -13071,14 +13070,6 @@ html.bg-light .sat-focus-row.is-on .sat-focus-knob { background: #fff; }
   --note-ink-dim: rgba(44, 36, 23, 0.55);
 }
 
-.notes-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
-}
-
 /* Size and weight come from the shared .tasks-title rule above. INK IS
    INHERITED, never declared here: the default board is DARK, so a
    var(--text-primary) here painted near-black on near-black and measured
@@ -13086,39 +13077,12 @@ html.bg-light .sat-focus-row.is-on .sat-focus-knob { background: #fff; }
    is the control this now matches. The one tier that needs a value is the
    light wallpaper, and it is carried by the container below, exactly as
    html.has-bg.bg-light .tasks-tab does it. */
-.notes-tab {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  flex: 1;
-  min-height: 0;
-  /* The base ink for this surface, mirroring .tasks-tab exactly. The default
-     board is DARK, so white starts here and every child inherits it; the D6
-     shadow keeps that text legible where it sits over a wallpaper directly.
-     Runtime measurement caught the first version of this file declaring
-     var(--text-primary) on the children instead, which painted near-black on
-     near-black at 1.12:1. */
-  color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-}
-
 /* Paper cards are opaque and carry their own dark ink, so they must NOT inherit
    the container white or its shadow. */
 .note-card { text-shadow: none; }
 
-html.has-bg.bg-light .notes-tab { color: #1f1f1f; }
-
 /* The grid. LAYOUT IS DELIBERATELY SEPARABLE: [1.1.2] replaces this rule set
    with drag positioning, and nothing outside it encodes placement. */
-.notes-grid {
-  display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  gap: 22px;
-  min-height: 320px;
-  padding: 6px 2px 40px;
-}
-
 .note-card {
   position: relative;
   width: 208px;
@@ -13204,25 +13168,6 @@ html.has-bg.bg-light .notes-tab { color: #1f1f1f; }
 /* Empty state sits on the PANEL, not on paper, so it takes all three tiers. */
 /* Dimmed by OPACITY, not by a colour token, so it stays legible on whatever
    ink it inherits. Same technique as .tt-empty-state. */
-.notes-empty {
-  width: 100%;
-  padding: 56px 12px;
-  text-align: center;
-  /* 0.88, not the 0.62 the older .tt-empty-state uses: screenshot-pixel
-     measurement put 0.72 at 3.7:1 over a wallpaper, and an empty state is the
-     one string a new user MUST be able to read. Dimming is aesthetic;
-     legibility is not.
-   */
-  opacity: 0.88;
-  font-size: var(--fs-14);
-}
-
-.notes-empty-title {
-  font-size: var(--fs-14);
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-
 /* Colour picker inside the reused .tt-context-menu surface. */
 .note-swatches {
   display: flex;
@@ -13246,4 +13191,191 @@ html.has-bg.bg-light .notes-tab { color: #1f1f1f; }
 
 /* Preview mode: the SAME component, pointer-inert. Preview is the promise, so
    nothing here may alter the card styling path. */
-.notes-preview .notes-grid { pointer-events: none; }
+
+/* ===== Notes as the Tasks-tab right panel ([1.1.1] revision) =====
+
+   Samson redirect 2026-08-29: no dedicated Notes tab. Notes live beside Tasks,
+   80/20. The wrapper is additive and the tasks column keeps its own internal
+   layout untouched; the ONE concession below is turning .tasks-tab from a
+   width:100% block into a flex item, which is exactly what a measured squeeze
+   to 80% showed it needs (zero overflow, zero escaping children at 1136px). */
+.tasks-split {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.tasks-split > .tasks-tab {
+  width: auto;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* 20 percent, with a floor of one comfortable card (208px) plus its gutters.
+   Below the floor the tasks column absorbs the difference until the breakpoint
+   takes over entirely. */
+.notes-panel {
+  flex: 0 0 20%;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0 20px 40px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  /* Ink and the D6 shadow, mirroring .tasks-tab so the column matches its
+     neighbour on every wallpaper tier rather than declaring its own. */
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+html.has-bg.bg-light .notes-panel {
+  color: #1f1f1f;
+  border-left-color: rgba(0, 0, 0, 0.14);
+}
+
+.notes-panel-title {
+  flex-shrink: 0;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  opacity: 0.7;
+  padding-bottom: 12px;
+}
+
+/* The STACK. Single column, newest first, ghost last. [1.1.2] replaces the
+   ordering here and nothing else. */
+.notes-stack {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 6px 0 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+/* In the stack the card is fluid rather than the fixed 208px of the old grid,
+   so it fills the column at any panel width without a second size to maintain. */
+.notes-stack .note-card {
+  width: 100%;
+  max-width: 232px;
+  min-height: 132px;
+  flex-shrink: 0;
+}
+
+/* ---- ghost note: the only create affordance ---- */
+.note-ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  /* Paper idiom, held back: no grain, no curl, no rotation, dashed and faded so
+     it reads as a place for a note rather than as a note. */
+  background-image: none;
+  background-color: transparent;
+  border: 1px dashed currentColor;
+  box-shadow: none;
+  opacity: 0.55;
+  transform: none;
+  color: inherit;
+  font: inherit;
+  transition: opacity 0.16s ease, border-color 0.16s ease;
+}
+
+.note-ghost::after { content: none; }        /* no curl on a placeholder */
+
+.note-ghost:hover {
+  opacity: 0.9;
+  transform: none;
+  box-shadow: none;
+}
+
+.note-ghost-label {
+  font-size: var(--fs-13);
+  font-weight: 500;
+}
+
+/* ---- hover trash ---- */
+.note-card { position: relative; }
+
+.note-trash {
+  position: absolute;
+  top: 6px;
+  left: 6px;                 /* the curl owns bottom-right; stay clear of it */
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.55);
+  /* Ink is the PAPER ink, not the panel ink: this button sits on the opaque
+     card, so it is legible on every wallpaper tier for the same reason the note
+     text is, and needs no tier override of its own. */
+  color: var(--note-ink);
+  text-shadow: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease, background-color 0.14s ease;
+}
+
+.note-card:hover .note-trash,
+.note-trash:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.note-trash:hover { background: rgba(255, 255, 255, 0.85); }
+
+.note-ghost .note-trash { display: none; }
+
+/* Preview column: same structure, inert, matching the tasks preview it sits in. */
+.pp-tasks-col { flex: 1 1 0; min-width: 0; }
+.notes-panel-preview { pointer-events: none; }
+
+/* ---- narrow viewports ----
+
+   MEASURED, not guessed. With the panel at its 260px floor, the tasks body first
+   overflows and its children first escape at a viewport of 730px, which is where
+   the tasks column drops under about 420px. 900px is the chosen stacking point:
+   170px of margin above that cliff, and it keeps the tasks column at roughly
+   585px or wider whenever the two sit side by side. Below it the panel moves
+   under the tasks content, full width, and the stack flows horizontally. */
+@media (max-width: 900px) {
+  .tasks-split {
+    flex-direction: column;
+  }
+
+  .notes-panel {
+    flex: 0 0 auto;
+    min-width: 0;
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 16px 28px 40px;
+  }
+
+  html.has-bg.bg-light .notes-panel { border-top-color: rgba(0, 0, 0, 0.14); }
+
+  .notes-stack {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    overflow-y: visible;
+  }
+
+  .notes-stack .note-card {
+    width: 208px;
+  }
+}

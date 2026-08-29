@@ -43,9 +43,9 @@
   var dragHoverTimer = null;
   var HOVER_EXPAND_DELAY_MS = 600;
 
-  var TAB_IDS = ["home", "tasks", "notes", "dashboard", "insights"];
-  var PRO_TAB_IDS = ["tasks", "notes", "dashboard", "insights"];
-  var TAB_LABELS = { home: "Home", tasks: "Tasks", notes: "Notes", dashboard: "Dashboard", insights: "Insights" };
+  var TAB_IDS = ["home", "tasks", "dashboard", "insights"];
+  var PRO_TAB_IDS = ["tasks", "dashboard", "insights"];
+  var TAB_LABELS = { home: "Home", tasks: "Tasks", dashboard: "Dashboard", insights: "Insights" };
 
   var $ = function (s, p) { return (p || document).querySelector(s); };
   var $$ = function (s, p) { return [].slice.call((p || document).querySelectorAll(s)); };
@@ -492,11 +492,7 @@
         renderTasksTab(panel, data);
         return;
       }
-      // [1.1.1] Notes tab.
-      if (id === "notes") {
-        renderNotesTab(panel, data);
-        return;
-      }
+
       // [1.0.20] Dashboard shell — a third branch mirroring Tasks (D8 trigger 1).
       if (id === "dashboard") {
         renderDashboardTab(panel, data);
@@ -1555,7 +1551,9 @@
         '</div>';
     }).join("");
 
-    return '<div class="pp-tasks-header">' +
+    return '<div class="tasks-split">' +
+      '<div class="pp-tasks-col">' +
+      '<div class="pp-tasks-header">' +
         '<div class="pp-filter-chips">' +
           '<span class="pp-filter-chip">Priority</span>' +
           '<span class="pp-filter-chip">Tag</span>' +
@@ -1572,7 +1570,10 @@
       '<div class="pp-section-header pp-section-header-collapsible">' +
         '<span class="pp-collapse-chevron">' + CHEVRON_RIGHT_SVG + '</span>' +
         'Completed (0)' +
-      '</div>';
+      '</div>' +
+      '</div>' +
+      notesPreviewPanelHtml() +
+    '</div>';
   }
 
   function renderDashboardPreview() {
@@ -2331,7 +2332,6 @@
     var bodyHtml = "";
     if (id === "tasks")          bodyHtml = renderTasksPreview();
     else if (id === "dashboard") bodyHtml = renderDashboardPreview();
-    else if (id === "notes")     bodyHtml = renderNotesPreview();
     else if (id === "insights")  bodyHtml = renderInsightsPreview();
 
     panel.innerHTML =
@@ -2387,46 +2387,76 @@
     return '<article class="note-card" data-note-id="' + escapeHtml(note.id) + '"' +
         ' style="--note-paper: ' + notesPaperVar(note.color) + '; --note-rot: ' + rot + 'deg;">' +
         '<div class="note-body">' + body + '</div>' +
+        // Top-LEFT, not top-right: the curl pseudo-element owns the bottom-right
+        // corner, and a delete control overlapping it would fight the paper
+        // metaphor. Invisible until hover; absent from the ghost note, which is a
+        // different element entirely.
+        '<button type="button" class="note-trash" data-note-trash aria-label="Delete note">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"' +
+          ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+            '<polyline points="3 6 5 6 21 6"/>' +
+            '<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>' +
+          '</svg>' +
+        '</button>' +
       '</article>';
   }
 
-  function notesGridHtml(notes) {
-    if (!notes.length) {
-      return '<div class="notes-empty">' +
-          '<div class="notes-empty-title">No notes yet</div>' +
-          '<div>Click the empty space here, or use New Note, to write one.</div>' +
-        '</div>';
-    }
-    return notes.map(noteCardHtml).join("");
+
+  // [1.1.1 rev] The notes STACK, rendered as the right-hand column of the Tasks
+  // tab. Single column, newest first, ghost note always last. Kept as one
+  // function returning markup so [1.1.2] ordering work can replace the stack
+  // without touching the card, the editor, the menu or the split layout.
+  function notesStackHtml(notes) {
+    var ordered = notes.slice().sort(function (a, b) {
+      return (b.createdAt || 0) - (a.createdAt || 0);   // newest at top
+    });
+    return ordered.map(noteCardHtml).join("") + ghostNoteHtml();
   }
 
-  function renderNotesTab(panel, d0) {
-    if (!panel) return;
+  // The ONLY create affordance. A persistent placeholder in the paper idiom,
+  // rendered exactly once and always last, so at zero notes it doubles as the
+  // empty state: no separate empty-state branch to keep in sync, and nothing to
+  // discover. It replaces both the header button and the click-empty-space
+  // handler, which went because the gesture had to be learned to be found.
+  function ghostNoteHtml() {
+    return '<button type="button" class="note-card note-ghost" data-note-new>' +
+        '<span class="note-ghost-label">New note</span>' +
+      '</button>';
+  }
+
+  function notesPanelHtml(d0) {
     var ws = Storage.getActiveWorkspace(d0);
     var notes = ws ? Storage.getAllNotes(ws) : [];
-    panel.innerHTML =
-      '<div class="notes-tab">' +
-        '<header class="notes-header">' +
-        '<h1 class="notes-title">Notes</h1>' +
-        '<div class="tasks-header-right">' +
-          '<button class="tasks-action" data-action="new-note" type="button">+ New Note</button>' +
-        '</div>' +
-      '</header>' +
-        '<div class="notes-grid" data-notes-grid>' + notesGridHtml(notes) + '</div>' +
-      '</div>';
-    bindNotesEvents(panel);
+    return '<aside class="notes-panel" data-notes-panel>' +
+        '<div class="notes-panel-title">Notes</div>' +
+        '<div class="notes-stack" data-notes-stack>' + notesStackHtml(notes) + '</div>' +
+      '</aside>';
+  }
+
+  // Re-render JUST the stack. The Tasks tab owns the panel now, so a note
+  // mutation must not rebuild the tasks side: that would discard its scroll
+  // position, its drag state and any inline rename in progress.
+  function renderNotesStack() {
+    var stack = document.querySelector("[data-notes-stack]");
+    if (!stack) return;
+    var ws = Storage.getActiveWorkspace(data);
+    stack.innerHTML = notesStackHtml(ws ? Storage.getAllNotes(ws) : []);
   }
 
   // Free preview: same header, same grid, same card renderer, fixed data. The
   // pointer-inert rule lives in CSS on .notes-preview so the card styling path is
   // pixel-identical to the live one.
-  function renderNotesPreview() {
-    return '<div class="notes-preview notes-tab">' +
-        '<header class="notes-header">' +
-          '<h1 class="notes-title">Notes</h1>' +
-        '</header>' +
-        '<div class="notes-grid">' + NOTES_DEMO.map(noteCardHtml).join("") + '</div>' +
-      '</div>';
+  // Free preview. Notes no longer own a tab, so they inherit the Tasks tab
+  // gating: this column is emitted INSIDE renderTasksPreview and rides the same
+  // pro-preview shell and banner. Same card renderer, same stack, same ghost
+  // note, so preview stays the promise.
+  function notesPreviewPanelHtml() {
+    return '<aside class="notes-panel notes-panel-preview">' +
+        '<div class="notes-panel-title">Notes</div>' +
+        '<div class="notes-stack">' +
+          NOTES_DEMO.map(noteCardHtml).join("") + ghostNoteHtml() +
+        '</div>' +
+      '</aside>';
   }
 
   // ---- inline edit ----------------------------------------------------------
@@ -2458,9 +2488,7 @@
     if (!notesEditingId) return;
     var id = notesEditingId;
     notesEditingId = null;
-    var panel = document.getElementById("tab-notes");
-    if (!panel) return;
-    var card = panel.querySelector('.note-card[data-note-id="' + id + '"]');
+    var card = document.querySelector('.note-card[data-note-id="' + id + '"]');
     var ta = card && card.querySelector(".note-editor");
     var text = ta ? ta.value : null;
     if (text === null) return;
@@ -2472,17 +2500,26 @@
         Storage.updateNote(data, id, { content: trimmed });
       }
       await Storage.saveAll(data);
-      renderNotesTab(panel, data);
+      renderNotesStack();
     })();
   }
 
-  async function notesCreate(panel) {
+  async function notesCreate() {
     var note = Storage.createNote(data, { content: "" });
     if (!note) return;
     await Storage.saveAll(data);
-    renderNotesTab(panel, data);
-    var card = panel.querySelector('.note-card[data-note-id="' + note.id + '"]');
+    renderNotesStack();
+    var card = document.querySelector('.note-card[data-note-id="' + note.id + '"]');
     if (card) notesEnterEdit(card);
+  }
+
+  // ONE delete path for BOTH affordances, the hover trash and the menu item, so
+  // they cannot drift apart. Soft-delete per [1.1.0].
+  async function notesDelete(noteId) {
+    if (!noteId) return;
+    Storage.deleteNote(data, noteId);
+    await Storage.saveAll(data);
+    renderNotesStack();
   }
 
   // ---- context menu ---------------------------------------------------------
@@ -2551,14 +2588,12 @@
         Storage.updateNote(data, noteId, { color: sw.getAttribute("data-note-color") });
         await Storage.saveAll(data);
         closeNotesMenu();
-        renderNotesTab(document.getElementById("tab-notes"), data);
+        renderNotesStack();
         return;
       }
       if (e.target.closest('[data-note-action="delete"]')) {
-        Storage.deleteNote(data, noteId);
-        await Storage.saveAll(data);
         closeNotesMenu();
-        renderNotesTab(document.getElementById("tab-notes"), data);
+        await notesDelete(noteId);
       }
     });
   }
@@ -2569,22 +2604,31 @@
     panel.dataset.notesBound = "1";
 
     panel.addEventListener("click", function (e) {
-      if (e.target.closest('[data-action="new-note"]')) { notesCreate(panel); return; }
+      // Hover trash first: it lives inside the card, so the card handler below
+      // would otherwise open the editor on the way to deleting.
+      var trash = e.target.closest("[data-note-trash]");
+      if (trash) {
+        var owner = trash.closest(".note-card");
+        if (!owner) return;
+        e.preventDefault();
+        e.stopPropagation();
+        notesDelete(owner.dataset.noteId);
+        return;
+      }
+      if (e.target.closest("[data-note-new]")) { notesCreate(); return; }
       var card = e.target.closest(".note-card");
       if (card) {
         if (!card.classList.contains("is-editing")) notesEnterEdit(card);
         return;
       }
-      // Click-outside SAVES the open editor. When the click also landed on empty
-      // grid space, that is a second gesture (create) and it must not fire in the
-      // same click - otherwise finishing a note silently spawns another.
-      if (notesEditingId) { notesCommitEdit(); return; }
-      if (e.target.closest("[data-notes-grid]") || e.target.closest(".notes-empty")) notesCreate(panel);
+      // Click-outside SAVES the open editor. There is no create-on-empty-space
+      // gesture any more; the ghost note is the only creation affordance.
+      if (notesEditingId) notesCommitEdit();
     });
 
     panel.addEventListener("contextmenu", function (e) {
       var card = e.target.closest(".note-card");
-      if (!card) return;
+      if (!card || card.classList.contains("note-ghost")) return;
       e.preventDefault();
       e.stopPropagation();
       openNotesMenu(e.clientX, e.clientY, card.dataset.noteId);
@@ -3642,17 +3686,26 @@
         deletedBoxHtml(workspace, deletedGoals, deletedTasks) +
       '</div>';
 
+    // [1.1.1 rev] Tasks 80 / Notes 20. The wrapper is PURELY additive: the
+    // .tasks-tab subtree is byte-identical to what it was, and the only
+    // concession on the tasks side is a CSS override turning its width:100% into
+    // a flex item. Measured before building: squeezed to 80% the tasks body
+    // reports zero horizontal overflow and zero escaping children.
     panel.innerHTML =
-      '<div class="tasks-tab" data-tab="tasks">' +
-        tasksHeaderHtml() +
-        '<div class="tasks-body">' +
-          activeGoalsSectionHtml +
-          standaloneSectionHtml +
-          recurringSectionHtml +
-          trashRowHtml +
+      '<div class="tasks-split">' +
+        '<div class="tasks-tab" data-tab="tasks">' +
+          tasksHeaderHtml() +
+          '<div class="tasks-body">' +
+            activeGoalsSectionHtml +
+            standaloneSectionHtml +
+            recurringSectionHtml +
+            trashRowHtml +
+          '</div>' +
         '</div>' +
+        notesPanelHtml(d) +
       '</div>';
 
+    bindNotesEvents(panel);
     bindTasksTabEvents(panel);
     bindTasksTabSortables(panel, d);
     // [2.0 pill clarity] Fill the per-task time slots. Two-phase and fire-and-
