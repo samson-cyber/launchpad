@@ -5543,6 +5543,79 @@ html.has-bg #restore-empty {
   padding: 6px 14px;
 }
 
+/* --- Insights custom range ([1.2.2 R2]) ---
+   The date fields are NATIVE <input type="date">. The only reason this needs
+   any theme rule at all is color-scheme: a native control paints its own
+   internals (text, the calendar indicator, the dropdown) from the scheme, not
+   from `color`, so on a wallpaper the default light control sits black-on-white
+   against a dark frosted panel. Setting the scheme flips the whole native
+   control at once, which is why there is still no per-element colour here.
+   Three tiers, matching .seg-btn's existing structure exactly: default board is
+   light, wallpaper is dark, light wallpaper is light again. */
+.insights-range-custom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin: -4px 0 14px;
+}
+
+.insights-range-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.insights-range-field-label {
+  font-size: var(--fs-12);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.insights-date {
+  font-family: inherit;
+  font-size: var(--fs-12);
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.insights-range-note {
+  flex: 1 0 100%;
+  margin: 0;
+  text-align: right;
+  font-size: var(--fs-12);
+  color: var(--text-secondary);
+  opacity: 0.8;
+}
+
+html.has-bg .insights-range-field-label,
+html.has-bg .insights-range-note {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+html.has-bg .insights-date {
+  color-scheme: dark;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+html.has-bg.bg-light .insights-range-field-label,
+html.has-bg.bg-light .insights-range-note {
+  color: var(--text-secondary);
+}
+
+html.has-bg.bg-light .insights-date {
+  color-scheme: light;
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.15);
+  color: var(--text-primary);
+}
+
 /* --- Custom Dropdown --- */
 
 .settings-dropdown {

@@ -1650,7 +1650,12 @@
   // per the audit). The maxH `|| 1` and 1px height floor keep an all-zero or
   // sparse window honest rather than blank — a new user's chart filling in day
   // by day is the feature, so there is deliberately no empty state here.
-  function insightsBarChartSvg(hours, todayIndex, ariaLabel) {
+  // [1.2.2 R2] startLabel/endLabel replace two HARD-CODED axis captions that read
+  // "30 days ago" and "today" whatever the window actually was. Those were already
+  // wrong for the Round 1 presets - a 7-day board still claimed "30 days ago" -
+  // and a custom range makes both ends arbitrary. A todayIndex of -1 highlights no
+  // bar at all, which is what a range ending in the past should do.
+  function insightsBarChartSvg(hours, todayIndex, ariaLabel, startLabel, endLabel) {
     var w = 560, h = 190, padX = 32, padTop = 28, padBottom = 32;
     var maxH = Math.max.apply(null, hours) || 1;
     var step = (w - 2 * padX) / hours.length;
@@ -1667,8 +1672,8 @@
         '<line class="pp-axis" x1="' + padX + '" y1="' + (h - padBottom) + '" x2="' + (w - padX) + '" y2="' + (h - padBottom) + '" />' +
         barsSvg +
         '<text class="pp-axis-label" x="' + padX + '" y="' + (padTop - 10) + '">hours / day</text>' +
-        '<text class="pp-axis-label-sub" x="' + padX + '" y="' + (h - padBottom + 16) + '" text-anchor="start">30 days ago</text>' +
-        '<text class="pp-axis-label-sub" x="' + (w - padX) + '" y="' + (h - padBottom + 16) + '" text-anchor="end">today</text>' +
+        '<text class="pp-axis-label-sub" x="' + padX + '" y="' + (h - padBottom + 16) + '" text-anchor="start">' + escapeHtml(startLabel || "") + '</text>' +
+        '<text class="pp-axis-label-sub" x="' + (w - padX) + '" y="' + (h - padBottom + 16) + '" text-anchor="end">' + escapeHtml(endLabel || "") + '</text>' +
       '</svg>';
   }
 
@@ -1714,7 +1719,7 @@
     var d = DEMO_INSIGHTS_DATA;
 
     // 30-day trend bars — through the shared builder.
-    var trendSvg = insightsBarChartSvg(d.trend30.days, d.trend30.todayIndex, "Deep work trend over the last 30 days");
+    var trendSvg = insightsBarChartSvg(d.trend30.days, d.trend30.todayIndex, "Deep work trend over the last 30 days", "30 days ago", "today");
 
     // Donut chart + legend — through the shared builders. The demo segments carry
     // {tag:{name,color}, hours}; map them to the builders' {color,value}/name shape.
@@ -1834,6 +1839,34 @@
     return "last 30 days";
   }
 
+  // [1.2.2 R2] The custom range is TRANSIENT by decision: a pinned calendar range
+  // would go stale and then silently empty as the 30-day retention rolls past it.
+  // So it lives in a module variable and is NEVER written to storage - the
+  // persisted value stays the last PRESET, and a reload lands back on it. This is
+  // deliberately not a Storage field; nothing to migrate, nothing to clean up.
+  var insightsCustom = null;   // { from: "YYYY-MM-DD", to: "YYYY-MM-DD" } | null
+
+  // Retention horizon as local day keys. RETENTION_DAYS counts today, so the
+  // oldest selectable day is today minus (RETENTION_DAYS - 1). Read from the
+  // engine constant rather than restating 30, so extending retention later moves
+  // the picker floor with it instead of leaving it lying.
+  function insightsHorizon() {
+    var n = (typeof Tracking !== "undefined" && Tracking.RETENTION_DAYS) || 30;
+    var keys = Tracking.lastNLocalDayKeys(n);
+    return { min: keys[0], max: keys[keys.length - 1] };
+  }
+
+  // "Aug 12-Aug 25", or just "Aug 20" when both ends are the same day. Hyphen,
+  // never an em dash (the copy rule). The year is never shown: the whole
+  // selectable span is 30 days, so a year would be noise, and a year wrap still
+  // reads correctly as "Dec 28-Jan 3" without one.
+  function insightsCustomLabel(keys) {
+    if (!keys || !keys.length) return "custom range";
+    var a = fmtShortDate(insightsKeyToTs(keys[0]));
+    var b = fmtShortDate(insightsKeyToTs(keys[keys.length - 1]));
+    return a === b ? a : (a + "-" + b);
+  }
+
   // Reuses the settings segmented control verbatim (.settings-segmented/.seg-btn)
   // rather than inventing a board-local one. That is the whole ink and ring story:
   // those classes already carry html.has-bg and html.bg-light overrides, including
@@ -1843,18 +1876,43 @@
   // cannot see (its stated blind spot) - inheriting a covered class is the
   // protection the gate cannot give.
   function insightsRangeSelectorHtml(activeDays) {
+    var custom = !!insightsCustom;
+    var hz = insightsHorizon();
+    var from = custom ? insightsCustom.from : "";
+    var to = custom ? insightsCustom.to : "";
+    // To's floor tracks From so a reversed range cannot be entered through the
+    // picker at all; the builder still swaps defensively for the keyboard path.
+    var toMin = (custom && from) ? from : hz.min;
+
     return '<div class="insights-range">' +
         '<div class="settings-segmented insights-range-seg" role="group" aria-label="Date range">' +
           INSIGHTS_RANGES.map(function (r) {
-            var on = (r.days === activeDays);
+            var on = (!custom && r.days === activeDays);
             return '<button type="button" class="seg-btn' + (on ? ' active' : '') + '"' +
               ' data-ins-range="' + r.days + '"' +
               ' aria-pressed="' + (on ? 'true' : 'false') + '">' +
               escapeHtml(r.btn) +
             '</button>';
           }).join("") +
+          '<button type="button" class="seg-btn' + (custom ? ' active' : '') + '"' +
+            ' data-ins-custom="1" aria-pressed="' + (custom ? 'true' : 'false') + '">Custom</button>' +
         '</div>' +
-      '</div>';
+      '</div>' +
+      (custom
+        ? '<div class="insights-range-custom">' +
+            '<label class="insights-range-field">' +
+              '<span class="insights-range-field-label">From</span>' +
+              '<input type="date" class="insights-date" data-ins-from' +
+                ' min="' + hz.min + '" max="' + hz.max + '" value="' + escapeHtml(from) + '">' +
+            '</label>' +
+            '<label class="insights-range-field">' +
+              '<span class="insights-range-field-label">To</span>' +
+              '<input type="date" class="insights-date" data-ins-to' +
+                ' min="' + toMin + '" max="' + hz.max + '" value="' + escapeHtml(to) + '">' +
+            '</label>' +
+            '<p class="insights-range-note">LaunchPad keeps 30 days of history.</p>' +
+          '</div>'
+        : '');
   }
 
   // ONE scope for the whole board (D3), the Dashboard convention verbatim:
@@ -1906,7 +1964,14 @@
     // [1.2.2] One range drives the selector, every title, and the key list the
     // readers get - the same single-source rule D3 applies to scope.
     var rangeDays = Storage.getInsightsRangeDays(d);
-    var rangeLabel = insightsRangeLabel(rangeDays);
+    // A custom range overrides the preset for THIS view only; rangeDays stays
+    // the persisted preset so the selector returns to it on reload.
+    var customKeys = insightsCustom
+      ? Tracking.rangeLocalDayKeys(insightsCustom.from, insightsCustom.to)
+      : null;
+    var rangeLabel = (customKeys && customKeys.length)
+      ? insightsCustomLabel(customKeys)
+      : insightsRangeLabel(rangeDays);
     var trackingShell = scope
       ? insightsRangeSelectorHtml(rangeDays) +
         '<div class="insights-strip" data-ins-strip></div>' +
@@ -1935,7 +2000,7 @@
       '</div>';
 
     bindInsightsEvents(panel);
-    if (scope) insightsRefresh(panel, scope, d, rangeDays);
+    if (scope) insightsRefresh(panel, scope, d, rangeDays, customKeys);
   }
 
   // [1.2.2] Delegated on the panel container, which survives the innerHTML
@@ -1953,8 +2018,54 @@
       // Storage owns the write AND its saveAll (the setCombinedAnalyticsEnabled
       // convention); the UI never touches workspace data. A no-op re-pick returns
       // false and is not re-rendered, so clicking the active preset costs nothing.
+      // Clicking a PRESET always leaves custom mode, even when the preset itself
+      // is unchanged - otherwise the no-op guard would swallow the click and the
+      // board would stay on the custom range with a preset looking selected.
+      var wasCustom = !!insightsCustom;
+      insightsCustom = null;
       var changed = await Storage.setInsightsRangeDays(data, days);
-      if (!changed) return;
+      if (!changed && !wasCustom) return;
+      renderInsightsTab(panel, data);
+    });
+
+    // The Custom segment. Opens on the widest honest default - the whole
+    // retention horizon - so the board shows something real immediately rather
+    // than two empty inputs. TRANSIENT: nothing here touches Storage.
+    panel.addEventListener("click", function (e) {
+      if (!e.target.closest("[data-ins-custom]")) return;
+      if (insightsCustom) return;             // already open, leave the dates alone
+      var hz = insightsHorizon();
+      insightsCustom = { from: hz.min, to: hz.max };
+      renderInsightsTab(panel, data);
+    });
+
+    // "change" rather than "input": a date field fires input on every keystroke
+    // of a partly-typed date, which would re-render the board mid-edit and steal
+    // focus. change fires on a committed value, which is the gesture we want.
+    panel.addEventListener("change", function (e) {
+      var el = e.target;
+      if (!el || !el.matches || !el.matches("[data-ins-from], [data-ins-to]")) return;
+      if (!insightsCustom) return;
+      var hz = insightsHorizon();
+      var next = {
+        from: el.hasAttribute("data-ins-from") ? el.value : insightsCustom.from,
+        to: el.hasAttribute("data-ins-to") ? el.value : insightsCustom.to
+      };
+      // An emptied field (the native clear affordance) falls back to the horizon
+      // edge rather than blanking the board.
+      if (!next.from) next.from = hz.min;
+      if (!next.to) next.to = hz.max;
+      // Clamp into the horizon, then order. min/max already stop the picker, but
+      // typed input can still land outside on some builds - clamp and proceed,
+      // never error.
+      if (next.from < hz.min) next.from = hz.min;
+      if (next.to < hz.min) next.to = hz.min;
+      if (next.from > hz.max) next.from = hz.max;
+      if (next.to > hz.max) next.to = hz.max;
+      if (next.from > next.to) {
+        var t = next.from; next.from = next.to; next.to = t;
+      }
+      insightsCustom = next;
       renderInsightsTab(panel, data);
     });
   }
@@ -1967,11 +2078,13 @@
   // Fill the four tracking surfaces from the windowed readers. One scope drives
   // all of them (D3). Reads run in parallel; a stale token (a newer render landed
   // meanwhile) drops the whole paint.
-  async function insightsRefresh(panel, scope, d, rangeDays) {
+  async function insightsRefresh(panel, scope, d, rangeDays, customKeys) {
     if (!panel || !scope) return;
     if (typeof Tracking === "undefined" || !Tracking.focusedRangeForScope) return;
     var token = ++insightsReadToken;
-    var keys = Tracking.lastNLocalDayKeys(rangeDays);
+    var keys = (customKeys && customKeys.length)
+      ? customKeys
+      : Tracking.lastNLocalDayKeys(rangeDays);
     var range, byTag, byTask, byDomain;
     try {
       var res = await Promise.all([
@@ -1992,17 +2105,30 @@
     // chart aria-labels and all three empty states. They had already drifted
     // apart - deep work and the donut each carried their own hard-coded "last 30
     // days" - so they read from one value now and cannot disagree again.
-    var rangeLabelNow = insightsRangeLabel(rangeDays);
+    var rangeLabelNow = (customKeys && customKeys.length)
+      ? insightsCustomLabel(keys)
+      : insightsRangeLabel(rangeDays);
+
+    // [1.2.2 R2] Three things on this board silently assumed the window ENDS
+    // TODAY. That was invisible while every window did. A custom range can end
+    // in the past, so each is derived now instead of assumed: the chart's
+    // "today" bar highlight, its two axis captions, and the strip lead figure.
+    var todayKey = Tracking.lastNLocalDayKeys(1)[0];
+    var todayIdx = keys.indexOf(todayKey);   // -1 when the range ends in the past
+    var endsToday = (todayIdx === keys.length - 1);
     var perDayMs = keys.map(function (k) { return range[k] || 0; });
     var scopeTotalMs = perDayMs.reduce(function (a, b) { return a + b; }, 0);
     var hours = perDayMs.map(function (ms) { return ms / 3600000; });
 
-    insightsFill(panel, "[data-ins-strip]", insightsStripHtml(range, keys, scopeTotalMs));
+    insightsFill(panel, "[data-ins-strip]",
+      insightsStripHtml(range, keys, scopeTotalMs, endsToday, rangeLabelNow));
     insightsFill(panel, "[data-ins-deepwork]",
       // Em-dash form, matching the visible card title exactly rather than a
       // second phrasing: "over the " + label reads as "over the today" for the
       // one-day preset, and a screen-reader string is copy like any other.
-      insightsBarChartSvg(hours, hours.length - 1, "Deep work — " + rangeLabelNow));
+      insightsBarChartSvg(hours, todayIdx, "Deep work — " + rangeLabelNow,
+        fmtShortDate(insightsKeyToTs(keys[0])),
+        endsToday ? "today" : fmtShortDate(insightsKeyToTs(keys[keys.length - 1]))));
     insightsFill(panel, "[data-ins-donut]", insightsTagDonutHtml(byTag, scopeTotalMs, d, combined, rangeLabelNow));
     insightsFill(panel, "[data-ins-topsites]", insightsTopSitesHtml(byDomain, d, combined, rangeLabelNow));
     insightsFill(panel, "[data-ins-toptasks]", insightsTopTasksHtml(byTask, d, combined, rangeLabelNow));
@@ -2012,7 +2138,7 @@
   // — no week-start locale question), "Best day" over the window (date + hours),
   // and a flat "Daily avg" = total / 30 with zero days included (a calendar
   // average). All local-day-key based, matching the aggregate basis.
-  function insightsStripHtml(range, keys, scopeTotalMs) {
+  function insightsStripHtml(range, keys, scopeTotalMs, endsToday, rangeLabel) {
     // [1.2.2] Both figures used to assume a 30-key window: a fixed slice(-7) and
     // a literal /30 divisor. Under a shorter preset the slice would have silently
     // labelled fewer days "last 7 days" and the average would have divided a
@@ -2028,7 +2154,12 @@
     });
     var avgMs = keys.length ? (scopeTotalMs / keys.length) : 0;
     var items = [
-      { num: fmtDurationHM(leadMs), label: leadN === 1 ? "today" : ("last " + leadN + " days") },
+      // "last 7 days" is only true of a window that ENDS today. For a range that
+      // ended in the past it would name the wrong seven days, so that case shows
+      // the whole range instead, labelled with the range itself.
+      endsToday
+        ? { num: fmtDurationHM(leadMs), label: leadN === 1 ? "today" : ("last " + leadN + " days") }
+        : { num: fmtDurationHM(scopeTotalMs), label: rangeLabel },
       { num: bestMs > 0 ? fmtDurationHM(bestMs) : "—",
         label: bestMs > 0 ? ("best day · " + escapeHtml(fmtShortDate(insightsKeyToTs(bestKey)))) : "best day" },
       { num: fmtDurationHM(avgMs), label: "daily avg" }

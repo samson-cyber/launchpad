@@ -704,6 +704,56 @@
     return keys.reverse();
   }
 
+  // [1.2.2 R2] The same walk, between two arbitrary local days instead of n back
+  // from today. INCLUSIVE of both ends. Accepts "YYYY-MM-DD" keys (what a native
+  // date input hands over, always ISO regardless of locale) or a ts/Date.
+  //
+  // Built on the SAME setDate walk with a re-anchor to local midnight each step,
+  // for the same reason lastNLocalDayKeys is: a fixed 24h step drifts across a DST
+  // boundary and would skip or repeat a calendar day. This is a second CALLER of
+  // that technique, not a second implementation of the day key - localDayKey and
+  // startOfLocalDay are still the only places a key is derived, so the two
+  // builders cannot disagree about what a day is.
+  //
+  // Reversed input is CLAMPED by swapping rather than rejected: the caller is a
+  // pair of date inputs a user can drive to any order mid-edit, and a board that
+  // renders the honest range beats one that errors.
+  function rangeLocalDayKeys(startDate, endDate) {
+    function toLocalMidnight(v) {
+      if (typeof v === "string") {
+        var p = v.split("-");
+        if (p.length !== 3) return null;
+        var y = +p[0], mo = +p[1], da = +p[2];
+        if (!y || !mo || !da) return null;
+        return new Date(y, mo - 1, da).getTime();
+      }
+      if (v == null) return null;
+      return startOfLocalDay(v instanceof Date ? v.getTime() : v);
+    }
+    var a = toLocalMidnight(startDate);
+    var b = toLocalMidnight(endDate);
+    if (a == null || b == null) return [];
+    if (a > b) { var t = a; a = b; b = t; }
+
+    var keys = [];
+    var cursor = b;
+    // Guard on the KEY, not on the timestamp: a DST step can land the cursor a
+    // few hours either side of the start's midnight while still being the same
+    // calendar day, and the key is what the aggregates are indexed on.
+    var startKey = localDayKey(a);
+    for (var guard = 0; guard < 400; guard++) {
+      var k = localDayKey(cursor);
+      keys.push(k);
+      if (k === startKey) break;
+      var dd = new Date(cursor);
+      dd.setDate(dd.getDate() - 1);
+      dd.setHours(0, 0, 0, 0);
+      cursor = dd.getTime();
+      if (cursor < a) break;
+    }
+    return keys.reverse();
+  }
+
   // ===== [1.0.16] Read surface =====
   //
   // The active-task widget's focused-time readout. The first thing outside the
@@ -1196,6 +1246,7 @@
     // rollups are settled-aggregate arrays keyed on the (workspaceId, id) tuple.
     // lastNLocalDayKeys builds the window on localDayKey/startOfLocalDay.
     lastNLocalDayKeys: lastNLocalDayKeys,
+    rangeLocalDayKeys: rangeLocalDayKeys,
     focusedRangeForScope: focusedRangeForScope,
     byTagForScope: byTagForScope,
     byTaskForScope: byTaskForScope,
