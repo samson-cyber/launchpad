@@ -13079,14 +13079,34 @@ html.bg-light .sat-focus-row.is-on .sat-focus-knob { background: #fff; }
   margin-bottom: 18px;
 }
 
-/* Size and weight come from the shared .tasks-title rule above, so the two Pro
-   tab titles cannot drift apart; only the ink tiers are declared here. */
-.notes-title {
-  color: var(--text-primary);
+/* Size and weight come from the shared .tasks-title rule above. INK IS
+   INHERITED, never declared here: the default board is DARK, so a
+   var(--text-primary) here painted near-black on near-black and measured
+   1.12:1 in runtime verification. .tasks-title declares no colour either and
+   is the control this now matches. The one tier that needs a value is the
+   light wallpaper, and it is carried by the container below, exactly as
+   html.has-bg.bg-light .tasks-tab does it. */
+.notes-tab {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  /* The base ink for this surface, mirroring .tasks-tab exactly. The default
+     board is DARK, so white starts here and every child inherits it; the D6
+     shadow keeps that text legible where it sits over a wallpaper directly.
+     Runtime measurement caught the first version of this file declaring
+     var(--text-primary) on the children instead, which painted near-black on
+     near-black at 1.12:1. */
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
-html.has-bg .notes-title { color: #fff; }
-html.has-bg.bg-light .notes-title { color: var(--text-primary); }
+/* Paper cards are opaque and carry their own dark ink, so they must NOT inherit
+   the container white or its shadow. */
+.note-card { text-shadow: none; }
+
+html.has-bg.bg-light .notes-tab { color: #1f1f1f; }
 
 /* The grid. LAYOUT IS DELIBERATELY SEPARABLE: [1.1.2] replaces this rule set
    with drag positioning, and nothing outside it encodes placement. */
@@ -13182,11 +13202,13 @@ html.has-bg.bg-light .notes-title { color: var(--text-primary); }
 .note-placeholder { color: var(--note-ink-dim); }
 
 /* Empty state sits on the PANEL, not on paper, so it takes all three tiers. */
+/* Dimmed by OPACITY, not by a colour token, so it stays legible on whatever
+   ink it inherits. Same technique as .tt-empty-state. */
 .notes-empty {
   width: 100%;
   padding: 56px 12px;
   text-align: center;
-  color: var(--text-secondary);
+  opacity: 0.72;
   font-size: var(--fs-14);
 }
 
@@ -13194,13 +13216,7 @@ html.has-bg.bg-light .notes-title { color: var(--text-primary); }
   font-size: var(--fs-14);
   font-weight: 600;
   margin-bottom: 6px;
-  color: var(--text-primary);
 }
-
-html.has-bg .notes-empty { color: rgba(255, 255, 255, 0.72); }
-html.has-bg .notes-empty-title { color: #fff; }
-html.has-bg.bg-light .notes-empty { color: var(--text-secondary); }
-html.has-bg.bg-light .notes-empty-title { color: var(--text-primary); }
 
 /* Colour picker inside the reused .tt-context-menu surface. */
 .note-swatches {

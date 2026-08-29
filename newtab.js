@@ -2405,13 +2405,15 @@
     var ws = Storage.getActiveWorkspace(d0);
     var notes = ws ? Storage.getAllNotes(ws) : [];
     panel.innerHTML =
-      '<header class="notes-header">' +
+      '<div class="notes-tab">' +
+        '<header class="notes-header">' +
         '<h1 class="notes-title">Notes</h1>' +
         '<div class="tasks-header-right">' +
           '<button class="tasks-action" data-action="new-note" type="button">+ New Note</button>' +
         '</div>' +
       '</header>' +
-      '<div class="notes-grid" data-notes-grid>' + notesGridHtml(notes) + '</div>';
+        '<div class="notes-grid" data-notes-grid>' + notesGridHtml(notes) + '</div>' +
+      '</div>';
     bindNotesEvents(panel);
   }
 
@@ -2419,7 +2421,7 @@
   // pointer-inert rule lives in CSS on .notes-preview so the card styling path is
   // pixel-identical to the live one.
   function renderNotesPreview() {
-    return '<div class="notes-preview">' +
+    return '<div class="notes-preview notes-tab">' +
         '<header class="notes-header">' +
           '<h1 class="notes-title">Notes</h1>' +
         '</header>' +
