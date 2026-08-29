@@ -13407,3 +13407,80 @@ html.has-bg.bg-light .notes-panel {
     width: 208px;
   }
 }
+
+/* ===== Notes reorder + search ([1.1.2]) =====
+
+   The search row joins the panel ink rather than declaring its own: .notes-panel
+   already sets colour and the D6 shadow and carries the light-wallpaper tier, so
+   everything here inherits and only the input surface is drawn. */
+.notes-search {
+  position: relative;
+  flex-shrink: 0;
+  margin-bottom: 12px;
+}
+
+.notes-search-input {
+  width: 100%;
+  padding: 6px 26px 6px 10px;
+  font-family: inherit;
+  font-size: var(--fs-12);
+  color: inherit;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  outline: none;
+  text-shadow: none;
+}
+
+.notes-search-input::placeholder { color: inherit; opacity: 0.55; }
+.notes-search-input:focus { border-color: rgba(255, 255, 255, 0.42); }
+
+html.has-bg.bg-light .notes-search-input {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.16);
+}
+html.has-bg.bg-light .notes-search-input:focus { border-color: rgba(0, 0, 0, 0.34); }
+
+.notes-search-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  font-size: var(--fs-14);
+  line-height: 1;
+  text-shadow: none;
+}
+
+.notes-search-clear:hover { opacity: 1; }
+
+/* ---- drag feedback ----
+
+   MEASURED, not assumed: there is no forceFallback in this codebase, so Sortable
+   uses the NATIVE HTML5 drag image. An instrumented real drag confirmed that
+   .sortable-drag never enters the DOM, so dragClass styling would be dead code;
+   the only element that actually exists mid-drag is the .sortable-ghost
+   placeholder, and that is what gets styled. The card rotations do not interfere:
+   the browser snapshots the rotated element and the drop still lands correctly. */
+.notes-stack .note-card.sortable-ghost {
+  opacity: 0.35;
+}
+
+.notes-stack .note-card.sortable-chosen {
+  cursor: grabbing;
+}
+
+/* While a filter is active the Sortable is disabled in JS; this is the matching
+   affordance so the cursor does not promise a drag that will not happen. */
+.notes-stack.is-filtered .note-card { cursor: default; }

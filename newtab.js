@@ -2359,6 +2359,13 @@
   // with drag positioning without touching the card, the editor or the menu.
 
   var notesEditingId = null;      // note currently in inline edit, or null
+  var notesFilter = "";          // live search text; "" means no filter
+  var notesSortable = null;      // Sortable instance on the stack, or null
+
+  // [1.1.2] The search input renders only ABOVE this many live notes. The
+  // threshold is the whole point of the feature: a panel with a handful of notes
+  // needs no chrome, and the ratified look is what the absence protects.
+  var NOTES_SEARCH_THRESHOLD = 6;
   var notesMenuEl = null;         // single live context menu, body-mounted
 
   // The demo corpus for the free preview. Deliberately shaped like real notes so
@@ -2406,11 +2413,25 @@
   // tab. Single column, newest first, ghost note always last. Kept as one
   // function returning markup so [1.1.2] ordering work can replace the stack
   // without touching the card, the editor, the menu or the split layout.
+  // [1.1.2] ARRAY ORDER IS CANONICAL. [1.1.1] produced newest-at-top with a
+  // render-time sort on createdAt while createNote pushed to the array END, so
+  // the display was a reversal of storage and drag order had nothing to commit
+  // to. That sort is gone: the stack renders ws.notes in array order, creation
+  // inserts at the top, and a drop rewrites the array. The dormant position
+  // {x,y} field is untouched (see storage.js).
   function notesStackHtml(notes) {
-    var ordered = notes.slice().sort(function (a, b) {
-      return (b.createdAt || 0) - (a.createdAt || 0);   // newest at top
+    var visible = notesFilterMatches(notes);
+    return visible.map(noteCardHtml).join("") + ghostNoteHtml();
+  }
+
+  // Case-insensitive substring on content, position independent. Deleted notes
+  // never reach here: the caller passes getAllNotes output, which excludes them.
+  function notesFilterMatches(notes) {
+    var q = notesFilter.trim().toLowerCase();
+    if (!q) return notes;
+    return notes.filter(function (n) {
+      return String(n.content || "").toLowerCase().indexOf(q) !== -1;
     });
-    return ordered.map(noteCardHtml).join("") + ghostNoteHtml();
   }
 
   // The ONLY create affordance. A persistent placeholder in the paper idiom,
@@ -2424,11 +2445,26 @@
       '</button>';
   }
 
+  function notesSearchHtml(liveCount) {
+    if (liveCount <= NOTES_SEARCH_THRESHOLD) return "";
+    var v = escapeHtml(notesFilter);
+    return '<div class="notes-search">' +
+        '<input type="text" class="notes-search-input" data-notes-search' +
+          ' placeholder="Search notes" aria-label="Search notes"' +
+          ' value="' + v + '" autocomplete="off" spellcheck="false">' +
+        (notesFilter
+          ? '<button type="button" class="notes-search-clear" data-notes-search-clear' +
+            ' aria-label="Clear search">&times;</button>'
+          : "") +
+      '</div>';
+  }
+
   function notesPanelHtml(d0) {
     var ws = Storage.getActiveWorkspace(d0);
     var notes = ws ? Storage.getAllNotes(ws) : [];
     return '<aside class="notes-panel" data-notes-panel>' +
         '<div class="notes-panel-title">Notes</div>' +
+        notesSearchHtml(notes.length) +
         '<div class="notes-stack" data-notes-stack>' + notesStackHtml(notes) + '</div>' +
       '</aside>';
   }
@@ -2436,11 +2472,94 @@
   // Re-render JUST the stack. The Tasks tab owns the panel now, so a note
   // mutation must not rebuild the tasks side: that would discard its scroll
   // position, its drag state and any inline rename in progress.
+  // Re-render JUST the stack. The Tasks tab owns the panel, so a note mutation
+  // must not rebuild the tasks side, and the search input must not be rebuilt on
+  // a keystroke or it would lose focus mid-typing.
   function renderNotesStack() {
     var stack = document.querySelector("[data-notes-stack]");
     if (!stack) return;
     var ws = Storage.getActiveWorkspace(data);
     stack.innerHTML = notesStackHtml(ws ? Storage.getAllNotes(ws) : []);
+    bindNotesSortable();
+  }
+
+  // Re-render the whole panel. Needed only where the SEARCH INPUT itself may
+  // appear or disappear, i.e. when the live count crosses the threshold, which
+  // is create and delete. Never on a keystroke.
+  function renderNotesPanel() {
+    var panel = document.querySelector("[data-notes-panel]");
+    if (!panel) return;
+    var wrap = panel.parentNode;
+    var tmp = document.createElement("div");
+    tmp.innerHTML = notesPanelHtml(data);
+    wrap.replaceChild(tmp.firstChild, panel);
+    bindNotesSortable();
+  }
+
+  // [1.1.2] Drag-to-reorder, on the goal-list Sortable idiom (an explicit isolated
+  // group, chosen/ghost classes, interactive children filtered, onUpdate as the
+  // persist hook). Two things were settled by an INSTRUMENTED REAL DRAG before
+  // this was written, per Section I:
+  //
+  //   - The card rotations do NOT break the drag. There is no forceFallback
+  //     anywhere in this codebase, so Sortable uses the native HTML5 drag image:
+  //     .sortable-drag never appears in the DOM, the browser snapshots the
+  //     rotated element itself, and reordering lands correctly regardless.
+  //     dragClass is therefore inert here and is not relied on.
+  //   - The ghost note is excluded structurally rather than by styling: it
+  //     carries no data-note-id, so `draggable` skips it, and the onMove guard
+  //     refuses any move relative to it so it can never be displaced from last.
+  function bindNotesSortable() {
+    var stack = document.querySelector("[data-notes-stack]");
+    if (!stack || typeof Sortable === "undefined") return;
+    if (notesSortable) { try { notesSortable.destroy(); } catch (e) {} notesSortable = null; }
+
+    notesSortable = new Sortable(stack, {
+      animation: 150,
+      group: { name: "notes-stack", pull: false, put: false },
+      draggable: "[data-note-id]",
+      filter: ".note-trash, .note-editor",
+      preventOnFilter: false,
+      ghostClass: "sortable-ghost",
+      chosenClass: "sortable-chosen",
+      dragClass: "sortable-drag",
+      // Reorder while a filter is active would rewrite the positions of notes
+      // the user cannot see. Disabled rather than cleverly reconciled.
+      disabled: !!notesFilter.trim(),
+      onMove: function (evt) {
+        if (evt.related && evt.related.classList.contains("note-ghost")) return false;
+      },
+      onUpdate: function () {
+        notesCommitOrder();
+      }
+    });
+  }
+
+  // Commit the DOM order into the array. Works on IDS, not on Sortable indices,
+  // because the stack shows only LIVE notes while the array also holds
+  // soft-deleted ones: a raw index would address the wrong element. Live notes
+  // are permuted into the slots live notes already occupy, so deleted notes keep
+  // their exact positions and the trash is undisturbed.
+  async function notesCommitOrder() {
+    var stack = document.querySelector("[data-notes-stack]");
+    var ws = Storage.getActiveWorkspace(data);
+    if (!stack || !ws || !Array.isArray(ws.notes)) return;
+
+    var orderedIds = [].slice.call(stack.querySelectorAll("[data-note-id]"))
+      .map(function (el) { return el.getAttribute("data-note-id"); })
+      .filter(Boolean);
+
+    var byId = {};
+    ws.notes.forEach(function (n) { byId[n.id] = n; });
+    var liveSlots = [];
+    ws.notes.forEach(function (n, i) { if (!n.deletedAt) liveSlots.push(i); });
+
+    // Refuse anything that does not account for every live note exactly once.
+    if (orderedIds.length !== liveSlots.length) return;
+    if (!orderedIds.every(function (id) { return byId[id] && !byId[id].deletedAt; })) return;
+
+    orderedIds.forEach(function (id, k) { ws.notes[liveSlots[k]] = byId[id]; });
+    await Storage.saveAll(data);
   }
 
   // Free preview: same header, same grid, same card renderer, fixed data. The
@@ -2505,21 +2624,35 @@
   }
 
   async function notesCreate() {
+    // Creating from the ghost while a filter is active would drop the new note
+    // straight out of view. Clear the filter first, so the note you just made is
+    // the one you are looking at.
+    notesFilter = "";
     var note = Storage.createNote(data, { content: "" });
     if (!note) return;
+    // [1.1.2] NEWEST AT TOP AS A REAL ARRAY POSITION. createNote appends, which
+    // is the right generic behaviour; the panel wants newest-first, so the
+    // insertion position is the caller's policy and is applied here rather than
+    // by changing a shared storage primitive.
+    var ws = Storage.getActiveWorkspace(data);
+    if (ws && Array.isArray(ws.notes)) {
+      var at = ws.notes.indexOf(note);
+      if (at > 0) { ws.notes.splice(at, 1); ws.notes.unshift(note); }
+    }
     await Storage.saveAll(data);
-    renderNotesStack();
+    renderNotesPanel();
     var card = document.querySelector('.note-card[data-note-id="' + note.id + '"]');
     if (card) notesEnterEdit(card);
   }
 
   // ONE delete path for BOTH affordances, the hover trash and the menu item, so
-  // they cannot drift apart. Soft-delete per [1.1.0].
+  // they cannot drift apart. Soft-delete per [1.1.0]. Uses the PANEL render
+  // because deleting can drop the live count back under the search threshold.
   async function notesDelete(noteId) {
     if (!noteId) return;
     Storage.deleteNote(data, noteId);
     await Storage.saveAll(data);
-    renderNotesStack();
+    renderNotesPanel();
   }
 
   // ---- context menu ---------------------------------------------------------
@@ -2615,6 +2748,7 @@
         notesDelete(owner.dataset.noteId);
         return;
       }
+      if (e.target.closest(".notes-search")) return;
       if (e.target.closest("[data-note-new]")) { notesCreate(); return; }
       var card = e.target.closest(".note-card");
       if (card) {
@@ -2624,6 +2758,41 @@
       // Click-outside SAVES the open editor. There is no create-on-empty-space
       // gesture any more; the ghost note is the only creation affordance.
       if (notesEditingId) notesCommitEdit();
+    });
+
+    // [1.1.2] Search. "input" so it filters as you type. Only the STACK is
+    // re-rendered, never the input, or focus and the caret would be lost on
+    // every keystroke. Toggling the filter also toggles the drag, since
+    // reordering a filtered subset would rewrite hidden notes silently.
+    panel.addEventListener("input", function (e) {
+      if (!e.target.matches("[data-notes-search]")) return;
+      notesFilter = e.target.value || "";
+      renderNotesStack();
+      var clear = panel.querySelector("[data-notes-search-clear]");
+      if (notesFilter && !clear) {
+        var wrap = panel.querySelector(".notes-search");
+        if (wrap) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.className = "notes-search-clear";
+          b.setAttribute("data-notes-search-clear", "");
+          b.setAttribute("aria-label", "Clear search");
+          b.innerHTML = "&times;";
+          wrap.appendChild(b);
+        }
+      } else if (!notesFilter && clear) {
+        clear.remove();
+      }
+    });
+
+    panel.addEventListener("click", function (e) {
+      if (!e.target.closest("[data-notes-search-clear]")) return;
+      notesFilter = "";
+      var input = panel.querySelector("[data-notes-search]");
+      if (input) { input.value = ""; input.focus(); }
+      var clear = panel.querySelector("[data-notes-search-clear]");
+      if (clear) clear.remove();
+      renderNotesStack();
     });
 
     panel.addEventListener("contextmenu", function (e) {
@@ -3706,6 +3875,7 @@
       '</div>';
 
     bindNotesEvents(panel);
+    bindNotesSortable();
     bindTasksTabEvents(panel);
     bindTasksTabSortables(panel, d);
     // [2.0 pill clarity] Fill the per-task time slots. Two-phase and fire-and-

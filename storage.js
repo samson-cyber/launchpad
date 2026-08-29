@@ -3988,6 +3988,9 @@ var Storage = (function () {
       id: genNoteId(),
       content: (o.content === undefined || o.content === null) ? "" : String(o.content),
       color: color,
+      // [1.1.2] RESERVED AND DORMANT. Nothing reads or writes these: the notes
+      // panel is a vertical stack whose ARRAY ORDER is canonical. Kept for a
+      // future free-positioning surface; no semantics, no migration.
       position: {
         x: typeof pos.x === "number" ? pos.x : 0,
         y: typeof pos.y === "number" ? pos.y : 0
