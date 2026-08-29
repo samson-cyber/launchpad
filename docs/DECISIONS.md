@@ -1639,3 +1639,41 @@ The six entries below were decided between 2026-08-09 and 2026-08-13 and lived o
 **SUB-MINUTE HONESTY.** A true value between 1s and 59s floored to "0m", which says *nothing was measured* about time that was. Under a minute the label now carries seconds. **Zero still reads "0m"** — there is no "0s" worth showing. One function (`fmtDurationHM`) serves the Insights board (donut centre, legend, Top Tasks), the Dashboard (focused line, recap lines, summary strip), the Tasks-tab windowed chip, the pill's windowed line and this new readout, so the change lands on all of them at once; the minute and hour forms are byte-identical to before.
 
 **A REAL DEFECT THE RENDERED-PIXEL PASS CAUGHT.** The card's worked line inherited its neighbours' `--text-secondary` on a light wallpaper and measured **3.77:1** over the white-tinted floater frost — under the 4.5 floor, invisible to the static ink gate because the whole surface is JS-rendered, and invisible to the eye because it *looks* fine. It takes `--text-primary` instead, re-measured at 6.8:1. All 24 measurements (four frames × three text sizes × two surfaces) now clear the floor, with a negative control proving the measurement reports a deliberately illegible readout. **Screenshot pixels, not computed styles**: a frosted surface's effective backdrop is not something `getComputedStyle` knows.
+
+---
+
+## 2026-08-28/29 — the 2.0.1 fast-follow batch: four decisions
+
+**Context:** four small rounds shipped back to back after the v2.0.0 submission candidate was built. None of them moved the manifest; release engineering bumps 2.0.1 once, at the end. Recorded together because each carries a decision that will look arbitrary later without its reason.
+
+### [1.2.2] Insights range selector — presets, then a custom calendar
+
+**The preset PERSISTS, the custom range is TRANSIENT, and the asymmetry is the decision.** A person who lives in a 7-day view should not be reset to 30 every time they open a tab, so the preset is written. A pinned custom range would do the opposite of a favour: "Jul 1-31" silently goes stale and then completely empty as the 30-day retention rolls past it, and the user would be looking at a board that is empty for a reason the board never states. So a custom range lives for the visit and a reload lands back on the preset. The stored value is the DAY COUNT rather than a label, because the count is what every reader already consumes — one representation, nothing to keep in sync — and it is read through a defaulting reader rather than a seeded field, so an absent value means "never chosen" and there is no migration write.
+
+**The picker is horizon-bounded, and the floor is DERIVED, not restated.** The calendar cannot select before today minus 29, and the caption names that date ("History starts 31 July") rather than repeating the rule. Both come from the engine's `RETENTION_DAYS`, so the constraint and its explanation cannot disagree and both follow a future retention change unaided. Extending retention itself stays a separate decision with storage-size consequences; it was deliberately not folded in here.
+
+**The locale date formatter was kept over the brief's illustration.** The spec asked for "Aug 12-Aug 25"; the board's existing formatter renders "12 Aug-25 Aug" outside the US. Pinning the order to match the example would have put TWO date formats on one board, because the summary strip directly beneath the titles uses that same formatter for its best-day label. One format per board beat matching the illustration. US users see exactly the spec's string; everyone else sees their own convention.
+
+**A typed reversed range SWAPS rather than errors.** The picker itself cannot produce one (the To field's floor tracks From), so this only arises from keyboard entry mid-edit. A board that renders the honest range beats a board that refuses and explains.
+
+**"Today" as a preset is a LENS, not a second Dashboard.** The Dashboard remains the today cockpit; Insights with Today selected is the analytical view of the same day. The doctrine is intact and this preset does not erode it.
+
+### Drag-to-nest explains its refusal
+
+**The refusal had no code point to hang feedback on, and finding that out cost the round's first build.** The task assumed both hostnames and the mismatch verdict were in scope at the moment of refusal. They are not: every target search pre-filters by domain and returns before capturing the rejected tile, so a mismatched drop and a plain reorder produce the identical null. Refusal was implemented as never-seeing.
+
+**Pure drop-time geometry cannot see the rejected tile either**, which is the finding worth keeping. A non-matching tile is never frozen, so SortableJS slides it aside as the drag approaches: measured with real drags, the intended target was already 81px away before the cursor arrived and 104px away at `onEnd`, while the nearest tile to the drop point was the dragged tile itself. The "drop onto a tile" moment does not geometrically exist for the only case this feature is about.
+
+**Shipped mechanism:** the target is read from `evt.related` in `onMove` — the tile SortableJS is about to displace, captured before it moves, at no cost because that handler already reads the value — and the 60px hit test is applied to the SLOT the drag landed in rather than to the target. Same constant, same geometry, asked about the landing instead of the destination. That slot gate is what keeps a sweep into empty space silent.
+
+**Verdict and display come from different functions on purpose.** The mismatch verdict is `getMatchKey`, the matcher's own value, so one notion of sameness exists. The toast names hostnames via `getBaseDomain`, because match keys are synthetic for aliased hosts and "meta-ads and google-docs are different sites" is not a sentence. Matcher, hint and nest mutation path were untouched throughout, per the twice-confirmed as-is decision.
+
+### Rate links move to the modern store host, with NO tracking parameters
+
+Both Rate surfaces pointed at the pre-2023 `chrome.google.com/webstore` host. It still redirects, but a redirect is not a contract. **No UTM or campaign parameters were added, deliberately.** These are in-product asks shown to people who already installed the extension, not acquisition links: tagging them would fold existing users into campaign reporting and quietly corrupt the numbers that are supposed to measure new reach. The store-generated slug is copied exactly as the listing serves it, truncation included, because the store owns that string.
+
+### `tracking.js` NUL separators escaped; BUGS.md M1 resolved
+
+The composite-key separator was written as a raw 0x00 byte, which made the whole file binary to ripgrep and grep — a tree sweep for a symbol the file DEFINES returned only `newtab.js`, with no error. **This is a source-byte change with no runtime change**, and that was proven rather than asserted: the escaped literal was extracted from the patched source and compared against the same literal extracted from the pre-change file, then the real rollup spine was driven end to end, with three seeded wrong separators to show the assertions could fail. M1 is marked resolved rather than deleted, because the CLASS of trap outlives this instance — any file that acquires a NUL goes silently invisible the same way.
+
+**A label correction while here:** Asana comments on the `[1.2.2]` round refer to a "D14/D16 ink doctrine". No such rule exists under those numbers. The ink doctrine is BUGS.md **Section O**, enforced by `tools/check-panel-ink.mjs`; D14 is about routing decisions inheriting their destinations' premises. The mislabel lives only in Asana comment text, so nothing in the docs was changed to chase it, and BUGS.md D16 now says so explicitly.

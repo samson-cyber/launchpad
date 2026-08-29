@@ -124,6 +124,7 @@ LaunchPad uses **two distinct, parallel numbering tracks**. They look alike but 
 
 ## What to Always Do
 
+- **Edit through a writer, not through a shell parser.** A heredoc is a second parser between you and the file: an edit whose content discusses escapes or control characters can write them in literally (BUGS.md **M3**), and `core.autocrlf=true` means the working copy and the committed blob can have different line endings, so anchors are built from the ending the file actually uses (**M4**). Byte-check after any such edit.
 - **Search before acting.** For factual questions about the codebase, use file view/grep. For web-facing facts, search the web.
 - **Read SKILL.md files** when relevant before code generation (docx, pdf, pptx, xlsx, frontend-design).
 - **Verify git state before destructive operations.** Confirm GitHub has latest commits before deleting any local folder.
