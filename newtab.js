@@ -1910,7 +1910,15 @@
               '<input type="date" class="insights-date" data-ins-to' +
                 ' min="' + toMin + '" max="' + hz.max + '" value="' + escapeHtml(to) + '">' +
             '</label>' +
-            '<p class="insights-range-note">LaunchPad keeps 30 days of history.</p>' +
+            // [1.2.2 R2] Names the floor DATE rather than restating the window
+            // length. hz.min is the very value the From input's min attribute
+            // carries, so the sentence and the control's actual floor are one
+            // source and cannot drift apart; it is derived from the engine's
+            // retention constant, so it also follows the system date on its own.
+            // Rendered through the board's existing locale date formatter, the
+            // same one the strip's best-day label uses.
+            '<p class="insights-range-note">History starts ' +
+              escapeHtml(fmtShortDate(insightsKeyToTs(hz.min))) + '</p>' +
           '</div>'
         : '');
   }
