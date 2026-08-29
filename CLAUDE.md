@@ -160,6 +160,62 @@ Full rationale and the failure it came from: BUGS.md **I6**.
 
 ---
 
+## Verification methodology
+
+Adopted 2026-08-29. This governs every implementation prompt: Claude Code verifies
+what it can, Samson verifies only what it cannot.
+
+**Claude Code verifies everything it is able to verify, as part of the
+implementation, before reporting.** Not as an optional extra pass, and not deferred
+to the review. That means, wherever the change makes each applicable:
+
+- **Functional runtime behaviour in a real scratch browser profile** (Browser Testing
+  above): the feature does what it claims, state changes land, persistence survives a
+  reload, and the console is clean.
+- **The VISIBLE TEXT and numbers of every surface the change touches**, asserted
+  against an expectation rather than eyeballed, and never only the accessible label.
+  A chart's `aria-label` and its rendered axis captions are two different strings that
+  can disagree: asserting the queryable one while the visible one shipped wrong is
+  exactly how the 2026-08-28 axis captions escaped a green runtime pass. BUGS.md
+  **I15**.
+- **Regression flips of adjacent features** the change could plausibly disturb, not
+  only the feature being built.
+- **Packaged-build smoke whenever an artifact exists** - drive the unpacked artifact,
+  not the working tree, so what is verified is what would ship.
+- **Website checks end to end** where the change is web-side.
+
+**Every IMPLEMENTATION report ends with a section titled `HUMAN CHECKS REMAINING`.**
+It is mandatory and it is the last thing in the report. It contains either the
+specific checks only a human can perform, each with one line on why, or the exact
+sentence `none — fully verified.` The categories that genuinely qualify:
+
+- **Taste and feel** - whether a motion reads as calm or twitchy, whether copy lands.
+  Measurable properties are not taste; assert those instead of deferring them.
+- **Resonance against real accumulated data** - whether a board of the user's own
+  months of history tells them something true. Seeded fixtures cannot answer it.
+- **Credentialed or destructive actions** - store uploads, payment dashboards,
+  anything touching real money, real user data or an account Claude Code must not
+  hold credentials for.
+- **Documented interaction gaps** - a thing the harness provably cannot drive, cited
+  by its BUGS.md entry. Chrome swallowing key events during a native drag (**I8**'s
+  neighbourhood) is the worked example: shift-drag cannot be exercised end to end, so
+  it is named rather than quietly claimed.
+
+**Samson verifies that list and nothing else.** A task whose list is empty and which
+touches no UI surface closes on Claude Chat's REVIEW, with no Samson pass at all.
+Visual sweeps happen at **feature-arc checkpoints** - the final task of an arc - not
+once per prompt; in between, Samson vetoes UI problems ambiently from daily use.
+Claude Chat may flag a visually load-bearing change as wanting Samson's eyes before
+it closes, and **that flag overrides the checkpoint cadence** for that one change.
+
+**A verification Claude Code could normally perform but could not this time is stated
+in `HUMAN CHECKS REMAINING`, explicitly, as a gap.** A tooling limit or an
+environment limit is a finding worth reporting, not a reason to quietly soften the
+claim. Silently downgrading "verified" to "looks right" is the failure this whole
+section exists to prevent.
+
+---
+
 ## What to Never Do
 
 - **Never add DuckDuckGo as a search option.** Blocked in Samson's region (Indonesia).

@@ -63,11 +63,20 @@ note = {
   rotation: number,  // -2 to +2 degrees, assigned at creation
   notebookId: string | null,  // null for v1.1 (always standalone); v1.2 introduces optional notebook association
   tagIds: [string],  // tag ids, integrates with existing tag system
-  createdAt: ISO timestamp,
-  updatedAt: ISO timestamp,
-  deletedAt: ISO timestamp | null  // for soft-delete, matches universal trash-bin pattern
+  createdAt: number,  // epoch ms (Date.now())
+  updatedAt: number,  // epoch ms (Date.now())
+  deletedAt: number | null  // epoch ms when trashed, per trash-bin.md; null when live
 }
 ```
+
+Timestamps are **epoch milliseconds** (`Date.now()`), not ISO strings. This doc said
+ISO until 2026-08-29; the sibling entities and `trash-bin.md`'s `deletedAt =
+Date.now()` always disagreed, and the 30-day purge sweep does arithmetic on
+`deletedAt`, so ISO would have broken it. Tag references are `tagIds`, matching tasks
+and the purge cascade that cleans ids out of every item's `tagIds` array.
+**The shipped `[1.1.0]` implementation in `storage.js` is the reference** for this
+shape; where this doc and that code disagree, the code is right and this doc is the
+thing to fix.
 
 ### Interactions
 
@@ -127,9 +136,9 @@ notebook = {
   id: string (stable unique),
   name: string,
   position: number,  // position in the left column list
-  createdAt: ISO timestamp,
-  updatedAt: ISO timestamp,
-  deletedAt: ISO timestamp | null
+  createdAt: number,  // epoch ms (Date.now())
+  updatedAt: number,  // epoch ms (Date.now())
+  deletedAt: number | null  // epoch ms when trashed, per trash-bin.md; null when live
 }
 ```
 
