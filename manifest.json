@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LaunchPad - New Tab Shortcuts",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "Unlimited organized shortcuts on your new tab page. Groups, drag-and-drop, dark mode. Free and private.",
   "permissions": ["storage", "bookmarks", "contextMenus", "history", "topSites", "tabs", "webNavigation", "alarms", "search", "idle", "offscreen"],
   "optional_permissions": ["notifications", "downloads"],
