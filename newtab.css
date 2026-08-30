@@ -5496,11 +5496,28 @@ html.has-bg #history-panel-close:hover {
 }
 
 /* [1.4.1] Wallpaper tier, mirroring the restore flyout above it. */
-html.has-bg #sessions-dropdown {
-  background: var(--pro-frost-floater-bg);
+/* [1.4.1 follow-up] THE TWO SIDEBAR FLYOUTS SHARE ONE BACKGROUND RULE, and it is
+   the SIDEBAR PANEL's treatment rather than the floater token's.
+
+   They were not shared before: #restore-dropdown and #sessions-dropdown carried
+   byte-identical values in four separate blocks, which is how the twins would have
+   drifted apart the first time one of them was touched. Joined here so they cannot.
+
+   The floater token is rgba(30,30,30,0.92) - a near-opaque slab that reads as a
+   different material from the sidebar it opens off, which is the veto. #sidebar-panel
+   is rgba(0,0,0,0.2) over blur(16px), so that is what these take. The token itself is
+   NOT touched: twenty-odd other surfaces reference it and they are not part of this.
+
+   Values are LITERAL rather than a var() alias of #sidebar-panel because CSS has no
+   way to alias another rule, and inventing a token here would imply a tier system
+   these two do not have. If the sidebar panel is ever retuned, this comment is the
+   pointer back to it. */
+html.has-bg:not(.bg-light) #restore-dropdown,
+html.has-bg:not(.bg-light) #sessions-dropdown {
+  background: rgba(0, 0, 0, 0.2);
   border-color: rgba(255, 255, 255, 0.1);
-  backdrop-filter: var(--pro-frost-floater-blur);
-  -webkit-backdrop-filter: var(--pro-frost-floater-blur);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 html.has-bg #sessions-actions {
@@ -5527,12 +5544,6 @@ html.has-bg .session-row-more:hover {
   color: #fff;
 }
 
-html.has-bg #restore-dropdown {
-  background: var(--pro-frost-floater-bg);
-  border-color: rgba(255, 255, 255, 0.1);
-  backdrop-filter: var(--pro-frost-floater-blur);
-  -webkit-backdrop-filter: var(--pro-frost-floater-blur);
-}
 
 html.has-bg .restore-header {
   border-bottom-color: rgba(255, 255, 255, 0.1);
@@ -6820,8 +6831,14 @@ html.bg-light #history-panel-close:hover {
 
 /* [1.4.1] Light-wallpaper tier: ink returns to the light-theme tokens, exactly
    as the restore flyout does below. */
+/* [1.4.1 follow-up] Same joining on the light tier. #sidebar-panel is
+   rgba(255,255,255,0.6) here, where the floater token resolves to 0.92. */
+html.bg-light #restore-dropdown,
 html.bg-light #sessions-dropdown {
+  background: rgba(255, 255, 255, 0.6);
   border-color: rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 html.bg-light #sessions-actions {
@@ -6848,9 +6865,6 @@ html.bg-light .session-row-more:hover {
   color: var(--text-primary);
 }
 
-html.bg-light #restore-dropdown {
-  border-color: rgba(0, 0, 0, 0.08);
-}
 
 html.bg-light .restore-header {
   border-bottom-color: rgba(0, 0, 0, 0.08);
