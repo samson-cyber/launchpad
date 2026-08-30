@@ -11376,6 +11376,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
 .tt-modal-body input[type="date"],
 .tt-modal-body input[type="time"],
 .tt-modal-body input[type="number"],
+.tt-modal-body .tt-modal-textarea,
 .tt-modal-body select {
   padding: 7px 10px;
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -11842,6 +11843,7 @@ html.has-bg.bg-light .tt-modal {
   border-color: rgba(0, 0, 0, 0.08);
 }
 
+html.has-bg.bg-light .tt-modal-body .tt-modal-textarea,
 html.has-bg.bg-light .tt-modal-body input[type="text"],
 html.has-bg.bg-light .tt-modal-body input[type="date"],
 html.has-bg.bg-light .tt-modal-body input[type="time"],
@@ -13525,3 +13527,133 @@ html.has-bg.bg-light .notes-search-input:focus { border-color: rgba(0, 0, 0, 0.3
 /* While a filter is active the Sortable is disabled in JS; this is the matching
    affordance so the cursor does not promise a drag that will not happen. */
 .notes-stack.is-filtered .note-card { cursor: default; }
+
+/* ---- [1.1.3] modal description textarea ----
+
+   Shares the modal input rule above for colour, border and background so it
+   cannot drift from its siblings; only the things a textarea needs on top of
+   that live here. A note is multi-line, which is why this is a textarea rather
+   than the single-line input the goal-template description uses. */
+.tt-modal-body .tt-modal-textarea {
+  width: 100%;
+  min-height: 62px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+/* ---- [1.1.3] notes trash affordance + view ----
+
+   INK: .notes-trash-bar sits inside .notes-panel, which declares colour and a
+   light-wallpaper override, so `currentColor` here resolves correctly on all
+   three tiers. The trash VIEW is inside .tt-modal-body, which does the same.
+   Neither surface declares a literal ink colour of its own, which is what the
+   shipped-twice fall-through defect came from. */
+.notes-trash-bar {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 10px;
+  margin-top: 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+html.has-bg.bg-light .notes-trash-bar { border-top-color: rgba(0, 0, 0, 0.12); }
+
+.notes-trash-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-12);
+  opacity: 0.7;
+  cursor: pointer;
+  text-shadow: none;
+  transition: opacity 0.14s ease, background-color 0.14s ease;
+}
+.notes-trash-btn:hover { opacity: 1; background: rgba(255, 255, 255, 0.1); }
+html.has-bg.bg-light .notes-trash-btn:hover { background: rgba(0, 0, 0, 0.06); }
+.notes-trash-count { font-weight: 600; }
+
+.notes-trash-view { max-height: 52vh; overflow-y: auto; }
+.notes-trash-list { list-style: none; margin: 0; padding: 0; }
+
+.notes-trash-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.notes-trash-row:last-child { border-bottom: none; }
+html.has-bg.bg-light .notes-trash-row { border-bottom-color: rgba(0, 0, 0, 0.1); }
+
+/* A scrap of the actual paper, so a trashed note still reads as the note it
+   was. Ink is the PAPER ink, like .note-card, so it is legible on every tier
+   for the same reason the card is and needs no tier override. */
+.notes-trash-paper {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 2px;
+  background-color: var(--note-paper);
+  color: var(--note-ink);
+  font-size: var(--fs-13);
+  line-height: 1.4;
+  text-shadow: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+/* ~3 lines, clamped rather than sliced: the whole content is still in the DOM
+   and selectable, and no ellipsis is written into the data. */
+.notes-trash-preview {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.notes-trash-preview.is-empty { opacity: 0.55; font-style: italic; }
+
+.notes-trash-meta {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.notes-trash-countdown { font-size: var(--fs-12); opacity: 0.7; white-space: nowrap; }
+.notes-trash-actions { display: flex; gap: 6px; }
+
+.notes-trash-action {
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-12);
+  cursor: pointer;
+  white-space: nowrap;
+  text-shadow: none;
+  transition: background-color 0.14s ease, border-color 0.14s ease;
+}
+.notes-trash-action:hover { background: rgba(255, 255, 255, 0.12); }
+.notes-trash-action.is-danger { border-color: rgba(229, 115, 115, 0.5); }
+.notes-trash-action.is-danger:hover { background: rgba(229, 115, 115, 0.18); }
+html.has-bg.bg-light .notes-trash-action { border-color: rgba(0, 0, 0, 0.2); }
+html.has-bg.bg-light .notes-trash-action:hover { background: rgba(0, 0, 0, 0.07); }
+
+.notes-trash-empty {
+  padding: 26px 10px;
+  text-align: center;
+  font-size: var(--fs-13);
+  opacity: 0.65;
+}
+
+/* Disabled Empty-trash reads as unavailable rather than invisible. */
+.notes-trash-empty-btn:disabled { opacity: 0.4; cursor: default; }

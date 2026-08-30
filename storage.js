@@ -2743,7 +2743,12 @@ var Storage = (function () {
       }
 
       // Simple per-workspace collections.
-      ["goals", "tasks", "recurringTemplates", "goalTemplates"].forEach(function (key) {
+      // [1.1.3] "notes" registered here. This list is a hardcoded literal, not a
+      // registry, so a new entity is invisible to the sweep until its key is added
+      // - notes were soft-deleting correctly and simply never purging. The
+      // expired() predicate needed no change: [1.1.0] gave notes the shared
+      // epoch-ms deletedAt, so the arithmetic already worked.
+      ["goals", "tasks", "recurringTemplates", "goalTemplates", "notes"].forEach(function (key) {
         var arr = ws[key];
         if (!Array.isArray(arr)) return;
         for (var i = arr.length - 1; i >= 0; i--) {
@@ -2773,6 +2778,10 @@ var Storage = (function () {
         });
         (ws.tasks || []).forEach(function (t) { cleanTagIds(t.tagIds); });
         (ws.recurringTemplates || []).forEach(function (t) { cleanTagIds(t.tagIds); });
+        // [1.1.3] Notes carry tagIds like tasks do, so they belong in the same
+        // batch: trash-bin.md requires a purged tag id to be "cleaned up from all
+        // items' tagIds arrays at that moment as part of the same batch sweep".
+        (ws.notes || []).forEach(function (n) { cleanTagIds(n.tagIds); });
         (ws.goals || []).forEach(function (g) {
           if (g.autoTagId && purgedTagIds[g.autoTagId]) g.autoTagId = null;
         });
@@ -4114,6 +4123,110 @@ var Storage = (function () {
     if (!note || !note.deletedAt) return null;
     note.deletedAt = null;
     return note;
+  }
+
+  /**
+   * [1.1.3] Reorder the workspace's live notes. Shaped on reorderGoals: same
+   * (data, orderedIds, workspaceId) signature, same validation ladder, same
+   * saveAll-then-return-the-collection tail.
+   *
+   * The BODY necessarily differs, and that is not drift. reorderGoals writes a
+   * displayOrder field and leaves the array alone; [1.1.2] made ARRAY ORDER
+   * canonical for notes, so ordering here is a permutation of the array itself.
+   * This is the [1.1.2] caller-side permute moved intact - live notes are
+   * permuted into the slots live notes already occupy, so soft-deleted notes keep
+   * their exact array positions and the trash is undisturbed.
+   *
+   * Works on IDS, never on indices: the panel renders only live notes while the
+   * array also holds deleted ones, so a raw index addresses the wrong element.
+   *
+   * The length check has no reorderGoals counterpart and is deliberate: a partial
+   * order is meaningless against slot-permutation, and refusing it is what the
+   * [1.1.2] assertions pin.
+   *
+   * @returns {Promise<Array|null>} the notes array, or null if nothing was applied.
+   */
+  async function reorderNotes(data, orderedNoteIds, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws) return null;
+    if (!Array.isArray(orderedNoteIds)) {
+      console.warn("[LaunchPad] reorderNotes: orderedNoteIds must be an array");
+      return null;
+    }
+    var notes = ensureNotesArray(ws);
+    if (!notes) return null;
+
+    var noteById = {};
+    notes.forEach(function (n) { noteById[n.id] = n; });
+    var liveSlots = [];
+    notes.forEach(function (n, i) { if (!n.deletedAt) liveSlots.push(i); });
+
+    if (orderedNoteIds.length !== liveSlots.length) {
+      console.warn("[LaunchPad] reorderNotes: order must account for every live note exactly once");
+      return null;
+    }
+    for (var i = 0; i < orderedNoteIds.length; i++) {
+      var id = orderedNoteIds[i];
+      if (typeof id !== "string") {
+        console.warn("[LaunchPad] reorderNotes: every id must be a string");
+        return null;
+      }
+      var n = noteById[id];
+      if (!n) {
+        console.warn("[LaunchPad] reorderNotes: id not found in workspace: " + id);
+        return null;
+      }
+      if (n.deletedAt) {
+        console.warn("[LaunchPad] reorderNotes: id refers to a soft-deleted note: " + id);
+        return null;
+      }
+    }
+
+    for (var j = 0; j < orderedNoteIds.length; j++) {
+      notes[liveSlots[j]] = noteById[orderedNoteIds[j]];
+    }
+    await saveAll(data);
+    return notes;
+  }
+
+  /**
+   * [1.1.3] Hard-remove one note. Mirrors deleteGoalPermanent: splice by id,
+   * saveAll, boolean. Unlike deleteNote this is irreversible, which is why the
+   * trash view is the only caller and confirms first (trash-bin.md: confirmation
+   * modals appear only for permanent deletion from the trash).
+   *
+   * No cascade. trash-bin.md gives notes none - they own no children, and their
+   * tagIds are references TO tags, so removing a note cannot orphan a tag. The
+   * reverse direction (a purged tag cleaned out of note.tagIds) is handled in
+   * purgeExpiredTrash.
+   */
+  async function deleteNotePermanent(data, noteId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var notes = ws && ws.notes;
+    if (!Array.isArray(notes)) return false;
+    var idx = notes.findIndex(function (n) { return n && n.id === noteId; });
+    if (idx === -1) return false;
+    notes.splice(idx, 1);
+    await saveAll(data);
+    return true;
+  }
+
+  /**
+   * [1.1.3] Hard-remove every TRASHED note in the workspace, live notes
+   * untouched. Workspace-scoped, matching the trash surface that calls it.
+   * Iterates backwards so the splices cannot skip an element.
+   * @returns {Promise<number>} how many were purged; 0 writes nothing.
+   */
+  async function emptyNotesTrash(data, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var notes = ws && ws.notes;
+    if (!Array.isArray(notes)) return 0;
+    var removed = 0;
+    for (var i = notes.length - 1; i >= 0; i--) {
+      if (notes[i] && notes[i].deletedAt) { notes.splice(i, 1); removed++; }
+    }
+    if (removed > 0) await saveAll(data);
+    return removed;
   }
 
   /**
@@ -5827,6 +5940,10 @@ var Storage = (function () {
     getAllNotes: getAllNotes,
     getDeletedNotes: getDeletedNotes,
     getNoteById: getNoteById,
+    reorderNotes: reorderNotes,
+    deleteNotePermanent: deleteNotePermanent,
+    emptyNotesTrash: emptyNotesTrash,
+    NOTE_TRASH_TTL_MS: TRASH_TTL_MS,
     // Recurring task templates ([1.0.10] schema landing; [1.0.14] adds
     // alarm-driven instance materialization)
     createRecurringTemplate: createRecurringTemplate,

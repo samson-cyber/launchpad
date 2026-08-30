@@ -2470,13 +2470,31 @@
       '</div>';
   }
 
+  // [1.1.3] Footer trash affordance. Rendered ONLY when the trash is non-empty
+  // (2026-08-29 addendum, overriding notes.md's "persistent" trash can): an
+  // always-present control for a bin that is almost always empty is chrome the
+  // panel does not need, and the ratified look is what its absence protects.
+  function notesTrashBarHtml(trashedCount) {
+    if (!trashedCount) return "";
+    var label = trashedCount === 1 ? "1 note in trash" : trashedCount + " notes in trash";
+    return '<div class="notes-trash-bar">' +
+        '<button type="button" class="notes-trash-btn" data-notes-trash' +
+          ' aria-label="' + escapeHtml(label) + '" title="' + escapeHtml(label) + '">' +
+          TRASH_SM_SVG +
+          '<span class="notes-trash-count">' + trashedCount + '</span>' +
+        '</button>' +
+      '</div>';
+  }
+
   function notesPanelHtml(d0) {
     var ws = Storage.getActiveWorkspace(d0);
     var notes = ws ? Storage.getAllNotes(ws) : [];
+    var trashed = ws ? Storage.getDeletedNotes(ws) : [];
     return '<aside class="notes-panel" data-notes-panel>' +
         '<div class="notes-panel-title">Notes</div>' +
         notesSearchHtml(notes.length) +
         '<div class="notes-stack" data-notes-stack>' + notesStackHtml(notes) + '</div>' +
+        notesTrashBarHtml(trashed.length) +
       '</aside>';
   }
 
@@ -2551,26 +2569,19 @@
   // soft-deleted ones: a raw index would address the wrong element. Live notes
   // are permuted into the slots live notes already occupy, so deleted notes keep
   // their exact positions and the trash is undisturbed.
+  // [1.1.3] The permute MOVED INTO storage.js as Storage.reorderNotes, beside
+  // reorderGoals where the sibling idiom lives. Behaviour is unchanged - the
+  // slot-permutation, the id-not-index rule, the every-live-note-exactly-once
+  // refusal and the single write all moved with it, and the [1.1.2] assertion
+  // set is the regression oracle that says so. What is left here is what always
+  // belonged to the page: reading the DOM order.
   async function notesCommitOrder() {
     var stack = document.querySelector("[data-notes-stack]");
-    var ws = Storage.getActiveWorkspace(data);
-    if (!stack || !ws || !Array.isArray(ws.notes)) return;
-
+    if (!stack) return;
     var orderedIds = [].slice.call(stack.querySelectorAll("[data-note-id]"))
       .map(function (el) { return el.getAttribute("data-note-id"); })
       .filter(Boolean);
-
-    var byId = {};
-    ws.notes.forEach(function (n) { byId[n.id] = n; });
-    var liveSlots = [];
-    ws.notes.forEach(function (n, i) { if (!n.deletedAt) liveSlots.push(i); });
-
-    // Refuse anything that does not account for every live note exactly once.
-    if (orderedIds.length !== liveSlots.length) return;
-    if (!orderedIds.every(function (id) { return byId[id] && !byId[id].deletedAt; })) return;
-
-    orderedIds.forEach(function (id, k) { ws.notes[liveSlots[k]] = byId[id]; });
-    await Storage.saveAll(data);
+    await Storage.reorderNotes(data, orderedIds);
   }
 
   // Free preview: same header, same grid, same card renderer, fixed data. The
@@ -2672,6 +2683,236 @@
   // owns, including its wallpaper and light-wallpaper ink tiers, rather than
   // introducing a second menu skin to keep in sync. Viewport clamp is the same
   // 8px-inset expression every other menu here uses.
+  // ---- trash view -----------------------------------------------------------
+  //
+  // Built on openTasksModal, the overlay idiom the Tasks tab already owns, so the
+  // frosted surface, the ink tiers and the Escape/backdrop lifecycle come for
+  // free. Workspace-scoped: getDeletedNotes reads the active workspace only.
+  //
+  // The countdown is computed from deletedAt and the LIFECYCLE CONSTANT read out
+  // of storage (Storage.NOTE_TRASH_TTL_MS). The retention number is never
+  // restated here, so if the window ever changes this surface follows it.
+  function notesDaysRemaining(deletedAt) {
+    var ttl = Storage.NOTE_TRASH_TTL_MS;
+    if (!ttl || typeof deletedAt !== "number") return null;
+    var msLeft = (deletedAt + ttl) - Date.now();
+    if (msLeft <= 0) return 0;
+    return Math.ceil(msLeft / 86400000);
+  }
+
+  function notesDaysRemainingLabel(deletedAt) {
+    var days = notesDaysRemaining(deletedAt);
+    if (days === null) return "";
+    if (days === 0) return "Purges today";
+    return days === 1 ? "1 day remaining" : days + " days remaining";
+  }
+
+  // ~3-line preview per notes.md, clamped in CSS rather than sliced in JS so the
+  // full text stays selectable and no ellipsis is baked into the data.
+  function notesTrashRowHtml(note) {
+    var preview = String(note.content || "").trim();
+    var body = preview
+      ? "<div class=\"notes-trash-preview\">" + escapeHtml(preview) + "</div>"
+      : "<div class=\"notes-trash-preview is-empty\">Empty note</div>";
+    return "<li class=\"notes-trash-row\" data-trash-note-id=\"" + escapeHtml(note.id) + "\">" +
+        "<div class=\"notes-trash-paper\" style=\"--note-paper: " + notesPaperVar(note.color) + ";\">" +
+          body +
+        "</div>" +
+        "<div class=\"notes-trash-meta\">" +
+          "<span class=\"notes-trash-countdown\">" + escapeHtml(notesDaysRemainingLabel(note.deletedAt)) + "</span>" +
+          "<span class=\"notes-trash-actions\">" +
+            "<button type=\"button\" class=\"notes-trash-action\" data-trash-restore>Restore</button>" +
+            "<button type=\"button\" class=\"notes-trash-action is-danger\" data-trash-purge>Delete permanently</button>" +
+          "</span>" +
+        "</div>" +
+      "</li>";
+  }
+
+  function notesTrashBodyHtml() {
+    var ws = Storage.getActiveWorkspace(data);
+    var trashed = ws ? Storage.getDeletedNotes(ws) : [];
+    if (!trashed.length) {
+      return "<div class=\"notes-trash-empty\">Nothing in the trash. Deleted notes appear here before they are removed for good.</div>";
+    }
+    // Most recently trashed first: the note just deleted is the one most likely
+    // being looked for.
+    var rows = trashed.slice().sort(function (a, b) {
+      return (b.deletedAt || 0) - (a.deletedAt || 0);
+    }).map(notesTrashRowHtml).join("");
+    return "<ul class=\"notes-trash-list\">" + rows + "</ul>";
+  }
+
+  // In-place refresh, used by actions that do NOT raise a second modal (restore).
+  // The panel behind the overlay owns the footer affordance, whose presence is a
+  // function of the count that just changed, so it is re-rendered too.
+  function notesTrashRefresh(overlay) {
+    var body = overlay.querySelector("[data-notes-trash-body]");
+    if (body) body.innerHTML = notesTrashBodyHtml();
+    var ws = Storage.getActiveWorkspace(data);
+    var emptyBtn = overlay.querySelector(".notes-trash-empty-btn");
+    if (emptyBtn) emptyBtn.disabled = !(ws && Storage.getDeletedNotes(ws).length);
+    renderNotesPanel();
+  }
+
+  function openNotesTrashView() {
+    openTasksModal({
+      title: "Notes trash",
+      primaryLabel: "Done",
+      bodyHtml: "<div class=\"notes-trash-view\" data-notes-trash-body>" +
+          notesTrashBodyHtml() +
+        "</div>",
+      extraButtons: [{
+        label: "Empty trash",
+        className: "tt-modal-btn tt-modal-btn-danger notes-trash-empty-btn",
+        onClick: function () {
+          // Deferred for the same reason as above: this handler resolves and the
+          // modal machinery runs immediately after it.
+          setTimeout(function () { confirmEmptyNotesTrash(); }, 0);
+          return false;
+        }
+      }],
+      onMounted: function (overlay) {
+        var ws = Storage.getActiveWorkspace(data);
+        var emptyBtn = overlay.querySelector(".notes-trash-empty-btn");
+        if (emptyBtn) emptyBtn.disabled = !(ws && Storage.getDeletedNotes(ws).length);
+        overlay.addEventListener("click", async function (e) {
+          var row = e.target.closest("[data-trash-note-id]");
+          if (!row) return;
+          var id = row.getAttribute("data-trash-note-id");
+          if (e.target.closest("[data-trash-restore]")) {
+            Storage.restoreNote(data, id);
+            await Storage.saveAll(data);
+            notesTrashRefresh(overlay);
+            return;
+          }
+          if (e.target.closest("[data-trash-purge]")) {
+            confirmPurgeNote(id);
+          }
+        });
+      },
+      onPrimary: function () { renderNotesPanel(); },
+      onCancel: function () { renderNotesPanel(); }
+    });
+  }
+
+  // trash-bin.md: "No confirmation modal on regular delete [...] Confirmation
+  // modals appear only for permanent deletion from the trash." Both of these are
+  // that case. Each REOPENS the trash view afterwards, on confirm and on cancel
+  // alike, because raising this modal closed it (single-instance).
+  // Reopening from inside a confirm callback is immediately undone: openTasksModal
+  // calls closeTasksModal() AFTER the callback resolves, on the primary path and
+  // the cancel path alike, so it would close the view we just opened. Deferring to
+  // a macrotask is the idiom this file already uses for the same hazard (see the
+  // task-due conflict modal).
+  function reopenNotesTrashView() {
+    setTimeout(function () { openNotesTrashView(); }, 0);
+  }
+
+  function confirmPurgeNote(noteId) {
+    openTasksConfirmModal({
+      title: "Delete permanently?",
+      message: "This note will be removed for good. This cannot be undone.",
+      confirmLabel: "Delete permanently",
+      dangerous: true,
+      onConfirm: async function () {
+        await Storage.deleteNotePermanent(data, noteId);
+        renderNotesPanel();
+        reopenNotesTrashView();
+      },
+      onCancel: function () { reopenNotesTrashView(); }
+    });
+  }
+
+  function confirmEmptyNotesTrash() {
+    var ws = Storage.getActiveWorkspace(data);
+    var count = ws ? Storage.getDeletedNotes(ws).length : 0;
+    if (!count) return;
+    openTasksConfirmModal({
+      title: "Empty the notes trash?",
+      message: (count === 1 ? "1 note" : count + " notes") +
+        " will be removed for good. This cannot be undone.",
+      confirmLabel: "Empty trash",
+      dangerous: true,
+      onConfirm: async function () {
+        await Storage.emptyNotesTrash(data);
+        renderNotesPanel();
+        reopenNotesTrashView();
+      },
+      onCancel: function () { reopenNotesTrashView(); }
+    });
+  }
+
+  // ---- promote to task / goal ----------------------------------------------
+  //
+  // Promote is COPY, not move (notes.md): the note is untouched on a plain
+  // confirm, and cancel changes nothing anywhere. The optional
+  // "Delete note after creating" checkbox is the only path that touches it, and
+  // it soft-deletes AFTER a successful create, never before - so a promote that
+  // fails validation leaves the note exactly where it was.
+  var PROMOTE_NAME_MAX = 80;
+
+  // First ~80 chars on a WORD boundary. Newlines collapse to spaces first, so a
+  // multi-line note cannot put a raw break inside a single-line task name.
+  function promoteTaskName(content) {
+    var s = String(content || "").trim();
+    if (!s) return "New task";
+    var flat = s.replace(/\s+/g, " ");
+    if (flat.length <= PROMOTE_NAME_MAX) return flat;
+    var cut = flat.slice(0, PROMOTE_NAME_MAX);
+    var sp = cut.lastIndexOf(" ");
+    return (sp > 0 ? cut.slice(0, sp) : cut).trim();
+  }
+
+  // First LINE, per notes.md. Falls back rather than opening a modal whose name
+  // field is empty and immediately invalid.
+  function promoteGoalName(content) {
+    var first = String(content || "").split("\n")[0].trim();
+    return first || "New goal";
+  }
+
+  // Rendered ONLY for a promote, so the ordinary New Task / New Goal modals are
+  // unchanged. Default off: promote does not destroy anything unless asked.
+  function promoteDeleteRowHtml(promote) {
+    if (!promote || !promote.noteId) return "";
+    return '<label class="tt-modal-row tt-modal-checkbox-row">' +
+        '<input type="checkbox" class="tt-promote-delete">' +
+        '<span>Delete note after creating</span>' +
+      '</label>';
+  }
+
+  // Called only once a create has SUCCEEDED. Any earlier call site would be the
+  // bug this ordering exists to prevent.
+  async function promoteFinishDelete(promote, overlay) {
+    if (!promote || !promote.noteId) return;
+    var cb = overlay.querySelector(".tt-promote-delete");
+    if (!cb || !cb.checked) return;
+    Storage.deleteNote(data, promote.noteId);
+    await Storage.saveAll(data);
+    renderNotesPanel();
+  }
+
+  function promoteNoteToTask(noteId) {
+    var ws = Storage.getActiveWorkspace(data);
+    var note = ws ? Storage.getNoteById(ws, noteId) : null;
+    if (!note) return;
+    openNewTaskModal({
+      noteId: noteId,
+      name: promoteTaskName(note.content),
+      description: String(note.content || "")
+    });
+  }
+
+  function promoteNoteToGoal(noteId) {
+    var ws = Storage.getActiveWorkspace(data);
+    var note = ws ? Storage.getNoteById(ws, noteId) : null;
+    if (!note) return;
+    openGoalModal("new", null, {
+      noteId: noteId,
+      name: promoteGoalName(note.content),
+      description: String(note.content || "")
+    });
+  }
+
   function closeNotesMenu() {
     if (notesMenuEl && notesMenuEl.parentNode) notesMenuEl.parentNode.removeChild(notesMenuEl);
     notesMenuEl = null;
@@ -2694,6 +2935,10 @@
     menu.innerHTML =
       ctxEntityHeaderHtml("Note", note.content ? note.content.slice(0, 40) : "Empty note") +
       '<div class="note-swatches">' + swatches + '</div>' +
+      '<button type="button" class="tt-ctx-item" data-note-action="promote-task">Promote to task</button>' +
+      '<button type="button" class="tt-ctx-item" data-note-action="promote-goal">Promote to goal</button>' +
+      '<button type="button" class="tt-ctx-item" data-note-action="promote-task">Promote to task</button>' +
+      '<button type="button" class="tt-ctx-item" data-note-action="promote-goal">Promote to goal</button>' +
       '<button type="button" class="tt-ctx-item" data-note-action="delete">Delete</button>';
     document.body.appendChild(menu);
 
@@ -2735,6 +2980,26 @@
         renderNotesStack();
         return;
       }
+      if (e.target.closest('[data-note-action="promote-task"]')) {
+        closeNotesMenu();
+        promoteNoteToTask(noteId);
+        return;
+      }
+      if (e.target.closest('[data-note-action="promote-goal"]')) {
+        closeNotesMenu();
+        promoteNoteToGoal(noteId);
+        return;
+      }
+      if (e.target.closest('[data-note-action="promote-task"]')) {
+        closeNotesMenu();
+        promoteNoteToTask(noteId);
+        return;
+      }
+      if (e.target.closest('[data-note-action="promote-goal"]')) {
+        closeNotesMenu();
+        promoteNoteToGoal(noteId);
+        return;
+      }
       if (e.target.closest('[data-note-action="delete"]')) {
         closeNotesMenu();
         await notesDelete(noteId);
@@ -2748,6 +3013,14 @@
     panel.dataset.notesBound = "1";
 
     panel.addEventListener("click", function (e) {
+      // [1.1.3] Footer trash affordance. Checked before the hover trash so the
+      // two never collide: this one opens the view, that one deletes a note.
+      if (e.target.closest("[data-notes-trash]")) {
+        e.preventDefault();
+        e.stopPropagation();
+        openNotesTrashView();
+        return;
+      }
       // Hover trash first: it lives inside the card, so the card handler below
       // would otherwise open the editor on the way to deleting.
       var trash = e.target.closest("[data-note-trash]");
@@ -4847,7 +5120,13 @@
       primaryLabel: opts.confirmLabel || "Confirm",
       dangerous: !!opts.dangerous,
       defaultFocus: "cancel",
-      onPrimary: opts.onConfirm
+      onPrimary: opts.onConfirm,
+      // [1.1.3] Forwarded so a caller can restore whatever this modal replaced.
+      // openTasksModal is SINGLE-INSTANCE (it closes the live one on entry), so a
+      // confirm raised from another modal destroys its opener; the notes trash
+      // view reopens itself on both outcomes rather than dumping the user out on
+      // a cancel. Undefined when unset, which every existing caller relies on.
+      onCancel: opts.onCancel
     });
   }
 
@@ -4859,9 +5138,13 @@
   // require create-or-delete tag plumbing that's out of scope here, and
   // template instantiation only applies at creation time. Edit mode just
   // edits name + deadline.
-  function openGoalModal(mode, existingGoal) {
+  // [1.1.3] `promote` is the same OPTIONAL prefill the task modal takes. Only
+  // consulted in "new" mode; edit mode reads the goal, as it always did.
+  function openGoalModal(mode, existingGoal, promote) {
     var isEdit = mode === "edit" && existingGoal;
-    var nameValue = isEdit ? existingGoal.name : "";
+    var nameValue = isEdit ? existingGoal.name : (promote && promote.name ? promote.name : "");
+    var descValue = isEdit ? (existingGoal.description || "")
+                           : (promote && promote.description ? promote.description : "");
     var deadlineValue = "";
     if (isEdit && typeof existingGoal.deadlineAt === "number") {
       deadlineValue = ymdFromTs(existingGoal.deadlineAt);
@@ -4902,6 +5185,11 @@
           '<label class="tt-modal-label" for="tt-goal-name-input">Name</label>' +
           '<input type="text" id="tt-goal-name-input" class="tt-goal-name-input" maxlength="200" placeholder="Goal name" autocomplete="off" spellcheck="false" value="' + escapeHtml(nameValue) + '">' +
         '</div>' +
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-goal-desc-input">Description</label>' +
+          '<textarea id="tt-goal-desc-input" class="tt-modal-textarea tt-goal-desc-input" maxlength="2000" rows="3" placeholder="Optional" spellcheck="true">' + escapeHtml(descValue) + '</textarea>' +
+        '</div>' +
+        promoteDeleteRowHtml(promote) +
         '<div class="tt-modal-row">' +
           '<label class="tt-modal-label" for="tt-goal-deadline-input">Deadline</label>' +
           '<input type="date" id="tt-goal-deadline-input" class="tt-goal-deadline-input" value="' + escapeHtml(deadlineValue) + '">' +
@@ -4967,6 +5255,8 @@
         var nameInput = overlay.querySelector(".tt-goal-name-input");
         var deadlineInput = overlay.querySelector(".tt-goal-deadline-input");
         var autoTagInput = overlay.querySelector(".tt-goal-autotag");
+        var descInput = overlay.querySelector(".tt-goal-desc-input");
+        var description = descInput ? (descInput.value || "") : "";
         var errorEl = overlay.querySelector(".tt-modal-error");
         var name = (nameInput.value || "").trim();
         if (!name) {
@@ -4998,6 +5288,7 @@
           var renamed = await Storage.renameGoal(data, existingGoal.id, name);
           if (!renamed) { showModalError(errorEl, "Could not rename goal."); return false; }
           await Storage.updateGoalDeadline(data, existingGoal.id, deadlineAt);
+          await Storage.updateGoalDescription(data, existingGoal.id, description);
         } else {
           var tplSel = overlay.querySelector(".tt-goal-template");
           var templateId = tplSel && !tplSel.disabled ? tplSel.value : "";
@@ -5013,12 +5304,21 @@
               autoCreateTag: !!(autoTagInput && autoTagInput.checked)
             });
             if (!inst) { showModalError(errorEl, "Could not create goal from template."); return false; }
+            // instantiateGoalTemplate takes the template's own description, so an
+            // edited/promoted one is applied after the fact rather than lost.
+            var instGoal = inst && inst.goal ? inst.goal : inst;
+            if (instGoal && instGoal.id && description) {
+              await Storage.updateGoalDescription(data, instGoal.id, description);
+            }
           } else {
-            var fields = { name: name, deadlineAt: deadlineAt, autoCreateTag: !!(autoTagInput && autoTagInput.checked) };
+            var fields = { name: name, description: description, deadlineAt: deadlineAt, autoCreateTag: !!(autoTagInput && autoTagInput.checked) };
             var created = await Storage.createGoal(data, fields);
             if (!created) { showModalError(errorEl, "Could not create goal."); return false; }
           }
         }
+        // Same ordering contract as the task modal: only after a creation that
+        // actually succeeded.
+        await promoteFinishDelete(promote, overlay);
         var panel = document.getElementById("tab-tasks");
         if (panel) renderTasksTab(panel, data);
       }
@@ -5029,7 +5329,10 @@
   function openEditGoalModal(goal) { openGoalModal("edit", goal); }
 
   // ----- New Task modal (standalone) -----
-  function openNewTaskModal() {
+  // [1.1.3] `promote` is an OPTIONAL prefill: { name, description, noteId }.
+  // Absent, this modal is byte-identical to what it was. Present, the fields
+  // start filled and the delete-after-creating checkbox renders.
+  function openNewTaskModal(promote) {
     var workspace = Storage.getActiveWorkspace(data);
     var availableTags = workspace ? Storage.getActiveTags(workspace) : [];
     var tagOptionsHtml = availableTags.map(function (tag) {
@@ -5051,8 +5354,13 @@
       bodyHtml:
         '<div class="tt-modal-row">' +
           '<label class="tt-modal-label" for="tt-task-name-input">Name</label>' +
-          '<input type="text" id="tt-task-name-input" class="tt-task-name-input" maxlength="200" placeholder="Task name" autocomplete="off" spellcheck="false">' +
+          '<input type="text" id="tt-task-name-input" class="tt-task-name-input" maxlength="200" placeholder="Task name" autocomplete="off" spellcheck="false" value="' + escapeHtml(promote && promote.name ? promote.name : "") + '">' +
         '</div>' +
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-task-desc-input">Description</label>' +
+          '<textarea id="tt-task-desc-input" class="tt-modal-textarea tt-task-desc-input" maxlength="2000" rows="3" placeholder="Optional" spellcheck="true">' + escapeHtml(promote && promote.description ? promote.description : "") + '</textarea>' +
+        '</div>' +
+        promoteDeleteRowHtml(promote) +
         '<div class="tt-modal-row">' +
           '<label class="tt-modal-label" for="tt-task-priority-select">Priority</label>' +
           '<select id="tt-task-priority-select" class="tt-task-priority-select">' +
@@ -5096,11 +5404,16 @@
         }
         var priority = priorityInput.value || null;
         var tagIds = [].slice.call(overlay.querySelectorAll(".tt-task-tag:checked")).map(function (cb) { return cb.value; });
-        var fields = { name: name, priority: priority, dueAt: dueAt, tagIds: tagIds };
+        var description = overlay.querySelector(".tt-task-desc-input").value || "";
+        var fields = { name: name, description: description, priority: priority, dueAt: dueAt, tagIds: tagIds };
         // Standalone — explicit goalId: null per PLAN.
         fields.goalId = null;
         var created = await Storage.createTask(data, fields);
         if (!created) { showModalError(errorEl, "Could not create task."); return false; }
+        // ORDER IS THE CONTRACT: the note is only ever deleted AFTER a creation
+        // that actually succeeded. The early return above is what makes a failed
+        // promote leave the note alone.
+        await promoteFinishDelete(promote, overlay);
         var panel = document.getElementById("tab-tasks");
         if (panel) renderTasksTab(panel, data);
       }
