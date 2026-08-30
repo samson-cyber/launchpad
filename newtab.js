@@ -9876,7 +9876,11 @@
     "#bg-overlay",          // wallpaper picker
     "#history-overlay",     // history
     "#workspace-dropdown",  // workspace switcher (created dynamically)
-    ".tt-context-menu"      // context menus and the Switch dropdown
+    ".tt-context-menu",     // context menus and the Switch dropdown
+    // [1.4.1] The session row menu opens OVER its own flyout. Without this the
+    // click that picks Rename or Delete counts as a click outside the flyout,
+    // closes it, and the action then runs against a surface that is gone.
+    "#session-ctx-menu"
   ];
   var PANEL_OVERLAY_SELECTOR = PANEL_OVERLAY_SELECTORS.join(",");
 
@@ -14562,6 +14566,12 @@
     }
     dd.style.left = "260px";
     loadRestoreSessions();
+    // [1.4.1 follow-up] Outside-click dismissal, on the SAME binder Import and
+    // Tips use, so the sidebar has one dismissal pattern rather than two. This
+    // replaces the plain document-click test that used to close this flyout: that
+    // one had no press/release pairing, so any stray click closed it, including
+    // the one a dismissed native dialog leaves behind.
+    bindSimplePanelOutside("#restore-dropdown", "#sb-restore", function () { closeRestoreDropdown(); });
   }
 
   function closeRestoreDropdown(opts) {
@@ -14571,6 +14581,7 @@
     // Only unlock sidebar if the dropdown was actually open
     if (!dd || dd.classList.contains("hidden")) return;
     dd.classList.add("hidden");
+    unbindSimplePanelOutside();
 
     // [1.0.11.12] silent close — see closeProSettingsPanel for rationale.
     if (opts && opts.silent) return;
@@ -14708,6 +14719,12 @@
     if (btn) dd.style.top = btn.getBoundingClientRect().top + "px";
     dd.style.left = "260px";
     renderSessionsList();
+    // The press/release pairing matters more here than anywhere: this flyout
+    // raises window.prompt to name and to rename, and dismissing a native dialog
+    // produces a page click with no preceding page mousedown. A naive handler
+    // would read that as an outside click and shut the flyout the instant a
+    // session was named.
+    bindSimplePanelOutside("#sessions-dropdown", "#sb-sessions", function () { closeSessionsDropdown(); });
   }
 
   function closeSessionsDropdown(opts) {
@@ -14715,6 +14732,9 @@
     var dd = $("#sessions-dropdown");
     if (!dd || dd.classList.contains("hidden")) return;
     dd.classList.add("hidden");
+    // Torn down on EVERY close, silent chain swaps included, so no stale
+    // listener keeps firing against a hidden flyout.
+    unbindSimplePanelOutside();
     if (opts && opts.silent) return;
     sidebarLocked = false;
     var sidebar = $("#sidebar");
@@ -16486,8 +16506,13 @@
       if (!e.target.closest("#rc-domain-panel") && !e.target.closest(".rc-item[data-rc-domain]")) {
         closeDomainPanel();
       }
-      if (!e.target.closest("#restore-dropdown") && !e.target.closest("#sb-restore")) {
-        closeRestoreDropdown();
+      // [1.4.1 follow-up] #restore-dropdown USED TO BE CLOSED HERE. It moved to
+      // bindSimplePanelOutside with its twin; leaving this behind would defeat
+      // that binder's press/release pairing, since this test fires on any click.
+      //
+      // Menus stay here, panels live on the binder: that is the split.
+      if (!e.target.closest("#session-ctx-menu") && !e.target.closest(".session-row-more")) {
+        closeSessionCtxMenu();
       }
       if (!e.target.closest("#restore-date-btn") && !e.target.closest("#restore-date-menu")) {
         closeRestoreDateMenu();
