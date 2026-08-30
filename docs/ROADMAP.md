@@ -25,29 +25,45 @@ The free LaunchPad Chrome extension, live on the Chrome Web Store.
 
 ---
 
-## v2.0.0 — BUILD PHASE COMPLETE (2026-08-14), awaiting submission
+## v2.0.0 / v2.0.1 — BUILT, NEVER SUBMITTED; folded into 2.1.0
 
-**The build phase of v2.0.0 ended at commit `92eeb68`.** Nothing further is queued for this version; what remains is the store upload, the dashboard walk and the project-knowledge re-upload.
+**Corrected 2026-08-30.** This section described v2.0.0 as awaiting submission with a live final
+artifact and a tag target. All three claims were stale and contradicted CLAUDE.md's release-state
+block; they are corrected here rather than left for someone to act on.
+
+**Neither 2.0.0 nor 2.0.1 was ever uploaded. SHIPPED still means v1.0.5** (free tier, submitted
+2026-07-21). v2.0.0 was built as a Pro-launch candidate at `92eeb68`; the 2.0.1 fast-follow batch then
+landed on top at `23a250f`; Samson deferred that release on 2026-08-29 to fold its content into a
+larger update. That update is **2.1.0** (see below).
+
+**BOTH ARTIFACTS ARE RETIRED, AND NO CANDIDATE ZIP EXISTS BETWEEN RELEASES BY DESIGN.** Their sha256
+values, byte counts and gate tables live in Asana 1217318434594388 and 1217967430924095, and each is
+reproducible from its commit. **No tag exists for either version, correctly**, since neither was
+submitted: the annotated tag follows the artifact and is applied at submission, on the exact commit
+the uploaded zip was built from. The next release builds fresh from the commit being submitted; an
+older zip is never resurrected.
 
 *It first ended at `3c719d6` on 2026-08-13. Three rounds have reopened it for exactly one commit each: the Buy Me a Coffee retirement (a product-surface decision), the closed-browser-time fix (a pre-submission defect found in lived use), and the per-task worked clock (a feature Samson specified on 2026-08-14). The artifact identity and the tag target moved with each.*
 
-- **FINAL ARTIFACT: `launchpad-2.0.0-92eeb68.zip`** — sha256 `2bffe33c14e4e562344841e4c973ae78b70068c47eeada1653453521339a9093`, 619,610 bytes, built from a clean tree. Every earlier stamped zip has been superseded and deleted.
+- **The 2.0.0 artifact was `launchpad-2.0.0-92eeb68.zip`** — sha256 `2bffe33c14e4e562344841e4c973ae78b70068c47eeada1653453521339a9093`, 619,610 bytes. **Superseded by the 2.0.1 build and since deleted; historical record only.**
 - **Thirteen build gates green** — twelve source suites (`panel-ink`, `focus-decision`, `insights-readers`, `since-format`, `trial-copy`, `license-line`, `pro-celebration`, `chip-ink`, `today-cockpit`, `text-size`, `pill-clarity`, `bg-queue`) plus the package gate (23/23 manifest-declared and referenced files resolve with exact forward-slash entry names).
-- **SHIPPED still means v1.0.5.** The manifest reads `2.0.0` and the artifact exists, but until the Chrome Web Store approves it, nothing about 2.0.0 is live. Do not describe it as shipped.
-- **At submission: the annotated `v2.0.0` tag goes on `92eeb68`** — the exact commit the uploaded artifact was built from, per the v1.0.5 precedent. The target follows the artifact, and has moved with each superseded zip.
+- **SHIPPED still means v1.0.5.** The manifest now reads `2.0.1` and that bump is unreleased. **A manifest bump is not evidence that a release occurred** — see CLAUDE.md, which is the source of truth for release state.
+- **No `v2.0.0` or `v2.0.1` tag was ever created, and none should be.** The tag follows the artifact and is applied at submission; the next submission tags the commit it is actually built from.
 
 ### Artifact-stamping discipline (standing practice)
 
 Adopted during the launch run and it holds from here on. Every build that leaves the working tree is **stamped**: `launchpad-<version>-<shorthash>.zip`, published with its **sha256 and byte count** in the task comment, and the **previous stamped zip is deleted from the repo directory in the same step**. The rule exists because QA phases ran across days and multiple rebuilds: an unstamped `launchpad.zip` cannot tell you which build it is, and a superseded zip left on disk will eventually be the one someone uploads. *If the zip you are testing does not hash to the published value, it is not that build.*
 
-### Fast-follow queue (v2.0.1+), as it stands
+### Fast-follow queue — cleared into 2.1.0 (updated 2026-08-30)
 
-- **`[1.2.2]` date-range selector** for Insights (1217301997679347) — filed with the 30-day retention horizon as its honest constraint.
-- **Refusal toast** (1217317549419902).
-- **Lifetime totals** (1217404571388348).
-- **Harness-rescue remainder** — the priority pair shipped pre-launch; the rest is opportunistic.
-- **Notes `[1.1.0]`–`[1.1.4]`** — the v2.1 headline, unchanged.
-- **Website meta-description trim.**
+- **`[1.2.2]` date-range selector** for Insights (1217301997679347) — **SHIPPED**, presets plus custom calendar.
+- **Refusal toast** (1217317549419902) — **SHIPPED**.
+- **Lifetime totals** (1217404571388348) — **SHIPPED** as `[2.1]`.
+- **Notes `[1.1.0]`–`[1.1.4]`** — **SHIPPED**, plus follow-ups through `[1.1.7]`. The 2.1.0 headline.
+- **`[1.3.0]` Backup & Restore** — **SHIPPED**, both rounds.
+- **Variant disambiguation** (1217948890038248) — **SHIPPED**, promoted from candidate.
+- **Harness-rescue remainder** — the priority pair shipped pre-launch; the rest is opportunistic. Still open.
+- **Website meta-description trim.** Still open.
 
 ---
 
@@ -79,18 +95,27 @@ Locked 2026-07-22 (v2.0 design lock, Asana 1214260527650518). Privacy posture ab
 - **Focus Blocking** (`[1.2.0]`) — **COMPLETE 2026-08-09.** Gentle gate page (blocked host, focused-time-on-task, snooze + end focus), manual arm plus auto-arm during focus work phases, global block list in Pro Settings, hard-coded never-block list for checkout/licensing, capture-first block/snooze counters, pill Focus toggle and armed indicator. Interception is **`webNavigation.onBeforeNavigate`**, not the tabs API: the tabs hook fires post-commit and the blocked page flashes. `declarativeNetRequest` rejected on three independent blockers. Rounds R1 `b6fa2b6`, R2, R2.5 `f750170`, R3 `c4f8d83`. See DECISIONS.md 2026-08-09 (shipped entry + the F2 amendment).
 - **Time-by-Site** (`[1.2.1]`) — **COMPLETE 2026-08-09.** `byDomainForScope` reader on the shared rollup spine plus one Insights card; raw hostnames as measured, **no favicons ever** (browsing-domain rows must not be sent to an icon service), zero new CSS. `1e19b5d`; both board lists aligned at 6 rows in `12a7fb4`.
 
-#### Next: v2.0.0 launch prep
+#### Pro launch prep — done, except the upload itself (updated 2026-08-30)
 
-The trio is done, so the remaining work before the first Pro store submission is release mechanics rather than features:
+The trio is done and so is the release mechanics list below; what remains is the **2.1.0** submission,
+which Asana 1217967430924095 owns end to end.
 
-- **Manifest version bump to `2.0.0`** — the deliberate major bump that separates the store line (`2.x` = Pro era) from the `[1.x.y]` marker track. See CLAUDE.md "Versioning & Release Tagging".
-- **Flip the trial CTA live** — one line, `TRIAL_CTA_ENABLED` in `newtab.js`, currently teaser-mode (DECISIONS.md 2026-07-21).
+- ~~**Manifest version bump to `2.0.0`**~~ — **DONE**, and since moved to `2.0.1`. The next submission
+  picks its own number (2.1.0), applied at that point. The `2.x` = Pro era separation from the
+  `[1.x.y]` marker track holds. See CLAUDE.md "Versioning & Release Tagging".
+- ~~**Flip the trial CTA live**~~ — **DONE** at 2.0.0. `TRIAL_CTA_ENABLED` is now true, and the flag
+  plus its teaser branches are deliberately KEPT as the kill switch if billing must be pulled.
 - **Store listing** — Pro screenshots, description, pricing copy.
-- **Permission-bubble check on the Web Store dashboard at upload.** The `webNavigation` addition is expected to be warning-invisible (`history` already carries the broader warning) and was verified by comparing two loadable variant builds in real Chrome — but the dashboard's install bubble is the final authority, and it is only visible at upload time.
-- **Wallpaper Remove fix in the release notes** — `ddba4d3` fixes a Settings > Remove that was inert in both v1.0.4 and v1.0.5; free-tier users are affected and should be told.
-- **Checkout-return tab-close fix in the release notes** — the post-purchase page closed its own tab on *every* visit, including keyless and failed-activation ones (`finally`-block `chrome.tabs.remove`). **v1.0.5 only** — the handler landed `4e12636`, 2026-05-09, after v1.0.4 shipped. Anyone on v1.0.5 who opens `mylaunchpad.me/checkout-return` loses the tab silently, so it is worth one line even though the page matters most to Pro buyers, who do not exist until 2.0.0.
+- **Permission-bubble check on the Web Store dashboard at upload.** Still open, and it now has a
+  second item on it. The `webNavigation` addition is expected to be warning-invisible (`history`
+  already carries the broader warning) and was verified by comparing two loadable variant builds in
+  real Chrome. **2.1.0 additionally adds `downloads` as an OPTIONAL permission** (auto-backup), which
+  carries no install warning and no re-consent prompt but does need a justification in the listing.
+  The dashboard's install bubble is the final authority and is only visible at upload time.
+- ~~**Wallpaper Remove fix in the release notes**~~ — **DONE**, written into RELEASE-NOTES-2.0.0.md. `ddba4d3` fixes a Settings > Remove that was inert in both v1.0.4 and v1.0.5; free-tier users are affected and are told.
+- ~~**Checkout-return tab-close fix in the release notes**~~ — **DONE**, written into RELEASE-NOTES-2.0.0.md. The post-purchase page closed its own tab on *every* visit, including keyless and failed-activation ones (`finally`-block `chrome.tabs.remove`). **v1.0.5 only** — the handler landed `4e12636`, 2026-05-09, after v1.0.4 shipped.
 
-Also filed, post-v2.0: **`[1.2.2]` Insights date-range selector** (Samson's ask; the 30-day per-event retention horizon is its honest constraint — DECISIONS.md 2026-08-09), **harness rescue** (recover the pre-`tools/` round suites, Asana 1217302152465697), **nest refusal toast** (Asana 1217317549419902 — the matcher stays literal, the silent refusal does not), the **pill redesign** below, and **`[1.3.0]` Backup & Restore** below.
+Filed post-v2.0 and now **all shipped except harness rescue**: `[1.2.2]` Insights date-range selector, the nest refusal toast, the pill redesign, and `[1.3.0]` Backup & Restore. **Harness rescue** (recover the pre-`tools/` round suites, Asana 1217302152465697) remains open.
 
 #### Tracking Engine
 - Ships capture-first: capture/attribution/retention pre-launch ([1.0.25]/[1.0.26], sequenced before [1.0.16]/[1.0.17]); analytics UI including Day Recap content and Deep Diver ships v2.1 — see SPECS/tracking-engine.md and DECISIONS 2026-07-07.
@@ -131,19 +156,52 @@ Per DECISIONS.md "Ship Pro and free tab-bar update as one release", these free-t
 
 ---
 
-## v1.1.0 — Notes (standalone)
+## v1.1.0 — Notes — **SHIPPED** (2026-08-30)
 
-Pro-only feature. Sticky-note-styled grid for quick capture, with promote-to-task and promote-to-goal integration, drag positioning, search/filter, and a Notes-specific trash can UI. 5 Asana tasks scoped: [1.1.0] through [1.1.4]. Target release: ~4-6 weeks post v1.0 launch.
+Pro-only. Sticky-note capture living as the **right-hand panel of the Tasks tab** (roughly 80/20,
+stacking below 900px), with drag-to-**reorder**, threshold-gated search, promote-to-task and
+promote-to-goal, a per-note hover trash plus a footer trash view, and a default-paper-colour
+setting. `[1.1.0]`–`[1.1.4]` as scoped, plus `[1.1.5]`–`[1.1.7]` follow-ups from Samson's
+checkpoint sweep.
+
+**What the original scope said and did not ship:** a dedicated Notes tab, 2D drag positioning
+with `{x, y}` coordinates, drag-to-trash, tag-chip filtering, and Ctrl+N / arrow-key navigation.
+All deliberate; see DECISIONS.md 2026-08-30 and the reconciled `SPECS/notes.md`.
+
+**Two changes reach every user, not only notes users:** the **Description** field on the New Task
+and New Goal modals, and the **+ New Tag** button in the Tasks header.
 
 ## v1.2.0 — Notebooks
 
-Organizational layer on top of standalone notes. Master-detail layout with left notebook column. Drag-to-combine creates notebooks; drag-out returns notes to standalone. Asana tasks not yet scoped — to be created after v1.1.0 ships and we have usage signal. Target release: ~6-8 weeks after v1.1.0.
+Organizational layer on top of standalone notes. Master-detail layout with left notebook column.
+Drag-to-combine creates notebooks; drag-out returns notes to standalone. Asana tasks not yet
+scoped — to be created once there is usage signal from shipped v1.1.
+
+**Its layout assumptions predate the v1.1 redirect and have NOT been re-specced.** Notes ship in a
+20% panel of the Tasks tab rather than a full tab area, and `position: {x, y}` is dormant, so the
+left-column/right-pane split and the x-coordinate clamping in `SPECS/notes.md` both need
+redesigning before this is scoped.
 
 **Numbering note (2026-07-22):** this section's `v1.2.0` is a Notes-era release label and is **not** the `[1.2.0]` feature marker, which the v2.0 design lock assigned to Focus Blocking ("Notes owns `[1.1.x]`; the new features take `[1.2.x]`"). The collision is cosmetic — Notebooks has no marker-track tasks scoped yet — and should be reconciled at v2.1 planning.
 
-## [1.3.0] — Backup & Restore
+## [1.3.0] — Backup & Restore — **SHIPPED** (2026-08-30)
 
-Reframed 2026-07-22 (task 1216777305263735) as **extending the shipped free Settings > Backup export/import**, not building one: full coverage (`data` + `tracking_sessions` + `tracking_days` + license key), schema-stamped with migration on import, old partial-format backups still importable. Export stays free; the Pro layer is **automation** — periodic auto-export via `optional_permissions ["downloads"]`, runtime-requested, default OFF. `chrome.storage.sync` full and hybrid both rejected; see DECISIONS.md 2026-07-22. Post-v2.0, slot early in v2.1. Pre-pickup audit of the existing implementation required before any PLAN.
+Extended the shipped free Settings > Backup export/import rather than building one. **Round 1
+(free):** a versioned v2 envelope carrying `data`, `launchpad_background`, `tracking_sessions` and
+`tracking_days`, with v1 partial-format files accepted forever and named honestly at the confirm.
+**Round 2 (Pro):** a weekly automatic backup to `Downloads/LaunchPad Backups/`, default OFF, that
+**never deletes anything**.
+
+**One scope correction worth carrying:** the licence was never a separate store to cover — it
+lives in `data.pro` inside the `data` key, so v1 files already carried it. The real problem was
+trust, and import now clears the stored verdict and re-validates. See DECISIONS.md 2026-08-30.
+
+`chrome.storage.sync` full and hybrid both remain rejected; see DECISIONS.md 2026-07-22 and do not
+relitigate. The `storage.sync` settings+licence slice is still an open later marker.
+
+**Release consequence:** Round 2 adds `optional_permissions: ["downloads"]`, so the 2.1.0 permission
+diff against 2.0.0 is **not** empty. It carries no install warning and no re-consent prompt, but it
+needs a justification in the store listing at submission.
 
 ---
 

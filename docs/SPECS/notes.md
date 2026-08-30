@@ -1,6 +1,12 @@
 # Notes Feature - LaunchPad Pro
 
-Status: Draft (v1, 2026-05-15)
+Status: **v1.1 SHIPPED.** Drafted 2026-05-15; reconciled to shipped reality 2026-08-30.
+
+> **Read the reconciliation banner in the v1.1 section before trusting any interaction
+> described here.** The May draft specced a full-tab, 2D drag-positioned feature. Samson
+> redirected the design on 2026-08-29 after seeing the first render, and most interaction
+> details changed. The v1.2 Notebooks section below is still unbuilt design intent and has
+> NOT been re-specced against what v1.1 actually shipped.
 Owner: Samson
 Related: `workspaces-data-model.md`, `trash-bin.md`, `tasks-and-goals.md`, `pro-tab-architecture.md`
 
@@ -12,12 +18,20 @@ Quick capture of thoughts, meeting notes, and reminders inside LaunchPad. Solves
 
 ## Tier
 
-Pro-only feature. Free users see a greyed-out Notes tab in the tab bar. Clicking opens Preview Mode with hardcoded demo content (non-interactive) and the standard pulsing upgrade CTA.
+Pro-only. **Notes inherit the Tasks tab's gate rather than owning one** (see Layout): the live
+panel is emitted inside the tasks surface and the demo column inside the tasks preview, so there
+is no separate Notes gate to keep in sync and no greyed Notes tab to click.
+
+Five license states govern it, per CLAUDE.md "Pro Access States": `trialing`, `active` and
+`grace` get the real panel; `free` and **`expired`** get the preview. **`expired` is full preview
+lockout, identical to free except CTA copy - there is NO read-only fallback**, so notes are never
+more permissive than the tasks surface they sit inside.
 
 ## Release plan
 
-- v1.1.0 - Standalone notes (this spec covers it in full)
-- v1.2.0 - Notebooks (organizational layer on top, designed in this spec but built later)
+- v1.1.0 - Standalone notes. **SHIPPED** across `[1.1.0]`-`[1.1.7]`, riding the 2.1.0 store release.
+- v1.2.0 - Notebooks (organizational layer on top, designed in this spec but built later). **Unbuilt**,
+  and its layout assumptions predate the v1.1 redirect.
 
 ## Workspace scoping
 
@@ -33,7 +47,7 @@ workspace = {
 
 ## Visual design - nostalgic-realistic sticky notes
 
-Design intent: a user opening the Notes tab should recognize "these are sticky notes" within 2 seconds, evoking the physical desk metaphor. Visual cues:
+Design intent: a user seeing the notes panel should recognize "these are sticky notes" within 2 seconds, evoking the physical desk metaphor. Visual cues:
 
 - Paper-textured background using CSS-only noise/grain (no image assets - keep extension light)
 - Slight fixed rotation per note (-2 to +2 degrees, assigned at creation time and stored)
@@ -48,20 +62,36 @@ The visual style is owned in CSS, no JS dependency. Note that this aesthetic age
 
 ## v1.1 - Standalone notes
 
+> **RECONCILED 2026-08-30 to what shipped.** Everything below describes the built feature. The
+> May draft is superseded on: where notes live (Tasks panel, not a Notes tab), how they are
+> created (ghost note, not a header button or empty-space click), how they are ordered (canonical
+> array order, not `{x, y}` positions), how they are searched (threshold-gated, text only), how
+> trash is reached (footer button, no drag-to-trash), and how promote-and-delete is chosen
+> (a checkbox in the modal, not extra menu entries). Reasoning for each is in DECISIONS.md
+> 2026-08-30. **Where this doc and `storage.js` / `newtab.js` disagree, the code is right.**
+
 ### Layout
 
-The Notes tab takes the full content area (same as Tasks/Dashboard/Insights). Standalone notes appear in a draggable grid filling the tab. v1.2 will split this area into a left notebook column (1/5) and right content area (4/5); v1.1 ships as full-grid.
+Notes are the **right-hand panel of the Tasks tab**, not a tab of their own. The split is roughly
+80/20 (tasks/notes) with a **260px floor** on the panel. Below a **900px viewport width** the panel
+moves under the tasks content at full width and the stack switches from a vertical column to a
+horizontal wrap.
+
+The 900px breakpoint was measured, not chosen: the tasks body first overflows at **730px**, and 900
+leaves 170px of clearance above that cliff. The notes stack is `flex: 1; overflow-y: auto` inside
+the panel, so it scrolls itself in the wide branch; in the narrow branch the panel grows to content
+height and `.tab-panel` becomes the scroller, which is why the trash footer is `position: sticky`.
 
 ### Note data model
 
 ```
 note = {
-  id: string (stable unique),
+  id: string (stable unique, "note_" prefix),
   content: string (plain text for v1; markdown is a future consideration),
-  color: string (palette key: 'cream' | 'butter-yellow' | 'soft-pink' | 'mint' | 'sky-blue' | 'peach' | 'lavender'),
-  position: { x: number, y: number },  // grid coordinates
-  rotation: number,  // -2 to +2 degrees, assigned at creation
-  notebookId: string | null,  // null for v1.1 (always standalone); v1.2 introduces optional notebook association
+  color: string (palette TOKEN NAME: cream | butter-yellow | soft-pink | mint | sky-blue | peach | lavender),
+  position: { x: number, y: number },  // RESERVED AND DORMANT - see below
+  rotation: number,  // -2 to +2 degrees, rolled once at creation and stored, never re-rolled at render
+  notebookId: string | null,  // null for v1.1 (always standalone); v1.2 would introduce association
   tagIds: [string],  // tag ids, integrates with existing tag system
   createdAt: number,  // epoch ms (Date.now())
   updatedAt: number,  // epoch ms (Date.now())
@@ -69,51 +99,111 @@ note = {
 }
 ```
 
-Timestamps are **epoch milliseconds** (`Date.now()`), not ISO strings. This doc said
-ISO until 2026-08-29; the sibling entities and `trash-bin.md`'s `deletedAt =
-Date.now()` always disagreed, and the 30-day purge sweep does arithmetic on
-`deletedAt`, so ISO would have broken it. Tag references are `tagIds`, matching tasks
-and the purge cascade that cleans ids out of every item's `tagIds` array.
-**The shipped `[1.1.0]` implementation in `storage.js` is the reference** for this
-shape; where this doc and that code disagree, the code is right and this doc is the
-thing to fix.
+Timestamps are **epoch milliseconds** (`Date.now()`), not ISO strings. This doc said ISO until
+2026-08-29; the sibling entities and `trash-bin.md`'s `deletedAt = Date.now()` always disagreed, and
+the 30-day purge sweep does arithmetic on `deletedAt`, so ISO would have broken it. Tag references
+are `tagIds`, matching tasks and the purge cascade that cleans ids out of every item's `tagIds`
+array. **The shipped `[1.1.0]` implementation in `storage.js` is the reference** for this shape.
+
+**`position` IS DORMANT.** Nothing reads or writes it. **Order is canonical array order** in
+`ws.notes`: the stack renders the array as-is, new notes unshift to the front, and drag-to-reorder
+permutes the array. The field is kept as reserved space with a marker comment in `storage.js` and
+carries no semantics; a future feature that wants it must define them from scratch. Colour is stored
+as a token NAME rather than a hex, so a palette change is a CSS edit and never a data migration.
 
 ### Interactions
 
-- Create note: '+' button in tab header, or click empty grid area
-- Inline editing: click note to enter edit mode, click outside or press Esc to save
-- Drag positioning: notes are absolutely positioned, drag updates {x,y} with light 8-12px grid snap on drop. Position persists immediately to storage.
-- Right-click menu on a note: Change color, Add/remove tags, Promote to task, Promote to goal, Delete
-- Search/filter bar at top of tab: real-time text search on content + tag chip filter (AND logic)
-- Color picker: palette swatch grid accessible via right-click menu or color indicator on the note itself
+- **Create: the ghost note**, a dashed, faded, un-rotated, curl-less placeholder card **at the TOP of
+  the stack**, rendered exactly once and always first. Clicking it creates a note and enters edit
+  immediately. It is the only creation affordance (no header button, no click-empty-space), and it
+  **doubles as the zero-notes empty state**.
+- **Inline editing:** click a note to edit; click outside or press Escape both **save**. An empty
+  note abandoned by either route deletes itself rather than persisting blank. The card flattens its
+  rotation while it holds the editing caret (a caret inside a transformed element blinks once and
+  dies - BUGS.md **D19**), so the note straightens as you write and tilts back when you are done.
+- **Drag to REORDER**, vertically within the panel, on the shared SortableJS idiom. Commits by note
+  ID rather than by list index, because the stack shows only live notes while the array also holds
+  soft-deleted ones. **Reorder is disabled while a search filter is active.**
+- **Right-click menu, exactly three entries** plus the swatch row: Change colour (seven swatches),
+  Promote to task, Promote to goal, Delete. Tag assignment from notes does not exist yet.
+- **Per-note hover trash**, top-right of the card, clear of the bottom-right curl. Revealed on hover
+  and on `:focus-within`, so it is reachable by keyboard.
+- **Search: a slim input that renders ONLY above 6 live notes.** Case-insensitive substring on
+  content, text only; no tag chips (there is no tag-assignment affordance for notes to filter on).
+  Clearing restores the stack. The ghost note stays visible and functional while filtering, and
+  creating from it clears the filter.
+- **Keyboard:** Tab / Shift+Tab across notes, Enter to edit the focused note, Escape to save, ARIA
+  labels on every interactive control, tier-aware focus rings. **Ctrl+N and arrow-key spatial
+  navigation are deliberately cut** per the standing click-only rejection.
+
+### Notes settings (Pro Settings)
+
+One setting: **default paper colour for new notes**, a seven-swatch picker plus a "cycle" option,
+stored as a token name. Precedence is explicit choice > setting > cycle, and **absence means cycle**,
+so the count-keyed palette rotation stays the untouched default.
 
 ### Promote-to-task
 
-Right-click note - "Promote to task" opens the existing task creation modal with note content pre-filled (first ~80 chars - task name, full content - description). If note content is shorter than 80 chars, the entire content becomes both task name and description; user can edit either in the modal before confirming. User picks target goal or "Standalone" from existing dropdown. On confirm, task is created; note remains untouched (promote = copy, not move). Secondary menu option "Promote and delete note" does the same but soft-deletes the note after task creation.
+Right-click a note, "Promote to task", opens the existing task creation modal pre-filled: first ~80
+characters of content as the task name (truncated on a word boundary), the full content as the
+**description**. The user picks a target goal or "Standalone" from the existing dropdown.
+
+**"Promote and delete" is a CHECKBOX INSIDE THE MODAL** ("Delete note after creating", default
+unchecked), not a second menu entry. Promote is copy-semantics by default: on plain confirm the note
+is untouched. A cancelled modal creates nothing and deletes nothing, and a failed creation leaves the
+note alive.
+
+**The Description field did not exist before this feature.** Neither creation modal had one, in
+either tab, while both data models had stored `description` all along. It was added to **New Task and
+New Goal both, always visible**, as a multi-line textarea. Every user meets it whether or not they
+ever touch a note.
 
 ### Promote-to-goal
 
-Right-click note - "Promote to goal" opens the existing goal creation modal with note content as the goal description. User can edit the goal name (defaults to first line of note). On confirm, goal is created; note remains unless "and delete" selected.
+Same shape: goal name defaults to the first line of the note, full content becomes the goal
+description, and the same "delete after creating" checkbox applies.
 
-### Trash can UI
+### Trash
 
-A persistent trash can icon lives in the bottom-right corner of the Notes tab. Aesthetic matches the sticky-note paper-and-pen theme. A small badge shows the count of trashed notes when non-zero.
+**There is no trash can to drag onto.** Drag-to-trash is cut: SortableJS reorder owns dragging in the
+stack, and a second drag semantic in the same column is a mode conflict. Deletion has two affordances,
+the per-note hover trash and the menu item, and both route through one function so they cannot drift.
 
-Interactions:
-- Drag a note onto the trash can - soft-delete (sets deletedAt, removes from grid). Trash can shows visual response on hover (opens or highlights).
-- Right-click menu "Delete" - same outcome.
-- Click trash can icon - opens a trash view (modal or in-tab overlay) showing all trashed notes for this workspace. Each item shows: content preview (~3 lines), days until permanent deletion, Restore button, Delete Permanently button. An "Empty Trash" button purges all trashed notes immediately, with a confirmation.
+The trash entrance is a **full-width button in the panel footer**, styled on the `.tasks-action`
+family and `position: sticky; bottom: 0`. It renders **only when the workspace has trashed notes** -
+zero chrome at zero trash, mirroring the search threshold. Visible label is `Trash - N`; the
+accessible name pluralises properly ("1 note in trash" / "2 notes in trash"). The strip behind it is
+fully transparent and `pointer-events: none`, so it cannot sit between the cursor and a bottom drop
+target.
 
-30-day auto-purge is handled by the universal trash-bin lifecycle per `docs/SPECS/trash-bin.md`. The Notes trash can is just the visual surface for the Notes portion of that bin.
+Clicking it opens the trash view as a modal overlay, scoped to the current workspace: content preview
+(~3 lines), days until permanent deletion, Restore, Delete Permanently, and Empty Trash with
+confirmation. The countdown carries the **amber/red band shift** `trash-bin.md` describes, using the
+tasks-side `trashCountdownClass` helper and its tokens (<=2 days red, <=7 amber) so the two trash
+surfaces cannot diverge.
+
+30-day auto-purge is the universal lifecycle per `docs/SPECS/trash-bin.md`. **Notes had to be
+registered explicitly in that sweep** - both in its entity enumeration and in its tag-id cascade -
+because both are hardcoded lists rather than a registry. See BUGS.md **E5**.
 
 ### Free user Preview Mode
 
-When a free user clicks the Notes tab, they see a hardcoded demo with 6-8 sticky notes in a sample layout. Notes are non-interactive (no create, drag, edit, delete). The pulsing upgrade CTA per [1.0.5] is visible. Demo content should feel relatable (e.g., grocery items, meeting reminders, recipe ideas) but contain no real-looking PII.
+A free or expired user opening the **Tasks** tab gets the tasks preview shell, and the notes column is
+emitted inside it: **five** demo notes (not the May draft's 6-8; the panel is a 20% column) in five
+distinct paper colours, realistic and PII-free, rendered through the **same card component** as real
+notes so the styling path is identical rather than merely similar.
+
+The preview is inert: no create, no edit, no drag, no delete. **No ghost note** - a create affordance
+on a surface that can never create reads as broken rather than as locked. Preview cards carry no hover
+trash, are not keyboard focusable, and are `aria-hidden`. The preview writes **nothing** to storage,
+and the standard pulsing upgrade CTA belongs to the tasks preview shell.
 
 ### Empty states
 
-- No notes exist: soft empty state with "Drop your first note here" (or click to create) copy
-- All notes filtered out: "No notes match this filter" with a clear-filter action
+- **No notes exist:** the ghost note IS the empty state. There is no separate empty-state branch to
+  keep in sync.
+- **All notes filtered out:** the stack empties while the ghost note and the search input remain, so
+  the filter is visibly clearable.
 
 ---
 
@@ -127,7 +217,11 @@ The Notes tab area splits into two columns:
 
 The "Standalone Notes" item at the top of the left column is always visible, always clickable, and returns the right pane to the standalone grid when clicked. Acts as the "home" of the Notes tab.
 
-On v1.2 upgrade, any note whose stored x-coordinate falls outside the new right-pane width is clamped to fit; rotation and y are preserved.
+**Superseded 2026-08-30:** this assumed notes carry live `{x, y}` positions. They do not - v1.1
+ships canonical array order and `position` is dormant (see the v1.1 data model). There is nothing
+to clamp. A Notebooks design must decide ordering within a notebook from scratch, and should also
+account for the fact that notes live in a 20% panel of the Tasks tab rather than a full tab area,
+which is the larger unre-specced assumption in this whole section.
 
 ### Notebook data model
 
@@ -174,7 +268,9 @@ Promote-to-task and Promote-to-goal work the same from inside notebook view as f
 
 ## Notes touching other systems
 
-- Universal trash bin (`docs/SPECS/trash-bin.md`): notes and notebooks use the existing soft-delete + 30-day auto-purge lifecycle
+- Universal trash bin (`docs/SPECS/trash-bin.md`): notes use the existing soft-delete + 30-day
+  auto-purge lifecycle. **Registration is explicit, not automatic** - the sweep's entity list and
+  its tag-id cascade are both hardcoded, and notes were absent from both until `[1.1.3]`.
 - Tag system (existing): notes are taggable; tag rename/delete cascades to notes per existing tag system behavior
 - Workspaces: notes and notebooks belong to a workspace; workspace switch shows the active workspace's content
 - Tasks/Goals: promote-to-task and promote-to-goal integrate with existing creation modals; no new modals introduced

@@ -91,7 +91,7 @@ Trash is exposed **per surface**, as the visual layer over the shared soft-delet
 ### Surfaces
 
 - **Tasks tab** — a **Deleted** box beside the existing **Completed** box (two boxes, one row). Lists soft-deleted tasks with per-item Restore, Delete Permanently (confirmed), and 30-day countdowns.
-- **Notes** — a per-tab trash can, per `notes.md`.
+- **Notes** — a full-width **footer button** in the notes panel, rendered only when that workspace has trashed notes, opening a modal trash view. There is no drag-to-trash target; see `notes.md`.
 - **Home grid (bookmarks / groups)** — **deferred**; no browse/restore surface yet. See DECISIONS 2026-07-14. Until it ships, Home-grid deletes are recoverable only via the delete-moment 5-second Undo toast (soft-delete + 30-day retention still happen underneath; there is just no UI to browse or restore them).
 
 ### Item row (shared design for each surface)
@@ -165,7 +165,7 @@ LaunchPad bookmarks support nested variants (the "parent shortcut with children"
 
 ```
 for each workspace in data.workspaces:
-  for each collection (groups, bookmarks inside groups, goals, tasks, tags):
+  for each collection (groups, bookmarks inside groups, goals, tasks, tags, notes):
     remove any item where deletedAt !== null and (now - deletedAt) > 30 days
 for any tags removed in this sweep:
   remove the tag's ID from all items' tagIds arrays
@@ -174,13 +174,25 @@ log purge count for debug console
 
 Single alarm, single function. No per-item timers.
 
+**THE COLLECTION LIST AND THE TAG CASCADE ARE HARDCODED LITERALS IN THE CODE, NOT A REGISTRY.**
+`purgeExpiredTrash` walks one literal array of entity keys and its tag-id cleanup walks a second,
+separate one. **A new soft-deletable entity that does not register in both is silently never
+swept**, with no error and no failing gate: trash simply never empties, and purged tag ids stay
+dangling. Notes were missing from both from `[1.1.0]` until `[1.1.3]`. Register in the same commit
+that introduces the entity. See BUGS.md **E5**.
+
 ### Opportunistic cleanup
 
 When the user opens the Trash View, the same sweep logic runs on the current data before rendering. This handles the edge case where Chrome was closed for a week and the alarm didn't fire — the user shouldn't see items that should have been purged.
 
 ### Quota implications
 
-Realistic worst case: user imports 500 Chrome bookmarks and deletes 400 at once. 400 bookmarks × ~200 bytes = ~80 KB. Add groups, goals, tasks, tags and the absolute ceiling is ~250 KB held in trash at once. Negligible against the 10 MB `chrome.storage.local` quota (and the planned `unlimitedStorage` permission for tracking data).
+Realistic worst case: user imports 500 Chrome bookmarks and deletes 400 at once. 400 bookmarks × ~200 bytes = ~80 KB. Add groups, goals, tasks, tags and the absolute ceiling is ~250 KB held in trash at once. Negligible against the 10 MB `chrome.storage.local` quota.
+
+**`unlimitedStorage` was evaluated on measurements and REJECTED (2026-08-29, Asana
+1217942581701884).** A realistic profile used 411,980 bytes of the 10,485,760-byte quota, 88.6% of
+it the custom wallpaper key; a plain-text note is ~450 bytes. Earlier docs describing it as
+"planned" are superseded. Re-check triggers are recorded in DECISIONS.md 2026-08-30.
 
 ---
 

@@ -115,6 +115,32 @@ LaunchPad uses **two distinct, parallel numbering tracks**. They look alike but 
 
 ---
 
+## Pro Access States
+
+**There are FIVE license states, and `isProAccessibleLevel` is the single source of truth for which of them get the real surface.** Verbatim:
+
+```js
+function isProAccessibleLevel(level) {
+  return level === "trialing" || level === "active" || level === "grace";
+}
+```
+
+| State | Surface | Notes |
+| --- | --- | --- |
+| `free` | Preview | Never had Pro. CTA reads "Start free trial". |
+| `trialing` | **Real, full function** | |
+| `active` | **Real, full function** | |
+| `grace` | **Real, full function** | An active subscription 7 to 14 days past its last verification. Indistinguishable from `active` on every surface. It is a real state and it is easy to forget it exists. |
+| `expired` | Preview | Trial lapsed, or a subscription past double the offline grace. |
+
+**EXPIRED IS FULL PREVIEW LOCKOUT, IDENTICAL TO FREE. There is no read-only fallback anywhere in this product.** Verified on both lapse paths and byte-identical to `free` except for CTA copy, which reads "Upgrade" once a trial has been used and "Start free trial" otherwise. Specs and plans written before 2026-08-30 sometimes assume a degraded-but-usable expired mode; they are wrong, and building one would make the newer surface more permissive than the one it inherits from.
+
+**Everything not in that list falls to `renderProPreview`.** Gate by calling `isProAccessibleLevel`, never by testing states individually: a hand-written `active || trialing` check silently locks out every `grace` user, who is a paying customer.
+
+**A PREVIEW SURFACE MUST NEVER RENDER A CREATE AFFORDANCE.** Preview is the promise: same component, same styling path, differing only in data source and interactivity. A control that cannot do anything is worse than an absent one, because it reads as broken rather than as locked. The worked example is the `[1.1.4]` preview-ghost bug: the notes preview rendered the ghost note, which is the create affordance, on a surface that can never create. Whenever a surface gains a new create control, check the preview branch in the same commit.
+
+---
+
 ## Dev Tooling
 
 - **`LP.devPro` — dev-only Pro toggle (shipped commit `bc3b303`).** In an UNPACKED build, run `LP.devPro(true)` in the new-tab page console to enable full Pro for testing; persists across reload. `LP.devPro(false)` returns to free/locked (for testing the gated UI).

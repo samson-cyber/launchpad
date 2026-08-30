@@ -251,7 +251,15 @@ Per-workspace sizing estimates:
 - Tags: negligible (<1 KB)
 - Tracking (per workspace, 30 days rolling): ~10 MB granular or ~2 MB aggregated depending on rollup policy — see tracking spec
 
-Heavy portfolio-worker user with 5 active workspaces: ~50 MB. Requires `unlimitedStorage` permission (planned for tracking anyway).
+Heavy portfolio-worker user with 5 active workspaces: ~50 MB on these projections.
+
+**`unlimitedStorage` WAS EVALUATED ON MEASUREMENTS AND REJECTED (2026-08-29, Asana
+1217942581701884), so the "planned anyway" this line used to rest on no longer exists.** A
+realistic seeded profile used **411,980 bytes** of the 10,485,760-byte quota, of which the custom
+wallpaper key alone was 88.6%; tracking aggregates measured 20,826 bytes and the whole `data` key
+25,635. The projections above are an order of magnitude above what was actually measured and should
+be re-derived from real numbers before being cited again. Re-check triggers for the permission
+decision are recorded in DECISIONS.md 2026-08-30.
 
 ---
 

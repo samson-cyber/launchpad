@@ -137,10 +137,34 @@ Aggregate shape per day:
 
 - **Rollup-on-write:** each aggregate field is incremented at session close. Aggregates are never recomputed from raw records at read time.
 
+### Lifetime accumulator (`[2.1]`)
+
+A `lifetime` record lives on the **`tracking_sessions`** store (not on the day aggregates), shaped
+`{ byTask: { <taskId>: ms }, since: <epoch ms>, backfilledAt: <epoch ms> }`. It is incremented
+**inside the session-close write**, not in a second write afterwards: a separate write could be
+interrupted between the two and leave the aggregate and the accumulator describing different
+histories. See BUGS.md **L3**.
+
+Existing installs are backfilled once, by summing `byTask` across retained day aggregates, and the
+`since` anchor is stamped at the **earliest day actually seen** so the surface can say "focused
+since 1 July" rather than implying a lifetime it cannot substantiate. The backfill runs **before**
+the rollup, or the closing session is counted twice.
+
+This figure is **FOCUSED** time. It is never blended with, or described as, the wall-clock worked
+clock; the two answer different questions.
+
 ### Retention
 
 - **Session records** are pruned at **30 days** on SW startup.
 - **Per-day aggregates** are kept **forever** (ROADMAP policy). Because aggregates roll up on write, pruning raw records never loses aggregate history.
+
+**`tracking_days` IS NEVER SWEPT, and that is deliberate — but it has a consequence every reader
+inherits.** Aggregates outlive their subjects, so a day's `byTask` map retains entries for tasks
+that were purged from the workspace long ago, and those ids are **uncollectable**: nothing will
+resolve them again. **Any reader or backfill that sums `byTask` must filter to currently-existing
+tasks**, or it silently resurrects dead work into a total the user cannot account for or click
+through to. Purged tasks are announced by the trash sweep and the tracking layer listens, rather
+than each reader filtering independently. See BUGS.md **E6**.
 
 ---
 
