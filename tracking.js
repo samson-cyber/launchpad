@@ -759,6 +759,60 @@
     return enqueue(rollupAndPruneInner);
   }
 
+  // ===== [1.3.0] Restore from a backup =====
+  //
+  // ON THE QUEUE, like every other write in this file. A restore that wrote the
+  // keys directly could interleave with a sync already in flight: the engine
+  // would finish its read-modify-write against the OLD store and land it on top
+  // of the restored one, silently discarding the import. Going through enqueue
+  // makes the restore just another serialized operation.
+  //
+  // THE OPEN SESSION IS CLOSED, NOT RESTORED. A backup captures whatever session
+  // happened to be open when the user exported - a domain they were reading
+  // minutes or months ago. Restoring it would hand the engine a session whose
+  // start is arbitrarily far in the past and whose "current" domain is not what
+  // the user is looking at; the next boundary would close it and bank that whole
+  // stretch as focused time that never happened.
+  //
+  // Closing it here is exactly what the engine already does to a session it
+  // cannot trust - reconcileOrphans closes an orphan from its LAST KNOWN event
+  // rather than from now, for the same reason. The close is stamped so the row
+  // is identifiable, and it rolls up through the normal path, so the time up to
+  // the export is kept and the gap since is not invented.
+  async function restoreStoresInner(sessions, days) {
+    var store = (sessions && typeof sessions === "object") ? sessions : emptyStore();
+    if (!Array.isArray(store.sessions)) store.sessions = [];
+
+    if (store.open && typeof store.open === "object") {
+      var open = store.open;
+      store.open = null;
+      var end = (typeof open.lastEventAt === "number") ? open.lastEventAt : open.start;
+      if (typeof open.start === "number" && end > open.start) {
+        store.sessions.push({
+          id: open.id || genSessionId(),
+          workspaceId: open.workspaceId,
+          domain: open.domain,
+          start: open.start,
+          end: end,
+          activeTaskId: open.activeTaskId || null,
+          closedBy: "import"
+        });
+      }
+    }
+
+    var dayMap = (days && typeof days === "object") ? days : {};
+    await persist(store, dayMap);
+    // Roll up whatever the close above produced, through the same path a live
+    // close uses, so the restored session reaches the aggregates and the
+    // lifetime accumulator exactly once.
+    await rollupAndPruneInner();
+    return true;
+  }
+
+  function restoreStores(sessions, days) {
+    return enqueue(function () { return restoreStoresInner(sessions, days); });
+  }
+
   // Registered once, from THIS side, so the dependency stays tracking -> Storage.
   var purgeListenerBound = false;
   function bindPurgeCollection() {
@@ -1423,6 +1477,10 @@
     // engine's word.
     lifetimeFocusedForTask: lifetimeFocusedForTask,
     collectPurgedTasks: collectPurgedTasks,
+
+    // [1.3.0] Backup restore. Queued, and it closes any open session in the
+    // file rather than resurrecting it.
+    restoreStores: restoreStores,
 
     // [1.0.20] Read surface for the Dashboard's whole-day line. Two public
     // names over one implementation (focusedTodayForScope) so call sites read

@@ -10213,26 +10213,59 @@
     });
   }
 
+  // ===== [1.3.0] Backup: full coverage =====
+  //
+  // THE v1 ENVELOPE IS ACCEPTED FOREVER. It shipped as:
+  //   { launchpadBackup: true, version: 1, exportedAt, data, background }
+  // and a file in that shape restores exactly what it carries - the `data` key
+  // and the wallpaper - and touches nothing else. It is a partial restore and
+  // the confirm copy says so rather than implying a full one.
+  //
+  // v2 ADDS the engine stores. The license needs no store of its own: it lives
+  // in data.pro, INSIDE the data key, so v1 backups already carried it. What v2
+  // adds is honest handling of it on the way back in - see importLicenseState.
+  var BACKUP_SCHEMA = 2;
+
+  // Names match the storage keys they carry, so an envelope reads as a map of
+  // what it holds rather than a set of aliases to decode.
+  var BACKUP_STORE_KEYS = ["data", "launchpad_background", "tracking_sessions", "tracking_days"];
+
+  function backupFilename() {
+    return "launchpad-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+  }
+
   async function exportBackup() {
-    var raw = await chrome.storage.local.get(["data", "launchpad_background"]);
-    // Read raw to avoid silently exporting the default skeleton when there's
-    // real-but-unusual user data (Storage.getAll's fallback would mask that).
-    // BUT: on a fresh install raw.data is undefined, which JSON-stringifies to
-    // null and produces an unrestorable backup. Substitute the default skeleton
-    // in that one case so every export is a valid restorable envelope.
+    // ONE get for every key. The tracking pair is written by persist() in a
+    // single set(), which chrome.storage makes atomic across the keys in that
+    // call, so a read issued while the engine is mid-write sees either both-old
+    // or both-new and never a torn pair. A mid-write export is therefore
+    // HARMLESS rather than prevented, which is why this needs no lock.
+    var raw = await chrome.storage.local.get(BACKUP_STORE_KEYS);
+
+    // Read raw rather than through Storage.getAll so real-but-unusual data is
+    // not masked by the default skeleton - but a fresh install has no data key
+    // at all, which would stringify to null and produce an unrestorable file.
+    var stores = {
+      data: raw.data || Storage.getDefaultData(),
+      launchpad_background: raw.launchpad_background || null,
+      tracking_sessions: raw.tracking_sessions || null,
+      tracking_days: raw.tracking_days || null
+    };
+
     var envelope = {
       launchpadBackup: true,
-      version: 1,
+      version: BACKUP_SCHEMA,
       exportedAt: new Date().toISOString(),
-      data: raw.data || Storage.getDefaultData(),
-      background: raw.launchpad_background || null
+      appVersion: chrome.runtime.getManifest().version,
+      stores: stores
     };
+
     var json = JSON.stringify(envelope, null, 2);
     var blob = new Blob([json], { type: "application/json" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
-    a.download = "launchpad-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    a.download = backupFilename();
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -10240,22 +10273,127 @@
     showToast("Backup downloaded");
   }
 
-  // Returns "ok", "not-launchpad", or "empty-or-corrupted"
-  function validateBackup(envelope) {
-    if (!envelope || envelope.launchpadBackup !== true) return "not-launchpad";
-    if (typeof envelope.version !== "number") return "not-launchpad";
-    var d = envelope.data;
-    if (!d || typeof d !== "object") return "empty-or-corrupted";
-    if (!d.settings || typeof d.settings !== "object") return "empty-or-corrupted";
-    if (Array.isArray(d.workspaces)) {
-      // New (workspace-aware) shape
-      if (!d.workspaces.length) return "empty-or-corrupted";
-      return "ok";
+  // ---- validation ----------------------------------------------------------
+  //
+  // Each store validates on its OWN shape, and the caller applies nothing until
+  // every one of them has passed. Half a restore is worse than none: it leaves a
+  // profile whose tasks came from the file and whose tracked history did not.
+  function validateDataStore(dd) {
+    if (!dd || typeof dd !== "object") return false;
+    if (!dd.settings || typeof dd.settings !== "object") return false;
+    if (Array.isArray(dd.workspaces)) return dd.workspaces.length > 0;
+    // Legacy flat shape, from a backup that predates workspaces.
+    return Array.isArray(dd.groups) && Array.isArray(dd.groupOrder);
+  }
+
+  function validateSessionsStore(s) {
+    if (s === null || s === undefined) return true;          // absent is legal
+    if (typeof s !== "object") return false;
+    if (!Array.isArray(s.sessions)) return false;
+    if (s.open !== null && s.open !== undefined && typeof s.open !== "object") return false;
+    if (s.lifetime !== undefined && s.lifetime !== null) {
+      if (typeof s.lifetime !== "object") return false;
+      if (!s.lifetime.byTask || typeof s.lifetime.byTask !== "object") return false;
     }
-    // Legacy flat shape (pre-migration backup)
-    if (!Array.isArray(d.groups)) return "empty-or-corrupted";
-    if (!Array.isArray(d.groupOrder)) return "empty-or-corrupted";
-    return "ok";
+    return true;
+  }
+
+  function validateDaysStore(days) {
+    if (days === null || days === undefined) return true;    // absent is legal
+    if (typeof days !== "object" || Array.isArray(days)) return false;
+    var keys = Object.keys(days);
+    for (var i = 0; i < keys.length; i++) {
+      var agg = days[keys[i]];
+      if (!agg || typeof agg !== "object") return false;
+      if (typeof agg.totalFocusedMs !== "number") return false;
+      if (!agg.byTask || typeof agg.byTask !== "object") return false;
+    }
+    return true;
+  }
+
+  // Returns { ok, status, schema, stores, present } - `present` names the stores
+  // THIS FILE actually carries, which is what the confirm dialog reads from so
+  // it can never promise a store the file does not hold.
+  function readBackupEnvelope(envelope) {
+    if (!envelope || envelope.launchpadBackup !== true) {
+      return { ok: false, status: "not-launchpad" };
+    }
+    if (typeof envelope.version !== "number") {
+      return { ok: false, status: "not-launchpad" };
+    }
+
+    // v1 put the two stores at the TOP LEVEL; v2 groups them under `stores`.
+    // Anything that is not v2-shaped is read as v1, which is what makes the old
+    // format supported forever rather than merely tolerated today.
+    var isV2 = envelope.version >= 2 && envelope.stores && typeof envelope.stores === "object";
+    var stores = isV2 ? envelope.stores : {
+      data: envelope.data,
+      launchpad_background: envelope.hasOwnProperty("background") ? envelope.background : undefined
+    };
+
+    if (!validateDataStore(stores.data)) {
+      return { ok: false, status: "empty-or-corrupted", schema: isV2 ? 2 : 1 };
+    }
+    if (!validateSessionsStore(stores.tracking_sessions)) {
+      return { ok: false, status: "corrupt-store", store: "tracking_sessions", schema: isV2 ? 2 : 1 };
+    }
+    if (!validateDaysStore(stores.tracking_days)) {
+      return { ok: false, status: "corrupt-store", store: "tracking_days", schema: isV2 ? 2 : 1 };
+    }
+
+    var present = ["shortcuts, groups and settings"];
+    if (stores.launchpad_background !== undefined && stores.launchpad_background !== null) {
+      present.push("wallpaper");
+    }
+    if (stores.data && stores.data.pro && stores.data.pro.licenseKey) present.push("license key");
+    if (stores.tracking_sessions || stores.tracking_days) present.push("tracked focus history");
+
+    return { ok: true, status: "ok", schema: isV2 ? 2 : 1, stores: stores, present: present };
+  }
+
+  // ---- the confirm copy ----------------------------------------------------
+  //
+  // It names exactly what THIS file carries and will replace. A v1 file gets
+  // copy that says so plainly rather than one that implies the restore is total.
+  function backupConfirmMessage(parsed, dateStr) {
+    var list = parsed.present.join(", ");
+    if (parsed.schema >= 2) {
+      return "This backup from " + dateStr + " contains: " + list + ". " +
+        "Importing replaces all of it. Your current data is saved as a recovery backup first. Continue?";
+    }
+    return "This is an older backup format from " + dateStr + ". " +
+      "It contains: " + list + ". Everything else, including your tracked focus history, " +
+      "is left exactly as it is. Your current data is saved as a recovery backup first. Continue?";
+  }
+
+  // ---- license on the way back in -------------------------------------------
+  //
+  // The license is not a store of its own - it is data.pro, inside the data key,
+  // so restoring data restores the licence verbatim INCLUDING lastVerifiedAt.
+  // Left alone that is an import minting access: a file whose lastVerifiedAt is
+  // recent grants offline grace regardless of what the licence is actually worth
+  // now.
+  //
+  // So the restore clears the verdict and re-enters the normal cadence. It keeps
+  // instanceId, deliberately: dropping it forces a fresh activate() and burns a
+  // seat every time a user restores their own backup onto their own machine.
+  // Keeping it means ensureValidated goes straight to validate, the server
+  // decides, and normal expiry handling applies from there.
+  async function importLicenseState() {
+    if (!data || !data.pro || !data.pro.licenseKey) return;
+    data.pro.lastVerifiedAt = null;
+    data.pro.subscriptionStatus = "free";
+    await Storage.saveAll(data);
+    try {
+      if (typeof LicenseClient !== "undefined" && LicenseClient.ensureValidated) {
+        await LicenseClient.ensureValidated(data, data.pro.licenseKey, { force: true });
+        await Storage.saveAll(data);
+      }
+    } catch (e) {
+      // A failed re-validation is not a failed import. The key is restored and
+      // unverified, which the normal expiry path already knows how to present.
+      console.error("[LaunchPad] Backup: licence re-validation failed", e);
+    }
   }
 
   function handleBackupFile(file) {
@@ -10269,54 +10407,72 @@
         showToast("Invalid backup file");
         return;
       }
-      var status = validateBackup(envelope);
-      if (status === "not-launchpad") {
-        showToast("This doesn't look like a LaunchPad backup file");
+
+      var parsed = readBackupEnvelope(envelope);
+      if (!parsed.ok) {
+        if (parsed.status === "not-launchpad") {
+          showToast("This doesn't look like a LaunchPad backup file");
+        } else if (parsed.status === "corrupt-store") {
+          // ALL OR NOTHING. Nothing has been written at this point and nothing
+          // will be: a file that is wrong anywhere is not applied anywhere.
+          showToast("This backup is damaged in its " + parsed.store + " section. Nothing was imported.");
+        } else {
+          showToast("This backup file is empty or corrupted. Nothing to import.");
+        }
         return;
       }
-      if (status === "empty-or-corrupted") {
-        showToast("This backup file is empty or corrupted. Nothing to import.");
-        return;
-      }
+
       var dateStr = "an unknown date";
       if (envelope.exportedAt) {
         try { dateStr = new Date(envelope.exportedAt).toLocaleDateString(); } catch (e) {}
       }
-      var ok = confirm("This will replace all your current shortcuts and groups with the backup from " + dateStr + ". Your current data will be saved as a recovery backup. Continue?");
-      if (!ok) return;
+      if (!confirm(backupConfirmMessage(parsed, dateStr))) return;
 
-      // Save current state as recovery (envelope-like, full revertability)
-      var current = await chrome.storage.local.get(["data", "launchpad_background"]);
+      // Recovery copy of EVERY store this import can touch, so the revert is as
+      // complete as the restore.
+      var current = await chrome.storage.local.get(BACKUP_STORE_KEYS);
       await chrome.storage.local.set({
         data_pre_import_backup: {
           data: current.data || null,
-          background: current.launchpad_background || null
+          background: current.launchpad_background || null,
+          tracking_sessions: current.tracking_sessions || null,
+          tracking_days: current.tracking_days || null,
+          savedAt: new Date().toISOString()
         }
       });
-      // Apply imported envelope
-      await chrome.storage.local.set({ data: envelope.data });
-      if (envelope.hasOwnProperty("background")) {
-        await Storage.saveBackground(envelope.background);
+
+      var s = parsed.stores;
+      await chrome.storage.local.set({ data: s.data });
+      if (s.launchpad_background !== undefined) {
+        await Storage.saveBackground(s.launchpad_background);
       }
-      // Close panel during the window where storage is updated but DOM not yet re-rendered
+
+      // The engine stores go through the engine's own queue, which also closes
+      // any session the file had open. A v1 file carries neither, so this is
+      // skipped entirely and the live history is left untouched.
+      if (s.tracking_sessions !== undefined || s.tracking_days !== undefined) {
+        if (typeof Tracking !== "undefined" && Tracking.restoreStores) {
+          await Tracking.restoreStores(s.tracking_sessions, s.tracking_days);
+        }
+      }
+
       closeSettingsPanel();
-      // Re-init relevant subset of init()
       data = await Storage.getAll();
       if (!data.settings) data.settings = { columns: 6 };
       if (!data.settings.collapsedGroups) data.settings.collapsedGroups = {};
+      await importLicenseState();
       await loadBackground();
       applyIconSize(data.settings.iconSize || "medium");
       applyTextSize(Storage.getTextSize(data));
       refreshOldFavicons();
       render();
-      showToast("Backup restored.");
+      showToast(parsed.schema >= 2 ? "Backup restored." : "Backup restored (older format).");
     };
     reader.onerror = function () {
       showToast("Could not read file");
     };
     reader.readAsText(file);
   }
-
   // ===== Domain Alias Map =====
 
   var DOMAIN_ALIASES = {
