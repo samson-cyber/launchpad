@@ -25,30 +25,30 @@ The free LaunchPad Chrome extension, live on the Chrome Web Store.
 
 ---
 
-## v2.0.0 / v2.0.1 — BUILT, NEVER SUBMITTED; folded into 2.1.0
+## v2.0.0 — SHIPPED 2026-08-14 (the Pro launch)
 
-**Corrected 2026-08-30.** This section described v2.0.0 as awaiting submission with a live final
-artifact and a tag target. All three claims were stale and contradicted CLAUDE.md's release-state
-block; they are corrected here rather than left for someone to act on.
+**Corrected twice, and the second correction reversed the first.** On 2026-08-30 this section was
+rewritten to say v2.0.0 had never been uploaded. **That was wrong**, inherited from a CLAUDE.md block
+that had generalised the *2.0.1* deferral backwards onto 2.0.0. Two independent facts settle it: the
+annotated **`v2.0.0` tag on `92eeb68`** reads "submitted to the Chrome Web Store 2026-08-14", and a
+store-installed **`2.0.0_0`** build sits in the local browser profiles under the store extension id.
 
-**Neither 2.0.0 nor 2.0.1 was ever uploaded. SHIPPED still means v1.0.5** (free tier, submitted
-2026-07-21). v2.0.0 was built as a Pro-launch candidate at `92eeb68`; the 2.0.1 fast-follow batch then
-landed on top at `23a250f`; Samson deferred that release on 2026-08-29 to fold its content into a
-larger update. That update is **2.1.0** (see below).
+**v2.0.0 is live and users are on it. It is the store baseline for 2.1.0**, which is what any
+permission diff must be taken against.
 
-**BOTH ARTIFACTS ARE RETIRED, AND NO CANDIDATE ZIP EXISTS BETWEEN RELEASES BY DESIGN.** Their sha256
-values, byte counts and gate tables live in Asana 1217318434594388 and 1217967430924095, and each is
-reproducible from its commit. **No tag exists for either version, correctly**, since neither was
-submitted: the annotated tag follows the artifact and is applied at submission, on the exact commit
-the uploaded zip was built from. The next release builds fresh from the commit being submitted; an
-older zip is never resurrected.
+**v2.0.1 was built, fully gated, and never submitted** — deferred by Samson on 2026-08-29 so its four
+items would ride inside a larger update rather than spend a review cycle days after 2.0.0 reached
+users. That update is **2.1.0** (see below). Its artifact was retired; sha256, byte counts and gate
+tables live in Asana 1217318434594388 and 1217967430924095, and each build is reproducible from its
+commit (`92eeb68` and `23a250f`). **There is no `v2.0.1` tag, correctly**, and that absence is itself
+the evidence that it was never submitted.
 
 *It first ended at `3c719d6` on 2026-08-13. Three rounds have reopened it for exactly one commit each: the Buy Me a Coffee retirement (a product-surface decision), the closed-browser-time fix (a pre-submission defect found in lived use), and the per-task worked clock (a feature Samson specified on 2026-08-14). The artifact identity and the tag target moved with each.*
 
-- **The 2.0.0 artifact was `launchpad-2.0.0-92eeb68.zip`** — sha256 `2bffe33c14e4e562344841e4c973ae78b70068c47eeada1653453521339a9093`, 619,610 bytes. **Superseded by the 2.0.1 build and since deleted; historical record only.**
+- **The 2.0.0 artifact was `launchpad-2.0.0-92eeb68.zip`** — sha256 `2bffe33c14e4e562344841e4c973ae78b70068c47eeada1653453521339a9093`, 619,610 bytes. **This is the build that was uploaded and approved.** Deleted from disk after upload per the no-candidate-zip rule; reproducible from `92eeb68`.
 - **Thirteen build gates green** — twelve source suites (`panel-ink`, `focus-decision`, `insights-readers`, `since-format`, `trial-copy`, `license-line`, `pro-celebration`, `chip-ink`, `today-cockpit`, `text-size`, `pill-clarity`, `bg-queue`) plus the package gate (23/23 manifest-declared and referenced files resolve with exact forward-slash entry names).
-- **SHIPPED still means v1.0.5.** The manifest now reads `2.0.1` and that bump is unreleased. **A manifest bump is not evidence that a release occurred** — see CLAUDE.md, which is the source of truth for release state.
-- **No `v2.0.0` or `v2.0.1` tag was ever created, and none should be.** The tag follows the artifact and is applied at submission; the next submission tags the commit it is actually built from.
+- **SHIPPED means v2.0.0.** The manifest now reads `2.0.1` and *that* bump is unreleased. **A manifest bump is not evidence that a release occurred** — see CLAUDE.md, which is the source of truth for release state, cross-checked against the annotated tags.
+- **`v2.0.0` is tagged on `92eeb68`**, annotated, applied at submission per the rule. **No `v2.0.1` tag exists and none should**, since it was never submitted.
 
 ### Artifact-stamping discipline (standing practice)
 

@@ -135,7 +135,12 @@ goals, and a New Tag button.
 
 ## Predecessors
 
-`RELEASE-NOTES-2.0.0.md` and `RELEASE-NOTES-2.0.1.md` describe builds that were
-prepared and never uploaded. Leave both as they stand: each describes the build it was
-written for, and 2.0.1's content rides along inside this release rather than being
-restated as new.
+`RELEASE-NOTES-2.0.0.md` describes **the build users are currently on**: v2.0.0 was
+submitted on 2026-08-14 and is live. Nothing in this file re-announces it, which is
+deliberate; the Pro launch is not news to anyone updating from 2.0.0.
+
+`RELEASE-NOTES-2.0.1.md` describes a build that was prepared, fully gated and **never
+uploaded**. Its four items are therefore genuinely new to users and are named in the
+copy above rather than restated as their own release.
+
+Leave both files as they stand: each describes the build it was written for.
