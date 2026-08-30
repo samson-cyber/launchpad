@@ -13585,9 +13585,20 @@ html.has-bg.bg-light .notes-search-input:focus { border-color: rgba(0, 0, 0, 0.3
    (nothing scrolls past it), and pinned to the bottom of .tab-panel in the
    branch that was broken. z-index keeps it over the notes it now floats above. */
 .notes-trash-bar {
-  /* Height is MEASURED, not guessed: the rendered footer occupies 44px (42px
+  /* [1.1.7] THE STRIP PAINTS NOTHING. It carries layout and hit-inertness only;
+     the BUTTON is the whole visible footer.
+
+     It used to carry a scrim and a blur, and that was right when it held a slim
+     icon chip: something had to soften the notes scrolling under a control that
+     did not cover them. A full-width button covers them itself, so the scrim
+     stopped being a backdrop and became a dark slab painted around the button,
+     which is what it read as. The divider rule went with it for the same reason
+     - a border above a button draws a box that the button already is.
+
+     Height is MEASURED, not guessed: the rendered footer occupies 44px (42px
      bar plus its 2px margin-top). --notes-trash-h on .notes-panel is that plus
-     8px of breathing room, and it is what the stack pads by. */
+     8px of breathing room, and it is what the stack pads by. Removing the paint
+     changes none of that: padding-top and margin-top are untouched. */
   position: sticky;
   bottom: 0;
   z-index: 2;
@@ -13595,7 +13606,11 @@ html.has-bg.bg-light .notes-search-input:focus { border-color: rgba(0, 0, 0, 0.3
   display: flex;
   padding-top: 10px;
   margin-top: 2px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: none;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 
   /* THE STRIP IS INERT; only the button takes the pointer. A footer floating
      over the stack would otherwise sit between the cursor and a reorder drop
@@ -13606,15 +13621,6 @@ html.has-bg.bg-light .notes-search-input:focus { border-color: rgba(0, 0, 0, 0.3
 
 /* Softens whatever scrolls under the footer instead of hiding it behind a solid
    band. Low-alpha scrim plus a blur, the banner idiom rather than a frost tier. */
-.notes-panel.has-trash .notes-trash-bar {
-  background: rgba(20, 20, 20, 0.72);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-html.has-bg.bg-light .notes-panel.has-trash .notes-trash-bar {
-  background: rgba(250, 250, 250, 0.78);
-}
-html.has-bg.bg-light .notes-trash-bar { border-top-color: rgba(0, 0, 0, 0.12); }
 
 /* [1.1.5] The .tasks-action idiom, verbatim in every property that carries the
    family resemblance: 6px radius, the same 111,177,255 tint and ring, fs-12 at
