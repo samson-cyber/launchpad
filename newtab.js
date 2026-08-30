@@ -477,6 +477,7 @@
       renderProSubscriptionSection();
       renderProLicenseSection();
       renderProTagsSection();
+      renderNotesDefaultColorSection();
       renderProWorkspaceList();
     }
   }
@@ -2379,6 +2380,22 @@
     { id: "demo5", content: "Read the piece on deep work that Sam sent.", color: "cream", rotation: -1.9, deletedAt: null }
   ];
 
+  // [1.1.4] Content-derived accessible name, single-line and bounded. A screen
+  // reader announcing a 400-word note as a label is worse than no label; the
+  // full text is in .note-body, which the reader reaches next. An empty note
+  // still gets a name rather than announcing as an unlabelled article.
+  var NOTE_LABEL_MAX = 60;
+  function noteAriaLabel(note) {
+    var t = String((note && note.content) || "").replace(/\s+/g, " ").trim();
+    if (!t) return "Empty note";
+    if (t.length > NOTE_LABEL_MAX) {
+      var cut = t.slice(0, NOTE_LABEL_MAX);
+      var sp = cut.lastIndexOf(" ");
+      t = (sp > 0 ? cut.slice(0, sp) : cut).trim();
+    }
+    return "Note: " + t;
+  }
+
   function notesPaperVar(color) {
     var list = (Storage.NOTE_COLORS || []);
     var safe = (list.indexOf(color) !== -1) ? color : (list[0] || "cream");
@@ -2386,25 +2403,37 @@
   }
 
   // ONE card renderer, used by the live grid and by the preview alike.
-  function noteCardHtml(note) {
+  // [1.1.4] Keyboard reachable: tabindex 0 puts every card in the stack order
+  // the eye already reads, and Enter opens the editor (see bindNotesEvents).
+  //
+  // opts.preview is the FREE-TIER variant: no delete control, aria-hidden, and
+  // NOT focusable. The panel already sets pointer-events:none, but that stops a
+  // mouse only; without this a keyboard user would tab through demo notes and
+  // press Enter on them.
+  function noteCardHtml(note, opts) {
+    var preview = !!(opts && opts.preview);
     var rot = (typeof note.rotation === "number") ? note.rotation : 0;
     var body = note.content
       ? escapeHtml(note.content)
       : '<span class="note-placeholder">Empty note</span>';
     return '<article class="note-card" data-note-id="' + escapeHtml(note.id) + '"' +
+        (preview
+          ? ' aria-hidden="true"'
+          : ' tabindex="0" aria-label="' + escapeHtml(noteAriaLabel(note)) + '"') +
         ' style="--note-paper: ' + notesPaperVar(note.color) + '; --note-rot: ' + rot + 'deg;">' +
         '<div class="note-body">' + body + '</div>' +
         // Top-LEFT, not top-right: the curl pseudo-element owns the bottom-right
         // corner, and a delete control overlapping it would fight the paper
         // metaphor. Invisible until hover; absent from the ghost note, which is a
         // different element entirely.
+        (preview ? "" :
         '<button type="button" class="note-trash" data-note-trash aria-label="Delete note">' +
           '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"' +
           ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
             '<polyline points="3 6 5 6 21 6"/>' +
             '<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>' +
           '</svg>' +
-        '</button>' +
+        '</button>') +
       '</article>';
   }
 
@@ -2596,10 +2625,15 @@
   // pro-preview shell and banner. Same card renderer, same stack, same ghost
   // note, so preview stays the promise.
   function notesPreviewPanelHtml() {
-    return '<aside class="notes-panel notes-panel-preview">' +
+    // NO GHOST NOTE. It is the create affordance, and a locked surface must not
+    // offer one. It was measured PRESENT here before this change, inviting a
+    // click that could never do anything. Cards render through the SAME
+    // component in its preview variant, so the preview stays the promise
+    // without being operable.
+    return '<aside class="notes-panel notes-panel-preview" aria-label="Notes preview">' +
         '<div class="notes-panel-title">Notes</div>' +
         '<div class="notes-stack">' +
-          ghostNoteHtml() + NOTES_DEMO.map(noteCardHtml).join("") +
+          NOTES_DEMO.map(function (n) { return noteCardHtml(n, { preview: true }); }).join("") +
         '</div>' +
       '</aside>';
   }
@@ -2723,7 +2757,14 @@
           body +
         "</div>" +
         "<div class=\"notes-trash-meta\">" +
-          "<span class=\"notes-trash-countdown\">" + escapeHtml(notesDaysRemainingLabel(note.deletedAt)) + "</span>" +
+          // Bands come from the TASKS-side helper, not a parallel scale: the
+          // Deleted box already shipped trash-bin.md as >7 neutral, 3-7 amber,
+          // <=2 red, and two trash surfaces disagreeing about urgency would be
+          // a defect in itself.
+          "<span class=\"notes-trash-countdown " +
+            trashCountdownClass(notesDaysRemaining(note.deletedAt)) +
+            "\">" + escapeHtml(notesDaysRemainingLabel(note.deletedAt)) +
+          "</span>" +
           "<span class=\"notes-trash-actions\">" +
             "<button type=\"button\" class=\"notes-trash-action\" data-trash-restore>Restore</button>" +
             "<button type=\"button\" class=\"notes-trash-action is-danger\" data-trash-purge>Delete permanently</button>" +
@@ -3003,6 +3044,22 @@
   function bindNotesEvents(panel) {
     if (panel.dataset.notesBound === "1") return;
     panel.dataset.notesBound = "1";
+
+    // [1.1.4] KEYBOARD. Enter on a focused note opens its editor, which is the
+    // only new binding in this pass: no arrow-key navigation and no new
+    // shortcuts. Tab order comes from the cards being tabindex=0 in stack order,
+    // so traversal is the browser's, not ours. Escape already saves and exits
+    // (the editor keydown handler below), so a note is reachable, editable and
+    // dismissable without a mouse.
+    panel.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter") return;
+      var card = e.target.closest ? e.target.closest(".note-card") : null;
+      if (!card || card.classList.contains("note-ghost")) return;
+      if (card.classList.contains("is-editing")) return;
+      if (e.target.closest(".note-editor")) return;   // typing, not activating
+      e.preventDefault();
+      notesEnterEdit(card);
+    });
 
     panel.addEventListener("click", function (e) {
       // [1.1.3] Footer trash affordance. Checked before the hover trash so the
@@ -7726,6 +7783,7 @@
     renderProSubscriptionSection();
     renderProLicenseSection();
     renderProTagsSection();
+    renderNotesDefaultColorSection();
     renderProWorkspaceList();
     renderProAnalyticsToggle();
     renderProPomodoroSettings();
@@ -8352,6 +8410,46 @@
     if (!errorEl) return;
     errorEl.textContent = message;
     errorEl.classList.remove("hidden");
+  }
+
+  // [1.1.4] Default paper colour. Reuses the .note-swatch control the note
+  // context menu already owns rather than inventing a second swatch skin, so the
+  // two stay in sync by construction.
+  //
+  // "Cycle" is a real option and is the DEFAULT, expressed as the unset state:
+  // clearing the choice returns to [1.1.3] palette cycling. It is rendered as a
+  // sibling swatch so the affordance to get back is visible, not folded into a
+  // second click on the active one.
+  function renderNotesDefaultColorSection() {
+    var host = document.getElementById("notes-default-color");
+    if (!host) return;
+    var current = Storage.getDefaultNoteColor(data);
+    var cycleBtn =
+      '<button type="button" class="note-swatch notes-default-cycle' +
+        (current === null ? " is-active" : "") + '"' +
+        ' role="radio" aria-checked="' + (current === null ? "true" : "false") + '"' +
+        ' data-notes-default-color="" title="Cycle the palette"' +
+        ' aria-label="Cycle the palette"></button>';
+    var swatches = (Storage.NOTE_COLORS || []).map(function (c) {
+      return '<button type="button" class="note-swatch' +
+        (c === current ? " is-active" : "") + '"' +
+        ' role="radio" aria-checked="' + (c === current ? "true" : "false") + '"' +
+        ' data-notes-default-color="' + c + '"' +
+        ' aria-label="' + escapeHtml(c.replace(/-/g, " ")) + '"' +
+        ' title="' + escapeHtml(c.replace(/-/g, " ")) + '"' +
+        ' style="--note-paper: ' + notesPaperVar(c) + ';"></button>';
+    }).join("");
+    host.innerHTML = cycleBtn + swatches;
+
+    if (host.dataset.bound === "1") return;
+    host.dataset.bound = "1";
+    host.addEventListener("click", async function (e) {
+      var btn = e.target.closest("[data-notes-default-color]");
+      if (!btn) return;
+      var val = btn.getAttribute("data-notes-default-color");
+      await Storage.setDefaultNoteColor(data, val === "" ? null : val);
+      renderNotesDefaultColorSection();
+    });
   }
 
   function renderProTagsSection() {

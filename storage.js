@@ -3989,6 +3989,31 @@ var Storage = (function () {
   // does not rewind the cycle and hand back the colour just discarded. If a hard
   // purge is ever added the worst outcome is a repeated colour: cosmetic, and no
   // note data depends on it.
+  // [1.1.4] Default paper colour for NEW notes, on the getTextSize precedent:
+  // reader and writer live here so coercion is provable from a Node VM, and an
+  // unrecognised value is never written rather than being stored and coerced at
+  // read time (which would leave junk in the user backup reading as a choice).
+  //
+  // ABSENCE IS MEANINGFUL and is the default: null means "never configured", and
+  // that is what keeps [1.1.3] palette cycling as the out-of-the-box behaviour.
+  // Picking a colour opts OUT of the cycle; there is no separate "cycle" swatch
+  // because the unset state already is one.
+  function getDefaultNoteColor(data) {
+    var v = data && data.settings && data.settings.defaultNoteColor;
+    return NOTE_COLORS.indexOf(v) === -1 ? null : v;
+  }
+
+  // Pass null to clear and return to cycling.
+  async function setDefaultNoteColor(data, val) {
+    if (!data || !data.settings) return false;
+    if (val !== null && NOTE_COLORS.indexOf(val) === -1) return false;
+    if (getDefaultNoteColor(data) === val) return false;
+    if (val === null) delete data.settings.defaultNoteColor;
+    else data.settings.defaultNoteColor = val;
+    await saveAll(data);
+    return true;
+  }
+
   function nextNoteColor(ws) {
     var notes = (ws && Array.isArray(ws.notes)) ? ws.notes : [];
     return NOTE_COLORS[notes.length % NOTE_COLORS.length];
@@ -4058,12 +4083,16 @@ var Storage = (function () {
     }
     var notes = ensureNotesArray(ws);
 
-    // Cycle the palette, but ONLY as a default. An explicit colour still wins,
-    // so the swatch picker and any restore-from-backup keep the colour they ask
-    // for; newNoteObject validates the value either way.
+    // Colour precedence, most specific first:
+    //   1. an EXPLICIT colour  - the swatch picker, a restore from backup
+    //   2. the DEFAULT SETTING - the user chose one colour for every new note
+    //   3. the CYCLE           - unset, which is the shipped [1.1.3] behaviour
+    // newNoteObject validates whichever wins, so a corrupt setting cannot reach
+    // a note.
     var f = fields || {};
     if (f.color === undefined) {
-      f = Object.assign({}, f, { color: nextNoteColor(ws) });
+      var preferred = getDefaultNoteColor(data);
+      f = Object.assign({}, f, { color: preferred || nextNoteColor(ws) });
     }
 
     var note = newNoteObject(f);
@@ -5941,6 +5970,8 @@ var Storage = (function () {
     getDeletedNotes: getDeletedNotes,
     getNoteById: getNoteById,
     reorderNotes: reorderNotes,
+    getDefaultNoteColor: getDefaultNoteColor,
+    setDefaultNoteColor: setDefaultNoteColor,
     deleteNotePermanent: deleteNotePermanent,
     emptyNotesTrash: emptyNotesTrash,
     NOTE_TRASH_TTL_MS: TRASH_TTL_MS,

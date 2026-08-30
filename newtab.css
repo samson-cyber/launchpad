@@ -13670,6 +13670,9 @@ html.has-bg.bg-light .notes-trash-row { border-bottom-color: rgba(0, 0, 0, 0.1);
   gap: 6px;
 }
 .notes-trash-countdown { font-size: var(--fs-12); opacity: 0.7; white-space: nowrap; }
+.notes-trash-countdown.tt-trash-days-neutral,
+.notes-trash-countdown.tt-trash-days-amber,
+.notes-trash-countdown.tt-trash-days-red { opacity: 1; }
 .notes-trash-actions { display: flex; gap: 6px; }
 
 .notes-trash-action {
@@ -13700,3 +13703,54 @@ html.has-bg.bg-light .notes-trash-action:hover { background: rgba(0, 0, 0, 0.07)
 
 /* Disabled Empty-trash reads as unavailable rather than invisible. */
 .notes-trash-empty-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ---- [1.1.4] keyboard focus ----
+
+   Notes are tabindex=0, so they need a focus ring that survives every wallpaper
+   tier. :focus-visible only, so a mouse click on a card does not leave a ring
+   behind it. The outline sits OUTSIDE the card (offset) because the card itself
+   is rotated paper and an inset ring reads as a border on the sheet. */
+.note-card:focus { outline: none; }
+.note-card:focus-visible {
+  outline: 2px solid #4a90e2;
+  outline-offset: 3px;
+}
+html.has-bg.bg-light .note-card:focus-visible { outline-color: #1b64b8; }
+
+/* The ghost is a button and gets the same treatment for the same reason. */
+.note-ghost:focus-visible,
+.notes-trash-btn:focus-visible,
+.notes-trash-action:focus-visible,
+.note-swatch:focus-visible {
+  outline: 2px solid #4a90e2;
+  outline-offset: 2px;
+}
+html.has-bg.bg-light .note-ghost:focus-visible,
+html.has-bg.bg-light .notes-trash-btn:focus-visible,
+html.has-bg.bg-light .notes-trash-action:focus-visible,
+html.has-bg.bg-light .note-swatch:focus-visible { outline-color: #1b64b8; }
+
+/* The hover trash is revealed on hover; it must also appear on keyboard focus,
+   or it is a control a keyboard user can focus but never see. */
+.note-card:focus-within .note-trash { opacity: 1; pointer-events: auto; }
+
+/* ---- [1.1.4] default paper colour, Pro Settings ---- */
+.notes-default-color {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* The cycle option is the unset state made visible. Rendered as a swatch so it
+   sits in the same row, but striped rather than papered so it never reads as an
+   eighth colour. */
+.notes-default-cycle {
+  background-image: repeating-linear-gradient(45deg,
+    rgba(255, 255, 255, 0.55) 0 3px, rgba(255, 255, 255, 0.12) 3px 6px);
+  background-color: transparent;
+}
+html.has-bg.bg-light .notes-default-cycle {
+  background-image: repeating-linear-gradient(45deg,
+    rgba(0, 0, 0, 0.42) 0 3px, rgba(0, 0, 0, 0.1) 3px 6px);
+}
