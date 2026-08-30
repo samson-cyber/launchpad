@@ -10592,6 +10592,167 @@
     }
   }
 
+  // ===== Variant disambiguation =====
+  //
+  // COLLISION ONLY. A row gains a second line only when another row in the SAME
+  // dropdown shows an identical title, because that is the only case where the
+  // list is unreadable. Unique titles render exactly as they always have, so the
+  // common dropdown gains no noise at all.
+  //
+  // The fragment is DERIVED, never guessed. Reading the page to learn a real
+  // account identity is permanently out of scope (it would need content scripts
+  // and host permissions on user sites), so the only honest source is the address
+  // already stored. When two rows point at the SAME address this says so rather
+  // than inventing a difference.
+  var VARIANT_FRAGMENT_MAX = 30;
+
+  function variantUrlParts(url) {
+    try {
+      var u = new URL(url);
+      return {
+        host: u.hostname.replace(/^www\./, ""),
+        path: u.pathname.split("/").filter(Boolean),
+        query: u.search.replace(/^\?/, "")
+      };
+    } catch (e) {
+      return { host: "", path: [], query: "" };
+    }
+  }
+
+  // Long paths are middle-ellipsized so both ends stay readable: the tail is
+  // usually the part that differs, and truncating from the right would cut off
+  // the very thing the row exists to show.
+  function variantEllipsize(s, max) {
+    if (s.length <= max) return s;
+    var head = Math.ceil((max - 1) / 2);
+    var tail = max - 1 - head;
+    return s.slice(0, head) + "\u2026" + s.slice(s.length - tail);
+  }
+
+  function variantClean(s) {
+    var t = s || "";
+    try { t = decodeURIComponent(t); } catch (e) { /* malformed escapes stay raw */ }
+    return variantEllipsize(t, VARIANT_FRAGMENT_MAX);
+  }
+
+  // THE SHORTEST SUFFIX THAT ACTUALLY DISTINGUISHES. Leading path segments shared
+  // by every colliding row carry no information, so they are dropped, but never
+  // so far that a bare "0" is all that is left: two segments are always kept when
+  // the path has them, which is what turns /mail/u/0 and /mail/u/1 into u/0 and
+  // u/1 rather than 0 and 1.
+  function variantTrimmedPaths(sets) {
+    var common = 0;
+    var shortest = Math.min.apply(null, sets.map(function (s) { return s.length; }));
+    while (common < shortest) {
+      var seg = sets[0][common];
+      if (!sets.every(function (s) { return s[common] === seg; })) break;
+      common++;
+    }
+    return sets.map(function (s) {
+      var start = Math.min(common, Math.max(0, s.length - 2));
+      return s.slice(start).join("/");
+    });
+  }
+
+  function variantAllDistinct(values) {
+    var seen = {};
+    for (var i = 0; i < values.length; i++) {
+      if (seen[values[i]]) return false;
+      seen[values[i]] = true;
+    }
+    return true;
+  }
+
+  // entries: [{ title, url }]. Returns a parallel array of fragments, null where
+  // no second line should render.
+  function variantFragments(entries) {
+    var out = entries.map(function () { return null; });
+    var buckets = {};
+    entries.forEach(function (e, i) {
+      var key = String((e && e.title) || "").trim();
+      if (!key) return;
+      if (!buckets[key]) buckets[key] = [];
+      buckets[key].push(i);
+    });
+
+    Object.keys(buckets).forEach(function (key) {
+      var idx = buckets[key];
+      if (idx.length < 2) return;
+
+      var parts = idx.map(function (i) { return variantUrlParts(entries[i].url); });
+      var hosts = parts.map(function (p) { return p.host; });
+      var trimmed = variantTrimmedPaths(parts.map(function (p) { return p.path; }));
+      var full = parts.map(function (p) { return p.path.join("/"); });
+      var queries = parts.map(function (p) { return p.query; });
+
+      // Escalating candidates, cheapest first. The first one that tells every
+      // colliding row apart wins; anything richer would be noise.
+      var candidates = [
+        trimmed,
+        hosts,
+        hosts.map(function (h, i) { return full[i] ? h + "/" + full[i] : h; }),
+        full.map(function (f, i) { return queries[i] ? f + "?" + queries[i] : f; }),
+        hosts.map(function (h, i) {
+          return h + (full[i] ? "/" + full[i] : "") + (queries[i] ? "?" + queries[i] : "");
+        })
+      ];
+
+      var chosen = null;
+      for (var c = 0; c < candidates.length; c++) {
+        if (candidates[c].every(function (v) { return !!v; }) && variantAllDistinct(candidates[c])) {
+          chosen = candidates[c];
+          break;
+        }
+      }
+
+      if (chosen) {
+        idx.forEach(function (i, n) { out[i] = variantClean(chosen[n]); });
+        return;
+      }
+
+      // Nothing in the address separates them. Say that plainly: a row claiming a
+      // difference that is not there would be worse than one admitting there is
+      // none.
+      var richest = candidates[candidates.length - 1];
+      var counts = {};
+      richest.forEach(function (v) { counts[v] = (counts[v] || 0) + 1; });
+      idx.forEach(function (i, n) {
+        out[i] = counts[richest[n]] > 1 ? "same address" : variantClean(richest[n]);
+      });
+    });
+
+    return out;
+  }
+
+  // Applied from the DOM so a rename can re-run it: after one of a colliding pair
+  // is renamed they no longer collide, and both second lines must go.
+  function applyVariantFragments(listEl) {
+    if (!listEl) return;
+    var rows = Array.prototype.slice.call(listEl.querySelectorAll(".variant-dropdown-row"));
+    var entries = rows.map(function (r) {
+      var lbl = r.querySelector(".variant-dropdown-label");
+      return { title: lbl ? lbl.textContent : "", url: r.dataset.url || "" };
+    });
+    var frags = variantFragments(entries);
+    rows.forEach(function (r, i) {
+      var textEl = r.querySelector(".variant-dropdown-text");
+      if (!textEl) return;
+      var sub = textEl.querySelector(".variant-dropdown-sub");
+      if (frags[i]) {
+        if (!sub) {
+          sub = document.createElement("span");
+          sub.className = "variant-dropdown-sub";
+          textEl.appendChild(sub);
+        }
+        sub.textContent = frags[i];
+        r.setAttribute("aria-label", entries[i].title + ", " + frags[i]);
+      } else {
+        if (sub) sub.remove();
+        r.setAttribute("aria-label", entries[i].title);
+      }
+    });
+  }
+
   function findDomainMatchInGroup(groupId, url) {
     var key = getMatchKey(url);
     if (!key) return null;
@@ -10679,10 +10840,16 @@
       img.alt = "";
       row.appendChild(img);
 
+      // The title and its optional second line share one column so the row stays
+      // a single flex line with the favicon and the options button.
+      var textEl = document.createElement("span");
+      textEl.className = "variant-dropdown-text";
+
       var label = document.createElement("span");
       label.className = "variant-dropdown-label";
       label.textContent = item.title;
-      row.appendChild(label);
+      textEl.appendChild(label);
+      row.appendChild(textEl);
 
       var moreBtn = document.createElement("button");
       moreBtn.className = "variant-dropdown-more";
@@ -10703,6 +10870,10 @@
 
       list.appendChild(row);
     });
+
+    // Runs on the finished list: a collision is a property of the SET, so it can
+    // only be decided once every row exists.
+    applyVariantFragments(list);
 
     document.body.appendChild(dropdown);
 
@@ -10817,6 +10988,9 @@
         if (row) {
           var labelEl = row.querySelector(".variant-dropdown-label");
           if (labelEl) labelEl.textContent = newLabel.trim();
+          // The rename may have ENDED the collision, so the second lines are
+          // recomputed across the whole list rather than left stale.
+          applyVariantFragments(row.parentElement);
         }
         data = await Storage.getAll();
         render();
