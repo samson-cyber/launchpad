@@ -696,7 +696,10 @@
     Object.keys(days || {}).forEach(function (k) {
       var agg = days[k];
       if (!agg || !agg.byTask) return;
-      if (agg.dayKey && (!oldestDayKey || agg.dayKey < oldestDayKey)) oldestDayKey = agg.dayKey;
+      // emptyDay names this field `day`. Reading `dayKey` here was always
+      // undefined against real aggregates, so the anchor fell back to now and
+      // the surface would have claimed "since today" on months of history.
+      if (agg.day && (!oldestDayKey || agg.day < oldestDayKey)) oldestDayKey = agg.day;
       Object.keys(agg.byTask).forEach(function (taskId) {
         if (!live[taskId]) return;
         var ms = agg.byTask[taskId];
