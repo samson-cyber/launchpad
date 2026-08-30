@@ -2592,6 +2592,8 @@ var Storage = (function () {
     if (idx === -1) return false;
     tasks.splice(idx, 1);
     await saveAll(data);
+    // [2.1] The OTHER exit for a task. Same announcement, same reason.
+    announceTasksPurged([taskId]);
     return true;
   }
 
@@ -2703,10 +2705,32 @@ var Storage = (function () {
    * amplification on the common no-op render. @returns {Promise<number>} count
    * of purged items (tagIds cleanup is not counted).
    */
+  // [2.1] Permanently-removed tasks are ANNOUNCED, not chased.
+  //
+  // The engine keeps a lifetime accumulator keyed by task id and has to drop an
+  // entry when its task leaves for good. It cannot be called from here without
+  // inverting the module dependency - storage.js knows nothing about tracking.js
+  // and the reverse is what holds today - so the exit points announce and the
+  // engine registers itself as a listener.
+  //
+  // Both exits fire it: this sweep, and deleteTaskPermanent.
+  var taskPurgeListeners = [];
+  function onTasksPurged(fn) {
+    if (typeof fn === "function") taskPurgeListeners.push(fn);
+  }
+  function announceTasksPurged(taskIds) {
+    if (!taskIds || !taskIds.length) return;
+    taskPurgeListeners.forEach(function (fn) {
+      try { fn(taskIds.slice()); }
+      catch (e) { console.error("[LaunchPad] task-purge listener failed:", e); }
+    });
+  }
+
   async function purgeExpiredTrash(data) {
     if (!data || !Array.isArray(data.workspaces)) return 0;
     var cutoff = Date.now() - TRASH_TTL_MS;
     var removed = 0;
+    var purgedTaskIds = [];
     var expired = function (item) {
       return item && item.deletedAt != null && item.deletedAt < cutoff;
     };
@@ -2752,7 +2776,12 @@ var Storage = (function () {
         var arr = ws[key];
         if (!Array.isArray(arr)) return;
         for (var i = arr.length - 1; i >= 0; i--) {
-          if (expired(arr[i])) { arr.splice(i, 1); removed++; }
+          if (expired(arr[i])) {
+            // [2.1] Registered IN the enumeration: a task leaving here is a task
+            // whose lifetime-accumulator entry must go with it.
+            if (key === "tasks" && arr[i].id) purgedTaskIds.push(arr[i].id);
+            arr.splice(i, 1); removed++;
+          }
         }
       });
 
@@ -2791,6 +2820,10 @@ var Storage = (function () {
     if (removed > 0) {
       await saveAll(data);
       console.log("[LaunchPad] Trash purge removed " + removed + " expired item(s)");
+      // AFTER the sweep's own commit. This is a SEPARATE write, in a different
+      // key owned by a different module; chrome.storage cannot make the two one
+      // atom. A crash between them leaves a stale entry, never a wrong one.
+      announceTasksPurged(purgedTaskIds);
     }
     return removed;
   }
@@ -5899,6 +5932,7 @@ var Storage = (function () {
     deleteTaskPermanent: deleteTaskPermanent,
     getDeletedTasks: getDeletedTasks,
     purgeExpiredTrash: purgeExpiredTrash,
+    onTasksPurged: onTasksPurged,
     // [Tasks] Bottom-box bulk actions (batched, one saveAll each)
     emptyTrash: emptyTrash,
     restoreAllTrash: restoreAllTrash,

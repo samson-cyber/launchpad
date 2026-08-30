@@ -89,6 +89,32 @@
     return { open: null, sessions: [] };
   }
 
+  // ===== [2.1] Lifetime FOCUSED accumulator =====
+  //
+  // VOCABULARY LAW: this is FOCUSED time - the engine's word - and it is never
+  // blended or summed with worked. It counts exactly what byTask counts, because
+  // it is incremented from the same segment loop.
+  //
+  // It lives on the STORE rather than in its own key for one reason: the spec
+  // requires it to be written ONLY as part of the session-close atomic write,
+  // and that write is persist(store, days). A third key would need its own
+  // signature and could drift out of that atom; a field on the store rides it
+  // for free. readStore preserves unknown fields, so the sibling survives every
+  // round trip, and { byTask, since } land together with one provenance.
+  //
+  // WHY NOT IN THE DAY AGGREGATES: those are pruned at RETENTION_DAYS. An
+  // accumulator that lived there would be pruned with them, which is the exact
+  // opposite of what it is for.
+  function ensureLifetime(store) {
+    if (!store.lifetime || typeof store.lifetime !== "object") {
+      store.lifetime = { byTask: {}, since: null, backfilledAt: null };
+    }
+    if (!store.lifetime.byTask || typeof store.lifetime.byTask !== "object") {
+      store.lifetime.byTask = {};
+    }
+    return store.lifetime;
+  }
+
   async function readStore() {
     try {
       var result = await chrome.storage.local.get(STORE_KEY);
@@ -438,7 +464,9 @@
   // The stamp is the entire idempotency mechanism (D3): a session contributes
   // exactly once, ever. It is set here and persisted in the same write as the
   // increments, so this is safe to call on every session on every run.
-  function rollupSessionInto(days, session) {
+  // `lifetime` is optional so the pure-rollup callers (reconciliation, the
+  // prune path) can pass null and change nothing.
+  function rollupSessionInto(days, session, lifetime) {
     if (!session || session.aggregated) return false;
 
     var duration = (session.end || 0) - (session.start || 0);
@@ -459,6 +487,15 @@
       });
       if (session.activeTaskId) {
         agg.byTask[session.activeTaskId] = (agg.byTask[session.activeTaskId] || 0) + seg.ms;
+        // [2.1] The accumulator increments from THIS loop, on THIS segment, so
+        // it cannot disagree with byTask: same guard, same ms, same commit.
+        // A session with no activeTaskId adds nothing here - untasked focus is
+        // real and lands in totalFocusedMs and byDomain, it is simply not
+        // attributable to a task. Excluded, never misfiled onto some other id.
+        if (lifetime) {
+          lifetime.byTask[session.activeTaskId] =
+            (lifetime.byTask[session.activeTaskId] || 0) + seg.ms;
+        }
       }
 
       // D4: longestSessionMs is the FULL un-split duration, recorded on the
@@ -485,12 +522,12 @@
   // since capture applies retroactively. Accepted and noted — for a backlog of
   // hours it is immaterial, and the alternative (never attributing old rows)
   // is worse.
-  function rollupUnaggregated(store, days, data) {
+  function rollupUnaggregated(store, days, data, lifetime) {
     var rolled = 0;
     (store.sessions || []).forEach(function (s) {
       if (s.aggregated) return;
       attributeSession(s, data);
-      if (rollupSessionInto(days, s)) rolled++;
+      if (rollupSessionInto(days, s, lifetime)) rolled++;
     });
     return rolled;
   }
@@ -553,7 +590,12 @@
     var days = null;
     if (hasUnaggregated(store)) {
       days = await readDays();
-      if (rollupUnaggregated(store, days, data)) changed = true;
+      // [2.1] The accumulator is mutated HERE, on the store that persist() is
+      // about to write, so the increment and the rollup are the same atom by
+      // construction rather than by convention.
+      var lifetime = ensureLifetime(store);
+      if (!lifetime.since) lifetime.since = now;
+      if (rollupUnaggregated(store, days, data, lifetime)) changed = true;
       else days = null;
     }
 
@@ -615,12 +657,84 @@
   // The prune only ever removes STAMPED sessions. If a rollup somehow failed
   // for one row, that row survives instead of being silently discarded —
   // failure loses a prune, never data.
+  // ===== [2.1] One-time backfill =====
+  //
+  // Sums per-task engine ms out of the CLOSED day aggregates that already
+  // exist, so an install that has been tracking for weeks does not start its
+  // lifetime figure at zero.
+  //
+  // ONLY CLOSED TIME, by construction rather than by filtering: byTask is
+  // written by rollupSessionInto, which only ever runs on sessions in
+  // store.sessions. The OPEN session lives in store.open and is not in that
+  // array until closeOpenInto pushes it, so its ms cannot be in any aggregate
+  // yet. It is therefore excluded here and counted exactly once later, when it
+  // closes into the accumulator through the normal path.
+  //
+  // PURGED IDS ARE NOT RESURRECTED. tracking_days is never swept, so aggregates
+  // keep the byTask entries of tasks that were hard-deleted long ago. Summing
+  // them blindly would repopulate the map with ids that no longer exist and
+  // that nothing will ever collect again. The sum is filtered against the tasks
+  // that actually exist right now - soft-deleted ones included, since those are
+  // restorable and their history should survive with them.
+  //
+  // The done-marker is what makes it one-time. Without it every start would add
+  // the same history again on top of the live total.
+  function liveTaskIdSet(data) {
+    var ids = {};
+    ((data && data.workspaces) || []).forEach(function (ws) {
+      ((ws && ws.tasks) || []).forEach(function (t) { if (t && t.id) ids[t.id] = true; });
+    });
+    return ids;
+  }
+
+  function backfillLifetime(store, days, data) {
+    var lifetime = ensureLifetime(store);
+    if (lifetime.backfilledAt) return false;      // one-time, guarded
+
+    var live = liveTaskIdSet(data);
+    var oldestDayKey = null;
+    Object.keys(days || {}).forEach(function (k) {
+      var agg = days[k];
+      if (!agg || !agg.byTask) return;
+      if (agg.dayKey && (!oldestDayKey || agg.dayKey < oldestDayKey)) oldestDayKey = agg.dayKey;
+      Object.keys(agg.byTask).forEach(function (taskId) {
+        if (!live[taskId]) return;
+        var ms = agg.byTask[taskId];
+        if (!(ms > 0)) return;
+        lifetime.byTask[taskId] = (lifetime.byTask[taskId] || 0) + ms;
+      });
+    });
+
+    // The anchor is the OLDEST day we actually hold, not "now": the figure
+    // covers that history, and claiming it started today would understate it.
+    // With no aggregates at all there is nothing to be honest about yet, so the
+    // accumulator simply starts now.
+    lifetime.since = (oldestDayKey && dayKeyToTs(oldestDayKey)) || Date.now();
+    lifetime.backfilledAt = Date.now();
+    return true;
+  }
+
   async function rollupAndPruneInner() {
     var data = await Storage.getAll();
     var store = await readStore();
     var days = await readDays();
 
-    var rolled = rollupUnaggregated(store, days, data);
+    // [2.1] The accumulator is fed HERE TOO. This path rolls up sessions the
+    // close never saw - an orphan reconciled after browser death, a
+    // pre-[1.0.26] record - and leaving it unfed would roll that time into
+    // byTask while silently never adding it to the lifetime figure, so the two
+    // would disagree by exactly the reconciled sessions. Same store, same
+    // persist() below, same atom.
+    var lifetime = ensureLifetime(store);
+    if (!lifetime.since) lifetime.since = Date.now();
+
+    // [2.1] BACKFILL RUNS FIRST, and the order is load-bearing. It sums history
+    // out of the day aggregates; the rollup below WRITES INTO those same
+    // aggregates. Backfilling afterwards would sum the session this very pass
+    // just rolled up and add it a second time - measured as an exact 2x on the
+    // first close. Snapshot the history, then accumulate forward on top of it.
+    var backfilled = backfillLifetime(store, days, data);
+    var rolled = rollupUnaggregated(store, days, data, lifetime);
 
     var cutoff = Date.now() - RETENTION_DAYS * DAY_MS;
     var before = (store.sessions || []).length;
@@ -630,7 +744,7 @@
     });
     var pruned = before - store.sessions.length;
 
-    if (rolled || pruned) {
+    if (rolled || pruned || backfilled) {
       await persist(store, rolled ? days : null);
       console.log("[LaunchPad] Tracking: rolled up " + rolled + " session(s), pruned " + pruned +
         " past " + RETENTION_DAYS + "-day retention");
@@ -640,6 +754,66 @@
 
   function rollupAndPrune() {
     return enqueue(rollupAndPruneInner);
+  }
+
+  // Registered once, from THIS side, so the dependency stays tracking -> Storage.
+  var purgeListenerBound = false;
+  function bindPurgeCollection() {
+    if (purgeListenerBound) return;
+    if (typeof Storage === "undefined" || typeof Storage.onTasksPurged !== "function") return;
+    Storage.onTasksPurged(function (taskIds) { collectPurgedTasks(taskIds); });
+    purgeListenerBound = true;
+  }
+
+  // ===== [2.1] Collection of permanently-removed tasks =====
+  //
+  // A task can leave for good two ways: the 30-day sweep in purgeExpiredTrash,
+  // and deleteTaskPermanent from the Deleted box. Both now announce the ids they
+  // removed, and this is what listens.
+  //
+  // WHY A LISTENER AND NOT A CALL FROM THE SWEEP: the dependency runs
+  // tracking -> Storage today and nowhere back. Having the sweep call Tracking
+  // would invert that and close a cycle. Registering from this side keeps the
+  // direction intact while still putting collection at the exit point.
+  //
+  // THIS IS A SEPARATE WRITE FROM THE SWEEP'S. The sweep commits with
+  // saveAll(data) on the `data` key; the accumulator lives on the tracking key,
+  // and chrome.storage cannot make two modules' writes one atom. A crash
+  // between them leaves a map entry for a task that no longer exists - stale,
+  // never wrong - and the next collection removes it.
+  async function collectPurgedTasksInner(taskIds) {
+    if (!taskIds || !taskIds.length) return false;
+    var store = await readStore();
+    var lifetime = ensureLifetime(store);
+    var removed = 0;
+    taskIds.forEach(function (id) {
+      if (Object.prototype.hasOwnProperty.call(lifetime.byTask, id)) {
+        delete lifetime.byTask[id];
+        removed++;
+      }
+    });
+    if (!removed) return false;
+    await persist(store, null);
+    return true;
+  }
+
+  function collectPurgedTasks(taskIds) {
+    return enqueue(function () { return collectPurgedTasksInner(taskIds); });
+  }
+
+  // ===== [2.1] Reader for the surfaces =====
+  //
+  // Returns { ms, since } for one task, or null when the task has never earned
+  // engine time. Null rather than zero is deliberate: the surfaces render
+  // nothing at zero, matching every other figure on the card.
+  async function lifetimeFocusedForTask(taskId) {
+    if (!taskId) return null;
+    var store = await readStore();
+    var lt = store.lifetime;
+    if (!lt || !lt.byTask) return null;
+    var ms = lt.byTask[taskId];
+    if (!(ms > 0)) return null;
+    return { ms: ms, since: lt.since || null };
   }
 
   // D5: engine start. Reconcile any orphan, then open a session for the
@@ -673,6 +847,17 @@
     var d = new Date(ts == null ? Date.now() : ts);
     d.setHours(0, 0, 0, 0);
     return d.getTime();
+  }
+
+  // Inverse of localDayKey, LOCAL-anchored to match it: a day key names a
+  // calendar day in the user's own zone, so it must be parsed back the same
+  // way. new Date("2026-08-30") would parse as UTC midnight and land on the
+  // previous day for anyone behind UTC.
+  function dayKeyToTs(key) {
+    var p = String(key || "").split("-");
+    if (p.length !== 3) return null;
+    var t = new Date(+p[0], +p[1] - 1, +p[2]).getTime();
+    return isNaN(t) ? null : t;
   }
 
   function localDayKey(ts) {
@@ -1230,6 +1415,12 @@
     // read contract; see focusedTodayForTask for why it returns two halves.
     focusedTodayForTask: focusedTodayForTask,
 
+    // [2.1] Lifetime FOCUSED read surface. { ms, since } or null. Never blended
+    // or summed with worked - it is the engine's number and carries the
+    // engine's word.
+    lifetimeFocusedForTask: lifetimeFocusedForTask,
+    collectPurgedTasks: collectPurgedTasks,
+
     // [1.0.20] Read surface for the Dashboard's whole-day line. Two public
     // names over one implementation (focusedTodayForScope) so call sites read
     // honestly while the open-session clamp exists in exactly one place.
@@ -1276,6 +1467,13 @@
     _emptyDay: emptyDay,
     _localDayKey: localDayKey
   };
+
+  // [2.1] Bound at MODULE LOAD, not from start(). A purge can fire from the
+  // render path without the engine ever having been started (a free-tier or
+  // paused profile still sweeps its trash), and a collection missed that way
+  // would leave the entry behind with nothing to come back for it. storage.js
+  // is loaded before this file in both contexts, so Storage is already there.
+  bindPurgeCollection();
 
   if (typeof self !== "undefined") self.Tracking = Tracking;
   if (typeof window !== "undefined") window.Tracking = Tracking;

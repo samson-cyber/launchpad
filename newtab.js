@@ -3550,12 +3550,33 @@
     var byId = {};
     (rows || []).forEach(function (r) { if (r && r.taskId) byId[r.taskId] = (byId[r.taskId] || 0) + (r.ms || 0); });
     var days = satWindowDays();
+    // [2.1] The chip's tooltip gains the lifetime figure beneath the windowed
+    // one. Read once for every slot rather than per slot, and only for the ids
+    // actually on screen. A task with no lifetime figure keeps the old tooltip
+    // exactly - the line is added, never substituted.
+    var lifeById = {};
+    if (typeof Tracking !== "undefined" && typeof Tracking.lifetimeFocusedForTask === "function") {
+      var slots = [].slice.call(panel.querySelectorAll("[data-task-time]"));
+      for (var li = 0; li < slots.length; li++) {
+        var lid = slots[li].getAttribute("data-task-time");
+        if (!lid || !(byId[lid] > 0)) continue;
+        try {
+          var lres = await Tracking.lifetimeFocusedForTask(lid);
+          if (lres && lres.ms > 0) lifeById[lid] = lres;
+        } catch (e) { /* a failed read simply leaves the old tooltip */ }
+      }
+      if (token !== ttTaskTimesToken) return;
+    }
     panel.querySelectorAll("[data-task-time]").forEach(function (slot) {
-      var ms = byId[slot.getAttribute("data-task-time")] || 0;
+      var id = slot.getAttribute("data-task-time");
+      var ms = byId[id] || 0;
       if (!(ms > 0)) { slot.innerHTML = ""; return; }
       var txt = fmtDurationHM(ms);
+      var tip = txt + " tracked in the last " + days + " days";
+      var life = lifeById[id];
+      if (life) tip += "\n" + satLifetimeText(life.ms, life.since);
       slot.innerHTML = '<span class="tt-time-chip" title="' +
-        escapeHtml(txt + " tracked in the last " + days + " days") + '">' + escapeHtml(txt) + '</span>';
+        escapeHtml(tip) + '">' + escapeHtml(txt) + '</span>';
     });
   }
 
@@ -11467,6 +11488,56 @@
   // number for this task, and a secondary row repeating a value shown above it
   // is exactly the duplication [1.2.3] removed when it deleted the old small
   // "focused today" row.
+  // ===== [2.1] LIFETIME FOCUSED =====
+  //
+  // The engine's number, and it carries the engine's word. It is never blended
+  // or summed with the worked clock beside it: two figures, two classes, two
+  // definitions, both rendered, neither added to the other.
+  //
+  // Cached the same way satTaskWindow is, because the read is async (it goes to
+  // the tracking store) and the card renders synchronously. A miss renders
+  // nothing rather than a zero, which is what every other figure here does.
+  var satLifetime = { taskId: null, ms: 0, since: null };
+
+  async function satRefreshLifetime(taskId) {
+    if (!taskId || typeof Tracking === "undefined" ||
+        typeof Tracking.lifetimeFocusedForTask !== "function") {
+      satLifetime = { taskId: null, ms: 0, since: null };
+      return;
+    }
+    try {
+      var res = await Tracking.lifetimeFocusedForTask(taskId);
+      satLifetime = res
+        ? { taskId: taskId, ms: res.ms, since: res.since }
+        : { taskId: taskId, ms: 0, since: null };
+    } catch (e) {
+      satLifetime = { taskId: null, ms: 0, since: null };
+    }
+  }
+
+  // "Xh Ym focused since Mon D". The date goes through fmtShortDate, the board's
+  // own locale formatter, so it reads in the user's locale rather than a
+  // hardcoded order. No since stamp yet means no anchor to claim, so the line
+  // renders the figure alone rather than inventing one.
+  function satLifetimeText(ms, since) {
+    var head = fmtDurationHM(ms) + " focused";
+    var anchor = since ? fmtShortDate(since) : "";
+    return anchor ? head + " since " + anchor : head;
+  }
+
+  var SAT_LIFETIME_TITLE = "Total focused time recorded for this task, kept beyond the day aggregates it came from";
+
+  function satLifetimeLineHtml() {
+    var res = Storage.resolveActiveTask(data);
+    if (!res || res.stale || !res.task) return "";
+    if (satLifetime.taskId !== res.task.id) return "";
+    var ms = satLifetime.ms;
+    if (!(ms > 0)) return "";
+    return '<div class="sat-lifetime" title="' + escapeHtml(SAT_LIFETIME_TITLE) + '">' +
+        escapeHtml(satLifetimeText(ms, satLifetime.since)) +
+      '</div>';
+  }
+
   function satWindowLineHtml() {
     var ms = satTaskWindow.taskId && satTaskWindow.ms > 0 ? satTaskWindow.ms : 0;
     if (!ms) return "";
@@ -11483,7 +11554,8 @@
         satTrackingIndicatorHtml(paused) +
       '</div>' +
       satSinceHtml() +
-      satWindowLineHtml();
+      satWindowLineHtml() +
+      satLifetimeLineHtml();
   }
 
   // [2.0 hero swap] THE IDLE CARD'S HEADLINE — the activation stopwatch leads.
@@ -11548,7 +11620,8 @@
           satTrackingIndicatorHtml(paused) +
         '</span>' +
       '</div>' +
-      satWindowLineHtml();
+      satWindowLineHtml() +
+      satLifetimeLineHtml();
   }
 
   // ===== Focus sessions (Pomodoro, [1.0.18]) =====
@@ -12104,6 +12177,23 @@
         el.querySelector(".sat-since") ||
         el.querySelector(".sat-time-label");
       if (anchor) anchor.insertAdjacentHTML("afterend", html);
+    }
+
+    // [2.1] The lifetime line refreshes on the same beats and patches the same
+    // way, and it is anchored AFTER the window line so the two engine figures
+    // read as one family: the 30-day window, then the lifetime beneath it.
+    await satRefreshLifetime(taskId);
+    if (token !== satWindowToken) return;
+    var lifeLine = el.querySelector(".sat-lifetime");
+    var lifeHtml = satLifetimeLineHtml();
+    if (lifeLine) {
+      if (!lifeHtml) lifeLine.remove();
+      else lifeLine.outerHTML = lifeHtml;
+    } else if (lifeHtml) {
+      var lifeAnchor = el.querySelector(".sat-window") ||
+        el.querySelector(".sat-today") ||
+        el.querySelector(".sat-time-label");
+      if (lifeAnchor) lifeAnchor.insertAdjacentHTML("afterend", lifeHtml);
     }
   }
 

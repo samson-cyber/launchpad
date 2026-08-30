@@ -4043,6 +4043,22 @@ html.bg-light { --sat-amber: #8a6d09; }
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
+/* [2.1] LIFETIME FOCUSED. Its OWN class, deliberately: the windowed figure
+   above it and the worked clock elsewhere on the card are three different
+   numbers, and sharing a class is how two of them would quietly become one.
+
+   Visually distinct from .sat-window without shouting - it sits one step
+   quieter in weight and one step brighter in ink, so it reads as the settled
+   total beneath the rolling window rather than competing with it. */
+.sat-lifetime {
+  margin-top: 2px;
+  font-size: var(--fs-11);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.68);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
 /* [1.2.3] "Active 12:04 · since 9:04" — a quiet line under the headline, where
    the old small focused-today row used to sit (that row is gone: one number,
    one place). Deliberately smaller and dimmer than the headline — it is context
@@ -4776,6 +4792,7 @@ html.bg-light .sat-worked { color: var(--text-primary); }
    cannot see them. The armed dot follows its text. */
 html.bg-light .sat-live,
 html.bg-light .sat-window { color: var(--text-secondary); text-shadow: none; }
+html.bg-light .sat-lifetime { color: var(--text-primary); text-shadow: none; }
 html.bg-light .sat-live-dot { background: var(--text-secondary); }
 html.bg-light .sat-live.is-live,
 html.bg-light .sat-live.is-live .sat-live-dot { color: var(--sat-accent-ink); background-color: var(--sat-accent-ink); }

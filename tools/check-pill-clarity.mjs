@@ -179,10 +179,17 @@ function boot(src) {
       extractFn(src.nt, "satWorkedText"),
       extractFn(src.nt, "satWorkedChipHtml"),
       extractFn(src.nt, "satWorkedLineHtml"),
+      // [2.1] The lifetime FOCUSED line, executed for the same reason: the
+      // question is which number it prints and which word it uses for it.
+      extractDecl(src.nt, "SAT_LIFETIME_TITLE"),
+      extractFn(src.nt, "fmtShortDate"),
+      extractFn(src.nt, "satLifetimeText"),
+      extractFn(src.nt, "satLifetimeLineHtml"),
     ].join("\n"), ctx, { filename: "newtab.js#pill" });
   ctx.data = null;
   ctx.satReadout = { taskId: null, baseMs: 0, openSince: null };
   ctx.satTaskWindow = { taskId: null, ms: 0 };
+  ctx.satLifetime = { taskId: null, ms: 0, since: null };
   ctx.Tracking = { RETENTION_DAYS: 30 };
   return { ctx, store };
 }
@@ -1198,6 +1205,49 @@ await (async () => {
     // Zero renders NOTHING, like the chip beside it.
     check("SURFACE: a never-worked task renders nothing rather than '0m'",
       ctx.satWorkedChipHtml({ id: "t9", name: "never" }, false) === "");
+
+    // ===== [2.1] THE LIFETIME FOCUSED LINE =====
+    //
+    // The third number on this card. The law cuts BOTH ways: the worked rows
+    // above prove "focused" never leaks onto a wall-clock surface, and these
+    // prove "worked" never leaks onto the engine's.
+    const SINCE = Date.UTC(2026, 4, 15);
+    ctx.satLifetime = { taskId: "t1", ms: 5 * WH + 30 * 60000, since: SINCE };
+    const lifeLine = ctx.satLifetimeLineHtml();
+    check("LIFETIME: it renders at rest", lifeLine.length > 0, lifeLine);
+    check("LIFETIME: the unit word is 'focused' (the engine's word)",
+      /focused/.test(lifeLine), lifeLine);
+    check("LIFETIME: the word 'worked' NEVER appears on it",
+      !/worked/i.test(lifeLine), lifeLine);
+    check("LIFETIME: it carries the since-anchor",
+      /since /.test(lifeLine), lifeLine);
+    check("LIFETIME: the anchor is fmtShortDate's own output",
+      lifeLine.includes(ctx.fmtShortDate(SINCE)),
+      `want "${ctx.fmtShortDate(SINCE)}" in "${lifeLine}"`);
+    check("LIFETIME: no em dash in the copy", !/\u2014/.test(lifeLine), lifeLine);
+    check("LIFETIME: it prints the figure (5h 30m)", /5h/.test(lifeLine), lifeLine);
+    // Distinct CLASS from both neighbours, so the CSS can tell three numbers apart.
+    check("LIFETIME: its own class, not the windowed line's and not the worked line's",
+      /sat-lifetime/.test(lifeLine) && !/sat-window/.test(lifeLine) && !/sat-worked/.test(lifeLine),
+      lifeLine);
+    check("LIFETIME: the tooltip states the definition (kept beyond the day aggregates)",
+      /kept beyond/.test(lifeLine), lifeLine);
+    check("LIFETIME: the tooltip does NOT borrow the worked definition",
+      !/pauses excluded/.test(lifeLine), lifeLine);
+    // Zero renders NOTHING, like every other figure on this card.
+    ctx.satLifetime = { taskId: "t1", ms: 0, since: SINCE };
+    check("LIFETIME: a task with no focused time renders nothing rather than '0m'",
+      ctx.satLifetimeLineHtml() === "");
+    // A cache miss must not print another task's number.
+    ctx.satLifetime = { taskId: "OTHER", ms: 9 * WH, since: SINCE };
+    check("LIFETIME: a cache miss renders nothing rather than the wrong task's figure",
+      ctx.satLifetimeLineHtml() === "");
+    // No anchor yet: the figure stands alone rather than inventing a date.
+    ctx.satLifetime = { taskId: "t1", ms: 2 * WH, since: null };
+    const noAnchor = ctx.satLifetimeLineHtml();
+    check("LIFETIME: with no since stamp it prints the figure without a date",
+      /focused/.test(noAnchor) && !/since/.test(noAnchor), noAnchor);
+    ctx.satLifetime = { taskId: null, ms: 0, since: null };
     // The card line, and the block it belongs to.
     check("SURFACE: the card carries the line", /sat-worked/.test(line) && /5h/.test(line));
     const headline = ctx.satIdleHeadlineHtml(false);
