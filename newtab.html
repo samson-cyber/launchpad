@@ -311,6 +311,12 @@
           <button id="settings-import-backup" type="button" class="settings-btn settings-btn-full">Import backup</button>
         </div>
         <p class="settings-privacy">Backups include your shortcuts, groups, settings, wallpaper, notes, tasks, licence key, and your tracked focus history. Stored locally on your device only.</p>
+        <label class="pro-toggle-row" id="auto-backup-row" hidden>
+          <input type="checkbox" id="auto-backup-toggle">
+          <span>Automatic weekly backup</span>
+        </label>
+        <p class="settings-privacy" id="auto-backup-note" hidden></p>
+        <p class="settings-privacy" id="auto-backup-last" hidden></p>
         <input type="file" id="settings-backup-file" accept=".json" class="hidden">
       </div>
       <div class="settings-section settings-about">

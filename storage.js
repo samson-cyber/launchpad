@@ -2726,6 +2726,98 @@ var Storage = (function () {
     });
   }
 
+  // ===== [1.3.0 R2] THE BACKUP ENVELOPE BUILDER =====
+  //
+  // ONE builder, and it lives in storage.js because this is the only file both
+  // contexts load: newtab.html scripts it and background.js importScripts it.
+  // The manual export and the weekly alarm therefore serialize the same bytes
+  // by construction rather than by two functions agreeing to.
+  var BACKUP_SCHEMA = 2;
+  var BACKUP_STORE_KEYS = ["data", "launchpad_background", "tracking_sessions", "tracking_days"];
+
+  function backupFilename(now) {
+    return "launchpad-backup-" + new Date(now || Date.now()).toISOString().slice(0, 10) + ".json";
+  }
+
+  async function buildBackupEnvelope() {
+    // ONE get for every key. The tracking pair is written by persist() in a
+    // single set(), which chrome.storage makes atomic across the keys in that
+    // call, so a read issued while the engine is mid-write sees either both-old
+    // or both-new and never a torn pair. A mid-write export is HARMLESS rather
+    // than prevented, which is why this needs no lock in either context.
+    var raw = await chrome.storage.local.get(BACKUP_STORE_KEYS);
+    return {
+      launchpadBackup: true,
+      version: BACKUP_SCHEMA,
+      exportedAt: new Date().toISOString(),
+      appVersion: chrome.runtime.getManifest().version,
+      stores: {
+        // Read raw rather than through getAll so real-but-unusual data is not
+        // masked by the default skeleton - but a fresh install has no data key
+        // at all, which would stringify to null and produce an unrestorable file.
+        data: raw.data || getDefaultData(),
+        launchpad_background: raw.launchpad_background || null,
+        tracking_sessions: raw.tracking_sessions || null,
+        tracking_days: raw.tracking_days || null
+      }
+    };
+  }
+
+  // A data: URL, because the SERVICE WORKER CANNOT MAKE A BLOB URL. Measured, not
+  // assumed: in ServiceWorkerGlobalScope, URL exists but URL.createObjectURL is
+  // undefined, so the page trick of createObjectURL(new Blob(...)) is simply not
+  // available to the scheduled path. btoa is available, and
+  // chrome.downloads.download accepts a data: URL from the worker (verified: it
+  // returned a download id and the file landed).
+  //
+  // BASE64 IS CHUNKED AND UTF-8 FIRST. btoa is Latin-1 only, so a note with an
+  // accent or an emoji throws outright; and String.fromCharCode.apply over a
+  // whole backup would blow the argument limit on a real profile. Encode to
+  // UTF-8 bytes, then base64 in fixed slices.
+  function backupDataUrl(envelope) {
+    var json = JSON.stringify(envelope, null, 2);
+    var bytes = new TextEncoder().encode(json);
+    var CHUNK = 0x8000;
+    var binary = "";
+    for (var i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    return "data:application/json;base64," + btoa(binary);
+  }
+
+  // ===== [1.3.0 R2] Automatic backup settings =====
+  //
+  // Same reader/writer shape as getTextSize: coercion is provable from a Node VM
+  // and a junk value is never written.
+  function getAutoBackupEnabled(data) {
+    return !!(data && data.settings && data.settings.autoBackupEnabled === true);
+  }
+
+  async function setAutoBackupEnabled(data, on) {
+    if (!data || !data.settings) return false;
+    var next = !!on;
+    if (getAutoBackupEnabled(data) === next) return false;
+    if (next) data.settings.autoBackupEnabled = true;
+    else delete data.settings.autoBackupEnabled;
+    await saveAll(data);
+    return true;
+  }
+
+  // Written ONLY from the downloads callback, so the surface can never claim a
+  // backup that did not land.
+  function getLastBackupAt(data) {
+    var v = data && data.settings && data.settings.lastBackupAt;
+    return typeof v === "number" ? v : null;
+  }
+
+  async function setLastBackupAt(data, ts) {
+    if (!data || !data.settings) return false;
+    if (typeof ts !== "number") return false;
+    data.settings.lastBackupAt = ts;
+    await saveAll(data);
+    return true;
+  }
+
   async function purgeExpiredTrash(data) {
     if (!data || !Array.isArray(data.workspaces)) return 0;
     var cutoff = Date.now() - TRASH_TTL_MS;
@@ -5932,6 +6024,18 @@ var Storage = (function () {
     deleteTaskPermanent: deleteTaskPermanent,
     getDeletedTasks: getDeletedTasks,
     purgeExpiredTrash: purgeExpiredTrash,
+
+    // [1.3.0 R2] Backup. One builder, shared by the manual export and the
+    // weekly alarm.
+    BACKUP_SCHEMA: BACKUP_SCHEMA,
+    BACKUP_STORE_KEYS: BACKUP_STORE_KEYS,
+    backupFilename: backupFilename,
+    buildBackupEnvelope: buildBackupEnvelope,
+    backupDataUrl: backupDataUrl,
+    getAutoBackupEnabled: getAutoBackupEnabled,
+    setAutoBackupEnabled: setAutoBackupEnabled,
+    getLastBackupAt: getLastBackupAt,
+    setLastBackupAt: setLastBackupAt,
     onTasksPurged: onTasksPurged,
     // [Tasks] Bottom-box bulk actions (batched, one saveAll each)
     emptyTrash: emptyTrash,

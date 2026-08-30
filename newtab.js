@@ -10059,6 +10059,9 @@
     panel.classList.remove("hidden");
     document.getElementById('settings-version').textContent = 'LaunchPad v' + chrome.runtime.getManifest().version;
     updateSettingsUI();
+    // [1.3.0 R2] Re-read on EVERY open, which is how a permission revoked at
+    // chrome://extensions since last time gets noticed and said out loud.
+    renderAutoBackupSection();
   }
 
   function closeSettingsPanel(opts) {
@@ -10224,55 +10227,117 @@
   // v2 ADDS the engine stores. The license needs no store of its own: it lives
   // in data.pro, INSIDE the data key, so v1 backups already carried it. What v2
   // adds is honest handling of it on the way back in - see importLicenseState.
-  var BACKUP_SCHEMA = 2;
+  // [1.3.0 R2] The envelope builder MOVED to storage.js, which is the only file
+  // both this page and the service worker load. The manual export below and the
+  // weekly alarm now serialize the same bytes by construction.
+  var BACKUP_STORE_KEYS = Storage.BACKUP_STORE_KEYS;
 
-  // Names match the storage keys they carry, so an envelope reads as a map of
-  // what it holds rather than a set of aliases to decode.
-  var BACKUP_STORE_KEYS = ["data", "launchpad_background", "tracking_sessions", "tracking_days"];
+  // ===== [1.3.0 R2] Automatic weekly backup =====
+  //
+  // PRO GATING IS INHERITED, not re-implemented: this control lives in the
+  // Settings panel Backup section, and the row is shown only when Pro is
+  // accessible, matching how the Focus sessions section is reached.
+  //
+  // THE PERMISSION IS REQUESTED FROM THE CHANGE EVENT ITSELF, synchronously and
+  // first in the ON branch, exactly as the notifications toggle does: a request
+  // that loses the user gesture is silently refused by Chrome.
+  function renderAutoBackupSection() {
+    var row = document.getElementById("auto-backup-row");
+    var box = document.getElementById("auto-backup-toggle");
+    var note = document.getElementById("auto-backup-note");
+    var last = document.getElementById("auto-backup-last");
+    if (!row || !box) return;
 
-  function backupFilename() {
-    return "launchpad-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    var proOk = isProAccessibleLevel(currentAccessLevel());
+    row.hidden = !proOk;
+    if (note) note.hidden = true;
+    if (!proOk) { if (last) last.hidden = true; return; }
+
+    var enabled = Storage.getAutoBackupEnabled(data);
+    box.checked = enabled;
+
+    // The flag can be TRUE while the permission is gone, because revoking at
+    // chrome://extensions is the user's right and happens behind our back. Say
+    // so plainly rather than showing a toggle that quietly does nothing.
+    if (enabled && chrome.permissions) {
+      chrome.permissions.contains({ permissions: ["downloads"] }, function (has) {
+        if (!has) {
+          box.checked = false;
+          if (note) {
+            note.textContent = "Automatic backup is off because the downloads permission was removed. Turn it on again to restore the schedule.";
+            note.hidden = false;
+          }
+        }
+      });
+    }
+
+    var ts = Storage.getLastBackupAt(data);
+    if (last) {
+      if (ts) {
+        last.textContent = "Last backed up " + fmtShortDate(ts) + ".";
+        last.hidden = false;
+      } else {
+        last.hidden = true;
+      }
+    }
+  }
+
+  function bindAutoBackupToggle() {
+    safeOn("#auto-backup-toggle", "change", async function (e) {
+      var box = e.target;
+      var note = document.getElementById("auto-backup-note");
+      if (note) note.hidden = true;
+
+      if (box.checked) {
+        var granted = false;
+        try {
+          granted = await new Promise(function (resolve) {
+            chrome.permissions.request({ permissions: ["downloads"] }, function (g) { resolve(!!g); });
+          });
+        } catch (err) {
+          console.error("[LaunchPad] Auto backup: permission request failed", err);
+          granted = false;
+        }
+        if (!granted) {
+          box.checked = false;
+          if (note) {
+            note.textContent = "Downloads permission was declined. Automatic backup stays off.";
+            note.hidden = false;
+          }
+          return;
+        }
+        await Storage.setAutoBackupEnabled(data, true);
+      } else {
+        // OFF clears the schedule and RELEASES NOTHING: the permission stays,
+        // so turning it back on never prompts again, matching notifications.
+        await Storage.setAutoBackupEnabled(data, false);
+      }
+
+      try {
+        await chrome.runtime.sendMessage({ type: "auto-backup-reconcile" });
+      } catch (err) {
+        console.error("[LaunchPad] Auto backup: could not reach the scheduler", err);
+      }
+      renderAutoBackupSection();
+    });
   }
 
   async function exportBackup() {
-    // ONE get for every key. The tracking pair is written by persist() in a
-    // single set(), which chrome.storage makes atomic across the keys in that
-    // call, so a read issued while the engine is mid-write sees either both-old
-    // or both-new and never a torn pair. A mid-write export is therefore
-    // HARMLESS rather than prevented, which is why this needs no lock.
-    var raw = await chrome.storage.local.get(BACKUP_STORE_KEYS);
-
-    // Read raw rather than through Storage.getAll so real-but-unusual data is
-    // not masked by the default skeleton - but a fresh install has no data key
-    // at all, which would stringify to null and produce an unrestorable file.
-    var stores = {
-      data: raw.data || Storage.getDefaultData(),
-      launchpad_background: raw.launchpad_background || null,
-      tracking_sessions: raw.tracking_sessions || null,
-      tracking_days: raw.tracking_days || null
-    };
-
-    var envelope = {
-      launchpadBackup: true,
-      version: BACKUP_SCHEMA,
-      exportedAt: new Date().toISOString(),
-      appVersion: chrome.runtime.getManifest().version,
-      stores: stores
-    };
-
+    var envelope = await Storage.buildBackupEnvelope();
     var json = JSON.stringify(envelope, null, 2);
+    // The PAGE can mint an object URL, so the manual path keeps doing that: it
+    // avoids base64-inflating a large backup just to hand it to an anchor.
     var blob = new Blob([json], { type: "application/json" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
-    a.download = backupFilename();
+    a.download = Storage.backupFilename();
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     showToast("Backup downloaded");
   }
-
   // ---- validation ----------------------------------------------------------
   //
   // Each store validates on its OWN shape, and the caller applies nothing until
@@ -15513,6 +15578,7 @@
       Bookmarks.showPicker();
     });
     safeOn("#settings-export-backup", "click", exportBackup);
+    bindAutoBackupToggle();
     safeOn("#settings-import-backup", "click", function () {
       var input = $("#settings-backup-file");
       if (input) input.click();

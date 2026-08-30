@@ -249,6 +249,98 @@ function runRecurringSweepBg() {
 // tab's opportunistic render-path call to the same function is unchanged.
 var TRASH_PURGE_ALARM = "trash-purge";
 
+// [1.3.0 R2] WEEKLY AUTOMATIC BACKUP. Same shape as the daily sweeps above: a
+// named alarm, a stateless handler that reads storage and writes nothing it did
+// not verify first, and no module-level mutable state.
+//
+// IT NEVER DELETES ANYTHING. Not an old backup, not a failed one, not a
+// duplicate. conflictAction "uniquify" means a second run on the same day sits
+// beside the first rather than over it, and nothing in this file calls
+// downloads.removeFile or downloads.erase.
+var AUTO_BACKUP_ALARM = "auto-backup";
+var AUTO_BACKUP_PERIOD_MINUTES = 7 * 24 * 60;
+
+function hasDownloadsPermission() {
+  return new Promise(function (resolve) {
+    try {
+      if (!chrome.permissions) return resolve(false);
+      chrome.permissions.contains({ permissions: ["downloads"] }, function (has) {
+        resolve(!!has);
+      });
+    } catch (e) { resolve(false); }
+  });
+}
+
+// THREE GATES, and every one of them is a silent skip rather than an error.
+//
+//   1. The permission may have been revoked at chrome://extensions, which is the
+//      user's right and not a fault. The toggle is turned off so the settings
+//      surface tells the truth next time it opens, and nothing is logged loudly.
+//   2. Pro may have lapsed. A free profile never auto-writes files.
+//   3. The toggle may simply be off.
+async function runAutoBackup() {
+  var data = await Storage.getAll();
+  if (!Storage.getAutoBackupEnabled(data)) return { skipped: "disabled" };
+
+  var level = ProAccess.getProAccessLevel(data);
+  var proOk = (level === "trialing" || level === "active" || level === "grace");
+  if (!proOk) return { skipped: "not-pro" };
+
+  if (!(await hasDownloadsPermission())) {
+    // Revoked out from under us. Reflect it in the stored state and stop.
+    await enqueueBgData("auto-backup-permission-lost", async function () {
+      var d2 = await Storage.getAll();
+      await Storage.setAutoBackupEnabled(d2, false);
+    });
+    await chrome.alarms.clear(AUTO_BACKUP_ALARM);
+    return { skipped: "permission-revoked" };
+  }
+
+  if (!chrome.downloads || !chrome.downloads.download) return { skipped: "no-api" };
+
+  var envelope = await Storage.buildBackupEnvelope();
+  var url = Storage.backupDataUrl(envelope);
+  var filename = "LaunchPad Backups/" + Storage.backupFilename();
+
+  return await new Promise(function (resolve) {
+    chrome.downloads.download({
+      url: url,
+      filename: filename,
+      conflictAction: "uniquify",
+      saveAs: false
+    }, function (downloadId) {
+      var err = chrome.runtime.lastError ? chrome.runtime.lastError.message : null;
+      // THE TIMESTAMP IS WRITTEN ONLY HERE, on a confirmed id. A failed call
+      // leaves the surface saying whatever it said before, which is the truth.
+      if (err || downloadId === undefined) {
+        console.error("[LaunchPad] Auto backup: download failed", err);
+        resolve({ ok: false, error: err });
+        return;
+      }
+      enqueueBgData("auto-backup-stamp", async function () {
+        var d3 = await Storage.getAll();
+        await Storage.setLastBackupAt(d3, Date.now());
+      }).then(function () { resolve({ ok: true, downloadId: downloadId }); });
+    });
+  });
+}
+
+// Scheduling is idempotent and driven by the stored flag, so install, startup
+// and a toggle change all converge on the same state.
+async function reconcileAutoBackupAlarm() {
+  var data = await Storage.getAll();
+  var want = Storage.getAutoBackupEnabled(data) && (await hasDownloadsPermission());
+  var existing = await chrome.alarms.get(AUTO_BACKUP_ALARM);
+  if (!want) {
+    if (existing) await chrome.alarms.clear(AUTO_BACKUP_ALARM);
+    return false;
+  }
+  if (!existing) {
+    chrome.alarms.create(AUTO_BACKUP_ALARM, { periodInMinutes: AUTO_BACKUP_PERIOD_MINUTES });
+  }
+  return true;
+}
+
 function runTrashPurgeBg() {
   return enqueueBgData("trash-purge", async function () {
     var data = await Storage.getAll();
@@ -847,6 +939,9 @@ chrome.runtime.onInstalled.addListener(function () {
   requestContextMenuRebuild();
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
   chrome.alarms.create(PRO_RECONCILE_ALARM, { periodInMinutes: PRO_RECONCILE_PERIOD_MINUTES });
+  // [1.3.0 R2] Reconciled rather than created blind: the weekly alarm exists
+  // only while the toggle is on AND the permission is still granted.
+  reconcileAutoBackupAlarm();
   chrome.alarms.create(RECURRING_SWEEP_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
   chrome.alarms.create(TRASH_PURGE_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
   chrome.alarms.create(LICENSE_VALIDATE_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
@@ -868,6 +963,9 @@ chrome.runtime.onStartup.addListener(function () {
   requestContextMenuRebuild();
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
   chrome.alarms.create(PRO_RECONCILE_ALARM, { periodInMinutes: PRO_RECONCILE_PERIOD_MINUTES });
+  // [1.3.0 R2] Reconciled rather than created blind: the weekly alarm exists
+  // only while the toggle is on AND the permission is still granted.
+  reconcileAutoBackupAlarm();
   chrome.alarms.create(RECURRING_SWEEP_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
   chrome.alarms.create(TRASH_PURGE_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
   chrome.alarms.create(LICENSE_VALIDATE_ALARM, { when: nextRecurringSweepAt(), periodInMinutes: 1440 });
@@ -1053,6 +1151,8 @@ chrome.alarms.onAlarm.addListener(function (alarm) {
     runPomodoroPhaseBg();
   } else if (alarm.name === HEARTBEAT_ALARM) {
     heartbeatBg();
+  } else if (alarm.name === AUTO_BACKUP_ALARM) {
+    runAutoBackup();
   }
 });
 
@@ -1504,6 +1604,20 @@ chrome.webNavigation.onReferenceFragmentUpdated.addListener(focusOnNavigation);
 // is durable before it navigates — which is what stops the intercept from
 // immediately re-gating the arrival.
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+  // [1.3.0 R2] The settings toggle owns the flag; the WORKER owns the alarm. The
+  // page asks for a reconcile rather than reaching into chrome.alarms itself, so
+  // scheduling stays in one place.
+  if (msg && msg.type === "auto-backup-reconcile") {
+    reconcileAutoBackupAlarm().then(function (on) { sendResponse({ scheduled: !!on }); });
+    return true;
+  }
+  // [1.3.0 R2] Test-only fire path, used by the runtime harness to exercise the
+  // handler without waiting a week. It runs exactly the scheduled work, gates and
+  // all, so what is verified is what the alarm does.
+  if (msg && msg.type === "auto-backup-run-now") {
+    runAutoBackup().then(function (r) { sendResponse(r || {}); });
+    return true;
+  }
   if (!msg || typeof msg.type !== "string" || msg.type.indexOf("focus-gate-") !== 0) return;
 
   if (msg.type === "focus-gate-state") {
