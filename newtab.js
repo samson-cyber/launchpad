@@ -3562,7 +3562,10 @@
         if (!lid || !(byId[lid] > 0)) continue;
         try {
           var lres = await Tracking.lifetimeFocusedForTask(lid);
-          if (lres && lres.ms > 0) lifeById[lid] = lres;
+          // Same rule as the pill line: until the accumulator is older than the
+          // retention window its figure is the windowed one, and a tooltip that
+          // says the same number twice is worse than one that says it once.
+          if (lres && lres.ms > 0 && satLifetimeIsInformative(lres.since)) lifeById[lid] = lres;
         } catch (e) { /* a failed read simply leaves the old tooltip */ }
       }
       if (token !== ttTaskTimesToken) return;
@@ -11527,12 +11530,40 @@
 
   var SAT_LIFETIME_TITLE = "Total focused time recorded for this task, kept beyond the day aggregates it came from";
 
+  // [2.1.1] THE LINE APPEARS ONLY WHEN IT CAN SAY SOMETHING THE WINDOW CANNOT.
+  //
+  // For an install's first retention window the lifetime total and the windowed
+  // total are THE SAME NUMBER - every session the accumulator has ever seen is
+  // also inside the window - so showing both prints one figure twice and labels
+  // the copy "since" a date barely in the past. That is noise, and it is the
+  // same call the notes search (>6 notes) and the trash footer (non-empty) make:
+  // a surface earns its place by carrying information, not by existing.
+  //
+  // The horizon IS the retention constant, read through satWindowDays, never a
+  // restated 30 - if retention moves, this moves with it rather than lying by a
+  // digit.
+  //
+  // >= NOT >, and the boundary is deliberate: at exactly the horizon the window
+  // has begun pruning its oldest day, so the two figures CAN already differ. The
+  // inclusive test shows the line the first moment it can carry new information
+  // rather than a day after.
+  //
+  // A null anchor suppresses. Without a since stamp there is no age to compare,
+  // and a figure that cannot prove it differs from the one above it has not
+  // earned the row.
+  var SAT_DAY_MS = 24 * 60 * 60 * 1000;
+  function satLifetimeIsInformative(since) {
+    if (typeof since !== "number") return false;
+    return (Date.now() - since) >= satWindowDays() * SAT_DAY_MS;
+  }
+
   function satLifetimeLineHtml() {
     var res = Storage.resolveActiveTask(data);
     if (!res || res.stale || !res.task) return "";
     if (satLifetime.taskId !== res.task.id) return "";
     var ms = satLifetime.ms;
     if (!(ms > 0)) return "";
+    if (!satLifetimeIsInformative(satLifetime.since)) return "";
     return '<div class="sat-lifetime" title="' + escapeHtml(SAT_LIFETIME_TITLE) + '">' +
         escapeHtml(satLifetimeText(ms, satLifetime.since)) +
       '</div>';

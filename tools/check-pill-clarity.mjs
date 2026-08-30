@@ -182,6 +182,11 @@ function boot(src) {
       // [2.1] The lifetime FOCUSED line, executed for the same reason: the
       // question is which number it prints and which word it uses for it.
       extractDecl(src.nt, "SAT_LIFETIME_TITLE"),
+      // [2.1.1] The suppression predicate and its day constant. Executed, not
+      // pattern-matched: the question is WHEN the line appears.
+      extractDecl(src.nt, "SAT_DAY_MS"),
+      extractFn(src.nt, "satWindowDays"),
+      extractFn(src.nt, "satLifetimeIsInformative"),
       extractFn(src.nt, "fmtShortDate"),
       extractFn(src.nt, "satLifetimeText"),
       extractFn(src.nt, "satLifetimeLineHtml"),
@@ -1211,7 +1216,20 @@ await (async () => {
     // The third number on this card. The law cuts BOTH ways: the worked rows
     // above prove "focused" never leaks onto a wall-clock surface, and these
     // prove "worked" never leaks onto the engine's.
-    const SINCE = Date.UTC(2026, 4, 15);
+    // [2.1.1] The anchor must be older than the retention horizon or the line
+    // is suppressed by design.
+    //
+    // HZ() reads the constant LIVE on every call rather than caching it: an
+    // earlier block in this file sets RETENTION_DAYS to 45 to prove the window
+    // label follows it, and leaves it set. A value computed once above that
+    // point is stale here, and a literal 30 would be the exact restatement this
+    // feature exists to avoid.
+    // CLOCK, not Date.now(): this sandbox runs on a frozen clock and the
+    // predicate reads it too, so anchors have to be seeded against the same
+    // instant the code under test will compare them to.
+    const DAY = 24 * 60 * 60 * 1000;
+    const HZ = () => ctx.satWindowDays() * DAY;
+    const SINCE = CLOCK - HZ() - 5 * DAY;
     ctx.satLifetime = { taskId: "t1", ms: 5 * WH + 30 * 60000, since: SINCE };
     const lifeLine = ctx.satLifetimeLineHtml();
     check("LIFETIME: it renders at rest", lifeLine.length > 0, lifeLine);
@@ -1242,11 +1260,61 @@ await (async () => {
     ctx.satLifetime = { taskId: "OTHER", ms: 9 * WH, since: SINCE };
     check("LIFETIME: a cache miss renders nothing rather than the wrong task's figure",
       ctx.satLifetimeLineHtml() === "");
-    // No anchor yet: the figure stands alone rather than inventing a date.
+    // ===== [2.1.1] THE THRESHOLD =====
+    //
+    // For an install's first retention window the lifetime figure and the
+    // windowed figure are the same number, so the line says nothing the line
+    // above it has not. It appears exactly when it can differ.
+    ctx.satLifetime = { taskId: "t1", ms: 5 * WH, since: CLOCK - HZ() - DAY };
+    check("THRESHOLD: an anchor OLDER than the retention horizon renders",
+      ctx.satLifetimeLineHtml().length > 0, ctx.satLifetimeLineHtml());
+    ctx.satLifetime = { taskId: "t1", ms: 5 * WH, since: CLOCK - HZ() + 60000 };
+    check("THRESHOLD: an anchor INSIDE the horizon is suppressed",
+      ctx.satLifetimeLineHtml() === "", ctx.satLifetimeLineHtml());
+    ctx.satLifetime = { taskId: "t1", ms: 5 * WH, since: CLOCK };
+    check("THRESHOLD: an anchor of today is suppressed (no duplicate of the window)",
+      ctx.satLifetimeLineHtml() === "");
+    // >= semantics: exactly at the horizon the window has begun pruning, so the
+    // two figures can already differ and the line has earned its row.
+    ctx.satLifetime = { taskId: "t1", ms: 5 * WH, since: CLOCK - HZ() };
+    check("THRESHOLD: EXACTLY at the horizon renders (>= not >)",
+      ctx.satLifetimeLineHtml().length > 0, ctx.satLifetimeLineHtml());
+
+    // THE THRESHOLD IS THE CONSTANT, proven by MOVING it rather than by
+    // comparing it to a number written here. An anchor that renders at one
+    // retention setting must be suppressed at a longer one, with nothing but
+    // the constant changed.
+    {
+      const savedTracking = ctx.Tracking;
+      const shortDays = ctx.satWindowDays();
+      const anchor = CLOCK - shortDays * DAY - DAY;   // just past the short horizon
+      ctx.satLifetime = { taskId: "t1", ms: 5 * WH, since: anchor };
+      const atShort = ctx.satLifetimeLineHtml();
+      ctx.Tracking = { RETENTION_DAYS: shortDays * 3 };
+      const atLong = ctx.satLifetimeLineHtml();
+      ctx.Tracking = savedTracking;
+      check("THRESHOLD: it FOLLOWS the retention constant - the same anchor renders at " +
+        shortDays + "d and is suppressed at " + (shortDays * 3) + "d",
+        atShort.length > 0 && atLong === "", `short="${atShort}" long="${atLong}"`);
+    }
+    // A null anchor cannot prove it differs, so it does not earn the row.
     ctx.satLifetime = { taskId: "t1", ms: 2 * WH, since: null };
-    const noAnchor = ctx.satLifetimeLineHtml();
-    check("LIFETIME: with no since stamp it prints the figure without a date",
-      /focused/.test(noAnchor) && !/since/.test(noAnchor), noAnchor);
+    check("THRESHOLD: a null anchor is suppressed rather than printed bare",
+      ctx.satLifetimeLineHtml() === "", ctx.satLifetimeLineHtml());
+    // and the predicate itself, directly
+    check("THRESHOLD: the predicate rejects a non-number anchor",
+      ctx.satLifetimeIsInformative(null) === false &&
+      ctx.satLifetimeIsInformative(undefined) === false);
+    check("THRESHOLD: the predicate accepts exactly the horizon",
+      ctx.satLifetimeIsInformative(CLOCK - HZ()) === true);
+    check("THRESHOLD: the predicate rejects one tick inside it",
+      ctx.satLifetimeIsInformative(CLOCK - HZ() + 1000) === false);
+    // The SUPPRESSED state must not break the vocabulary rows above: an empty
+    // string contains neither word, which is the point.
+    check("THRESHOLD: the suppressed state is empty, not a stray label",
+      ctx.satLifetimeLineHtml() === "" &&
+      !/worked/i.test(ctx.satLifetimeLineHtml()) &&
+      !/focused/i.test(ctx.satLifetimeLineHtml()));
     ctx.satLifetime = { taskId: null, ms: 0, since: null };
     // The card line, and the block it belongs to.
     check("SURFACE: the card carries the line", /sat-worked/.test(line) && /5h/.test(line));
