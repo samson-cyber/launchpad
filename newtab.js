@@ -14852,14 +14852,16 @@
     var menu = $("#session-ctx-menu");
     if (!menu) return;
     sessionCtxId = sessionId;
-    // [1.4.2] Attach and Detach are ONE slot showing two faces, never both at
-    // once: a session either has a task or it does not, and offering the inverse
-    // action alongside the real one is the kind of menu that has to be read twice.
+    // [1.4.2] The picker slot is ALWAYS offered and changes its face: an attached
+    // session can be re-pointed at another task, and that move is the whole reason
+    // the displacement confirm exists, so hiding this entry while attached would
+    // leave the move reachable only by detaching first. Detach is the entry that
+    // comes and goes, because there is nothing to detach from until there is.
     var ws0 = Storage.getActiveWorkspace(data);
     var s0 = ws0 ? Storage.getNamedSessionById(ws0, sessionId) : null;
     var attached = !!(s0 && s0.taskId && Storage.getTaskById(ws0, s0.taskId));
     var aBtn = $("#sctx-attach"), dBtn = $("#sctx-detach");
-    if (aBtn) aBtn.classList.toggle("hidden", attached);
+    if (aBtn) aBtn.textContent = attached ? "Change task" : "Attach to task";
     if (dBtn) dBtn.classList.toggle("hidden", !attached);
     menu.classList.remove("hidden");
     menu.style.left = e.clientX + "px";
