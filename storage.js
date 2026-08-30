@@ -50,6 +50,7 @@ var Storage = (function () {
         tasks: [],
         tags: [],
         notes: [],
+        namedSessions: [],
         tracking: emptyTrackingState()
       }],
       workspaceOrder: ["main"],
@@ -146,6 +147,21 @@ var Storage = (function () {
   // notes nor append a second array. That is also why it does NOT normalise the
   // contents - touching live note objects on every load would be a write loop
   // against the service worker's storage.onChanged watcher.
+  // [1.4.0] Same shape as ensureNotesArrays below: assign ONLY when the field is
+  // not already an array, so re-running can neither wipe nor duplicate, and never
+  // normalise the sessions themselves (touching live objects on every load would
+  // be a write loop against the service worker's storage watcher).
+  function ensureNamedSessionsArrays(data) {
+    var changed = false;
+    (data.workspaces || []).forEach(function (ws) {
+      if (!Array.isArray(ws.namedSessions)) {
+        ws.namedSessions = [];
+        changed = true;
+      }
+    });
+    return changed;
+  }
+
   function ensureNotesArrays(data) {
     var changed = false;
     (data.workspaces || []).forEach(function (ws) {
@@ -1096,6 +1112,7 @@ var Storage = (function () {
         tasks: [],
         tags: [],
         notes: [],
+        namedSessions: [],
         tracking: emptyTrackingState()
       }],
       workspaceOrder: ["main"],
@@ -1158,12 +1175,14 @@ var Storage = (function () {
         var trackingSeeded = ensureTrackingState(existing);
         var focusSeeded = ensureFocusBlockingState(existing);
         var notesSeeded = ensureNotesArrays(existing);
-        if (patched || trackingSeeded || focusSeeded || notesSeeded) {
+        var sessionsSeeded = ensureNamedSessionsArrays(existing);
+        if (patched || trackingSeeded || focusSeeded || notesSeeded || sessionsSeeded) {
           await chrome.storage.local.set({ data: existing });
           if (patched) console.log("[LaunchPad] Backfilled missing deletedAt fields");
           if (trackingSeeded) console.log("[LaunchPad] Seeded per-workspace tracking state (default ON)");
           if (focusSeeded) console.log("[LaunchPad] Seeded focus-blocking state (auto-arm default ON)");
           if (notesSeeded) console.log("[LaunchPad] Seeded per-workspace notes array");
+          if (sessionsSeeded) console.log("[LaunchPad] Seeded per-workspace named-sessions array");
         }
         return existing;
       }
@@ -2864,7 +2883,12 @@ var Storage = (function () {
       // - notes were soft-deleting correctly and simply never purging. The
       // expired() predicate needed no change: [1.1.0] gave notes the shared
       // epoch-ms deletedAt, so the arithmetic already worked.
-      ["goals", "tasks", "recurringTemplates", "goalTemplates", "notes"].forEach(function (key) {
+      // [1.4.0] "namedSessions" registered here IN THE SAME COMMIT that introduces
+      // the entity, per the rule notes paid for: this list is a hardcoded literal,
+      // not a registry, so an unregistered entity soft-deletes correctly and then
+      // never purges. Named sessions carry no tagIds, so they need no entry in the
+      // tag-cascade batch below.
+      ["goals", "tasks", "recurringTemplates", "goalTemplates", "notes", "namedSessions"].forEach(function (key) {
         var arr = ws[key];
         if (!Array.isArray(arr)) return;
         for (var i = arr.length - 1; i >= 0; i--) {
@@ -4152,6 +4176,225 @@ var Storage = (function () {
   function randomNoteRotation() {
     var span = NOTE_ROTATION_MAX - NOTE_ROTATION_MIN;
     return Math.round((NOTE_ROTATION_MIN + Math.random() * span) * 100) / 100;
+  }
+
+  // ===== [1.4.0] Named sessions =====
+  //
+  // A user-named saved set of tabs, launchable as a unit. Workspace-scoped
+  // sibling entity, ARRAY ORDER CANONICAL per the notes precedent, position-free.
+  //
+  // THE FIELD IS namedSessions, NOT sessions, AND THAT IS DELIBERATE. "Session"
+  // already means four things in this codebase: the tracking engine's focus records
+  // (tracking_sessions, genSessionId, rollupSessionInto), the 5-minute auto-restore's
+  // saved tabs (the savedSessions key, saveCurrentSession, restoreSessions), the
+  // Pomodoro focus session (user-visible copy), and the browser-restart anchor
+  // (anchorBrowserSession). The second is the dangerous neighbour: it ALSO saves sets
+  // of tabs, shares no storage and no lifecycle with this, and will share only its
+  // capture-eligibility rules at [1.4.1]. "named" is exactly what distinguishes these
+  // from that ambient unnamed autosave, so every identifier here carries it.
+  //
+  // NO tagIds IN v1, so no cascade obligations. taskId is a FORWARD REFERENCE ONLY,
+  // not a join: it is stored unvalidated (a task may be deleted, or may not exist yet
+  // when a session is restored from a backup), exactly as notes store notebookId.
+  // What a purged task should do to a dangling taskId is [1.4.2]'s decision, and
+  // nothing here touches the task-purge path.
+
+  // NOT "sess_": tracking.js genSessionId already owns that prefix. The two live in
+  // different stores so a literal collision is impossible, but a grep for one must
+  // not surface the other.
+  function genNamedSessionId() {
+    return "nsession_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  function ensureNamedSessionsArray(workspace) {
+    if (!workspace) return null;
+    if (!Array.isArray(workspace.namedSessions)) workspace.namedSessions = [];
+    return workspace.namedSessions;
+  }
+
+  function findLiveNamedSession(workspace, sessionId) {
+    var sessions = ensureNamedSessionsArray(workspace);
+    if (!sessions) return null;
+    var s = sessions.find(function (x) { return x.id === sessionId; });
+    return (s && !s.deletedAt) ? s : null;
+  }
+
+  // Minimal validation, by construction: a fresh object per tab carrying exactly url
+  // and title, so UNKNOWN FIELDS ARE DROPPED rather than filtered. url is the only
+  // required field and a tab without a usable one is discarded, because a saved tab
+  // that cannot be launched is not worth keeping. NOTE for [1.4.1]: the auto-restore
+  // captures a favicon per tab and this shape deliberately does not store one.
+  function normalizeNamedSessionTabs(input) {
+    if (!Array.isArray(input)) return [];
+    var out = [];
+    input.forEach(function (t) {
+      if (!t || typeof t !== "object") return;
+      if (typeof t.url !== "string" || !t.url) return;
+      out.push({
+        url: t.url,
+        title: (typeof t.title === "string") ? t.title : ""
+      });
+    });
+    return out;
+  }
+
+  function newNamedSessionObject(o) {
+    o = o || {};
+    var now = Date.now();
+    return {
+      id: genNamedSessionId(),
+      // Empty names are ALLOWED at this layer. Whether to demand one is a UI
+      // question ([1.4.1]), and a storage layer that refuses would make restoring a
+      // backup fail on data the user already has.
+      name: (o.name === undefined || o.name === null) ? "" : String(o.name),
+      tabs: normalizeNamedSessionTabs(o.tabs),
+      taskId: (o.taskId === undefined) ? null : o.taskId,
+      createdAt: now,
+      updatedAt: now,
+      lastLaunchedAt: null,
+      deletedAt: null
+    };
+  }
+
+  /**
+   * Create a named session in the (optionally specified) workspace. Pure mutation:
+   * the caller pairs it with saveAll. Returns the new session, or null if the
+   * workspace cannot be resolved.
+   */
+  function createNamedSession(data, fields, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws) {
+      console.warn("[LaunchPad] createNamedSession: workspace not found");
+      return null;
+    }
+    var sessions = ensureNamedSessionsArray(ws);
+    var session = newNamedSessionObject(fields);
+    sessions.push(session);
+    return session;
+  }
+
+  /**
+   * Patch a named session. Only the fields present in `partial` move; id, createdAt
+   * and lastLaunchedAt never do - the last of those has its own narrow updater, so a
+   * partial-object write can never fake a launch. Returns null if the session is
+   * missing or soft-deleted.
+   */
+  function updateNamedSession(data, sessionId, partial, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var session = findLiveNamedSession(ws, sessionId);
+    if (!session) return null;
+    var f = partial || {};
+
+    if (f.name !== undefined) session.name = (f.name === null) ? "" : String(f.name);
+    if (Array.isArray(f.tabs)) session.tabs = normalizeNamedSessionTabs(f.tabs);
+    if (f.taskId !== undefined) session.taskId = f.taskId;
+
+    session.updatedAt = Date.now();
+    return session;
+  }
+
+  /**
+   * Stamp a launch. Moves lastLaunchedAt and NOTHING else - launching is not
+   * editing, so updatedAt stays where it was, the same reasoning that keeps
+   * restoreNote from touching it.
+   */
+  function touchNamedSessionLaunched(data, sessionId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var session = findLiveNamedSession(ws, sessionId);
+    if (!session) return null;
+    session.lastLaunchedAt = Date.now();
+    return session;
+  }
+
+  function deleteNamedSession(data, sessionId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var session = findLiveNamedSession(ws, sessionId);
+    if (!session) return null;
+    session.deletedAt = Date.now();
+    return session;
+  }
+
+  function restoreNamedSession(data, sessionId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var sessions = ensureNamedSessionsArray(ws);
+    if (!sessions) return null;
+    var session = sessions.find(function (x) { return x.id === sessionId; });
+    if (!session || !session.deletedAt) return null;
+    session.deletedAt = null;
+    return session;
+  }
+
+  // Defensive copy at the SIBLING'S DEPTH, which is one level: filter returns a new
+  // array, and the session objects (and therefore their tabs arrays) are shared by
+  // reference. Mutating the returned array cannot disturb stored state; mutating a
+  // returned session does write through. tabs is copied at CREATION instead, which
+  // is exactly where notes copy tagIds.
+  function getAllNamedSessions(workspace) {
+    var sessions = ensureNamedSessionsArray(workspace);
+    if (!sessions) return [];
+    return sessions.filter(function (s) { return !s.deletedAt; });
+  }
+
+  function getDeletedNamedSessions(workspace) {
+    var sessions = ensureNamedSessionsArray(workspace);
+    if (!sessions) return [];
+    return sessions.filter(function (s) { return !!s.deletedAt; });
+  }
+
+  function getNamedSessionById(workspace, sessionId) {
+    return findLiveNamedSession(workspace, sessionId);
+  }
+
+  /**
+   * Reorder live sessions. Matches reorderNotes exactly, including the
+   * every-live-exactly-once length check and the ID-based commit: the visible list
+   * holds only live sessions while the array also holds soft-deleted ones, so a raw
+   * index addresses the wrong element. Live sessions are permuted into the slots live
+   * sessions already occupy, leaving deleted ones at their exact array positions.
+   *
+   * Like its siblings this one SAVES ITSELF rather than leaving it to the caller.
+   */
+  async function reorderNamedSessions(data, orderedSessionIds, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws) return null;
+    if (!Array.isArray(orderedSessionIds)) {
+      console.warn("[LaunchPad] reorderNamedSessions: orderedSessionIds must be an array");
+      return null;
+    }
+    var sessions = ensureNamedSessionsArray(ws);
+    if (!sessions) return null;
+
+    var byId = {};
+    sessions.forEach(function (s) { byId[s.id] = s; });
+    var liveSlots = [];
+    sessions.forEach(function (s, i) { if (!s.deletedAt) liveSlots.push(i); });
+
+    if (orderedSessionIds.length !== liveSlots.length) {
+      console.warn("[LaunchPad] reorderNamedSessions: order must account for every live session exactly once");
+      return null;
+    }
+    for (var i = 0; i < orderedSessionIds.length; i++) {
+      var id = orderedSessionIds[i];
+      if (typeof id !== "string") {
+        console.warn("[LaunchPad] reorderNamedSessions: every id must be a string");
+        return null;
+      }
+      var s = byId[id];
+      if (!s) {
+        console.warn("[LaunchPad] reorderNamedSessions: id not found in workspace: " + id);
+        return null;
+      }
+      if (s.deletedAt) {
+        console.warn("[LaunchPad] reorderNamedSessions: id refers to a soft-deleted session: " + id);
+        return null;
+      }
+    }
+
+    for (var j = 0; j < orderedSessionIds.length; j++) {
+      sessions[liveSlots[j]] = byId[orderedSessionIds[j]];
+    }
+    await saveAll(data);
+    return sessions;
   }
 
   function ensureNotesArray(workspace) {
@@ -6113,6 +6356,18 @@ var Storage = (function () {
     deleteNotePermanent: deleteNotePermanent,
     emptyNotesTrash: emptyNotesTrash,
     NOTE_TRASH_TTL_MS: TRASH_TTL_MS,
+    // Named sessions ([1.4.0]) - pure mutations, caller pairs saveAll, except
+    // reorderNamedSessions which saves itself per the notes/goals precedent.
+    ensureNamedSessionsArray: ensureNamedSessionsArray,
+    createNamedSession: createNamedSession,
+    updateNamedSession: updateNamedSession,
+    touchNamedSessionLaunched: touchNamedSessionLaunched,
+    deleteNamedSession: deleteNamedSession,
+    restoreNamedSession: restoreNamedSession,
+    getAllNamedSessions: getAllNamedSessions,
+    getDeletedNamedSessions: getDeletedNamedSessions,
+    getNamedSessionById: getNamedSessionById,
+    reorderNamedSessions: reorderNamedSessions,
     // Recurring task templates ([1.0.10] schema landing; [1.0.14] adds
     // alarm-driven instance materialization)
     createRecurringTemplate: createRecurringTemplate,
