@@ -129,8 +129,14 @@ const localMidnight = at(0, 0, 0);
     run(Date.now() - 5 * 60000));
   check("a five-minute-old activation counts about five minutes",
     /^Active 5:0\d · since /.test(run(Date.now() - 5 * 60000)), run(Date.now() - 5 * 60000));
+  // The assertion is about the FORM, not the number. It demanded "7d" literally,
+  // which is only true when the local time of day is at or after the fixture's own
+  // 09:04: run the suite at 05:00 and the same correct output reads "6d 20h", so the
+  // row went red for nine hours out of every twenty-four with nothing wrong in the
+  // code. Q10 in the time dimension - the fixture never crossed the boundary it
+  // claimed to test, it just sat on the convenient side of it during working hours.
   check("a multi-day activation uses the day form rather than a 3-digit hour count",
-    /^Active 7d \d+h · since /.test(run(at(-7, 9, 4))), run(at(-7, 9, 4)));
+    /^Active \d+d \d+h · since /.test(run(at(-7, 9, 4))), run(at(-7, 9, 4)));
   check("the count is not frozen at zero", !/^Active 0:00 · /.test(run(Date.now() - 90 * 1000)), run(Date.now() - 90 * 1000));
 }
 
