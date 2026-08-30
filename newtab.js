@@ -3391,6 +3391,7 @@
           '<button class="tasks-action" data-action="new-goal" type="button">+ New Goal</button>' +
           '<button class="tasks-action" data-action="new-task" type="button">+ New Task</button>' +
           '<button class="tasks-action" data-action="new-recurring" type="button">+ New Recurring</button>' +
+          '<button class="tasks-action" data-action="new-tag" type="button">+ New Tag</button>' +
           '<a class="tasks-templates-link" data-action="templates" href="#">Templates</a>' +
         '</div>' +
       '</header>';
@@ -4559,6 +4560,7 @@
         if (action === "new-goal") openNewGoalModal();
         else if (action === "new-task") openNewTaskModal();
         else if (action === "new-recurring") openRecurringModal(null);
+        else if (action === "new-tag") openStandaloneTagCreate(actionBtn);
         return;
       }
 
@@ -10872,6 +10874,25 @@
     }
   }
 
+  // [1.1.6] "+ New Tag" from the Tasks header. This reuses the EXISTING anchored
+  // tag-create popover rather than adding a second creation surface: same
+  // markup, same palette, same duplicate-name handling, same Storage.createTag.
+  //
+  // The popover was built for tag creation FROM an item - it takes a context and
+  // attaches the new tag to whatever that context names. Creating a bare tag
+  // needs no new plumbing, because commitTagCreatePopover already resolves the
+  // context through findItemByContext and simply SKIPS the attach when nothing
+  // resolves. A context of type "standalone" resolves to null by construction,
+  // so the create happens and the attach does not.
+  //
+  // The only thing genuinely missing was the refresh: the commit path re-renders
+  // the home grid and sidebar, which is where its original callers live. A tag
+  // made from the Tasks header has to reach the tasks surface too, which is what
+  // the callback adds.
+  function openStandaloneTagCreate(anchorEl) {
+    openTagCreatePopover(anchorEl, { type: "standalone" });
+  }
+
   function openTagCreatePopover(anchorEl, context) {
     closeTagCreatePopover();
     if (!context) return;
@@ -10991,6 +11012,15 @@
     closeSidebarShortcutCtxMenu();
     renderMainGrid();
     renderSidebarGroups();
+    // [1.1.6] The tasks surface consumes tags too - the filter bar, the task tag
+    // pickers and Pro Settings all read the same list - so a tag created from
+    // anywhere has to reach it. Guarded on the panel being live, so this is a
+    // no-op for the home-grid callers that predate it.
+    var tasksPanel = document.getElementById("tab-tasks");
+    if (tasksPanel && tasksPanel.querySelector(".tasks-header")) {
+      renderTasksTab(tasksPanel, data);
+    }
+    if (document.getElementById("pro-tags-list")) renderProTagsSection();
   }
 
   async function nestShortcutWith(shortcutId, targetId, groupId) {
@@ -15625,8 +15655,15 @@
       }
       // Close tag submenu when click is outside both the submenu and any
       // open create popover (which is its child flow).
+      //
+      // This list is the registry of ANCHORS that open the create popover, and
+      // [1.1.6] adds one: the Tasks header + New Tag button. Without it, the
+      // click that opens the popover is itself an "outside" click and shuts it
+      // again in the same tick - the palette renders and `hidden` comes straight
+      // back, which is exactly what the first run measured.
       if (!e.target.closest("#tag-submenu") && !e.target.closest("#tag-create-popover") &&
-          !e.target.closest("#menu-add-tag") && !e.target.closest('[data-action="add-tag"]')) {
+          !e.target.closest("#menu-add-tag") && !e.target.closest('[data-action="add-tag"]') &&
+          !e.target.closest('[data-action="new-tag"]')) {
         closeTagSubmenu();
         closeTagCreatePopover();
       }
