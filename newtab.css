@@ -13446,6 +13446,12 @@ html.has-bg.bg-light .notes-panel {
     overflow-y: visible;
   }
 
+  /* Clearance for the pinned footer, which floats over the wrapped grid in this
+     branch. Scoped to has-trash so the padding disappears with the footer, and
+     scoped to this media query because in the side-by-side branch the footer
+     sits in its own strip below the stack and covers nothing. */
+  .notes-panel.has-trash .notes-stack { padding-bottom: 46px; }
+
   .notes-stack .note-card {
     width: 208px;
   }
@@ -13548,13 +13554,50 @@ html.has-bg.bg-light .notes-search-input:focus { border-color: rgba(0, 0, 0, 0.3
    three tiers. The trash VIEW is inside .tt-modal-body, which does the same.
    Neither surface declares a literal ink colour of its own, which is what the
    shipped-twice fall-through defect came from. */
+/* PINNED FOOTER. MEASURED before it was written, because the two layout
+   branches fail differently:
+
+     - Side by side (>= 900px), the footer was ALREADY pinned and needed no
+       help. .notes-stack is `flex: 1; overflow-y: auto` and this bar is a
+       flex-shrink:0 SIBLING outside it, so stack scrolling can never move it.
+       Measured reachable at 1280, 780, 700 and 420px viewport heights, with
+       20 notes and with 25 tasks pushing the column.
+     - Stacked (< 900px), it was genuinely below the fold: the media query
+       turns the stack into a wrapping row that no longer scrolls itself, the
+       panel grows to full content height, and .tab-panel becomes the scroller.
+       The bar measured y=1276 against a 700px viewport, unreachable without
+       scrolling to the very end.
+
+   `sticky` is what serves both: inert in the branch that was already correct
+   (nothing scrolls past it), and pinned to the bottom of .tab-panel in the
+   branch that was broken. z-index keeps it over the notes it now floats above. */
 .notes-trash-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   flex-shrink: 0;
   display: flex;
   justify-content: flex-end;
   padding-top: 10px;
   margin-top: 2px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+
+  /* THE STRIP IS INERT; only the button takes the pointer. A footer floating
+     over the stack would otherwise sit between the cursor and a reorder drop
+     near the bottom, and swallow it. */
+  pointer-events: none;
+}
+.notes-trash-btn { pointer-events: auto; }
+
+/* Softens whatever scrolls under the footer instead of hiding it behind a solid
+   band. Low-alpha scrim plus a blur, the banner idiom rather than a frost tier. */
+.notes-panel.has-trash .notes-trash-bar {
+  background: rgba(20, 20, 20, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+html.has-bg.bg-light .notes-panel.has-trash .notes-trash-bar {
+  background: rgba(250, 250, 250, 0.78);
 }
 html.has-bg.bg-light .notes-trash-bar { border-top-color: rgba(0, 0, 0, 0.12); }
 

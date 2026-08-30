@@ -2490,7 +2490,11 @@
     var ws = Storage.getActiveWorkspace(d0);
     var notes = ws ? Storage.getAllNotes(ws) : [];
     var trashed = ws ? Storage.getDeletedNotes(ws) : [];
-    return '<aside class="notes-panel" data-notes-panel>' +
+    // has-trash drives the stack padding that keeps the last note clear of the
+    // pinned footer. Conditional, so when the footer is gone the padding goes
+    // with it rather than leaving a dead strip at the end of the stack.
+    var panelCls = "notes-panel" + (trashed.length ? " has-trash" : "");
+    return '<aside class="' + panelCls + '" data-notes-panel>' +
         '<div class="notes-panel-title">Notes</div>' +
         notesSearchHtml(notes.length) +
         '<div class="notes-stack" data-notes-stack>' + notesStackHtml(notes) + '</div>' +
@@ -2937,8 +2941,6 @@
       '<div class="note-swatches">' + swatches + '</div>' +
       '<button type="button" class="tt-ctx-item" data-note-action="promote-task">Promote to task</button>' +
       '<button type="button" class="tt-ctx-item" data-note-action="promote-goal">Promote to goal</button>' +
-      '<button type="button" class="tt-ctx-item" data-note-action="promote-task">Promote to task</button>' +
-      '<button type="button" class="tt-ctx-item" data-note-action="promote-goal">Promote to goal</button>' +
       '<button type="button" class="tt-ctx-item" data-note-action="delete">Delete</button>';
     document.body.appendChild(menu);
 
@@ -2978,16 +2980,6 @@
         await Storage.saveAll(data);
         closeNotesMenu();
         renderNotesStack();
-        return;
-      }
-      if (e.target.closest('[data-note-action="promote-task"]')) {
-        closeNotesMenu();
-        promoteNoteToTask(noteId);
-        return;
-      }
-      if (e.target.closest('[data-note-action="promote-goal"]')) {
-        closeNotesMenu();
-        promoteNoteToGoal(noteId);
         return;
       }
       if (e.target.closest('[data-note-action="promote-task"]')) {
