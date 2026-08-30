@@ -9832,6 +9832,9 @@
     { name: "settings",         selector: "#settings-panel",     open: function () { openSettingsPanel(); },     close: function (opts) { closeSettingsPanel(opts); } },
     { name: "pro-settings",     selector: "#pro-settings-panel", open: function () { openProSettingsPanel(); },  close: function (opts) { closeProSettingsPanel(opts); } },
     { name: "restore-session",  selector: "#restore-dropdown",   open: function () { openRestoreDropdown(); },   close: function (opts) { closeRestoreDropdown(opts); } },
+    // [1.4.1] Named sessions joins the chain, so it is mutually exclusive with
+    // every other sidebar-locking surface exactly as Restore Session is.
+    { name: "sessions",         selector: "#sessions-dropdown",  open: function () { openSessionsDropdown(); },  close: function (opts) { closeSessionsDropdown(opts); } },
     // [1.0.19 D5/D6] Both new panels join the chain so they are mutually
     // exclusive with Settings/Pro Settings/Restore exactly like every other
     // sidebar-locking surface.
@@ -14622,6 +14625,254 @@
     return n;
   }
 
+  // ===== [1.4.1] Named sessions: capture, launch, manage =====
+  //
+  // The surface is the Restore Session flyout's twin by construction: same chain
+  // membership, same left:260px placement off the sidebar button, same header class.
+  // Reuse over invention, and it inherits three tiers of ink for free.
+
+  // ELIGIBILITY IS AN ALLOWLIST, NOT A BLOCKLIST, so a scheme nobody has thought of
+  // yet fails CLOSED. Only http, https and file can be saved. The 5-minute
+  // auto-restore keeps its own narrower blocklist test (chrome:// and
+  // chrome-extension:// only); widening that is its own change, not this one.
+  //
+  // Known asymmetry, measured rather than assumed: Edge's new-tab page is an https
+  // URL (ntp.msn.com) where Chrome's is chrome://newtab, so on Edge a browser new tab
+  // is eligible. That is what the rule honestly says; excluding it would mean
+  // special-casing a vendor host, which is worse.
+  var SESSION_ALLOWED_SCHEMES = ["http:", "https:", "file:"];
+
+  function isCapturableSessionUrl(url) {
+    if (typeof url !== "string" || !url) return false;
+    var scheme;
+    try {
+      scheme = new URL(url).protocol;
+    } catch (e) {
+      return false;
+    }
+    return SESSION_ALLOWED_SCHEMES.indexOf(scheme) !== -1;
+  }
+
+  // The icon a tab carried at capture time, or the bundled placeholder. NEVER a
+  // lookup: getFaviconUrl would fall through to Google's S2 service, which would
+  // hand a third party every domain of every saved session on every render.
+  function sessionTabIcon(tab) {
+    var f = tab && tab.favicon;
+    return (typeof f === "string" && f) ? f : "assets/placeholder.svg";
+  }
+
+  function sessionsForRender() {
+    var ws = Storage.getActiveWorkspace(data);
+    return ws ? Storage.getAllNamedSessions(ws) : [];
+  }
+
+  function sessionRowHtml(s) {
+    var count = (s.tabs || []).length;
+    var icons = (s.tabs || []).slice(0, 4).map(function (t) {
+      return '<img class="session-fav" src="' + esc(sessionTabIcon(t)) + '" alt="" width="16" height="16" ' +
+             'onerror="this.src=&quot;assets/placeholder.svg&quot;">';
+    }).join("");
+    var more = count > 4 ? '<span class="session-fav-more">+' + (count - 4) + '</span>' : "";
+    return '<div class="session-row" data-session-id="' + esc(s.id) + '" role="button" tabindex="0" ' +
+             'aria-label="' + esc((s.name || "Untitled session") + ", " + count + (count === 1 ? " tab" : " tabs")) + '">' +
+             '<div class="session-row-main">' +
+               '<span class="session-name">' + esc(s.name || "Untitled session") + '</span>' +
+               '<span class="session-meta">' + count + (count === 1 ? " tab" : " tabs") + '</span>' +
+             '</div>' +
+             '<div class="session-favs">' + icons + more + '</div>' +
+             '<button class="session-row-more" type="button" title="Options" aria-label="Session options">' + "\u22EE" + '</button>' +
+           '</div>';
+  }
+
+  function renderSessionsList() {
+    var list = $("#sessions-list");
+    var empty = $("#sessions-empty");
+    if (!list) return;
+    var sessions = sessionsForRender();
+    list.innerHTML = sessions.map(sessionRowHtml).join("");
+    if (empty) empty.classList.toggle("hidden", sessions.length > 0);
+  }
+
+  function openSessionsDropdown() {
+    var dd = $("#sessions-dropdown");
+    if (!dd) return;
+    sidebarLocked = true;
+    var sidebar = $("#sidebar");
+    if (sidebar) {
+      sidebar.classList.add("expanded");
+      sidebar.classList.add("sidebar-locked");
+    }
+    showSidebarPanel();
+    dd.classList.remove("hidden");
+    var btn = $("#sb-sessions");
+    if (btn) dd.style.top = btn.getBoundingClientRect().top + "px";
+    dd.style.left = "260px";
+    renderSessionsList();
+  }
+
+  function closeSessionsDropdown(opts) {
+    closeSessionCtxMenu();
+    var dd = $("#sessions-dropdown");
+    if (!dd || dd.classList.contains("hidden")) return;
+    dd.classList.add("hidden");
+    if (opts && opts.silent) return;
+    sidebarLocked = false;
+    var sidebar = $("#sidebar");
+    if (sidebar) {
+      sidebar.classList.remove("sidebar-locked");
+      if (!sidebar.matches(":hover")) sidebar.classList.remove("expanded");
+    }
+    hideSidebarPanel();
+  }
+
+  // ---- capture -----------------------------------------------------------
+
+  // Reads the CURRENT window only. Titles come from the tabs API as measured;
+  // favicon is the page's own favIconUrl, with chrome:// icons dropped to null
+  // because they are unreachable from a page context.
+  async function captureCurrentWindowTabs() {
+    var tabs = await chrome.tabs.query({ currentWindow: true });
+    var eligible = [];
+    var declined = 0;
+    tabs.forEach(function (t) {
+      if (!isCapturableSessionUrl(t.url)) { declined++; return; }
+      var fav = (t.favIconUrl && t.favIconUrl.indexOf("chrome://") !== 0) ? t.favIconUrl : null;
+      eligible.push({ url: t.url, title: t.title || "", favicon: fav });
+    });
+    return { tabs: eligible, declined: declined };
+  }
+
+  async function saveCurrentTabsAsSession() {
+    var captured = await captureCurrentWindowTabs();
+    if (!captured.tabs.length) {
+      showToast("Nothing here can be saved. A session needs at least one web page open.");
+      return;
+    }
+    var suggested = "Session " + (sessionsForRender().length + 1);
+    var name = prompt("Name this session:", suggested);
+    if (name === null) return;
+
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return;
+    var created = Storage.createNamedSession(data, { name: String(name).trim(), tabs: captured.tabs });
+    if (!created) return;
+    // Array order is canonical and newest leads, matching notes: the caller does the
+    // move so the shared primitive stays untouched.
+    var arr = ws.namedSessions;
+    arr.splice(arr.indexOf(created), 1);
+    arr.unshift(created);
+    await Storage.saveAll(data);
+    data = await Storage.getAll();
+    renderSessionsList();
+    var n = captured.tabs.length;
+    showToast("Saved " + n + (n === 1 ? " tab." : " tabs.") +
+              (captured.declined ? " " + captured.declined + " browser page" +
+               (captured.declined === 1 ? " was" : "s were") + " left out." : ""));
+  }
+
+  // ---- launch ------------------------------------------------------------
+
+  // ONE window, urls in stored order, focused. Measured on this platform: a 12-url
+  // array produces exactly one window with the order preserved and the originating
+  // window untouched. Capture is the eligibility gate, so launch trusts the data.
+  async function launchNamedSession(sessionId) {
+    var ws = Storage.getActiveWorkspace(data);
+    var s = ws ? Storage.getNamedSessionById(ws, sessionId) : null;
+    if (!s || !(s.tabs || []).length) return;
+    var urls = s.tabs.map(function (t) { return t.url; });
+    try {
+      await chrome.windows.create({ url: urls, focused: true });
+    } catch (err) {
+      console.error("[LaunchPad] Session launch failed", err);
+      showToast("That session could not be opened.");
+      return;
+    }
+    Storage.touchNamedSessionLaunched(data, sessionId);
+    await Storage.saveAll(data);
+    data = await Storage.getAll();
+  }
+
+  // ---- row actions -------------------------------------------------------
+
+  var sessionCtxId = null;
+
+  function openSessionCtxMenu(e, sessionId) {
+    var menu = $("#session-ctx-menu");
+    if (!menu) return;
+    sessionCtxId = sessionId;
+    menu.classList.remove("hidden");
+    menu.style.left = e.clientX + "px";
+    menu.style.top = e.clientY + "px";
+    var r = menu.getBoundingClientRect();
+    if (r.right > window.innerWidth - 8) menu.style.left = (window.innerWidth - r.width - 8) + "px";
+    if (r.bottom > window.innerHeight - 8) menu.style.top = (window.innerHeight - r.height - 8) + "px";
+  }
+
+  function closeSessionCtxMenu() {
+    var menu = $("#session-ctx-menu");
+    if (menu) menu.classList.add("hidden");
+    sessionCtxId = null;
+  }
+
+  async function handleSessionCtxAction(action) {
+    var id = sessionCtxId;
+    closeSessionCtxMenu();
+    if (!id) return;
+    var ws = Storage.getActiveWorkspace(data);
+    var s = ws ? Storage.getNamedSessionById(ws, id) : null;
+    if (!s) return;
+
+    if (action === "rename") {
+      var next = prompt("Rename session:", s.name || "");
+      if (next === null) return;
+      Storage.updateNamedSession(data, id, { name: String(next).trim() });
+      await Storage.saveAll(data);
+      data = await Storage.getAll();
+      renderSessionsList();
+      return;
+    }
+
+    if (action === "update") {
+      var captured = await captureCurrentWindowTabs();
+      if (!captured.tabs.length) {
+        showToast("Nothing here can be saved. A session needs at least one web page open.");
+        return;
+      }
+      var n = captured.tabs.length;
+      openTasksConfirmModal({
+        title: "Update from current window",
+        message: "Replace the " + (s.tabs || []).length + " saved tab" +
+                 ((s.tabs || []).length === 1 ? "" : "s") + " in " +
+                 (s.name || "this session") + " with the " + n + " open here? The name stays the same.",
+        confirmLabel: "Replace tabs",
+        onConfirm: async function () {
+          Storage.updateNamedSession(data, id, { tabs: captured.tabs });
+          await Storage.saveAll(data);
+          data = await Storage.getAll();
+          renderSessionsList();
+          showToast("Updated to " + n + (n === 1 ? " tab." : " tabs."));
+        }
+      });
+      return;
+    }
+
+    if (action === "delete") {
+      var name = s.name || "Session";
+      Storage.deleteNamedSession(data, id);
+      await Storage.saveAll(data);
+      data = await Storage.getAll();
+      renderSessionsList();
+      // Soft-delete plus undo. Letting the toast expire leaves the row soft-deleted
+      // for [1.4.3]'s trash view rather than destroying anything.
+      showUndoToast(name + " deleted.", async function () {
+        Storage.restoreNamedSession(data, id);
+        await Storage.saveAll(data);
+        data = await Storage.getAll();
+        renderSessionsList();
+      });
+    }
+  }
+
   function renderSessionTabs(windows) {
     if (!windows || !windows.length) return "";
     var html = "";
@@ -15283,6 +15534,44 @@
     safeOn("#history-overlay", "click", function (e) {
       if (e.target === e.currentTarget) closeHistoryOverlay();
     });
+    // [1.4.1] Sessions entry, wired exactly like its Restore Session neighbour.
+    safeOn("#sb-sessions", "click", function (e) {
+      e.stopPropagation();
+      openPanel("sessions");
+    });
+
+    safeOn("#sessions-save-btn", "click", function (e) {
+      e.stopPropagation();
+      saveCurrentTabsAsSession();
+    });
+
+    safeOn("#sessions-list", "click", function (e) {
+      var more = e.target.closest(".session-row-more");
+      var row = e.target.closest(".session-row");
+      if (!row) return;
+      if (more) {
+        e.stopPropagation();
+        openSessionCtxMenu(e, row.dataset.sessionId);
+        return;
+      }
+      launchNamedSession(row.dataset.sessionId);
+    });
+
+    safeOn("#sessions-list", "keydown", function (e) {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      var row = e.target.closest(".session-row");
+      if (!row) return;
+      e.preventDefault();
+      launchNamedSession(row.dataset.sessionId);
+    });
+
+    safeOn("#session-ctx-menu", "click", function (e) {
+      var item = e.target.closest("[data-session-action]");
+      if (!item) return;
+      e.stopPropagation();
+      handleSessionCtxAction(item.dataset.sessionAction);
+    });
+
     safeOn("#sb-restore", "click", function (e) {
       e.stopPropagation();
       openPanel("restore-session");

@@ -4219,11 +4219,19 @@ var Storage = (function () {
     return (s && !s.deletedAt) ? s : null;
   }
 
-  // Minimal validation, by construction: a fresh object per tab carrying exactly url
-  // and title, so UNKNOWN FIELDS ARE DROPPED rather than filtered. url is the only
-  // required field and a tab without a usable one is discarded, because a saved tab
-  // that cannot be launched is not worth keeping. NOTE for [1.4.1]: the auto-restore
-  // captures a favicon per tab and this shape deliberately does not store one.
+  // Minimal validation, by construction: a fresh object per tab carrying exactly url,
+  // title and favicon, so UNKNOWN FIELDS ARE DROPPED rather than filtered. url is the
+  // only required field and a tab without a usable one is discarded, because a saved
+  // tab that cannot be launched is not worth keeping.
+  //
+  // [1.4.1] favicon ADDED, and the reason is a privacy one rather than a visual one.
+  // [1.4.0] deliberately stored no favicon on the theory that the surface could derive
+  // one from the url. It cannot, cleanly: getFaviconUrl's fallback is Google's S2
+  // service, so deriving would have sent every domain of every saved session to a
+  // third party on every render - the exact thing [1.2.1] Time-by-Site refused to do
+  // for the same category of data. Capturing the PAGE'S OWN favIconUrl at save time
+  // instead keeps icons local to sites the user already chose to save. null means "no
+  // icon", which the UI renders as the bundled placeholder, never as a lookup.
   function normalizeNamedSessionTabs(input) {
     if (!Array.isArray(input)) return [];
     var out = [];
@@ -4232,7 +4240,8 @@ var Storage = (function () {
       if (typeof t.url !== "string" || !t.url) return;
       out.push({
         url: t.url,
-        title: (typeof t.title === "string") ? t.title : ""
+        title: (typeof t.title === "string") ? t.title : "",
+        favicon: (typeof t.favicon === "string" && t.favicon) ? t.favicon : null
       });
     });
     return out;

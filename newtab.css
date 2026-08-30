@@ -1249,7 +1249,8 @@ html:not(.has-bg) .variant-dropdown-more:hover {
 
 /* ===== Variant Context Menu ===== */
 
-#variant-ctx-menu {
+#variant-ctx-menu,
+#session-ctx-menu {
   position: fixed;
   background: var(--pro-frost-menu-bg);
   backdrop-filter: var(--pro-frost-menu-blur);
@@ -5165,6 +5166,132 @@ html.has-bg .rc-empty-state-text {
   }
 }
 
+/* ===== [1.4.1] Named sessions flyout =====
+   Geometry mirrors #restore-dropdown deliberately; the header reuses
+   .restore-header so its three ink tiers apply unchanged. */
+#sessions-dropdown {
+  position: fixed;
+  top: 52px;
+  left: 260px;
+  max-width: 420px;
+  width: 380px;
+  max-height: 520px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 6px 24px var(--shadow-color);
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: restoreDropIn 200ms ease-out;
+}
+
+#sessions-dropdown.hidden { display: none; }
+
+#sessions-actions {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+#sessions-save-btn { width: 100%; }
+
+#sessions-list {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+}
+
+.session-row:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.session-row:focus-visible {
+  outline: 2px solid var(--sat-accent, #1a73e8);
+  outline-offset: -2px;
+}
+
+.session-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.session-name {
+  font-size: var(--fs-13);
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-meta {
+  font-size: var(--fs-11);
+  color: var(--text-hint);
+}
+
+.session-favs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.session-fav {
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.session-fav-more {
+  font-size: var(--fs-10);
+  color: var(--text-hint);
+  margin-left: 2px;
+}
+
+.session-row-more {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-hint);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 16px;
+  line-height: 1;
+  border-radius: 4px;
+  opacity: 0;
+  font-family: inherit;
+  transition: opacity 0.1s, background 0.1s;
+}
+
+.session-row:hover .session-row-more,
+.session-row:focus-within .session-row-more {
+  opacity: 1;
+}
+
+.session-row-more:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text-primary);
+}
+
+#sessions-empty {
+  padding: 18px 14px;
+  font-size: var(--fs-12);
+  color: var(--text-hint);
+  text-align: center;
+}
+
 .restore-header {
   display: flex;
   align-items: center;
@@ -5365,6 +5492,38 @@ html.has-bg #history-panel-close {
 }
 
 html.has-bg #history-panel-close:hover {
+  color: #fff;
+}
+
+/* [1.4.1] Wallpaper tier, mirroring the restore flyout above it. */
+html.has-bg #sessions-dropdown {
+  background: var(--pro-frost-floater-bg);
+  border-color: rgba(255, 255, 255, 0.1);
+  backdrop-filter: var(--pro-frost-floater-blur);
+  -webkit-backdrop-filter: var(--pro-frost-floater-blur);
+}
+
+html.has-bg #sessions-actions {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+html.has-bg .session-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+html.has-bg .session-name {
+  color: #fff;
+}
+
+html.has-bg .session-meta,
+html.has-bg .session-fav-more,
+html.has-bg .session-row-more,
+html.has-bg #sessions-empty {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+html.has-bg .session-row-more:hover {
+  background: rgba(255, 255, 255, 0.15);
   color: #fff;
 }
 
@@ -6656,6 +6815,36 @@ html.bg-light #history-panel-close {
 }
 
 html.bg-light #history-panel-close:hover {
+  color: var(--text-primary);
+}
+
+/* [1.4.1] Light-wallpaper tier: ink returns to the light-theme tokens, exactly
+   as the restore flyout does below. */
+html.bg-light #sessions-dropdown {
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+html.bg-light #sessions-actions {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+html.bg-light .session-row:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+html.bg-light .session-name {
+  color: var(--text-primary);
+}
+
+html.bg-light .session-meta,
+html.bg-light .session-fav-more,
+html.bg-light .session-row-more,
+html.bg-light #sessions-empty {
+  color: var(--text-hint);
+}
+
+html.bg-light .session-row-more:hover {
+  background: rgba(0, 0, 0, 0.08);
   color: var(--text-primary);
 }
 
