@@ -10713,6 +10713,114 @@ html.has-bg.bg-light .tt-time-chip { color: rgba(0, 0, 0, 0.65); }
 
 html.has-bg.bg-light .tt-task-worked { color: rgba(0, 0, 0, 0.72); }
 
+/* ===== [1.4.2] The attached-session chip =====
+   Sits in the task row's CHIP CLUSTER beside .tt-task-worked, not in the controls
+   grid: that grid is four fixed columns and a fifth member would either wrap or
+   take 30px of name width from every row, attached or not. Same two ink tiers as
+   the chip it sits next to, so it inherits that family rather than inventing one. */
+.tt-task-session {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 160px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-family: inherit;
+  font-size: var(--fs-11);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.tt-task-session:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+.tt-task-session:focus-visible {
+  outline: 2px solid var(--sat-accent, #8ab4f8);
+  outline-offset: 1px;
+}
+
+.tt-session-glyph { font-size: var(--fs-11); line-height: 1; }
+
+.tt-session-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.has-bg.bg-light .tt-task-session {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.16);
+  color: rgba(0, 0, 0, 0.72);
+}
+
+html.has-bg.bg-light .tt-task-session:hover {
+  background: rgba(0, 0, 0, 0.12);
+  border-color: rgba(0, 0, 0, 0.3);
+  color: var(--text-primary);
+}
+
+/* ===== [1.4.2] The task picker, inside the tasks-modal family ===== */
+.session-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.session-picker-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: var(--fs-13);
+  color: rgba(255, 255, 255, 0.9);
+  text-align: left;
+  cursor: pointer;
+}
+
+.session-picker-row:hover { background: rgba(255, 255, 255, 0.1); }
+
+.session-picker-row:focus-visible {
+  outline: 2px solid var(--sat-accent, #8ab4f8);
+  outline-offset: -2px;
+}
+
+.session-picker-row.is-current { color: #fff; font-weight: 600; }
+
+.session-picker-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-picker-note {
+  flex: 0 0 auto;
+  font-size: var(--fs-11);
+  color: rgba(255, 255, 255, 0.55);
+}
+
+html.has-bg.bg-light .session-picker-row { color: var(--text-primary); }
+html.has-bg.bg-light .session-picker-row:hover { background: rgba(0, 0, 0, 0.06); }
+html.has-bg.bg-light .session-picker-note { color: var(--text-hint); }
+
 /* [2.0 timing] THE ACTIVE ROW, unmistakable at a glance.
    Three signals, none of which can collide with what the row already uses:
      - an ACCENT BAR as ::after, absolutely positioned inside the padding box.

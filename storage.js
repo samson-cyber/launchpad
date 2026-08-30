@@ -2610,6 +2610,10 @@ var Storage = (function () {
     var idx = tasks.findIndex(function (t) { return t && t.id === taskId; });
     if (idx === -1) return false;
     tasks.splice(idx, 1);
+    // [1.4.2] PATH 2 of 3. Before the write, so the splice and the nulling land
+    // in the same saveAll and no reader can observe a session pointing at a task
+    // that is already gone.
+    detachSessionsFromTasks(ws, [taskId]);
     await saveAll(data);
     // [2.1] The OTHER exit for a task. Same announcement, same reason.
     announceTasksPurged([taskId]);
@@ -2637,12 +2641,25 @@ var Storage = (function () {
         if (ws.goals[gi] && ws.goals[gi].deletedAt != null) { ws.goals.splice(gi, 1); removed++; }
       }
     }
+    // [1.4.2] PATH 3 of 3, and the one that was missing from BOTH registrations.
+    // This function hard-splices tasks exactly as deleteTaskPermanent does, but it
+    // announced nothing and nulled nothing - the [2.1] comment on announceTasksPurged
+    // still says "both exits fire it", which was true when it was written and stopped
+    // being true the moment this bulk action existed. So emptying the trash leaked a
+    // lifetime-accumulator entry per task, and would have left a session pointing at a
+    // ghost. The ids are collected here for both duties.
+    var purgedTaskIds = [];
     if (Array.isArray(ws.tasks)) {
       for (var ti = ws.tasks.length - 1; ti >= 0; ti--) {
-        if (ws.tasks[ti] && ws.tasks[ti].deletedAt != null) { ws.tasks.splice(ti, 1); removed++; }
+        if (ws.tasks[ti] && ws.tasks[ti].deletedAt != null) {
+          if (ws.tasks[ti].id) purgedTaskIds.push(ws.tasks[ti].id);
+          ws.tasks.splice(ti, 1); removed++;
+        }
       }
     }
+    detachSessionsFromTasks(ws, purgedTaskIds);
     if (removed > 0) await saveAll(data);
+    announceTasksPurged(purgedTaskIds);
     return removed;
   }
 
@@ -2849,6 +2866,7 @@ var Storage = (function () {
     data.workspaces.forEach(function (ws) {
       if (!ws) return;
       var purgedTagIds = {};
+      var wsPurgedTaskIds = [];
 
       // Groups (+ groupOrder), then bookmarks/variants inside surviving groups.
       if (Array.isArray(ws.groups)) {
@@ -2895,7 +2913,12 @@ var Storage = (function () {
           if (expired(arr[i])) {
             // [2.1] Registered IN the enumeration: a task leaving here is a task
             // whose lifetime-accumulator entry must go with it.
-            if (key === "tasks" && arr[i].id) purgedTaskIds.push(arr[i].id);
+            if (key === "tasks" && arr[i].id) {
+              purgedTaskIds.push(arr[i].id);
+              // [1.4.2] PATH 1 of 3. Collected per WORKSPACE as well, because
+              // sessions are workspace-scoped and the outer list spans them all.
+              wsPurgedTaskIds.push(arr[i].id);
+            }
             arr.splice(i, 1); removed++;
           }
         }
@@ -2931,6 +2954,10 @@ var Storage = (function () {
           if (g.autoTagId && purgedTagIds[g.autoTagId]) g.autoTagId = null;
         });
       }
+
+      // [1.4.2] Sessions in THIS workspace lose any pointer to a task this sweep
+      // just removed. Inside the workspace loop and before the single saveAll below.
+      detachSessionsFromTasks(ws, wsPurgedTaskIds);
     });
 
     if (removed > 0) {
@@ -4404,6 +4431,77 @@ var Storage = (function () {
     }
     await saveAll(data);
     return sessions;
+  }
+
+  // ===== [1.4.2] Session-to-task attachment =====
+  //
+  // The reference lives on the SESSION and is never mirrored on the task, so there
+  // is exactly one place to write and one place to read. Both directions of the
+  // invariant are enforced HERE rather than in the UI: at most one session per
+  // task, at most one task per session.
+  //
+  // These are per-field updaters. taskId is deliberately NOT written through
+  // updateNamedSession's partial, because a generic partial cannot see the other
+  // sessions and so cannot keep the one-session-per-task half of the invariant.
+
+  function getNamedSessionForTask(workspace, taskId) {
+    if (!workspace || !taskId) return null;
+    var sessions = ensureNamedSessionsArray(workspace);
+    if (!sessions) return null;
+    return sessions.find(function (s) { return !s.deletedAt && s.taskId === taskId; }) || null;
+  }
+
+  /**
+   * Attach a session to a task. MOVES it if the session was attached elsewhere,
+   * and displaces whatever session was previously on the target task, because both
+   * halves of the invariant are one-to-one. Pure mutation: the caller pairs saveAll.
+   * @returns {{session, displaced}|null} displaced is the session bumped off the
+   *   target task, or null. The caller needs it to describe what happened.
+   */
+  function attachNamedSessionToTask(data, sessionId, taskId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var session = findLiveNamedSession(ws, sessionId);
+    if (!session || !taskId) return null;
+    // The task must be LIVE in this workspace. A soft-deleted task is still a
+    // real task and keeps its attachment, but it cannot be chosen as a new target.
+    if (!findLiveTask(ws, taskId)) return null;
+
+    var displaced = null;
+    var existing = getNamedSessionForTask(ws, taskId);
+    if (existing && existing.id !== session.id) {
+      existing.taskId = null;
+      displaced = existing;
+    }
+    session.taskId = taskId;
+    return { session: session, displaced: displaced };
+  }
+
+  /** Detach a session from whatever task it was on. Pure mutation. */
+  function detachNamedSession(data, sessionId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var session = findLiveNamedSession(ws, sessionId);
+    if (!session) return null;
+    session.taskId = null;
+    return session;
+  }
+
+  // THE DANGLING-REFERENCE GUARD, called from every path that removes a task for
+  // good. A saved tab set is the user's own work and outlives the task it was
+  // attached to; what must not outlive the task is the POINTER. Soft-delete
+  // deliberately does not come through here: a trashed task is restorable, and
+  // restoreTask only clears deletedAt, so an attachment that survived the trash
+  // is still correct when the task comes back.
+  function detachSessionsFromTasks(ws, taskIds) {
+    if (!ws || !taskIds || !taskIds.length) return 0;
+    var sessions = ws.namedSessions;
+    if (!Array.isArray(sessions)) return 0;
+    var gone = {};
+    taskIds.forEach(function (id) { if (id) gone[id] = true; });
+    var n = 0;
+    sessions.forEach(function (s) {
+      if (s && s.taskId && gone[s.taskId]) { s.taskId = null; n++; }
+    });
+    return n;
   }
 
   function ensureNotesArray(workspace) {
@@ -6377,6 +6475,11 @@ var Storage = (function () {
     getDeletedNamedSessions: getDeletedNamedSessions,
     getNamedSessionById: getNamedSessionById,
     reorderNamedSessions: reorderNamedSessions,
+    // [1.4.2] Attachment. Per-field updaters; both halves of the one-to-one
+    // invariant are enforced in attachNamedSessionToTask, not in the UI.
+    attachNamedSessionToTask: attachNamedSessionToTask,
+    detachNamedSession: detachNamedSession,
+    getNamedSessionForTask: getNamedSessionForTask,
     // Recurring task templates ([1.0.10] schema landing; [1.0.14] adds
     // alarm-driven instance materialization)
     createRecurringTemplate: createRecurringTemplate,

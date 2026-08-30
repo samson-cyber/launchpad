@@ -3499,6 +3499,12 @@
         // that has never been started would otherwise paint "0m" on every row
         // in the list — noise that says nothing the empty space does not.
         satWorkedChipHtml(task, isActiveTask) +
+        // [1.4.2] The attached session, if any. It joins the CHIP CLUSTER rather
+        // than the controls zone beside it: that zone is a grid with four fixed
+        // columns (72px 78px 66px 24px), so a fifth member either wraps or costs
+        // every row 30px of name width whether it has a session or not. This
+        // cluster is a flex row that already carries conditional children.
+        sessionLaunchChipHtml(workspace, task) +
         // Windowed tracked time. Rendered EMPTY and filled by ttRefreshTaskTimes a
         // tick later — the byTask read is async and taskRowHtml is a synchronous
         // builder, the same two-phase shape the cockpit uses. A task with no
@@ -4535,6 +4541,17 @@
       if (addCancel) {
         var card3 = addCancel.closest(".tt-goal-card");
         if (card3) hideAddTaskInline(card3);
+        return;
+      }
+
+      // [1.4.2] The session chip. Ahead of the name branch for the same reason as
+      // the play glyph: it is a button inside the name cluster and must claim its
+      // own click before any name-zone handling sees it.
+      var sessBtn = target.closest && target.closest(".tt-task-session");
+      if (sessBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        launchNamedSession(sessBtn.dataset.sessionLaunch);
         return;
       }
 
@@ -14677,7 +14694,7 @@
     return ws ? Storage.getAllNamedSessions(ws) : [];
   }
 
-  function sessionRowHtml(s) {
+  function sessionRowHtml(s, attachedName) {
     var count = (s.tabs || []).length;
     var icons = (s.tabs || []).slice(0, 4).map(function (t) {
       return '<img class="session-fav" src="' + esc(sessionTabIcon(t)) + '" alt="" width="16" height="16" ' +
@@ -14688,7 +14705,10 @@
              'aria-label="' + esc((s.name || "Untitled session") + ", " + count + (count === 1 ? " tab" : " tabs")) + '">' +
              '<div class="session-row-main">' +
                '<span class="session-name">' + esc(s.name || "Untitled session") + '</span>' +
-               '<span class="session-meta">' + count + (count === 1 ? " tab" : " tabs") + '</span>' +
+               '<span class="session-meta">' + count + (count === 1 ? " tab" : " tabs") +
+                 // [1.4.2] The relationship is legible from BOTH sides: the task row
+                 // carries the session, and the session row names its task.
+                 (attachedName ? ' \u00B7 on ' + esc(attachedName) : "") + '</span>' +
              '</div>' +
              '<div class="session-favs">' + icons + more + '</div>' +
              '<button class="session-row-more" type="button" title="Options" aria-label="Session options">' + "\u22EE" + '</button>' +
@@ -14700,7 +14720,11 @@
     var empty = $("#sessions-empty");
     if (!list) return;
     var sessions = sessionsForRender();
-    list.innerHTML = sessions.map(sessionRowHtml).join("");
+    var ws = Storage.getActiveWorkspace(data);
+    list.innerHTML = sessions.map(function (s) {
+      var t = (ws && s.taskId) ? Storage.getTaskById(ws, s.taskId) : null;
+      return sessionRowHtml(s, t ? t.name : null);
+    }).join("");
     if (empty) empty.classList.toggle("hidden", sessions.length > 0);
   }
 
@@ -14828,6 +14852,15 @@
     var menu = $("#session-ctx-menu");
     if (!menu) return;
     sessionCtxId = sessionId;
+    // [1.4.2] Attach and Detach are ONE slot showing two faces, never both at
+    // once: a session either has a task or it does not, and offering the inverse
+    // action alongside the real one is the kind of menu that has to be read twice.
+    var ws0 = Storage.getActiveWorkspace(data);
+    var s0 = ws0 ? Storage.getNamedSessionById(ws0, sessionId) : null;
+    var attached = !!(s0 && s0.taskId && Storage.getTaskById(ws0, s0.taskId));
+    var aBtn = $("#sctx-attach"), dBtn = $("#sctx-detach");
+    if (aBtn) aBtn.classList.toggle("hidden", attached);
+    if (dBtn) dBtn.classList.toggle("hidden", !attached);
     menu.classList.remove("hidden");
     menu.style.left = e.clientX + "px";
     menu.style.top = e.clientY + "px";
@@ -14840,6 +14873,128 @@
     var menu = $("#session-ctx-menu");
     if (menu) menu.classList.add("hidden");
     sessionCtxId = null;
+  }
+
+  // ===== [1.4.2] Attachment =====
+  //
+  // THE PICKER IS BUILT ON THE TASKS-MODAL FAMILY, not on the active-task Switch
+  // menu. That menu is the closest existing task chooser, but it searches ALL
+  // workspaces (its own placeholder says so), its rows are wired to activation,
+  // and it carries a delicate set of outside/escape/scroll/resize handlers with a
+  // capture-phase scroll bug in its history (N1). Reusing it would mean
+  // parameterising all of that; the modal family is what the plan named and what
+  // the promote-to-task flow already uses.
+
+  function attachPickerBodyHtml(ws, currentTaskId) {
+    var tasks = Storage.getAllTasks(ws).filter(function (t) { return !t.completed; });
+    if (!tasks.length) {
+      return '<p class="tt-modal-message">There are no open tasks in this workspace yet.</p>';
+    }
+    return '<div class="session-picker">' + tasks.map(function (t) {
+      var taken = Storage.getNamedSessionForTask(ws, t.id);
+      var isCurrent = t.id === currentTaskId;
+      // A task that already holds ANOTHER session is still offered: choosing it
+      // moves the attachment, and the confirm names what is being displaced.
+      var note = isCurrent ? "attached to this session"
+        : (taken ? "holds " + taken.name : "");
+      return '<button type="button" class="session-picker-row' + (isCurrent ? " is-current" : "") +
+        '" data-picker-task="' + escapeHtml(t.id) + '">' +
+        '<span class="session-picker-name">' + escapeHtml(t.name) + '</span>' +
+        (note ? '<span class="session-picker-note">' + escapeHtml(note) + '</span>' : "") +
+      '</button>';
+    }).join("") + '</div>';
+  }
+
+  function openSessionAttachPicker(sessionId) {
+    var ws = Storage.getActiveWorkspace(data);
+    var session = ws ? Storage.getNamedSessionById(ws, sessionId) : null;
+    if (!ws || !session) return;
+
+    openTasksModal({
+      title: "Attach " + (session.name || "session") + " to a task",
+      bodyHtml: attachPickerBodyHtml(ws, session.taskId),
+      primaryLabel: "Cancel",
+      onPrimary: function () {},
+      onMounted: function (modalEl) {
+        var host = modalEl.querySelector(".session-picker");
+        if (!host) return;
+        host.addEventListener("click", function (ev) {
+          var row = ev.target.closest("[data-picker-task]");
+          if (!row) return;
+          commitSessionAttach(sessionId, row.dataset.pickerTask);
+        });
+      }
+    });
+  }
+
+  async function commitSessionAttach(sessionId, taskId) {
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return;
+    var session = Storage.getNamedSessionById(ws, sessionId);
+    var task = Storage.getTaskById(ws, taskId);
+    if (!session || !task) return;
+    if (session.taskId === taskId) { closeTasksModal(); return; }
+
+    var from = session.taskId ? Storage.getTaskById(ws, session.taskId) : null;
+    var displacedBy = Storage.getNamedSessionForTask(ws, taskId);
+
+    var apply = async function () {
+      var res = Storage.attachNamedSessionToTask(data, sessionId, taskId);
+      if (!res) return;
+      await Storage.saveAll(data);
+      data = await Storage.getAll();
+      renderSessionsList();
+      eagerRenderTasks();
+      showToast((session.name || "Session") + " is now on " + task.name + ".");
+    };
+
+    // A MOVE gets a confirm naming BOTH ends, because two things change at once:
+    // the session leaves a task, and possibly another session is bumped off the
+    // target. Either is a silent loss if it happens without saying so.
+    if (from || (displacedBy && displacedBy.id !== sessionId)) {
+      var msg = from
+        ? (session.name || "This session") + " is attached to " + from.name +
+          ". Move it to " + task.name + "?"
+        : task.name + " already has " + displacedBy.name +
+          " attached. Replace it with " + (session.name || "this session") + "?";
+      if (from && displacedBy && displacedBy.id !== sessionId) {
+        msg = (session.name || "This session") + " is attached to " + from.name +
+          ", and " + task.name + " already has " + displacedBy.name +
+          ". Move it and replace that one?";
+      }
+      // The picker modal is single-instance, so the confirm would destroy it.
+      // Deferred reopen on cancel, the idiom this file already uses.
+      closeTasksModal();
+      setTimeout(function () {
+        openTasksConfirmModal({
+          title: "Move this session?",
+          message: msg,
+          confirmLabel: "Move it",
+          onConfirm: apply,
+          onCancel: function () { setTimeout(function () { openSessionAttachPicker(sessionId); }, 0); }
+        });
+      }, 0);
+      return;
+    }
+    closeTasksModal();
+    await apply();
+  }
+
+  // The task-row launch chip. Renders NOTHING when the task has no session, which
+  // is what keeps every unattached row byte-identical to before this feature -
+  // the same rule satWorkedChipHtml follows two lines above it in the cluster.
+  function sessionLaunchChipHtml(workspace, task) {
+    if (!workspace || !task) return "";
+    var s = Storage.getNamedSessionForTask(workspace, task.id);
+    if (!s) return "";
+    var n = (s.tabs || []).length;
+    var label = s.name || "session";
+    return '<button type="button" class="tt-task-session" data-session-launch="' + escapeHtml(s.id) +
+      '" title="' + escapeHtml("Open " + label + " (" + n + (n === 1 ? " tab" : " tabs") + ")") +
+      '" aria-label="' + escapeHtml("Open session " + label) + '">' +
+        '<span class="tt-session-glyph" aria-hidden="true">\u29C9</span>' +
+        '<span class="tt-session-name">' + escapeHtml(label) + '</span>' +
+      '</button>';
   }
 
   async function handleSessionCtxAction(action) {
@@ -14881,6 +15036,22 @@
           showToast("Updated to " + n + (n === 1 ? " tab." : " tabs."));
         }
       });
+      return;
+    }
+
+    if (action === "attach") {
+      openSessionAttachPicker(id);
+      return;
+    }
+
+    if (action === "detach") {
+      var wasOn = s.taskId ? Storage.getTaskById(ws, s.taskId) : null;
+      Storage.detachNamedSession(data, id);
+      await Storage.saveAll(data);
+      data = await Storage.getAll();
+      renderSessionsList();
+      eagerRenderTasks();
+      showToast((s.name || "Session") + " is no longer on " + (wasOn ? wasOn.name : "a task") + ".");
       return;
     }
 
