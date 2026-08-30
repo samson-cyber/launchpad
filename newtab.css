@@ -13289,6 +13289,10 @@ html.bg-light .sat-focus-row.is-on .sat-focus-knob { background: #fff; }
    Below the floor the tasks column absorbs the difference until the breakpoint
    takes over entirely. */
 .notes-panel {
+  /* Declared HERE, on the shared ancestor, not on .notes-trash-bar: a custom
+     property set on the bar is invisible to its sibling .notes-stack, so the
+     clearance would silently fall back. */
+  --notes-trash-h: 52px;
   flex: 0 0 20%;
   min-width: 260px;
   display: flex;
@@ -13380,7 +13384,14 @@ html.has-bg.bg-light .notes-panel {
 .note-trash {
   position: absolute;
   top: 6px;
-  left: 6px;                 /* the curl owns bottom-right; stay clear of it */
+  /* [1.1.5] TOP-RIGHT, which is where [1.1.1] specified it. It shipped
+     top-LEFT, and the comment that put it there is the reason why: "the curl
+     owns bottom-right" rules out the BOTTOM-right corner, not the right side.
+     Reading it as "avoid the right" moved the control onto the first
+     characters of every note - the part you read to tell one note from
+     another. The curl is 22px in the bottom-right; this sits in the top-right
+     and never meets it. */
+  right: 6px;
   width: 22px;
   height: 22px;
   display: flex;
@@ -13450,7 +13461,9 @@ html.has-bg.bg-light .notes-panel {
      branch. Scoped to has-trash so the padding disappears with the footer, and
      scoped to this media query because in the side-by-side branch the footer
      sits in its own strip below the stack and covers nothing. */
-  .notes-panel.has-trash .notes-stack { padding-bottom: 46px; }
+  /* Clearance = the footer's measured height. Stated once as a variable so the
+     padding cannot drift from the control it is clearing. */
+  .notes-panel.has-trash .notes-stack { padding-bottom: var(--notes-trash-h, 52px); }
 
   .notes-stack .note-card {
     width: 208px;
@@ -13572,12 +13585,14 @@ html.has-bg.bg-light .notes-search-input:focus { border-color: rgba(0, 0, 0, 0.3
    (nothing scrolls past it), and pinned to the bottom of .tab-panel in the
    branch that was broken. z-index keeps it over the notes it now floats above. */
 .notes-trash-bar {
+  /* Height is MEASURED, not guessed: the rendered footer occupies 44px (42px
+     bar plus its 2px margin-top). --notes-trash-h on .notes-panel is that plus
+     8px of breathing room, and it is what the stack pads by. */
   position: sticky;
   bottom: 0;
   z-index: 2;
   flex-shrink: 0;
   display: flex;
-  justify-content: flex-end;
   padding-top: 10px;
   margin-top: 2px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -13601,25 +13616,45 @@ html.has-bg.bg-light .notes-panel.has-trash .notes-trash-bar {
 }
 html.has-bg.bg-light .notes-trash-bar { border-top-color: rgba(0, 0, 0, 0.12); }
 
+/* [1.1.5] The .tasks-action idiom, verbatim in every property that carries the
+   family resemblance: 6px radius, the same 111,177,255 tint and ring, fs-12 at
+   weight 500, the D6 text-shadow that lets white ink survive a photo wallpaper,
+   and the same bg-light branch that swaps to dark ink and drops the ring.
+   Full-width is the one deliberate departure: it is a footer, not a toolbar. */
 .notes-trash-btn {
-  display: inline-flex;
+  width: 100%;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border: none;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border: 1px solid rgba(111, 177, 255, 0.5);
   border-radius: 6px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
+  background: rgba(111, 177, 255, 0.12);
+  color: #fff;
+  font-family: inherit;
   font-size: var(--fs-12);
-  opacity: 0.7;
+  font-weight: 500;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
   cursor: pointer;
-  text-shadow: none;
-  transition: opacity 0.14s ease, background-color 0.14s ease;
+  transition: background 0.15s, border-color 0.15s;
 }
-.notes-trash-btn:hover { opacity: 1; background: rgba(255, 255, 255, 0.1); }
-html.has-bg.bg-light .notes-trash-btn:hover { background: rgba(0, 0, 0, 0.06); }
-.notes-trash-count { font-weight: 600; }
+.notes-trash-btn:hover {
+  background: rgba(111, 177, 255, 0.2);
+  border-color: rgba(111, 177, 255, 0.75);
+}
+html.has-bg.bg-light .notes-trash-btn {
+  color: #14324f;
+  border-color: rgba(21, 83, 155, 0.45);
+  background: rgba(111, 177, 255, 0.22);
+  text-shadow: none;
+}
+html.has-bg.bg-light .notes-trash-btn:hover {
+  background: rgba(111, 177, 255, 0.32);
+  border-color: rgba(21, 83, 155, 0.7);
+}
+.notes-trash-sep { opacity: 0.6; }
+.notes-trash-count { font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .notes-trash-view { max-height: 52vh; overflow-y: auto; }
 .notes-trash-list { list-style: none; margin: 0; padding: 0; }

@@ -2503,6 +2503,14 @@
   // (2026-08-29 addendum, overriding notes.md's "persistent" trash can): an
   // always-present control for a bin that is almost always empty is chrome the
   // panel does not need, and the ratified look is what its absence protects.
+  // [1.1.5] A FULL-WIDTH BUTTON, not a slim icon strip. It reads as a control
+  // because it is styled as one, on the .tasks-action family the tasks header
+  // beside it already uses: same radius, same tinted fill and ring, same type
+  // ramp, same D6 ink treatment and the same bg-light branch.
+  //
+  // The VISIBLE label is a count ("Trash " + middot + " 3"), which needs no
+  // pluralisation. The ACCESSIBLE name is a sentence and does pluralise, so a
+  // screen reader hears "1 note in trash" rather than "Trash 1".
   function notesTrashBarHtml(trashedCount) {
     if (!trashedCount) return "";
     var label = trashedCount === 1 ? "1 note in trash" : trashedCount + " notes in trash";
@@ -2510,6 +2518,8 @@
         '<button type="button" class="notes-trash-btn" data-notes-trash' +
           ' aria-label="' + escapeHtml(label) + '" title="' + escapeHtml(label) + '">' +
           TRASH_SM_SVG +
+          '<span class="notes-trash-label">Trash</span>' +
+          '<span class="notes-trash-sep" aria-hidden="true">\u00b7</span>' +
           '<span class="notes-trash-count">' + trashedCount + '</span>' +
         '</button>' +
       '</div>';
