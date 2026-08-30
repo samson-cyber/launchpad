@@ -14740,9 +14740,17 @@
     var sidebar = $("#sidebar");
     if (sidebar) {
       sidebar.classList.remove("sidebar-locked");
-      if (!sidebar.matches(":hover")) sidebar.classList.remove("expanded");
+      // THE SCRIM COMES DOWN WITH THE EXPANSION, not independently of it. Hiding it
+      // unconditionally left a cursor-hovered sidebar expanded to 260px with nothing
+      // behind its labels but the raw wallpaper, since #sidebar itself deliberately
+      // paints no background of its own. Escape pressed with the pointer still over
+      // the sidebar is exactly how that state is reached. Matches closeRestoreDropdown,
+      // which is the twin this surface follows.
+      if (!sidebar.matches(":hover")) {
+        sidebar.classList.remove("expanded");
+        hideSidebarPanel();
+      }
     }
-    hideSidebarPanel();
   }
 
   // ---- capture -----------------------------------------------------------
@@ -16532,6 +16540,13 @@
         cancelBgPreview(); closeRcFilterMenu(); closeDomainPanel(); closeSettingsPanel();
         closeProSettingsPanel();
         closeHistoryOverlay(); closeRestoreDropdown();
+        // [1.4.1] The twin joins its pair. ONE PRESS CLOSES BOTH the row menu and
+        // the flyout, because closeSessionsDropdown dismisses the menu before its
+        // own hidden-guard - the same shape as closeVariantDropdown +
+        // closeVariantCtxMenu on the line below. That is deliberately NOT the
+        // layered behaviour of the outside click, which closes the menu first and
+        // leaves the flyout up: Escape is a sweep, an outside click is a peel.
+        closeSessionsDropdown();
         closeVariantDropdown(); closeVariantCtxMenu(); closeVariantIconDialog(); closeNestSubmenu();
         closeTagSubmenu(); closeTagCreatePopover();
         var sidebar = $("#sidebar");
