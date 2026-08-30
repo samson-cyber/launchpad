@@ -2421,7 +2421,18 @@
   // {x,y} field is untouched (see storage.js).
   function notesStackHtml(notes) {
     var visible = notesFilterMatches(notes);
-    return visible.map(noteCardHtml).join("") + ghostNoteHtml();
+    // [1.1.3] THE GHOST LEADS THE STACK. It used to trail it, which put the one
+    // control that creates a note below the fold as soon as the stack scrolled -
+    // measured at y=1534 with the viewport ending at 918 on only eight notes, and
+    // a 7750px stack at fifty. Creation also inserts at array TOP, so the
+    // invitation now sits exactly where the result lands.
+    //
+    // Order is the ONLY thing that changed. The ghost is still excluded from the
+    // reorder structurally (it carries no data-note-id, so Sortable's `draggable`
+    // selector never matches it) and the onMove guard still refuses any move
+    // relative to it - that guard is position-agnostic, so it now pins the ghost
+    // to the top for the same reason it used to pin it to the bottom.
+    return ghostNoteHtml() + visible.map(noteCardHtml).join("");
   }
 
   // Case-insensitive substring on content, position independent. Deleted notes
@@ -2573,7 +2584,7 @@
     return '<aside class="notes-panel notes-panel-preview">' +
         '<div class="notes-panel-title">Notes</div>' +
         '<div class="notes-stack">' +
-          NOTES_DEMO.map(noteCardHtml).join("") + ghostNoteHtml() +
+          ghostNoteHtml() + NOTES_DEMO.map(noteCardHtml).join("") +
         '</div>' +
       '</aside>';
   }
