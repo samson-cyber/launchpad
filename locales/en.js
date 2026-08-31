@@ -2626,3 +2626,62 @@ I18n.register("en", {
     "description": "The 1-day Insights window as it reads INSIDE a chart title (\"Deep work, today\") - lower case on purpose. The segmented button above the charts says \"Today\" and is a separate string."
   }
 });
+
+
+// ====================================================================
+// [1.5.0] R4 stage 2 - plurals, real CLDR forms
+// ====================================================================
+I18n.register("en", {
+  "clear_completed_confirm": {
+    "plural": {"one": "Move 1 completed item to Deleted? They stay recoverable for 30 days.", "other": "Move all {count} completed items to Deleted? They stay recoverable for 30 days."},
+    "description": "Confirm moving completed tasks to the Deleted box."
+  },
+  "empty_trash_confirm": {
+    "plural": {"one": "Permanently delete 1 item? This cannot be undone.", "other": "Permanently delete all {count} items? This cannot be undone."},
+    "description": "Confirm emptying the Tasks Deleted box. The one-form drops the 'all', which read as 'Permanently delete all 1 item?' while the count and the noun were assembled separately."
+  },
+  "group_opened_tabs_toast": {
+    "plural": {"one": "Opened 1 tab from {groupName}", "other": "Opened {count} tabs from {groupName}"},
+    "description": "Toast after opening every shortcut in a group. {groupName} is the user's group name."
+  },
+  "groupdelete_group_has_shortcuts": {
+    "plural": {"one": "This group has 1 shortcut. You can move it to another group or delete everything.", "other": "This group has {count} shortcuts. You can move them to another group or delete everything."},
+    "description": "Message in the delete-group dialog. The one-form says 'it' rather than 'them', which the assembled English could never do."
+  },
+  "sessions_pages_left_out": {
+    "plural": {"one": "{count} browser page was left out.", "other": "{count} browser pages were left out."},
+    "description": "Follows sessions_saved_tabs_toast when browser pages were skipped. The VERB inflects with the count too, which is why this is a plural and not an interpolation."
+  },
+  "sessions_replace_from_window": {
+    "plural": {"one": "Replace the 1 saved tab in {sessionName} with the {openCount} open here? The name stays the same.", "other": "Replace the {count} saved tabs in {sessionName} with the {openCount} open here? The name stays the same."},
+    "description": "Confirm replacing a saved session's tabs. {count} is the SAVED tab count and selects the form; {openCount} is how many are open now and takes a role name because only one quantity can select. {sessionName} falls back to sessions_this_session."
+  },
+  "sessions_saved_tabs_toast": {
+    "plural": {"one": "Saved {count} tab.", "other": "Saved {count} tabs."},
+    "description": "Toast after saving a session. If browser pages were skipped, sessions_pages_left_out follows as a SECOND sentence - the two counts are independent and only one can drive a form."
+  },
+  "sessions_updated_tabs_toast": {
+    "plural": {"one": "Updated to {count} tab.", "other": "Updated to {count} tabs."},
+    "description": "Toast after replacing a saved session's tabs from the current window."
+  },
+  "shortcut_delete_variants_confirm": {
+    "plural": {"one": "This shortcut has 1 nested variant. Delete all?", "other": "This shortcut has {count} nested variants. Delete all?"},
+    "description": "Native confirm before deleting a shortcut that carries nested variants. Replaces a 'variant(s)' parenthetical, which no language other than English can render that way."
+  },
+  "trash_moved_to_deleted_toast": {
+    "plural": {"one": "Moved 1 item to Deleted", "other": "Moved {count} items to Deleted"},
+    "description": "Toast after clearing completed tasks into the Deleted box."
+  },
+  "trash_permanently_deleted_toast": {
+    "plural": {"one": "Permanently deleted 1 item", "other": "Permanently deleted {count} items"},
+    "description": "Toast after emptying the Tasks Deleted box."
+  },
+  "trash_restored_toast": {
+    "plural": {"one": "Restored 1 item", "other": "Restored {count} items"},
+    "description": "Toast after restoring everything from the Tasks Deleted box."
+  },
+  "sessions_this_session": {
+    "message": "this session",
+    "description": "Stands in for a session with no name, INSIDE sessions_replace_from_window. Its own key rather than an English literal spliced into the sentence."
+  }
+});

@@ -4026,7 +4026,6 @@
   // saveAll via the Storage bulk fns, then re-renders through the normal eager
   // path (which restores the empty state once a box is emptied).
 
-  function pluralItems(n) { return n + " item" + (n === 1 ? "" : "s"); }
 
   function deletedBoxCount() {
     var ws = Storage.getActiveWorkspace(data);
@@ -4055,14 +4054,14 @@
     if (!n) return;
     openTasksConfirmModal({
       title: t("empty_empty_trash_2"),
-      message: "Permanently delete all " + pluralItems(n) + "? This cannot be undone.",
+      message: t("empty_trash_confirm", { count: n }),
       confirmLabel: t("empty_delete_permanently"),
       dangerous: true,
       onConfirm: async function () {
         try {
           var removed = await Storage.emptyTrash(data);
           eagerRenderTasks();
-          showToast("Permanently deleted " + pluralItems(removed));
+          showToast(t("trash_permanently_deleted_toast", { count: removed }));
         } catch (err) {
           console.error("[LaunchPad] Tasks tab: empty trash failed", err);
         }
@@ -4077,7 +4076,7 @@
     try {
       var restored = await Storage.restoreAllTrash(data);
       eagerRenderTasks();
-      showToast("Restored " + pluralItems(restored));
+      showToast(t("trash_restored_toast", { count: restored }));
     } catch (err) {
       console.error("[LaunchPad] Tasks tab: restore all failed", err);
     }
@@ -4091,14 +4090,13 @@
     if (!n) return;
     openTasksConfirmModal({
       title: "Clear completed?",
-      message: "Move all " + n + " completed " + (n === 1 ? "item" : "items") +
-        " to Deleted? They stay recoverable for 30 days.",
+      message: t("clear_completed_confirm", { count: n }),
       confirmLabel: t("clear_move_to_deleted"),
       onConfirm: async function () {
         try {
           var cleared = await Storage.clearCompletedItems(data);
           eagerRenderTasks();
-          showToast("Moved " + pluralItems(cleared) + " to Deleted");
+          showToast(t("trash_moved_to_deleted_toast", { count: cleared }));
         } catch (err) {
           console.error("[LaunchPad] Tasks tab: clear completed failed", err);
         }
@@ -14478,7 +14476,7 @@
     } else if (action === "delete") {
       var hasVariants = shortcut.variants && shortcut.variants.length > 0;
       if (hasVariants) {
-        if (!confirm("This shortcut has " + shortcut.variants.length + " nested variant(s). Delete all?")) return;
+        if (!confirm(t("shortcut_delete_variants_confirm", { count: shortcut.variants.length }))) return;
       }
       group.shortcuts = group.shortcuts.filter(function (s) { return s.id !== shortcutId; });
       await Storage.saveAll(data);
@@ -15039,9 +15037,10 @@
     data = await Storage.getAll();
     renderSessionsList();
     var n = captured.tabs.length;
-    showToast("Saved " + n + (n === 1 ? " tab." : " tabs.") +
-              (captured.declined ? " " + captured.declined + " browser page" +
-               (captured.declined === 1 ? " was" : "s were") + " left out." : ""));
+    showToast(t("sessions_saved_tabs_toast", { count: n }) +
+              (captured.declined
+                ? " " + t("sessions_pages_left_out", { count: captured.declined })
+                : ""));
   }
 
   // ---- launch ------------------------------------------------------------
@@ -15751,16 +15750,18 @@
       var n = captured.tabs.length;
       openTasksConfirmModal({
         title: "Update from current window",
-        message: "Replace the " + (s.tabs || []).length + " saved tab" +
-                 ((s.tabs || []).length === 1 ? "" : "s") + " in " +
-                 (s.name || "this session") + " with the " + n + " open here? The name stays the same.",
+        message: t("sessions_replace_from_window", {
+          count: (s.tabs || []).length,
+          sessionName: s.name || t("sessions_this_session"),
+          openCount: n
+        }),
         confirmLabel: t("session_replace_tabs"),
         onConfirm: async function () {
           Storage.updateNamedSession(data, id, { tabs: captured.tabs });
           await Storage.saveAll(data);
           data = await Storage.getAll();
           renderSessionsList();
-          showToast("Updated to " + n + (n === 1 ? " tab." : " tabs."));
+          showToast(t("sessions_updated_tabs_toast", { count: n }));
         }
       });
       return;
@@ -17891,7 +17892,7 @@
 
     var count = group.shortcuts.length;
     if (count > 0) {
-      msgEl.textContent = "This group has " + count + " shortcut" + (count !== 1 ? "s" : "") + ". You can move them to another group or delete everything.";
+      msgEl.textContent = t("groupdelete_group_has_shortcuts", { count: count });
       if (moveLabel) moveLabel.textContent = t("groupdelete_move_shortcuts_to", { count: count });
       // Build dropdown of other groups
       var moveWs = Storage.getActiveWorkspace(data);
@@ -18520,7 +18521,7 @@
   function showOpenAllToast(count, groupName) {
     var toast = $("#open-all-toast");
     if (!toast) return;
-    toast.textContent = "Opened " + count + " tab" + (count !== 1 ? "s" : "") + " from " + groupName;
+    toast.textContent = t("group_opened_tabs_toast", { count: count, groupName: groupName });
     toast.classList.add("visible");
     clearTimeout(toast._timer);
     toast._timer = setTimeout(function () {
