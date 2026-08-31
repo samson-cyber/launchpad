@@ -3381,29 +3381,29 @@
     var fs = taskFilterState;
     return '<header class="tasks-header">' +
         '<div class="tasks-header-left">' +
-          '<h1 class="tasks-title">Tasks</h1>' +
-          '<div class="tasks-filter-bar" role="toolbar" aria-label="Task filters">' +
+          '<h1 class="tasks-title">' + th('feature_tasks_name') + '</h1>' +
+          '<div class="tasks-filter-bar" role="toolbar" aria-label="' + th('tasks_filter_bar_aria') + '">' +
             '<button type="button" class="tasks-filter tasks-filter-multi' + (fs.priorities.length ? ' is-active' : '') + '" data-filter="priority" aria-haspopup="true">' + escapeHtml(priorityFilterLabel()) + '</button>' +
             '<button type="button" class="tasks-filter tasks-filter-multi' + (fs.tagIds.length ? ' is-active' : '') + '" data-filter="tag" aria-haspopup="true">' + escapeHtml(tagFilterLabel()) + '</button>' +
-            '<select class="tasks-filter" data-filter="status" aria-label="Status filter">' +
-              '<option value="active"' + tasksSelectedAttr(fs.status, "active") + '>Active</option>' +
-              '<option value="completed"' + tasksSelectedAttr(fs.status, "completed") + '>Completed</option>' +
-              '<option value="all"' + tasksSelectedAttr(fs.status, "all") + '>All</option>' +
+            '<select class="tasks-filter" data-filter="status" aria-label="' + th('tasks_filter_status_aria') + '">' +
+              '<option value="active"' + tasksSelectedAttr(fs.status, "active") + '>' + th('tasks_status_active') + '</option>' +
+              '<option value="completed"' + tasksSelectedAttr(fs.status, "completed") + '>' + th('tasks_status_completed') + '</option>' +
+              '<option value="all"' + tasksSelectedAttr(fs.status, "all") + '>' + th('tasks_status_all') + '</option>' +
             '</select>' +
-            '<select class="tasks-filter" data-filter="sort" aria-label="Sort by">' +
-              '<option value="created"' + tasksSelectedAttr(fs.sort, "created") + '>Sort: created</option>' +
-              '<option value="due"' + tasksSelectedAttr(fs.sort, "due") + '>Sort: due</option>' +
-              '<option value="priority"' + tasksSelectedAttr(fs.sort, "priority") + '>Sort: priority</option>' +
-              '<option value="name"' + tasksSelectedAttr(fs.sort, "name") + '>Sort: name</option>' +
+            '<select class="tasks-filter" data-filter="sort" aria-label="' + th('tasks_filter_sort_aria') + '">' +
+              '<option value="created"' + tasksSelectedAttr(fs.sort, "created") + '>' + th('tasks_sort_created') + '</option>' +
+              '<option value="due"' + tasksSelectedAttr(fs.sort, "due") + '>' + th('tasks_sort_due') + '</option>' +
+              '<option value="priority"' + tasksSelectedAttr(fs.sort, "priority") + '>' + th('tasks_sort_priority') + '</option>' +
+              '<option value="name"' + tasksSelectedAttr(fs.sort, "name") + '>' + th('tasks_sort_name') + '</option>' +
             '</select>' +
           '</div>' +
         '</div>' +
         '<div class="tasks-header-right">' +
-          '<button class="tasks-action" data-action="new-goal" type="button">+ New Goal</button>' +
-          '<button class="tasks-action" data-action="new-task" type="button">+ New Task</button>' +
-          '<button class="tasks-action" data-action="new-recurring" type="button">+ New Recurring</button>' +
-          '<button class="tasks-action" data-action="new-tag" type="button">+ New Tag</button>' +
-          '<a class="tasks-templates-link" data-action="templates" href="#">Templates</a>' +
+          '<button class="tasks-action" data-action="new-goal" type="button">' + th('tasks_action_new_goal') + '</button>' +
+          '<button class="tasks-action" data-action="new-task" type="button">' + th('tasks_action_new_task') + '</button>' +
+          '<button class="tasks-action" data-action="new-recurring" type="button">' + th('tasks_action_new_recurring') + '</button>' +
+          '<button class="tasks-action" data-action="new-tag" type="button">' + th('tasks_action_new_tag') + '</button>' +
+          '<a class="tasks-templates-link" data-action="templates" href="#">' + th('tasks_action_templates') + '</a>' +
         '</div>' +
       '</header>';
   }
@@ -9093,6 +9093,15 @@
     renderProLicenseSection();
     // Sidebar entry visibility / tab gating handled by storage.onChanged listener.
   }
+
+  // [1.5.0] R3. Local bindings so builders call th()/t() rather than
+  // I18n.th()/I18n.t() at ~377 sites. th() is the HTML-escaped accessor and is
+  // what a markup concatenation takes; t() is plain text, for textContent, a
+  // .title property, alert/prompt, and the modal option keys that escape
+  // internally. The gate enforces the dangerous direction: a bare t() adjacent
+  // to a markup literal is a violation.
+  function t(key, params) { return I18n.t(key, params); }
+  function th(key, params) { return I18n.th(key, params); }
 
   function escapeHtml(s) {
     if (s == null) return "";

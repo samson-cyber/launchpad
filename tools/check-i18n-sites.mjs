@@ -50,10 +50,29 @@ const SITE_FLOOR = 600;               // measured 749 at [1.5.0]; see report
 // well above zero - the number that actually matters, since the failure mode is
 // a pattern collapsing to nothing rather than drifting a little. Measured at
 // [1.5.0] R3 with set-attr repaired.
+// THE TWO PATTERN FAMILIES ERODE DIFFERENTLY, and the R3 pilot proved it on its
+// first run. A floor calibrated on today's count is wrong for half of them.
+//
+//   TEXT patterns KEEP their sites. `.textContent = "x"` becomes
+//   `.textContent = t('k')` - still a dom-assign site, now compliant. The count
+//   is stable across migration, so the floor can sit just under it.
+//
+//   MARKUP patterns LOSE their sites. `'>Tasks<'` becomes `'>' + th('k') + '<'`,
+//   which the >prose< pattern no longer matches at all: the site does not turn
+//   compliant, it ceases to exist. Converting 16 sites dropped html-text from
+//   401 to 388 and html-aria from 43 to 40.
+//
+// So markup floors are set against the POST-R3 residue - the HTML-file sites,
+// which do keep their data-i18n markers - not against today's total. Set
+// against today they would have hard-failed the gate as BROKEN partway through
+// this very round, which is the failure the floors exist to prevent, arriving
+// from the opposite direction.
 const PATTERN_FLOORS = {
-  "html-text":  300,   // measured 400
-  "html-attr":   60,   // measured  87
-  "html-aria":   30,   // measured  43
+  // markup: floor against the ~184 / ~31 / ~10 that survive full conversion
+  "html-text":  120,   // 388 now, ~184 after R3 (HTML files keep their sites)
+  "html-attr":   20,   //  87 now,  ~31 after R3
+  "html-aria":    6,   //  40 now,  ~10 after R3
+  // text: sites persist and merely flip to compliant, so floors sit under today
   "dom-assign":  70,   // measured 107
   "set-attr":     6,   // measured  11 - the one this rule exists for
   "modal-copy": 120,   // measured 189

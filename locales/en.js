@@ -713,9 +713,10 @@ I18n.register("en", {
     "message": "LaunchPad sections",
     "description": "aria-label attribute on the tabbar surface."
   },
-  "tabbar_tasks": {
+  "feature_tasks_name": {
     "message": "Tasks",
-    "description": "Text on the tabbar surface."
+    "description": "Names the Tasks feature. Used by the tab-bar label AND the Tasks page heading, which are visible at the same time, so they must never diverge.",
+    "sense": "feature.name"
   },
   "tabbar_upgrade_to_pro": {
     "message": "Upgrade to Pro",
@@ -749,5 +750,76 @@ I18n.register("en", {
   "variantmenu_ungroup": {
     "message": "Ungroup",
     "description": "Text on the variantmenu surface."
+  }
+});
+
+
+// ======================================================================
+// [1.5.0] R3 - JS BUILDER LABELS.
+//
+// These reach the DOM through builder functions rather than static markup,
+// so they carry no fallback: a missing key renders the key on screen. Each
+// is a MARKUP sink and is read with th(), never t().
+// ======================================================================
+I18n.register("en", {
+  "tasks_action_new_goal": {
+    "message": "+ New Goal",
+    "description": "Tasks tab header action. The leading + is part of the label."
+  },
+  "tasks_action_new_recurring": {
+    "message": "+ New Recurring",
+    "description": "Tasks tab header action. The leading + is part of the label."
+  },
+  "tasks_action_new_tag": {
+    "message": "+ New Tag",
+    "description": "Tasks tab header action. The leading + is part of the label."
+  },
+  "tasks_action_new_task": {
+    "message": "+ New Task",
+    "description": "Tasks tab header action. The leading + is part of the label."
+  },
+  "tasks_action_templates": {
+    "message": "Templates",
+    "description": "Link to the goal-templates panel, in the Tasks tab header."
+  },
+  "tasks_filter_bar_aria": {
+    "message": "Task filters",
+    "description": "Accessible name of the Tasks tab's filter toolbar."
+  },
+  "tasks_filter_sort_aria": {
+    "message": "Sort by",
+    "description": "Accessible name of the task sort <select> on the Tasks tab."
+  },
+  "tasks_filter_status_aria": {
+    "message": "Status filter",
+    "description": "Accessible name of the task status <select> on the Tasks tab."
+  },
+  "tasks_sort_created": {
+    "message": "Sort: created",
+    "description": "Task sort option. The 'Sort:' prefix is part of the visible option text."
+  },
+  "tasks_sort_due": {
+    "message": "Sort: due",
+    "description": "Task sort option."
+  },
+  "tasks_sort_name": {
+    "message": "Sort: name",
+    "description": "Task sort option."
+  },
+  "tasks_sort_priority": {
+    "message": "Sort: priority",
+    "description": "Task sort option."
+  },
+  "tasks_status_active": {
+    "message": "Active",
+    "description": "Task STATUS filter option. Not the history panel's 'All'-style filter, and not an active-task indicator."
+  },
+  "tasks_status_all": {
+    "message": "All",
+    "description": "Task STATUS filter option. A DIFFERENT filter from the history panel's 'All' (history_all); the two must not share a key."
+  },
+  "tasks_status_completed": {
+    "message": "Completed",
+    "description": "Task STATUS filter option on the Tasks tab."
   }
 });
