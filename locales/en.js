@@ -1447,3 +1447,1025 @@ I18n.register("en", {
     "description": "Text sink in wirePicker(). Rendered with t()."
   }
 });
+
+
+// ====================================================================
+// [1.5.0] R3 stage D - attribute labels (th())
+// ====================================================================
+I18n.register("en", {
+  "add_add_shortcut": {
+    "message": "Add shortcut",
+    "description": "Attribute label in addTileHTML(). Rendered with th()."
+  },
+  "completed_right_click_or_restore_to_reactivate": {
+    "message": "Right-click or Restore to reactivate",
+    "description": "Attribute label in completedRowHtml(). Rendered with th()."
+  },
+  "dash_add_a_task_due_today": {
+    "message": "Add a task due today",
+    "description": "Attribute label in dashQuickAddHtml(). Rendered with th()."
+  },
+  "dash_add_a_task_due_today_2": {
+    "message": "Add a task due today…",
+    "description": "Attribute label in dashQuickAddHtml(). Rendered with th()."
+  },
+  "dashboard_deep_work_hours_this_week": {
+    "message": "Deep work hours this week",
+    "description": "Attribute label in renderDashboardPreview(). Rendered with th()."
+  },
+  "freq_recurring_task_name": {
+    "message": "Recurring task name",
+    "description": "Attribute label in freqOption(). Rendered with th()."
+  },
+  "goal_goal_name": {
+    "message": "Goal name",
+    "description": "Attribute label in openGoalModal(). Rendered with th()."
+  },
+  "goal_goal_options": {
+    "message": "Goal options",
+    "description": "Attribute label in goalCardHtml(). Rendered with th()."
+  },
+  "goal_optional": {
+    "message": "Optional",
+    "description": "Attribute label in openGoalModal(). Rendered with th()."
+  },
+  "goal_task_name": {
+    "message": "Task name",
+    "description": "Attribute label in goalCardHtml(). Rendered with th()."
+  },
+  "goal_toggle_goal_collapse": {
+    "message": "Toggle goal collapse",
+    "description": "Attribute label in goalCardHtml(). Rendered with th()."
+  },
+  "group_group_options": {
+    "message": "Group options",
+    "description": "Attribute label in groupHTML(). Rendered with th()."
+  },
+  "group_open_all_shortcuts_in_new_tabs": {
+    "message": "Open all shortcuts in new tabs",
+    "description": "Attribute label in groupHTML(). Rendered with th()."
+  },
+  "insights_date_range": {
+    "message": "Date range",
+    "description": "Attribute label in insightsRangeSelectorHtml(). Rendered with th()."
+  },
+  "new_optional": {
+    "message": "Optional",
+    "description": "Attribute label in openNewTaskModal(). Rendered with th()."
+  },
+  "new_task_name": {
+    "message": "Task name",
+    "description": "Attribute label in openNewTaskModal(). Rendered with th()."
+  },
+  "note_delete_note": {
+    "message": "Delete note",
+    "description": "Attribute label in noteCardHtml(). Rendered with th()."
+  },
+  "notes_clear_search": {
+    "message": "Clear search",
+    "description": "Attribute label in notesSearchHtml(). Rendered with th()."
+  },
+  "notes_cycle_the_palette": {
+    "message": "Cycle the palette",
+    "description": "Attribute label in renderNotesDefaultColorSection(). Rendered with th()."
+  },
+  "notes_cycle_the_palette_2": {
+    "message": "Cycle the palette",
+    "description": "Attribute label in renderNotesDefaultColorSection(). Rendered with th()."
+  },
+  "notes_notes_preview": {
+    "message": "Notes preview",
+    "description": "Attribute label in notesPreviewPanelHtml(). Rendered with th()."
+  },
+  "notes_search_notes": {
+    "message": "Search notes",
+    "description": "Attribute label in notesSearchHtml(). Rendered with th()."
+  },
+  "pro_change_color": {
+    "message": "Change color",
+    "description": "Attribute label in renderProTagsSection(). Rendered with th()."
+  },
+  "pro_delete_tag": {
+    "message": "Delete tag",
+    "description": "Attribute label in renderProTagsSection(). Rendered with th()."
+  },
+  "pro_delete_workspace": {
+    "message": "Delete workspace",
+    "description": "Attribute label in renderProWorkspaceList(). Rendered with th()."
+  },
+  "pro_drag_to_reorder": {
+    "message": "Drag to reorder",
+    "description": "Attribute label in renderProWorkspaceList(). Rendered with th()."
+  },
+  "pro_in_trash_restore_within_30_days": {
+    "message": "In trash. Restore within 30 days.",
+    "description": "Attribute label in renderProTagsSection(). Rendered with th()."
+  },
+  "pro_new_workspace_name": {
+    "message": "New workspace name",
+    "description": "Attribute label in renderProWorkspaceList(). Rendered with th()."
+  },
+  "pro_restore_this_tag": {
+    "message": "Restore this tag",
+    "description": "Attribute label in renderProTagsSection(). Rendered with th()."
+  },
+  "pro_track_focus_time_in_the_new": {
+    "message": "Track focus time in the new workspace",
+    "description": "Attribute label in renderProWorkspaceList(). Rendered with th()."
+  },
+  "pro_track_focus_time_in_this_workspace": {
+    "message": "Track focus time in this workspace",
+    "description": "Attribute label in renderProWorkspaceList(). Rendered with th()."
+  },
+  "pro_track_focus_time_while_this_workspace": {
+    "message": "Track focus time while this workspace is active",
+    "description": "Attribute label in renderProWorkspaceList(). Rendered with th()."
+  },
+  "pro_track_focus_time_while_this_workspace_2": {
+    "message": "Track focus time while this workspace is active",
+    "description": "Attribute label in renderProWorkspaceList(). Rendered with th()."
+  },
+  "promo_dismiss": {
+    "message": "Dismiss",
+    "description": "Attribute label in showPromoToast(). Rendered with th()."
+  },
+  "recurring_right_click_to_manage": {
+    "message": "Right-click to manage",
+    "description": "Attribute label in recurringRowHtml(). Rendered with th()."
+  },
+  "sat_change_focus_length": {
+    "message": "Change focus length",
+    "description": "Attribute label in satCardHtml(). Rendered with th()."
+  },
+  "sat_complete_the_task_it_moves_to": {
+    "message": "Complete the task. It moves to Completed, and you can uncheck it in Tasks to reopen it.",
+    "description": "Attribute label in satCardHtml(). Rendered with th()."
+  },
+  "sat_custom": {
+    "message": "Custom",
+    "description": "Attribute label in satPomoDurChipsHtml(). Rendered with th()."
+  },
+  "sat_focus_blocking_is_on": {
+    "message": "Focus blocking is on",
+    "description": "Attribute label in satFocusPillDot(). Rendered with th()."
+  },
+  "sat_focus_blocking_is_on_2": {
+    "message": "Focus blocking is on",
+    "description": "Attribute label in satFocusPillDot(). Rendered with th()."
+  },
+  "sat_minimize": {
+    "message": "Minimize",
+    "description": "Attribute label in satCardHtml(). Rendered with th()."
+  },
+  "sat_minimize_active_task_card": {
+    "message": "Minimize active task card",
+    "description": "Attribute label in satCardHtml(). Rendered with th()."
+  },
+  "sat_pause_tracking": {
+    "message": "Pause tracking",
+    "description": "Attribute label in satCardHtml(). Rendered with th()."
+  },
+  "sat_resume_tracking": {
+    "message": "Resume tracking",
+    "description": "Attribute label in satPillFaceHtml(). Rendered with th()."
+  },
+  "sat_resume_tracking_2": {
+    "message": "Resume tracking",
+    "description": "Attribute label in satCardHtml(). Rendered with th()."
+  },
+  "sat_search_tasks": {
+    "message": "Search tasks",
+    "description": "Attribute label in openSatSwitchMenu(). Rendered with th()."
+  },
+  "sat_search_tasks_in_all_workspaces": {
+    "message": "Search tasks in all workspaces",
+    "description": "Attribute label in openSatSwitchMenu(). Rendered with th()."
+  },
+  "sat_start_a_focus_session": {
+    "message": "Start a focus session",
+    "description": "Attribute label in satCardHtml(). Rendered with th()."
+  },
+  "sat_start_the_next_focus_session": {
+    "message": "Start the next focus session",
+    "description": "Attribute label in satCardHtml(). Rendered with th()."
+  },
+  "sat_stop_focus_session": {
+    "message": "Stop focus session",
+    "description": "Attribute label in satCardHtml(). Rendered with th()."
+  },
+  "sat_stop_tracking_for_now_the_task": {
+    "message": "Stop tracking for now. The task stays open and keeps its time.",
+    "description": "Attribute label in satCardHtml(). Rendered with th()."
+  },
+  "sat_switch_active_task": {
+    "message": "Switch active task",
+    "description": "Attribute label in satCardHtml(). Rendered with th()."
+  },
+  "session_options": {
+    "message": "Options",
+    "description": "Attribute label in sessionRowHtml(). Rendered with th()."
+  },
+  "session_session_options": {
+    "message": "Session options",
+    "description": "Attribute label in sessionRowHtml(). Rendered with th()."
+  },
+  "shortcut_more_actions": {
+    "message": "More actions",
+    "description": "Attribute label in shortcutHTML(). Rendered with th()."
+  },
+  "sidebar_drag_to_reorder": {
+    "message": "Drag to reorder",
+    "description": "Attribute label in renderSidebarGroups(). Rendered with th()."
+  },
+  "sidebar_drag_to_reorder_2": {
+    "message": "Drag to reorder",
+    "description": "Attribute label in sidebarShortcutListHTML(). Rendered with th()."
+  },
+  "sidebar_group_options": {
+    "message": "Group options",
+    "description": "Attribute label in renderSidebarGroups(). Rendered with th()."
+  },
+  "task_delete_task": {
+    "message": "Delete task",
+    "description": "Attribute label in taskRowHtml(). Rendered with th()."
+  },
+  "task_drag_to_reorder": {
+    "message": "Drag to reorder",
+    "description": "Attribute label in taskRowHtml(). Rendered with th()."
+  },
+  "task_drag_to_reorder_2": {
+    "message": "Drag to reorder",
+    "description": "Attribute label in taskRowHtml(). Rendered with th()."
+  },
+  "task_optional": {
+    "message": "Optional",
+    "description": "Attribute label in taskRowHtml(). Rendered with th()."
+  },
+  "task_remove_task": {
+    "message": "Remove task",
+    "description": "Attribute label in taskRowHtml(). Rendered with th()."
+  },
+  "task_task_name": {
+    "message": "Task name",
+    "description": "Attribute label in taskRowHtml(). Rendered with th()."
+  },
+  "task_task_options": {
+    "message": "Task options",
+    "description": "Attribute label in taskOptionsPillHtml(). Rendered with th()."
+  },
+  "task_template_name": {
+    "message": "Template name",
+    "description": "Attribute label in taskRowHtml(). Rendered with th()."
+  },
+  "task_toggle_task_complete": {
+    "message": "Toggle task complete",
+    "description": "Attribute label in taskRowHtml(). Rendered with th()."
+  },
+  "tasks_goal_options": {
+    "message": "Goal options",
+    "description": "Attribute label in renderTasksPreview(). Rendered with th()."
+  },
+  "upgrade_enter_license_key": {
+    "message": "Enter license key",
+    "description": "Attribute label in openUpgradePopover(). Rendered with th()."
+  },
+  "workspace_workspace_name": {
+    "message": "Workspace name",
+    "description": "Attribute label in buildWorkspaceDropdownBody(). Rendered with th()."
+  }
+});
+
+
+// ====================================================================
+// [1.5.0] R3 stage E - markup labels (th())
+// ====================================================================
+I18n.register("en", {
+  "apply_coming_soon": {
+    "message": "Coming soon",
+    "description": "Markup label in applyCtaState(). Rendered with th()."
+  },
+  "apply_pro": {
+    "message": "Pro",
+    "description": "Markup label in applyCtaState(). Rendered with th()."
+  },
+  "attach_there_are_no_open_tasks_in": {
+    "message": "There are no open tasks in this workspace yet.",
+    "description": "Markup label in attachPickerBodyHtml(). Rendered with th()."
+  },
+  "badge_achievement_unlocked": {
+    "message": "Achievement unlocked",
+    "description": "Markup label in showBadgeSplash(). Rendered with th()."
+  },
+  "completed_clear": {
+    "message": "Clear",
+    "description": "Markup label in completedBoxHtml(). Rendered with th()."
+  },
+  "completed_no_completed_tasks_yet": {
+    "message": "No completed tasks yet.",
+    "description": "Markup label in completedBoxHtml(). Rendered with th()."
+  },
+  "completed_reactivate": {
+    "message": "Reactivate",
+    "description": "Markup label in openCompletedContextMenu(). Rendered with th()."
+  },
+  "completed_restore": {
+    "message": "Restore",
+    "description": "Markup label in completedRowHtml(). Rendered with th()."
+  },
+  "conditional_day_of_month": {
+    "message": "Day of month",
+    "description": "Markup label in conditionalHtml(). Rendered with th()."
+  },
+  "conditional_days_of_week": {
+    "message": "Days of week",
+    "description": "Markup label in conditionalHtml(). Rendered with th()."
+  },
+  "dash_add_something_below_when_you_are": {
+    "message": "Add something below when you are ready.",
+    "description": "Markup label in dashHeadHtml(). Rendered with th()."
+  },
+  "dash_create_one_in_tasks": {
+    "message": "create one in Tasks",
+    "description": "Markup label in dashGoalsHtml(). Rendered with th()."
+  },
+  "dash_day_streak": {
+    "message": "day streak",
+    "description": "Markup label in dashStreakBodyHtml(). Rendered with th()."
+  },
+  "dash_focus_on_something_today_to_start": {
+    "message": "Focus on something today to start one.",
+    "description": "Markup label in dashStreakBodyHtml(). Rendered with th()."
+  },
+  "dash_nothing_due_today": {
+    "message": "Nothing due today.",
+    "description": "Markup label in dashDueListHtml(). Rendered with th()."
+  },
+  "dash_nothing_on_the_list": {
+    "message": "Nothing on the list.",
+    "description": "Markup label in dashHeadHtml(). Rendered with th()."
+  },
+  "dash_overdue": {
+    "message": "Overdue",
+    "description": "Markup label in dashDueListHtml(). Rendered with th()."
+  },
+  "dash_pick_up_where_you_left_off": {
+    "message": "Pick up where you left off",
+    "description": "Markup label in dashHeadHtml(). Rendered with th()."
+  },
+  "dash_suggested_next": {
+    "message": "Suggested next",
+    "description": "Markup label in dashHeadHtml(). Rendered with th()."
+  },
+  "dash_tasks": {
+    "message": "Tasks",
+    "description": "Markup label in dashGoalsHtml(). Rendered with th()."
+  },
+  "dash_tasks_2": {
+    "message": "Tasks",
+    "description": "Markup label in dashDueListHtml(). Rendered with th()."
+  },
+  "dash_that_s_the_day": {
+    "message": "That’s the day",
+    "description": "Markup label in dashHeadHtml(). Rendered with th()."
+  },
+  "dash_through_yesterday_today_is_still_open": {
+    "message": "Through yesterday. Today is still open.",
+    "description": "Markup label in dashStreakBodyHtml(). Rendered with th()."
+  },
+  "dash_work_s_done": {
+    "message": "Work’s done.",
+    "description": "Markup label in dashHeadHtml(). Rendered with th()."
+  },
+  "dashboard_deep_work": {
+    "message": "deep work",
+    "description": "Markup label in renderDashboardPreview(). Rendered with th()."
+  },
+  "dashboard_due_today": {
+    "message": "Due today",
+    "description": "Markup label in renderDashboardTab(). Rendered with th()."
+  },
+  "dashboard_focus_streak": {
+    "message": "Focus streak",
+    "description": "Markup label in renderDashboardTab(). Rendered with th()."
+  },
+  "dashboard_goals": {
+    "message": "Goals",
+    "description": "Markup label in renderDashboardTab(). Rendered with th()."
+  },
+  "dashboard_goals_making_progress": {
+    "message": "goals making progress",
+    "description": "Markup label in renderDashboardPreview(). Rendered with th()."
+  },
+  "dashboard_hours_of_deep_work": {
+    "message": "hours of deep work",
+    "description": "Markup label in renderDashboardPreview(). Rendered with th()."
+  },
+  "dashboard_how_did_today_feel": {
+    "message": "How did today feel?",
+    "description": "Markup label in renderDashboardPreview(). Rendered with th()."
+  },
+  "dashboard_longest_focus_stretch": {
+    "message": "Longest focus stretch:",
+    "description": "Markup label in renderDashboardPreview(). Rendered with th()."
+  },
+  "dashboard_tasks_completed": {
+    "message": "tasks completed",
+    "description": "Markup label in renderDashboardPreview(). Rendered with th()."
+  },
+  "dashboard_this_week": {
+    "message": "This week",
+    "description": "Markup label in renderDashboardPreview(). Rendered with th()."
+  },
+  "dashboard_today_s_recap": {
+    "message": "Today’s Recap",
+    "description": "Markup label in renderDashboardPreview(). Rendered with th()."
+  },
+  "deleted_empty": {
+    "message": "Empty",
+    "description": "Markup label in deletedBoxHtml(). Rendered with th()."
+  },
+  "deleted_nothing_deleted_items_stay_here_30": {
+    "message": "Nothing deleted. Items stay here 30 days.",
+    "description": "Markup label in deletedBoxHtml(). Rendered with th()."
+  },
+  "deleted_restore": {
+    "message": "Restore",
+    "description": "Markup label in deletedBoxHtml(). Rendered with th()."
+  },
+  "deleted_restore_all": {
+    "message": "Restore all",
+    "description": "Markup label in deletedBoxHtml(). Rendered with th()."
+  },
+  "demo_add_to_launchpad": {
+    "message": "Add to LaunchPad",
+    "description": "Markup label in demoIntroHTML(). Rendered with th()."
+  },
+  "demo_already_have_bookmarks": {
+    "message": "Already have bookmarks?",
+    "description": "Markup label in demoIntroHTML(). Rendered with th()."
+  },
+  "demo_bring_them_in_from_top_sites": {
+    "message": "Bring them in from top sites or Chrome bookmarks.",
+    "description": "Markup label in demoIntroHTML(). Rendered with th()."
+  },
+  "demo_make_it_yours_pick_a_background": {
+    "message": "Make it yours. Pick a background.",
+    "description": "Markup label in demoIntroHTML(). Rendered with th()."
+  },
+  "demo_pick_a_background": {
+    "message": "Pick a background",
+    "description": "Markup label in demoIntroHTML(). Rendered with th()."
+  },
+  "demo_save_any_page": {
+    "message": "Save any page",
+    "description": "Markup label in demoIntroHTML(). Rendered with th()."
+  },
+  "demo_welcome_to_launchpad": {
+    "message": "Welcome to LaunchPad",
+    "description": "Markup label in demoIntroHTML(). Rendered with th()."
+  },
+  "due_add_date": {
+    "message": "Add date",
+    "description": "Markup label in dueDatePillHtml(). Rendered with th()."
+  },
+  "due_clear": {
+    "message": "Clear",
+    "description": "Markup label in openDueDatePillPopover(). Rendered with th()."
+  },
+  "due_set": {
+    "message": "Set",
+    "description": "Markup label in openDueDatePillPopover(). Rendered with th()."
+  },
+  "freq_active": {
+    "message": "Active",
+    "description": "Markup label in freqOption(). Rendered with th()."
+  },
+  "freq_frequency": {
+    "message": "Frequency",
+    "description": "Markup label in freqOption(). Rendered with th()."
+  },
+  "freq_name": {
+    "message": "Name",
+    "description": "Markup label in freqOption(). Rendered with th()."
+  },
+  "freq_time_of_day": {
+    "message": "Time of day",
+    "description": "Markup label in freqOption(). Rendered with th()."
+  },
+  "getting_getting_started": {
+    "message": "Getting started",
+    "description": "Markup label in renderGettingStarted(). Rendered with th()."
+  },
+  "getting_i_know_my_way_around": {
+    "message": "I know my way around",
+    "description": "Markup label in renderGettingStarted(). Rendered with th()."
+  },
+  "getting_you_know_your_way_around": {
+    "message": "You know your way around.",
+    "description": "Markup label in renderGettingStarted(). Rendered with th()."
+  },
+  "getting_you_know_your_way_around_2": {
+    "message": "You know your way around.",
+    "description": "Markup label in renderGettingStarted(). Rendered with th()."
+  },
+  "ghost_new_note": {
+    "message": "New note",
+    "description": "Markup label in ghostNoteHtml(). Rendered with th()."
+  },
+  "goal_add": {
+    "message": "Add",
+    "description": "Markup label in goalCardHtml(). Rendered with th()."
+  },
+  "goal_add_task": {
+    "message": "+ Add task",
+    "description": "Markup label in goalCardHtml(). Rendered with th()."
+  },
+  "goal_auto_create_tag_from_goal_name": {
+    "message": "Auto-create tag from goal name",
+    "description": "Markup label in openGoalModal(). Rendered with th()."
+  },
+  "goal_deadline": {
+    "message": "Deadline",
+    "description": "Markup label in openGoalModal(). Rendered with th()."
+  },
+  "goal_description": {
+    "message": "Description",
+    "description": "Markup label in openGoalModal(). Rendered with th()."
+  },
+  "goal_duplicate": {
+    "message": "Duplicate",
+    "description": "Markup label in goalTemplateListHtml(). Rendered with th()."
+  },
+  "goal_edit": {
+    "message": "Edit",
+    "description": "Markup label in goalTemplateListHtml(). Rendered with th()."
+  },
+  "goal_edit_2": {
+    "message": "Edit",
+    "description": "Markup label in openGoalContextMenu(). Rendered with th()."
+  },
+  "goal_from_template": {
+    "message": "From template",
+    "description": "Markup label in openGoalModal(). Rendered with th()."
+  },
+  "goal_mark_complete": {
+    "message": "Mark complete",
+    "description": "Markup label in openGoalContextMenu(). Rendered with th()."
+  },
+  "goal_name": {
+    "message": "Name",
+    "description": "Markup label in openGoalModal(). Rendered with th()."
+  },
+  "goal_no_tasks_match_the_current_filter": {
+    "message": "No tasks match the current filter.",
+    "description": "Markup label in goalCardHtml(). Rendered with th()."
+  },
+  "goal_no_tasks_yet": {
+    "message": "No tasks yet.",
+    "description": "Markup label in goalCardHtml(). Rendered with th()."
+  },
+  "goal_no_templates_yet": {
+    "message": "No templates yet",
+    "description": "Markup label in openGoalModal(). Rendered with th()."
+  },
+  "goal_no_templates_yet_2": {
+    "message": "No templates yet",
+    "description": "Markup label in goalTemplateListHtml(). Rendered with th()."
+  },
+  "goal_none_blank_goal": {
+    "message": "None (blank goal)",
+    "description": "Markup label in openGoalModal(). Rendered with th()."
+  },
+  "goal_overdue": {
+    "message": "Overdue",
+    "description": "Markup label in goalCardHtml(). Rendered with th()."
+  },
+  "goal_right_click_an_active_goal_save": {
+    "message": "Right-click an active goal → “Save as template”, or create one below.",
+    "description": "Markup label in goalTemplateListHtml(). Rendered with th()."
+  },
+  "goal_save_as_template": {
+    "message": "Save as template",
+    "description": "Markup label in openGoalContextMenu(). Rendered with th()."
+  },
+  "insights_achievements": {
+    "message": "Achievements",
+    "description": "Markup label in renderInsightsPreview(). Rendered with th()."
+  },
+  "insights_custom": {
+    "message": "Custom",
+    "description": "Markup label in insightsRangeSelectorHtml(). Rendered with th()."
+  },
+  "insights_deep_work_last_30_days": {
+    "message": "Deep Work, last 30 days",
+    "description": "Markup label in renderInsightsPreview(). Rendered with th()."
+  },
+  "insights_from": {
+    "message": "From",
+    "description": "Markup label in insightsRangeSelectorHtml(). Rendered with th()."
+  },
+  "insights_hours_day": {
+    "message": "hours / day",
+    "description": "Markup label in insightsBarChartSvg(). Rendered with th()."
+  },
+  "insights_time_by_tag_last_30_days": {
+    "message": "Time by tag, last 30 days",
+    "description": "Markup label in renderInsightsPreview(). Rendered with th()."
+  },
+  "insights_to": {
+    "message": "To",
+    "description": "Markup label in insightsRangeSelectorHtml(). Rendered with th()."
+  },
+  "nest_shortcuts_grouped_name_this_group": {
+    "message": "Shortcuts grouped! Name this group?",
+    "description": "Markup label in showNestRenameDialog(). Rendered with th()."
+  },
+  "nest_skip": {
+    "message": "Skip",
+    "description": "Markup label in showNestRenameDialog(). Rendered with th()."
+  },
+  "new_description": {
+    "message": "Description",
+    "description": "Markup label in openNewTaskModal(). Rendered with th()."
+  },
+  "new_due_date": {
+    "message": "Due date",
+    "description": "Markup label in openNewTaskModal(). Rendered with th()."
+  },
+  "new_high": {
+    "message": "High",
+    "description": "Markup label in openNewTaskModal(). Rendered with th()."
+  },
+  "new_low": {
+    "message": "Low",
+    "description": "Markup label in openNewTaskModal(). Rendered with th()."
+  },
+  "new_medium": {
+    "message": "Medium",
+    "description": "Markup label in openNewTaskModal(). Rendered with th()."
+  },
+  "new_name": {
+    "message": "Name",
+    "description": "Markup label in openNewTaskModal(). Rendered with th()."
+  },
+  "new_none": {
+    "message": "None",
+    "description": "Markup label in openNewTaskModal(). Rendered with th()."
+  },
+  "new_priority": {
+    "message": "Priority",
+    "description": "Markup label in openNewTaskModal(). Rendered with th()."
+  },
+  "new_urgent": {
+    "message": "Urgent",
+    "description": "Markup label in openNewTaskModal(). Rendered with th()."
+  },
+  "note_empty_note": {
+    "message": "Empty note",
+    "description": "Markup label in noteCardHtml(). Rendered with th()."
+  },
+  "notes_delete_permanently": {
+    "message": "Delete permanently",
+    "description": "Markup label in notesTrashRowHtml(). Rendered with th()."
+  },
+  "notes_empty_note": {
+    "message": "Empty note",
+    "description": "Markup label in notesTrashRowHtml(). Rendered with th()."
+  },
+  "notes_notes": {
+    "message": "Notes",
+    "description": "Markup label in notesPanelHtml(). Rendered with th()."
+  },
+  "notes_notes_2": {
+    "message": "Notes",
+    "description": "Markup label in notesPreviewPanelHtml(). Rendered with th()."
+  },
+  "notes_nothing_in_the_trash_deleted_notes": {
+    "message": "Nothing in the trash. Deleted notes appear here before they are removed for good.",
+    "description": "Markup label in notesTrashBodyHtml(). Rendered with th()."
+  },
+  "notes_promote_to_goal": {
+    "message": "Promote to goal",
+    "description": "Markup label in openNotesMenu(). Rendered with th()."
+  },
+  "notes_promote_to_task": {
+    "message": "Promote to task",
+    "description": "Markup label in openNotesMenu(). Rendered with th()."
+  },
+  "notes_restore": {
+    "message": "Restore",
+    "description": "Markup label in notesTrashRowHtml(). Rendered with th()."
+  },
+  "notes_trash": {
+    "message": "Trash",
+    "description": "Markup label in notesTrashBarHtml(). Rendered with th()."
+  },
+  "preview_coming_soon": {
+    "message": "Coming soon",
+    "description": "Markup label in previewBannerHtml(). Rendered with th()."
+  },
+  "preview_preview_mode_full_pro_is_coming": {
+    "message": "Preview mode. Full Pro is coming soon.",
+    "description": "Markup label in previewBannerHtml(). Rendered with th()."
+  },
+  "preview_preview_mode_upgrade_to_pro_to": {
+    "message": "Preview mode. Upgrade to Pro to use this feature with your data.",
+    "description": "Markup label in previewBannerHtml(). Rendered with th()."
+  },
+  "priority_clear_priority": {
+    "message": "Clear priority",
+    "description": "Markup label in openPriorityPillPopover(). Rendered with th()."
+  },
+  "pro_add_workspace": {
+    "message": "Add workspace",
+    "description": "Markup label in renderProWorkspaceList(). Rendered with th()."
+  },
+  "pro_everything_is_unlocked_here_s_your": {
+    "message": "Everything is unlocked. Here’s your thirty-second lay of the land.",
+    "description": "Markup label in showProCelebration(). Rendered with th()."
+  },
+  "pro_explore_on_my_own": {
+    "message": "Explore on my own",
+    "description": "Markup label in showProCelebration(). Rendered with th()."
+  },
+  "pro_in_trash": {
+    "message": "in trash",
+    "description": "Markup label in renderProTagsSection(). Rendered with th()."
+  },
+  "pro_pro_activated": {
+    "message": "Pro activated",
+    "description": "Markup label in showProCelebration(). Rendered with th()."
+  },
+  "pro_restore": {
+    "message": "Restore",
+    "description": "Markup label in renderProTagsSection(). Rendered with th()."
+  },
+  "pro_skip": {
+    "message": "Skip",
+    "description": "Markup label in renderProTourStep(). Rendered with th()."
+  },
+  "pro_take_the_tour": {
+    "message": "Take the tour",
+    "description": "Markup label in showProCelebration(). Rendered with th()."
+  },
+  "pro_track": {
+    "message": "Track",
+    "description": "Markup label in renderProWorkspaceList(). Rendered with th()."
+  },
+  "pro_track_2": {
+    "message": "Track",
+    "description": "Markup label in renderProWorkspaceList(). Rendered with th()."
+  },
+  "pro_verification_overdue_mdash_reconnect_to_keep": {
+    "message": "Verification overdue &mdash; reconnect to keep access.",
+    "description": "Markup label in renderProSubscriptionSection(). Rendered with th()."
+  },
+  "pro_you_re_pro": {
+    "message": "You’re Pro",
+    "description": "Markup label in showProCelebration(). Rendered with th()."
+  },
+  "promo_enjoying_launchpad_leave_a_quick_rating": {
+    "message": "Enjoying LaunchPad? Leave a quick rating!",
+    "description": "Markup label in showPromoToast(). Rendered with th()."
+  },
+  "promo_rate": {
+    "message": "Rate",
+    "description": "Markup label in showPromoToast(). Rendered with th()."
+  },
+  "promote_delete_note_after_creating": {
+    "message": "Delete note after creating",
+    "description": "Markup label in promoteDeleteRowHtml(). Rendered with th()."
+  },
+  "rc_no_matches_found": {
+    "message": "No matches found",
+    "description": "Markup label in showRcItems(). Rendered with th()."
+  },
+  "read_this_workspace_is_read_only_upgrade": {
+    "message": "This workspace is read-only. Upgrade to Pro to edit.",
+    "description": "Markup label in renderReadOnlyBanner(). Rendered with th()."
+  },
+  "read_upgrade": {
+    "message": "Upgrade",
+    "description": "Markup label in renderReadOnlyBanner(). Rendered with th()."
+  },
+  "recurring_edit": {
+    "message": "Edit",
+    "description": "Markup label in openRecurringContextMenu(). Rendered with th()."
+  },
+  "recurring_paused": {
+    "message": "Paused",
+    "description": "Markup label in recurringRowHtml(). Rendered with th()."
+  },
+  "restore_add_to_launchpad": {
+    "message": "Add to LaunchPad",
+    "description": "Markup label in restoreDemoExamples(). Rendered with th()."
+  },
+  "sat_active_task": {
+    "message": "Active task",
+    "description": "Markup label in satCardHtml(). Rendered with th()."
+  },
+  "sat_focus_session": {
+    "message": "▶ Focus session",
+    "description": "Markup label in satCardHtml(). Rendered with th()."
+  },
+  "sat_focused_today": {
+    "message": "Focused today",
+    "description": "Markup label in satIdleHeadlineHtml(). Rendered with th()."
+  },
+  "sat_no_active_task": {
+    "message": "No active task",
+    "description": "Markup label in satPillFaceHtml(). Rendered with th()."
+  },
+  "sat_no_goal": {
+    "message": "No goal",
+    "description": "Markup label in satSwitchListHtml(). Rendered with th()."
+  },
+  "sat_no_sites_listed": {
+    "message": "no sites listed",
+    "description": "Markup label in satFocusRowHtml(). Rendered with th()."
+  },
+  "sat_pause": {
+    "message": "⏸ Pause",
+    "description": "Markup label in satCardHtml(). Rendered with th()."
+  },
+  "sat_resume": {
+    "message": "▶ Resume",
+    "description": "Markup label in satCardHtml(). Rendered with th()."
+  },
+  "sat_start_next_session": {
+    "message": "▶ Start next session",
+    "description": "Markup label in satCardHtml(). Rendered with th()."
+  },
+  "sat_stop": {
+    "message": "■ Stop",
+    "description": "Markup label in satCardHtml(). Rendered with th()."
+  },
+  "sat_worked_on_this_task": {
+    "message": "worked on this task",
+    "description": "Markup label in satWorkedLineHtml(). Rendered with th()."
+  },
+  "sessions_delete_permanently": {
+    "message": "Delete permanently",
+    "description": "Markup label in sessionsTrashRowHtml(). Rendered with th()."
+  },
+  "sessions_nothing_in_the_trash_deleted_sessions": {
+    "message": "Nothing in the trash. Deleted sessions appear here before they are removed for good.",
+    "description": "Markup label in sessionsTrashBodyHtml(). Rendered with th()."
+  },
+  "sessions_restore": {
+    "message": "Restore",
+    "description": "Markup label in sessionsTrashRowHtml(). Rendered with th()."
+  },
+  "sessions_trash": {
+    "message": "Trash",
+    "description": "Markup label in sessionsTrashEntranceHtml(). Rendered with th()."
+  },
+  "sidebar_no_shortcuts": {
+    "message": "No shortcuts",
+    "description": "Markup label in sidebarShortcutListHTML(). Rendered with th()."
+  },
+  "tab_coming_soon": {
+    "message": "Coming soon.",
+    "description": "Markup label in renderTabPlaceholder(). Rendered with th()."
+  },
+  "task_add_task": {
+    "message": "+ Add task",
+    "description": "Markup label in taskRowHtml(). Rendered with th()."
+  },
+  "task_deadline_days_from_creation": {
+    "message": "Deadline (days from creation)",
+    "description": "Markup label in taskRowHtml(). Rendered with th()."
+  },
+  "task_description": {
+    "message": "Description",
+    "description": "Markup label in taskRowHtml(). Rendered with th()."
+  },
+  "task_detach_session": {
+    "message": "Detach session",
+    "description": "Markup label in openTaskContextMenu(). Rendered with th()."
+  },
+  "task_duplicate": {
+    "message": "Duplicate",
+    "description": "Markup label in openTaskContextMenu(). Rendered with th()."
+  },
+  "task_edit": {
+    "message": "Edit",
+    "description": "Markup label in openTaskContextMenu(). Rendered with th()."
+  },
+  "task_make_active": {
+    "message": "Make active",
+    "description": "Markup label in openTaskContextMenu(). Rendered with th()."
+  },
+  "task_name": {
+    "message": "Name",
+    "description": "Markup label in taskRowHtml(). Rendered with th()."
+  },
+  "task_no_goal_standalone": {
+    "message": "No goal (standalone)",
+    "description": "Markup label in taskGoalPickerRowsHtml(). Rendered with th()."
+  },
+  "task_no_tags_yet": {
+    "message": "No tags yet.",
+    "description": "Markup label in openTaskFilterPopover(). Rendered with th()."
+  },
+  "task_priority": {
+    "message": "Priority",
+    "description": "Markup label in openTaskContextMenu(). Rendered with th()."
+  },
+  "task_tasks": {
+    "message": "Tasks",
+    "description": "Markup label in taskRowHtml(). Rendered with th()."
+  },
+  "task_there_are_no_saved_sessions_in": {
+    "message": "There are no saved sessions in this workspace yet.",
+    "description": "Markup label in openTaskSessionPicker(). Rendered with th()."
+  },
+  "tasks_active_goals": {
+    "message": "Active Goals",
+    "description": "Markup label in renderTasksPreview(). Rendered with th()."
+  },
+  "tasks_active_goals_2": {
+    "message": "Active Goals",
+    "description": "Markup label in renderTasksTab(). Rendered with th()."
+  },
+  "tasks_add_task": {
+    "message": "+ Add task",
+    "description": "Markup label in renderTasksPreview(). Rendered with th()."
+  },
+  "tasks_no_active_goals_create_your_first": {
+    "message": "No active goals. Create your first goal.",
+    "description": "Markup label in renderTasksTab(). Rendered with th()."
+  },
+  "tasks_no_active_workspace": {
+    "message": "No active workspace.",
+    "description": "Markup label in renderTasksTab(). Rendered with th()."
+  },
+  "tasks_no_recurring_tasks": {
+    "message": "No recurring tasks",
+    "description": "Markup label in renderTasksPreview(). Rendered with th()."
+  },
+  "tasks_no_standalone_tasks": {
+    "message": "No standalone tasks",
+    "description": "Markup label in renderTasksPreview(). Rendered with th()."
+  },
+  "tasks_priority": {
+    "message": "Priority",
+    "description": "Markup label in renderTasksPreview(). Rendered with th()."
+  },
+  "tasks_recurring": {
+    "message": "Recurring",
+    "description": "Markup label in renderTasksPreview(). Rendered with th()."
+  },
+  "tasks_sort_by_creation_date": {
+    "message": "Sort by: creation date",
+    "description": "Markup label in renderTasksPreview(). Rendered with th()."
+  },
+  "tasks_standalone": {
+    "message": "Standalone",
+    "description": "Markup label in renderTasksPreview(). Rendered with th()."
+  },
+  "tasks_standalone_2": {
+    "message": "Standalone",
+    "description": "Markup label in renderTasksTab(). Rendered with th()."
+  },
+  "tasks_status": {
+    "message": "Status",
+    "description": "Markup label in renderTasksPreview(). Rendered with th()."
+  },
+  "tasks_tag": {
+    "message": "Tag",
+    "description": "Markup label in renderTasksPreview(). Rendered with th()."
+  },
+  "templates_new_template": {
+    "message": "+ New template",
+    "description": "Markup label in templatesPanelBodyHtml(). Rendered with th()."
+  },
+  "upgrade_already_have_a_license": {
+    "message": "Already have a license?",
+    "description": "Markup label in openUpgradePopover(). Rendered with th()."
+  },
+  "upgrade_annual": {
+    "message": "Annual",
+    "description": "Markup label in openUpgradePopover(). Rendered with th()."
+  },
+  "upgrade_monthly": {
+    "message": "Monthly",
+    "description": "Markup label in openUpgradePopover(). Rendered with th()."
+  },
+  "upgrade_or_upgrade_now": {
+    "message": "or upgrade now",
+    "description": "Markup label in openUpgradePopover(). Rendered with th()."
+  },
+  "upgrade_start_free_trial": {
+    "message": "Start free trial",
+    "description": "Markup label in openUpgradePopover(). Rendered with th()."
+  },
+  "workspace_add_workspace": {
+    "message": "Add workspace",
+    "description": "Markup label in buildWorkspaceDropdownBody(). Rendered with th()."
+  },
+  "workspace_create": {
+    "message": "Create",
+    "description": "Markup label in buildWorkspaceDropdownBody(). Rendered with th()."
+  }
+});

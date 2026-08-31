@@ -507,7 +507,7 @@
       panel.innerHTML =
         '<div class="tab-placeholder">' +
           '<div class="tab-placeholder-title">' + label + '</div>' +
-          '<div class="tab-placeholder-text">Coming soon.</div>' +
+          '<div class="tab-placeholder-text">' + th("tab_coming_soon") + '</div>' +
         '</div>';
     } else {
       renderProPreview(id, panel, data);
@@ -902,7 +902,7 @@
     var entries = Storage.goalProgressList(ws);
     if (!entries.length) {
       return '<div class="dash-note">No active goals — ' +
-          '<button type="button" class="dash-inline-link" data-dash-action="goto-tasks">create one in Tasks</button>.' +
+          '<button type="button" class="dash-inline-link" data-dash-action="goto-tasks">' + th("dash_create_one_in_tasks") + '</button>.' +
         '</div>';
     }
     var shown = entries.slice(0, DASH_GOALS_MAX);
@@ -915,7 +915,7 @@
         '</div>';
     }).join("") + (overflow > 0
       ? '<div class="dash-note">' + overflow + ' more in ' +
-          '<button type="button" class="dash-inline-link" data-dash-action="goto-tasks">Tasks</button>.' +
+          '<button type="button" class="dash-inline-link" data-dash-action="goto-tasks">' + th("dash_tasks") + '</button>.' +
         '</div>'
       : "");
   }
@@ -941,16 +941,16 @@
       // is a floor and not a total. "30+" rather than an exact 30 we cannot see.
       num = streak.capped ? (streak.days + "+") : String(streak.days);
       if (streak.days === 0) {
-        note = '<div class="dash-note">Focus on something today to start one.</div>';
+        note = '<div class="dash-note">' + th("dash_focus_on_something_today_to_start") + '</div>';
       } else if (!streak.todayCounted) {
         // Today-zero grace: the streak stands, it just has not been extended yet.
         // Saying so is what stops the number reading as a loss at 09:00.
-        note = '<div class="dash-note">Through yesterday. Today is still open.</div>';
+        note = '<div class="dash-note">' + th("dash_through_yesterday_today_is_still_open") + '</div>';
       }
     }
     return '<div class="dash-streak">' +
         '<span class="insights-strip-num">' + escapeHtml(num) + '</span>' +
-        '<span class="insights-strip-label">day streak</span>' +
+        '<span class="insights-strip-label">' + th("dash_day_streak") + '</span>' +
       '</div>' + note;
   }
 
@@ -1006,8 +1006,8 @@
           '</div>';
       }
       return '<div class="dash-head" data-dash-variant="evening">' +
-          '<div class="pp-dash-card-title">That’s the day</div>' +
-          '<div class="dash-headline">Work’s done.</div>' +
+          '<div class="pp-dash-card-title">' + th("dash_that_s_the_day") + '</div>' +
+          '<div class="dash-headline">' + th("dash_work_s_done") + '</div>' +
         '</div>';
     }
 
@@ -1019,7 +1019,7 @@
       var goal = activeTask.goalId ? Storage.getGoalById(ws, activeTask.goalId) : null;
       var paused = Storage.isTrackingPaused(d);
       return '<div class="dash-head" data-dash-variant="pickup">' +
-          '<div class="pp-dash-card-title">Pick up where you left off</div>' +
+          '<div class="pp-dash-card-title">' + th("dash_pick_up_where_you_left_off") + '</div>' +
           '<div class="dash-headline">' + escapeHtml(activeTask.name) + '</div>' +
           (goal ? '<div class="dash-sub">in ' + escapeHtml(goal.name) + '</div>' : '') +
           '<button type="button" class="dash-cta" data-dash-action="continue">' +
@@ -1035,8 +1035,8 @@
     // their first task would be pointing past the thing in front of them.
     if (!suggestion) {
       return '<div class="dash-head" data-dash-variant="empty">' +
-          '<div class="dash-headline">Nothing on the list.</div>' +
-          '<div class="dash-sub">Add something below when you are ready.</div>' +
+          '<div class="dash-headline">' + th("dash_nothing_on_the_list") + '</div>' +
+          '<div class="dash-sub">' + th("dash_add_something_below_when_you_are") + '</div>' +
         '</div>';
     }
 
@@ -1050,7 +1050,7 @@
     if (prioLabel) metaBits.push('<span class="dash-meta-prio">' + escapeHtml(prioLabel) + '</span>');
 
     return '<div class="dash-head" data-dash-variant="suggestion">' +
-        '<div class="pp-dash-card-title">Suggested next</div>' +
+        '<div class="pp-dash-card-title">' + th("dash_suggested_next") + '</div>' +
         '<div class="dash-headline">' + escapeHtml(suggestion.name) + '</div>' +
         (metaBits.length ? '<div class="dash-meta">' + metaBits.join("") + '</div>' : '') +
         '<button type="button" class="dash-cta" data-dash-action="lets-go" data-task-id="' + escapeHtml(suggestion.id) + '">' +
@@ -1070,7 +1070,7 @@
   function dashDueListHtml(ws, dueOpen) {
     var todayUtc = dashboardTodayAsUtcDay();
     var due = dueOpen || Storage.tasksDueByDay(ws, todayUtc);
-    if (!due.length) return '<div class="dash-note">Nothing due today.</div>';
+    if (!due.length) return '<div class="dash-note">' + th("dash_nothing_due_today") + '</div>';
 
     var shown = due.slice(0, DASH_DUE_MAX);
     var overflow = due.length - shown.length;
@@ -1080,13 +1080,13 @@
           '<input type="checkbox" class="tt-task-check dash-due-check" data-task-id="' + escapeHtml(t.id) + '" ' +
             'aria-label="Complete ' + escapeHtml(t.name) + '">' +
           '<span class="dash-due-name">' + escapeHtml(t.name) + '</span>' +
-          (overdue ? '<span class="dash-meta-due is-overdue">Overdue</span>' : '') +
+          (overdue ? '<span class="dash-meta-due is-overdue">' + th("dash_overdue") + '</span>' : '') +
         '</div>';
     }).join("") + (overflow > 0
       // Counted out loud, never silently cut — a list that stops at ten and says
       // nothing reads as "that is all of them".
       ? '<div class="dash-note">' + overflow + ' more due or overdue in ' +
-          '<button type="button" class="dash-inline-link" data-dash-action="goto-tasks">Tasks</button>.' +
+          '<button type="button" class="dash-inline-link" data-dash-action="goto-tasks">' + th("dash_tasks_2") + '</button>.' +
         '</div>'
       : "");
   }
@@ -1099,7 +1099,7 @@
   function dashQuickAddHtml() {
     return '<div class="dash-quickadd">' +
         '<input type="text" class="tt-add-task-input dash-quickadd-input" data-dash-quickadd ' +
-          'placeholder="Add a task due today…" aria-label="Add a task due today">' +
+          'placeholder="' + th("dash_add_a_task_due_today_2") + '" aria-label="' + th("dash_add_a_task_due_today") + '">' +
       '</div>';
   }
 
@@ -1137,7 +1137,7 @@
     // nothing, and a "0 day streak" would read as a failure the user did not have.
     var streakCard = scope
       ? '<div class="pp-insights-card">' +
-          '<div class="pp-dash-card-title">Focus streak</div>' +
+          '<div class="pp-dash-card-title">' + th("dashboard_focus_streak") + '</div>' +
           '<div data-dash-streak>' + dashStreakBodyHtml(null) + '</div>' +
         '</div>'
       : '';
@@ -1155,14 +1155,14 @@
           '<div class="dash-col dash-col-primary">' +
             '<div class="pp-insights-card">' +
               dashHeadHtml(d, ws, period, dueOpen) +
-              '<div class="pp-dash-card-title dash-due-title">Due today</div>' +
+              '<div class="pp-dash-card-title dash-due-title">' + th("dashboard_due_today") + '</div>' +
               '<div class="dash-due-list">' + dashDueListHtml(ws, dueOpen) + '</div>' +
               dashQuickAddHtml() +
             '</div>' +
           '</div>' +
           '<div class="dash-col dash-col-secondary">' +
             '<div class="pp-insights-card">' +
-              '<div class="pp-dash-card-title">Goals</div>' +
+              '<div class="pp-dash-card-title">' + th("dashboard_goals") + '</div>' +
               '<div class="insights-task-list">' + dashGoalsHtml(ws) + '</div>' +
             '</div>' +
             streakCard +
@@ -1493,13 +1493,13 @@
       // but the trial link becomes an inert "Coming soon" chip. Rendered without
       // the data-pro-preview-cta hook, so the click binder below never wires it.
       return '<div class="pro-preview-banner">' +
-        '<span class="pro-preview-banner-text">Preview mode. Full Pro is coming soon.</span>' +
-        '<span class="pro-preview-banner-cta is-teaser" aria-disabled="true">Coming soon</span>' +
+        '<span class="pro-preview-banner-text">' + th("preview_preview_mode_full_pro_is_coming") + '</span>' +
+        '<span class="pro-preview-banner-cta is-teaser" aria-disabled="true">' + th("preview_coming_soon") + '</span>' +
       '</div>';
     }
     var ctaText = trialUsed ? "Upgrade" : "Start free trial";
     return '<div class="pro-preview-banner">' +
-      '<span class="pro-preview-banner-text">Preview mode. Upgrade to Pro to use this feature with your data.</span>' +
+      '<span class="pro-preview-banner-text">' + th("preview_preview_mode_upgrade_to_pro_to") + '</span>' +
       '<a href="#" class="pro-preview-banner-cta" data-pro-preview-cta>' + ctaText + '</a>' +
     '</div>';
   }
@@ -1540,7 +1540,7 @@
             '</div>' +
             '<div class="pp-goal-header-right">' +
               '<span class="pp-goal-deadline">' + escapeHtml(g.deadline) + '</span>' +
-              '<button class="pp-icon-btn" type="button" disabled aria-label="Goal options">' + THREE_DOT_SM_SVG + '</button>' +
+              '<button class="pp-icon-btn" type="button" disabled aria-label="' + th("tasks_goal_options") + '">' + THREE_DOT_SM_SVG + '</button>' +
             '</div>' +
           '</div>' +
           '<div class="pp-progress">' +
@@ -1548,7 +1548,7 @@
             '<span class="pp-progress-text">' + doneCount + '/' + totalCount + '</span>' +
           '</div>' +
           '<div class="pp-task-list">' + tasksHtml + '</div>' +
-          '<button class="pp-add-task-btn" type="button" disabled>+ Add task</button>' +
+          '<button class="pp-add-task-btn" type="button" disabled>' + th("tasks_add_task") + '</button>' +
         '</div>';
     }).join("");
 
@@ -1556,18 +1556,18 @@
       '<div class="pp-tasks-col">' +
       '<div class="pp-tasks-header">' +
         '<div class="pp-filter-chips">' +
-          '<span class="pp-filter-chip">Priority</span>' +
-          '<span class="pp-filter-chip">Tag</span>' +
-          '<span class="pp-filter-chip">Status</span>' +
+          '<span class="pp-filter-chip">' + th("tasks_priority") + '</span>' +
+          '<span class="pp-filter-chip">' + th("tasks_tag") + '</span>' +
+          '<span class="pp-filter-chip">' + th("tasks_status") + '</span>' +
         '</div>' +
-        '<div class="pp-sort-dropdown">Sort by: creation date</div>' +
+        '<div class="pp-sort-dropdown">' + th("tasks_sort_by_creation_date") + '</div>' +
       '</div>' +
-      '<div class="pp-section-header">Active Goals</div>' +
+      '<div class="pp-section-header">' + th("tasks_active_goals") + '</div>' +
       '<div class="pp-goal-list">' + goalsHtml + '</div>' +
-      '<div class="pp-section-header">Standalone</div>' +
-      '<div class="pp-empty-state">No standalone tasks</div>' +
-      '<div class="pp-section-header">Recurring</div>' +
-      '<div class="pp-empty-state">No recurring tasks</div>' +
+      '<div class="pp-section-header">' + th("tasks_standalone") + '</div>' +
+      '<div class="pp-empty-state">' + th("tasks_no_standalone_tasks") + '</div>' +
+      '<div class="pp-section-header">' + th("tasks_recurring") + '</div>' +
+      '<div class="pp-empty-state">' + th("tasks_no_recurring_tasks") + '</div>' +
       '<div class="pp-section-header pp-section-header-collapsible">' +
         '<span class="pp-collapse-chevron">' + CHEVRON_RIGHT_SVG + '</span>' +
         'Completed (0)' +
@@ -1608,35 +1608,35 @@
       return '<rect class="' + cls + '" x="' + x + '" y="' + y + '" width="' + barW + '" height="' + Math.max(bh, 1) + '" rx="3" />' +
         '<text class="pp-bar-label" x="' + (x + barW / 2) + '" y="' + (h - padBottom + 16) + '">' + b.label + '</text>';
     }).join("");
-    var weekSvg = '<svg class="pp-week-chart" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="Deep work hours this week">' +
+    var weekSvg = '<svg class="pp-week-chart" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + th("dashboard_deep_work_hours_this_week") + '">' +
         '<line class="pp-axis" x1="' + padX + '" y1="' + (h - padBottom) + '" x2="' + (w - padX) + '" y2="' + (h - padBottom) + '" />' +
         barsSvg +
-        '<text class="pp-axis-label" x="' + padX + '" y="' + (padTop - 10) + '">hours of deep work</text>' +
+        '<text class="pp-axis-label" x="' + padX + '" y="' + (padTop - 10) + '">' + th("dashboard_hours_of_deep_work") + '</text>' +
       '</svg>';
 
     var goalsPct = Math.round((recap.goalsProgressed / recap.goalsTotal) * 100);
 
     return '<div class="pp-dash-grid">' +
         '<div class="pp-dash-card pp-dash-card-recap">' +
-          '<div class="pp-dash-card-title">Today’s Recap</div>' +
+          '<div class="pp-dash-card-title">' + th("dashboard_today_s_recap") + '</div>' +
           '<div class="pp-recap-big">' +
             '<span class="pp-recap-big-num">' + escapeHtml(recap.deepWorkText) + '</span>' +
-            '<span class="pp-recap-big-label">deep work</span>' +
+            '<span class="pp-recap-big-label">' + th("dashboard_deep_work") + '</span>' +
           '</div>' +
-          '<div class="pp-recap-row"><span class="pp-recap-num">' + recap.tasksCompleted + '</span> tasks completed</div>' +
+          '<div class="pp-recap-row"><span class="pp-recap-num">' + recap.tasksCompleted + '</span>'  + th("dashboard_tasks_completed") + '</div>' +
           '<div class="pp-recap-row pp-recap-row-stack">' +
-            '<div><span class="pp-recap-num">' + recap.goalsProgressed + ' of ' + recap.goalsTotal + '</span> goals making progress</div>' +
+            '<div><span class="pp-recap-num">' + recap.goalsProgressed + ' of ' + recap.goalsTotal + '</span>'  + th("dashboard_goals_making_progress") + '</div>' +
             '<div class="pp-progress-bar pp-progress-bar-sm"><div class="pp-progress-fill" style="width:' + goalsPct + '%"></div></div>' +
           '</div>' +
-          '<div class="pp-recap-row">Longest focus stretch: <span class="pp-recap-num">' + escapeHtml(recap.longestStretch) + '</span></div>' +
+          '<div class="pp-recap-row">' + th("dashboard_longest_focus_stretch") + ' <span class="pp-recap-num">' + escapeHtml(recap.longestStretch) + '</span></div>' +
           '<div class="pp-tag-breakdown">' + tagBreakdownHtml + '</div>' +
           '<div class="pp-mood-row">' +
-            '<div class="pp-mood-q">How did today feel?</div>' +
+            '<div class="pp-mood-q">' + th("dashboard_how_did_today_feel") + '</div>' +
             '<div class="pp-mood-emojis">' + emojiHtml + '</div>' +
           '</div>' +
         '</div>' +
         '<div class="pp-dash-card pp-dash-card-week">' +
-          '<div class="pp-dash-card-title">This week</div>' +
+          '<div class="pp-dash-card-title">' + th("dashboard_this_week") + '</div>' +
           weekSvg +
         '</div>' +
       '</div>';
@@ -1678,7 +1678,7 @@
     return '<svg class="pp-trend-chart" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + ariaLabel + '">' +
         '<line class="pp-axis" x1="' + padX + '" y1="' + (h - padBottom) + '" x2="' + (w - padX) + '" y2="' + (h - padBottom) + '" />' +
         barsSvg +
-        '<text class="pp-axis-label" x="' + padX + '" y="' + (padTop - 10) + '">hours / day</text>' +
+        '<text class="pp-axis-label" x="' + padX + '" y="' + (padTop - 10) + '">' + th("insights_hours_day") + '</text>' +
         '<text class="pp-axis-label-sub" x="' + padX + '" y="' + (h - padBottom + 16) + '" text-anchor="start">' + escapeHtml(startLabel || "") + '</text>' +
         '<text class="pp-axis-label-sub" x="' + (w - padX) + '" y="' + (h - padBottom + 16) + '" text-anchor="end">' + escapeHtml(endLabel || "") + '</text>' +
       '</svg>';
@@ -1752,15 +1752,15 @@
     }).join("");
 
     return '<div class="pp-insights-card">' +
-        '<div class="pp-dash-card-title">Deep Work, last 30 days</div>' +
+        '<div class="pp-dash-card-title">' + th("insights_deep_work_last_30_days") + '</div>' +
         trendSvg +
       '</div>' +
       '<div class="pp-insights-card">' +
-        '<div class="pp-dash-card-title">Time by tag, last 30 days</div>' +
+        '<div class="pp-dash-card-title">' + th("insights_time_by_tag_last_30_days") + '</div>' +
         '<div class="pp-donut-row">' + donutSvg + '<div class="pp-donut-legend">' + donutLegend + '</div></div>' +
       '</div>' +
       '<div class="pp-insights-card">' +
-        '<div class="pp-dash-card-title">Achievements</div>' +
+        '<div class="pp-dash-card-title">' + th("insights_achievements") + '</div>' +
         '<div class="pp-badge-grid">' + badgesHtml + '</div>' +
       '</div>';
   }
@@ -1892,7 +1892,7 @@
     var toMin = (custom && from) ? from : hz.min;
 
     return '<div class="insights-range">' +
-        '<div class="settings-segmented insights-range-seg" role="group" aria-label="Date range">' +
+        '<div class="settings-segmented insights-range-seg" role="group" aria-label="' + th("insights_date_range") + '">' +
           INSIGHTS_RANGES.map(function (r) {
             var on = (!custom && r.days === activeDays);
             return '<button type="button" class="seg-btn' + (on ? ' active' : '') + '"' +
@@ -1902,18 +1902,18 @@
             '</button>';
           }).join("") +
           '<button type="button" class="seg-btn' + (custom ? ' active' : '') + '"' +
-            ' data-ins-custom="1" aria-pressed="' + (custom ? 'true' : 'false') + '">Custom</button>' +
+            ' data-ins-custom="1" aria-pressed="' + (custom ? 'true' : 'false') + '">' + th("insights_custom") + '</button>' +
         '</div>' +
       '</div>' +
       (custom
         ? '<div class="insights-range-custom">' +
             '<label class="insights-range-field">' +
-              '<span class="insights-range-field-label">From</span>' +
+              '<span class="insights-range-field-label">' + th("insights_from") + '</span>' +
               '<input type="date" class="insights-date" data-ins-from' +
                 ' min="' + hz.min + '" max="' + hz.max + '" value="' + escapeHtml(from) + '">' +
             '</label>' +
             '<label class="insights-range-field">' +
-              '<span class="insights-range-field-label">To</span>' +
+              '<span class="insights-range-field-label">' + th("insights_to") + '</span>' +
               '<input type="date" class="insights-date" data-ins-to' +
                 ' min="' + toMin + '" max="' + hz.max + '" value="' + escapeHtml(to) + '">' +
             '</label>' +
@@ -2415,7 +2415,7 @@
     var rot = (typeof note.rotation === "number") ? note.rotation : 0;
     var body = note.content
       ? escapeHtml(note.content)
-      : '<span class="note-placeholder">Empty note</span>';
+      : '<span class="note-placeholder">' + th("note_empty_note") + '</span>';
     return '<article class="note-card" data-note-id="' + escapeHtml(note.id) + '"' +
         (preview
           ? ' aria-hidden="true"'
@@ -2427,7 +2427,7 @@
         // metaphor. Invisible until hover; absent from the ghost note, which is a
         // different element entirely.
         (preview ? "" :
-        '<button type="button" class="note-trash" data-note-trash aria-label="Delete note">' +
+        '<button type="button" class="note-trash" data-note-trash aria-label="' + th("note_delete_note") + '">' +
           '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"' +
           ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
             '<polyline points="3 6 5 6 21 6"/>' +
@@ -2481,7 +2481,7 @@
   // handler, which went because the gesture had to be learned to be found.
   function ghostNoteHtml() {
     return '<button type="button" class="note-card note-ghost" data-note-new>' +
-        '<span class="note-ghost-label">New note</span>' +
+        '<span class="note-ghost-label">' + th("ghost_new_note") + '</span>' +
       '</button>';
   }
 
@@ -2490,11 +2490,11 @@
     var v = escapeHtml(notesFilter);
     return '<div class="notes-search">' +
         '<input type="text" class="notes-search-input" data-notes-search' +
-          ' placeholder="Search notes" aria-label="Search notes"' +
+          ' placeholder="' + th("notes_search_notes") + '" aria-label="' + th("notes_search_notes") + '"' +
           ' value="' + v + '" autocomplete="off" spellcheck="false">' +
         (notesFilter
           ? '<button type="button" class="notes-search-clear" data-notes-search-clear' +
-            ' aria-label="Clear search">&times;</button>'
+            ' aria-label="' + th("notes_clear_search") + '">&times;</button>'
           : "") +
       '</div>';
   }
@@ -2518,7 +2518,7 @@
         '<button type="button" class="notes-trash-btn" data-notes-trash' +
           ' aria-label="' + escapeHtml(label) + '" title="' + escapeHtml(label) + '">' +
           TRASH_SM_SVG +
-          '<span class="notes-trash-label">Trash</span>' +
+          '<span class="notes-trash-label">' + th("notes_trash") + '</span>' +
           '<span class="notes-trash-sep" aria-hidden="true">\u00b7</span>' +
           '<span class="notes-trash-count">' + trashedCount + '</span>' +
         '</button>' +
@@ -2534,7 +2534,7 @@
     // with it rather than leaving a dead strip at the end of the stack.
     var panelCls = "notes-panel" + (trashed.length ? " has-trash" : "");
     return '<aside class="' + panelCls + '" data-notes-panel>' +
-        '<div class="notes-panel-title">Notes</div>' +
+        '<div class="notes-panel-title">' + th("notes_notes") + '</div>' +
         notesSearchHtml(notes.length) +
         '<div class="notes-stack" data-notes-stack>' + notesStackHtml(notes) + '</div>' +
         notesTrashBarHtml(trashed.length) +
@@ -2640,8 +2640,8 @@
     // click that could never do anything. Cards render through the SAME
     // component in its preview variant, so the preview stays the promise
     // without being operable.
-    return '<aside class="notes-panel notes-panel-preview" aria-label="Notes preview">' +
-        '<div class="notes-panel-title">Notes</div>' +
+    return '<aside class="notes-panel notes-panel-preview" aria-label="' + th("notes_notes_preview") + '">' +
+        '<div class="notes-panel-title">' + th("notes_notes_2") + '</div>' +
         '<div class="notes-stack">' +
           NOTES_DEMO.map(function (n) { return noteCardHtml(n, { preview: true }); }).join("") +
         '</div>' +
@@ -2761,7 +2761,7 @@
     var preview = String(note.content || "").trim();
     var body = preview
       ? "<div class=\"notes-trash-preview\">" + escapeHtml(preview) + "</div>"
-      : "<div class=\"notes-trash-preview is-empty\">Empty note</div>";
+      : "<div class=\"notes-trash-preview is-empty\">" + th('notes_empty_note') + "</div>";
     return "<li class=\"notes-trash-row\" data-trash-note-id=\"" + escapeHtml(note.id) + "\">" +
         "<div class=\"notes-trash-paper\" style=\"--note-paper: " + notesPaperVar(note.color) + ";\">" +
           body +
@@ -2776,8 +2776,8 @@
             "\">" + escapeHtml(notesDaysRemainingLabel(note.deletedAt)) +
           "</span>" +
           "<span class=\"notes-trash-actions\">" +
-            "<button type=\"button\" class=\"notes-trash-action\" data-trash-restore>Restore</button>" +
-            "<button type=\"button\" class=\"notes-trash-action is-danger\" data-trash-purge>Delete permanently</button>" +
+            "<button type=\"button\" class=\"notes-trash-action\" data-trash-restore>" + th('notes_restore') + "</button>" +
+            "<button type=\"button\" class=\"notes-trash-action is-danger\" data-trash-purge>" + th('notes_delete_permanently') + "</button>" +
           "</span>" +
         "</div>" +
       "</li>";
@@ -2787,7 +2787,7 @@
     var ws = Storage.getActiveWorkspace(data);
     var trashed = ws ? Storage.getDeletedNotes(ws) : [];
     if (!trashed.length) {
-      return "<div class=\"notes-trash-empty\">Nothing in the trash. Deleted notes appear here before they are removed for good.</div>";
+      return "<div class=\"notes-trash-empty\">" + th('notes_nothing_in_the_trash_deleted_notes') + "</div>";
     }
     // Most recently trashed first: the note just deleted is the one most likely
     // being looked for.
@@ -2942,7 +2942,7 @@
     if (!promote || !promote.noteId) return "";
     return '<label class="tt-modal-row tt-modal-checkbox-row">' +
         '<input type="checkbox" class="tt-promote-delete">' +
-        '<span>Delete note after creating</span>' +
+        '<span>' + th("promote_delete_note_after_creating") + '</span>' +
       '</label>';
   }
 
@@ -3001,9 +3001,9 @@
     menu.innerHTML =
       ctxEntityHeaderHtml("Note", note.content ? note.content.slice(0, 40) : "Empty note") +
       '<div class="note-swatches">' + swatches + '</div>' +
-      '<button type="button" class="tt-ctx-item" data-note-action="promote-task">Promote to task</button>' +
-      '<button type="button" class="tt-ctx-item" data-note-action="promote-goal">Promote to goal</button>' +
-      '<button type="button" class="tt-ctx-item" data-note-action="delete">Delete</button>';
+      '<button type="button" class="tt-ctx-item" data-note-action="promote-task">' + th("notes_promote_to_task") + '</button>' +
+      '<button type="button" class="tt-ctx-item" data-note-action="promote-goal">' + th("notes_promote_to_goal") + '</button>' +
+      '<button type="button" class="tt-ctx-item" data-note-action="delete">' + th("common_delete") + '</button>';
     document.body.appendChild(menu);
 
     var w = menu.offsetWidth;
@@ -3294,7 +3294,7 @@
       // font-size rules still own the size and nothing here changes it.
       '<span class="tt-due-icon" aria-hidden="true">' + CALENDAR_SVG + '</span>' +
       (has ? '<span class="tt-due-pill-label">' + escapeHtml(label) + '</span>'
-           : '<span class="tt-due-add-label">Add date</span>') +
+           : '<span class="tt-due-add-label">' + th("due_add_date") + '</span>') +
     '</button>';
   }
 
@@ -3425,7 +3425,7 @@
   // wiring, because it is the same affordance one level down the hierarchy.
   function taskOptionsPillHtml(task) {
     return '<button type="button" class="tt-task-options" data-task-id="' + escapeHtml(task.id) +
-      '" aria-label="Task options" title="Task options" aria-haspopup="menu">' +
+      '" aria-label="' + th("task_task_options") + '" title="' + th("task_task_options") + '" aria-haspopup="menu">' +
       THREE_DOT_SM_SVG +
     '</button>';
   }
@@ -3490,8 +3490,8 @@
     // because a single boolean produces both.
     var pausedRowCls = rowPaused ? " is-paused" : "";
     return '<li class="tt-task-row' + completedCls + activeCls + pausedRowCls + (prioCls ? ' ' + prioCls : '') + '" data-task-id="' + escapeHtml(task.id) + '">' +
-      '<span class="tt-task-handle" aria-hidden="true" title="Drag to reorder">⠇</span>' +
-      '<input type="checkbox" class="tt-task-check" data-task-id="' + escapeHtml(task.id) + '"' + checked + ' aria-label="Toggle task complete">' +
+      '<span class="tt-task-handle" aria-hidden="true" title="' + th("task_drag_to_reorder") + '">⠇</span>' +
+      '<input type="checkbox" class="tt-task-check" data-task-id="' + escapeHtml(task.id) + '"' + checked + ' aria-label="' + th("task_toggle_task_complete") + '">' +
       playHtml +
       // [2.0 timing] The name and its time readouts are ONE cluster now, so both
       // numbers sit beside the task they describe instead of at the far right of
@@ -3551,7 +3551,7 @@
         '<span class="tt-task-slot tt-slot-priority">' + priorityPillHtml(task) + '</span>' +
         '<span class="tt-task-slot tt-slot-date">' + dueDatePillHtml(task) + '</span>' +
         '<span class="tt-task-slot tt-slot-tags">' + tagHtml + '</span>' +
-        '<button type="button" class="tt-task-slot tt-task-trash" data-task-id="' + escapeHtml(task.id) + '" aria-label="Delete task" title="Delete task">' + TRASH_SM_SVG + '</button>' +
+        '<button type="button" class="tt-task-slot tt-task-trash" data-task-id="' + escapeHtml(task.id) + '" aria-label="' + th("task_delete_task") + '" title="' + th("task_delete_task") + '">' + TRASH_SM_SVG + '</button>' +
       '</div>' +
     '</li>';
   }
@@ -3644,15 +3644,15 @@
       var overdue = isOverdue(goal.deadlineAt) && goal.status !== "completed";
       deadlineHtml = '<span class="tt-goal-deadline">' + escapeHtml(fmtShortDate(goal.deadlineAt)) + '</span>';
       if (overdue) {
-        deadlineHtml += '<span class="tt-overdue-badge">Overdue</span>';
+        deadlineHtml += '<span class="tt-overdue-badge">' + th("goal_overdue") + '</span>';
       }
     }
 
     var tasksListHtml = visibleChildren.length
       ? visibleChildren.map(function (t) { return taskRowHtml(workspace, t); }).join("")
       : (tasksFiltersNarrowing()
-          ? '<li class="tt-task-empty">No tasks match the current filter.</li>'
-          : '<li class="tt-task-empty">No tasks yet.</li>');
+          ? '<li class="tt-task-empty">' + th("goal_no_tasks_match_the_current_filter") + '</li>'
+          : '<li class="tt-task-empty">' + th("goal_no_tasks_yet") + '</li>');
 
     var isCompleted = goal.status === "completed";
     // Strict equality so legacy goals (pre-[1.0.11], no isCollapsed field)
@@ -3663,13 +3663,13 @@
     // !isCompleted in the click handler. Reactivation lives in [1.0.10.2+]
     // per spec; this just makes the read-only intent visible.
     var menuBtnHtml = isCompleted ? "" :
-      '<button type="button" class="tt-goal-menu-btn" data-goal-id="' + escapeHtml(goal.id) + '" aria-label="Goal options" title="Goal options">' + THREE_DOT_SM_SVG + '</button>';
+      '<button type="button" class="tt-goal-menu-btn" data-goal-id="' + escapeHtml(goal.id) + '" aria-label="' + th("goal_goal_options") + '" title="' + th("goal_goal_options") + '">' + THREE_DOT_SM_SVG + '</button>';
     var addTaskBlockHtml = isCompleted ? "" :
-      '<button type="button" class="tt-goal-add-task" data-goal-id="' + escapeHtml(goal.id) + '">+ Add task</button>' +
+      '<button type="button" class="tt-goal-add-task" data-goal-id="' + escapeHtml(goal.id) + '">' + th("goal_add_task") + '</button>' +
       '<div class="tt-add-task-inline hidden" data-goal-id="' + escapeHtml(goal.id) + '">' +
-        '<input type="text" class="tt-add-task-input" placeholder="Task name" maxlength="200" autocomplete="off" spellcheck="false">' +
-        '<button type="button" class="tt-add-task-save">Add</button>' +
-        '<button type="button" class="tt-add-task-cancel">Cancel</button>' +
+        '<input type="text" class="tt-add-task-input" placeholder="' + th("goal_task_name") + '" maxlength="200" autocomplete="off" spellcheck="false">' +
+        '<button type="button" class="tt-add-task-save">' + th("goal_add") + '</button>' +
+        '<button type="button" class="tt-add-task-cancel">' + th("common_cancel") + '</button>' +
       '</div>';
     // [1.0.11] When collapsed, the body (child task list + "+ Add task") is
     // omitted entirely. Header (name, auto-tag, deadline + overdue, progress
@@ -3680,7 +3680,7 @@
     return '<article class="tt-goal-card' + (isCompleted ? ' is-completed' : '') + (dimmed ? ' tt-goal-dimmed' : '') + '" data-goal-id="' + escapeHtml(goal.id) + '" data-collapsed="' + (isCollapsed ? "true" : "false") + '">' +
       '<header class="tt-goal-header">' +
         '<div class="tt-goal-header-left">' +
-          '<span class="tt-goal-chevron" aria-label="Toggle goal collapse">' + CHEVRON_RIGHT_SVG + '</span>' +
+          '<span class="tt-goal-chevron" aria-label="' + th("goal_toggle_goal_collapse") + '">' + CHEVRON_RIGHT_SVG + '</span>' +
           '<span class="tt-goal-name" data-goal-id="' + escapeHtml(goal.id) + '">' + escapeHtml(goal.name) + '</span>' +
           tagPillHtml(workspace, goal.autoTagId) +
         '</div>' +
@@ -3716,13 +3716,13 @@
     } else if (template.frequency === "monthly") {
       hint = "Monthly on day " + (template.dayOfMonth || "—") + " at " + (template.timeOfDay || "09:00");
     }
-    var pausedBadge = template.isActive ? "" : '<span class="tt-recurring-paused">Paused</span>';
+    var pausedBadge = template.isActive ? "" : '<span class="tt-recurring-paused">' + th("recurring_paused") + '</span>';
     var tagHtml = "";
     var tagIds = Array.isArray(template.tagIds) ? template.tagIds : [];
     for (var i = 0; i < tagIds.length; i++) {
       tagHtml += tagPillHtml(workspace, tagIds[i]);
     }
-    return '<li class="tt-recurring-row" data-template-id="' + escapeHtml(template.id) + '" title="Right-click to manage">' +
+    return '<li class="tt-recurring-row" data-template-id="' + escapeHtml(template.id) + '" title="' + th("recurring_right_click_to_manage") + '">' +
       '<span class="tt-recurring-icon" aria-hidden="true">↻</span>' +
       '<span class="tt-recurring-name">' + escapeHtml(template.name) + '</span>' +
       '<span class="tt-recurring-hint">' + escapeHtml(hint) + '</span>' +
@@ -3762,12 +3762,12 @@
   // openCompletedContextMenu). Height-capped with internal scroll so a large
   // history stays compact.
   function completedRowHtml(kind, id, name, completedAt) {
-    return '<li class="tt-completed-row" data-kind="' + kind + '" data-id="' + escapeHtml(id) + '" title="Right-click or Restore to reactivate">' +
+    return '<li class="tt-completed-row" data-kind="' + kind + '" data-id="' + escapeHtml(id) + '" title="' + th("completed_right_click_or_restore_to_reactivate") + '">' +
         '<span class="tt-completed-kind" aria-hidden="true">' + (kind === "goal" ? "◎" : "✓") + '</span>' +
         '<span class="tt-completed-name">' + escapeHtml(name) + '</span>' +
         '<span class="tt-completed-date">' + escapeHtml(fmtShortDate(completedAt)) + '</span>' +
         '<span class="tt-completed-actions">' +
-          '<button type="button" class="tt-completed-btn tt-completed-restore" data-action="restore-completed">Restore</button>' +
+          '<button type="button" class="tt-completed-btn tt-completed-restore" data-action="restore-completed">' + th("completed_restore") + '</button>' +
         '</span>' +
       '</li>';
   }
@@ -3786,12 +3786,12 @@
       ? '<ul class="tt-completed-list">' +
           items.map(function (it) { return completedRowHtml(it.kind, it.id, it.name, it.at); }).join("") +
         '</ul>'
-      : '<div class="tt-empty-state">No completed tasks yet.</div>';
+      : '<div class="tt-empty-state">' + th("completed_no_completed_tasks_yet") + '</div>';
     // [Tasks] Bulk action, only when the box has rows: Clear soft-deletes them
     // into the Deleted box (recoverable), so it confirms but isn't danger-styled.
     var actionsHtml = count
       ? '<span class="tt-box-actions">' +
-          '<button type="button" class="tt-box-action" data-action="clear-completed">Clear</button>' +
+          '<button type="button" class="tt-box-action" data-action="clear-completed">' + th("completed_clear") + '</button>' +
         '</span>'
       : '';
     return '<section class="tt-section tt-box tt-completed-box" data-section="completed">' +
@@ -3833,20 +3833,20 @@
                 '<span class="tt-deleted-name">' + escapeHtml(it.name) + '</span>' +
                 '<span class="tt-trash-days ' + daysCls + '">' + days + (days === 1 ? " day left" : " days left") + '</span>' +
                 '<span class="tt-deleted-actions">' +
-                  '<button type="button" class="tt-deleted-btn tt-deleted-restore" data-action="restore-deleted">Restore</button>' +
-                  '<button type="button" class="tt-deleted-btn tt-deleted-purge" data-action="purge-deleted">Delete</button>' +
+                  '<button type="button" class="tt-deleted-btn tt-deleted-restore" data-action="restore-deleted">' + th("deleted_restore") + '</button>' +
+                  '<button type="button" class="tt-deleted-btn tt-deleted-purge" data-action="purge-deleted">' + th("common_delete") + '</button>' +
                 '</span>' +
               '</li>';
           }).join("") +
         '</ul>'
-      : '<div class="tt-empty-state">Nothing deleted. Items stay here 30 days.</div>';
+      : '<div class="tt-empty-state">' + th("deleted_nothing_deleted_items_stay_here_30") + '</div>';
     // [Tasks] Bulk actions, only when the box has rows. Restore all is
     // non-destructive (no confirm); Empty is the ONLY permanent, danger-styled
     // action and always confirms with a live count.
     var actionsHtml = count
       ? '<span class="tt-box-actions">' +
-          '<button type="button" class="tt-box-action" data-action="restore-all">Restore all</button>' +
-          '<button type="button" class="tt-box-action tt-box-action-danger" data-action="empty-trash">Empty</button>' +
+          '<button type="button" class="tt-box-action" data-action="restore-all">' + th("deleted_restore_all") + '</button>' +
+          '<button type="button" class="tt-box-action tt-box-action-danger" data-action="empty-trash">' + th("deleted_empty") + '</button>' +
         '</span>'
       : '';
     return '<section class="tt-section tt-box tt-deleted-box" data-section="deleted">' +
@@ -4140,7 +4140,7 @@
 
     var workspace = Storage.getActiveWorkspace(d);
     if (!workspace) {
-      panel.innerHTML = '<div class="tasks-tab-empty">No active workspace.</div>';
+      panel.innerHTML = '<div class="tasks-tab-empty">' + th("tasks_no_active_workspace") + '</div>';
       return;
     }
 
@@ -4198,7 +4198,7 @@
 
     var activeGoalsHtml = activeGoals.length
       ? activeGoals.map(function (g) { return goalCardHtml(workspace, g, allTasksForGoals); }).join("")
-      : '<div class="tt-empty-state">No active goals. Create your first goal.</div>';
+      : '<div class="tt-empty-state">' + th("tasks_no_active_goals_create_your_first") + '</div>';
 
     // [1.0.12] Standalone list: priority/tag filter + active sort on top of the
     // deletedAt + goalId===null base.
@@ -4235,13 +4235,13 @@
 
     var activeGoalsSectionHtml = showActiveSections
       ? '<section class="tt-section" data-section="active-goals">' +
-          '<h2 class="tt-section-title">Active Goals</h2>' +
+          '<h2 class="tt-section-title">' + th("tasks_active_goals_2") + '</h2>' +
           '<div class="tt-goal-list">' + activeGoalsHtml + '</div>' +
         '</section>'
       : '';
     var standaloneSectionHtml = showActiveSections
       ? '<section class="tt-section" data-section="standalone">' +
-          '<h2 class="tt-section-title">Standalone</h2>' +
+          '<h2 class="tt-section-title">' + th("tasks_standalone_2") + '</h2>' +
           standaloneHtml +
         '</section>'
       : '';
@@ -5194,12 +5194,12 @@
     // and Escape all route through doCancel independently of it.
     var hideCancel = opts.hideCancel === true;
     var cancelHtml = hideCancel ? "" :
-      '<button type="button" class="tt-modal-btn tt-modal-cancel">Cancel</button>';
+      '<button type="button" class="tt-modal-btn tt-modal-cancel">' + th("common_cancel") + '</button>';
     overlay.innerHTML =
       '<div class="tt-modal" role="dialog" aria-modal="true">' +
         '<header class="tt-modal-header">' +
           titleHtml +
-          '<button type="button" class="tt-modal-close" aria-label="Close">&times;</button>' +
+          '<button type="button" class="tt-modal-close" aria-label="' + th("common_close") + '">&times;</button>' +
         '</header>' +
         '<div class="tt-modal-body">' + (opts.bodyHtml || "") + '</div>' +
         '<footer class="' + footerCls + '">' +
@@ -5316,7 +5316,7 @@
     var autoTagBlock = isEdit ? "" :
       '<label class="tt-modal-row tt-modal-checkbox-row">' +
         '<input type="checkbox" class="tt-goal-autotag" checked>' +
-        '<span>Auto-create tag from goal name</span>' +
+        '<span>' + th("goal_auto_create_tag_from_goal_name") + '</span>' +
       '</label>';
     // [1.0.15] D3 — instantiation entry point. Populate the "From template"
     // select with the workspace's active goal templates; picking one prefills
@@ -5329,12 +5329,12 @@
         return (a.createdAt || 0) - (b.createdAt || 0);
       }) : [];
       var tplOptions = tpls.length
-        ? '<option value="">None (blank goal)</option>' +
+        ? '<option value="">' + th("goal_none_blank_goal") + '</option>' +
             tpls.map(function (t) { return '<option value="' + escapeHtml(t.id) + '">' + escapeHtml(t.name) + '</option>'; }).join("")
-        : '<option value="">No templates yet</option>';
+        : '<option value="">' + th("goal_no_templates_yet") + '</option>';
       templateBlock =
         '<div class="tt-modal-row">' +
-          '<label class="tt-modal-label" for="tt-goal-template-select">From template</label>' +
+          '<label class="tt-modal-label" for="tt-goal-template-select">' + th("goal_from_template") + '</label>' +
           '<select id="tt-goal-template-select" class="tt-goal-template"' + (tpls.length ? "" : " disabled") + '>' +
             tplOptions +
           '</select>' +
@@ -5346,16 +5346,16 @@
       primaryLabel: isEdit ? "Save" : "Create",
       bodyHtml:
         '<div class="tt-modal-row">' +
-          '<label class="tt-modal-label" for="tt-goal-name-input">Name</label>' +
-          '<input type="text" id="tt-goal-name-input" class="tt-goal-name-input" maxlength="200" placeholder="Goal name" autocomplete="off" spellcheck="false" value="' + escapeHtml(nameValue) + '">' +
+          '<label class="tt-modal-label" for="tt-goal-name-input">' + th("goal_name") + '</label>' +
+          '<input type="text" id="tt-goal-name-input" class="tt-goal-name-input" maxlength="200" placeholder="' + th("goal_goal_name") + '" autocomplete="off" spellcheck="false" value="' + escapeHtml(nameValue) + '">' +
         '</div>' +
         '<div class="tt-modal-row">' +
-          '<label class="tt-modal-label" for="tt-goal-desc-input">Description</label>' +
-          '<textarea id="tt-goal-desc-input" class="tt-modal-textarea tt-goal-desc-input" maxlength="2000" rows="3" placeholder="Optional" spellcheck="true">' + escapeHtml(descValue) + '</textarea>' +
+          '<label class="tt-modal-label" for="tt-goal-desc-input">' + th("goal_description") + '</label>' +
+          '<textarea id="tt-goal-desc-input" class="tt-modal-textarea tt-goal-desc-input" maxlength="2000" rows="3" placeholder="' + th("goal_optional") + '" spellcheck="true">' + escapeHtml(descValue) + '</textarea>' +
         '</div>' +
         promoteDeleteRowHtml(promote) +
         '<div class="tt-modal-row">' +
-          '<label class="tt-modal-label" for="tt-goal-deadline-input">Deadline</label>' +
+          '<label class="tt-modal-label" for="tt-goal-deadline-input">' + th("goal_deadline") + '</label>' +
           '<input type="date" id="tt-goal-deadline-input" class="tt-goal-deadline-input" value="' + escapeHtml(deadlineValue) + '">' +
           // [Polish] Read-only computed deadline shown (instead of the date input)
           // while a template is selected — its deadline comes from the offset.
@@ -5507,7 +5507,7 @@
     }).join("");
     var tagsBlock = availableTags.length
       ? '<div class="tt-modal-row">' +
-          '<label class="tt-modal-label">Tags</label>' +
+          '<label class="tt-modal-label">' + th("feature_tags_name") + '</label>' +
           '<div class="tt-modal-tag-list">' + tagOptionsHtml + '</div>' +
         '</div>'
       : "";
@@ -5517,26 +5517,26 @@
       primaryLabel: t("new_create"),
       bodyHtml:
         '<div class="tt-modal-row">' +
-          '<label class="tt-modal-label" for="tt-task-name-input">Name</label>' +
-          '<input type="text" id="tt-task-name-input" class="tt-task-name-input" maxlength="200" placeholder="Task name" autocomplete="off" spellcheck="false" value="' + escapeHtml(promote && promote.name ? promote.name : "") + '">' +
+          '<label class="tt-modal-label" for="tt-task-name-input">' + th("new_name") + '</label>' +
+          '<input type="text" id="tt-task-name-input" class="tt-task-name-input" maxlength="200" placeholder="' + th("new_task_name") + '" autocomplete="off" spellcheck="false" value="' + escapeHtml(promote && promote.name ? promote.name : "") + '">' +
         '</div>' +
         '<div class="tt-modal-row">' +
-          '<label class="tt-modal-label" for="tt-task-desc-input">Description</label>' +
-          '<textarea id="tt-task-desc-input" class="tt-modal-textarea tt-task-desc-input" maxlength="2000" rows="3" placeholder="Optional" spellcheck="true">' + escapeHtml(promote && promote.description ? promote.description : "") + '</textarea>' +
+          '<label class="tt-modal-label" for="tt-task-desc-input">' + th("new_description") + '</label>' +
+          '<textarea id="tt-task-desc-input" class="tt-modal-textarea tt-task-desc-input" maxlength="2000" rows="3" placeholder="' + th("new_optional") + '" spellcheck="true">' + escapeHtml(promote && promote.description ? promote.description : "") + '</textarea>' +
         '</div>' +
         promoteDeleteRowHtml(promote) +
         '<div class="tt-modal-row">' +
-          '<label class="tt-modal-label" for="tt-task-priority-select">Priority</label>' +
+          '<label class="tt-modal-label" for="tt-task-priority-select">' + th("new_priority") + '</label>' +
           '<select id="tt-task-priority-select" class="tt-task-priority-select">' +
-            '<option value="">None</option>' +
-            '<option value="low">Low</option>' +
-            '<option value="medium">Medium</option>' +
-            '<option value="high">High</option>' +
-            '<option value="urgent">Urgent</option>' +
+            '<option value="">' + th("new_none") + '</option>' +
+            '<option value="low">' + th("new_low") + '</option>' +
+            '<option value="medium">' + th("new_medium") + '</option>' +
+            '<option value="high">' + th("new_high") + '</option>' +
+            '<option value="urgent">' + th("new_urgent") + '</option>' +
           '</select>' +
         '</div>' +
         '<div class="tt-modal-row">' +
-          '<label class="tt-modal-label" for="tt-task-due-input">Due date</label>' +
+          '<label class="tt-modal-label" for="tt-task-due-input">' + th("new_due_date") + '</label>' +
           '<input type="date" id="tt-task-due-input" class="tt-task-due-input">' +
         '</div>' +
         tagsBlock +
@@ -5612,14 +5612,14 @@
           '</label>';
         }).join("");
         return '<div class="tt-modal-row">' +
-            '<label class="tt-modal-label">Days of week</label>' +
+            '<label class="tt-modal-label">' + th("conditional_days_of_week") + '</label>' +
             '<div class="tt-modal-dow-row">' + togglesHtml + '</div>' +
           '</div>';
       }
       if (frequency === "monthly") {
         var domVal = (isEdit && typeof existing.dayOfMonth === "number") ? existing.dayOfMonth : 1;
         return '<div class="tt-modal-row">' +
-            '<label class="tt-modal-label" for="tt-recur-dom-input">Day of month</label>' +
+            '<label class="tt-modal-label" for="tt-recur-dom-input">' + th("conditional_day_of_month") + '</label>' +
             '<input type="number" id="tt-recur-dom-input" class="tt-recur-dom-input" min="1" max="31" value="' + domVal + '">' +
           '</div>';
       }
@@ -5636,23 +5636,23 @@
       primaryLabel: isEdit ? "Save" : "Create",
       bodyHtml:
         '<div class="tt-modal-row">' +
-          '<label class="tt-modal-label" for="tt-recur-name-input">Name</label>' +
-          '<input type="text" id="tt-recur-name-input" class="tt-recur-name-input" maxlength="200" placeholder="Recurring task name" autocomplete="off" spellcheck="false" value="' + (isEdit ? escapeHtml(existing.name) : "") + '">' +
+          '<label class="tt-modal-label" for="tt-recur-name-input">' + th("freq_name") + '</label>' +
+          '<input type="text" id="tt-recur-name-input" class="tt-recur-name-input" maxlength="200" placeholder="' + th("freq_recurring_task_name") + '" autocomplete="off" spellcheck="false" value="' + (isEdit ? escapeHtml(existing.name) : "") + '">' +
         '</div>' +
         '<div class="tt-modal-row">' +
-          '<label class="tt-modal-label" for="tt-recur-freq-select">Frequency</label>' +
+          '<label class="tt-modal-label" for="tt-recur-freq-select">' + th("freq_frequency") + '</label>' +
           '<select id="tt-recur-freq-select" class="tt-recur-freq-select">' +
             freqOption("daily", "Daily") + freqOption("weekly", "Weekly") + freqOption("monthly", "Monthly") +
           '</select>' +
         '</div>' +
         '<div class="tt-recur-conditional"></div>' +
         '<div class="tt-modal-row">' +
-          '<label class="tt-modal-label" for="tt-recur-time-input">Time of day</label>' +
+          '<label class="tt-modal-label" for="tt-recur-time-input">' + th("freq_time_of_day") + '</label>' +
           '<input type="time" id="tt-recur-time-input" class="tt-recur-time-input" value="' + (isEdit ? escapeHtml(existing.timeOfDay || "09:00") : "09:00") + '">' +
         '</div>' +
         '<label class="tt-modal-row tt-modal-checkbox-row">' +
           '<input type="checkbox" class="tt-recur-active"' + ((!isEdit || existing.isActive) ? " checked" : "") + '>' +
-          '<span>Active</span>' +
+          '<span>' + th("freq_active") + '</span>' +
         '</label>' +
         '<div class="tt-modal-error hidden" role="alert"></div>',
       onMounted: function (overlay) {
@@ -5757,8 +5757,8 @@
     });
     if (!tpls.length) {
       return '<div class="tt-templates-empty">' +
-          '<div class="tt-templates-empty-title">No templates yet</div>' +
-          '<div class="tt-templates-empty-sub">Right-click an active goal → “Save as template”, or create one below.</div>' +
+          '<div class="tt-templates-empty-title">' + th("goal_no_templates_yet_2") + '</div>' +
+          '<div class="tt-templates-empty-sub">' + th("goal_right_click_an_active_goal_save") + '</div>' +
         '</div>';
     }
     return '<ul class="tt-tpl-list">' + tpls.map(function (tpl) {
@@ -5769,9 +5769,9 @@
             '<span class="tt-tpl-meta">' + n + ' task' + (n === 1 ? "" : "s") + ' · ' + escapeHtml(goalTemplateOffsetSummary(tpl)) + '</span>' +
           '</div>' +
           '<span class="tt-tpl-actions">' +
-            '<button type="button" class="tt-tpl-btn" data-action="edit">Edit</button>' +
-            '<button type="button" class="tt-tpl-btn" data-action="duplicate">Duplicate</button>' +
-            '<button type="button" class="tt-tpl-btn tt-tpl-btn-danger" data-action="delete">Delete</button>' +
+            '<button type="button" class="tt-tpl-btn" data-action="edit">' + th("goal_edit") + '</button>' +
+            '<button type="button" class="tt-tpl-btn" data-action="duplicate">' + th("goal_duplicate") + '</button>' +
+            '<button type="button" class="tt-tpl-btn tt-tpl-btn-danger" data-action="delete">' + th("common_delete") + '</button>' +
           '</span>' +
         '</li>';
     }).join("") + '</ul>';
@@ -5780,7 +5780,7 @@
   function templatesPanelBodyHtml(workspace) {
     return '<div class="tt-tpl-panel-body">' +
         goalTemplateListHtml(workspace) +
-        '<button type="button" class="tt-tpl-new-btn">+ New template</button>' +
+        '<button type="button" class="tt-tpl-new-btn">' + th("templates_new_template") + '</button>' +
       '</div>';
   }
 
@@ -5863,10 +5863,10 @@
     }
     function taskRowHtml(name, priority) {
       return '<li class="tt-tpl-task-row">' +
-          '<span class="tt-tpl-task-handle" aria-hidden="true" title="Drag to reorder">⠇</span>' +
-          '<input type="text" class="tt-tpl-task-name" maxlength="200" placeholder="Task name" value="' + escapeHtml(name || "") + '">' +
+          '<span class="tt-tpl-task-handle" aria-hidden="true" title="' + th("task_drag_to_reorder_2") + '">⠇</span>' +
+          '<input type="text" class="tt-tpl-task-name" maxlength="200" placeholder="' + th("task_task_name") + '" value="' + escapeHtml(name || "") + '">' +
           '<select class="tt-tpl-task-priority">' + priorityOptions(priority || "") + '</select>' +
-          '<button type="button" class="tt-tpl-task-remove" aria-label="Remove task">×</button>' +
+          '<button type="button" class="tt-tpl-task-remove" aria-label="' + th("task_remove_task") + '">×</button>' +
         '</li>';
     }
 
@@ -5880,21 +5880,21 @@
       primaryLabel: isEdit ? "Save" : "Create",
       bodyHtml:
         '<div class="tt-modal-row">' +
-          '<label class="tt-modal-label" for="tt-tpl-name">Name</label>' +
-          '<input type="text" id="tt-tpl-name" class="tt-tpl-name-input" maxlength="200" placeholder="Template name" autocomplete="off" spellcheck="false" value="' + (isEdit ? escapeHtml(existing.name) : "") + '">' +
+          '<label class="tt-modal-label" for="tt-tpl-name">' + th("task_name") + '</label>' +
+          '<input type="text" id="tt-tpl-name" class="tt-tpl-name-input" maxlength="200" placeholder="' + th("task_template_name") + '" autocomplete="off" spellcheck="false" value="' + (isEdit ? escapeHtml(existing.name) : "") + '">' +
         '</div>' +
         '<div class="tt-modal-row">' +
-          '<label class="tt-modal-label" for="tt-tpl-desc">Description</label>' +
-          '<input type="text" id="tt-tpl-desc" class="tt-tpl-desc-input" maxlength="500" placeholder="Optional" autocomplete="off" value="' + (isEdit ? escapeHtml(existing.description || "") : "") + '">' +
+          '<label class="tt-modal-label" for="tt-tpl-desc">' + th("task_description") + '</label>' +
+          '<input type="text" id="tt-tpl-desc" class="tt-tpl-desc-input" maxlength="500" placeholder="' + th("task_optional") + '" autocomplete="off" value="' + (isEdit ? escapeHtml(existing.description || "") : "") + '">' +
         '</div>' +
         '<div class="tt-modal-row">' +
-          '<label class="tt-modal-label" for="tt-tpl-offset">Deadline (days from creation)</label>' +
+          '<label class="tt-modal-label" for="tt-tpl-offset">' + th("task_deadline_days_from_creation") + '</label>' +
           '<input type="number" id="tt-tpl-offset" class="tt-tpl-offset-input" min="0" step="1" placeholder="none" value="' + offsetVal + '">' +
         '</div>' +
         '<div class="tt-tpl-tasks-editor">' +
-          '<label class="tt-modal-label">Tasks</label>' +
+          '<label class="tt-modal-label">' + th("task_tasks") + '</label>' +
           '<ul class="tt-tpl-task-list">' + initTasks.map(function (t) { return taskRowHtml(t.name, t.priority); }).join("") + '</ul>' +
-          '<button type="button" class="tt-tpl-add-task">+ Add task</button>' +
+          '<button type="button" class="tt-tpl-add-task">' + th("task_add_task") + '</button>' +
         '</div>' +
         '<div class="tt-modal-error hidden" role="alert"></div>',
       onMounted: function (overlay) {
@@ -6011,7 +6011,7 @@
     menu.className = "tt-context-menu";
     menu.innerHTML =
       ctxEntityHeaderHtml(kind === "goal" ? "Goal" : "Task", name) +
-      '<button type="button" class="tt-ctx-item" data-action="reactivate">Reactivate</button>';
+      '<button type="button" class="tt-ctx-item" data-action="reactivate">' + th("completed_reactivate") + '</button>';
     document.body.appendChild(menu);
 
     var w = menu.offsetWidth;
@@ -6061,10 +6061,10 @@
     menu.className = "tt-context-menu";
     menu.innerHTML =
       ctxEntityHeaderHtml("Recurring", tpl.name) +
-      '<button type="button" class="tt-ctx-item" data-action="edit">Edit</button>' +
+      '<button type="button" class="tt-ctx-item" data-action="edit">' + th("recurring_edit") + '</button>' +
       '<button type="button" class="tt-ctx-item" data-action="toggle-active">' + (tpl.isActive ? "Pause" : "Activate") + '</button>' +
       '<div class="tt-ctx-separator"></div>' +
-      '<button type="button" class="tt-ctx-item tt-ctx-danger" data-action="delete">Delete</button>';
+      '<button type="button" class="tt-ctx-item tt-ctx-danger" data-action="delete">' + th("common_delete") + '</button>';
     document.body.appendChild(menu);
 
     var w = menu.offsetWidth;
@@ -6125,11 +6125,11 @@
     menu.className = "tt-context-menu";
     menu.innerHTML =
       ctxEntityHeaderHtml("Goal", headerGoal ? headerGoal.name : "") +
-      '<button type="button" class="tt-ctx-item" data-action="edit">Edit</button>' +
-      '<button type="button" class="tt-ctx-item" data-action="save-template">Save as template</button>' +
-      '<button type="button" class="tt-ctx-item" data-action="complete">Mark complete</button>' +
+      '<button type="button" class="tt-ctx-item" data-action="edit">' + th("goal_edit_2") + '</button>' +
+      '<button type="button" class="tt-ctx-item" data-action="save-template">' + th("goal_save_as_template") + '</button>' +
+      '<button type="button" class="tt-ctx-item" data-action="complete">' + th("goal_mark_complete") + '</button>' +
       '<div class="tt-ctx-separator"></div>' +
-      '<button type="button" class="tt-ctx-item tt-ctx-danger" data-action="delete">Delete</button>';
+      '<button type="button" class="tt-ctx-item tt-ctx-danger" data-action="delete">' + th("common_delete") + '</button>';
     document.body.appendChild(menu);
 
     // Position with viewport overflow guard. offsetWidth/Height read after
@@ -6248,7 +6248,7 @@
     // offering a no-op reads as broken).
     var isActiveTask = satIsActiveTaskRow(workspace, task);
     var makeActiveHtml = (!task.completed && !isActiveTask)
-      ? '<button type="button" class="tt-ctx-item" data-action="make-active">Make active</button>'
+      ? '<button type="button" class="tt-ctx-item" data-action="make-active">' + th("task_make_active") + '</button>'
       : "";
     // [1.4.3] THE TASK SIDE of session attachment. The session side has been
     // reachable since [1.4.2] from the flyout row's options button; this is the
@@ -6262,27 +6262,27 @@
         (ctxWsSession ? "Change session" : "Assign session to this task") +
       '</button>' +
       (ctxWsSession
-        ? '<button type="button" class="tt-ctx-item" data-action="detach-session">Detach session</button>'
+        ? '<button type="button" class="tt-ctx-item" data-action="detach-session">' + th("task_detach_session") + '</button>'
         : "");
     var menu = document.createElement("div");
     menu.className = "tt-context-menu";
     menu.innerHTML =
       ctxEntityHeaderHtml("Task", task.name) +
       makeActiveHtml +
-      '<button type="button" class="tt-ctx-item" data-action="edit">Edit</button>' +
+      '<button type="button" class="tt-ctx-item" data-action="edit">' + th("task_edit") + '</button>' +
       // [1.4.4] Priority OPENS THE SHIPPED CONTROL rather than restating it. The
       // row flag pill already owns the four levels, the active marker and Clear;
       // a submenu or an inline copy would be a second list of the same choices,
       // and the day a fifth level appears only one of them would learn about it.
-      '<button type="button" class="tt-ctx-item" data-action="priority">Priority</button>' +
-      '<button type="button" class="tt-ctx-item" data-action="duplicate">Duplicate</button>' +
+      '<button type="button" class="tt-ctx-item" data-action="priority">' + th("task_priority") + '</button>' +
+      '<button type="button" class="tt-ctx-item" data-action="duplicate">' + th("task_duplicate") + '</button>' +
       '<button type="button" class="tt-ctx-item" data-action="assign-goal">' +
         (task.goalId ? "Move to another goal" : "Assign to a goal") +
       '</button>' +
       sessionItemsHtml +
       '<button type="button" class="tt-ctx-item" data-action="toggle-complete">' + escapeHtml(completeLabel) + '</button>' +
       '<div class="tt-ctx-separator"></div>' +
-      '<button type="button" class="tt-ctx-item tt-ctx-danger" data-action="delete">Delete</button>';
+      '<button type="button" class="tt-ctx-item tt-ctx-danger" data-action="delete">' + th("common_delete") + '</button>';
     document.body.appendChild(menu);
 
     var w = menu.offsetWidth;
@@ -6420,7 +6420,7 @@
       '</button>';
     }).join("");
     html += '<div class="tt-ctx-separator"></div>' +
-      '<button type="button" class="tt-ctx-item tt-prio-opt' + (!current ? " tt-ctx-active" : "") + '" data-priority="">Clear priority</button>';
+      '<button type="button" class="tt-ctx-item tt-prio-opt' + (!current ? " tt-ctx-active" : "") + '" data-priority="">' + th("priority_clear_priority") + '</button>';
     menu.innerHTML = html;
 
     menu.addEventListener("click", async function (ev) {
@@ -6466,8 +6466,8 @@
         '<input type="date" class="tt-due-input" value="' + escapeHtml(currentYmd || "") + '">' +
       '</div>' +
       '<div class="tt-due-popover-actions">' +
-        '<button type="button" class="tt-ctx-item tt-due-clear">Clear</button>' +
-        '<button type="button" class="tt-ctx-item tt-due-set">Set</button>' +
+        '<button type="button" class="tt-ctx-item tt-due-clear">' + th("due_clear") + '</button>' +
+        '<button type="button" class="tt-ctx-item tt-due-set">' + th("due_set") + '</button>' +
       '</div>';
     var input = menu.querySelector(".tt-due-input");
     menu.querySelector(".tt-due-set").addEventListener("click", function () {
@@ -6565,7 +6565,7 @@
     }
 
     if (!rows.length) {
-      menu.innerHTML = '<div class="tt-filter-empty">No tags yet.</div>';
+      menu.innerHTML = '<div class="tt-filter-empty">' + th("task_no_tags_yet") + '</div>';
     } else {
       var selected = kind === "priority" ? taskFilterState.priorities : taskFilterState.tagIds;
       menu.innerHTML = rows.map(function (r) {
@@ -6934,7 +6934,7 @@
     if (level === "active" || level === "grace") {
       // State F — Pro badge
       cta.classList.add("tab-cta-pro");
-      labelHtml = CHECK_PRO_SVG + '<span>Pro</span>';
+      labelHtml = CHECK_PRO_SVG + '<span>' + th("apply_pro") + '</span>';
       ariaLabel = "Open Pro Settings";
     } else if (level === "trialing") {
       // State E — trial countdown
@@ -6961,7 +6961,7 @@
       // sole trial entry point on the tab bar; gating it here plus the preview
       // banner makes the upgrade popover unreachable for a fresh free user.
       cta.classList.add("tab-cta-teaser");
-      labelHtml = '<span>Coming soon</span>';
+      labelHtml = '<span>' + th("apply_coming_soon") + '</span>';
       ariaLabel = "LaunchPad Pro — coming soon";
     } else {
       // States A-D — free or expired upgrade CTA
@@ -7131,27 +7131,27 @@
     // in teaser mode, so this is the defense-in-depth chokepoint: even if a
     // surface routes here, no trial can be started.
     var trialBlock = (trialUsed || !trialCtaLive()) ? "" :
-      '<button type="button" class="up-primary">Start free trial</button>' +
-      '<div class="up-or-divider"><span>or upgrade now</span></div>';
+      '<button type="button" class="up-primary">' + th("upgrade_start_free_trial") + '</button>' +
+      '<div class="up-or-divider"><span>' + th("upgrade_or_upgrade_now") + '</span></div>';
 
     var pop = document.createElement("div");
     pop.id = "upgrade-popover";
     pop.innerHTML =
       '<div class="up-header">' +
         '<div class="up-title">' + escapeHtml(title) + '</div>' +
-        '<button type="button" class="up-close" aria-label="Close">&times;</button>' +
+        '<button type="button" class="up-close" aria-label="' + th("common_close") + '">&times;</button>' +
       '</div>' +
       '<div class="up-subhead">' + escapeHtml(copy.subhead) + '</div>' +
       trialBlock +
       '<div class="up-tier-row">' +
-        '<button type="button" class="up-tier" data-tier="monthly">Monthly</button>' +
-        '<button type="button" class="up-tier" data-tier="annual">Annual</button>' +
+        '<button type="button" class="up-tier" data-tier="monthly">' + th("upgrade_monthly") + '</button>' +
+        '<button type="button" class="up-tier" data-tier="annual">' + th("upgrade_annual") + '</button>' +
       '</div>' +
       '<div class="up-divider"></div>' +
-      '<button type="button" class="up-license-toggle">Already have a license?</button>' +
+      '<button type="button" class="up-license-toggle">' + th("upgrade_already_have_a_license") + '</button>' +
       '<div class="up-license-row hidden">' +
-        '<input type="text" class="up-license-input" placeholder="Enter license key" autocomplete="off" spellcheck="false">' +
-        '<button type="button" class="up-license-apply">Apply</button>' +
+        '<input type="text" class="up-license-input" placeholder="' + th("upgrade_enter_license_key") + '" autocomplete="off" spellcheck="false">' +
+        '<button type="button" class="up-license-apply">' + th("common_apply") + '</button>' +
       '</div>' +
       '<div class="up-license-error hidden" role="alert"></div>';
 
@@ -7550,8 +7550,8 @@
       var inputRow = document.createElement("div");
       inputRow.className = "ws-dd-input-row";
       inputRow.innerHTML =
-        '<input type="text" class="ws-dd-input" placeholder="Workspace name" autocomplete="off" spellcheck="false" maxlength="48">' +
-        '<button type="button" class="ws-dd-create">Create</button>';
+        '<input type="text" class="ws-dd-input" placeholder="' + th("workspace_workspace_name") + '" autocomplete="off" spellcheck="false" maxlength="48">' +
+        '<button type="button" class="ws-dd-create">' + th("workspace_create") + '</button>';
       var input = inputRow.querySelector(".ws-dd-input");
       var createBtn = inputRow.querySelector(".ws-dd-create");
       var submit = function () {
@@ -7577,7 +7577,7 @@
       addRow.className = "ws-dd-row ws-dd-add";
       addRow.innerHTML =
         '<span class="ws-dd-add-glyph">+</span>' +
-        '<span class="ws-dd-name">Add workspace</span>';
+        '<span class="ws-dd-name">' + th("workspace_add_workspace") + '</span>';
       addRow.addEventListener("click", function () {
         refreshWorkspaceDropdown(true);
       });
@@ -7794,8 +7794,8 @@
     banner.id = "workspace-readonly-banner";
     banner.className = "workspace-readonly-banner";
     banner.innerHTML =
-      '<span class="workspace-readonly-banner-text">This workspace is read-only. Upgrade to Pro to edit.</span>' +
-      '<a href="#" class="workspace-readonly-banner-cta" data-readonly-cta>Upgrade</a>';
+      '<span class="workspace-readonly-banner-text">' + th("read_this_workspace_is_read_only_upgrade") + '</span>' +
+      '<a href="#" class="workspace-readonly-banner-cta" data-readonly-cta>' + th("read_upgrade") + '</a>';
     grid.insertBefore(banner, grid.firstChild);
     var cta = banner.querySelector("[data-readonly-cta]");
     if (cta) {
@@ -8047,7 +8047,7 @@
     // verification date could be reported.
 
     if (level === "grace") {
-      html += '<span class="pro-warning">Verification overdue &mdash; reconnect to keep access.</span>';
+      html += '<span class="pro-warning">' + th("pro_verification_overdue_mdash_reconnect_to_keep") + '</span>';
     }
 
     host.innerHTML = html;
@@ -8194,14 +8194,14 @@
         // workspace including Main (spec, Workspace Scoping).
         var trackChecked = Storage.isTrackingEnabled(ws) ? " checked" : "";
         return '<li class="pro-workspace-row' + roCls + '" data-workspace-id="' + escapeHtml(ws.id) + '">' +
-          '<span class="pws-drag-handle" title="Drag to reorder">☰</span>' +
+          '<span class="pws-drag-handle" title="' + th("pro_drag_to_reorder") + '">☰</span>' +
           '<span class="pws-chip' + (ws.isReadOnly ? ' is-readonly' : '') + '" style="background:' + color + ';color:' + tagTextColorFor(color) + '">' + escapeHtml(workspaceFirstLetter(ws.name)) + '</span>' +
           '<span class="pws-name' + roCls + '">' + escapeHtml(ws.name || ws.id) + '</span>' +
-          '<label class="pws-tracking" title="Track focus time while this workspace is active">' +
-            '<input type="checkbox" class="pws-tracking-check"' + trackChecked + ' aria-label="Track focus time in this workspace">' +
-            '<span>Track</span>' +
+          '<label class="pws-tracking" title="' + th("pro_track_focus_time_while_this_workspace") + '">' +
+            '<input type="checkbox" class="pws-tracking-check"' + trackChecked + ' aria-label="' + th("pro_track_focus_time_in_this_workspace") + '">' +
+            '<span>' + th("pro_track") + '</span>' +
           '</label>' +
-          '<button type="button" class="' + deleteCls + '" title="' + escapeHtml(deleteTitle) + '" aria-label="Delete workspace">×</button>' +
+          '<button type="button" class="' + deleteCls + '" title="' + escapeHtml(deleteTitle) + '" aria-label="' + th("pro_delete_workspace") + '">×</button>' +
         '</li>';
       })
       .join("");
@@ -8283,14 +8283,14 @@
       addBtnRow.id = "pro-workspace-add-row";
       addBtnRow.className = "settings-row pws-add-row";
       addBtnRow.innerHTML =
-        '<input type="text" id="pro-workspace-add-input" class="pws-add-input" placeholder="New workspace name" autocomplete="off" spellcheck="false" maxlength="48">' +
+        '<input type="text" id="pro-workspace-add-input" class="pws-add-input" placeholder="' + th("pro_new_workspace_name") + '" autocomplete="off" spellcheck="false" maxlength="48">' +
         // [1.0.25] Tracking choice surfaced at creation (spec, Workspace
         // Scoping). Checked by default — the default is ON.
-        '<label class="pws-add-tracking" title="Track focus time while this workspace is active">' +
-          '<input type="checkbox" id="pro-workspace-add-tracking" checked aria-label="Track focus time in the new workspace">' +
-          '<span>Track</span>' +
+        '<label class="pws-add-tracking" title="' + th("pro_track_focus_time_while_this_workspace_2") + '">' +
+          '<input type="checkbox" id="pro-workspace-add-tracking" checked aria-label="' + th("pro_track_focus_time_in_the_new") + '">' +
+          '<span>' + th("pro_track_2") + '</span>' +
         '</label>' +
-        '<button type="button" id="pro-workspace-add-btn" class="settings-btn">Add workspace</button>';
+        '<button type="button" id="pro-workspace-add-btn" class="settings-btn">' + th("pro_add_workspace") + '</button>';
       // Insert directly after the workspace list
       if (host.nextSibling) {
         section.insertBefore(addBtnRow, host.nextSibling);
@@ -8622,8 +8622,8 @@
       '<button type="button" class="note-swatch notes-default-cycle' +
         (current === null ? " is-active" : "") + '"' +
         ' role="radio" aria-checked="' + (current === null ? "true" : "false") + '"' +
-        ' data-notes-default-color="" title="Cycle the palette"' +
-        ' aria-label="Cycle the palette"></button>';
+        ' data-notes-default-color="" title="' + th("notes_cycle_the_palette") + '"' +
+        ' aria-label="' + th("notes_cycle_the_palette_2") + '"></button>';
     var swatches = (Storage.NOTE_COLORS || []).map(function (c) {
       return '<button type="button" class="note-swatch' +
         (c === current ? " is-active" : "") + '"' +
@@ -8702,16 +8702,16 @@
     listHost.innerHTML = visibleTags.map(function (tag) {
       var archived = !!tag.deletedAt;
       var rowCls = "pro-tag-row" + (archived ? " archived" : "");
-      var rowTitle = archived ? ' title="In trash. Restore within 30 days."' : "";
+      var rowTitle = archived ? ' title="' + th("pro_in_trash_restore_within_30_days") + '"' : "";
       return '<li class="' + rowCls + '" data-tag-id="' + escapeHtml(tag.id) + '"' + rowTitle + '>' +
-        '<button class="pro-tag-color-swatch" type="button" style="background:' + escapeHtml(tag.color) + '" aria-label="Change color"></button>' +
+        '<button class="pro-tag-color-swatch" type="button" style="background:' + escapeHtml(tag.color) + '" aria-label="' + th("pro_change_color") + '"></button>' +
         '<span class="pro-tag-name">' + escapeHtml(tag.name) + '</span>' +
         (archived
-          ? '<span class="pro-tag-archived-label">in trash</span>' +
-            '<button class="pro-tag-restore" type="button" title="Restore this tag">Restore</button>' +
+          ? '<span class="pro-tag-archived-label">' + th("pro_in_trash") + '</span>' +
+            '<button class="pro-tag-restore" type="button" title="' + th("pro_restore_this_tag") + '">' + th("pro_restore") + '</button>' +
             '<span class="pro-tag-restore-error hidden" role="alert"></span>'
           : '') +
-        '<button class="pro-tag-delete" type="button" aria-label="Delete tag" title="Delete tag">🗑</button>' +
+        '<button class="pro-tag-delete" type="button" aria-label="' + th("pro_delete_tag") + '" title="' + th("pro_delete_tag") + '">🗑</button>' +
       '</li>';
     }).join("");
 
@@ -9391,7 +9391,7 @@
       '<div class="badge-splash-card">' +
         '<div class="badge-splash-glow" aria-hidden="true"></div>' +
         '<div class="badge-splash-icon">' + renderBadgeGlyph(meta.glyph) + '</div>' +
-        '<div class="badge-splash-eyebrow">Achievement unlocked</div>' +
+        '<div class="badge-splash-eyebrow">' + th("badge_achievement_unlocked") + '</div>' +
         '<div class="badge-splash-title">' + escapeHtml(meta.title) + '</div>' +
         '<div class="badge-splash-desc">' + escapeHtml(meta.desc) + '</div>' +
       '</div>';
@@ -9482,12 +9482,12 @@
     overlay.innerHTML =
       '<div class="pro-celebrate-card">' +
         '<div class="pro-celebrate-glow" aria-hidden="true"></div>' +
-        '<div class="pro-celebrate-eyebrow">Pro activated</div>' +
-        '<div class="pro-celebrate-title" id="pro-celebrate-title">You’re Pro</div>' +
-        '<div class="pro-celebrate-desc">Everything is unlocked. Here’s your thirty-second lay of the land.</div>' +
+        '<div class="pro-celebrate-eyebrow">' + th("pro_pro_activated") + '</div>' +
+        '<div class="pro-celebrate-title" id="pro-celebrate-title">' + th("pro_you_re_pro") + '</div>' +
+        '<div class="pro-celebrate-desc">' + th("pro_everything_is_unlocked_here_s_your") + '</div>' +
         '<div class="pro-celebrate-actions">' +
-          '<button type="button" class="pro-celebrate-btn is-primary" data-pro-celebrate-tour>Take the tour</button>' +
-          '<button type="button" class="pro-celebrate-btn" data-pro-celebrate-skip>Explore on my own</button>' +
+          '<button type="button" class="pro-celebrate-btn is-primary" data-pro-celebrate-tour>' + th("pro_take_the_tour") + '</button>' +
+          '<button type="button" class="pro-celebrate-btn" data-pro-celebrate-skip>' + th("pro_explore_on_my_own") + '</button>' +
         '</div>' +
       '</div>';
 
@@ -9698,7 +9698,7 @@
       '<div class="pro-tour-foot">' +
         '<span class="pro-tour-count">' + (proTourState.index + 1) + ' of ' + PRO_TOUR_STEPS.length + '</span>' +
         '<span class="pro-tour-btns">' +
-          (last ? '' : '<button type="button" class="pro-tour-btn is-quiet" data-pro-tour-skip>Skip</button>') +
+          (last ? '' : '<button type="button" class="pro-tour-btn is-quiet" data-pro-tour-skip>' + th("pro_skip") + '</button>') +
           '<button type="button" class="pro-tour-btn is-primary" data-pro-tour-next>' + (last ? "Done" : "Next") + '</button>' +
         '</span>' +
       '</div>';
@@ -9839,9 +9839,9 @@
     toast.className = "promo-toast";
 
     toast.innerHTML = '<span class="promo-toast-icon">\u2B50</span>' +
-      '<span class="promo-toast-text">Enjoying LaunchPad? Leave a quick rating!</span>' +
-      '<a href="https://chromewebstore.google.com/detail/launchpad-new-tab-shortcu/jfmmagapjdionoomkjmkfppcplkjilnp" target="_blank" rel="noopener noreferrer" class="promo-toast-action">Rate</a>' +
-      '<button class="promo-toast-dismiss" title="Dismiss">&times;</button>';
+      '<span class="promo-toast-text">' + th("promo_enjoying_launchpad_leave_a_quick_rating") + '</span>' +
+      '<a href="https://chromewebstore.google.com/detail/launchpad-new-tab-shortcu/jfmmagapjdionoomkjmkfppcplkjilnp" target="_blank" rel="noopener noreferrer" class="promo-toast-action">' + th("promo_rate") + '</a>' +
+      '<button class="promo-toast-dismiss" title="' + th("promo_dismiss") + '">&times;</button>';
 
     document.body.appendChild(toast);
 
@@ -11704,11 +11704,11 @@
     var dialog = document.createElement("div");
     dialog.id = "nest-rename-dialog";
     dialog.innerHTML =
-      '<div class="nrd-title">Shortcuts grouped! Name this group?</div>' +
+      '<div class="nrd-title">' + th("nest_shortcuts_grouped_name_this_group") + '</div>' +
       '<input type="text" class="nrd-input" value="' + esc(shortcut.title || domain) + '">' +
       '<div class="nrd-actions">' +
-        '<button class="nrd-save" type="button">Save</button>' +
-        '<button class="nrd-skip" type="button">Skip</button>' +
+        '<button class="nrd-save" type="button">' + th("common_save") + '</button>' +
+        '<button class="nrd-skip" type="button">' + th("nest_skip") + '</button>' +
       '</div>';
 
     // Position near the shortcut
@@ -12225,7 +12225,7 @@
       '<div class="sat-today">' +
         '<span class="sat-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</span>' +
         '<span class="sat-time-label">' +
-          '<span class="sat-time-label-text">Focused today</span>' +
+          '<span class="sat-time-label-text">' + th("sat_focused_today") + '</span>' +
           satTrackingIndicatorHtml(paused) +
         '</span>' +
       '</div>' +
@@ -12720,7 +12720,7 @@
     if (!(ms > 0)) return "";
     return '<div class="sat-worked" title="' + escapeHtml(SAT_WORKED_TITLE) + '">' +
         '<span class="sat-worked-val">' + escapeHtml(fmtDurationHM(ms)) + '</span>' +
-        '<span class="sat-worked-unit">worked on this task</span>' +
+        '<span class="sat-worked-unit">' + th("sat_worked_on_this_task") + '</span>' +
       '</div>';
   }
 
@@ -12856,16 +12856,16 @@
   // rather than inventing a second accent.
   function satFocusPillDot() {
     if (!Storage.focusBlockingActive(data)) return "";
-    return '<span class="sat-pill-focus" title="Focus blocking is on" ' +
-      'aria-label="Focus blocking is on">●</span>';
+    return '<span class="sat-pill-focus" title="' + th("sat_focus_blocking_is_on") + '" ' +
+      'aria-label="' + th("sat_focus_blocking_is_on_2") + '">●</span>';
   }
 
   function satPillFaceHtml(res, paused) {
     var inner;
     if (!res) {
       inner = (paused ? '<span class="sat-pill-glyph sat-pill-resume" data-sat-act="resume" ' +
-          'role="button" title="Resume tracking" aria-label="Resume tracking">⏸</span>' : '') +
-        '<span class="sat-pill-empty">No active task</span>' +
+          'role="button" title="' + th("sat_resume_tracking") + '" aria-label="' + th("sat_resume_tracking") + '">⏸</span>' : '') +
+        '<span class="sat-pill-empty">' + th("sat_no_active_task") + '</span>' +
         satFocusPillDot() +
         '<span class="sat-pill-plus" aria-hidden="true">+</span>';
     } else {
@@ -12943,7 +12943,7 @@
           '<span class="sat-focus-knob" aria-hidden="true"></span>' +
         '</button>' +
         '<span class="sat-focus-label">' + escapeHtml(label) + '</span>' +
-        (empty ? '<span class="sat-focus-hint">no sites listed</span>' : '') +
+        (empty ? '<span class="sat-focus-hint">' + th("sat_no_sites_listed") + '</span>' : '') +
       '</div>';
   }
 
@@ -12973,9 +12973,9 @@
     // both the normal card and the [1.0.18] pomodoro-running card.
     var head =
       '<div class="sat-card-head">' +
-        '<span class="sat-eyebrow">Active task</span>' +
+        '<span class="sat-eyebrow">' + th("sat_active_task") + '</span>' +
         '<button type="button" class="sat-card-min" data-sat-act="minimize" ' +
-          'title="Minimize" aria-label="Minimize active task card">⌃</button>' +
+          'title="' + th("sat_minimize") + '" aria-label="' + th("sat_minimize_active_task_card") + '">⌃</button>' +
       '</div>' +
       '<div class="sat-name" title="' + escapeHtml(res.task.name) + '">' + escapeHtml(res.task.name) + '</div>' +
       (res.goal ? '<div class="sat-goal" title="' + escapeHtml(res.goal.name) + '">' + escapeHtml(res.goal.name) + '</div>' : '') +
@@ -12986,8 +12986,8 @@
     // it is the loud amber recovery control. [A2] The action row is SHARED by the
     // normal and running-phase cards so Pause stays available during a phase (P3).
     var pauseBtn = paused
-      ? '<button type="button" class="sat-btn sat-btn-resume" data-sat-act="resume" title="Resume tracking">▶ Resume</button>'
-      : '<button type="button" class="sat-btn" data-sat-act="pause" title="Pause tracking">⏸ Pause</button>';
+      ? '<button type="button" class="sat-btn sat-btn-resume" data-sat-act="resume" title="' + th("sat_resume_tracking_2") + '">' + th("sat_resume") + '</button>'
+      : '<button type="button" class="sat-btn" data-sat-act="pause" title="' + th("sat_pause_tracking") + '">' + th("sat_pause") + '</button>';
 
     // [2.0 pill clarity] EVERY ACTION WEARS ITS CONSEQUENCE.
     //
@@ -13023,16 +13023,16 @@
       '<div class="sat-actions">' +
         '<div class="sat-actions-primary">' +
           '<button type="button" class="sat-btn sat-btn-complete" data-sat-act="complete" ' +
-            'title="Complete the task. It moves to Completed, and you can uncheck it in Tasks to reopen it.">' +
+            'title="' + th("sat_complete_the_task_it_moves_to") + '">' +
             '✓ Complete</button>' +
           '<button type="button" class="sat-btn sat-btn-setdown" data-sat-act="cancel" ' +
-            'title="Stop tracking for now. The task stays open and keeps its time.">' +
+            'title="' + th("sat_stop_tracking_for_now_the_task") + '">' +
             'End for now</button>' +
         '</div>' +
         '<div class="sat-actions-session">' +
           pauseBtn +
           '<button type="button" class="sat-btn sat-btn-icon" data-sat-act="switch" ' +
-            'title="Switch active task" aria-label="Switch active task">⇄</button>' +
+            'title="' + th("sat_switch_active_task") + '" aria-label="' + th("sat_switch_active_task") + '">⇄</button>' +
         '</div>' +
       '</div>';
 
@@ -13080,7 +13080,7 @@
               '</div>' +
             '</div>' +
             '<div class="sat-pomo-stop-row">' +
-              '<button type="button" class="sat-btn sat-btn-pomo-stop" data-sat-act="pomo-stop" title="Stop focus session">■ Stop</button>' +
+              '<button type="button" class="sat-btn sat-btn-pomo-stop" data-sat-act="pomo-stop" title="' + th("sat_stop_focus_session") + '">' + th("sat_stop") + '</button>' +
             '</div>' +
           '</div>' +
           // Today's total, kept in view under the countdown. Paused cannot be
@@ -13119,7 +13119,7 @@
             '<div class="sat-pomo-done-msg">Session done · cycle ' + cyclePos + ' of ' + cadence + '</div>' +
             '<div class="sat-pomo-start-row">' +
               '<button type="button" class="sat-btn sat-btn-pomo-start" data-sat-act="pomo-start" ' +
-                'title="Start the next focus session">▶ Start next session</button>' +
+                'title="' + th("sat_start_the_next_focus_session") + '">' + th("sat_start_next_session") + '</button>' +
             '</div>' +
           '</div>' +
           satFocusRowHtml() +
@@ -13136,9 +13136,9 @@
         // branches above keep satHeadlineHtml untouched.
         satIdleHeadlineHtml(paused) +
         '<div class="sat-pomo-start-row">' +
-          '<button type="button" class="sat-btn sat-btn-pomo-start" data-sat-act="pomo-start" title="Start a focus session">▶ Focus session</button>' +
+          '<button type="button" class="sat-btn sat-btn-pomo-start" data-sat-act="pomo-start" title="' + th("sat_start_a_focus_session") + '">' + th("sat_focus_session") + '</button>' +
           '<button type="button" class="sat-btn sat-btn-pomo-dur" data-sat-act="pomo-duration" ' +
-            'title="Change focus length" aria-expanded="' + (satPomoDurOpen ? 'true' : 'false') + '">' +
+            'title="' + th("sat_change_focus_length") + '" aria-expanded="' + (satPomoDurOpen ? 'true' : 'false') + '">' +
             escapeHtml(String(workMin)) + ' min ▾</button>' +
         '</div>' +
         (satPomoDurOpen ? satPomoDurChipsHtml(workMin) : "") +
@@ -13160,7 +13160,7 @@
     var isPreset = presets.indexOf(workMin) !== -1;
     return '<div class="sat-pomo-dur-row">' + chips +
         '<input type="number" class="sat-pomo-dur-input" data-sat-act="pomo-dur-custom" ' +
-          'min="5" max="60" step="1" inputmode="numeric" placeholder="Custom" value="' + (isPreset ? "" : escapeHtml(String(workMin))) + '">' +
+          'min="5" max="60" step="1" inputmode="numeric" placeholder="' + th("sat_custom") + '" value="' + (isPreset ? "" : escapeHtml(String(workMin))) + '">' +
       '</div>';
   }
 
@@ -13592,7 +13592,7 @@
         html += byGoal[goalId].map(rowHtml).join("");
       });
       if (standalone.length) {
-        if (Object.keys(byGoal).length) html += '<div class="sat-goal-header">No goal</div>';
+        if (Object.keys(byGoal).length) html += '<div class="sat-goal-header">' + th("sat_no_goal") + '</div>';
         html += standalone.map(rowHtml).join("");
       }
     });
@@ -13609,8 +13609,8 @@
     var menu = document.createElement("div");
     menu.className = "tt-context-menu sat-switch-menu";
     menu.innerHTML =
-      '<input type="text" class="sat-switch-search" placeholder="Search tasks in all workspaces" ' +
-        'autocomplete="off" spellcheck="false" aria-label="Search tasks">' +
+      '<input type="text" class="sat-switch-search" placeholder="' + th("sat_search_tasks_in_all_workspaces") + '" ' +
+        'autocomplete="off" spellcheck="false" aria-label="' + th("sat_search_tasks") + '">' +
       '<div class="sat-switch-list">' + satSwitchListHtml("", {}) + '</div>';
     document.body.appendChild(menu);
     satSwitchMenuEl = menu;
@@ -13804,11 +13804,11 @@
   function groupHTML(group, singleGroup) {
     var collapsed = data.settings.collapsedGroups && data.settings.collapsedGroups[group.id];
     var groupClass = "group" + (collapsed ? " collapsed" : "");
-    var moreBtn = '<button class="group-more-btn" data-group-id="' + group.id + '" title="Group options">' + THREE_DOT_SVG + "</button>";
+    var moreBtn = '<button class="group-more-btn" data-group-id="' + group.id + '" title="' + th("group_group_options") + '">' + THREE_DOT_SVG + "</button>";
     var shortcutCount = group.shortcuts.length;
     var countBadge = '<span class="group-count">(' + shortcutCount + " shortcut" + (shortcutCount !== 1 ? "s" : "") + ")</span>";
     var openAllBtn = shortcutCount > 0
-      ? '<button class="group-open-all-btn" data-group-id="' + group.id + '" title="Open all shortcuts in new tabs">\u25B6 Open All</button>'
+      ? '<button class="group-open-all-btn" data-group-id="' + group.id + '" title="' + th("group_open_all_shortcuts_in_new_tabs") + '">\u25B6 Open All</button>'
       : '';
     var gridStyle = collapsed ? ' style="max-height:0"' : '';
     var emptyHint = shortcutCount === 0
@@ -13859,7 +13859,7 @@
           "</div>" +
           '<span class="shortcut-name">' + displayName + "</span>" +
         "</a>" +
-        '<button class="shortcut-more" title="More actions">' + MORE_SVG + "</button>" +
+        '<button class="shortcut-more" title="' + th("shortcut_more_actions") + '">' + MORE_SVG + "</button>" +
       "</div>"
     );
   }
@@ -13928,27 +13928,27 @@
       '<section class="group demo-intro" data-group-id="demo_intro">' +
         '<div class="demo-tiles">' +
           '<div class="demo-tile demo-tile-welcome">' +
-            '<div class="demo-tile-title">Welcome to LaunchPad</div>' +
+            '<div class="demo-tile-title">' + th("demo_welcome_to_launchpad") + '</div>' +
             '<p class="demo-tile-body">Your new tab, organised your way. ' +
               'Everything below is an example — open it, drag it, rename it, ' +
               'then make this grid yours.</p>' +
             '<div class="demo-clear-wrap">' + clearBtn + '</div>' +
           '</div>' +
           '<div class="demo-tile demo-tile-teach">' +
-            '<div class="demo-tile-title">Save any page</div>' +
+            '<div class="demo-tile-title">' + th("demo_save_any_page") + '</div>' +
             '<p class="demo-tile-body">Right-click any page → ' +
-              '<strong>Add to LaunchPad</strong>. That is the whole habit.</p>' +
+              '<strong>' + th("demo_add_to_launchpad") + '</strong>. That is the whole habit.</p>' +
           '</div>' +
           '<button type="button" class="demo-tile demo-tile-import" data-demo-act="import">' +
-            '<span class="demo-tile-title">Already have bookmarks?</span>' +
-            '<span class="demo-tile-body">Bring them in from top sites or Chrome bookmarks.</span>' +
+            '<span class="demo-tile-title">' + th("demo_already_have_bookmarks") + '</span>' +
+            '<span class="demo-tile-body">' + th("demo_bring_them_in_from_top_sites") + '</span>' +
           '</button>' +
           // [1.0.19 D12] A door to the picker that already exists — no new UI.
           // This revives the one genuinely liked job of the dead wizard's
           // screen 2, as a tile the user can ignore rather than a gate.
           '<button type="button" class="demo-tile demo-tile-background" data-demo-act="background">' +
-            '<span class="demo-tile-title">Pick a background</span>' +
-            '<span class="demo-tile-body">Make it yours. Pick a background.</span>' +
+            '<span class="demo-tile-title">' + th("demo_pick_a_background") + '</span>' +
+            '<span class="demo-tile-body">' + th("demo_make_it_yours_pick_a_background") + '</span>' +
           '</button>' +
         '</div>' +
       '</section>'
@@ -14001,7 +14001,7 @@
   // switcher is available (folds in the old renderTipsActionability logic).
   var GS_ROWS = [
     { step: "1", act: "add-shortcut", vis: "tip-vis-plus",   text: "Add your first shortcut" },
-    { step: "2", act: null,           vis: "tip-vis-menu",   html: 'Save a page with right-click &mdash; choose <strong>Add to LaunchPad</strong>' },
+    { step: "2", act: null,           vis: "tip-vis-menu",   html: 'Save a page with right-click &mdash; choose <strong>' + th("restore_add_to_launchpad") + '</strong>' },
     { step: "3", act: null,           vis: "tip-vis-drag",   inner: "<i></i><i></i>", text: "Nest one tile on another" },
     { step: "4", act: "add-group",    vis: "tip-vis-folder", text: "Create a group" },
     { step: "5", act: "workspaces",   vis: "tip-vis-layers", text: "Switch workspaces" },
@@ -14016,7 +14016,7 @@
 
     // Dismissed -> collapsed to the done-line only (permanent escape hatch).
     if (gs.dismissed) {
-      host.innerHTML = '<div class="gs-doneline">You know your way around.</div>';
+      host.innerHTML = '<div class="gs-doneline">' + th("getting_you_know_your_way_around") + '</div>';
       return;
     }
 
@@ -14028,8 +14028,8 @@
     var switcherAvailable = !!(swBtn && !swBtn.classList.contains("hidden"));
 
     var header = complete
-      ? '<div class="gs-doneline">You know your way around.</div>'
-      : '<div class="gs-header"><span class="gs-title">Getting started</span>' +
+      ? '<div class="gs-doneline">' + th("getting_you_know_your_way_around_2") + '</div>'
+      : '<div class="gs-header"><span class="gs-title">' + th("getting_getting_started") + '</span>' +
           '<span class="gs-count">' + done + ' of ' + total + '</span></div>';
 
     var rowsHtml = GS_ROWS.map(function (r) {
@@ -14049,7 +14049,7 @@
 
     // The manual dismiss is ALWAYS available while the checklist is shown (R3-D4).
     host.innerHTML = header + '<div class="gs-rows">' + rowsHtml + '</div>' +
-      '<button class="gs-dismiss" id="gs-dismiss" type="button">I know my way around</button>';
+      '<button class="gs-dismiss" id="gs-dismiss" type="button">' + th("getting_i_know_my_way_around") + '</button>';
   }
 
   // Re-render the checklist iff the Tips panel is open (a tick from an action
@@ -14082,9 +14082,9 @@
 
   function addTileHTML(groupId) {
     return (
-      '<button class="add-tile" data-group-id="' + groupId + '" title="Add shortcut">' +
+      '<button class="add-tile" data-group-id="' + groupId + '" title="' + th("add_add_shortcut") + '">' +
         '<div class="add-tile-icon">' + PLUS_SVG + '</div>' +
-        '<span class="add-tile-label">Add shortcut</span>' +
+        '<span class="add-tile-label">' + th("add_add_shortcut") + '</span>' +
       '</button>'
     );
   }
@@ -14181,13 +14181,13 @@
         var listStyle = wasExpanded ? ' style="max-height:200px"' : '';
         return '<div class="' + wrapperClass + '" data-group-id="' + g.id + '">' +
           '<div class="sb-group-item" data-group-id="' + g.id + '" title="' + esc(g.name) + '">' +
-            '<span class="sidebar-drag-handle" title="Drag to reorder">\u2807</span>' +
+            '<span class="sidebar-drag-handle" title="' + th("sidebar_drag_to_reorder") + '">\u2807</span>' +
             '<span class="' + chevronClass + '">' + CHEVRON_RIGHT_SVG + '</span>' +
             FOLDER_SVG +
             '<span class="sb-group-name">' + esc(g.name) + '</span>' +
             sbTagPills +
             '<span class="sb-group-count">' + g.shortcuts.length + '</span>' +
-            '<button class="sb-group-more" data-group-id="' + g.id + '" type="button" title="Group options">' + THREE_DOT_SM_SVG + '</button>' +
+            '<button class="sb-group-more" data-group-id="' + g.id + '" type="button" title="' + th("sidebar_group_options") + '">' + THREE_DOT_SM_SVG + '</button>' +
           '</div>' +
           '<div class="sidebar-shortcut-list" data-group-id="' + g.id + '"' + listStyle + '>' +
             sidebarShortcutListHTML(g) +
@@ -14200,7 +14200,7 @@
 
   function sidebarShortcutListHTML(group) {
     if (!group.shortcuts || !group.shortcuts.length) {
-      return '<span class="sidebar-shortcut-empty">No shortcuts</span>';
+      return '<span class="sidebar-shortcut-empty">' + th("sidebar_no_shortcuts") + '</span>';
     }
     return group.shortcuts.map(function (s) {
       var favicon = getFaviconUrl(s);
@@ -14217,7 +14217,7 @@
       var html = '<div class="sidebar-shortcut-item" data-shortcut-id="' + s.id + '"' +
         (hasVariants ? '' : ' data-url="' + esc(s.url) + '"') +
         ' title="' + esc(s.title || s.url) + '">' +
-        '<span class="sidebar-shortcut-drag-handle" title="Drag to reorder">\u2807</span>' +
+        '<span class="sidebar-shortcut-drag-handle" title="' + th("sidebar_drag_to_reorder_2") + '">\u2807</span>' +
         chevron +
         '<img src="' + esc(favicon) + '" alt="" width="16" height="16">' +
         '<span class="sidebar-shortcut-name">' + sidebarDisplayName + '</span>' +
@@ -14870,7 +14870,7 @@
                  (attachedName ? ' \u00B7 on ' + esc(attachedName) : "") + '</span>' +
              '</div>' +
              '<div class="session-favs">' + icons + more + '</div>' +
-             '<button class="session-row-more" type="button" title="Options" aria-label="Session options"' +
+             '<button class="session-row-more" type="button" title="' + th("session_options") + '" aria-label="' + th("session_session_options") + '"' +
                ' aria-haspopup="menu">' + "\u22EE" + '</button>' +
            '</div>';
   }
@@ -14889,7 +14889,7 @@
     return '<button type="button" class="sessions-trash-btn" data-sessions-trash' +
       ' aria-label="' + esc(label) + '" title="' + esc(label) + '">' +
         TRASH_SM_SVG +
-        '<span class="sessions-trash-label">Trash</span>' +
+        '<span class="sessions-trash-label">' + th("sessions_trash") + '</span>' +
         '<span class="sessions-trash-sep" aria-hidden="true">\u00b7</span>' +
         '<span class="sessions-trash-count">' + trashed.length + '</span>' +
       '</button>';
@@ -15067,8 +15067,8 @@
           '</span>' +
         '</div>' +
         '<div class="sessions-trash-actions">' +
-          '<button type="button" class="sessions-trash-action" data-trash-act="restore">Restore</button>' +
-          '<button type="button" class="sessions-trash-action is-danger" data-trash-act="purge">Delete permanently</button>' +
+          '<button type="button" class="sessions-trash-action" data-trash-act="restore">' + th("sessions_restore") + '</button>' +
+          '<button type="button" class="sessions-trash-action is-danger" data-trash-act="purge">' + th("sessions_delete_permanently") + '</button>' +
         '</div>' +
       '</li>';
   }
@@ -15077,7 +15077,7 @@
     var ws = Storage.getActiveWorkspace(data);
     var trashed = ws ? Storage.getDeletedNamedSessions(ws) : [];
     if (!trashed.length) {
-      return '<div class="sessions-trash-empty">Nothing in the trash. Deleted sessions appear here before they are removed for good.</div>';
+      return '<div class="sessions-trash-empty">' + th("sessions_nothing_in_the_trash_deleted_sessions") + '</div>';
     }
     // Most recently trashed first: the session just deleted is the one most
     // likely being looked for. Same ordering the notes trash uses.
@@ -15372,7 +15372,7 @@
     if (!pickerFilter.trim() || "no goal standalone".indexOf(pickerFilter.trim().toLowerCase()) !== -1) {
       rows += '<button type="button" class="session-picker-row' + (current === null ? " is-current" : "") +
         '" data-picker-goal="">' +
-        '<span class="session-picker-name">No goal (standalone)</span>' +
+        '<span class="session-picker-name">' + th("task_no_goal_standalone") + '</span>' +
         (current === null ? '<span class="session-picker-note">current</span>' : "") +
       '</button>';
     }
@@ -15534,7 +15534,7 @@
   function attachPickerBodyHtml(ws, currentTaskId) {
     var total = Storage.getAllTasks(ws).filter(function (t) { return !t.completed; }).length;
     if (!total) {
-      return '<p class="tt-modal-message">There are no open tasks in this workspace yet.</p>';
+      return '<p class="tt-modal-message">' + th("attach_there_are_no_open_tasks_in") + '</p>';
     }
     return pickerSearchHtml(total, "Search tasks") +
       '<div class="session-picker" data-picker-list>' + attachPickerRowsHtml(ws, currentTaskId) + '</div>';
@@ -15572,7 +15572,7 @@
       bodyHtml: total
         ? pickerSearchHtml(total, "Search sessions") +
           '<div class="session-picker" data-picker-list>' + taskSessionPickerRowsHtml(ws, taskId) + '</div>'
-        : '<p class="tt-modal-message">There are no saved sessions in this workspace yet.</p>',
+        : '<p class="tt-modal-message">' + th("task_there_are_no_saved_sessions_in") + '</p>',
       primaryLabel: t("common_close"),
       hideCancel: true,
       onPrimary: function () {},
@@ -16017,7 +16017,7 @@
                (t.url && t.url.toLowerCase().indexOf(query) !== -1);
       });
       if (!filtered.length) {
-        list.innerHTML = '<div class="rc-empty-state"><div class="rc-empty-state-icon">&#128269;</div><div class="rc-empty-state-text">No matches found</div></div>';
+        list.innerHTML = '<div class="rc-empty-state"><div class="rc-empty-state-icon">&#128269;</div><div class="rc-empty-state-text">' + th("rc_no_matches_found") + '</div></div>';
         return;
       }
       list.innerHTML = filtered.map(function (t) { return rcFlatItemHTML(t); }).join("");
