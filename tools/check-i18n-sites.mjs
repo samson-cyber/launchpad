@@ -749,6 +749,91 @@ if (misplacedMarkers.length) {
   process.exit(1);
 }
 
+// AN EM DASH IN A USER-FACING STRING IS A DEFECT ([1.5.0] R4 stage 3).
+//
+// It was already banned in catalogue VALUES. That rule could only ever see
+// strings which had already migrated, so the ban held on 586 messages while 28
+// em dashes sat in the source waiting to migrate into it - and one had already
+// slipped through as the literal "&mdash;". The rule now applies where the
+// copy is WRITTEN rather than where it lands.
+//
+// TWO EXEMPTIONS, both deliberate:
+//   1. A literal whose entire TEXT is dashes. The dash is used as a separator
+//      between two values ("task name - workspace name") and as a stand-in for
+//      "no value" in a stat tile. Those are typography, not prose, and Samson
+//      kept them. Tags are stripped first, so `<span>-</span>` is exempt too.
+//   2. A console.* argument. Never seen by a user, and the ledger's own prose
+//      uses the dash throughout.
+// Comments are skipped entirely: this codebase carries far more English in
+// comments than in UI strings, and every one of them would score.
+function emDashViolations() {
+  const EM = "—";
+  const out = [];
+  const scan = (src, file) => {
+    const lines = src.split("\n");
+    let i = 0, line = 1;
+    while (i < src.length) {
+      const c = src[i];
+      if (c === "\n") { line++; i++; continue; }
+      if (c === "/" && src[i + 1] === "/") { while (i < src.length && src[i] !== "\n") i++; continue; }
+      if (c === "/" && src[i + 1] === "*") {
+        i += 2;
+        while (i + 1 < src.length && !(src[i] === "*" && src[i + 1] === "/")) { if (src[i] === "\n") line++; i++; }
+        i += 2; continue;
+      }
+      if (c === '"' || c === "'" || c === "`") {
+        const q = c, start = line;
+        let buf = "";
+        i++;
+        while (i < src.length) {
+          if (src[i] === "\\") { buf += src.slice(i, i + 2); i += 2; continue; }
+          if (src[i] === q) { i++; break; }
+          if (src[i] === "\n") line++;
+          buf += src[i]; i++;
+        }
+        if (buf.includes(EM) || buf.includes("&mdash;")) {
+          // a literal spanning lines is the scanner losing its place on a regex
+          // containing a quote, not a real string in this codebase
+          if (buf.includes("\n")) continue;
+          const text = buf.replace(/<[^>]*>/g, "").replace(/\s/g, "");
+          if (text && [...text].every((ch) => ch === EM)) continue;      // exemption 1
+          const ctx = lines[start - 1] || "";
+          if (/console\.(log|warn|error|debug|info)\s*\(/.test(ctx)) continue;  // exemption 2
+          out.push({ file, line: start, text: buf.slice(0, 90) });
+        }
+        continue;
+      }
+      i++;
+    }
+  };
+  for (const f of JS_FILES.concat(["i18n.js", "i18n-dom.js", "locales/en.js"])) {
+    const p = path.join(repoRoot, f);
+    if (fs.existsSync(p)) scan(fs.readFileSync(p, "utf8").replace(/\r\n/g, "\n"), f);
+  }
+  for (const f of HTML_FILES) {
+    const p = path.join(repoRoot, f);
+    if (!fs.existsSync(p)) continue;
+    const src = fs.readFileSync(p, "utf8").replace(/\r\n/g, "\n").replace(/<!--[\s\S]*?-->/g, "");
+    src.split("\n").forEach((l, n) => {
+      if (!l.includes(EM) && !l.includes("&mdash;")) return;
+      const text = l.replace(/<[^>]*>/g, "").replace(/\s/g, "");
+      if (text && [...text].every((ch) => ch === EM)) return;
+      out.push({ file: f, line: n + 1, text: l.trim().slice(0, 90) });
+    });
+  }
+  return out;
+}
+{
+  const dashes = emDashViolations();
+  if (dashes.length) {
+    console.log("\nI18N SITE GATE: FAIL — " + dashes.length + " em dash(es) in user-facing copy.");
+    for (const d of dashes.slice(0, 20)) console.log(`  ${d.file}:${d.line}  ${d.text}`);
+    console.log("  Rewrite the sentence. A dash used purely as a separator or as a");
+    console.log("  no-value glyph is exempt; prose is not.");
+    process.exit(1);
+  }
+}
+
 // AN ACCESSOR CALL AT MODULE LEVEL IS A DEFECT, and an invisible one.
 //
 // newtab.js is a single IIFE, so `var X = [ { label: t("k") } ]` at its top

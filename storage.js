@@ -1447,7 +1447,7 @@ var Storage = (function () {
   var DEMO_SEED_GROUPS = [
     {
       id: "demo_daily",
-      name: "✨ Examples — Daily",
+      name: "✨ Daily examples",
       shortcuts: [
         { title: "Google", url: "https://www.google.com" },
         { title: "YouTube", url: "https://www.youtube.com" },
@@ -1458,7 +1458,7 @@ var Storage = (function () {
     },
     {
       id: "demo_work",
-      name: "✨ Examples — Work",
+      name: "✨ Work examples",
       shortcuts: [
         { title: "Docs", url: "https://docs.google.com" },
         { title: "Calendar", url: "https://calendar.google.com" },

@@ -1991,19 +1991,19 @@
       ? insightsRangeSelectorHtml(rangeDays) +
         '<div class="insights-strip" data-ins-strip></div>' +
         '<div class="pp-insights-card">' +
-          '<div class="pp-dash-card-title">Deep Work — ' + escapeHtml(rangeLabel) + '</div>' +
+          '<div class="pp-dash-card-title">Deep Work · ' + escapeHtml(rangeLabel) + '</div>' +
           '<div data-ins-deepwork></div>' +
         '</div>' +
         '<div class="pp-insights-card">' +
-          '<div class="pp-dash-card-title">Time by tag — ' + escapeHtml(rangeLabel) + '</div>' +
+          '<div class="pp-dash-card-title">Time by tag · ' + escapeHtml(rangeLabel) + '</div>' +
           '<div class="pp-donut-row" data-ins-donut></div>' +
         '</div>' +
         '<div class="pp-insights-card">' +
-          '<div class="pp-dash-card-title">Time by site — ' + escapeHtml(rangeLabel) + '</div>' +
+          '<div class="pp-dash-card-title">Time by site · ' + escapeHtml(rangeLabel) + '</div>' +
           '<div class="insights-task-list insights-site-list" data-ins-topsites></div>' +
         '</div>' +
         '<div class="pp-insights-card">' +
-          '<div class="pp-dash-card-title">Top tasks — ' + escapeHtml(rangeLabel) + '</div>' +
+          '<div class="pp-dash-card-title">Top tasks · ' + escapeHtml(rangeLabel) + '</div>' +
           '<div class="insights-task-list" data-ins-toptasks></div>' +
         '</div>'
       : "";
@@ -2141,7 +2141,7 @@
       // Em-dash form, matching the visible card title exactly rather than a
       // second phrasing: "over the " + label reads as "over the today" for the
       // one-day preset, and a screen-reader string is copy like any other.
-      insightsBarChartSvg(hours, todayIdx, "Deep work — " + rangeLabelNow,
+      insightsBarChartSvg(hours, todayIdx, "Deep work, " + rangeLabelNow,
         fmtShortDate(insightsKeyToTs(keys[0])),
         endsToday ? "today" : fmtShortDate(insightsKeyToTs(keys[keys.length - 1]))));
     insightsFill(panel, "[data-ins-donut]", insightsTagDonutHtml(byTag, scopeTotalMs, d, combined, rangeLabelNow));
@@ -3256,7 +3256,7 @@
     var p = task.priority || null;
     var cls = "tt-prio-pill " + (p ? taskPriorityClass(p) : "tt-prio-none");
     var label = p ? PRIORITY_LABELS[p] : "";
-    var aria = p ? ("Priority: " + label + " — click to change") : "Set priority";
+    var aria = p ? ("Priority: " + label + ". Click to change") : "Set priority";
     return '<button type="button" class="' + cls + '" data-task-id="' + escapeHtml(task.id) +
       '" data-priority="' + (p || "") + '" aria-label="' + escapeHtml(aria) + '" title="' + escapeHtml(aria) + '">' +
       '<span class="tt-prio-flag" aria-hidden="true">⚑</span>' +
@@ -3275,7 +3275,7 @@
     var cls = "tt-due-pill" + (has ? "" : " tt-due-none");
     var label = has ? fmtShortDateUTC(task.dueAt) : "";
     var ymd = has ? ymdFromTs(task.dueAt) : "";
-    var aria = has ? ("Due " + label + " — click to change") : "Add date";
+    var aria = has ? ("Due " + label + ". Click to change") : "Add date";
     return '<button type="button" class="' + cls + '" data-task-id="' + escapeHtml(task.id) +
       '" data-due="' + escapeHtml(ymd) + '" aria-label="' + escapeHtml(aria) + '" title="' + escapeHtml(aria) + '">' +
       // [2.0 ink] Was the U+1F5D3 emoji, and it was the one finding in this round
@@ -5444,7 +5444,7 @@
           if (deadlineAt !== existingGoal.deadlineAt) {
             var dl = Storage.checkGoalDeadlineConflict(data, existingGoal.id, deadlineAt);
             if (dl.blocked) {
-              showModalError(errorEl, dl.blockingTaskName + " is due " + fmtShortDateUTC(dl.blockingDueAt) + " — can't set goal deadline before that. Update the task first or pick a later deadline.");
+              showModalError(errorEl, dl.blockingTaskName + " is due " + fmtShortDateUTC(dl.blockingDueAt) + ", so the goal deadline can't be earlier. Update the task first or pick a later deadline.");
               return false;
             }
           }
@@ -6961,7 +6961,7 @@
       // banner makes the upgrade popover unreachable for a fresh free user.
       cta.classList.add("tab-cta-teaser");
       labelHtml = '<span>' + th("apply_coming_soon") + '</span>';
-      ariaLabel = "LaunchPad Pro — coming soon";
+      ariaLabel = "LaunchPad Pro, coming soon";
     } else {
       // States A-D — free or expired upgrade CTA
       var ctaText = trialUsed ? "Upgrade" : "Start free trial";
@@ -7096,7 +7096,7 @@
     if (level === "trialing") {
       return {
         title: trialPopoverHeadline(ProAccess.trialDaysRemaining(d)),
-        subhead: "Keep your focus going — upgrade any time, and everything you've set up stays."
+        subhead: "Keep your focus going. Upgrade any time, and everything you've set up stays."
       };
     }
 
@@ -8091,15 +8091,15 @@
     // Idle render. This is where the Subscription section's old "Last verified"
     // line now lives -- one fact, next to the control that changes it.
     if (!result) {
-      if (status === "active") return { tone: "ok", text: "License active — last verified " + ago() + "." };
-      if (status === "invalid") return { tone: "bad", text: "License is not valid — last checked " + ago() + "." };
+      if (status === "active") return { tone: "ok", text: "License active. Last verified " + ago() + "." };
+      if (status === "invalid") return { tone: "bad", text: "License is not valid. Last checked " + ago() + "." };
       return { tone: "idle", text: "Not checked yet." };
     }
 
     // A real answer came back.
     if (result.ok) {
-      if (status === "active") return { tone: "ok", text: "License active — verified just now." };
-      if (status === "invalid") return { tone: "bad", text: "License is not valid — it may have expired or been cancelled." };
+      if (status === "active") return { tone: "ok", text: "License active. Verified just now." };
+      if (status === "invalid") return { tone: "bad", text: "License is not valid. It may have expired or been cancelled." };
       return { tone: "idle", text: "License status: " + (status || "unknown") + "." };
     }
 
@@ -8107,11 +8107,11 @@
     //
     // Our own fault -- the check never left the building.
     if (result.error === "invalid_args" || result.error === "module_missing" || result.error === "threw") {
-      return { tone: "warn", text: "Could not run the check — reload the page and try again." };
+      return { tone: "warn", text: "Could not run the check. Reload the page and try again." };
     }
     // Dodo's fault or the network's. State preserved, offline grace lives on.
     if (typeof LicenseClient !== "undefined" && LicenseClient.isTransientError(result.error)) {
-      return { tone: "warn", text: "Could not reach the license server — try again." };
+      return { tone: "warn", text: "Could not reach the license server. Try again." };
     }
     // A definitive rejection -- but only trusted while it AGREES WITH THE STATE
     // MACHINE. ensureValidated flips subscriptionStatus to 'invalid' on exactly
@@ -8121,7 +8121,7 @@
     if (status === "invalid") {
       return { tone: "bad", text: result.message || "This license was rejected." };
     }
-    return { tone: "warn", text: "Could not reach the license server — try again." };
+    return { tone: "warn", text: "Could not reach the license server. Try again." };
   }
 
   // Renders the line under the Check button. Gated on the SAME predicate as the
@@ -8481,7 +8481,7 @@
       var name = document.createElement("span");
       name.className = "focus-block-domain";
       name.textContent = entry;
-      name.title = entry + " — subdomains included";
+      name.title = entry + " (subdomains included)";
 
       var remove = document.createElement("button");
       remove.type = "button";
@@ -9903,8 +9903,8 @@
     // showToast uses textContent, so the task name needs no escaping and cannot
     // inject markup no matter what the user called their task.
     showToast(name
-      ? 'Paused "' + name + '" while the browser was closed — resume when ready.'
-      : "Paused while the browser was closed — resume when ready.", 6000);
+      ? 'Paused "' + name + '" while the browser was closed. Resume when ready.'
+      : "Paused while the browser was closed. Resume when ready.", 6000);
   }
 
   // ===== Right-Click Tip =====
@@ -12327,7 +12327,7 @@
   function satPomoAdvanceToast(res) {
     var ms = (typeof res.fromDurationMs === "number" && res.fromDurationMs > 0)
       ? res.fromDurationMs : satPomoPhaseTotalMs("work");
-    return "Nice — " + Math.round(ms / 60000) + " min focused. Break time.";
+    return "Nice, " + Math.round(ms / 60000) + " min focused. Break time.";
   }
 
   // ===== [1.0.18 B-2] Boundary chime =====
@@ -12610,12 +12610,12 @@
   // [2.0] Reworded with the word ("Active" -> "Ready"). A tooltip left behind
   // explaining a label that no longer exists is how a rename becomes a second
   // vocabulary; the register is unchanged — a full sentence, plain, no jargon.
-  var SAT_LIVE_TITLE = "Ready — time records as soon as you browse a site. This page is not tracked, so the number holds here.";
+  var SAT_LIVE_TITLE = "Ready. Time records as soon as you browse a site. This page is not tracked, so the number holds here.";
 
   // [2.0] The stopwatch's own sentence. It says the quiet part out loud: this is
   // a wall-clock, not the engine's measurement, and the two are different numbers
   // about different things.
-  var SAT_ACTIVE_TITLE = "Wall-clock since you activated this task, pauses excluded — not measured browsing time.";
+  var SAT_ACTIVE_TITLE = "Wall-clock since you activated this task, pauses excluded. Not measured browsing time.";
 
   // [2.0] THE ACTIVATION STOPWATCH — time since this task was activated, pauses
   // excluded. ONE number, ONE regime, and it always counts.
@@ -13520,7 +13520,7 @@
     // and that path needs a mounted row — which a sidebar completion has no
     // reason to have. So the widget says it itself.
     showToast(result.goalAutoCompleted && result.autoCompletedGoal
-      ? '"' + name + '" complete — goal "' + result.autoCompletedGoal.name + '" finished!'
+      ? '"' + name + '" complete. Goal "' + result.autoCompletedGoal.name + '" finished!'
       : '"' + name + '" complete');
   }
 
@@ -13950,7 +13950,7 @@
           '<div class="demo-tile demo-tile-welcome">' +
             '<div class="demo-tile-title">' + th("demo_welcome_to_launchpad") + '</div>' +
             '<p class="demo-tile-body">Your new tab, organised your way. ' +
-              'Everything below is an example — open it, drag it, rename it, ' +
+              'Everything below is an example: open it, drag it, rename it, ' +
               'then make this grid yours.</p>' +
             '<div class="demo-clear-wrap">' + clearBtn + '</div>' +
           '</div>' +

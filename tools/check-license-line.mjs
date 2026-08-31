@@ -98,9 +98,13 @@ function check(label, got, want) {
 function tone(label, result, pro, wantTone) {
   check(label + " [tone]", statusLine(result, pro, NOW).tone, wantTone);
 }
+// Case-insensitive, matching textLacks below. These assertions are about WHICH
+// WORDS the line says, never about their capitalisation: R4 stage 3 split
+// "License active - verified just now." into two sentences, which capitalised
+// "Verified" and failed an assertion that had nothing to say about capitals.
 function textHas(label, result, pro, needle) {
   const got = statusLine(result, pro, NOW).text;
-  const ok = got.includes(needle);
+  const ok = got.toLowerCase().includes(needle.toLowerCase());
   if (ok) { pass++; } else { fail++; console.log(`  FAIL ${label}\n       text: ${JSON.stringify(got)}\n       must contain: ${JSON.stringify(needle)}`); }
 }
 function textLacks(label, result, pro, needle) {
@@ -168,13 +172,13 @@ tone("unknown code, status flipped", futureErr, invalidPro(0), "bad");
 
 console.log("STATE 8 — idle render on panel open (the relocated 'Last verified')");
 tone("idle active", null, activePro(0), "ok");
-check("today", statusLine(null, activePro(0), NOW).text, "License active — last verified today.");
-check("1 day", statusLine(null, activePro(1), NOW).text, "License active — last verified 1 day ago.");
-check("5 days", statusLine(null, activePro(5), NOW).text, "License active — last verified 5 days ago.");
+check("today", statusLine(null, activePro(0), NOW).text, "License active. Last verified today.");
+check("1 day", statusLine(null, activePro(1), NOW).text, "License active. Last verified 1 day ago.");
+check("5 days", statusLine(null, activePro(5), NOW).text, "License active. Last verified 5 days ago.");
 // Singular/plural boundary, the class of bug check-trial-copy was written for.
-check("2 days plural", statusLine(null, activePro(2), NOW).text, "License active — last verified 2 days ago.");
+check("2 days plural", statusLine(null, activePro(2), NOW).text, "License active. Last verified 2 days ago.");
 check("never verified", statusLine(null, { subscriptionStatus: "active", licenseKey: "K" }, NOW).text,
-  "License active — last verified never.");
+  "License active. Last verified never.");
 tone("idle invalid", null, invalidPro(3), "bad");
 textHas("idle invalid is dated too", null, invalidPro(3), "last checked 3 days ago");
 tone("idle, never checked", null, { licenseKey: "K" }, "idle");
@@ -236,8 +240,10 @@ structural("'Last verified' is GONE from the subscription section (one fact, one
 // is edited.
 structural("the grace warning stayed in the subscription section",
   /pro_verification_overdue/.test(extract(NT, "renderProSubscriptionSection", "newtab.js")));
+// Case-insensitive: the claim is that the PHRASE lives in this function, and
+// R4 stage 3 made it sentence-initial ("License active. Last verified ...").
 structural("'Last verified' now appears in the status line instead",
-  /last verified/.test(extract(NT, "licenseStatusLine", "newtab.js")));
+  /last verified/i.test(extract(NT, "licenseStatusLine", "newtab.js")));
 structural("the line is gated on the same predicate as the button",
   /shouldShowLicenseControls/.test(extract(NT, "renderProLicenseCheckStatus", "newtab.js")));
 structural("other actions keep their toasts (handleLicenseClear untouched)",

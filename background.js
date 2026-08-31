@@ -699,7 +699,7 @@ async function firePomodoroNotification(kind, res) {
   if (kind === "advanced") {
     var mins = Math.round((res.fromDurationMs || 0) / 60000);
     opts = { type: "basic", iconUrl: "icons/icon128.png", title: "Break time",
-             message: "Nice — " + mins + " min focused." };
+             message: "Nice, " + mins + " min focused." };
   } else { // "completed"
     opts = { type: "basic", iconUrl: "icons/icon128.png", title: "Session complete",
              message: "Ready for another?", buttons: [{ title: "Start next session" }] };

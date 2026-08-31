@@ -1481,9 +1481,9 @@ await (async () => {
   check("toast: it consumes and PERSISTS before it paints (D8)",
     /if \(!Storage\.consumeClosedPauseNotice\(data\)\) return;[\s\S]{0,900}?await Storage\.saveAll\(data\);[\s\S]{0,300}?showToast\(/.test(SRC.nt));
   check("toast: it names the task and says why",
-    /Paused "' \+ name \+ '" while the browser was closed — resume when ready\./.test(SRC.nt));
+    /Paused "' \+ name \+ '" while the browser was closed\. Resume when ready\./.test(SRC.nt));
   check("toast: it has a fallback when the task name cannot be resolved",
-    /"Paused while the browser was closed — resume when ready\."/.test(SRC.nt));
+    /"Paused while the browser was closed\. Resume when ready\."/.test(SRC.nt));
   check("toast: it is guarded at the CALL SITE, not inside the callee (D13)",
     /if \(!isProOnboardingBusy\(\)\) \{\s*\n\s*try \{\s*\n\s*await maybeShowClosedBrowserPauseToast\(\);/.test(SRC.nt) &&
     !(() => {
