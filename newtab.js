@@ -14852,7 +14852,8 @@
                  (attachedName ? ' \u00B7 on ' + esc(attachedName) : "") + '</span>' +
              '</div>' +
              '<div class="session-favs">' + icons + more + '</div>' +
-             '<button class="session-row-more" type="button" title="Options" aria-label="Session options">' + "\u22EE" + '</button>' +
+             '<button class="session-row-more" type="button" title="Options" aria-label="Session options"' +
+               ' aria-haspopup="menu">' + "\u22EE" + '</button>' +
            '</div>';
   }
 
@@ -14862,8 +14863,12 @@
     if (!list) return;
     var sessions = sessionsForRender();
     var ws = Storage.getActiveWorkspace(data);
+    // [1.4.3] The "on <task>" note names a Pro object, so it is shown only to
+    // tiers that can see tasks at all. A free profile gets the same row without
+    // it; the stored taskId is untouched, so it returns intact on upgrade.
+    var showTask = isProAccessibleLevel(currentAccessLevel());
     list.innerHTML = sessions.map(function (s) {
-      var t = (ws && s.taskId) ? Storage.getTaskById(ws, s.taskId) : null;
+      var t = (showTask && ws && s.taskId) ? Storage.getTaskById(ws, s.taskId) : null;
       return sessionRowHtml(s, t ? t.name : null);
     }).join("");
     if (empty) empty.classList.toggle("hidden", sessions.length > 0);
@@ -14890,6 +14895,18 @@
     // would read that as an outside click and shut the flyout the instant a
     // session was named.
     bindSimplePanelOutside("#sessions-dropdown", "#sb-sessions", function () { closeSessionsDropdown(); });
+
+    // [1.4.3] MOVE FOCUS INTO THE FLYOUT ON OPEN. This panel is a body-level
+    // sibling positioned over the page, so its place in the tab order follows its
+    // DOM position near the end of body - nowhere near the sidebar button that
+    // opens it. Measured: tabbing from #sb-sessions walks into the tab bar and
+    // never reaches a row, which made every control in here mouse-only. Focusing
+    // the first control is the same move the modal family makes with
+    // defaultFocus, and from here Tab reaches the rows and their options buttons
+    // in DOM order. A mouse user sees no ring: :focus-visible suppresses it after
+    // a pointer interaction.
+    var firstControl = $("#sessions-save-btn");
+    if (firstControl) { try { firstControl.focus(); } catch (e) {} }
   }
 
   function closeSessionsDropdown(opts) {
@@ -14989,7 +15006,7 @@
 
   var sessionCtxId = null;
 
-  function openSessionCtxMenu(e, sessionId) {
+  function openSessionCtxMenu(e, sessionId, anchorEl) {
     var menu = $("#session-ctx-menu");
     if (!menu) return;
     sessionCtxId = sessionId;
@@ -15001,12 +15018,30 @@
     var ws0 = Storage.getActiveWorkspace(data);
     var s0 = ws0 ? Storage.getNamedSessionById(ws0, sessionId) : null;
     var attached = !!(s0 && s0.taskId && Storage.getTaskById(ws0, s0.taskId));
+    // [1.4.3] SESSIONS ARE FREE; ATTACHMENT IS NOT. Tasks are a Pro surface, so
+    // an entry that hands a session to a task belongs to Pro too - and it is
+    // ABSENT rather than disabled, because a control that cannot do anything
+    // reads as broken rather than as locked (the preview rule, CLAUDE.md).
+    // Everything else in this menu works on every tier.
+    var proOk = isProAccessibleLevel(currentAccessLevel());
     var aBtn = $("#sctx-attach"), dBtn = $("#sctx-detach");
-    if (aBtn) aBtn.textContent = attached ? "Change task" : "Attach to task";
-    if (dBtn) dBtn.classList.toggle("hidden", !attached);
+    if (aBtn) {
+      aBtn.textContent = attached ? "Change task" : "Attach to task";
+      aBtn.classList.toggle("hidden", !proOk);
+    }
+    if (dBtn) dBtn.classList.toggle("hidden", !proOk || !attached);
     menu.classList.remove("hidden");
-    menu.style.left = e.clientX + "px";
-    menu.style.top = e.clientY + "px";
+    // [1.4.3] A keyboard activation of the options button arrives as a click
+    // with clientX/clientY of 0, which would pin this menu to the top-left
+    // corner of the window, nowhere near the row it belongs to. Fall back to the
+    // button's own rect, the way the goal kebab positions its menu.
+    var px = e && e.clientX, py = e && e.clientY;
+    if ((!px && !py) && anchorEl && anchorEl.getBoundingClientRect) {
+      var ar = anchorEl.getBoundingClientRect();
+      px = ar.right; py = ar.bottom + 4;
+    }
+    menu.style.left = (px || 0) + "px";
+    menu.style.top = (py || 0) + "px";
     var r = menu.getBoundingClientRect();
     if (r.right > window.innerWidth - 8) menu.style.left = (window.innerWidth - r.width - 8) + "px";
     if (r.bottom > window.innerHeight - 8) menu.style.top = (window.innerHeight - r.height - 8) + "px";
@@ -16216,7 +16251,7 @@
       if (!row) return;
       if (more) {
         e.stopPropagation();
-        openSessionCtxMenu(e, row.dataset.sessionId);
+        openSessionCtxMenu(e, row.dataset.sessionId, more);
         return;
       }
       launchNamedSession(row.dataset.sessionId);

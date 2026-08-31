@@ -225,7 +225,7 @@
 
   <!-- [1.4.1] Named sessions. Deliberately built on the Restore Session flyout:
        same .restore-header, same fixed left:260px placement, same panel chain. -->
-  <div id="sessions-dropdown" class="hidden">
+  <div id="sessions-dropdown" class="hidden" role="dialog" aria-label="Sessions">
     <div class="restore-header">
       <span>Sessions</span>
     </div>
@@ -558,12 +558,12 @@
 
   <!-- [1.4.1] Session row actions. Reuses .vctx-item so the menu ink, which stays
        dark on every wallpaper tier, comes for free. -->
-  <div id="session-ctx-menu" class="hidden">
-    <button class="vctx-item" data-session-action="rename" type="button">Rename</button>
-    <button class="vctx-item" data-session-action="update" type="button">Update from current window</button>
-    <button class="vctx-item" id="sctx-attach" data-session-action="attach" type="button">Attach to task</button>
-    <button class="vctx-item" id="sctx-detach" data-session-action="detach" type="button">Detach from task</button>
-    <button class="vctx-item vctx-danger" data-session-action="delete" type="button">Delete</button>
+  <div id="session-ctx-menu" class="hidden" role="menu" aria-label="Session options">
+    <button class="vctx-item" role="menuitem" data-session-action="rename" type="button">Rename</button>
+    <button class="vctx-item" role="menuitem" data-session-action="update" type="button">Update from current window</button>
+    <button class="vctx-item" id="sctx-attach" role="menuitem" data-session-action="attach" type="button">Attach to task</button>
+    <button class="vctx-item" id="sctx-detach" role="menuitem" data-session-action="detach" type="button">Detach from task</button>
+    <button class="vctx-item vctx-danger" role="menuitem" data-session-action="delete" type="button">Delete</button>
   </div>
 
   <div id="variant-icon-dialog" class="hidden">

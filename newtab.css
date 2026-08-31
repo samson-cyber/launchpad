@@ -5285,6 +5285,29 @@ html.has-bg .rc-empty-state-text {
   color: var(--text-primary);
 }
 
+/* [1.4.3] The options button is revealed by row hover and by focus-within, but
+   had no ring of its own, so a keyboard user could land on it and not see where
+   they were. Same 2px accent ring the row uses, and the reveal is repeated here
+   so the button is visible the moment it takes focus rather than only while the
+   row happens to be hovered. */
+.session-row-more:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--sat-accent, #1a73e8);
+  outline-offset: -1px;
+}
+
+.vctx-item:focus-visible {
+  outline: 2px solid var(--sat-accent, #1a73e8);
+  outline-offset: -2px;
+}
+
+/* The flyout and its menu sit on the dark frosted tier over a wallpaper, where
+   the light-mode accent goes muddy; the accent the Pro surfaces use there. */
+html.has-bg:not(.bg-light) .session-row-more:focus-visible,
+html.has-bg:not(.bg-light) .vctx-item:focus-visible {
+  outline-color: #8ab4f8;
+}
+
 #sessions-empty {
   padding: 18px 14px;
   font-size: var(--fs-12);
