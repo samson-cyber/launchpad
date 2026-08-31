@@ -202,7 +202,14 @@ function blankConsole(src) {
 // the site and, where one exists, the argument that will carry the string.
 const STR = `(?:"(?:[^"\\\\\\n]|\\\\.)*"|'(?:[^'\\\\\\n]|\\\\.)*')`;
 const PATTERNS = [
-  { id: "html-text",   argGroup: 1, re: new RegExp(`>\\s*([^<>{}\`"'\\\\]{2,140}?)\\s*<`, "g") },
+  // The `>` must CLOSE A TAG and the `<` must OPEN one. Without those two
+  // guards a JS comparison reads as markup: `if (x >= rect.left - pad && x <=
+  // rect.right + pad)` captured "= rect.left - pad && x" as user-facing text,
+  // and six such expressions sat in the backlog for three rounds looking like
+  // work to do. `(?<![=<>!-])` drops `>=`, `=>`, `->`, `<<`; `(?=[a-zA-Z/])`
+  // requires the closing `<` to begin a real tag rather than precede a space
+  // or a digit, which is what every `a < b` comparison does.
+  { id: "html-text",   argGroup: 1, re: new RegExp(`(?<![=<>!-])>\\s*([^<>{}\`"'\\\\]{2,140}?)\\s*<(?=[a-zA-Z/])`, "g") },
   // (?<![.\w]) so a JS PROPERTY ASSIGNMENT is not mistaken for an HTML
   // attribute. `el.title = "Options"` matched both this pattern and dom-assign,
   // so that one site was counted TWICE and the gate's totals were inflated by
@@ -429,9 +436,61 @@ for (const f of JS_FILES) {
 // CONTAINING element carries data-i18n; a title/placeholder/alt/aria-label is
 // compliant when its own tag carries the matching data-i18n-<attr>.
 const VOID_EL = new Set(["input", "img", "br", "meta", "link", "hr", "source", "area", "base", "col"]);
-const TAG_RE = /<(\/?)([a-zA-Z][-\w]*)((?:"[^"]*"|'[^']*'|[^>"'])*)(\/?)>/g;
+// The attribute group is LAZY so the trailing slash of a self-closing tag lands
+// in group 4 where the container walk looks for it. Greedy, `[^>"']` swallowed
+// the `/` and group 4 was ALWAYS empty, so no tag ever registered as
+// self-closing. That is why `<button><svg><path data-i18n="k"/></svg>Delete</button>`
+// scored compliant: the walk stopped at the <path> instead of stepping over it
+// to the button, and the marker it found was the misplaced one. The gate was
+// agreeing with the bug because it was reading the same wrong element.
+const TAG_RE = /<(\/?)([a-zA-Z][-\w]*)((?:"[^"]*"|'[^']*'|[^>"'])*?)(\/?)>/g;
+
+// An element that CANNOT RENDER A TEXT CHILD must never carry data-i18n.
+// i18n-dom's setText() looks for a child text node and, finding none, appends
+// one - so the value is injected into a <path>, where SVG draws nothing, while
+// the control's own label is never touched. Nothing throws and nothing looks
+// wrong; the label simply stays English forever.
+const SVG_TEXT_OK = new Set(["text", "tspan", "textpath", "title", "desc"]);
+const SVG_EL = new Set(["svg", "path", "polyline", "polygon", "line", "circle", "ellipse",
+                        "rect", "g", "defs", "use", "mask", "clippath", "lineargradient",
+                        "radialgradient", "stop", "filter", "marker", "symbol", "pattern"]);
 const ATTR_SINK = { title: "data-i18n-title", placeholder: "data-i18n-placeholder",
                     alt: "data-i18n-alt", "aria-label": "data-i18n-aria-label" };
+
+// Every data-i18n on an element that cannot render a text child. Returns
+// DEFECTS, not backlog: the string was already migrated, the marker is simply
+// pointing at the wrong element, so nothing is waiting on a future round.
+//
+// The reported text is the element's OWN direct child text - never an
+// ancestor's. Asking an ancestor is what made this invisible in the first
+// place: the injected value shows up in the button's textContent, so a check
+// that reads textContent sees the translation and calls it fixed. Reading the
+// node's own children is what turned "0 of 12 broken" into "12 of 12".
+function scanMisplacedMarkers(src, file) {
+  const bad = [];
+  let svgDepth = 0;
+  for (const m of src.matchAll(TAG_RE)) {
+    const name = m[2].toLowerCase();
+    const closing = !!m[1], selfClosing = !!m[4];
+    if (name === "svg") {
+      if (closing) svgDepth = Math.max(0, svgDepth - 1);
+      else if (!selfClosing) svgDepth++;
+    }
+    if (closing) continue;
+    if (!/\sdata-i18n\s*=/.test(m[3])) continue;
+    const key = (/\sdata-i18n\s*=\s*"([^"]*)"/.exec(m[3]) || [, "?"])[1];
+    const inSvg = svgDepth > 0 || SVG_EL.has(name);
+    const cannotHoldText =
+      VOID_EL.has(name) || (inSvg && SVG_EL.has(name) && !SVG_TEXT_OK.has(name));
+    if (!cannotHoldText) continue;
+    // The element's OWN text, read directly rather than through a parent.
+    const after = src.slice(m.index + m[0].length);
+    const own = selfClosing ? "" : (after.split("<")[0] || "").replace(/\s+/g, " ").trim();
+    bad.push({ file, line: src.slice(0, m.index).split("\n").length,
+               tag: name, key, ownText: own });
+  }
+  return bad;
+}
 
 function scanHtml(src, file) {
   const out = [];
@@ -477,6 +536,7 @@ function scanHtml(src, file) {
   return out;
 }
 
+const misplacedMarkers = [];
 for (const f of HTML_FILES) {
   const p = path.join(repoRoot, f);
   if (!fs.existsSync(p)) continue;
@@ -485,6 +545,7 @@ for (const f of HTML_FILES) {
     .replace(/<style\b[\s\S]*?<\/style>/gi, "<style></style>")
     .replace(/<!--[\s\S]*?-->/g, "");
   sites = sites.concat(scanHtml(src, f));
+  misplacedMarkers.push(...scanMisplacedMarkers(src, f));
 }
 
 // --- self-test
@@ -599,6 +660,24 @@ if (broken.length) {
 // first mutant run caught this distinction the hard way - the misuse was counted
 // in the total and the gate still exited 0, because it was filed with the
 // backlog instead of with the defects.
+// A MARKER ON AN ELEMENT THAT CANNOT HOLD TEXT FAILS UNCONDITIONALLY, by the
+// same rule as sink misuse: the finding is a DEFECT in already-converted markup,
+// not a backlog item waiting for a round. Twelve of these shipped in R2 and both
+// of the checks that should have caught them structurally could not - the
+// byte-identical pass proved the rendering did not CHANGE, and a no-op changes
+// nothing, so a no-op passed it.
+if (misplacedMarkers.length) {
+  console.log("\nI18N SITE GATE: FAIL — " + misplacedMarkers.length +
+              " data-i18n marker(s) on an element that cannot render text.");
+  for (const b of misplacedMarkers.slice(0, 20)) {
+    console.log(`  ${b.file}:${b.line}  <${b.tag} data-i18n="${b.key}">` +
+                `  own text = ${JSON.stringify(b.ownText)}`);
+  }
+  console.log("  The value is appended INSIDE this element, where it never renders,");
+  console.log("  and the control's own label stays in the source language.");
+  process.exit(1);
+}
+
 const misuse = sites.filter((s) => s.pattern === "sink-misuse" && s.verdict === "violation");
 if (misuse.length) {
   console.log("\nI18N SITE GATE: FAIL — " + misuse.length +
