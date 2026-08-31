@@ -945,7 +945,7 @@
       } else if (!streak.todayCounted) {
         // Today-zero grace: the streak stands, it just has not been extended yet.
         // Saying so is what stops the number reading as a loss at 09:00.
-        note = '<div class="dash-note">Through yesterday — today is still open.</div>';
+        note = '<div class="dash-note">Through yesterday. Today is still open.</div>';
       }
     }
     return '<div class="dash-streak">' +
@@ -1752,11 +1752,11 @@
     }).join("");
 
     return '<div class="pp-insights-card">' +
-        '<div class="pp-dash-card-title">Deep Work — last 30 days</div>' +
+        '<div class="pp-dash-card-title">Deep Work, last 30 days</div>' +
         trendSvg +
       '</div>' +
       '<div class="pp-insights-card">' +
-        '<div class="pp-dash-card-title">Time by tag — last 30 days</div>' +
+        '<div class="pp-dash-card-title">Time by tag, last 30 days</div>' +
         '<div class="pp-donut-row">' + donutSvg + '<div class="pp-donut-legend">' + donutLegend + '</div></div>' +
       '</div>' +
       '<div class="pp-insights-card">' +
@@ -4198,7 +4198,7 @@
 
     var activeGoalsHtml = activeGoals.length
       ? activeGoals.map(function (g) { return goalCardHtml(workspace, g, allTasksForGoals); }).join("")
-      : '<div class="tt-empty-state">No active goals — create your first goal.</div>';
+      : '<div class="tt-empty-state">No active goals. Create your first goal.</div>';
 
     // [1.0.12] Standalone list: priority/tag filter + active sort on top of the
     // deletedAt + goalId===null base.
@@ -5329,7 +5329,7 @@
         return (a.createdAt || 0) - (b.createdAt || 0);
       }) : [];
       var tplOptions = tpls.length
-        ? '<option value="">— None (blank goal) —</option>' +
+        ? '<option value="">None (blank goal)</option>' +
             tpls.map(function (t) { return '<option value="' + escapeHtml(t.id) + '">' + escapeHtml(t.name) + '</option>'; }).join("")
         : '<option value="">No templates yet</option>';
       templateBlock =
@@ -6100,7 +6100,7 @@
           console.error("[LaunchPad] Tasks tab: delete recurring template failed", err2);
         }
         if (panel) renderTasksTab(panel, data);
-        showToast("Recurring task deleted — existing instances kept");
+        showToast("Recurring task deleted, existing instances kept");
       }
     });
 
@@ -8702,7 +8702,7 @@
     listHost.innerHTML = visibleTags.map(function (tag) {
       var archived = !!tag.deletedAt;
       var rowCls = "pro-tag-row" + (archived ? " archived" : "");
-      var rowTitle = archived ? ' title="In trash — restore within 30 days."' : "";
+      var rowTitle = archived ? ' title="In trash. Restore within 30 days."' : "";
       return '<li class="' + rowCls + '" data-tag-id="' + escapeHtml(tag.id) + '"' + rowTitle + '>' +
         '<button class="pro-tag-color-swatch" type="button" style="background:' + escapeHtml(tag.color) + '" aria-label="Change color"></button>' +
         '<span class="pro-tag-name">' + escapeHtml(tag.name) + '</span>' +
@@ -9004,7 +9004,7 @@
     // The promise this makes is now TRUE: Restore lives on the trashed row,
     // reachable via the "Show" disclosure on this section's counter line. Before
     // that existed this tooltip claimed a recovery path that did not exist.
-    btn.title = "Click again to confirm — restore from Pro Settings > Tags within 30 days.";
+    btn.title = "Click again to confirm. Restore from Pro Settings > Tags within 30 days.";
     btn.textContent = "Delete?";
     pendingTagDeleteTimer = setTimeout(function () { clearPendingTagDelete(); }, 3000);
   }
@@ -12383,7 +12383,7 @@
         } else if (res.action === "completed") {
           // [E1/E2] Break finished — the session is over; the card re-renders
           // into its session-complete state. Work never auto-starts.
-          showToast("Session complete — ready for another?");
+          showToast("Session complete. Ready for another?");
           satFireBoundarySound("completed");
           renderActiveTaskWidget();
         } else if (res.action === "expired") {
@@ -13023,10 +13023,10 @@
       '<div class="sat-actions">' +
         '<div class="sat-actions-primary">' +
           '<button type="button" class="sat-btn sat-btn-complete" data-sat-act="complete" ' +
-            'title="Complete the task — it moves to Completed. You can uncheck it in Tasks to reopen it.">' +
+            'title="Complete the task. It moves to Completed, and you can uncheck it in Tasks to reopen it.">' +
             '✓ Complete</button>' +
           '<button type="button" class="sat-btn sat-btn-setdown" data-sat-act="cancel" ' +
-            'title="Stop tracking for now — the task stays open and keeps its time.">' +
+            'title="Stop tracking for now. The task stays open and keeps its time.">' +
             'End for now</button>' +
         '</div>' +
         '<div class="sat-actions-session">' +
@@ -13941,14 +13941,14 @@
           '</div>' +
           '<button type="button" class="demo-tile demo-tile-import" data-demo-act="import">' +
             '<span class="demo-tile-title">Already have bookmarks?</span>' +
-            '<span class="demo-tile-body">Bring them in — top sites or Chrome bookmarks.</span>' +
+            '<span class="demo-tile-body">Bring them in from top sites or Chrome bookmarks.</span>' +
           '</button>' +
           // [1.0.19 D12] A door to the picker that already exists — no new UI.
           // This revives the one genuinely liked job of the dead wizard's
           // screen 2, as a tile the user can ignore rather than a gate.
           '<button type="button" class="demo-tile demo-tile-background" data-demo-act="background">' +
             '<span class="demo-tile-title">Pick a background</span>' +
-            '<span class="demo-tile-body">Make it yours — pick a background.</span>' +
+            '<span class="demo-tile-body">Make it yours. Pick a background.</span>' +
           '</button>' +
         '</div>' +
       '</section>'

@@ -617,7 +617,7 @@ var Storage = (function () {
     if (!data) return { ok: false, err: "invalid", message: "Enter a site to block." };
     var entry = normalizeBlockEntry(raw);
     if (!entry) {
-      return { ok: false, err: "invalid", message: "That doesn't look like a site — try youtube.com" };
+      return { ok: false, err: "invalid", message: "That doesn't look like a site. Try youtube.com" };
     }
     var list = ensureBlockList(data);
     if (list.indexOf(entry) !== -1) {
@@ -4194,7 +4194,7 @@ var Storage = (function () {
     if (!tag) return null;              // unknown id
     if (!tag.deletedAt) return tag;     // already active — no-op, no write
     if (isDuplicateTagName(ws, tag.name, tagId)) {
-      return { err: "duplicate", message: "An active tag already has this name — rename it first." };
+      return { err: "duplicate", message: "An active tag already has this name. Rename it first." };
     }
     tag.deletedAt = null;
     await saveAll(data);

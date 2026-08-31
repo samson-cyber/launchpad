@@ -184,7 +184,14 @@ function blankConsole(src) {
       if (out[k] === "(") depth++;
       else if (out[k] === ")") { depth--; if (depth === 0) break; }
     }
-    out = out.slice(0, j) + " ".repeat(k - j + 1) + out.slice(k + 1);
+    // PRESERVE NEWLINES. Blanking a multi-line console call with plain spaces
+    // deletes its line breaks, so every line number after it drifts - by two
+    // lines at the first multi-line console.log in newtab.js, and more further
+    // down. The reported violations were always the right STRINGS at the wrong
+    // LINES, which nothing noticed until R3 tried to edit source by line number
+    // and every single site missed.
+    const span = out.slice(j, k + 1).replace(/[^\n]/g, " ");
+    out = out.slice(0, j) + span + out.slice(k + 1);
     re.lastIndex = j;
   }
   return out;
