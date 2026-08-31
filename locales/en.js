@@ -713,10 +713,9 @@ I18n.register("en", {
     "message": "LaunchPad sections",
     "description": "aria-label attribute on the tabbar surface."
   },
-  "feature_tasks_name": {
+  "tabbar_tasks": {
     "message": "Tasks",
-    "description": "Names the Tasks feature. Used by the tab-bar label AND the Tasks page heading, which are visible at the same time, so they must never diverge.",
-    "sense": "feature.name"
+    "description": "The Tasks TAB LABEL in the tab bar. Separate key from the sidebar label carrying the same English text. A sidebar label is WIDTH-CONSTRAINED and a panel heading is not, so a translator may need different lengths for them, and that is their call to make. Two keys can carry one value; one key cannot carry two."
   },
   "tabbar_upgrade_to_pro": {
     "message": "Upgrade to Pro",
@@ -821,5 +820,49 @@ I18n.register("en", {
   "tasks_status_completed": {
     "message": "Completed",
     "description": "Task STATUS filter option on the Tasks tab."
+  }
+});
+
+
+// ======================================================================
+// [1.5.0] R3 - PANEL HEADINGS, split from their sidebar labels.
+//
+// Each carries the same English text as the sidebar label that opens it,
+// and is a separate key on purpose: the label is width-constrained and the
+// heading is not. A translator may need different lengths, and only two
+// keys can express that.
+// ======================================================================
+I18n.register("en", {
+  "history_panel_heading": {
+    "message": "History",
+    "description": "Heading of the History panel. Separate key from the sidebar label carrying the same English text. A sidebar label is WIDTH-CONSTRAINED and a panel heading is not, so a translator may need different lengths for them, and that is their call to make. Two keys can carry one value; one key cannot carry two."
+  },
+  "import_panel_heading": {
+    "message": "Import",
+    "description": "Heading of the Import panel. Separate key from the sidebar label carrying the same English text. A sidebar label is WIDTH-CONSTRAINED and a panel heading is not, so a translator may need different lengths for them, and that is their call to make. Two keys can carry one value; one key cannot carry two."
+  },
+  "prosettings_panel_heading": {
+    "message": "Pro Settings",
+    "description": "Heading of the Pro Settings panel. Separate key from the sidebar label carrying the same English text. A sidebar label is WIDTH-CONSTRAINED and a panel heading is not, so a translator may need different lengths for them, and that is their call to make. Two keys can carry one value; one key cannot carry two."
+  },
+  "restore_panel_heading": {
+    "message": "Restore Session",
+    "description": "Heading of the Restore Session flyout, the AUTOMATIC five-minute restore. Separate key from the sidebar label carrying the same English text. A sidebar label is WIDTH-CONSTRAINED and a panel heading is not, so a translator may need different lengths for them, and that is their call to make. Two keys can carry one value; one key cannot carry two."
+  },
+  "sessions_panel_heading": {
+    "message": "Sessions",
+    "description": "Heading of the NAMED sessions flyout. Separate key from the sidebar label carrying the same English text. A sidebar label is WIDTH-CONSTRAINED and a panel heading is not, so a translator may need different lengths for them, and that is their call to make. Two keys can carry one value; one key cannot carry two."
+  },
+  "settings_panel_heading": {
+    "message": "Settings",
+    "description": "Heading of the Settings panel. Separate key from the sidebar label carrying the same English text. A sidebar label is WIDTH-CONSTRAINED and a panel heading is not, so a translator may need different lengths for them, and that is their call to make. Two keys can carry one value; one key cannot carry two."
+  },
+  "tasks_header_title": {
+    "message": "Tasks",
+    "description": "Heading of the Tasks page. Separate key from the sidebar label carrying the same English text. A sidebar label is WIDTH-CONSTRAINED and a panel heading is not, so a translator may need different lengths for them, and that is their call to make. Two keys can carry one value; one key cannot carry two."
+  },
+  "tips_panel_heading": {
+    "message": "Tips",
+    "description": "Heading of the Tips panel. Separate key from the sidebar label carrying the same English text. A sidebar label is WIDTH-CONSTRAINED and a panel heading is not, so a translator may need different lengths for them, and that is their call to make. Two keys can carry one value; one key cannot carry two."
   }
 });

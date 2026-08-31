@@ -480,7 +480,10 @@ for (const s of sites) {
   if (s.verdict === "violation") byPattern[s.pattern].violation++;
   if (s.verdict === "compliant") byPattern[s.pattern].compliant++;
 }
-const violations = sites.filter((s) => s.verdict === "violation");
+// The BACKLOG only. sink-misuse rows are violations too, but they are a defect
+// and are reported separately, so counting them here would report a defect as
+// "awaiting migration" and quietly inflate the number the round reconciles against.
+const violations = sites.filter((s) => s.verdict === "violation" && s.pattern !== "sink-misuse");
 
 console.log("");
 console.log("I18N SITE GATE — " + (ENFORCING ? "ENFORCING" : "SKELETON (not enforcing)"));
@@ -525,7 +528,34 @@ if (catProblems.length) {
   for (const [k, why] of catProblems) console.log("    " + k + " — " + why);
 }
 
-// --- broken checks, which run whether or not the gate is enforcing
+// ===========================================================================
+// THE RULE THAT DECIDES WHICH SIDE OF `ENFORCING` A CHECK SITS ON
+// ([1.5.0] R3, carried forward from the sink mutant that was not caught):
+//
+//   A check whose finding is a DEFECT fails UNCONDITIONALLY.
+//   Only a check whose finding is a known BACKLOG ITEM may sit behind ENFORCING.
+//
+// ENFORCING exists for exactly one thing: "this string has not been migrated
+// yet" is a counted, expected, shrinking backlog, and failing the build on it
+// before the migration finishes would mean the gate could never be added until
+// the work was already done. Nothing else belongs there. A defect in code that
+// has ALREADY been converted is not waiting for anything.
+//
+// AUDIT OF EVERY CHECK AGAINST THAT RULE:
+//
+//   self-test / floors      DEFECT (in the gate itself)   unconditional, exit 2
+//   sink misuse             DEFECT (in converted code)    unconditional, exit 1
+//   catalogue values        DEFECT (markup, em dash, or   unconditional, exit 1
+//                           a message with no description
+//                           - all wrong the moment they
+//                           are written, not later)
+//   hardcoded strings       BACKLOG                       behind ENFORCING
+//
+// No check was found on the wrong side after the sink-misuse fix. One counting
+// overlap was: `violations` included the sink-misuse rows, so the "N strings
+// await migration" line would have reported a defect as backlog. Separated
+// below - the backlog count now means only what it says.
+// ===========================================================================
 const broken = [];
 if (selfMissed.length) broken.push("patterns that no longer match their own fixture: " + selfMissed.join(", "));
 for (const [id, floor] of Object.entries(PATTERN_FLOORS)) {

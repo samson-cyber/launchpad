@@ -3381,7 +3381,7 @@
     var fs = taskFilterState;
     return '<header class="tasks-header">' +
         '<div class="tasks-header-left">' +
-          '<h1 class="tasks-title">' + th('feature_tasks_name') + '</h1>' +
+          '<h1 class="tasks-title">' + th('tasks_header_title') + '</h1>' +
           '<div class="tasks-filter-bar" role="toolbar" aria-label="' + th('tasks_filter_bar_aria') + '">' +
             '<button type="button" class="tasks-filter tasks-filter-multi' + (fs.priorities.length ? ' is-active' : '') + '" data-filter="priority" aria-haspopup="true">' + escapeHtml(priorityFilterLabel()) + '</button>' +
             '<button type="button" class="tasks-filter tasks-filter-multi' + (fs.tagIds.length ? ' is-active' : '') + '" data-filter="tag" aria-haspopup="true">' + escapeHtml(tagFilterLabel()) + '</button>' +
