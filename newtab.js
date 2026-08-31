@@ -78,18 +78,18 @@
   // ===== Gallery Images =====
 
   var GALLERY_IMAGES = [
-    { url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920", thumb: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=250&fit=crop", label: "Mountains" },
-    { url: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1920", thumb: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&h=250&fit=crop", label: "Foggy forest" },
-    { url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920", thumb: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=250&fit=crop", label: "Tropical beach" },
-    { url: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1920", thumb: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&h=250&fit=crop", label: "Starry mountain" },
-    { url: "https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=1920", thumb: "https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=400&h=250&fit=crop", label: "Sunset mountains" },
-    { url: "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=1920", thumb: "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=400&h=250&fit=crop", label: "Green valley" },
-    { url: "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=1920", thumb: "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=400&h=250&fit=crop", label: "Lake reflection" },
-    { url: "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1920", thumb: "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=400&h=250&fit=crop", label: "Aerial forest" },
-    { url: "https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=1920", thumb: "https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=400&h=250&fit=crop", label: "Sunrise field" },
-    { url: "https://images.unsplash.com/photo-1534088568595-a066f410bcda?w=1920", thumb: "https://images.unsplash.com/photo-1534088568595-a066f410bcda?w=400&h=250&fit=crop", label: "Ocean wave" },
-    { url: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1920", thumb: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=250&fit=crop", label: "Dramatic peaks" },
-    { url: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=1920", thumb: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=400&h=250&fit=crop", label: "Northern lights" }
+    { url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920", thumb: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=250&fit=crop", label: t("safe_mountains") },
+    { url: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1920", thumb: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&h=250&fit=crop", label: t("safe_foggy_forest") },
+    { url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920", thumb: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=250&fit=crop", label: t("safe_tropical_beach") },
+    { url: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1920", thumb: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&h=250&fit=crop", label: t("safe_starry_mountain") },
+    { url: "https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=1920", thumb: "https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=400&h=250&fit=crop", label: t("safe_sunset_mountains") },
+    { url: "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=1920", thumb: "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=400&h=250&fit=crop", label: t("safe_green_valley") },
+    { url: "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=1920", thumb: "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=400&h=250&fit=crop", label: t("safe_lake_reflection") },
+    { url: "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1920", thumb: "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=400&h=250&fit=crop", label: t("safe_aerial_forest") },
+    { url: "https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=1920", thumb: "https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=400&h=250&fit=crop", label: t("safe_sunrise_field") },
+    { url: "https://images.unsplash.com/photo-1534088568595-a066f410bcda?w=1920", thumb: "https://images.unsplash.com/photo-1534088568595-a066f410bcda?w=400&h=250&fit=crop", label: t("safe_ocean_wave") },
+    { url: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1920", thumb: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=250&fit=crop", label: t("safe_dramatic_peaks") },
+    { url: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=1920", thumb: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=400&h=250&fit=crop", label: t("safe_northern_lights") }
   ];
 
   // [1.0.19 D11] The first-paint default. Was "color:#f5f5f5" — an abrasive
@@ -117,12 +117,12 @@
   // untouched.
   var DEFAULT_BG = "color:#2a2a2a";
   var COLOR_PRESETS = [
-    { value: "color:#f5f5f5", label: "Light gray" },
-    { value: "color:#ffffff", label: "White" },
-    { value: "color:#2a2a2a", label: "Dark gray" },
-    { value: "color:#000000", label: "Black" },
-    { value: "color:#1e3a5f", label: "Soft blue" },
-    { value: "color:#3d2818", label: "Soft warm dark" }
+    { value: "color:#f5f5f5", label: t("safe_light_gray") },
+    { value: "color:#ffffff", label: t("safe_white") },
+    { value: "color:#2a2a2a", label: t("safe_dark_gray") },
+    { value: "color:#000000", label: t("safe_black") },
+    { value: "color:#1e3a5f", label: t("safe_soft_blue") },
+    { value: "color:#3d2818", label: t("safe_soft_warm_dark") }
   ];
   var currentBg = null;
   var previousBg = null;
@@ -858,7 +858,7 @@
 
     tiles.push({
       num: escapeHtml(String(Storage.tasksCompletedOnDay(ws, todayKey))),
-      label: "tasks completed"
+      label: t("dash_tasks_completed")
     });
 
     // A ZERO IS A REAL ANSWER HERE, and this is the one tile where that has to be
@@ -870,7 +870,7 @@
     // does not have.
     tiles.push({
       num: escapeHtml(String(Storage.focusBlockedOnDay(d, todayKey))),
-      label: "distractions blocked"
+      label: t("dash_distractions_blocked")
     });
 
     // The pill's tri-state, READ rather than reimplemented. Storage.focusArmState
@@ -880,7 +880,7 @@
     var armState = Storage.focusArmState(d);
     tiles.push({
       num: armState === "off" ? "Off" : (armState === "auto" ? "On (auto)" : "On"),
-      label: "focus blocking"
+      label: t("dash_focus_blocking")
     });
 
     return tiles.map(function (t) {
@@ -1441,13 +1441,13 @@
     weekly: {
       todayIndex: 4, // Friday
       days: [
-        { label: "Mon", hours: 2.1 },
-        { label: "Tue", hours: 3.5 },
-        { label: "Wed", hours: 4.2 },
-        { label: "Thu", hours: 1.8 },
-        { label: "Fri", hours: 3.7 },
-        { label: "Sat", hours: 0.5 },
-        { label: "Sun", hours: 0   }
+        { label: t("dash_mon"), hours: 2.1 },
+        { label: t("dash_tue"), hours: 3.5 },
+        { label: t("dash_wed"), hours: 4.2 },
+        { label: t("dash_thu"), hours: 1.8 },
+        { label: t("dash_fri"), hours: 3.7 },
+        { label: t("dash_sat"), hours: 0.5 },
+        { label: t("dash_sun"), hours: 0   }
       ]
     }
   };
@@ -1477,12 +1477,12 @@
     // Marathoner remains the sole banked future candidate. Consistency copy was
     // corrected to the live definition (was "Deep work every weekday for 2 weeks").
     badges: [
-      { id: "first-week",   title: "First Week",   desc: "Used LaunchPad 7 days running",          unlocked: true,  glyph: "calendar" },
-      { id: "goal-crusher", title: "Goal Crusher", desc: "Completed 5 goals",                      unlocked: true,  glyph: "target"   },
-      { id: "deep-diver",   title: "Deep Diver",   desc: "Single 2-hour focus block",              unlocked: true,  glyph: "compass"  },
-      { id: "variety",      title: "Variety",      desc: "5 different tags in a week",             unlocked: false, glyph: "layers"   },
-      { id: "consistency",  title: "Consistency",  desc: "Complete a task 7 days running",         unlocked: false, glyph: "trend"    },
-      { id: "curator",      title: "Curator",      desc: "50+ shortcuts organized",                unlocked: false, glyph: "bookmark" }
+      { id: "first-week",   title: t("dash_first_week"),   desc: "Used LaunchPad 7 days running",          unlocked: true,  glyph: "calendar" },
+      { id: "goal-crusher", title: t("dash_goal_crusher"), desc: "Completed 5 goals",                      unlocked: true,  glyph: "target"   },
+      { id: "deep-diver",   title: t("dash_deep_diver"),   desc: "Single 2-hour focus block",              unlocked: true,  glyph: "compass"  },
+      { id: "variety",      title: t("dash_variety"),      desc: "5 different tags in a week",             unlocked: false, glyph: "layers"   },
+      { id: "consistency",  title: t("dash_consistency"),  desc: "Complete a task 7 days running",         unlocked: false, glyph: "trend"    },
+      { id: "curator",      title: t("dash_curator"),      desc: "50+ shortcuts organized",                unlocked: false, glyph: "bookmark" }
     ]
   };
 
@@ -1788,12 +1788,12 @@
   // user deserves to see the target). Trends are a v2.1 promise; the history is
   // already accruing behind the scenes.
   var INSIGHTS_BADGES = [
-    { id: "first-week",   title: "First Week",   desc: "Open LaunchPad 7 days running",          glyph: "calendar" },
-    { id: "goal-crusher", title: "Goal Crusher", desc: "Complete 5 different goals",             glyph: "target"   },
-    { id: "deep-diver",   title: "Deep Diver",   desc: "A single 2-hour focus session",         glyph: "compass"  },
-    { id: "variety",      title: "Variety",      desc: "Complete tasks across 5 tags in a week", glyph: "layers"   },
-    { id: "consistency",  title: "Consistency",  desc: "Complete a task 7 days running",         glyph: "trend"    },
-    { id: "curator",      title: "Curator",      desc: "Organize 50+ shortcuts",                 glyph: "bookmark" }
+    { id: "first-week",   title: t("badge_first_week"),   desc: "Open LaunchPad 7 days running",          glyph: "calendar" },
+    { id: "goal-crusher", title: t("badge_goal_crusher"), desc: "Complete 5 different goals",             glyph: "target"   },
+    { id: "deep-diver",   title: t("badge_deep_diver"),   desc: "A single 2-hour focus session",         glyph: "compass"  },
+    { id: "variety",      title: t("badge_variety"),      desc: "Complete tasks across 5 tags in a week", glyph: "layers"   },
+    { id: "consistency",  title: t("badge_consistency"),  desc: "Complete a task 7 days running",         glyph: "trend"    },
+    { id: "curator",      title: t("badge_curator"),      desc: "Organize 50+ shortcuts",                 glyph: "bookmark" }
   ];
   var INSIGHTS_BADGE_BY_ID = INSIGHTS_BADGES.reduce(function (m, b) { m[b.id] = b; return m; }, {});
 
@@ -1835,8 +1835,8 @@
   // engine-measured time; these are window names, not measurements.
   var INSIGHTS_RANGES = [
     { days: 1,  label: "today",        btn: "Today" },
-    { days: 7,  label: "past 7 days",  btn: "Past 7 days" },
-    { days: 30, label: "last 30 days", btn: "Last 30 days" }
+    { days: 7,  label: t("insights_past_7_days"),  btn: "Past 7 days" },
+    { days: 30, label: t("insights_last_30_days"), btn: "Last 30 days" }
   ];
 
   function insightsRangeLabel(days) {
@@ -2177,7 +2177,7 @@
         : { num: fmtDurationHM(scopeTotalMs), label: rangeLabel },
       { num: bestMs > 0 ? fmtDurationHM(bestMs) : "—",
         label: bestMs > 0 ? ("best day · " + escapeHtml(fmtShortDate(insightsKeyToTs(bestKey)))) : "best day" },
-      { num: fmtDurationHM(avgMs), label: "daily avg" }
+      { num: fmtDurationHM(avgMs), label: t("insights_daily_avg") }
     ];
     return items.map(function (it) {
       return '<div class="insights-strip-item">' +
@@ -2811,13 +2811,13 @@
 
   function openNotesTrashView() {
     openTasksModal({
-      title: "Notes trash",
+      title: t("notes_notes_trash"),
       // [1.4.8] Done is the dismissal. The Cancel it replaces ran onCancel, which
       // is renderNotesPanel() - the SAME thing onPrimary does - so the two
       // buttons were one action wearing two labels. That refresh is not lost:
       // doCancel still fires it from the X, the overlay click and Escape.
       // "Empty trash" is untouched, in its own extraButtons slot.
-      primaryLabel: "Done",
+      primaryLabel: t("common_done"),
       hideCancel: true,
       // [1.4.9] Without this, focus stays on the trash button that opened the
       // view - outside the dialog - because this body has no input for the
@@ -2828,7 +2828,7 @@
           notesTrashBodyHtml() +
         "</div>",
       extraButtons: [{
-        label: "Empty trash",
+        label: t("notes_empty_trash"),
         className: "tt-modal-btn tt-modal-btn-danger notes-trash-empty-btn",
         onClick: function () {
           // Deferred for the same reason as above: this handler resolves and the
@@ -2876,9 +2876,9 @@
 
   function confirmPurgeNote(noteId) {
     openTasksConfirmModal({
-      title: "Delete permanently?",
-      message: "This note will be removed for good. This cannot be undone.",
-      confirmLabel: "Delete permanently",
+      title: t("purge_delete_permanently"),
+      message: t("purge_this_note_will_be_removed_for"),
+      confirmLabel: t("purge_delete_permanently_2"),
       dangerous: true,
       onConfirm: async function () {
         await Storage.deleteNotePermanent(data, noteId);
@@ -2894,10 +2894,10 @@
     var count = ws ? Storage.getDeletedNotes(ws).length : 0;
     if (!count) return;
     openTasksConfirmModal({
-      title: "Empty the notes trash?",
+      title: t("empty_empty_the_notes_trash"),
       message: (count === 1 ? "1 note" : count + " notes") +
         " will be removed for good. This cannot be undone.",
-      confirmLabel: "Empty trash",
+      confirmLabel: t("empty_empty_trash"),
       dangerous: true,
       onConfirm: async function () {
         await Storage.emptyNotesTrash(data);
@@ -3130,7 +3130,7 @@
           b.type = "button";
           b.className = "notes-search-clear";
           b.setAttribute("data-notes-search-clear", "");
-          b.setAttribute("aria-label", "Clear search");
+          b.setAttribute("aria-label", t("bind_clear_search"));
           b.innerHTML = "&times;";
           wrap.appendChild(b);
         }
@@ -3921,11 +3921,11 @@
 
     setTimeout(function () {
       if (leavesView) {
-        showToast("✓ Moved to Completed");
+        showToast(t("run_moved_to_completed"));
         row.classList.add("tt-completing-leave"); // ~300ms fade/slide out
         setTimeout(settle, TASK_COMPLETE_LEAVE_MS);
       } else {
-        showToast("✓ Task completed");
+        showToast(t("run_task_completed"));
         settle();
       }
     }, TASK_COMPLETE_DWELL_MS);
@@ -3946,7 +3946,7 @@
     }
     var panel = document.getElementById("tab-tasks");
     if (panel) renderTasksTab(panel, data);
-    showUndoToast("Deleted. Restore from Trash within 30 days.", async function () {
+    showUndoToast(t("delete_deleted_restore_from_trash_within_30"), async function () {
       try {
         await Storage.restoreTask(data, taskId);
       } catch (err2) {
@@ -4001,9 +4001,9 @@
     if (!id) return;
     var label = kind === "goal" ? "goal" : "task";
     openTasksConfirmModal({
-      title: "Delete permanently?",
+      title: t("purge_delete_permanently_3"),
       message: 'Permanently delete the ' + label + ' "' + name + '"? This cannot be undone.',
-      confirmLabel: "Delete permanently",
+      confirmLabel: t("purge_delete_permanently_4"),
       dangerous: true,
       onConfirm: async function () {
         try {
@@ -4053,9 +4053,9 @@
     var n = deletedBoxCount();
     if (!n) return;
     openTasksConfirmModal({
-      title: "Empty trash?",
+      title: t("empty_empty_trash_2"),
       message: "Permanently delete all " + pluralItems(n) + "? This cannot be undone.",
-      confirmLabel: "Delete permanently",
+      confirmLabel: t("empty_delete_permanently"),
       dangerous: true,
       onConfirm: async function () {
         try {
@@ -4092,7 +4092,7 @@
       title: "Clear completed?",
       message: "Move all " + n + " completed " + (n === 1 ? "item" : "items") +
         " to Deleted? They stay recoverable for 30 days.",
-      confirmLabel: "Move to Deleted",
+      confirmLabel: t("clear_move_to_deleted"),
       onConfirm: async function () {
         try {
           var cleared = await Storage.clearCompletedItems(data);
@@ -5029,9 +5029,9 @@
       // Case 2 / 4 collision — goal destination prompts the user.
       var suggested = Storage.generateUniqueTaskName(data, taskName, targetGoalId, taskId);
       openTasksConfirmModal({
-        title: "Name conflict",
+        title: t("refresh_name_conflict"),
         message: taskGoalCollisionText(taskName, suggested),
-        confirmLabel: "Rename and add",
+        confirmLabel: t("refresh_rename_and_add"),
         onConfirm: async function () {
           // Defensive re-check on commit — another tab may have removed
           // the conflicting task in the meantime, in which case we don't
@@ -5111,15 +5111,15 @@
     }
 
     openTasksModal({
-      title: "Move recurring task",
+      title: t("apply_move_recurring_task"),
       bodyHtml: '<p class="tt-modal-message">This is an instance of a recurring task. ' +
         'Move the whole template into this goal (future instances will belong to it), ' +
         'or move just this occurrence?</p>',
-      primaryLabel: "Move just this instance",
+      primaryLabel: t("apply_move_just_this_instance"),
       defaultFocus: "primary",
       onPrimary: async function () { await apply(false); },
       extraButtons: [{
-        label: "Move the template into this goal",
+        label: t("apply_move_the_template_into_this_goal"),
         onClick: async function () { await apply(true); }
       }],
       // onCancel covers the Cancel button, backdrop click, AND Escape.
@@ -5513,8 +5513,8 @@
       : "";
 
     openTasksModal({
-      title: "New task",
-      primaryLabel: "Create",
+      title: t("new_new_task"),
+      primaryLabel: t("new_create"),
       bodyHtml:
         '<div class="tt-modal-row">' +
           '<label class="tt-modal-label" for="tt-task-name-input">Name</label>' +
@@ -5795,13 +5795,13 @@
 
   function openTemplatesPanel() {
     var overlay = openTasksModal({
-      title: "Goal templates",
+      title: t("templates_goal_templates"),
       bodyHtml: templatesPanelBodyHtml(Storage.getActiveWorkspace(data)),
       // [1.4.8] Close is the only dismissal this panel needs; the Cancel beside
       // it did the identical thing. Nothing is lost by hiding the button: the X,
       // the overlay click and Escape all route through doCancel independently of
       // it, and this panel commits nothing, so there is no action to cancel.
-      primaryLabel: "Close",
+      primaryLabel: t("common_close"),
       hideCancel: true,
       defaultFocus: "primary",
       onMounted: function (ov) {
@@ -6186,12 +6186,12 @@
           return;
         }
         openTasksConfirmModal({
-          title: "Complete this goal?",
+          title: t("goal_complete_this_goal"),
           message: '"' + goal.name + '" still has ' + stranded.length +
             (stranded.length === 1
               ? " unfinished task. Completing the goal moves it to Standalone so it stays visible."
               : " unfinished tasks. Completing the goal moves them to Standalone so they stay visible."),
-          confirmLabel: "Complete goal",
+          confirmLabel: t("goal_complete_goal"),
           onConfirm: finishGoal
         });
       } else if (action === "delete") {
@@ -6203,9 +6203,9 @@
           msg += ' This will also remove its ' + children.length + ' task' + (children.length === 1 ? "" : "s") + '.';
         }
         openTasksConfirmModal({
-          title: "Delete goal?",
+          title: t("goal_delete_goal"),
           message: msg,
-          confirmLabel: "Delete",
+          confirmLabel: t("common_delete"),
           dangerous: true,
           onConfirm: async function () {
             await Storage.deleteGoal(data, goalId);
@@ -6514,7 +6514,7 @@
     var goalDateStr = fmtShortDateUTC(conflict.goalDeadlineAt);
     var goalName = conflict.goalName || "the goal";
     openTasksModal({
-      title: "Due date after goal deadline",
+      title: t("task_due_date_after_goal_deadline"),
       bodyHtml: '<p class="tt-modal-message">This task’s due date (' + escapeHtml(taskDateStr) +
         ') is after ' + escapeHtml(goalName) + ' deadline (' + escapeHtml(goalDateStr) +
         '). Extend the goal deadline to match?</p>',
@@ -7185,7 +7185,7 @@
         await Storage.saveAll(data);
         closeUpgradePopover();
         applyAccessLevelUI();
-        showToast("Trial started. Pro features unlocked for 7 days.");
+        showToast(t("upgrade_trial_started_pro_features_unlocked_for"));
       });
     }
 
@@ -7306,7 +7306,7 @@
           // panel is visible (newtab.js:250-255), so no explicit re-render
           // is needed here.
           applyAccessLevelUI();
-          showToast("License applied. Pro features now active.");
+          showToast(t("apply_license_applied_pro_features_now_active"));
         } else {
           if (snapshot) Object.assign(data.pro, snapshot);
           var msg = (result && result.message) || "Could not validate license.";
@@ -7557,7 +7557,7 @@
       var submit = function () {
         var name = (input.value || "").trim();
         if (!name) {
-          showToast("Workspace name required");
+          showToast(t("workspace_workspace_name_required"));
           input.focus();
           return;
         }
@@ -7692,7 +7692,7 @@
   async function createWorkspace(name, trackingEnabled) {
     var trimmed = (name || "").trim();
     if (!trimmed) {
-      showToast("Workspace name required");
+      showToast(t("create_workspace_name_required"));
       return;
     }
     var id = genWorkspaceId();
@@ -7725,7 +7725,7 @@
     // renderProWorkspaceList call is needed here.
     applyAccessLevelUI();
     closeWorkspaceDropdown();
-    showToast("Workspace created");
+    showToast(t("create_workspace_created"));
   }
 
   async function renameWorkspace(id, newName) {
@@ -7745,7 +7745,7 @@
     var ws = (data.workspaces || []).find(function (w) { return w.id === id; });
     if (!ws) return;
     if ((data.workspaces || []).length <= 1) {
-      showToast("You need at least one workspace");
+      showToast(t("delete_you_need_at_least_one_workspace"));
       return;
     }
     var ok = window.confirm("Delete workspace \"" + ws.name + "\"? This cannot be undone.");
@@ -7773,7 +7773,7 @@
     // refresh so the removed row disappears regardless of applyAccessLevelUI's
     // panel-open guard.
     renderProWorkspaceList();
-    showToast("Workspace deleted");
+    showToast(t("delete_workspace_deleted"));
   }
 
   async function reorderWorkspaces(orderedIds) {
@@ -7804,7 +7804,7 @@
         if (typeof openUpgradePopover === "function") {
           openUpgradePopover(cta, data);
         } else {
-          showToast("Upgrade flow coming soon");
+          showToast(t("read_upgrade_flow_coming_soon"));
         }
       });
     }
@@ -7876,7 +7876,7 @@
       try {
         if (await Storage.resetPomodoroCycleCount(data)) {
           renderActiveTaskWidget();
-          showToast("Focus cycle count reset.");
+          showToast(t("bind_focus_cycle_count_reset"));
         }
       } catch (err) {
         console.error("[LaunchPad] Focus session: reset cycles failed", err);
@@ -7907,7 +7907,7 @@
         }
         if (!granted) {
           box.checked = false;
-          if (note) { note.textContent = "Notifications permission was declined."; note.hidden = false; }
+          if (note) { note.textContent = t("bind_notifications_permission_was_declined"); note.hidden = false; }
           return;
         }
         try {
@@ -8150,7 +8150,7 @@
       host.textContent = "Active license: " + key;
     } else {
       host.classList.add("pro-license-empty");
-      host.textContent = "No license applied.";
+      host.textContent = t("pro_no_license_applied");
     }
     var show = shouldShowLicenseControls(data);
     // [1.0.5.4] Section C — Check license status now button is only meaningful
@@ -8249,7 +8249,7 @@
       btn.addEventListener("click", function (e) {
         e.stopPropagation();
         if (btn.classList.contains("is-disabled")) {
-          showToast("You need at least one workspace");
+          showToast(t("pro_you_need_at_least_one_workspace"));
           return;
         }
         var row = btn.closest(".pro-workspace-row");
@@ -8303,7 +8303,7 @@
       var submit = function () {
         var name = (input.value || "").trim();
         if (!name) {
-          showToast("Workspace name required");
+          showToast(t("pro_workspace_name_required"));
           input.focus();
           return;
         }
@@ -8816,7 +8816,7 @@
       return;
     }
     if (!result) {
-      showToast("Could not create tag.");
+      showToast(t("tag_could_not_create_tag"));
       return;
     }
     closeTagCreateForm();
@@ -8956,7 +8956,7 @@
       var prev = document.querySelector('.pro-tag-row[data-tag-id="' + pendingTagDeleteId + '"] .pro-tag-delete');
       if (prev) {
         prev.classList.remove("confirming");
-        prev.title = "Delete tag";
+        prev.title = t("clear_delete_tag");
         prev.textContent = "🗑";
       }
       pendingTagDeleteId = null;
@@ -9004,8 +9004,8 @@
     // The promise this makes is now TRUE: Restore lives on the trashed row,
     // reachable via the "Show" disclosure on this section's counter line. Before
     // that existed this tooltip claimed a recovery path that did not exist.
-    btn.title = "Click again to confirm. Restore from Pro Settings > Tags within 30 days.";
-    btn.textContent = "Delete?";
+    btn.title = t("tag_click_again_to_confirm_restore_from");
+    btn.textContent = t("tag_delete");
     pendingTagDeleteTimer = setTimeout(function () { clearPendingTagDelete(); }, 3000);
   }
 
@@ -9014,17 +9014,17 @@
     if (!input) return;
     var key = (input.value || "").trim();
     if (!key) {
-      showToast("Enter a license key first.");
+      showToast(t("license_enter_a_license_key_first"));
       return;
     }
     var ok = ProAccess.applyLicenseKey(data, key);
     if (!ok) {
-      showToast("License key not recognized.");
+      showToast(t("license_license_key_not_recognized"));
       return;
     }
     await Storage.saveAll(data);
     input.value = "";
-    showToast("License applied. Pro features now active.");
+    showToast(t("license_license_applied_pro_features_now_active"));
     renderProSubscriptionSection();
     renderProLicenseSection();
     applyTabAccessLevel("active");
@@ -9081,14 +9081,14 @@
 
   async function handleLicenseClear() {
     if (!data.pro || !data.pro.licenseKey) {
-      showToast("No license to clear.");
+      showToast(t("license_no_license_to_clear"));
       return;
     }
     var ok = window.confirm("Remove this license? You'll lose Pro access until you re-enter a valid key.");
     if (!ok) return;
     ProAccess.clearLicense(data);
     await Storage.saveAll(data);
-    showToast("License cleared.");
+    showToast(t("license_license_cleared"));
     renderProSubscriptionSection();
     renderProLicenseSection();
     // Sidebar entry visibility / tab gating handled by storage.onChanged listener.
@@ -10334,7 +10334,7 @@
   function applySearch() {
     var form = $("#search-form");
     var input = $("#search-input");
-    if (input) input.placeholder = "Search or type a URL";
+    if (input) input.placeholder = t("apply_search_or_type_a_url");
     if (form && !form._searchHandlerAttached) {
       form.addEventListener("submit", function (e) {
         e.preventDefault();
@@ -10382,7 +10382,7 @@
     var undo = document.createElement("button");
     undo.type = "button";
     undo.className = "toast-undo";
-    undo.textContent = "Undo";
+    undo.textContent = t("undo_undo");
     toast.appendChild(msg);
     toast.appendChild(undo);
     toast.classList.add("visible");
@@ -10447,7 +10447,7 @@
         if (!has) {
           box.checked = false;
           if (note) {
-            note.textContent = "Automatic backup is off because the downloads permission was removed. Turn it on again to restore the schedule.";
+            note.textContent = t("auto_automatic_backup_is_off_because_the");
             note.hidden = false;
           }
         }
@@ -10484,7 +10484,7 @@
         if (!granted) {
           box.checked = false;
           if (note) {
-            note.textContent = "Downloads permission was declined. Automatic backup stays off.";
+            note.textContent = t("bind_downloads_permission_was_declined_automatic_backup");
             note.hidden = false;
           }
           return;
@@ -10519,7 +10519,7 @@
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast("Backup downloaded");
+    showToast(t("export_backup_downloaded"));
   }
   // ---- validation ----------------------------------------------------------
   //
@@ -10652,20 +10652,20 @@
       try {
         envelope = JSON.parse(reader.result);
       } catch (err) {
-        showToast("Invalid backup file");
+        showToast(t("backup_invalid_backup_file"));
         return;
       }
 
       var parsed = readBackupEnvelope(envelope);
       if (!parsed.ok) {
         if (parsed.status === "not-launchpad") {
-          showToast("This doesn't look like a LaunchPad backup file");
+          showToast(t("backup_this_doesn_t_look_like_a"));
         } else if (parsed.status === "corrupt-store") {
           // ALL OR NOTHING. Nothing has been written at this point and nothing
           // will be: a file that is wrong anywhere is not applied anywhere.
           showToast("This backup is damaged in its " + parsed.store + " section. Nothing was imported.");
         } else {
-          showToast("This backup file is empty or corrupted. Nothing to import.");
+          showToast(t("backup_this_backup_file_is_empty_or"));
         }
         return;
       }
@@ -10717,7 +10717,7 @@
       showToast(parsed.schema >= 2 ? "Backup restored." : "Backup restored (older format).");
     };
     reader.onerror = function () {
-      showToast("Could not read file");
+      showToast(t("backup_could_not_read_file"));
     };
     reader.readAsText(file);
   }
@@ -11036,8 +11036,8 @@
 
       var moreBtn = document.createElement("button");
       moreBtn.className = "variant-dropdown-more";
-      moreBtn.title = "Options";
-      moreBtn.textContent = "\u22EE";
+      moreBtn.title = t("variant_options");
+      moreBtn.textContent = t("variant_u22ee");
       moreBtn.addEventListener("click", function (e) {
         e.stopPropagation();
         showVariantCtxMenu(e, item, shortcutId, groupId);
@@ -11153,7 +11153,7 @@
     if (action === "rename") {
       // Prompt for new label
       var currentLabel = item.title || "";
-      var newLabel = prompt("Rename variant:", currentLabel);
+      var newLabel = prompt(t("variant_rename_variant"), currentLabel);
       if (newLabel !== null && newLabel.trim()) {
         var g = findGroup(groupId);
         if (!g) return;
@@ -11593,7 +11593,7 @@
       return;
     }
     if (!result) {
-      showToast("Could not create tag.");
+      showToast(t("tag_could_not_create_tag_2"));
       return;
     }
     var tag = result;
@@ -12383,11 +12383,11 @@
         } else if (res.action === "completed") {
           // [E1/E2] Break finished — the session is over; the card re-renders
           // into its session-complete state. Work never auto-starts.
-          showToast("Session complete. Ready for another?");
+          showToast(t("sat_session_complete_ready_for_another"));
           satFireBoundarySound("completed");
           renderActiveTaskWidget();
         } else if (res.action === "expired") {
-          showToast("Focus session ended while you were away.");
+          showToast(t("sat_focus_session_ended_while_you_were"));
           renderActiveTaskWidget();
         } else if (res.raced) {
           renderActiveTaskWidget();                       // adopt the other tab's phase
@@ -13225,7 +13225,7 @@
     pill.setAttribute("title", res ? res.task.name : "Pick an active task");
     if (showCard) {
       pill.setAttribute("role", "region");
-      pill.setAttribute("aria-label", "Active task");
+      pill.setAttribute("aria-label", t("active_active_task"));
       pill.innerHTML = satCardHtml(res, paused);
     } else {
       pill.removeAttribute("role");
@@ -13364,9 +13364,9 @@
   // Reuses the Tasks confirm modal. No confirm when no phase is running.
   function satConfirmSwitchReset(onConfirm) {
     openTasksConfirmModal({
-      title: "Switch task?",
-      message: "This will reset your focus session.",
-      confirmLabel: "Switch and reset",
+      title: t("sat_switch_task"),
+      message: t("sat_this_will_reset_your_focus_session"),
+      confirmLabel: t("sat_switch_and_reset"),
       onConfirm: onConfirm
     });
   }
@@ -14993,11 +14993,11 @@
   async function saveCurrentTabsAsSession() {
     var captured = await captureCurrentWindowTabs();
     if (!captured.tabs.length) {
-      showToast("Nothing here can be saved. A session needs at least one web page open.");
+      showToast(t("save_nothing_here_can_be_saved_a"));
       return;
     }
     var suggested = "Session " + (sessionsForRender().length + 1);
-    var name = prompt("Name this session:", suggested);
+    var name = prompt(t("save_name_this_session"), suggested);
     if (name === null) return;
 
     var ws = Storage.getActiveWorkspace(data);
@@ -15032,7 +15032,7 @@
       await chrome.windows.create({ url: urls, focused: true });
     } catch (err) {
       console.error("[LaunchPad] Session launch failed", err);
-      showToast("That session could not be opened.");
+      showToast(t("launch_that_session_could_not_be_opened"));
       return;
     }
     Storage.touchNamedSessionLaunched(data, sessionId);
@@ -15119,9 +15119,9 @@
     }
     var name = (s && s.name) ? s.name : "This session";
     openTasksConfirmModal({
-      title: "Delete permanently?",
+      title: t("purge_delete_permanently_5"),
       message: name + " will be removed for good. This cannot be undone.",
-      confirmLabel: "Delete permanently",
+      confirmLabel: t("purge_delete_permanently_6"),
       dangerous: true,
       onConfirm: async function () {
         Storage.deleteNamedSessionPermanent(data, sessionId);
@@ -15139,10 +15139,10 @@
     var count = ws ? Storage.getDeletedNamedSessions(ws).length : 0;
     if (!count) return;
     openTasksConfirmModal({
-      title: "Empty the sessions trash?",
+      title: t("empty_empty_the_sessions_trash"),
       message: (count === 1 ? "1 session" : count + " sessions") +
         " will be removed for good. This cannot be undone.",
-      confirmLabel: "Empty trash",
+      confirmLabel: t("empty_empty_trash_3"),
       dangerous: true,
       onConfirm: async function () {
         Storage.emptyNamedSessionsTrash(data);
@@ -15157,18 +15157,18 @@
 
   function openSessionsTrashView() {
     openTasksModal({
-      title: "Sessions trash",
+      title: t("sessions_sessions_trash"),
       // [1.4.5] One dismissal, in the primary slot; Empty trash keeps its own
       // extraButtons slot. The CONFIRMS raised from here keep their Cancel,
       // because a confirm is a committing modal.
-      primaryLabel: "Done",
+      primaryLabel: t("common_done"),
       hideCancel: true,
       defaultFocus: "primary",
       bodyHtml: '<div class="sessions-trash-view" data-sessions-trash-body>' +
           sessionsTrashBodyHtml() +
         '</div>',
       extraButtons: [{
-        label: "Empty trash",
+        label: t("sessions_empty_trash"),
         className: "tt-modal-btn tt-modal-btn-danger sessions-trash-empty-btn",
         onClick: function () {
           // Deferred for the same single-instance reason as above: this handler
@@ -15193,7 +15193,7 @@
             await Storage.saveAll(data);
             data = await Storage.getAll();
             refreshSessionsTrashView(overlay);
-            showToast("Session restored.");
+            showToast(t("sessions_session_restored"));
             return;
           }
           confirmPurgeSession(id);
@@ -15325,9 +15325,9 @@
       closeTasksModal();
       setTimeout(function () {
         openTasksConfirmModal({
-          title: "Name conflict",
+          title: t("task_name_conflict"),
           message: taskGoalCollisionText(taskName, suggested),
-          confirmLabel: "Rename and move",
+          confirmLabel: t("task_rename_and_move"),
           onConfirm: async function () {
             // Re-checked at commit time, exactly as the drag path does: another
             // tab may have removed the clashing task while the modal sat open.
@@ -15406,7 +15406,7 @@
                          : ("Assign " + task.name + " to a goal"),
       bodyHtml: pickerSearchHtml(total, "Search goals") +
         '<div class="session-picker" data-picker-list>' + taskGoalPickerRowsHtml(ws, task) + '</div>',
-      primaryLabel: "Close",
+      primaryLabel: t("common_close"),
       hideCancel: true,
       onPrimary: function () {},
       onMounted: function (modalEl) {
@@ -15499,7 +15499,7 @@
         b.type = "button";
         b.className = "picker-search-clear";
         b.setAttribute("data-picker-search-clear", "");
-        b.setAttribute("aria-label", "Clear search");
+        b.setAttribute("aria-label", t("wire_clear_search"));
         b.innerHTML = "&times;";
         wrap.appendChild(b);
       } else if (!pickerFilter && clear) {
@@ -15573,7 +15573,7 @@
         ? pickerSearchHtml(total, "Search sessions") +
           '<div class="session-picker" data-picker-list>' + taskSessionPickerRowsHtml(ws, taskId) + '</div>'
         : '<p class="tt-modal-message">There are no saved sessions in this workspace yet.</p>',
-      primaryLabel: "Close",
+      primaryLabel: t("common_close"),
       hideCancel: true,
       onPrimary: function () {},
       onMounted: function (modalEl) {
@@ -15609,7 +15609,7 @@
       // that commits nothing labels that slot for what it does (the templates
       // panel says Close, the notes trash says Done). Choosing a row IS the
       // commit here, so there is no second action to offer.
-      primaryLabel: "Close",
+      primaryLabel: t("common_close"),
       hideCancel: true,
       onPrimary: function () {},
       onMounted: function (modalEl) {
@@ -15664,9 +15664,9 @@
       closeTasksModal();
       setTimeout(function () {
         openTasksConfirmModal({
-          title: "Move this session?",
+          title: t("session_move_this_session"),
           message: msg,
-          confirmLabel: "Move it",
+          confirmLabel: t("session_move_it"),
           onConfirm: apply,
           onCancel: function () {
             setTimeout(typeof reopen === "function"
@@ -15707,7 +15707,7 @@
     if (!s) return;
 
     if (action === "rename") {
-      var next = prompt("Rename session:", s.name || "");
+      var next = prompt(t("session_rename_session"), s.name || "");
       if (next === null) return;
       Storage.updateNamedSession(data, id, { name: String(next).trim() });
       await Storage.saveAll(data);
@@ -15719,7 +15719,7 @@
     if (action === "update") {
       var captured = await captureCurrentWindowTabs();
       if (!captured.tabs.length) {
-        showToast("Nothing here can be saved. A session needs at least one web page open.");
+        showToast(t("session_nothing_here_can_be_saved_a"));
         return;
       }
       var n = captured.tabs.length;
@@ -15728,7 +15728,7 @@
         message: "Replace the " + (s.tabs || []).length + " saved tab" +
                  ((s.tabs || []).length === 1 ? "" : "s") + " in " +
                  (s.name || "this session") + " with the " + n + " open here? The name stays the same.",
-        confirmLabel: "Replace tabs",
+        confirmLabel: t("session_replace_tabs"),
         onConfirm: async function () {
           Storage.updateNamedSession(data, id, { tabs: captured.tabs });
           await Storage.saveAll(data);
@@ -16134,10 +16134,10 @@
 
   function updateRcFilterLabel() {
     var label = $("#rc-filter-label");
-    if (rcActiveFilter === "today") label.textContent = "Today";
-    else if (rcActiveFilter === "yesterday") label.textContent = "Yesterday";
-    else if (rcActiveFilter === "week") label.textContent = "Last 7 days";
-    else if (rcActiveFilter === "all") label.textContent = "All";
+    if (rcActiveFilter === "today") label.textContent = t("update_today");
+    else if (rcActiveFilter === "yesterday") label.textContent = t("update_yesterday");
+    else if (rcActiveFilter === "week") label.textContent = t("update_last_7_days");
+    else if (rcActiveFilter === "all") label.textContent = t("update_all");
     else if (rcActiveFilter === "custom" && rcCustomStart && rcCustomEnd) {
       label.textContent = formatShortDate(rcCustomStart) + " \u2013 " + formatShortDate(rcCustomEnd);
     }
@@ -17145,7 +17145,7 @@
       var file = this.files && this.files[0];
       if (!file) return;
       if (file.size > 102400) {
-        alert("Icon file must be under 100KB.");
+        alert(t("bind_icon_file_must_be_under_100kb"));
         this.value = "";
         return;
       }
@@ -17683,10 +17683,10 @@
   async function addGroup() {
     var ws = Storage.getActiveWorkspace(data);
     if (ws && ws.isReadOnly) {
-      showToast("This workspace is read-only.");
+      showToast(t("add_this_workspace_is_read_only"));
       return;
     }
-    var name = prompt("Group name:");
+    var name = prompt(t("add_group_name"));
     if (!name || !name.trim()) return;
     await Storage.addGroup(name.trim());
     data = await Storage.getAll();
@@ -17836,7 +17836,7 @@
         // Fallback: prompt rename
         var group = findGroup(groupId);
         if (!group) return;
-        var newName = prompt("Rename group:", group.name);
+        var newName = prompt(t("group_rename_group"), group.name);
         if (newName && newName.trim() && newName.trim() !== group.name) {
           group.name = newName.trim();
           Storage.saveAll(data).then(function () {
@@ -17875,11 +17875,11 @@
         .map(function (g) { return '<option value="' + g.id + '">' + esc(g.name) + '</option>'; })
         .join("");
       moveSection.classList.remove("hidden");
-      confirmBtn.textContent = "Delete All";
+      confirmBtn.textContent = t("delete_delete_all");
     } else {
       msgEl.textContent = 'Delete empty group "' + group.name + '"?';
       moveSection.classList.add("hidden");
-      confirmBtn.textContent = "Delete";
+      confirmBtn.textContent = t("common_delete");
     }
 
     overlay.dataset.groupId = groupId;
@@ -18111,7 +18111,7 @@
         var shortcut = findShortcutById(hovered.dataset.id);
         if (shortcut && dropLabel) {
           var iconRect = hovered.querySelector(".shortcut-icon").getBoundingClientRect();
-          dropLabel.textContent = "Drop to group";
+          dropLabel.textContent = t("check_drop_to_group");
           dropLabel.style.left = (iconRect.left + iconRect.width / 2) + "px";
           dropLabel.style.top = (iconRect.top - 24) + "px";
           dropLabel.classList.add("visible");

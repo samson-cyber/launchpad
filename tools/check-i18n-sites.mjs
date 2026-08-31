@@ -203,7 +203,12 @@ function blankConsole(src) {
 const STR = `(?:"(?:[^"\\\\\\n]|\\\\.)*"|'(?:[^'\\\\\\n]|\\\\.)*')`;
 const PATTERNS = [
   { id: "html-text",   argGroup: 1, re: new RegExp(`>\\s*([^<>{}\`"'\\\\]{2,140}?)\\s*<`, "g") },
-  { id: "html-attr",   argGroup: 1, re: new RegExp(`\\b(?:title|placeholder|alt)\\s*=\\s*\\\\?["']([^"'<>{}\`]{2,140}?)\\\\?["']`, "g") },
+  // (?<![.\w]) so a JS PROPERTY ASSIGNMENT is not mistaken for an HTML
+  // attribute. `el.title = "Options"` matched both this pattern and dom-assign,
+  // so that one site was counted TWICE and the gate's totals were inflated by
+  // every such line. Found in R3 stage C: 21 conversions dropped the count by
+  // 24, and the three extra were exactly the double-counted ones.
+  { id: "html-attr",   argGroup: 1, re: new RegExp(`(?<![.\\w])(?:title|placeholder|alt)\\s*=\\s*\\\\?["']([^"'<>{}\`]{2,140}?)\\\\?["']`, "g") },
   { id: "html-aria",   argGroup: 1, re: new RegExp(`\\baria-label\\s*=\\s*\\\\?["']([^"'<>{}\`]{2,140}?)\\\\?["']`, "g") },
   { id: "dom-assign",  argGroup: 2, re: new RegExp(`\\.(textContent|innerText|title|placeholder|ariaLabel)\\s*=\\s*([^;\\n]{1,160})`, "g") },
   // argGroup 1, and the trailing empty () is GONE. It used to be argGroup 2

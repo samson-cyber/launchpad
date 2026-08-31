@@ -866,3 +866,584 @@ I18n.register("en", {
     "description": "Heading of the Tips panel. Separate key from the sidebar label carrying the same English text. A sidebar label is WIDTH-CONSTRAINED and a panel heading is not, so a translator may need different lengths for them, and that is their call to make. Two keys can carry one value; one key cannot carry two."
   }
 });
+
+
+// ====================================================================
+// [1.5.0] R3 stage A - toast,native-dlg
+// ====================================================================
+I18n.register("en", {
+  "add_group_name": {
+    "message": "Group name:",
+    "description": "Text sink in addGroup(). Rendered with t()."
+  },
+  "add_this_workspace_is_read_only": {
+    "message": "This workspace is read-only.",
+    "description": "Text sink in addGroup(). Rendered with t()."
+  },
+  "apply_license_applied_pro_features_now_active": {
+    "message": "License applied. Pro features now active.",
+    "description": "Text sink in applyLicenseFromPopover(). Rendered with t()."
+  },
+  "backup_could_not_read_file": {
+    "message": "Could not read file",
+    "description": "Text sink in handleBackupFile(). Rendered with t()."
+  },
+  "backup_invalid_backup_file": {
+    "message": "Invalid backup file",
+    "description": "Text sink in handleBackupFile(). Rendered with t()."
+  },
+  "backup_this_backup_file_is_empty_or": {
+    "message": "This backup file is empty or corrupted. Nothing to import.",
+    "description": "Text sink in handleBackupFile(). Rendered with t()."
+  },
+  "backup_this_doesn_t_look_like_a": {
+    "message": "This doesn't look like a LaunchPad backup file",
+    "description": "Text sink in handleBackupFile(). Rendered with t()."
+  },
+  "bind_focus_cycle_count_reset": {
+    "message": "Focus cycle count reset.",
+    "description": "Text sink in bindProSettings(). Rendered with t()."
+  },
+  "bind_icon_file_must_be_under_100kb": {
+    "message": "Icon file must be under 100KB.",
+    "description": "Text sink in bindEvents(). Rendered with t()."
+  },
+  "create_workspace_created": {
+    "message": "Workspace created",
+    "description": "Text sink in createWorkspace(). Rendered with t()."
+  },
+  "create_workspace_name_required": {
+    "message": "Workspace name required",
+    "description": "Text sink in createWorkspace(). Rendered with t()."
+  },
+  "delete_deleted_restore_from_trash_within_30": {
+    "message": "Deleted. Restore from Trash within 30 days.",
+    "description": "Text sink in deleteTaskWithUndo(). Rendered with t()."
+  },
+  "delete_workspace_deleted": {
+    "message": "Workspace deleted",
+    "description": "Text sink in deleteWorkspace(). Rendered with t()."
+  },
+  "delete_you_need_at_least_one_workspace": {
+    "message": "You need at least one workspace",
+    "description": "Text sink in deleteWorkspace(). Rendered with t()."
+  },
+  "export_backup_downloaded": {
+    "message": "Backup downloaded",
+    "description": "Text sink in exportBackup(). Rendered with t()."
+  },
+  "group_rename_group": {
+    "message": "Rename group:",
+    "description": "Text sink in handleGroupMenuAction(). Rendered with t()."
+  },
+  "launch_that_session_could_not_be_opened": {
+    "message": "That session could not be opened.",
+    "description": "Text sink in launchNamedSession(). Rendered with t()."
+  },
+  "license_enter_a_license_key_first": {
+    "message": "Enter a license key first.",
+    "description": "Text sink in handleLicenseApply(). Rendered with t()."
+  },
+  "license_license_applied_pro_features_now_active": {
+    "message": "License applied. Pro features now active.",
+    "description": "Text sink in handleLicenseApply(). Rendered with t()."
+  },
+  "license_license_cleared": {
+    "message": "License cleared.",
+    "description": "Text sink in handleLicenseClear(). Rendered with t()."
+  },
+  "license_license_key_not_recognized": {
+    "message": "License key not recognized.",
+    "description": "Text sink in handleLicenseApply(). Rendered with t()."
+  },
+  "license_no_license_to_clear": {
+    "message": "No license to clear.",
+    "description": "Text sink in handleLicenseClear(). Rendered with t()."
+  },
+  "pro_workspace_name_required": {
+    "message": "Workspace name required",
+    "description": "Text sink in renderProWorkspaceList(). Rendered with t()."
+  },
+  "pro_you_need_at_least_one_workspace": {
+    "message": "You need at least one workspace",
+    "description": "Text sink in renderProWorkspaceList(). Rendered with t()."
+  },
+  "read_upgrade_flow_coming_soon": {
+    "message": "Upgrade flow coming soon",
+    "description": "Text sink in renderReadOnlyBanner(). Rendered with t()."
+  },
+  "run_moved_to_completed": {
+    "message": "✓ Moved to Completed",
+    "description": "Text sink in runTaskCompletionCelebration(). Rendered with t()."
+  },
+  "run_task_completed": {
+    "message": "✓ Task completed",
+    "description": "Text sink in runTaskCompletionCelebration(). Rendered with t()."
+  },
+  "sat_focus_session_ended_while_you_were": {
+    "message": "Focus session ended while you were away.",
+    "description": "Text sink in satMaybeReconcile(). Rendered with t()."
+  },
+  "sat_session_complete_ready_for_another": {
+    "message": "Session complete. Ready for another?",
+    "description": "Text sink in satMaybeReconcile(). Rendered with t()."
+  },
+  "save_name_this_session": {
+    "message": "Name this session:",
+    "description": "Text sink in saveCurrentTabsAsSession(). Rendered with t()."
+  },
+  "save_nothing_here_can_be_saved_a": {
+    "message": "Nothing here can be saved. A session needs at least one web page open.",
+    "description": "Text sink in saveCurrentTabsAsSession(). Rendered with t()."
+  },
+  "session_nothing_here_can_be_saved_a": {
+    "message": "Nothing here can be saved. A session needs at least one web page open.",
+    "description": "Text sink in handleSessionCtxAction(). Rendered with t()."
+  },
+  "session_rename_session": {
+    "message": "Rename session:",
+    "description": "Text sink in handleSessionCtxAction(). Rendered with t()."
+  },
+  "sessions_session_restored": {
+    "message": "Session restored.",
+    "description": "Text sink in openSessionsTrashView(). Rendered with t()."
+  },
+  "tag_could_not_create_tag": {
+    "message": "Could not create tag.",
+    "description": "Text sink in commitTagCreate(). Rendered with t()."
+  },
+  "tag_could_not_create_tag_2": {
+    "message": "Could not create tag.",
+    "description": "Text sink in commitTagCreatePopover(). Rendered with t()."
+  },
+  "upgrade_trial_started_pro_features_unlocked_for": {
+    "message": "Trial started. Pro features unlocked for 7 days.",
+    "description": "Text sink in openUpgradePopover(). Rendered with t()."
+  },
+  "variant_rename_variant": {
+    "message": "Rename variant:",
+    "description": "Text sink in handleVariantCtxAction(). Rendered with t()."
+  },
+  "workspace_workspace_name_required": {
+    "message": "Workspace name required",
+    "description": "Text sink in buildWorkspaceDropdownBody(). Rendered with t()."
+  }
+});
+
+
+// ====================================================================
+// [1.5.0] R3 stage B - modal-copy
+// ====================================================================
+I18n.register("en", {
+  "apply_move_just_this_instance": {
+    "message": "Move just this instance",
+    "description": "Text sink in apply(). Rendered with t()."
+  },
+  "apply_move_recurring_task": {
+    "message": "Move recurring task",
+    "description": "Text sink in apply(). Rendered with t()."
+  },
+  "apply_move_the_template_into_this_goal": {
+    "message": "Move the template into this goal",
+    "description": "Text sink in apply(). Rendered with t()."
+  },
+  "badge_consistency": {
+    "message": "Consistency",
+    "description": "Text sink in renderBadgeGlyph(). Rendered with t()."
+  },
+  "badge_curator": {
+    "message": "Curator",
+    "description": "Text sink in renderBadgeGlyph(). Rendered with t()."
+  },
+  "badge_deep_diver": {
+    "message": "Deep Diver",
+    "description": "Text sink in renderBadgeGlyph(). Rendered with t()."
+  },
+  "badge_first_week": {
+    "message": "First Week",
+    "description": "Text sink in renderBadgeGlyph(). Rendered with t()."
+  },
+  "badge_goal_crusher": {
+    "message": "Goal Crusher",
+    "description": "Text sink in renderBadgeGlyph(). Rendered with t()."
+  },
+  "badge_variety": {
+    "message": "Variety",
+    "description": "Text sink in renderBadgeGlyph(). Rendered with t()."
+  },
+  "clear_move_to_deleted": {
+    "message": "Move to Deleted",
+    "description": "Text sink in confirmClearCompleted(). Rendered with t()."
+  },
+  "dash_consistency": {
+    "message": "Consistency",
+    "description": "Text sink in dashStartPeriodWatch(). Rendered with t()."
+  },
+  "dash_curator": {
+    "message": "Curator",
+    "description": "Text sink in dashStartPeriodWatch(). Rendered with t()."
+  },
+  "dash_deep_diver": {
+    "message": "Deep Diver",
+    "description": "Text sink in dashStartPeriodWatch(). Rendered with t()."
+  },
+  "dash_distractions_blocked": {
+    "message": "distractions blocked",
+    "description": "Text sink in dashStripHtml(). Rendered with t()."
+  },
+  "dash_first_week": {
+    "message": "First Week",
+    "description": "Text sink in dashStartPeriodWatch(). Rendered with t()."
+  },
+  "dash_focus_blocking": {
+    "message": "focus blocking",
+    "description": "Text sink in dashStripHtml(). Rendered with t()."
+  },
+  "dash_fri": {
+    "message": "Fri",
+    "description": "Text sink in dashStartPeriodWatch(). Rendered with t()."
+  },
+  "dash_goal_crusher": {
+    "message": "Goal Crusher",
+    "description": "Text sink in dashStartPeriodWatch(). Rendered with t()."
+  },
+  "dash_mon": {
+    "message": "Mon",
+    "description": "Text sink in dashStartPeriodWatch(). Rendered with t()."
+  },
+  "dash_sat": {
+    "message": "Sat",
+    "description": "Text sink in dashStartPeriodWatch(). Rendered with t()."
+  },
+  "dash_sun": {
+    "message": "Sun",
+    "description": "Text sink in dashStartPeriodWatch(). Rendered with t()."
+  },
+  "dash_tasks_completed": {
+    "message": "tasks completed",
+    "description": "Text sink in dashStripHtml(). Rendered with t()."
+  },
+  "dash_thu": {
+    "message": "Thu",
+    "description": "Text sink in dashStartPeriodWatch(). Rendered with t()."
+  },
+  "dash_tue": {
+    "message": "Tue",
+    "description": "Text sink in dashStartPeriodWatch(). Rendered with t()."
+  },
+  "dash_variety": {
+    "message": "Variety",
+    "description": "Text sink in dashStartPeriodWatch(). Rendered with t()."
+  },
+  "dash_wed": {
+    "message": "Wed",
+    "description": "Text sink in dashStartPeriodWatch(). Rendered with t()."
+  },
+  "empty_delete_permanently": {
+    "message": "Delete permanently",
+    "description": "Text sink in confirmEmptyTrash(). Rendered with t()."
+  },
+  "empty_empty_the_notes_trash": {
+    "message": "Empty the notes trash?",
+    "description": "Text sink in confirmEmptyNotesTrash(). Rendered with t()."
+  },
+  "empty_empty_the_sessions_trash": {
+    "message": "Empty the sessions trash?",
+    "description": "Text sink in confirmEmptySessionsTrash(). Rendered with t()."
+  },
+  "empty_empty_trash": {
+    "message": "Empty trash",
+    "description": "Text sink in confirmEmptyNotesTrash(). Rendered with t()."
+  },
+  "empty_empty_trash_2": {
+    "message": "Empty trash?",
+    "description": "Text sink in confirmEmptyTrash(). Rendered with t()."
+  },
+  "empty_empty_trash_3": {
+    "message": "Empty trash",
+    "description": "Text sink in confirmEmptySessionsTrash(). Rendered with t()."
+  },
+  "goal_complete_goal": {
+    "message": "Complete goal",
+    "description": "Text sink in openGoalContextMenu(). Rendered with t()."
+  },
+  "goal_complete_this_goal": {
+    "message": "Complete this goal?",
+    "description": "Text sink in openGoalContextMenu(). Rendered with t()."
+  },
+  "goal_delete_goal": {
+    "message": "Delete goal?",
+    "description": "Text sink in openGoalContextMenu(). Rendered with t()."
+  },
+  "insights_daily_avg": {
+    "message": "daily avg",
+    "description": "Text sink in insightsStripHtml(). Rendered with t()."
+  },
+  "insights_last_30_days": {
+    "message": "last 30 days",
+    "description": "Text sink in insightsKeyToTs(). Rendered with t()."
+  },
+  "insights_past_7_days": {
+    "message": "past 7 days",
+    "description": "Text sink in insightsKeyToTs(). Rendered with t()."
+  },
+  "new_create": {
+    "message": "Create",
+    "description": "Text sink in openNewTaskModal(). Rendered with t()."
+  },
+  "new_new_task": {
+    "message": "New task",
+    "description": "Text sink in openNewTaskModal(). Rendered with t()."
+  },
+  "notes_empty_trash": {
+    "message": "Empty trash",
+    "description": "Text sink in openNotesTrashView(). Rendered with t()."
+  },
+  "notes_notes_trash": {
+    "message": "Notes trash",
+    "description": "Text sink in openNotesTrashView(). Rendered with t()."
+  },
+  "purge_delete_permanently": {
+    "message": "Delete permanently?",
+    "description": "Text sink in confirmPurgeNote(). Rendered with t()."
+  },
+  "purge_delete_permanently_2": {
+    "message": "Delete permanently",
+    "description": "Text sink in confirmPurgeNote(). Rendered with t()."
+  },
+  "purge_delete_permanently_3": {
+    "message": "Delete permanently?",
+    "description": "Text sink in confirmPurgeDeletedItem(). Rendered with t()."
+  },
+  "purge_delete_permanently_4": {
+    "message": "Delete permanently",
+    "description": "Text sink in confirmPurgeDeletedItem(). Rendered with t()."
+  },
+  "purge_delete_permanently_5": {
+    "message": "Delete permanently?",
+    "description": "Text sink in confirmPurgeSession(). Rendered with t()."
+  },
+  "purge_delete_permanently_6": {
+    "message": "Delete permanently",
+    "description": "Text sink in confirmPurgeSession(). Rendered with t()."
+  },
+  "purge_this_note_will_be_removed_for": {
+    "message": "This note will be removed for good. This cannot be undone.",
+    "description": "Text sink in confirmPurgeNote(). Rendered with t()."
+  },
+  "refresh_name_conflict": {
+    "message": "Name conflict",
+    "description": "Text sink in refreshPanel(). Rendered with t()."
+  },
+  "refresh_rename_and_add": {
+    "message": "Rename and add",
+    "description": "Text sink in refreshPanel(). Rendered with t()."
+  },
+  "safe_aerial_forest": {
+    "message": "Aerial forest",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "safe_black": {
+    "message": "Black",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "safe_dark_gray": {
+    "message": "Dark gray",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "safe_dramatic_peaks": {
+    "message": "Dramatic peaks",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "safe_foggy_forest": {
+    "message": "Foggy forest",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "safe_green_valley": {
+    "message": "Green valley",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "safe_lake_reflection": {
+    "message": "Lake reflection",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "safe_light_gray": {
+    "message": "Light gray",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "safe_mountains": {
+    "message": "Mountains",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "safe_northern_lights": {
+    "message": "Northern lights",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "safe_ocean_wave": {
+    "message": "Ocean wave",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "safe_soft_blue": {
+    "message": "Soft blue",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "safe_soft_warm_dark": {
+    "message": "Soft warm dark",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "safe_starry_mountain": {
+    "message": "Starry mountain",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "safe_sunrise_field": {
+    "message": "Sunrise field",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "safe_sunset_mountains": {
+    "message": "Sunset mountains",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "safe_tropical_beach": {
+    "message": "Tropical beach",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "safe_white": {
+    "message": "White",
+    "description": "Text sink in safeOn(). Rendered with t()."
+  },
+  "sat_switch_and_reset": {
+    "message": "Switch and reset",
+    "description": "Text sink in satConfirmSwitchReset(). Rendered with t()."
+  },
+  "sat_switch_task": {
+    "message": "Switch task?",
+    "description": "Text sink in satConfirmSwitchReset(). Rendered with t()."
+  },
+  "sat_this_will_reset_your_focus_session": {
+    "message": "This will reset your focus session.",
+    "description": "Text sink in satConfirmSwitchReset(). Rendered with t()."
+  },
+  "session_move_it": {
+    "message": "Move it",
+    "description": "Text sink in commitSessionAttach(). Rendered with t()."
+  },
+  "session_move_this_session": {
+    "message": "Move this session?",
+    "description": "Text sink in commitSessionAttach(). Rendered with t()."
+  },
+  "session_replace_tabs": {
+    "message": "Replace tabs",
+    "description": "Text sink in handleSessionCtxAction(). Rendered with t()."
+  },
+  "sessions_empty_trash": {
+    "message": "Empty trash",
+    "description": "Text sink in openSessionsTrashView(). Rendered with t()."
+  },
+  "sessions_sessions_trash": {
+    "message": "Sessions trash",
+    "description": "Text sink in openSessionsTrashView(). Rendered with t()."
+  },
+  "task_due_date_after_goal_deadline": {
+    "message": "Due date after goal deadline",
+    "description": "Text sink in openTaskDueConflictModal(). Rendered with t()."
+  },
+  "task_name_conflict": {
+    "message": "Name conflict",
+    "description": "Text sink in commitTaskGoalAssign(). Rendered with t()."
+  },
+  "task_rename_and_move": {
+    "message": "Rename and move",
+    "description": "Text sink in commitTaskGoalAssign(). Rendered with t()."
+  },
+  "templates_goal_templates": {
+    "message": "Goal templates",
+    "description": "Text sink in openTemplatesPanel(). Rendered with t()."
+  }
+});
+
+
+// ====================================================================
+// [1.5.0] R3 stage C - dom-assign,set-attr
+// ====================================================================
+I18n.register("en", {
+  "active_active_task": {
+    "message": "Active task",
+    "description": "Text sink in renderActiveTaskWidget(). Rendered with t()."
+  },
+  "apply_search_or_type_a_url": {
+    "message": "Search or type a URL",
+    "description": "Text sink in applySearch(). Rendered with t()."
+  },
+  "auto_automatic_backup_is_off_because_the": {
+    "message": "Automatic backup is off because the downloads permission was removed. Turn it on again to restore the schedule.",
+    "description": "Text sink in renderAutoBackupSection(). Rendered with t()."
+  },
+  "bind_clear_search": {
+    "message": "Clear search",
+    "description": "Text sink in bindNotesEvents(). Rendered with t()."
+  },
+  "bind_downloads_permission_was_declined_automatic_backup": {
+    "message": "Downloads permission was declined. Automatic backup stays off.",
+    "description": "Text sink in bindAutoBackupToggle(). Rendered with t()."
+  },
+  "bind_notifications_permission_was_declined": {
+    "message": "Notifications permission was declined.",
+    "description": "Text sink in bindProSettings(). Rendered with t()."
+  },
+  "check_drop_to_group": {
+    "message": "Drop to group",
+    "description": "Text sink in checkNestHover(). Rendered with t()."
+  },
+  "clear_delete_tag": {
+    "message": "Delete tag",
+    "description": "Text sink in clearPendingTagDelete(). Rendered with t()."
+  },
+  "delete_delete_all": {
+    "message": "Delete All",
+    "description": "Text sink in showDeleteDialog(). Rendered with t()."
+  },
+  "pro_no_license_applied": {
+    "message": "No license applied.",
+    "description": "Text sink in renderProLicenseSection(). Rendered with t()."
+  },
+  "tag_click_again_to_confirm_restore_from": {
+    "message": "Click again to confirm. Restore from Pro Settings > Tags within 30 days.",
+    "description": "Text sink in handleTagDeleteClick(). Rendered with t()."
+  },
+  "tag_delete": {
+    "message": "Delete?",
+    "description": "Text sink in handleTagDeleteClick(). Rendered with t()."
+  },
+  "undo_undo": {
+    "message": "Undo",
+    "description": "Text sink in showUndoToast(). Rendered with t()."
+  },
+  "update_all": {
+    "message": "All",
+    "description": "Text sink in updateRcFilterLabel(). Rendered with t()."
+  },
+  "update_last_7_days": {
+    "message": "Last 7 days",
+    "description": "Text sink in updateRcFilterLabel(). Rendered with t()."
+  },
+  "update_today": {
+    "message": "Today",
+    "description": "Text sink in updateRcFilterLabel(). Rendered with t()."
+  },
+  "update_yesterday": {
+    "message": "Yesterday",
+    "description": "Text sink in updateRcFilterLabel(). Rendered with t()."
+  },
+  "variant_options": {
+    "message": "Options",
+    "description": "Text sink in showVariantDropdown(). Rendered with t()."
+  },
+  "variant_u22ee": {
+    "message": "\\u22EE",
+    "description": "Text sink in showVariantDropdown(). Rendered with t()."
+  },
+  "wire_clear_search": {
+    "message": "Clear search",
+    "description": "Text sink in wirePicker(). Rendered with t()."
+  }
+});
