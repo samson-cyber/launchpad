@@ -2812,7 +2812,13 @@
   function openNotesTrashView() {
     openTasksModal({
       title: "Notes trash",
+      // [1.4.8] Done is the dismissal. The Cancel it replaces ran onCancel, which
+      // is renderNotesPanel() - the SAME thing onPrimary does - so the two
+      // buttons were one action wearing two labels. That refresh is not lost:
+      // doCancel still fires it from the X, the overlay click and Escape.
+      // "Empty trash" is untouched, in its own extraButtons slot.
       primaryLabel: "Done",
+      hideCancel: true,
       bodyHtml: "<div class=\"notes-trash-view\" data-notes-trash-body>" +
           notesTrashBodyHtml() +
         "</div>",
@@ -5786,7 +5792,12 @@
     var overlay = openTasksModal({
       title: "Goal templates",
       bodyHtml: templatesPanelBodyHtml(Storage.getActiveWorkspace(data)),
+      // [1.4.8] Close is the only dismissal this panel needs; the Cancel beside
+      // it did the identical thing. Nothing is lost by hiding the button: the X,
+      // the overlay click and Escape all route through doCancel independently of
+      // it, and this panel commits nothing, so there is no action to cancel.
       primaryLabel: "Close",
+      hideCancel: true,
       defaultFocus: "primary",
       onMounted: function (ov) {
         // Delegated on the modal body so it survives in-place list re-renders.
@@ -15346,7 +15357,13 @@
     pickerFilter = "";
 
     openTasksModal({
-      title: "Attach " + (session.name || "session") + " to a task",
+      // [1.4.8] Same rule the goal picker got: the title uses the verb of the
+      // menu entry that opened it. That entry reads "Attach to task" while the
+      // session has none and "Change task" once it has one, so a single fixed
+      // title contradicted the click in one of the two states.
+      title: session.taskId
+        ? ("Change the task for " + (session.name || "this session"))
+        : ("Attach " + (session.name || "session") + " to a task"),
       bodyHtml: attachPickerBodyHtml(ws, session.taskId),
       // [1.4.5] ONE dismiss, in the primary slot, following the family: a modal
       // that commits nothing labels that slot for what it does (the templates
