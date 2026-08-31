@@ -219,16 +219,8 @@ I18n.register("en", {
     "message": "Delete group?",
     "description": "Text on the groupdelete surface."
   },
-  "groupdelete_move": {
-    "message": "Move",
-    "description": "Text on the groupdelete surface."
-  },
   "groupdelete_move_delete": {
     "message": "Move & Delete",
-    "description": "Text on the groupdelete surface."
-  },
-  "groupdelete_shortcuts_to": {
-    "message": "shortcuts to:",
     "description": "Text on the groupdelete surface."
   },
   "history_all": {
