@@ -15069,9 +15069,23 @@
     await applyMove(null);
   }
 
+  // [1.4.6] THE DESTINATION LIST IS getActiveGoals, NOT getAllGoals.
+  //
+  // A goal is completed by goal.status === "completed"; it has no .completed
+  // field. TASKS have .completed, goals do not - so the filter this replaces,
+  // !g.completed, was reading undefined on every goal and excluding nothing. The
+  // picker offered completed goals, reassignTaskToGoal accepted them (it only
+  // requires a LIVE goal), and the task landed somewhere the Tasks surface does
+  // not draw: goal cards come from getActiveGoals, the standalone list is
+  // goalId === null, and the Completed box lists the GOAL as one row plus
+  // completed STANDALONE tasks - never a completed goal's children. The task was
+  // in storage and in no list. That is how "Check Email" disappeared.
+  //
+  // getActiveGoals is the predicate the Tasks surface itself renders from
+  // (!deletedAt && status === "active"), so "offered here" and "drawn there" are
+  // now the same question rather than two that happen to agree.
   function taskGoalPickerRowsHtml(ws, task) {
-    var goals = pickerFilterBy(Storage.getAllGoals(ws).filter(function (g) { return !g.completed; }),
-                               function (g) { return g.name; });
+    var goals = pickerFilterBy(Storage.getActiveGoals(ws), function (g) { return g.name; });
     var current = task.goalId || null;
     var rows = "";
     // Standalone is offered as a real row rather than a "clear" button: it is a
@@ -15104,7 +15118,7 @@
     pickerFilter = "";
     // +1 for the standalone row, which is a destination and counts toward the
     // length that decides whether this list needs a search.
-    var total = Storage.getAllGoals(ws).filter(function (g) { return !g.completed; }).length + 1;
+    var total = Storage.getActiveGoals(ws).length + 1;
 
     openTasksModal({
       // [1.4.5] The title now agrees with the menu entry that opened it: that
