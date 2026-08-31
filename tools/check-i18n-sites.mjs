@@ -40,6 +40,27 @@ const ENFORCING = false;              // flip at the end of R3
 const LITERAL_FLOOR = 6000;           // measured 7334 at [1.5.0]; see report
 const SITE_FLOOR = 600;               // measured 749 at [1.5.0]; see report
 
+// PER-PATTERN FLOORS ([1.5.0] R3). The global floor is not enough, and the
+// set-attr defect is the proof: that pattern found 11 sites and read NOTHING
+// from any of them for two rounds, while the global total stayed healthy on the
+// strength of the other seven. "11 sites, 0 hardcoded" reads as clean and meant
+// blind. A floor that only watches the sum cannot see one pattern die.
+//
+// Each floor sits below the measured count with room for ordinary churn, and
+// well above zero - the number that actually matters, since the failure mode is
+// a pattern collapsing to nothing rather than drifting a little. Measured at
+// [1.5.0] R3 with set-attr repaired.
+const PATTERN_FLOORS = {
+  "html-text":  300,   // measured 400
+  "html-attr":   60,   // measured  87
+  "html-aria":   30,   // measured  43
+  "dom-assign":  70,   // measured 107
+  "set-attr":     6,   // measured  11 - the one this rule exists for
+  "modal-copy": 120,   // measured 189
+  "toast":       40,   // measured  61
+  "native-dlg":   6,   // measured  10
+};
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const JS_FILES = ["newtab.js", "background.js", "storage.js", "bookmarks.js",
                   "license.js", "pro-access.js", "tracking.js", "gate.js", "offscreen.js"];
@@ -159,7 +180,12 @@ const PATTERNS = [
   { id: "html-attr",   argGroup: 1, re: new RegExp(`\\b(?:title|placeholder|alt)\\s*=\\s*\\\\?["']([^"'<>{}\`]{2,140}?)\\\\?["']`, "g") },
   { id: "html-aria",   argGroup: 1, re: new RegExp(`\\baria-label\\s*=\\s*\\\\?["']([^"'<>{}\`]{2,140}?)\\\\?["']`, "g") },
   { id: "dom-assign",  argGroup: 2, re: new RegExp(`\\.(textContent|innerText|title|placeholder|ariaLabel)\\s*=\\s*([^;\\n]{1,160})`, "g") },
-  { id: "set-attr",    argGroup: 2, re: new RegExp(`setAttribute\\s*\\(\\s*["'](?:title|aria-label|placeholder|alt)["']\\s*,\\s*([^)\\n]{1,160})()`, "g") },
+  // argGroup 1, and the trailing empty () is GONE. It used to be argGroup 2
+  // pointing at that empty group, so `raw` was always "" and every setAttribute
+  // site scored neutral - the pattern found its sites and then read nothing from
+  // them. It reported "11 sites, 0 hardcoded" for two rounds, which reads as
+  // clean and meant blind. Five real violations were invisible.
+  { id: "set-attr",    argGroup: 1, re: new RegExp(`setAttribute\\s*\\(\\s*["'](?:title|aria-label|placeholder|alt)["']\\s*,\\s*([^)\\n]{1,160})`, "g") },
   { id: "modal-copy",  argGroup: 2, re: new RegExp(`\\b(title|message|primaryLabel|confirmLabel|cancelLabel|label|emptyText)\\s*:\\s*([^,\\n}]{1,180})`, "g") },
   { id: "toast",       argGroup: 1, re: new RegExp(`\\b(?:showToast|showUndoToast)\\s*\\(\\s*([^,;\\n]{1,180})`, "g") },
   // `window.` is spelled out rather than left to the lookbehind: the codebase
@@ -183,6 +209,73 @@ const FIXTURE = [
 
 function isCompliantArg(arg) {
   return /^\s*(?:I18n\s*\.\s*)?(?:t|th)\s*\(/.test(arg);
+}
+
+// ===========================================================================
+// SINK ENFORCEMENT ([1.5.0] R3)
+//
+// t() returns plain text and th() returns HTML-escaped text. Which is correct
+// is decided by the SINK, and the two mistakes are asymmetric: th() at a text
+// sink prints "&amp;" on screen, which is loud and cosmetic, while a bare t()
+// spliced into markup breaks the markup or injects, which is SILENT. So only
+// the silent direction is enforced mechanically; the loud one polices itself.
+//
+// HOW A MARKUP CONCATENATION IS DISTINGUISHED FROM A TEXT ONE, which is the
+// judgement the whole check rests on:
+//
+// Look at the string literal IMMEDIATELY adjacent to the call on either side -
+// the literal it is being concatenated WITH, not the whole statement. The call
+// is in a markup concatenation when that neighbouring literal shows one of two
+// unambiguous signs of HTML construction:
+//
+//   1. it contains a tag           ... '<span class="x">' + t(k)
+//   2. it OPENS an attribute value ... ' title="' + t(k) + '"'
+//
+// Deliberately NARROW. A statement-wide search would flag a plain-text call
+// that merely sits in a function which also builds markup somewhere else, and
+// a false positive here trains people to work around the gate. Adjacency is
+// the property that actually determines where the value lands.
+//
+// The inverse (th() at a text sink) is NOT flagged: it is visible on the first
+// runtime pass, and flagging it would mean deciding sinks for call sites the
+// gate cannot see the destination of.
+// ===========================================================================
+const TAG_IN_LITERAL = /<\s*\/?\s*[a-zA-Z][-\w]*/;
+const ATTR_OPENER = /[a-zA-Z-]+\s*=\s*\\?["']\s*$/;
+
+function markupMisuse(src, file) {
+  const out = [];
+  const call = /(?:I18n\s*\.\s*)?\bt\s*\(/g;
+  let m;
+  while ((m = call.exec(src)) !== null) {
+    // `th(` also matches `\bt\s*\(`? No - \b before t means "th(" starts at h's
+    // t... guard explicitly so th() is never mistaken for t().
+    const before = src.slice(Math.max(0, m.index - 2), m.index + 1);
+    if (/th\s*\($/.test(src.slice(Math.max(0, m.index - 1), m.index + 2))) continue;
+
+    // the literal immediately to the LEFT, across a + operator
+    const left = src.slice(Math.max(0, m.index - 220), m.index);
+    const leftLit = /((?:"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'))\s*\+\s*$/.exec(left);
+    // the literal immediately to the RIGHT, across a + operator, after the call
+    let depth = 0, j = m.index + m[0].length - 1, end = -1;
+    for (; j < src.length && j < m.index + 400; j++) {
+      if (src[j] === "(") depth++;
+      else if (src[j] === ")") { depth--; if (depth === 0) { end = j; break; } }
+    }
+    const right = end === -1 ? "" : src.slice(end + 1, end + 220);
+    const rightLit = /^\s*\+\s*((?:"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'))/.exec(right);
+
+    const l = leftLit ? leftLit[1].slice(1, -1) : null;
+    const r = rightLit ? rightLit[1].slice(1, -1) : null;
+    const markupLeft = l !== null && (TAG_IN_LITERAL.test(l) || ATTR_OPENER.test(l));
+    const markupRight = r !== null && TAG_IN_LITERAL.test(r);
+    if (markupLeft || markupRight) {
+      out.push({ file, line: src.slice(0, m.index).split("\n").length,
+                 pattern: "sink-misuse", verdict: "violation",
+                 text: (l !== null ? l.slice(-40) : "") + " + t(...) + " + (r !== null ? r.slice(0, 40) : "") });
+    }
+  }
+  return out;
 }
 function literalOf(arg) {
   const m = String(arg).trim().match(new RegExp(`^${STR}`));
@@ -280,6 +373,7 @@ for (const f of JS_FILES) {
   const src = blankConsole(stripComments(fs.readFileSync(p, "utf8")));
   literals += (src.match(new RegExp(STR, "g")) || []).length;
   sites = sites.concat(scan(src, f));
+  sites = sites.concat(markupMisuse(src, f));
 }
 // HTML is scanned TAG-AWARE rather than by the JS patterns, because a migrated
 // static string is NOT recognisable from its text.
@@ -387,6 +481,15 @@ console.log("");
 // Per-file breakdown behind an env flag. Kept because it is what reconciled
 // R2's "the count must drop by exactly what you moved" check: the totals alone
 // could not say WHICH file still held a violation.
+// Violation dump behind an env flag. Kept because R3 and R4 each have to
+// reconcile "the count dropped by exactly what I converted" against an
+// independent classification, and totals alone cannot say WHICH site differs.
+if (process.env.I18N_DUMP) {
+  fs.writeFileSync(process.env.I18N_DUMP, sites
+    .filter((s) => s.verdict === "violation")
+    .map((s) => [s.file, s.line, s.pattern, JSON.stringify(s.text)].join("|"))
+    .join("\n"));
+}
 if (process.env.I18N_DEBUG) {
   const per = {};
   for (const s of sites) per[s.file + " " + s.verdict] = (per[s.file + " " + s.verdict] || 0) + 1;
@@ -406,6 +509,10 @@ if (catProblems.length) {
 // --- broken checks, which run whether or not the gate is enforcing
 const broken = [];
 if (selfMissed.length) broken.push("patterns that no longer match their own fixture: " + selfMissed.join(", "));
+for (const [id, floor] of Object.entries(PATTERN_FLOORS)) {
+  const n = sites.filter((s) => s.pattern === id).length;
+  if (n < floor) broken.push(`pattern "${id}" found only ${n} sites, below its floor ${floor}`);
+}
 if (literals < LITERAL_FLOOR) broken.push(`only ${literals} string literals tokenized, below floor ${LITERAL_FLOOR}`);
 if (sites.length < SITE_FLOOR) broken.push(`only ${sites.length} construction sites found, below floor ${SITE_FLOOR}`);
 
