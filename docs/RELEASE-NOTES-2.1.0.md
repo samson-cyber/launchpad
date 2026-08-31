@@ -23,6 +23,22 @@ Sticky notes, right beside your tasks (Pro).
 • Deleted notes wait in the trash for 30 days, so changing your
   mind costs nothing.
 
+Sessions: save the tabs you are working in.
+
+• Name a set of open tabs, keep it, and relaunch the whole set
+  into a new window in one click. These are sessions you name
+  and save on purpose, separate from the automatic five minute
+  restore, which is unchanged.
+• Rename one, update it from the window you have open now, or
+  delete it. Deleted sessions wait 30 days in the trash.
+• Free, with no limit on how many you keep.
+• On Pro, attach a session to a task and launch it straight
+  from the task row.
+
+Task rows have a visible options button. Hover a task to reach
+its menu without right clicking, and set priority or move a task
+to a goal from there.
+
 Insights: choose your range. Look at today, the past 7 days, the
 last 30 days, or pick your own dates within the 30 days of history
 LaunchPad keeps. The whole board follows your choice.
@@ -36,6 +52,11 @@ itself up once a week into your Downloads folder, and never deletes
 a backup it has made.
 
 Nested shortcuts that share a name now show what tells them apart.
+
+Fixed: completing a goal no longer hides the unfinished tasks
+inside it. They move to Standalone so you can still see them, and
+LaunchPad puts back any task an earlier completion left out of
+sight.
 
 Also: dropping a tile onto one from a different site now explains
 why they did not group, new tasks and goals have a description
@@ -53,6 +74,18 @@ Your data still never leaves your machine.
 Sticky notes beside your tasks (Pro): write, colour, reorder, search,
 and turn any note into a task or a goal. Deleted notes wait 30 days
 in the trash.
+
+Sessions: name a set of open tabs, keep it, and relaunch the whole
+set into a new window in one click. These are sessions you name and
+save on purpose, separate from the automatic five minute restore,
+which is unchanged. Free and unlimited; on Pro you can attach one
+to a task.
+
+Task rows have a visible options button, so the row menu no longer
+needs a right click, and priority and move-to-a-goal live in it.
+
+Fixed: completing a goal no longer hides the unfinished tasks
+inside it.
 
 Insights now has a date range: today, the past 7 days, the last 30,
 or your own dates within the 30 days of history LaunchPad keeps.
@@ -76,6 +109,16 @@ goals, and a New Tag button.
 - **Notes are Pro.** They live in the Tasks tab, which is a Pro surface, so a free or
   expired user sees the demo notes in preview and cannot create one. The copy says
   "(Pro)" on the headline for exactly this reason.
+- **Sessions are FREE, and their trash is free with them.** Saving, launching, renaming,
+  updating, deleting, restoring and permanently deleting all work on a free profile and
+  on an expired one. That is deliberate: the launcher is the free tier's identity, and
+  sessions are launching. **Attaching a session to a task is Pro**, not because it was
+  gated but because tasks are Pro. On a free or expired profile the attach entries are
+  simply **absent** rather than shown-and-disabled, and there is **no upsell inside the
+  sessions flyout**. A stored attachment survives a downgrade and returns intact on
+  upgrade.
+- **The task options button is free**, as the row menu behind it always was. Two of its
+  entries (assign and detach a session) are Pro and follow the rule above.
 - **Export and import are FREE, and that is deliberate.** Exporting your own data is a
   right, not a paid feature. This release widens what a backup covers for everyone.
 - **The weekly automatic backup is Pro**, default OFF, and asks for permission to save
@@ -100,6 +143,21 @@ goals, and a New Tag button.
   stays hidden rather than pretending to add something.
 - **No claim about unshipped surfaces.** Nothing in this copy names a feature that is
   not in this build, in the paste blocks or anywhere else in this file.
+- **No claim that sessions replace or change session restore.** They are a separate
+  mechanism with separate storage and a separate lifecycle, and the copy says so in the
+  same breath it introduces them. The five-minute auto-restore is untouched by this
+  release. **The word "session" now carries three meanings across the product** (the
+  automatic restore, a focus session on the timer, and a saved set of tabs), so wherever
+  the copy uses it, the distinguishing property is named alongside it.
+- **No claim that sessions sync, upload, or reach the network at all.** Tabs are captured
+  from the window with the browser permission LaunchPad already holds, and each tab's icon
+  is stored from the page itself at the moment it is saved rather than fetched from an
+  icon service. **This release adds no new required permission**; the only permission
+  change in 2.1.0 is the optional `downloads` for the weekly backup.
+- **The goal-completion item is stated as a FIX, because it is one.** It repairs a
+  pre-existing defect rather than adding behaviour, and it silently puts back tasks an
+  earlier completion had hidden. Announcing it as a feature would misdescribe what
+  changed, and omitting it would leave users unable to explain why tasks reappeared.
 - **"Internal maintenance" is deliberately vague and deliberately present.** It covers
   the tracking-engine source-encoding fix and the rating-link host update, neither of
   which a user can act on. Silently omitting engine-touching changes is how a listing

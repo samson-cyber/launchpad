@@ -259,6 +259,8 @@ Click deadline → date picker.
 Click description → inline edit.
 Right-click goal → context menu: Edit, Save as template, Mark complete, Delete.
 
+**Task rows carry their own context menu, reached two ways (2026-08-31).** Right-click a task row, or use the **hover-revealed options pill** in the row's name cluster. Entries: Make active, Edit, Priority, Duplicate, Assign to a goal (reading "Move to another goal" when the task is already in one), Assign session to this task (reading "Change session" when attached), Detach session, Mark complete or Reactivate, and Delete. The session entries are Pro and are **absent** rather than disabled otherwise. Priority opens the shipped priority popover rather than a submenu, so the four levels and Clear stay defined in one place. The pill sits inside `.tt-task-main` at `opacity: 0`, revealed on row hover and independently by `:focus-within` so it stays keyboard-reachable; rendered layout is pixel-identical to a row without it. The row keeps its own flag and trash controls — consolidation was considered and rejected. See DECISIONS.md 2026-08-31.
+
 ### Deadline hierarchy rule
 
 **Rule:** A child task's due date cannot exceed its parent goal's deadline without user confirmation. A parent goal's deadline cannot move earlier than any existing child task's due date.
@@ -280,9 +282,13 @@ Right-click goal → context menu: Edit, Save as template, Mark complete, Delete
 
 **Automatic:** When the last incomplete child task of a goal is completed, goal transitions to `status: "completed"`, `completedAt` is set, and the goal-completion celebration triggers.
 
-**Manual:** User can mark a goal complete explicitly via right-click → "Mark complete" (useful for goals with no tasks or to close out with incomplete tasks).
+**Manual:** User can mark a goal complete explicitly via right-click → "Mark complete" (useful for goals with no tasks, or to close one out while unfinished tasks remain — see the release rule below).
 
-Completed goals move to the collapsed "Completed" section at the bottom of the Tasks tab. Tasks within remain visible but read-only. User can reopen by right-click → "Reopen" (moves goal back to active, clears `completedAt`).
+Completed goals move to the collapsed "Completed" section at the bottom of the Tasks tab. User can reopen by right-click → "Reopen" (moves goal back to active, clears `completedAt`).
+
+**CORRECTION, 2026-08-31.** This paragraph previously read *"Tasks within remain visible but read-only."* **That was never true of shipped code, and the gap it described was a real bug.** The Completed box lists a completed goal as ONE row plus completed STANDALONE tasks; it has never listed a completed goal's children. Goal cards are drawn from `getActiveGoals`, and the standalone list is `goalId === null`. So an unfinished task inside a completed goal belonged to none of the three lists the Tasks tab draws and simply disappeared, while remaining incomplete and undeleted in storage. Samson's real profile carried twenty tasks stranded this way.
+
+**COMPLETING A GOAL NOW RELEASES ITS UNFINISHED TASKS TO STANDALONE**, in the same write, behind a confirm naming how many will move; a one-time marker-guarded sweep repairs profiles that already carry stranded tasks. Only `goalId` changes — name, priority, due date, tags and tracked time survive, and the release is deliberately not routed through `reassignTaskToGoal`, which would also strip the goal's auto-tag. **COMPLETED children stay in the goal**, represented by the goal's own row. **Both completion paths release**, including the automatic one above, which cannot currently strand anything and calls the release anyway so the rule travels with the condition. **Reactivating a goal does not re-adopt released tasks.** Goal DELETION is unchanged and was always safe: it soft-deletes children in the same write, so they appear in the Deleted box. See DECISIONS.md 2026-08-31 and BUGS.md **E8**, **E9**, **Q14**, **L4**.
 
 ### Overdue state
 

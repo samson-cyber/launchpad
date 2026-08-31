@@ -8,7 +8,7 @@ Related: `workspaces-data-model.md`, `pro-tab-architecture.md`
 
 ## What and Why
 
-Unified soft-delete system for all user-created content: bookmarks, groups, goals, tasks, and tags. Instead of immediately removing an item, the system marks it with a `deletedAt` timestamp. Deleted items disappear from normal views but remain in a Trash Bin for 30 days, after which they are permanently removed by a daily auto-purge.
+Unified soft-delete system for all user-created content: bookmarks, groups, goals, tasks, tags, notes and named sessions. Instead of immediately removing an item, the system marks it with a `deletedAt` timestamp. Deleted items disappear from normal views but remain in a Trash Bin for 30 days, after which they are permanently removed by a daily auto-purge.
 
 This addresses a class of user frustration the existing backup/export system doesn't solve. Backup/export protects against catastrophic loss ("my laptop died, I'm restoring"); Trash Bin protects against the far more common "oh shit I didn't mean to delete that" moment. A user who accidentally deletes a bookmark today shouldn't need to restore an entire JSON export from two weeks ago to get it back.
 
@@ -27,6 +27,7 @@ Trash Bin is a **free-tier feature**. Consistent with LaunchPad's "we respect yo
 - Tags (Pro, same downgrade rules)
 - Notes (Pro, same downgrade rules as goals)
 - Notebooks (Pro, same downgrade rules as goals)
+- **Named sessions (FREE — the one trashable entity that is not Pro).** Sessions ship free, so their trash ships free: restore and permanent delete work identically on free and expired profiles. Added 2026-08-31; see `workspaces-data-model.md` and DECISIONS.md 2026-08-31.
 
 ### Out of scope
 
@@ -92,6 +93,7 @@ Trash is exposed **per surface**, as the visual layer over the shared soft-delet
 
 - **Tasks tab** — a **Deleted** box beside the existing **Completed** box (two boxes, one row). Lists soft-deleted tasks with per-item Restore, Delete Permanently (confirmed), and 30-day countdowns.
 - **Notes** — a full-width **footer button** in the notes panel, rendered only when that workspace has trashed notes, opening a modal trash view. There is no drag-to-trash target; see `notes.md`.
+- **Named sessions** — an entrance rendered as the **last row of the sessions list** in the sidebar flyout, present only when that workspace has trashed sessions, opening a modal trash view with per-row Restore and Delete permanently plus a footer **Empty trash**. Restore returns a session to its ORIGINAL list position, because `restoreNamedSession` only clears `deletedAt` and array order is canonical. Added 2026-08-31.
 - **Home grid (bookmarks / groups)** — **deferred**; no browse/restore surface yet. See DECISIONS 2026-07-14. Until it ships, Home-grid deletes are recoverable only via the delete-moment 5-second Undo toast (soft-delete + 30-day retention still happen underneath; there is just no UI to browse or restore them).
 
 ### Item row (shared design for each surface)
@@ -178,8 +180,12 @@ Single alarm, single function. No per-item timers.
 `purgeExpiredTrash` walks one literal array of entity keys and its tag-id cleanup walks a second,
 separate one. **A new soft-deletable entity that does not register in both is silently never
 swept**, with no error and no failing gate: trash simply never empties, and purged tag ids stay
-dangling. Notes were missing from both from `[1.1.0]` until `[1.1.3]`. Register in the same commit
-that introduces the entity. See BUGS.md **E5**.
+dangling. Notes were missing from both from `[1.1.0]` until `[1.1.3]`; **named sessions registered at
+birth in `[1.4.0]` and that registration was then verified BEHAVIOURALLY in `[1.4.4]` rather
+than trusted**, which is the standard now. Register in the same commit that introduces the
+entity, and prove it with a de-registration mutant. **This is not only a purge-sweep rule:**
+the same omission class has since hit `emptyTrash`'s two registrations and the
+`PANEL_OVERLAY_SELECTORS` list. See BUGS.md **E5** and **E7**.
 
 ### Opportunistic cleanup
 

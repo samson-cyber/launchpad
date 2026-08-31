@@ -1759,3 +1759,245 @@ Two nested shortcuts with the same title render as identical dropdown rows, so c
 **NAMED SESSIONS ARE DELIBERATELY HELD** as the 2.2 headline candidate rather than folded in here. A release needs a headline, and 2.1.0 already has one.
 
 **Nothing about the release is decided until submission.** Asana 1217967430924095 remains the release-engineering shell: its sequence runs as written when the bundle closes, the version number is applied then, the annotated tag goes on the exact commit submitted, and **the artifact is built fresh from that commit** rather than resurrected from any surviving zip. The 2.0.0 and 2.0.1 artifacts were both retired for that reason and are reproducible from `92eeb68` and `23a250f`.
+
+---
+
+## 2026-08-31 - the named-sessions arc, the task options pill, goal completion, and two conventions
+
+Five subsections. The first three are feature arcs; the last two are conventions that
+came out of them and now bind future work. Asana: named sessions 1217940376018210 /
+1217974084201923 / 1217974156997355 / 1217974247458001 / 1217982049281072, task options
+pill 1217980262292381, goal completion 1217981037474018.
+
+### Named sessions, as shipped
+
+A user-named saved set of tabs that launches as a unit. Filed 2026-08-28 as a candidate out
+of a competitor review and built across `[1.4.0]` to `[1.4.4]`.
+
+**THE FIELD IS `ws.namedSessions`, AND THE QUALIFIER DOES SEMANTIC WORK.** "Session" already
+meant FOUR things in this codebase before this arc, not the three the plan expected: the
+tracking engine's focus records (`tracking_sessions`, 184 occurrences in `tracking.js`), the
+5-minute auto-restore's saved tabs (`savedSessions`, user-facing as "Restore Session"), Pomodoro
+focus sessions (user-facing as "Focus session"), and the browser-restart anchor
+(`anchorBrowserSession`). The decisive argument was not the count but one specific collision:
+`savedSessions` and a bare `ws.sessions` would have been **the same noun for two systems that
+both save tabs**, with near-identical semantics, deliberately zero shared storage or lifecycle,
+and only their capture rules in common. That is precisely the shape that produces a
+wrote-to-the-wrong-system bug. "Named" is exactly the property distinguishing these from the
+ambient unnamed autosave, so the qualifier earns its length. Every identifier derives from it,
+and the id prefix is `nsession_` because `tracking.js` already owns `sess_` — a literal collision
+is impossible across separate stores, but a grep for one must not surface the other.
+
+**SESSIONS ARE FREE; ATTACHMENT IS PRO BY INHERITANCE.** The launcher is the free tier's
+identity and sessions are launching, so gating them would have put a save-and-reopen feature
+behind the paywall while `/compare/toby` argues the free tier covers save-and-reopen without
+Toby's 60-tab cap. Pro's story is measurement and focus and does not need this. Attaching a
+session to a TASK is Pro because tasks are Pro — nothing was built to enforce that, it follows
+from the Tasks tab's own gate. What was built is the honest degradation: the attachment entries
+are **absent** rather than disabled on free and expired profiles, per the preview rule, and the
+stored `taskId` is untouched so it returns intact on upgrade. Absent also means **no upsell in
+the free flyout**; a hint about a Pro pairing is an upsell wearing a hint's clothes. Verified in
+all five gate states, with expired — sessions fully working while the Tasks tab shows preview
+copy in the same profile — exercised explicitly as the combination most likely to be wrong.
+
+**PLACEMENT IS A SIDEBAR FLYOUT, TWINNED WITH RESTORE SESSION.** The sidebar is already the
+tabs-come-back neighbourhood and the grid's calm stays untouched. It is Restore Session's twin
+by construction: one more `button.sb-item`, one more static dropdown, one more
+`SIDEBAR_PANEL_CHAIN` entry, reusing `.restore-header` outright. Two follow-ups came out of that
+twinning and both are deliberate. The two flyouts had carried **byte-identical background values
+in four separate blocks**, which is how twins drift apart the first time one is touched; they now
+share one rule per tier, and **Restore Session therefore changed appearance too, on purpose**.
+And both twins now dismiss identically on outside click and on Escape, closing a divergence where
+Restore closed on Escape and Sessions did not.
+
+**LAUNCH OPENS A NEW WINDOW.** A named session IS a context, and contexts get their own window.
+One `chrome.windows.create` with the stored urls in order; the originating window is untouched.
+Current-window launch can join later as a secondary action if real use asks for it.
+
+**CAPTURE IS AN ALLOWLIST: `http`, `https`, `file`.** Everything else is declined, so a scheme
+nobody has thought of yet fails CLOSED. This deliberately does NOT inherit the 5-minute
+auto-restore's filter, which declines only `chrome://` and `chrome-extension://` and would have
+carried that gap forward. A known and accepted consequence: **Edge's own new-tab page is an
+HTTPS url** (`ntp.msn.com`) and is therefore captured, where Chrome's `chrome://newtab` is not.
+Special-casing a vendor host is the alternative and was rejected as worse than the asymmetry.
+
+**FAVICONS ARE CAPTURED AT SAVE TIME, NEVER DERIVED.** The plan asked for icons "via the app's
+existing favicon idiom" AND "no external favicon service"; those turned out to be incompatible.
+`getFaviconUrl`'s third priority is **Google's S2 service**, reached by every domain outside an
+8-entry curated map whose values are themselves external hosts, so deriving icons would have sent
+every domain in every saved session to Google on every render. The nearer precedent is the
+`[1.2.1]` Time-by-Site decision (raw hostnames, no favicons ever, because browsing-domain rows
+must not go to an icon service) rather than the shortcut grid, since a captured tab list is the
+same category of data as a Time-by-Site row. So the page's own `favIconUrl` is stored at capture
+and the bundled placeholder is the fallback. Proven with the network log: 22 rendered sessions
+produced zero favicon requests of any kind. **The grid's own S2 use is now a filed
+privacy-posture question rather than an unexamined assumption.**
+
+**ARRAY ORDER IS CANONICAL**, matching the notes precedent, position-free, with no `tagIds` and
+therefore no tag-cascade obligations. `namedSessions` registered in the purge sweep's enumeration
+in the same commit that introduced the entity, per **BUGS.md E5/E7**.
+
+**ATTACHMENT IS WRITTEN ON THE SESSION ONLY, AND BOTH INVARIANTS LIVE AT THE STORAGE BOUNDARY.**
+`session.taskId` is a forward reference and is never mirrored onto the task, so there is one place
+to write and one to read. A task has at most one session and a session at most one task; both
+halves are enforced in storage rather than in the UI, which is why `taskId` is deliberately NOT
+routed through `updateNamedSession`'s generic partial — that path cannot see sibling sessions and
+so cannot hold the one-session-per-task half. Attaching a session that is already attached MOVES
+it, with a confirm naming both tasks. Reachable from both sides, and the two entry points were
+proven to write byte-identical stored JSON. **A permanently deleted task NULLS the reference and
+keeps the session** — a saved tab set is user work in its own right and must not die with the
+task it was attached to — registered in all three permanent-removal paths, before the write.
+Soft-delete leaves the attachment intact so a restore returns it whole.
+
+**LAUNCH-ON-ACTIVATE WAS REJECTED IN FAVOUR OF A ROW CONTROL.** Activating a task must not spawn
+a window as a side effect; a click that opens six tabs should be a click the user aimed at. The
+launch chip on the task row reaches the same place in one gesture and keeps activation meaning
+what it means today. Reopenable if real use argues for it, and recorded so it is not relitigated
+silently. The chip joined the flex chip cluster in `.tt-task-main` rather than
+`.tt-task-controls`, which is a fixed four-column grid where a fifth member would have taxed
+every row about 30px of name width, attached or not; it returns `""` when there is no
+attachment, and unattached rows were proven byte-identical before and after.
+
+**FOCUS PAIRING: DECIDED, NOT BUILT.** Launching a session and starting a focus session are two
+intentions, and one click doing both is the same overreach the launch-on-activate decision
+rejected. If it is ever wanted it is an explicit separate control. This closes the question the
+arc carried from `[1.4.2]`, rather than deferring it a third time.
+
+**THE TRASH VIEW CLOSES THE ARC'S OWN GAP.** Deleting a session soft-deletes it behind a 5-second
+Undo toast; once that toast expired the session was unreachable for 30 days until the purge
+removed it — alive in storage, counting down, with no surface. The same family as the
+stranded-task bug below: data alive, no surface. The way in is the **last row of the sessions
+list** rather than header chrome, so it reads as the end of the same collection, and it renders
+only when something is in there, so at zero trash there is no control and no gap. It reuses the
+shared `tt-trash-days-*` countdown bands and the retention constant rather than restating 30, so
+the three trash surfaces cannot drift on what urgent looks like.
+
+Building it exposed **two dismissal defects in the flyout-plus-modal relationship**, one of them
+already shipped. A click inside a modal spawned from the flyout counted as an OUTSIDE click and
+closed the flyout underneath it, because `PANEL_OVERLAY_SELECTORS` did not list
+`.tt-modal-overlay`; and one Escape press closed both the modal and the flyout, because the
+global sweep and the modal's own handler both fired. The governing rule, now written down in
+both code paths: **a spawned overlay is not "outside" the panel that spawned it, and it is not
+deaf to the key that dismisses it either.** See BUGS.md **E7** and **N3**.
+
+### Completing a goal RELEASES its unfinished tasks to standalone
+
+A pre-existing bug, found while fixing the goal picker: a goal's unfinished children belong to
+none of the three lists the Tasks tab draws (active goal cards, the standalone list, the
+Completed box, which lists a completed goal as ONE row plus completed STANDALONE tasks). So
+completing a goal with an unfinished task inside it made that task invisible while it was still
+incomplete and undeleted in storage. **This is not theoretical: Samson's real profile carried
+twenty tasks stranded this way.**
+
+**COMPLETION NOW RELEASES UNFINISHED CHILDREN TO STANDALONE IN THE SAME WRITE, behind a confirm
+naming how many will move.** Standalone is where an orphan belongs, it needs no new surface, and
+nothing can hide afterwards. Two alternatives were rejected: refusing completion while unfinished
+tasks remain blocks a legitimate action for a bookkeeping reason, and teaching the Completed box
+to list a completed goal's children leaves tasks in a container that renders nowhere else and
+multiplies the places completion state must be reasoned about.
+
+Four things about the shape. **Only `goalId` changes** — name, priority, due date, tags and
+tracked time are untouched, and the release is deliberately NOT routed through
+`reassignTaskToGoal`, which also swaps the goal's auto-tag: the user did not ask to leave the
+goal, the goal ended underneath them, and silently stripping a visible tag would be a second
+surprise stacked on the first. **COMPLETED children stay put**, because the completed goal's own
+row represents them and moving finished work to Standalone would be wrong. **Both completion
+paths release**, including the auto-complete branch that cannot currently strand anything — the
+rule belongs to "a goal became completed", not to one caller's reasoning about who is left (see
+BUGS.md **Q14** for why that call is asserted structurally rather than behaviourally). **No
+confirm appears at all when nothing is unfinished**, so the speed bump only exists when something
+real is about to move.
+
+**A ONE-TIME MARKER-GUARDED SWEEP repairs existing profiles**, releasing tasks whose goal is
+live-but-not-active. The marker (`data.__strandedTaskSweep`) rather than natural idempotency is
+the point: unlike the `ensureX` family, which repairs SHAPE and can safely re-run, "release
+everything in a non-active goal" is a judgement about HISTORY and must never run twice. The sweep
+is silent; a one-time toast was considered and left out, because it fires on a load the user did
+not initiate and an unexplained message about tasks moving is its own confusion.
+
+**REACTIVATING A GOAL DOES NOT RE-ADOPT ITS RELEASED TASKS.** They belong to the user now, and
+silently re-adopting work that may have been edited since would be a third surprise. **Goal
+DELETION is unchanged and was already safe** — it soft-deletes children in the same write, so
+they appear in the Deleted box and restore normally.
+
+### The task options pill
+
+Task rows reached their context menu only by right-click, while goals carry a visible kebab. Now
+that the menu holds genuinely useful entries, the affordance had to become discoverable.
+
+**HOVER-REVEALED, AND KEYBOARD-REACHABLE.** These pull against each other and the brief asked for
+both: a control injected only on hover cannot be tabbed to. Keyboard reach won, so the pill is in
+every row's markup at `opacity: 0`, revealed on row hover and independently by `:focus-within`.
+The stronger claim that is actually true was then proven instead of the literal one: **rendered
+layout is pixel-identical to master** across four rows including a truncating one, measured by
+stashing the working files, reloading so the page ran the real prior build, and capturing
+like-for-like. It rests at `opacity: 0` where the goal kebab rests at `0.6`, a deliberate break
+from that family: a goal card has one kebab, a task list has one per row, and a permanent column
+of dots down the right of every row is noise the goal header never had.
+
+**PLACED IN THE NAME CLUSTER, FOR ZERO WIDTH COST, decided by measuring a real row rather than
+reading the CSS.** There are 8px to the right of the trash, nowhere near enough; `.tt-task-controls`
+is a fixed four-column grid where a fifth member costs every row about 30px of name width. But
+`.tt-task-main` is `flex: 1` and packs left, leaving 179px of dead space at its right edge even
+on a row whose name truncates. The pill sits there, out of flow, pinned to that cluster's right
+edge — at the opposite end of the row from the drag handle, so two faint hover controls do not
+compete in one corner.
+
+**PRIORITY OPENS THE SHIPPED POPOVER rather than a submenu or an inlined list.** It reuses the
+control whole, so the four levels, the active marker and Clear stay defined in exactly one place,
+and it adds no interaction pattern this codebase does not already have — there is no submenu
+anywhere in it. A submenu would need positioning, edge-awareness and keyboard handling invented
+from scratch; an inlined list would be a second definition of the same choices, and the day a
+fifth level appears only one of them learns about it.
+
+**ASSIGN TO A GOAL was an EXISTING capability**, not new functionality: cross-goal drag already
+ran through `reassignTaskToGoal`. Both of its rules carry over to the menu path unchanged, and
+the second one matters — a collision moving INTO a goal offers the next unique name, while a
+collision moving OUT to standalone is **refused outright**, never silently renamed. The two
+collision strings are now extracted so the drag path and the menu path share one definition.
+
+**ROW CONSOLIDATION REJECTED: the row keeps its flag and its trash.** The pill duplicating them
+is acceptable, because one click beats two for the two most-used controls and Samson has muscle
+memory for both. The pill's job is the things that had no home.
+
+### The modal footer convention
+
+`openTasksModal` always emitted its own Cancel button, so the three pickers — which commit
+nothing, because selection is by row click — were passing `primaryLabel: "Cancel"` and rendering
+**Cancel | Cancel**, with the affirmative slot occupied by a dismissal.
+
+**THE RULE: a modal that COMMITS keeps Cancel beside its primary; a modal that commits NOTHING
+carries ONE dismissal, in the primary slot, named for what it does.** "Close" for a list you
+browse and leave, "Done" for a view you finish with. `hideCancel` is the opt-in that suppresses
+the redundant button and **defaults to `false`**, so every other caller's footer is byte-unchanged
+— proved by a standing control asserting that New task still reads `[Cancel, Create]` rather than
+assumed. Hiding the button removes no way out: the X, the overlay click and Escape all route
+through `doCancel` independently of it, and `defaultFocus: "cancel"` now falls back to the primary
+when Cancel is absent, so a keyboard user is never left outside the dialog.
+
+**A CONFIRM IS A COMMITTING MODAL AND KEEPS ITS CANCEL.** That is the judgement that stops this
+from being swept across every footer in sight: the notes trash view carries `[Empty trash, Done]`,
+while the "Empty the notes trash?" confirm it raises keeps `[Cancel, Empty trash]`.
+
+**A PICKER'S TITLE AGREES WITH THE ENTRY THAT OPENED IT**, not with a sibling picker's phrasing.
+Five surfaces now opt in (three pickers, the templates panel, the notes trash view).
+
+### The website vocabulary rule for "session"
+
+The compare pages now carry **three** senses of the word: the five-minute auto-restore, Pomodoro
+focus sessions, and named sessions. The extension solved this in code by qualifying the field
+name; the pages have to solve it in prose.
+
+**WHEREVER "session" APPEARS ON A PAGE, NAME THE DISTINGUISHING PROPERTY IN THE SAME BREATH** —
+automatic and unnamed, deliberate and named, or a timed stretch of focus. Never add an
+undifferentiated third. **If a sentence cannot carry both the capability and its distinguishing
+property without becoming clumsy, split the sentence rather than drop the distinction.** This is
+the same reasoning that produced `ws.namedSessions`: two systems that both save tabs, described
+by one noun, is the shape that makes a reader reach for the wrong one.
+
+Named sessions also change what the compare pages can honestly claim. The `/compare/toby` table
+row conceded deliberate saving to Toby ("Collections and spaces; session save" against
+"Groups with open-all; session auto-restore"), which read as though LaunchPad answered a
+deliberate save with an automatic backup. That is no longer true, and the free-tier claims —
+still written about shortcuts only — now have a stronger version available, since named sessions
+are free and uncapped against a competitor whose free plan caps at 60 saved tabs.

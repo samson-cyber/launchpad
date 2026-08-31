@@ -51,7 +51,8 @@ New shape (Pro-capable):
       "tags": [],
       "tracking": { ... },
       "notes": [],         // Notes feature (v1.1.0)
-      "notebooks": []      // Notebooks feature (v1.2.0)
+      "notebooks": [],     // Notebooks feature (v1.2.0)
+      "namedSessions": []  // Named sessions (2026-08-31, free tier)
     }
   ],
   "workspaceOrder": ["main"],
@@ -82,6 +83,7 @@ Key choices:
 - **`settings` stays global.** Column count, icon size, theme are user preferences. `combinedAnalyticsEnabled` toggles a "show time across all workspaces" view in Dashboard.
 - **`pro` block tracks license state.** See `billing-and-license.md`.
 - **Notes and notebooks live per-workspace.** Notes ship in v1.1.0; notebooks ship in v1.2.0.
+- **`namedSessions` lives per-workspace, and the QUALIFIER IS LOAD-BEARING (2026-08-31).** A named session is a user-named saved set of tabs: `{ id, name, tabs: [{url, title, favicon}], taskId, createdAt, updatedAt, lastLaunchedAt, deletedAt }`, array order canonical, id prefix `nsession_`. The field is **not** called `sessions`, because "session" already meant four other things in this codebase — tracking focus records, the 5-minute auto-restore's `savedSessions`, Pomodoro focus sessions, and the browser-restart anchor. The decisive collision is with `savedSessions`: two systems that both save tabs, sharing no storage and no lifecycle, must not share a noun. **Named sessions are FREE**; `taskId` is a forward reference to a task and is never mirrored onto the task, so attachment (a Pro surface, because tasks are Pro) has exactly one place to write and one to read. See DECISIONS.md 2026-08-31.
 
 ---
 
@@ -108,6 +110,7 @@ migrate(data):
         goals: [],
         tasks: [],
         tags: [],
+        namedSessions: [],
         tracking: emptyTrackingState()
       }
     ],

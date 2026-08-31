@@ -64,6 +64,8 @@ Adopted during the launch run and it holds from here on. Every build that leaves
 - **Variant disambiguation** (1217948890038248) — **SHIPPED**, promoted from candidate.
 - **Harness-rescue remainder** — the priority pair shipped pre-launch; the rest is opportunistic. Still open.
 - **Website meta-description trim.** Still open.
+- **Named sessions `[1.4.0]`–`[1.4.4]`** — **SHIPPED** 2026-08-31, promoted from candidate to scoped arc inside 2.1.0. See its own section below.
+- **Task options pill, goal-completion fix, modal-footer tidy** — **SHIPPED** 2026-08-31, all out of the same week. See below.
 
 ---
 
@@ -202,6 +204,52 @@ relitigate. The `storage.sync` settings+licence slice is still an open later mar
 **Release consequence:** Round 2 adds `optional_permissions: ["downloads"]`, so the 2.1.0 permission
 diff against 2.0.0 is **not** empty. It carries no install warning and no re-consent prompt, but it
 needs a justification in the store listing at submission.
+
+---
+
+## [1.4.0] — Named Sessions — **SHIPPED** (2026-08-31)
+
+**FREE TIER.** A user-named saved set of tabs, saved from the current window and relaunched into a
+new one. Filed 2026-08-28 as a competitor-review candidate and built the same week as
+`[1.4.0]`–`[1.4.4]`: data model (`6bf036f`), save/launch UI (`c54f73b`), task attachment
+(`1c6160f`/`44c258b`), task-side attach and picker search (`6ee4f1e`), arc closer (`d251d77`),
+trash view (`6496cca`).
+
+Lives as a **sidebar flyout twinned with Restore Session**. Capture is an allowlist (`http`,
+`https`, `file`) so unknown schemes fail closed; favicons are **captured at save time, never
+derived**, because the app's only URL-to-favicon path ends at Google's S2 service. Array order is
+canonical, `namedSessions` registered in the purge sweep at birth, and the trash view landed as
+the last row of the list.
+
+**Attachment to a task is Pro by inheritance** — tasks are Pro, so the attach entries are absent
+on free and expired profiles while the sessions themselves stay fully functional, and the stored
+`taskId` survives to return intact on upgrade.
+
+**What was decided and NOT built:** focus pairing (launching a session does not start a focus
+session — two intentions, one click is overreach) and launch-on-activate (a row control instead,
+so a click that opens six tabs is a click the user aimed at). Both are closed decisions rather
+than deferrals; see DECISIONS.md 2026-08-31.
+
+**Website consequence, still open:** the `/compare/toby` table row concedes deliberate saving to
+Toby and is now understated, and the free-tier claims are still written about shortcuts only.
+The compare-page copy carrying named sessions has shipped; the remaining rows are a website
+round.
+
+## Same week, alongside the arc — **SHIPPED** (2026-08-31)
+
+- **Task options pill** (1217980262292381, `772f8c3`) — a hover-revealed, keyboard-reachable
+  affordance in the task row's name cluster, opening the existing task context menu that was
+  previously reachable only by right-click. Costs zero row width (proven pixel-identical against
+  a real master build). Adds **Priority** and **Assign to a goal** to that menu; the row keeps its
+  own flag and trash, consolidation rejected.
+- **Completing a goal releases its unfinished tasks** (1217981037474018, `53f8a3b`/`d3c87fd`) — a
+  **pre-existing bug fix**, not a feature: a goal's unfinished children rendered in none of the
+  three lists the Tasks tab draws, so completing a goal made them invisible while they were still
+  incomplete. A one-time marker-guarded sweep repairs existing profiles; Samson's own carried
+  twenty. `SPECS/tasks-and-goals.md` corrected in the same commit as this entry — it had claimed
+  those tasks "remain visible but read-only", which was never true of shipped code.
+- **Modal footer convention** (`1c65c48`, `3f966ff`, `e223290`) — `hideCancel`, one dismissal in
+  the primary slot for modals that commit nothing, confirms keep their Cancel.
 
 ---
 
