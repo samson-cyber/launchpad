@@ -2615,3 +2615,14 @@ I18n.register("en", {
     "description": "Colour name for the tag palette swatch magenta. Used by tagColorName(); the swatch label reads 'Choose <name>' rather than the hex code."
   }
 });
+
+
+// ====================================================================
+// [1.5.0] R4 stage 1b
+// ====================================================================
+I18n.register("en", {
+  "insights_today": {
+    "message": "today",
+    "description": "The 1-day Insights window as it reads INSIDE a chart title (\"Deep work, today\") - lower case on purpose. The segmented button above the charts says \"Today\" and is a separate string."
+  }
+});

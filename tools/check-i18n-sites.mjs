@@ -38,7 +38,11 @@ import { fileURLToPath } from "node:url";
 
 const ENFORCING = false;              // flip at the end of R3
 const LITERAL_FLOOR = 6000;           // measured 7334 at [1.5.0]; see report
-const SITE_FLOOR = 600;               // measured 749 at [1.5.0]; see report
+// 749 at [1.5.0] R1, 605 after R4 stage 1, 565 after stage 1b - the last drop
+// because 40 array entries stopped being construction sites when they started
+// holding a KEY instead of a call. The floor tracks the residue rather than the
+// original, or it fails the round that legitimately shrinks the surface.
+const SITE_FLOOR = 520;               // measured 565 after R4 stage 1b
 
 // PER-PATTERN FLOORS ([1.5.0] R3). The global floor is not enough, and the
 // set-attr defect is the proof: that pattern found 11 sites and read NOTHING
@@ -75,7 +79,14 @@ const PATTERN_FLOORS = {
   // text: sites persist and merely flip to compliant, so floors sit under today
   "dom-assign":  70,   // measured 107
   "set-attr":     6,   // measured  11 - the one this rule exists for
-  "modal-copy": 120,   // measured 189
+  // R4 stage 1b took 40 sites OUT of this pattern's view for a good reason: an
+  // array entry that used to read `label: t("k")` now reads `labelKey: "k"`, and
+  // a key reference is not a construction site. Measured 189 -> 149. The floor
+  // follows the residue down; leaving it at 120 would have been fine here, but
+  // the comment matters more than the number - a floor is only meaningful when
+  // it is set against what SHOULD survive, and 40 sites disappearing is exactly
+  // the shape of an accident, so it is recorded as deliberate.
+  "modal-copy": 110,   // measured 149 after stage 1b (was 189)
   "toast":       40,   // measured  61
   "native-dlg":   6,   // measured  10
 };
@@ -736,6 +747,73 @@ if (misplacedMarkers.length) {
   console.log("  The value is appended INSIDE this element, where it never renders,");
   console.log("  and the control's own label stays in the source language.");
   process.exit(1);
+}
+
+// AN ACCESSOR CALL AT MODULE LEVEL IS A DEFECT, and an invisible one.
+//
+// newtab.js is a single IIFE, so `var X = [ { label: t("k") } ]` at its top
+// level runs ONCE when the file loads. English resolves correctly, so every
+// static check and every screenshot agrees it works - and the value is FROZEN.
+// A locale switch re-renders the page and the string does not change, because
+// the array still holds what was built at load. R3 left 39 of these and only
+// the pseudo-locale probe could see them.
+//
+// Unconditional, per the defect-versus-backlog rule: the string IS migrated,
+// nothing is waiting on a future round, and it is wrong the moment it is
+// written. Depth is counted with strings and comments skipped; the IIFE itself
+// is the outermost function, so top level is a function depth of one.
+function frozenAccessorLines(src) {
+  const CALL = /(?<![.\w])(t|th)\(\s*["'][a-z0-9_]+["']/y;
+  let depth = 0, i = 0, line = 1;
+  const fnDepth = [], out = [];
+  while (i < src.length) {
+    const c = src[i];
+    if (c === "\n") { line++; i++; continue; }
+    if (c === "/" && src[i + 1] === "/") { while (i < src.length && src[i] !== "\n") i++; continue; }
+    if (c === "/" && src[i + 1] === "*") {
+      i += 2;
+      while (i + 1 < src.length && !(src[i] === "*" && src[i + 1] === "/")) { if (src[i] === "\n") line++; i++; }
+      i += 2; continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      const q = c; i++;
+      while (i < src.length) {
+        if (src[i] === "\\") { i += 2; continue; }
+        if (src[i] === q) { i++; break; }
+        if (src[i] === "\n") line++;
+        i++;
+      }
+      continue;
+    }
+    if (c === "{") {
+      const back = src.slice(Math.max(0, i - 260), i);
+      if (/\bfunction\b[^{};]*\)\s*$/.test(back) || /=>\s*$/.test(back)) fnDepth.push(depth + 1);
+      depth++; i++; continue;
+    }
+    if (c === "}") {
+      if (fnDepth.length && fnDepth[fnDepth.length - 1] === depth) fnDepth.pop();
+      depth--; i++; continue;
+    }
+    CALL.lastIndex = i;
+    const m = CALL.exec(src);
+    if (m) {
+      if (fnDepth.length <= 1) out.push({ line, text: src.slice(i, i + 60).split("\n")[0] });
+      i += m[0].length; continue;
+    }
+    i++;
+  }
+  return out;
+}
+{
+  const frozen = frozenAccessorLines(fs.readFileSync(path.join(repoRoot, "newtab.js"), "utf8"));
+  if (frozen.length) {
+    console.log("\nI18N SITE GATE: FAIL — " + frozen.length +
+                " accessor call(s) at MODULE LEVEL, frozen at load.");
+    for (const f of frozen.slice(0, 20)) console.log(`  newtab.js:${f.line}  ${f.text}`);
+    console.log("  Store the KEY in the literal and resolve it in the renderer,");
+    console.log("  or the string never follows a locale change.");
+    process.exit(1);
+  }
 }
 
 const misuse = sites.filter((s) => s.pattern === "sink-misuse" && s.verdict === "violation");

@@ -78,18 +78,18 @@
   // ===== Gallery Images =====
 
   var GALLERY_IMAGES = [
-    { url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920", thumb: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=250&fit=crop", label: t("safe_mountains") },
-    { url: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1920", thumb: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&h=250&fit=crop", label: t("safe_foggy_forest") },
-    { url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920", thumb: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=250&fit=crop", label: t("safe_tropical_beach") },
-    { url: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1920", thumb: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&h=250&fit=crop", label: t("safe_starry_mountain") },
-    { url: "https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=1920", thumb: "https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=400&h=250&fit=crop", label: t("safe_sunset_mountains") },
-    { url: "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=1920", thumb: "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=400&h=250&fit=crop", label: t("safe_green_valley") },
-    { url: "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=1920", thumb: "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=400&h=250&fit=crop", label: t("safe_lake_reflection") },
-    { url: "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1920", thumb: "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=400&h=250&fit=crop", label: t("safe_aerial_forest") },
-    { url: "https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=1920", thumb: "https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=400&h=250&fit=crop", label: t("safe_sunrise_field") },
-    { url: "https://images.unsplash.com/photo-1534088568595-a066f410bcda?w=1920", thumb: "https://images.unsplash.com/photo-1534088568595-a066f410bcda?w=400&h=250&fit=crop", label: t("safe_ocean_wave") },
-    { url: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1920", thumb: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=250&fit=crop", label: t("safe_dramatic_peaks") },
-    { url: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=1920", thumb: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=400&h=250&fit=crop", label: t("safe_northern_lights") }
+    { url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920", thumb: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=250&fit=crop", labelKey: "safe_mountains" },
+    { url: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1920", thumb: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&h=250&fit=crop", labelKey: "safe_foggy_forest" },
+    { url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920", thumb: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=250&fit=crop", labelKey: "safe_tropical_beach" },
+    { url: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1920", thumb: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&h=250&fit=crop", labelKey: "safe_starry_mountain" },
+    { url: "https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=1920", thumb: "https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=400&h=250&fit=crop", labelKey: "safe_sunset_mountains" },
+    { url: "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=1920", thumb: "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=400&h=250&fit=crop", labelKey: "safe_green_valley" },
+    { url: "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=1920", thumb: "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=400&h=250&fit=crop", labelKey: "safe_lake_reflection" },
+    { url: "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1920", thumb: "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=400&h=250&fit=crop", labelKey: "safe_aerial_forest" },
+    { url: "https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=1920", thumb: "https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=400&h=250&fit=crop", labelKey: "safe_sunrise_field" },
+    { url: "https://images.unsplash.com/photo-1534088568595-a066f410bcda?w=1920", thumb: "https://images.unsplash.com/photo-1534088568595-a066f410bcda?w=400&h=250&fit=crop", labelKey: "safe_ocean_wave" },
+    { url: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1920", thumb: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=250&fit=crop", labelKey: "safe_dramatic_peaks" },
+    { url: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=1920", thumb: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=400&h=250&fit=crop", labelKey: "safe_northern_lights" }
   ];
 
   // [1.0.19 D11] The first-paint default. Was "color:#f5f5f5" — an abrasive
@@ -117,12 +117,12 @@
   // untouched.
   var DEFAULT_BG = "color:#2a2a2a";
   var COLOR_PRESETS = [
-    { value: "color:#f5f5f5", label: t("safe_light_gray") },
-    { value: "color:#ffffff", label: t("safe_white") },
-    { value: "color:#2a2a2a", label: t("safe_dark_gray") },
-    { value: "color:#000000", label: t("safe_black") },
-    { value: "color:#1e3a5f", label: t("safe_soft_blue") },
-    { value: "color:#3d2818", label: t("safe_soft_warm_dark") }
+    { value: "color:#f5f5f5", labelKey: "safe_light_gray" },
+    { value: "color:#ffffff", labelKey: "safe_white" },
+    { value: "color:#2a2a2a", labelKey: "safe_dark_gray" },
+    { value: "color:#000000", labelKey: "safe_black" },
+    { value: "color:#1e3a5f", labelKey: "safe_soft_blue" },
+    { value: "color:#3d2818", labelKey: "safe_soft_warm_dark" }
   ];
   var currentBg = null;
   var previousBg = null;
@@ -1441,13 +1441,13 @@
     weekly: {
       todayIndex: 4, // Friday
       days: [
-        { label: t("dash_mon"), hours: 2.1 },
-        { label: t("dash_tue"), hours: 3.5 },
-        { label: t("dash_wed"), hours: 4.2 },
-        { label: t("dash_thu"), hours: 1.8 },
-        { label: t("dash_fri"), hours: 3.7 },
-        { label: t("dash_sat"), hours: 0.5 },
-        { label: t("dash_sun"), hours: 0   }
+        { labelKey: "dash_mon", hours: 2.1 },
+        { labelKey: "dash_tue", hours: 3.5 },
+        { labelKey: "dash_wed", hours: 4.2 },
+        { labelKey: "dash_thu", hours: 1.8 },
+        { labelKey: "dash_fri", hours: 3.7 },
+        { labelKey: "dash_sat", hours: 0.5 },
+        { labelKey: "dash_sun", hours: 0   }
       ]
     }
   };
@@ -1477,12 +1477,12 @@
     // Marathoner remains the sole banked future candidate. Consistency copy was
     // corrected to the live definition (was "Deep work every weekday for 2 weeks").
     badges: [
-      { id: "first-week",   title: t("dash_first_week"),   desc: "Used LaunchPad 7 days running",          unlocked: true,  glyph: "calendar" },
-      { id: "goal-crusher", title: t("dash_goal_crusher"), desc: "Completed 5 goals",                      unlocked: true,  glyph: "target"   },
-      { id: "deep-diver",   title: t("dash_deep_diver"),   desc: "Single 2-hour focus block",              unlocked: true,  glyph: "compass"  },
-      { id: "variety",      title: t("dash_variety"),      desc: "5 different tags in a week",             unlocked: false, glyph: "layers"   },
-      { id: "consistency",  title: t("dash_consistency"),  desc: "Complete a task 7 days running",         unlocked: false, glyph: "trend"    },
-      { id: "curator",      title: t("dash_curator"),      desc: "50+ shortcuts organized",                unlocked: false, glyph: "bookmark" }
+      { id: "first-week",   titleKey: "dash_first_week",   desc: "Used LaunchPad 7 days running",          unlocked: true,  glyph: "calendar" },
+      { id: "goal-crusher", titleKey: "dash_goal_crusher", desc: "Completed 5 goals",                      unlocked: true,  glyph: "target"   },
+      { id: "deep-diver",   titleKey: "dash_deep_diver",   desc: "Single 2-hour focus block",              unlocked: true,  glyph: "compass"  },
+      { id: "variety",      titleKey: "dash_variety",      desc: "5 different tags in a week",             unlocked: false, glyph: "layers"   },
+      { id: "consistency",  titleKey: "dash_consistency",  desc: "Complete a task 7 days running",         unlocked: false, glyph: "trend"    },
+      { id: "curator",      titleKey: "dash_curator",      desc: "50+ shortcuts organized",                unlocked: false, glyph: "bookmark" }
     ]
   };
 
@@ -1606,7 +1606,7 @@
       var y = h - padBottom - bh;
       var cls = (i === d.weekly.todayIndex) ? "pp-bar pp-bar-today" : "pp-bar";
       return '<rect class="' + cls + '" x="' + x + '" y="' + y + '" width="' + barW + '" height="' + Math.max(bh, 1) + '" rx="3" />' +
-        '<text class="pp-bar-label" x="' + (x + barW / 2) + '" y="' + (h - padBottom + 16) + '">' + b.label + '</text>';
+        '<text class="pp-bar-label" x="' + (x + barW / 2) + '" y="' + (h - padBottom + 16) + '">' + th(b.labelKey) + '</text>';
     }).join("");
     var weekSvg = '<svg class="pp-week-chart" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + th("dashboard_deep_work_hours_this_week") + '">' +
         '<line class="pp-axis" x1="' + padX + '" y1="' + (h - padBottom) + '" x2="' + (w - padX) + '" y2="' + (h - padBottom) + '" />' +
@@ -1746,7 +1746,7 @@
       var subtitle = b.unlocked ? escapeHtml(b.desc) : "Locked";
       return '<div class="pp-badge' + lockedCls + '">' +
           '<div class="pp-badge-icon">' + glyph + '</div>' +
-          '<div class="pp-badge-title">' + escapeHtml(b.title) + '</div>' +
+          '<div class="pp-badge-title">' + th(b.titleKey) + '</div>' +
           '<div class="pp-badge-sub">' + subtitle + '</div>' +
         '</div>';
     }).join("");
@@ -1788,12 +1788,12 @@
   // user deserves to see the target). Trends are a v2.1 promise; the history is
   // already accruing behind the scenes.
   var INSIGHTS_BADGES = [
-    { id: "first-week",   title: t("badge_first_week"),   desc: "Open LaunchPad 7 days running",          glyph: "calendar" },
-    { id: "goal-crusher", title: t("badge_goal_crusher"), desc: "Complete 5 different goals",             glyph: "target"   },
-    { id: "deep-diver",   title: t("badge_deep_diver"),   desc: "A single 2-hour focus session",         glyph: "compass"  },
-    { id: "variety",      title: t("badge_variety"),      desc: "Complete tasks across 5 tags in a week", glyph: "layers"   },
-    { id: "consistency",  title: t("badge_consistency"),  desc: "Complete a task 7 days running",         glyph: "trend"    },
-    { id: "curator",      title: t("badge_curator"),      desc: "Organize 50+ shortcuts",                 glyph: "bookmark" }
+    { id: "first-week",   titleKey: "badge_first_week",   desc: "Open LaunchPad 7 days running",          glyph: "calendar" },
+    { id: "goal-crusher", titleKey: "badge_goal_crusher", desc: "Complete 5 different goals",             glyph: "target"   },
+    { id: "deep-diver",   titleKey: "badge_deep_diver",   desc: "A single 2-hour focus session",         glyph: "compass"  },
+    { id: "variety",      titleKey: "badge_variety",      desc: "Complete tasks across 5 tags in a week", glyph: "layers"   },
+    { id: "consistency",  titleKey: "badge_consistency",  desc: "Complete a task 7 days running",         glyph: "trend"    },
+    { id: "curator",      titleKey: "badge_curator",      desc: "Organize 50+ shortcuts",                 glyph: "bookmark" }
   ];
   var INSIGHTS_BADGE_BY_ID = INSIGHTS_BADGES.reduce(function (m, b) { m[b.id] = b; return m; }, {});
 
@@ -1834,14 +1834,14 @@
   // "Focused" is deliberately absent from all of this copy. It stays reserved for
   // engine-measured time; these are window names, not measurements.
   var INSIGHTS_RANGES = [
-    { days: 1,  label: "today",        btn: "Today" },
-    { days: 7,  label: t("insights_past_7_days"),  btn: "Past 7 days" },
-    { days: 30, label: t("insights_last_30_days"), btn: "Last 30 days" }
+    { days: 1,  labelKey: "insights_today",        btn: "Today" },
+    { days: 7,  labelKey: "insights_past_7_days",  btn: "Past 7 days" },
+    { days: 30, labelKey: "insights_last_30_days", btn: "Last 30 days" }
   ];
 
   function insightsRangeLabel(days) {
     for (var i = 0; i < INSIGHTS_RANGES.length; i++) {
-      if (INSIGHTS_RANGES[i].days === days) return INSIGHTS_RANGES[i].label;
+      if (INSIGHTS_RANGES[i].days === days) return t(INSIGHTS_RANGES[i].labelKey);
     }
     return "last 30 days";
   }
@@ -1957,7 +1957,7 @@
       var sub = lit ? ("Earned " + escapeHtml(fmtShortDate(e.earnedAt))) : escapeHtml(b.desc);
       return '<div class="pp-badge insights-badge' + (lit ? "" : " pp-badge-locked") + '"' + (lit ? ' data-earned="1"' : '') + '>' +
           '<div class="pp-badge-icon">' + renderBadgeGlyph(b.glyph) + '</div>' +
-          '<div class="pp-badge-title">' + escapeHtml(b.title) + '</div>' +
+          '<div class="pp-badge-title">' + th(b.titleKey) + '</div>' +
           '<div class="pp-badge-sub">' + sub + '</div>' +
         '</div>';
     }).join("");
@@ -16315,7 +16315,7 @@
     grid.innerHTML = COLOR_PRESETS.map(function (preset) {
       var hex = preset.value.slice(6);
       var isSelected = currentBg === preset.value;
-      return '<button class="bg-gallery-thumb bg-color-swatch' + (isSelected ? ' selected' : '') + '" data-bg="' + preset.value + '" type="button" title="' + esc(preset.label) + '" style="background-color: ' + hex + ';">' +
+      return '<button class="bg-gallery-thumb bg-color-swatch' + (isSelected ? ' selected' : '') + '" data-bg="' + preset.value + '" type="button" title="' + th(preset.labelKey) + '" style="background-color: ' + hex + ';">' +
         '<span class="bg-check">' + CHECK_SVG + '</span>' +
         '</button>';
     }).join("");
@@ -16326,9 +16326,9 @@
     if (!grid) return;
     grid.innerHTML = GALLERY_IMAGES.map(function (img) {
       var isSelected = currentBg === img.url;
-      return '<button class="bg-gallery-thumb' + (isSelected ? ' selected' : '') + '" data-bg="' + img.url + '" type="button" title="' + esc(img.label) + '">' +
+      return '<button class="bg-gallery-thumb' + (isSelected ? ' selected' : '') + '" data-bg="' + img.url + '" type="button" title="' + th(img.labelKey) + '">' +
         '<span class="bg-check">' + CHECK_SVG + '</span>' +
-        '<img src="' + img.thumb + '" alt="' + esc(img.label) + '" loading="lazy">' +
+        '<img src="' + img.thumb + '" alt="' + th(img.labelKey) + '" loading="lazy">' +
         '</button>';
     }).join("");
   }
