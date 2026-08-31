@@ -6157,6 +6157,20 @@
     var makeActiveHtml = (!task.completed && !isActiveTask)
       ? '<button type="button" class="tt-ctx-item" data-action="make-active">Make active</button>'
       : "";
+    // [1.4.3] THE TASK SIDE of session attachment. The session side has been
+    // reachable since [1.4.2] from the flyout row's options button; this is the
+    // same relationship approached from the task, which is where Samson found
+    // himself looking for it. Label mirrors the session side exactly: the slot
+    // is always offered and changes face, "Change session" once one is on.
+    // Detach is the entry that comes and goes.
+    var ctxWsSession = workspace ? Storage.getNamedSessionForTask(workspace, task.id) : null;
+    var sessionItemsHtml =
+      '<button type="button" class="tt-ctx-item" data-action="attach-session">' +
+        (ctxWsSession ? "Change session" : "Assign session to this task") +
+      '</button>' +
+      (ctxWsSession
+        ? '<button type="button" class="tt-ctx-item" data-action="detach-session">Detach session</button>'
+        : "");
     var menu = document.createElement("div");
     menu.className = "tt-context-menu";
     menu.innerHTML =
@@ -6164,6 +6178,7 @@
       makeActiveHtml +
       '<button type="button" class="tt-ctx-item" data-action="edit">Edit</button>' +
       '<button type="button" class="tt-ctx-item" data-action="duplicate">Duplicate</button>' +
+      sessionItemsHtml +
       '<button type="button" class="tt-ctx-item" data-action="toggle-complete">' + escapeHtml(completeLabel) + '</button>' +
       '<div class="tt-ctx-separator"></div>' +
       '<button type="button" class="tt-ctx-item tt-ctx-danger" data-action="delete">Delete</button>';
@@ -6192,6 +6207,19 @@
         // clicking the name directly (startTaskNameEdit).
         var span = panel && panel.querySelector('.tt-task-row[data-task-id="' + taskId + '"] .tt-task-name');
         if (span && span.tagName === "SPAN") startTaskNameEdit(span, taskId);
+      } else if (action === "attach-session") {
+        openTaskSessionPicker(taskId);
+      } else if (action === "detach-session") {
+        var dws = Storage.getActiveWorkspace(data);
+        var dsess = dws && Storage.getNamedSessionForTask(dws, taskId);
+        if (dsess) {
+          Storage.detachNamedSession(data, dsess.id);
+          await Storage.saveAll(data);
+          data = await Storage.getAll();
+          renderSessionsList();
+          eagerRenderTasks();
+          showToast((dsess.name || "Session") + " is no longer on this task.");
+        }
       } else if (action === "duplicate") {
         await Storage.duplicateTask(data, taskId);
         if (panel) renderTasksTab(panel, data);
@@ -14887,12 +14915,102 @@
   // parameterising all of that; the modal family is what the plan named and what
   // the promote-to-task flow already uses.
 
-  function attachPickerBodyHtml(ws, currentTaskId) {
-    var tasks = Storage.getAllTasks(ws).filter(function (t) { return !t.completed; });
-    if (!tasks.length) {
-      return '<p class="tt-modal-message">There are no open tasks in this workspace yet.</p>';
-    }
-    return '<div class="session-picker">' + tasks.map(function (t) {
+  // ===== [1.4.3] Picker search =====
+  //
+  // The idiom is the notes panel's, deliberately: threshold-gated so a short
+  // list never grows a control it does not need, case-insensitive substring on
+  // the visible name, and a clear that restores the full list. The notes code
+  // itself is not reusable as code - it is welded to notesFilter, to
+  // renderNotesStack and to selectors bound on the notes panel - so what is
+  // shared here is the shape, in a form both pickers call.
+  //
+  // THE LOAD-BEARING RULE, carried over verbatim from that panel: only the LIST
+  // is re-rendered on input, never the input, or focus and the caret die on
+  // every keystroke.
+
+  var PICKER_SEARCH_THRESHOLD = 6;
+  var pickerFilter = "";
+
+  function pickerSearchHtml(count, placeholder) {
+    if (count <= PICKER_SEARCH_THRESHOLD) return "";
+    return '<div class="picker-search">' +
+        '<input type="text" class="picker-search-input" data-picker-search' +
+          ' placeholder="' + escapeHtml(placeholder) + '" aria-label="' + escapeHtml(placeholder) + '"' +
+          ' autocomplete="off" spellcheck="false">' +
+      '</div>';
+  }
+
+  function pickerFilterBy(items, nameOf) {
+    var q = pickerFilter.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(function (it) {
+      return String(nameOf(it) || "").toLowerCase().indexOf(q) !== -1;
+    });
+  }
+
+  function pickerEmptyHtml(msg) {
+    return '<p class="session-picker-empty">' + escapeHtml(msg) + '</p>';
+  }
+
+  /**
+   * Wire one picker. renderRows() returns the CURRENT filter's rows; onPick
+   * receives the identity read off the chosen row.
+   *
+   * SELECTION IS BY IDENTITY, NEVER BY INDEX. The filter reorders and shortens
+   * what is on screen, so an index captured at render time addresses a
+   * different row the moment anything is typed. Every row carries its own id in
+   * the attribute and the handler reads it back at click time.
+   */
+  function wirePicker(modalEl, pickAttr, renderRows, onPick) {
+    var body = modalEl.querySelector(".tt-modal-body");
+    if (!body) return;
+    var list = body.querySelector("[data-picker-list]");
+
+    body.addEventListener("click", function (ev) {
+      if (ev.target.closest("[data-picker-search-clear]")) {
+        pickerFilter = "";
+        var input = body.querySelector("[data-picker-search]");
+        if (input) { input.value = ""; input.focus(); }
+        var clr = body.querySelector("[data-picker-search-clear]");
+        if (clr) clr.remove();
+        if (list) list.innerHTML = renderRows();
+        return;
+      }
+      if (ev.target.closest(".picker-search")) return;
+      var row = ev.target.closest("[" + pickAttr + "]");
+      if (!row) return;
+      onPick(row.getAttribute(pickAttr));
+    });
+
+    body.addEventListener("input", function (ev) {
+      if (!ev.target.matches("[data-picker-search]")) return;
+      pickerFilter = ev.target.value || "";
+      if (list) list.innerHTML = renderRows();
+      var wrap = body.querySelector(".picker-search");
+      var clear = body.querySelector("[data-picker-search-clear]");
+      if (pickerFilter && !clear && wrap) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "picker-search-clear";
+        b.setAttribute("data-picker-search-clear", "");
+        b.setAttribute("aria-label", "Clear search");
+        b.innerHTML = "&times;";
+        wrap.appendChild(b);
+      } else if (!pickerFilter && clear) {
+        clear.remove();
+      }
+    });
+  }
+
+  // ---- the TASK picker, opened from a session ----
+
+  function attachPickerRowsHtml(ws, currentTaskId) {
+    var tasks = pickerFilterBy(
+      Storage.getAllTasks(ws).filter(function (t) { return !t.completed; }),
+      function (t) { return t.name; }
+    );
+    if (!tasks.length) return pickerEmptyHtml("No tasks match that.");
+    return tasks.map(function (t) {
       var taken = Storage.getNamedSessionForTask(ws, t.id);
       var isCurrent = t.id === currentTaskId;
       // A task that already holds ANOTHER session is still offered: choosing it
@@ -14904,13 +15022,72 @@
         '<span class="session-picker-name">' + escapeHtml(t.name) + '</span>' +
         (note ? '<span class="session-picker-note">' + escapeHtml(note) + '</span>' : "") +
       '</button>';
-    }).join("") + '</div>';
+    }).join("");
+  }
+
+  function attachPickerBodyHtml(ws, currentTaskId) {
+    var total = Storage.getAllTasks(ws).filter(function (t) { return !t.completed; }).length;
+    if (!total) {
+      return '<p class="tt-modal-message">There are no open tasks in this workspace yet.</p>';
+    }
+    return pickerSearchHtml(total, "Search tasks") +
+      '<div class="session-picker" data-picker-list>' + attachPickerRowsHtml(ws, currentTaskId) + '</div>';
+  }
+
+  // ---- the SESSION picker, opened from a task ----
+
+  function taskSessionPickerRowsHtml(ws, taskId) {
+    var sessions = pickerFilterBy(Storage.getAllNamedSessions(ws), function (s) { return s.name; });
+    if (!sessions.length) return pickerEmptyHtml("No sessions match that.");
+    return sessions.map(function (s) {
+      var isCurrent = s.taskId === taskId;
+      // The mirror of the task picker's note: a session already on ANOTHER task
+      // is still offered, and choosing it moves it. Same confirm, same wording,
+      // because it is literally the same commit path.
+      var owner = (!isCurrent && s.taskId) ? Storage.getTaskById(ws, s.taskId) : null;
+      var note = isCurrent ? "attached to this task" : (owner ? "on " + owner.name : "");
+      return '<button type="button" class="session-picker-row' + (isCurrent ? " is-current" : "") +
+        '" data-picker-session="' + escapeHtml(s.id) + '">' +
+        '<span class="session-picker-name">' + escapeHtml(s.name || "Untitled session") + '</span>' +
+        (note ? '<span class="session-picker-note">' + escapeHtml(note) + '</span>' : "") +
+      '</button>';
+    }).join("");
+  }
+
+  function openTaskSessionPicker(taskId) {
+    var ws = Storage.getActiveWorkspace(data);
+    var task = ws ? Storage.getTaskById(ws, taskId) : null;
+    if (!ws || !task) return;
+    pickerFilter = "";
+    var total = Storage.getAllNamedSessions(ws).length;
+
+    openTasksModal({
+      title: "Assign a session to " + task.name,
+      bodyHtml: total
+        ? pickerSearchHtml(total, "Search sessions") +
+          '<div class="session-picker" data-picker-list>' + taskSessionPickerRowsHtml(ws, taskId) + '</div>'
+        : '<p class="tt-modal-message">There are no saved sessions in this workspace yet.</p>',
+      primaryLabel: "Cancel",
+      onPrimary: function () {},
+      onMounted: function (modalEl) {
+        wirePicker(modalEl, "data-picker-session",
+          function () { return taskSessionPickerRowsHtml(Storage.getActiveWorkspace(data), taskId); },
+          function (sessionId) {
+            // The SAME commit path as the session side, so both confirm shapes
+            // read identically whichever side the user started from. Only the
+            // reopen-on-cancel differs, because cancelling should return you to
+            // the picker you were actually looking at.
+            commitSessionAttach(sessionId, taskId, function () { openTaskSessionPicker(taskId); });
+          });
+      }
+    });
   }
 
   function openSessionAttachPicker(sessionId) {
     var ws = Storage.getActiveWorkspace(data);
     var session = ws ? Storage.getNamedSessionById(ws, sessionId) : null;
     if (!ws || !session) return;
+    pickerFilter = "";
 
     openTasksModal({
       title: "Attach " + (session.name || "session") + " to a task",
@@ -14918,18 +15095,18 @@
       primaryLabel: "Cancel",
       onPrimary: function () {},
       onMounted: function (modalEl) {
-        var host = modalEl.querySelector(".session-picker");
-        if (!host) return;
-        host.addEventListener("click", function (ev) {
-          var row = ev.target.closest("[data-picker-task]");
-          if (!row) return;
-          commitSessionAttach(sessionId, row.dataset.pickerTask);
-        });
+        wirePicker(modalEl, "data-picker-task",
+          function () {
+            var w = Storage.getActiveWorkspace(data);
+            var s = w ? Storage.getNamedSessionById(w, sessionId) : null;
+            return attachPickerRowsHtml(w, s ? s.taskId : null);
+          },
+          function (taskId) { commitSessionAttach(sessionId, taskId); });
       }
     });
   }
 
-  async function commitSessionAttach(sessionId, taskId) {
+  async function commitSessionAttach(sessionId, taskId, reopen) {
     var ws = Storage.getActiveWorkspace(data);
     if (!ws) return;
     var session = Storage.getNamedSessionById(ws, sessionId);
@@ -14973,7 +15150,11 @@
           message: msg,
           confirmLabel: "Move it",
           onConfirm: apply,
-          onCancel: function () { setTimeout(function () { openSessionAttachPicker(sessionId); }, 0); }
+          onCancel: function () {
+            setTimeout(typeof reopen === "function"
+              ? reopen
+              : function () { openSessionAttachPicker(sessionId); }, 0);
+          }
         });
       }, 0);
       return;
