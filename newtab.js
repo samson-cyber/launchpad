@@ -2819,6 +2819,11 @@
       // "Empty trash" is untouched, in its own extraButtons slot.
       primaryLabel: "Done",
       hideCancel: true,
+      // [1.4.9] Without this, focus stays on the trash button that opened the
+      // view - outside the dialog - because this body has no input for the
+      // default branch to find. Matches the templates panel, the other panel
+      // whose only footer control is its dismissal.
+      defaultFocus: "primary",
       bodyHtml: "<div class=\"notes-trash-view\" data-notes-trash-body>" +
           notesTrashBodyHtml() +
         "</div>",
