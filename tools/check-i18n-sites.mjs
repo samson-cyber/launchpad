@@ -45,6 +45,26 @@ const JS_FILES = ["newtab.js", "background.js", "storage.js", "bookmarks.js",
                   "license.js", "pro-access.js", "tracking.js", "gate.js", "offscreen.js"];
 const HTML_FILES = ["newtab.html", "gate.html", "offscreen.html"];
 
+// NOT LOCALIZED, BY DECISION - excluded with the reason recorded here rather
+// than silently absent, so the next reader learns why instead of assuming an
+// oversight ([1.5.0] R2 answers, 2026-08-31):
+//
+//   privacy-policy.html - dropped from localization entirely. It is a static
+//     document with no script tags, also served publicly via GitHub Pages, and
+//     its values would never be translated: a machine-translated privacy policy
+//     is a legal document nobody has reviewed. Extracting it into a catalogue
+//     the page cannot read would create a SECOND SOURCE OF TRUTH for text that
+//     never changes language, and two sources drift. Revisit only when a human
+//     translation is deliberately commissioned, at which point the page needs
+//     wiring as a considered step rather than a mechanical one.
+//
+//   offscreen.html - its only string is a <title> on a document that is never
+//     rendered (chrome.offscreen documents have no visible surface), so no user
+//     can see it. Scanned, but it contains nothing to find.
+const NOT_LOCALIZED = [
+  { file: "privacy-policy.html", why: "not localized by decision; revisit when a human translation is commissioned" }
+];
+
 // --------------------------------------------------------------- exclusions
 //
 // Every entry here is a class that LOOKS like prose to a naive scan and is not.
@@ -54,7 +74,13 @@ const EXCLUDE = [
   { name: "css-selector",  re: /^\s*[.#\[][A-Za-z0-9_\-\[\]="'.:# >~+]*$/ },
   { name: "url",           re: /^(https?:|chrome(-extension)?:|data:|blob:|mailto:)/i },
   { name: "css-var",       re: /^var\(--/ },
-  { name: "css-decl",      re: /^[a-z-]+:\s*[a-z0-9(#.]/i },
+  // CASE-SENSITIVE on purpose. CSS property names are lowercase, and the /i
+  // flag this rule shipped with matched ordinary prose that happens to open
+  // with a capitalized word and a colon - it was swallowing the Tips panel's
+  // "Tip: Use LaunchPad's background picker...", a real user-visible sentence,
+  // and would have hidden it from the gate forever. Found by R2's own
+  // arithmetic: the count dropped by 214 where 215 strings had moved.
+  { name: "css-decl",      re: /^[a-z-]+:\s*[a-z0-9(#.]/ },
   { name: "data-attr",     re: /^(data|aria)-[a-z-]+$/i },
   { name: "svg-path",      re: /^[Mm][\s\d.,\-]/ },
   // NOT a blanket single-token rule. "Cancel" and "Delete" are single tokens
@@ -195,6 +221,33 @@ function scan(src, file) {
 // they never have to be retrofitted across 763 values.
 function checkCatalogues() {
   const problems = [];
+
+  // THE INTERNAL CATALOGUE IS CHECKED TOO ([1.5.0] R2). _locales/ holds only the
+  // manifest's two strings; every UI message lives in locales/*.js, and a rule
+  // that governs "catalogue values" but only inspects the smaller of the two
+  // catalogues is a rule with a hole in it. Parsed by regex rather than by
+  // executing the file, because the gate must not need an I18n global.
+  const uiDir = path.join(repoRoot, "locales");
+  if (fs.existsSync(uiDir)) {
+    for (const f of fs.readdirSync(uiDir).filter((n) => n.endsWith(".js"))) {
+      const src = fs.readFileSync(path.join(uiDir, f), "utf8");
+      const entries = [...src.matchAll(/"([A-Za-z0-9_]+)":\s*\{([\s\S]*?)\n\s*\}/g)];
+      if (!entries.length) {
+        problems.push([`locales/${f}`, "no messages parsed - the catalogue shape changed"]);
+        continue;
+      }
+      for (const [, key, body] of entries) {
+        const msg = /"message":\s*("(?:[^"\\]|\\.)*")/.exec(body);
+        if (!msg) { problems.push([`${f}/${key}`, "no message value"]); continue; }
+        let value;
+        try { value = JSON.parse(msg[1]); } catch { problems.push([`${f}/${key}`, "unparseable message"]); continue; }
+        if (/<\s*\/?\s*[a-z]/i.test(value)) problems.push([`${f}/${key}`, "value contains markup"]);
+        if (value.includes("—")) problems.push([`${f}/${key}`, "value contains an em dash"]);
+        if (!/"description":/.test(body)) problems.push([`${f}/${key}`, "missing description"]);
+      }
+    }
+  }
+
   const dir = path.join(repoRoot, "_locales");
   if (!fs.existsSync(dir)) return problems;
   for (const loc of fs.readdirSync(dir)) {
@@ -228,6 +281,68 @@ for (const f of JS_FILES) {
   literals += (src.match(new RegExp(STR, "g")) || []).length;
   sites = sites.concat(scan(src, f));
 }
+// HTML is scanned TAG-AWARE rather than by the JS patterns, because a migrated
+// static string is NOT recognisable from its text.
+//
+// [1.5.0] R2 deliberately LEAVES THE ENGLISH TEXT IN THE MARKUP as the fallback
+// for a page whose JS never runs - that is what makes the byte-identical claim
+// provable. So `<span data-i18n="k">Restore Session</span>` still contains the
+// words, and a text-only scan counts it as hardcoded forever. The first run
+// after R2 showed exactly that: 223 strings moved and the count did not budge.
+//
+// What marks a string as migrated is therefore the data-i18n ATTRIBUTE on its
+// sink, not the absence of the words. A text node is compliant when its
+// CONTAINING element carries data-i18n; a title/placeholder/alt/aria-label is
+// compliant when its own tag carries the matching data-i18n-<attr>.
+const VOID_EL = new Set(["input", "img", "br", "meta", "link", "hr", "source", "area", "base", "col"]);
+const TAG_RE = /<(\/?)([a-zA-Z][-\w]*)((?:"[^"]*"|'[^']*'|[^>"'])*)(\/?)>/g;
+const ATTR_SINK = { title: "data-i18n-title", placeholder: "data-i18n-placeholder",
+                    alt: "data-i18n-alt", "aria-label": "data-i18n-aria-label" };
+
+function scanHtml(src, file) {
+  const out = [];
+  const tags = [...src.matchAll(TAG_RE)];
+  const lineAt = (i) => src.slice(0, i).split("\n").length;
+
+  // --- attributes: the sink and its marker are on the SAME tag
+  for (const m of tags) {
+    if (m[1]) continue;
+    const attrs = m[3];
+    for (const [attr, marker] of Object.entries(ATTR_SINK)) {
+      const am = new RegExp(`(?<![-\\w])${attr}\\s*=\\s*"([^"]*)"`).exec(attrs);
+      if (!am) continue;
+      const value = am[1].trim();
+      if (!isProse(value)) continue;
+      out.push({ file, pattern: attr === "aria-label" ? "html-aria" : "html-attr",
+                 verdict: attrs.includes(marker + "=") ? "compliant" : "violation",
+                 text: value, line: lineAt(m.index) });
+    }
+  }
+
+  // --- text nodes: resolve the CONTAINING element with a depth walk, because
+  // text can follow a closing tag (`<button><svg/></svg>Delete</button>`) and
+  // the previous tag is then the wrong element entirely.
+  for (const tm of src.matchAll(/>([^<>]+)</g)) {
+    const text = tm[1].replace(/\s+/g, " ").trim();
+    if (!isProse(text)) continue;
+    const pos = tm.index + 1;
+    let depth = 0, container = null;
+    for (let i = tags.length - 1; i >= 0; i--) {
+      const t = tags[i];
+      if (t.index + t[0].length > pos) continue;
+      const name = t[2].toLowerCase();
+      if (VOID_EL.has(name) || t[4]) continue;
+      if (t[1]) { depth++; continue; }
+      if (depth === 0) { container = t; break; }
+      depth--;
+    }
+    out.push({ file, pattern: "html-text",
+               verdict: container && container[3].includes("data-i18n=") ? "compliant" : "violation",
+               text, line: lineAt(pos) });
+  }
+  return out;
+}
+
 for (const f of HTML_FILES) {
   const p = path.join(repoRoot, f);
   if (!fs.existsSync(p)) continue;
@@ -235,7 +350,7 @@ for (const f of HTML_FILES) {
     .replace(/<script\b[\s\S]*?<\/script>/gi, "<script></script>")
     .replace(/<style\b[\s\S]*?<\/style>/gi, "<style></style>")
     .replace(/<!--[\s\S]*?-->/g, "");
-  sites = sites.concat(scan(src, f));
+  sites = sites.concat(scanHtml(src, f));
 }
 
 // --- self-test
@@ -269,6 +384,16 @@ console.log("  " + "TOTAL".padEnd(14) + String(sites.length).padStart(6) +
             String(violations.length).padStart(12) +
             String(sites.filter((s) => s.verdict === "compliant").length).padStart(15));
 console.log("");
+// Per-file breakdown behind an env flag. Kept because it is what reconciled
+// R2's "the count must drop by exactly what you moved" check: the totals alone
+// could not say WHICH file still held a violation.
+if (process.env.I18N_DEBUG) {
+  const per = {};
+  for (const s of sites) per[s.file + " " + s.verdict] = (per[s.file + " " + s.verdict] || 0) + 1;
+  console.log("  --- per file/verdict ---");
+  for (const k of Object.keys(per).sort()) console.log("   " + k.padEnd(36) + per[k]);
+  console.log("");
+}
 console.log("  string literals tokenized : " + literals + "  (floor " + LITERAL_FLOOR + ")");
 console.log("  construction sites found  : " + sites.length + "  (floor " + SITE_FLOOR + ")");
 

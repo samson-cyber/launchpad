@@ -136,8 +136,14 @@ function importScriptsRefs(file) {
 //                     the redirect just fails and blocking silently does nothing,
 //                     which is precisely the half-working build this gate exists
 //                     to catch. gate.js/gate.css ride the HTML walk transitively.
+//   privacy-policy.html — shipped via the build.sh allowlist and linked only
+//                     from the store listing and the Settings panel's external
+//                     link, so no manifest field and no page reference names
+//                     it. It has therefore never appeared in this table even
+//                     though it is in every zip. Added [1.5.0] R2.
 const EXTRA_ROOTS = [
   { p: "gate.html", field: "(runtime) Focus blocking intercept -> tabs.update", kind: "page" },
+  { p: "privacy-policy.html", field: "(shipped) build.sh allowlist, linked from the store listing", kind: "page" },
   { p: "offscreen.html", field: "(runtime) chrome.offscreen.createDocument", kind: "page" },
   { p: "sounds/chime1.wav", field: "(runtime) Storage.pomodoroSoundFile", kind: "asset" },
   { p: "sounds/chime2.wav", field: "(runtime) Storage.pomodoroSoundFile", kind: "asset" },

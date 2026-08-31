@@ -184,6 +184,8 @@ powershell.exe -NoProfile -Command "
     'storage.js',
     'tracking.js',
     'i18n.js',
+    'i18n-dom.js',
+    'locales',
     '_locales',
     'offscreen.html',
     'offscreen.js',

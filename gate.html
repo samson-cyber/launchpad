@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Blocked during focus - LaunchPad</title>
+  <title data-i18n="gate_blocked_during_focus_launchpad">Blocked during focus - LaunchPad</title>
   <!-- [1.2.0 R2 / PLAN C5] Own stylesheet, deliberately NOT newtab.css: this is a
        full page, not a frosted panel over a wallpaper, so the has-bg surface model
        does not apply here. extension_pages CSP forbids inline script and style. -->
@@ -11,17 +11,24 @@
 </head>
 <body>
   <main class="gate">
-    <p class="gate-eyebrow">Focus</p>
-    <h1 class="gate-headline"><span id="gate-domain" class="gate-domain"></span> is blocked</h1>
+    <p data-i18n="gate_focus" class="gate-eyebrow">Focus</p>
+    <h1 data-i18n="gate_is_blocked" class="gate-headline"><span id="gate-domain" class="gate-domain"></span> is blocked</h1>
     <p class="gate-context" id="gate-context"></p>
 
     <div class="gate-actions">
-      <button type="button" id="gate-snooze" class="gate-btn">5 more minutes</button>
+      <button data-i18n="gate_5_more_minutes" type="button" id="gate-snooze" class="gate-btn">5 more minutes</button>
       <button type="button" id="gate-end" class="gate-btn gate-btn-quiet"></button>
     </div>
 
     <p class="gate-footnote" id="gate-footnote"></p>
   </main>
+  <!-- [1.5.0] R2. gate.html is a user-visible surface and the face of the
+       blocking feature, so its markup is localized like any other. The three
+       i18n scripts load before gate.js so the static text is resolved before
+       the page fills in the dynamic parts. -->
+  <script src="i18n.js"></script>
+  <script src="locales/en.js"></script>
+  <script src="i18n-dom.js"></script>
   <script src="gate.js"></script>
 </body>
 </html>

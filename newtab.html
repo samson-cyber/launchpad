@@ -2,94 +2,94 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>New Tab</title>
+  <title data-i18n="page_new_tab">New Tab</title>
   <link rel="stylesheet" href="newtab.css">
 </head>
 <body>
   <aside id="sidebar">
     <div id="sidebar-top">
-      <button id="sb-workspace-switcher" class="sb-item sb-workspace-switcher hidden" type="button" title="Workspace">
+      <button data-i18n-title="sidebar_workspace" id="sb-workspace-switcher" class="sb-item sb-workspace-switcher hidden" type="button" title="Workspace">
         <span class="sb-ws-chip" aria-hidden="true"></span>
         <span class="sb-label sb-ws-name"></span>
         <svg class="sb-ws-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
-      <button id="sb-history" class="sb-item" type="button" title="History">
+      <button data-i18n-title="feature_history_name" id="sb-history" class="sb-item" type="button" title="History">
         <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
         </svg>
-        <span class="sb-label">History</span>
+        <span data-i18n="feature_history_name" class="sb-label">History</span>
       </button>
-      <button id="sb-restore" class="sb-item" type="button" title="Restore Session">
+      <button data-i18n-title="feature_restore_session_name" id="sb-restore" class="sb-item" type="button" title="Restore Session">
         <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
         </svg>
-        <span class="sb-label">Restore Session</span>
+        <span data-i18n="feature_restore_session_name" class="sb-label">Restore Session</span>
       </button>
-      <button id="sb-sessions" class="sb-item" type="button" title="Sessions">
+      <button data-i18n-title="feature_sessions_name" id="sb-sessions" class="sb-item" type="button" title="Sessions">
         <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/>
         </svg>
-        <span class="sb-label">Sessions</span>
+        <span data-i18n="feature_sessions_name" class="sb-label">Sessions</span>
       </button>
     </div>
     <div class="sb-separator"></div>
-    <button id="sb-expand-all" class="sb-item sb-expand-all-btn" type="button" title="Expand all groups" aria-label="Expand all groups">
+    <button data-i18n-aria-label="feature_expand_all_name" data-i18n-title="feature_expand_all_name" id="sb-expand-all" class="sb-item sb-expand-all-btn" type="button" title="Expand all groups" aria-label="Expand all groups">
       <span class="sb-expand-all-icon" aria-hidden="true">
         <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>
       </span>
-      <span class="sb-label">Expand all</span>
+      <span data-i18n="sidebar_expand_all" class="sb-label">Expand all</span>
     </button>
     <div id="sb-group-list"></div>
-    <button id="sb-add-group" class="sb-item" type="button" title="Add Group">
+    <button data-i18n-title="feature_add_group_name" id="sb-add-group" class="sb-item" type="button" title="Add Group">
       <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
       </svg>
-      <span class="sb-label">Add Group</span>
+      <span data-i18n="feature_add_group_name" class="sb-label">Add Group</span>
     </button>
     <div class="sb-separator"></div>
     <!-- [1.0.19 D5/D6] Permanent entries. Import must be reachable forever,
          independent of the example content that also offers it on first run. -->
-    <button id="sb-import" class="sb-item" type="button" title="Import">
+    <button data-i18n-title="feature_import_name" id="sb-import" class="sb-item" type="button" title="Import">
       <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
-      <span class="sb-label">Import</span>
+      <span data-i18n="feature_import_name" class="sb-label">Import</span>
     </button>
-    <button id="sb-tips" class="sb-item" type="button" title="Tips">
+    <button data-i18n-title="feature_tips_name" id="sb-tips" class="sb-item" type="button" title="Tips">
       <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>
       </svg>
-      <span class="sb-label">Tips</span>
+      <span data-i18n="feature_tips_name" class="sb-label">Tips</span>
     </button>
     <div id="sidebar-bottom">
       <div class="sb-pro-settings-row">
-        <button id="sb-pro-settings" class="sb-item sb-pro-only hidden" type="button" title="Pro Settings">
+        <button data-i18n-title="feature_pro_settings_name" id="sb-pro-settings" class="sb-item sb-pro-only hidden" type="button" title="Pro Settings">
           <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 2l1.8 5.4L19 9l-4.4 3.2L16 18l-4-3-4 3 1.4-5.8L5 9l5.2-1.6L12 2z"/>
           </svg>
-          <span class="sb-label">Pro Settings</span>
+          <span data-i18n="feature_pro_settings_name" class="sb-label">Pro Settings</span>
         </button>
       </div>
       <div class="sb-settings-row">
-        <button id="sb-settings" class="sb-item" type="button" title="Settings">
+        <button data-i18n-title="feature_settings_name" id="sb-settings" class="sb-item" type="button" title="Settings">
           <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
-          <span class="sb-label">Settings</span>
+          <span data-i18n="feature_settings_name" class="sb-label">Settings</span>
         </button>
       </div>
       <div class="sb-support-row">
-        <a id="sb-rate" class="sb-item" href="https://chromewebstore.google.com/detail/launchpad-new-tab-shortcu/jfmmagapjdionoomkjmkfppcplkjilnp" target="_blank" rel="noopener noreferrer" title="Rate LaunchPad">
+        <a data-i18n-title="feature_rate_name" id="sb-rate" class="sb-item" href="https://chromewebstore.google.com/detail/launchpad-new-tab-shortcu/jfmmagapjdionoomkjmkfppcplkjilnp" target="_blank" rel="noopener noreferrer" title="Rate LaunchPad">
           <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none">
             <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
           </svg>
-          <span class="sb-label">Rate LaunchPad</span>
+          <span data-i18n="feature_rate_name" class="sb-label">Rate LaunchPad</span>
         </a>
       </div>
     </div>
   </aside>
   <div id="sidebar-panel"></div>
-  <button id="sidebar-hamburger" type="button" title="Menu">
+  <button data-i18n-title="page_menu" id="sidebar-hamburger" type="button" title="Menu">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
     </svg>
@@ -104,31 +104,31 @@
           <circle cx="7" cy="7" r="3" fill="#4285F4"/><circle cx="17" cy="7" r="3" fill="#EA4335"/>
           <circle cx="7" cy="17" r="3" fill="#34A853"/><circle cx="17" cy="17" r="3" fill="#FBBC05"/>
         </svg>
-        <span class="brand-text">LaunchPad</span>
+        <span data-i18n="page_launchpad" class="brand-text">LaunchPad</span>
       </div>
-      <nav id="tab-bar" role="tablist" aria-label="LaunchPad sections">
+      <nav data-i18n-aria-label="tabbar_launchpad_sections" id="tab-bar" role="tablist" aria-label="LaunchPad sections">
         <button class="tab active" type="button" role="tab" data-tab="home" aria-selected="true" aria-controls="tab-home">
-          <span class="tab-label">Home</span>
+          <span data-i18n="tabbar_home" class="tab-label">Home</span>
         </button>
         <button class="tab" type="button" role="tab" data-tab="tasks" aria-selected="false" aria-controls="tab-tasks">
-          <span class="tab-label">Tasks</span>
+          <span data-i18n="tabbar_tasks" class="tab-label">Tasks</span>
           <svg class="tab-lock" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
           </svg>
         </button>
         <button class="tab" type="button" role="tab" data-tab="dashboard" aria-selected="false" aria-controls="tab-dashboard">
-          <span class="tab-label">Dashboard</span>
+          <span data-i18n="tabbar_dashboard" class="tab-label">Dashboard</span>
           <svg class="tab-lock" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
           </svg>
         </button>
         <button class="tab" type="button" role="tab" data-tab="insights" aria-selected="false" aria-controls="tab-insights">
-          <span class="tab-label">Insights</span>
+          <span data-i18n="tabbar_insights" class="tab-label">Insights</span>
           <svg class="tab-lock" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
           </svg>
         </button>
-        <button id="tab-cta" class="tab-cta hidden" type="button" aria-label="Upgrade to Pro">
+        <button data-i18n-aria-label="tabbar_upgrade_to_pro" id="tab-cta" class="tab-cta hidden" type="button" aria-label="Upgrade to Pro">
           <span class="tab-cta-label"></span>
         </button>
       </nav>
@@ -141,7 +141,7 @@
           <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
-          <input type="text" id="search-input" placeholder="Search or type a URL" autofocus>
+          <input data-i18n-placeholder="page_search_or_type_a_url" type="text" id="search-input" placeholder="Search or type a URL" autofocus>
         </div>
       </form>
       <div id="shortcut-grid-area">
@@ -169,23 +169,23 @@
   <div id="history-overlay" class="hidden">
     <div id="history-panel">
       <div class="history-panel-header">
-        <h2>History</h2>
-        <button id="history-panel-close" type="button" title="Close">&times;</button>
+        <h2 data-i18n="feature_history_name">History</h2>
+        <button data-i18n-title="common_close" id="history-panel-close" type="button" title="Close">&times;</button>
       </div>
       <div id="history-panel-body">
         <div class="rc-toolbar">
           <button id="rc-filter-btn" type="button">
-            <span id="rc-filter-label">Today</span>
+            <span data-i18n="recent_filter_current_today" id="rc-filter-label">Today</span>
             <svg class="rc-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="6 9 12 15 18 9"/>
             </svg>
           </button>
           <div id="rc-filter-menu" class="hidden">
-            <button class="rc-filter-option" data-filter="today" type="button">Today</button>
-            <button class="rc-filter-option" data-filter="yesterday" type="button">Yesterday</button>
-            <button class="rc-filter-option" data-filter="week" type="button">Last 7 days</button>
-            <button class="rc-filter-option" data-filter="all" type="button">All</button>
-            <button class="rc-filter-option" data-filter="custom" type="button">Custom range...</button>
+            <button data-i18n="recent_filter_option_today" class="rc-filter-option" data-filter="today" type="button">Today</button>
+            <button data-i18n="recent_filter_option_yesterday" class="rc-filter-option" data-filter="yesterday" type="button">Yesterday</button>
+            <button data-i18n="history_last_7_days" class="rc-filter-option" data-filter="week" type="button">Last 7 days</button>
+            <button data-i18n="history_all" class="rc-filter-option" data-filter="all" type="button">All</button>
+            <button data-i18n="history_custom_range" class="rc-filter-option" data-filter="custom" type="button">Custom range...</button>
           </div>
           <div id="rc-date-picker" class="hidden">
             <input type="date" id="rc-date-start">
@@ -196,7 +196,7 @@
             <svg class="rc-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-            <input type="text" id="rc-search-input" placeholder="Search history..." autocomplete="off">
+            <input data-i18n-placeholder="history_search_history" type="text" id="rc-search-input" placeholder="Search history..." autocomplete="off">
           </div>
         </div>
         <div id="recently-closed-list"></div>
@@ -206,34 +206,34 @@
 
   <div id="restore-dropdown" class="hidden">
     <div class="restore-header">
-      <span>Restore Session</span>
+      <span data-i18n="feature_restore_session_name">Restore Session</span>
     </div>
     <div id="restore-date-bar">
       <button id="restore-date-btn" type="button">
-        <span id="restore-date-label">Yesterday</span>
+        <span data-i18n="restore_date_yesterday" id="restore-date-label">Yesterday</span>
         <svg class="restore-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div id="restore-date-menu" class="hidden"></div>
     </div>
     <div id="restore-session-info">
       <span id="restore-tab-count"></span>
-      <button class="restore-all-btn" id="restore-all-btn" type="button">Restore All</button>
+      <button data-i18n="restore_restore_all" class="restore-all-btn" id="restore-all-btn" type="button">Restore All</button>
     </div>
     <div id="restore-tab-list"></div>
-    <div id="restore-empty" class="hidden">No saved sessions yet. Sessions are saved automatically every 5 minutes.</div>
+    <div data-i18n="restore_empty" id="restore-empty" class="hidden">No saved sessions yet. Sessions are saved automatically every 5 minutes.</div>
   </div>
 
   <!-- [1.4.1] Named sessions. Deliberately built on the Restore Session flyout:
        same .restore-header, same fixed left:260px placement, same panel chain. -->
-  <div id="sessions-dropdown" class="hidden" role="dialog" aria-label="Sessions">
+  <div data-i18n-aria-label="feature_sessions_name" id="sessions-dropdown" class="hidden" role="dialog" aria-label="Sessions">
     <div class="restore-header">
-      <span>Sessions</span>
+      <span data-i18n="feature_sessions_name">Sessions</span>
     </div>
     <div id="sessions-actions">
-      <button id="sessions-save-btn" class="restore-all-btn" type="button">Save current tabs</button>
+      <button data-i18n="sessions_save_current_tabs" id="sessions-save-btn" class="restore-all-btn" type="button">Save current tabs</button>
     </div>
     <div id="sessions-list"></div>
-    <div id="sessions-empty" class="hidden">No saved sessions yet. Save the tabs you have open to make one.</div>
+    <div data-i18n="sessions_named_empty" id="sessions-empty" class="hidden">No saved sessions yet. Save the tabs you have open to make one.</div>
   </div>
 
   <!-- [1.0.19 D5] Import — the permanent home for both existing flows. Top
@@ -241,19 +241,19 @@
        deleted its only route. -->
   <div id="import-panel" class="hidden">
     <div class="settings-header">
-      <span>Import</span>
-      <button id="import-close" type="button" title="Close">&times;</button>
+      <span data-i18n="feature_import_name">Import</span>
+      <button data-i18n-title="common_close" id="import-close" type="button" title="Close">&times;</button>
     </div>
     <div class="settings-body">
       <div class="settings-section">
-        <p class="import-intro">Bring your existing links into LaunchPad.</p>
+        <p data-i18n="import_bring_your_existing_links_into" class="import-intro">Bring your existing links into LaunchPad.</p>
         <button id="import-top-sites" class="import-option" type="button">
-          <span class="import-option-title">Most visited sites</span>
-          <span class="import-option-desc">Add your top sites from Chrome</span>
+          <span data-i18n="import_most_visited_sites" class="import-option-title">Most visited sites</span>
+          <span data-i18n="import_add_your_top_sites_from" class="import-option-desc">Add your top sites from Chrome</span>
         </button>
         <button id="import-bookmarks" class="import-option" type="button">
-          <span class="import-option-title">Chrome bookmarks</span>
-          <span class="import-option-desc">Pick folders to import as groups</span>
+          <span data-i18n="import_chrome_bookmarks" class="import-option-title">Chrome bookmarks</span>
+          <span data-i18n="import_pick_folders_to_import_as" class="import-option-desc">Pick folders to import as groups</span>
         </button>
       </div>
     </div>
@@ -263,8 +263,8 @@
        no what's-new engine, no unread badges. -->
   <div id="tips-panel" class="hidden">
     <div class="settings-header">
-      <span>Tips</span>
-      <button id="tips-close" type="button" title="Close">&times;</button>
+      <span data-i18n="feature_tips_name">Tips</span>
+      <button data-i18n-title="common_close" id="tips-close" type="button" title="Close">&times;</button>
     </div>
     <div class="settings-body">
       <!-- [R3] Getting-Started interactive checklist. The six D17 tip rows become
@@ -273,102 +273,102 @@
            via the same data-tip-act attributes. -->
       <div class="settings-section tips-section" id="gs-checklist"></div>
       <div class="settings-section">
-        <button id="tips-restore-examples" class="tips-action" type="button">Restore examples</button>
+        <button data-i18n="tips_restore_examples" id="tips-restore-examples" class="tips-action" type="button">Restore examples</button>
         <p class="tips-restore-note" id="tips-restore-note"></p>
       </div>
       <div class="settings-section">
-        <p class="tips-pro-seed">LaunchPad Pro is on the way. Focus tracking, goals, and more.</p>
+        <p data-i18n="tips_launchpad_pro_is_on_the" class="tips-pro-seed">LaunchPad Pro is on the way. Focus tracking, goals, and more.</p>
       </div>
     </div>
   </div>
 
   <div id="settings-panel" class="hidden">
     <div class="settings-header">
-      <span>Settings</span>
-      <button id="settings-close" type="button" title="Close">&times;</button>
+      <span data-i18n="feature_settings_name">Settings</span>
+      <button data-i18n-title="common_close" id="settings-close" type="button" title="Close">&times;</button>
     </div>
     <div class="settings-body">
       <div class="settings-section">
-        <h3 class="settings-section-title">Appearance</h3>
+        <h3 data-i18n="settings_appearance" class="settings-section-title">Appearance</h3>
         <div class="settings-row">
-          <label class="settings-label">Icon Size</label>
+          <label data-i18n="settings_icon_size" class="settings-label">Icon Size</label>
           <div class="settings-segmented" id="settings-icon-size">
-            <button class="seg-btn" data-value="small" type="button">Small</button>
-            <button class="seg-btn" data-value="medium" type="button">Medium</button>
-            <button class="seg-btn" data-value="large" type="button">Large</button>
+            <button data-i18n="settings_textsize_small" class="seg-btn" data-value="small" type="button">Small</button>
+            <button data-i18n="settings_textsize_medium" class="seg-btn" data-value="medium" type="button">Medium</button>
+            <button data-i18n="settings_textsize_large" class="seg-btn" data-value="large" type="button">Large</button>
           </div>
         </div>
         <div class="settings-row">
-          <label class="settings-label">Text Size</label>
+          <label data-i18n="settings_text_size" class="settings-label">Text Size</label>
           <div class="settings-segmented" id="settings-text-size">
-            <button class="seg-btn" data-value="small" type="button">Small</button>
-            <button class="seg-btn" data-value="medium" type="button">Medium</button>
-            <button class="seg-btn" data-value="large" type="button">Large</button>
+            <button data-i18n="settings_iconsize_small" class="seg-btn" data-value="small" type="button">Small</button>
+            <button data-i18n="settings_iconsize_medium" class="seg-btn" data-value="medium" type="button">Medium</button>
+            <button data-i18n="settings_iconsize_large" class="seg-btn" data-value="large" type="button">Large</button>
           </div>
         </div>
         <div class="settings-row settings-wallpaper-row">
-          <label class="settings-label">Wallpaper</label>
+          <label data-i18n="settings_wallpaper" class="settings-label">Wallpaper</label>
           <div class="settings-wallpaper-controls">
             <div id="settings-wallpaper-thumb" class="settings-wallpaper-thumb"></div>
-            <button id="settings-change-wallpaper" type="button" class="settings-btn">Change</button>
-            <button id="settings-remove-wallpaper" type="button" class="settings-btn settings-btn-danger">Remove</button>
+            <button data-i18n="settings_change" id="settings-change-wallpaper" type="button" class="settings-btn">Change</button>
+            <button data-i18n="common_remove" id="settings-remove-wallpaper" type="button" class="settings-btn settings-btn-danger">Remove</button>
           </div>
         </div>
       </div>
       <div class="settings-section">
-        <h3 class="settings-section-title">Data</h3>
+        <h3 data-i18n="settings_data" class="settings-section-title">Data</h3>
         <div class="settings-row">
-          <button id="settings-import-bookmarks" type="button" class="settings-btn settings-btn-full">Import Chrome Bookmarks</button>
+          <button data-i18n="settings_import_chrome_bookmarks" id="settings-import-bookmarks" type="button" class="settings-btn settings-btn-full">Import Chrome Bookmarks</button>
         </div>
       </div>
       <div class="settings-section">
-        <h3 class="settings-section-title">Backup</h3>
+        <h3 data-i18n="settings_backup" class="settings-section-title">Backup</h3>
         <div class="settings-row">
-          <button id="settings-export-backup" type="button" class="settings-btn settings-btn-full">Export backup</button>
+          <button data-i18n="settings_export_backup" id="settings-export-backup" type="button" class="settings-btn settings-btn-full">Export backup</button>
         </div>
         <div class="settings-row">
-          <button id="settings-import-backup" type="button" class="settings-btn settings-btn-full">Import backup</button>
+          <button data-i18n="settings_import_backup" id="settings-import-backup" type="button" class="settings-btn settings-btn-full">Import backup</button>
         </div>
-        <p class="settings-privacy">Backups include your shortcuts, groups, settings, wallpaper, notes, tasks, licence key, and your tracked focus history. Stored locally on your device only.</p>
+        <p data-i18n="settings_backups_include_your_shortcuts_groups" class="settings-privacy">Backups include your shortcuts, groups, settings, wallpaper, notes, tasks, licence key, and your tracked focus history. Stored locally on your device only.</p>
         <label class="pro-toggle-row" id="auto-backup-row" hidden>
           <input type="checkbox" id="auto-backup-toggle">
-          <span>Automatic weekly backup</span>
+          <span data-i18n="settings_automatic_weekly_backup">Automatic weekly backup</span>
         </label>
         <p class="settings-privacy" id="auto-backup-note" hidden></p>
         <p class="settings-privacy" id="auto-backup-last" hidden></p>
         <input type="file" id="settings-backup-file" accept=".json" class="hidden">
       </div>
       <div class="settings-section settings-about">
-        <h3 class="settings-section-title">About</h3>
+        <h3 data-i18n="settings_about_title" class="settings-section-title">About</h3>
         <p class="settings-version" id="settings-version"></p>
-        <p class="settings-privacy">All data stored locally. No tracking.</p>
+        <p data-i18n="settings_all_data_stored_locally_no" class="settings-privacy">All data stored locally. No tracking.</p>
       </div>
     </div>
   </div>
 
   <div id="pro-settings-panel" class="hidden" role="dialog" aria-labelledby="pro-settings-title" aria-modal="false">
     <div class="settings-header">
-      <span id="pro-settings-title">Pro Settings</span>
-      <button id="pro-settings-close" type="button" title="Close">&times;</button>
+      <span data-i18n="feature_pro_settings_name" id="pro-settings-title">Pro Settings</span>
+      <button data-i18n-title="common_close" id="pro-settings-close" type="button" title="Close">&times;</button>
     </div>
     <div class="settings-body">
       <div class="settings-section">
-        <h3 class="settings-section-title">Subscription</h3>
+        <h3 data-i18n="prosettings_subscription" class="settings-section-title">Subscription</h3>
         <div id="pro-sub-content"></div>
         <div class="settings-row pro-sub-actions">
-          <button class="settings-btn" type="button" disabled title="Available with Pro launch">Cancel subscription</button>
-          <button class="settings-btn" type="button" disabled title="Available with Pro launch">Reactivate</button>
+          <button data-i18n-title="prosettings_unavailable_title" data-i18n="prosettings_cancel_subscription" class="settings-btn" type="button" disabled title="Available with Pro launch">Cancel subscription</button>
+          <button data-i18n-title="prosettings_unavailable_title" data-i18n="prosettings_reactivate" class="settings-btn" type="button" disabled title="Available with Pro launch">Reactivate</button>
         </div>
       </div>
       <div class="settings-section">
-        <h3 class="settings-section-title">License key</h3>
+        <h3 data-i18n="prosettings_license_key" class="settings-section-title">License key</h3>
         <div id="pro-license-current"></div>
         <div class="settings-row pro-license-input-row">
-          <input type="text" id="pro-license-input" placeholder="Enter license key" autocomplete="off" spellcheck="false">
-          <button id="pro-license-apply" type="button" class="settings-btn">Apply</button>
+          <input data-i18n-placeholder="prosettings_enter_license_key" type="text" id="pro-license-input" placeholder="Enter license key" autocomplete="off" spellcheck="false">
+          <button data-i18n="common_apply" id="pro-license-apply" type="button" class="settings-btn">Apply</button>
         </div>
         <div class="settings-row" id="pro-license-check-row">
-          <button id="pro-license-check" type="button" class="settings-btn">Check license status now</button>
+          <button data-i18n="prosettings_check_license_status_now" id="pro-license-check" type="button" class="settings-btn">Check license status now</button>
         </div>
         <!-- The check's outcome renders HERE, directly under its button, and
              persists. It replaces the bottom-of-viewport toast this action used
@@ -377,127 +377,127 @@
              the toast did do for screen readers. -->
         <p id="pro-license-check-status" class="pro-license-check-status hidden" role="status" aria-live="polite"></p>
         <div class="settings-row" id="pro-license-clear-row">
-          <button id="pro-license-clear" type="button" class="settings-btn settings-btn-danger">Clear license</button>
+          <button data-i18n="prosettings_clear_license" id="pro-license-clear" type="button" class="settings-btn settings-btn-danger">Clear license</button>
         </div>
       </div>
       <div class="settings-section pro-tags-section">
-        <h3 class="settings-section-title">Tags</h3>
+        <h3 data-i18n="feature_tags_name" class="settings-section-title">Tags</h3>
         <p class="pro-section-subtitle pro-tags-subtitle"></p>
         <ul id="pro-tags-list" class="pro-tags-list"></ul>
-        <p class="pro-tags-empty hidden">No tags yet. Create your first tag with the + button below, or create a goal &mdash; each goal can auto-create a tag.</p>
+        <p data-i18n="prosettings_no_tags_yet_create_your" class="pro-tags-empty hidden">No tags yet. Create your first tag with the + button below, or create a goal &mdash; each goal can auto-create a tag.</p>
         <div id="pro-tag-create-form" class="pro-tag-create-form hidden">
           <div class="pro-tag-palette" id="pro-tag-create-palette"></div>
-          <input type="text" id="pro-tag-create-name" class="pro-tag-name-input" placeholder="Tag name" maxlength="48" autocomplete="off" spellcheck="false">
-          <button id="pro-tag-create-save" type="button" class="settings-btn" disabled>Save</button>
-          <button id="pro-tag-create-cancel" type="button" class="settings-btn">Cancel</button>
+          <input data-i18n-placeholder="tag_create_name_placeholder" type="text" id="pro-tag-create-name" class="pro-tag-name-input" placeholder="Tag name" maxlength="48" autocomplete="off" spellcheck="false">
+          <button data-i18n="common_save" id="pro-tag-create-save" type="button" class="settings-btn" disabled>Save</button>
+          <button data-i18n="common_cancel" id="pro-tag-create-cancel" type="button" class="settings-btn">Cancel</button>
           <div id="pro-tag-create-error" class="pro-tag-create-error hidden" role="alert"></div>
         </div>
         <div class="settings-row pro-tag-add-row">
-          <button id="pro-tag-new-btn" type="button" class="settings-btn">+ New tag</button>
+          <button data-i18n="prosettings_new_tag" id="pro-tag-new-btn" type="button" class="settings-btn">+ New tag</button>
         </div>
       </div>
       <div class="settings-section">
-        <h3 class="settings-section-title">Workspaces</h3>
-        <p class="pro-section-subtitle">Coming in v1.0.6 &mdash; workspace management</p>
+        <h3 data-i18n="prosettings_workspaces" class="settings-section-title">Workspaces</h3>
+        <p data-i18n="prosettings_coming_in_v1_0_6" class="pro-section-subtitle">Coming in v1.0.6 &mdash; workspace management</p>
         <ul id="pro-workspace-list" class="pro-workspace-list"></ul>
         <div class="settings-row">
-          <button class="settings-btn" type="button" disabled title="Coming in v1.0.6">Add workspace</button>
+          <button data-i18n-title="prosettings_coming_in_v1_0_6_2" data-i18n="prosettings_add_workspace" class="settings-btn" type="button" disabled title="Coming in v1.0.6">Add workspace</button>
         </div>
       </div>
       <div class="settings-section">
-        <h3 class="settings-section-title">Analytics</h3>
-        <p class="pro-section-subtitle">Total your focused time across every workspace on the Dashboard.</p>
+        <h3 data-i18n="prosettings_analytics" class="settings-section-title">Analytics</h3>
+        <p data-i18n="prosettings_total_your_focused_time_across" class="pro-section-subtitle">Total your focused time across every workspace on the Dashboard.</p>
         <label class="pro-toggle-row">
           <input type="checkbox" id="pro-analytics-toggle">
-          <span>Show combined analytics across all workspaces</span>
+          <span data-i18n="prosettings_show_combined_analytics_across_all">Show combined analytics across all workspaces</span>
         </label>
       </div>
       <div class="settings-section">
-        <h3 class="settings-section-title">Notes</h3>
-        <p class="pro-section-subtitle">Paper colour for new notes. Leave unset to cycle the palette.</p>
-        <div class="notes-default-color" id="notes-default-color" role="radiogroup" aria-label="Default paper colour for new notes"></div>
+        <h3 data-i18n="prosettings_notes" class="settings-section-title">Notes</h3>
+        <p data-i18n="prosettings_paper_colour_for_new_notes" class="pro-section-subtitle">Paper colour for new notes. Leave unset to cycle the palette.</p>
+        <div data-i18n-aria-label="prosettings_default_paper_colour_for_new" class="notes-default-color" id="notes-default-color" role="radiogroup" aria-label="Default paper colour for new notes"></div>
       </div>
       <div class="settings-section">
-        <h3 class="settings-section-title">Focus sessions</h3>
-        <p class="pro-section-subtitle">Work and break lengths. Changes apply to your next phase.</p>
+        <h3 data-i18n="prosettings_focus_sessions" class="settings-section-title">Focus sessions</h3>
+        <p data-i18n="prosettings_work_and_break_lengths_changes" class="pro-section-subtitle">Work and break lengths. Changes apply to your next phase.</p>
         <div class="pomo-settings">
           <label class="pomo-setting-row">
-            <span class="pomo-setting-label">Work</span>
+            <span data-i18n="prosettings_work" class="pomo-setting-label">Work</span>
             <span class="pomo-setting-field">
               <input type="number" id="pomo-work-min" class="pomo-setting-input" min="5" max="60" step="1" inputmode="numeric">
-              <span class="pomo-setting-unit">min</span>
+              <span data-i18n="common_unit_minutes" class="pomo-setting-unit">min</span>
             </span>
           </label>
           <label class="pomo-setting-row">
-            <span class="pomo-setting-label">Short break</span>
+            <span data-i18n="prosettings_short_break" class="pomo-setting-label">Short break</span>
             <span class="pomo-setting-field">
               <input type="number" id="pomo-short-break-min" class="pomo-setting-input" min="1" max="30" step="1" inputmode="numeric">
-              <span class="pomo-setting-unit">min</span>
+              <span data-i18n="common_unit_minutes" class="pomo-setting-unit">min</span>
             </span>
           </label>
           <label class="pomo-setting-row">
-            <span class="pomo-setting-label">Long break</span>
+            <span data-i18n="prosettings_long_break" class="pomo-setting-label">Long break</span>
             <span class="pomo-setting-field">
               <input type="number" id="pomo-long-break-min" class="pomo-setting-input" min="5" max="60" step="1" inputmode="numeric">
-              <span class="pomo-setting-unit">min</span>
+              <span data-i18n="common_unit_minutes" class="pomo-setting-unit">min</span>
             </span>
           </label>
           <label class="pomo-setting-row">
-            <span class="pomo-setting-label">Cycles before long break</span>
+            <span data-i18n="prosettings_cycles_before_long_break" class="pomo-setting-label">Cycles before long break</span>
             <span class="pomo-setting-field">
               <input type="number" id="pomo-cycles" class="pomo-setting-input" min="2" max="10" step="1" inputmode="numeric">
             </span>
           </label>
         </div>
         <div class="pomo-reset-row">
-          <button type="button" id="pomo-reset-cycles" class="pomo-reset-btn">Reset cycle count</button>
+          <button data-i18n="prosettings_reset_cycle_count" type="button" id="pomo-reset-cycles" class="pomo-reset-btn">Reset cycle count</button>
           <span class="pomo-reset-hint" id="pomo-reset-hint"></span>
         </div>
         <label class="pro-toggle-row">
           <input type="checkbox" id="pomo-notifications-toggle">
-          <span>Desktop notifications at each phase boundary (fires even with no tab open)</span>
+          <span data-i18n="prosettings_desktop_notifications_at_each_phase">Desktop notifications at each phase boundary (fires even with no tab open)</span>
         </label>
         <p class="pomo-notif-note" id="pomo-notifications-note" hidden></p>
         <div class="pomo-sound">
-          <span class="pomo-sound-title">Sound at each phase boundary</span>
+          <span data-i18n="prosettings_sound_at_each_phase_boundary" class="pomo-sound-title">Sound at each phase boundary</span>
           <div class="pomo-sound-options" id="pomo-sound-options">
             <div class="pomo-sound-row">
-              <label class="pomo-sound-label"><input type="radio" name="pomo-sound" value="none"><span>None</span></label>
+              <label class="pomo-sound-label"><input type="radio" name="pomo-sound" value="none"><span data-i18n="prosettings_none">None</span></label>
             </div>
             <div class="pomo-sound-row">
-              <label class="pomo-sound-label"><input type="radio" name="pomo-sound" value="chime1"><span>Chime 1, soft bell</span></label>
-              <button type="button" class="pomo-sound-preview" data-sound="chime1" title="Preview" aria-label="Preview Chime 1">&#9654;</button>
+              <label class="pomo-sound-label"><input type="radio" name="pomo-sound" value="chime1"><span data-i18n="prosettings_chime_1_soft_bell">Chime 1, soft bell</span></label>
+              <button data-i18n-aria-label="prosettings_preview_chime_1" data-i18n-title="common_preview" type="button" class="pomo-sound-preview" data-sound="chime1" title="Preview" aria-label="Preview Chime 1">&#9654;</button>
             </div>
             <div class="pomo-sound-row">
-              <label class="pomo-sound-label"><input type="radio" name="pomo-sound" value="chime2"><span>Chime 2, rising triad</span></label>
-              <button type="button" class="pomo-sound-preview" data-sound="chime2" title="Preview" aria-label="Preview Chime 2">&#9654;</button>
+              <label class="pomo-sound-label"><input type="radio" name="pomo-sound" value="chime2"><span data-i18n="prosettings_chime_2_rising_triad">Chime 2, rising triad</span></label>
+              <button data-i18n-aria-label="prosettings_preview_chime_2" data-i18n-title="common_preview" type="button" class="pomo-sound-preview" data-sound="chime2" title="Preview" aria-label="Preview Chime 2">&#9654;</button>
             </div>
             <div class="pomo-sound-row">
-              <label class="pomo-sound-label"><input type="radio" name="pomo-sound" value="chime3"><span>Chime 3, warm tone</span></label>
-              <button type="button" class="pomo-sound-preview" data-sound="chime3" title="Preview" aria-label="Preview Chime 3">&#9654;</button>
+              <label class="pomo-sound-label"><input type="radio" name="pomo-sound" value="chime3"><span data-i18n="prosettings_chime_3_warm_tone">Chime 3, warm tone</span></label>
+              <button data-i18n-aria-label="prosettings_preview_chime_3" data-i18n-title="common_preview" type="button" class="pomo-sound-preview" data-sound="chime3" title="Preview" aria-label="Preview Chime 3">&#9654;</button>
             </div>
           </div>
         </div>
       </div>
       <div class="settings-section focus-block-section">
-        <h3 class="settings-section-title">Focus blocking</h3>
-        <p class="pro-section-subtitle">Blocked sites redirect to a gentle gate during focus.</p>
+        <h3 data-i18n="prosettings_focus_blocking" class="settings-section-title">Focus blocking</h3>
+        <p data-i18n="prosettings_blocked_sites_redirect_to_a" class="pro-section-subtitle">Blocked sites redirect to a gentle gate during focus.</p>
         <ul id="focus-block-list" class="focus-block-list"></ul>
-        <p class="focus-block-empty hidden">No blocked sites yet. Add one below &mdash; subdomains are included automatically.</p>
+        <p data-i18n="prosettings_no_blocked_sites_yet_add" class="focus-block-empty hidden">No blocked sites yet. Add one below &mdash; subdomains are included automatically.</p>
         <div class="focus-block-add-row">
-          <input type="text" id="focus-block-input" class="focus-block-input" placeholder="youtube.com" maxlength="255" autocomplete="off" spellcheck="false" aria-label="Site to block">
-          <button id="focus-block-add-btn" type="button" class="settings-btn">Add</button>
+          <input data-i18n-placeholder="prosettings_youtube_com" data-i18n-aria-label="prosettings_site_to_block" type="text" id="focus-block-input" class="focus-block-input" placeholder="youtube.com" maxlength="255" autocomplete="off" spellcheck="false" aria-label="Site to block">
+          <button data-i18n="prosettings_add" id="focus-block-add-btn" type="button" class="settings-btn">Add</button>
         </div>
         <div id="focus-block-error" class="focus-block-error is-quiet" role="alert"></div>
         <label class="pro-toggle-row">
           <input type="checkbox" id="focus-auto-arm-toggle">
-          <span>Block automatically during focus sessions</span>
+          <span data-i18n="prosettings_block_automatically_during_focus_sessions">Block automatically during focus sessions</span>
         </label>
       </div>
       <div class="settings-section settings-about">
-        <h3 class="settings-section-title">About</h3>
+        <h3 data-i18n="prosettings_about_title" class="settings-section-title">About</h3>
         <p class="settings-version" id="pro-settings-version"></p>
-        <p class="settings-privacy"><a id="pro-settings-privacy-link" href="https://samson-cyber.github.io/launchpad/privacy-policy.html" target="_blank" rel="noopener noreferrer">Privacy policy</a></p>
+        <p class="settings-privacy"><a data-i18n="prosettings_privacy_policy" id="pro-settings-privacy-link" href="https://samson-cyber.github.io/launchpad/privacy-policy.html" target="_blank" rel="noopener noreferrer">Privacy policy</a></p>
       </div>
     </div>
   </div>
@@ -505,7 +505,7 @@
   <div id="rc-domain-panel" class="hidden">
     <div class="rc-panel-header">
       <span class="rc-panel-title" id="rc-panel-title"></span>
-      <button id="rc-panel-close" type="button" title="Close">&times;</button>
+      <button data-i18n-title="common_close" id="rc-panel-close" type="button" title="Close">&times;</button>
     </div>
     <div class="rc-panel-list" id="rc-panel-list"></div>
   </div>
@@ -514,103 +514,103 @@
 
   <div id="shortcut-menu" class="hidden">
     <button id="menu-open-default" class="menu-item hidden" type="button">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline data-i18n="page_open_default" points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
       Open default
     </button>
     <button id="menu-manage-variants" class="menu-item hidden" type="button">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect data-i18n="page_manage_variants" x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
       Manage variants
     </button>
     <button id="menu-ungroup" class="menu-item hidden" type="button">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect data-i18n="page_ungroup_all" x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
       Ungroup all
     </button>
     <button id="menu-edit" class="menu-item" type="button">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+        <path data-i18n="page_edit_shortcut" d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
       </svg>
       Edit shortcut
     </button>
     <button id="menu-nest-with" class="menu-item hidden" type="button">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line data-i18n="feature_nest_with_name" x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
       Nest with...
     </button>
     <button id="menu-add-tag" class="menu-item" type="button">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path data-i18n="feature_add_tag_name" d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
       Add tag
     </button>
     <button id="menu-remove" class="menu-item" type="button">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-        <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+        <path d="M10 11v6"/><path data-i18n="common_remove" d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
       </svg>
       Remove
     </button>
   </div>
 
   <div id="variant-ctx-menu" class="hidden">
-    <button class="vctx-item" data-action="rename" type="button">Rename</button>
-    <button class="vctx-item" data-action="changeicon" type="button">Change icon</button>
-    <button class="vctx-item" id="vctx-ungroup" data-action="ungroup" type="button">Ungroup</button>
-    <button class="vctx-item vctx-danger" id="vctx-delete" data-action="delete" type="button">Delete</button>
+    <button data-i18n="common_rename" class="vctx-item" data-action="rename" type="button">Rename</button>
+    <button data-i18n="variantmenu_change_icon" class="vctx-item" data-action="changeicon" type="button">Change icon</button>
+    <button data-i18n="variantmenu_ungroup" class="vctx-item" id="vctx-ungroup" data-action="ungroup" type="button">Ungroup</button>
+    <button data-i18n="common_delete" class="vctx-item vctx-danger" id="vctx-delete" data-action="delete" type="button">Delete</button>
   </div>
 
   <!-- [1.4.1] Session row actions. Reuses .vctx-item so the menu ink, which stays
        dark on every wallpaper tier, comes for free. -->
-  <div id="session-ctx-menu" class="hidden" role="menu" aria-label="Session options">
-    <button class="vctx-item" role="menuitem" data-session-action="rename" type="button">Rename</button>
-    <button class="vctx-item" role="menuitem" data-session-action="update" type="button">Update from current window</button>
-    <button class="vctx-item" id="sctx-attach" role="menuitem" data-session-action="attach" type="button">Attach to task</button>
-    <button class="vctx-item" id="sctx-detach" role="menuitem" data-session-action="detach" type="button">Detach from task</button>
-    <button class="vctx-item vctx-danger" role="menuitem" data-session-action="delete" type="button">Delete</button>
+  <div data-i18n-aria-label="sessionmenu_session_options" id="session-ctx-menu" class="hidden" role="menu" aria-label="Session options">
+    <button data-i18n="common_rename" class="vctx-item" role="menuitem" data-session-action="rename" type="button">Rename</button>
+    <button data-i18n="sessionmenu_update_from_current_window" class="vctx-item" role="menuitem" data-session-action="update" type="button">Update from current window</button>
+    <button data-i18n="sessionmenu_attach_to_task" class="vctx-item" id="sctx-attach" role="menuitem" data-session-action="attach" type="button">Attach to task</button>
+    <button data-i18n="sessionmenu_detach_from_task" class="vctx-item" id="sctx-detach" role="menuitem" data-session-action="detach" type="button">Detach from task</button>
+    <button data-i18n="common_delete" class="vctx-item vctx-danger" role="menuitem" data-session-action="delete" type="button">Delete</button>
   </div>
 
   <div id="variant-icon-dialog" class="hidden">
-    <div class="vid-header">Paste an image URL:</div>
-    <input type="text" id="vid-url-input" class="vid-input" placeholder="https://..." autocomplete="off">
+    <div data-i18n="icondialog_paste_an_image_url" class="vid-header">Paste an image URL:</div>
+    <input data-i18n-placeholder="icondialog_https" type="text" id="vid-url-input" class="vid-input" placeholder="https://..." autocomplete="off">
     <div class="vid-actions">
-      <button id="vid-save" class="vid-btn vid-btn-primary" type="button">Save</button>
-      <button id="vid-reset" class="vid-btn" type="button">Reset to default</button>
+      <button data-i18n="common_save" id="vid-save" class="vid-btn vid-btn-primary" type="button">Save</button>
+      <button data-i18n="icondialog_reset_to_default" id="vid-reset" class="vid-btn" type="button">Reset to default</button>
     </div>
   </div>
 
   <div id="nest-submenu" class="hidden">
-    <div class="nest-submenu-header">Nest with...</div>
+    <div data-i18n="feature_nest_with_name" class="nest-submenu-header">Nest with...</div>
     <div class="nest-submenu-list"></div>
   </div>
 
   <div id="group-menu" class="hidden">
     <button class="gm-option" data-action="openall" type="button">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline data-i18n="page_open_all" points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
       Open All
     </button>
     <button class="gm-option" data-action="rename" type="button">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path data-i18n="common_rename" d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       Rename
     </button>
     <button class="gm-option" data-action="add-tag" type="button">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path data-i18n="feature_add_tag_name" d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
       Add tag
     </button>
     <button class="gm-option gm-danger" data-action="delete" type="button">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path data-i18n="common_delete" d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
       Delete
     </button>
   </div>
 
   <div id="group-delete-overlay" class="hidden">
     <div id="group-delete-dialog">
-      <h3 id="gd-title">Delete group?</h3>
+      <h3 data-i18n="groupdelete_delete_group" id="gd-title">Delete group?</h3>
       <p id="gd-message"></p>
       <div id="gd-move-section" class="hidden">
-        <label for="gd-move-target">Move <span id="gd-move-count"></span> shortcuts to:</label>
+        <label data-i18n="groupdelete_shortcuts_to" data-i18n="groupdelete_move" for="gd-move-target">Move <span id="gd-move-count"></span> shortcuts to:</label>
         <select id="gd-move-target"></select>
-        <button id="gd-move-delete" type="button" class="gd-btn gd-btn-primary">Move &amp; Delete</button>
+        <button data-i18n="groupdelete_move_delete" id="gd-move-delete" type="button" class="gd-btn gd-btn-primary">Move &amp; Delete</button>
       </div>
       <div id="gd-actions">
-        <button id="gd-cancel" type="button" class="gd-btn">Cancel</button>
-        <button id="gd-confirm" type="button" class="gd-btn gd-btn-danger">Delete</button>
+        <button data-i18n="common_cancel" id="gd-cancel" type="button" class="gd-btn">Cancel</button>
+        <button data-i18n="common_delete" id="gd-confirm" type="button" class="gd-btn gd-btn-danger">Delete</button>
       </div>
     </div>
   </div>
@@ -618,30 +618,30 @@
   <div id="modal-overlay" class="hidden">
     <div id="modal">
       <div id="modal-header">
-        <h2 id="modal-title">Add shortcut</h2>
+        <h2 data-i18n="page_add_shortcut" id="modal-title">Add shortcut</h2>
       </div>
       <div id="modal-body">
-        <label for="modal-name">Name</label>
+        <label data-i18n="page_name" for="modal-name">Name</label>
         <input type="text" id="modal-name" autocomplete="off">
-        <label for="modal-url">URL</label>
-        <input type="text" id="modal-url" placeholder="https://" autocomplete="off">
+        <label data-i18n="shortcutmodal_url_label" for="modal-url">URL</label>
+        <input data-i18n-placeholder="page_https" type="text" id="modal-url" placeholder="https://" autocomplete="off">
         <div id="modal-icon-row" class="hidden">
-          <label>Icon</label>
+          <label data-i18n="page_icon">Icon</label>
           <div id="modal-icon-controls">
             <img id="modal-icon-preview" src="assets/placeholder.svg" alt="" width="32" height="32">
-            <button id="modal-icon-upload" type="button" class="modal-icon-btn">Upload custom icon</button>
-            <button id="modal-icon-reset" type="button" class="modal-icon-btn modal-icon-reset hidden">Reset</button>
+            <button data-i18n="page_upload_custom_icon" id="modal-icon-upload" type="button" class="modal-icon-btn">Upload custom icon</button>
+            <button data-i18n="page_reset" id="modal-icon-reset" type="button" class="modal-icon-btn modal-icon-reset hidden">Reset</button>
           </div>
           <input type="file" id="modal-icon-file" accept=".png,.jpg,.jpeg,.ico,.svg" class="hidden">
         </div>
       </div>
       <div id="modal-divider"></div>
       <div id="modal-import-link">
-        <a id="modal-import-bookmarks" href="#">or Import from Chrome Bookmarks</a>
+        <a data-i18n="page_or_import_from_chrome_bookmarks" id="modal-import-bookmarks" href="#">or Import from Chrome Bookmarks</a>
       </div>
       <div id="modal-footer">
-        <button id="modal-cancel" type="button">Cancel</button>
-        <button id="modal-save" type="button">Done</button>
+        <button data-i18n="common_cancel" id="modal-cancel" type="button">Cancel</button>
+        <button data-i18n="common_done" id="modal-save" type="button">Done</button>
       </div>
     </div>
   </div>
@@ -649,18 +649,18 @@
   <div id="bookmark-overlay" class="hidden">
     <div id="bookmark-modal">
       <div id="bookmark-modal-header">
-        <h2>Import Bookmarks</h2>
-        <p>Select folders to import as shortcut groups.</p>
+        <h2 data-i18n="bookmarkmodal_import_bookmarks">Import Bookmarks</h2>
+        <p data-i18n="bookmarkmodal_select_folders_to_import_as">Select folders to import as shortcut groups.</p>
       </div>
       <div id="bookmark-modal-body">
         <div id="bookmark-toolbar">
-          <button id="bookmark-select-all" type="button">Select all / none</button>
+          <button data-i18n="bookmarkmodal_select_all_none" id="bookmark-select-all" type="button">Select all / none</button>
         </div>
         <div id="bookmark-folder-list"></div>
       </div>
       <div id="bookmark-modal-footer">
-        <button id="bookmark-cancel" type="button">Cancel</button>
-        <button id="bookmark-import-btn" type="button">Import</button>
+        <button data-i18n="common_cancel" id="bookmark-cancel" type="button">Cancel</button>
+        <button data-i18n="bookmarkmodal_import_btn" id="bookmark-import-btn" type="button">Import</button>
       </div>
     </div>
   </div>
@@ -668,24 +668,24 @@
   <div id="bg-overlay" class="hidden">
     <div id="bg-modal">
       <div id="bg-modal-header">
-        <h2>Change Background</h2>
+        <h2 data-i18n="bgmodal_change_background">Change Background</h2>
         <div id="bg-tabs">
-          <button class="bg-tab active" data-tab="gallery" type="button">Gallery</button>
-          <button class="bg-tab" data-tab="upload" type="button">Upload</button>
-          <button class="bg-tab" data-tab="url" type="button">URL</button>
+          <button data-i18n="bgmodal_gallery" class="bg-tab active" data-tab="gallery" type="button">Gallery</button>
+          <button data-i18n="bgmodal_upload" class="bg-tab" data-tab="upload" type="button">Upload</button>
+          <button data-i18n="bgmodal_tab_url" class="bg-tab" data-tab="url" type="button">URL</button>
         </div>
       </div>
       <div id="bg-modal-body">
         <div class="bg-tab-content" data-tab="gallery">
-          <h4 class="bg-section-heading">Colors</h4>
+          <h4 data-i18n="bgmodal_colors" class="bg-section-heading">Colors</h4>
           <div id="bg-color-grid"></div>
-          <h4 class="bg-section-heading">Images</h4>
+          <h4 data-i18n="bgmodal_images" class="bg-section-heading">Images</h4>
           <div id="bg-gallery-grid"></div>
         </div>
         <div class="bg-tab-content hidden" data-tab="upload">
           <button id="bg-upload-btn" class="bg-option" type="button">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline data-i18n="bgmodal_upload_image" points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
             Upload image
           </button>
@@ -693,19 +693,19 @@
         </div>
         <div class="bg-tab-content hidden" data-tab="url">
           <div id="bg-url-row">
-            <input type="text" id="bg-url-input" placeholder="Paste image URL..." autocomplete="off">
-            <button id="bg-url-apply" type="button">Apply</button>
+            <input data-i18n-placeholder="bgmodal_paste_image_url" type="text" id="bg-url-input" placeholder="Paste image URL..." autocomplete="off">
+            <button data-i18n="common_apply" id="bg-url-apply" type="button">Apply</button>
           </div>
         </div>
         <div id="bg-error" class="hidden"></div>
       </div>
       <div id="bg-modal-footer">
-        <p class="bg-tip-text">Tip: Use LaunchPad's background picker instead of Chrome's &lsquo;Customize Chrome&rsquo; to keep your shortcuts visible.</p>
+        <p data-i18n="bgmodal_tip_use_launchpad_s_background" class="bg-tip-text">Tip: Use LaunchPad's background picker instead of Chrome's &lsquo;Customize Chrome&rsquo; to keep your shortcuts visible.</p>
         <div class="bg-footer-actions">
-          <button id="bg-remove" type="button">Remove background</button>
+          <button data-i18n="bgmodal_remove_background" id="bg-remove" type="button">Remove background</button>
           <div class="bg-footer-actions-right">
-            <button id="bg-cancel" type="button">Cancel</button>
-            <button id="bg-save" type="button" class="bg-btn-primary">Save</button>
+            <button data-i18n="common_cancel" id="bg-cancel" type="button">Cancel</button>
+            <button data-i18n="common_save" id="bg-save" type="button" class="bg-btn-primary">Save</button>
           </div>
         </div>
       </div>
@@ -714,55 +714,57 @@
 
 
   <div id="rc-tip" class="hidden">
-    <span class="rc-tip-text">&#x1F4A1; Tip: Right-click any webpage and select &lsquo;Add to LaunchPad&rsquo; to quickly save it to any group!</span>
-    <button id="rc-tip-dismiss" type="button">Got it</button>
+    <span data-i18n="page_x1f4a1_tip_right_click_any" class="rc-tip-text">&#x1F4A1; Tip: Right-click any webpage and select &lsquo;Add to LaunchPad&rsquo; to quickly save it to any group!</span>
+    <button data-i18n="page_got_it" id="rc-tip-dismiss" type="button">Got it</button>
   </div>
 
   <div id="open-all-toast"></div>
 
   <div id="nesting-tooltip">
     <span class="nest-tip-text"></span>
-    <button class="nest-tip-dismiss" type="button">Don't show again</button>
+    <button data-i18n="page_don_t_show_again" class="nest-tip-dismiss" type="button">Don't show again</button>
   </div>
   <div id="nest-drop-label" class="nest-drop-label"></div>
-  <div id="ungroup-drop-zone">Drop here to ungroup</div>
+  <div data-i18n="page_drop_here_to_ungroup" id="ungroup-drop-zone">Drop here to ungroup</div>
 
   <div id="sidebar-shortcut-ctx-menu" class="hidden">
-    <div class="sb-ctx-option" data-action="open">Open</div>
-    <div class="sb-ctx-option" data-action="open-new-tab">Open in new tab</div>
+    <div data-i18n="page_open" class="sb-ctx-option" data-action="open">Open</div>
+    <div data-i18n="page_open_in_new_tab" class="sb-ctx-option" data-action="open-new-tab">Open in new tab</div>
     <div class="sb-ctx-separator"></div>
-    <div class="sb-ctx-option" data-action="rename">Rename</div>
-    <div class="sb-ctx-option" data-action="edit-url">Edit URL</div>
-    <div class="sb-ctx-option" data-action="add-tag">Add tag</div>
+    <div data-i18n="common_rename" class="sb-ctx-option" data-action="rename">Rename</div>
+    <div data-i18n="page_edit_url" class="sb-ctx-option" data-action="edit-url">Edit URL</div>
+    <div data-i18n="feature_add_tag_name" class="sb-ctx-option" data-action="add-tag">Add tag</div>
     <div class="sb-ctx-separator"></div>
-    <div class="sb-ctx-option sb-ctx-danger" data-action="delete">Delete</div>
+    <div data-i18n="common_delete" class="sb-ctx-option sb-ctx-danger" data-action="delete">Delete</div>
   </div>
 
   <!-- Tag submenu (shared between #shortcut-menu, #group-menu, #sidebar-shortcut-ctx-menu).
        Populated dynamically per [1.0.9.2] right-click tag attach. -->
   <div id="tag-submenu" class="hidden">
-    <div class="tag-submenu-header">Tags</div>
+    <div data-i18n="feature_tags_name" class="tag-submenu-header">Tags</div>
     <div class="tag-submenu-list"></div>
     <div class="tag-submenu-separator"></div>
     <button class="tag-submenu-create" type="button">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      <span>Create new tag...</span>
+      <span data-i18n="tagmenu_create_new_tag">Create new tag...</span>
     </button>
   </div>
 
   <!-- Inline create-tag form invoked from the tag submenu's "Create new tag..." entry. -->
   <div id="tag-create-popover" class="hidden">
-    <div class="tag-create-title">New tag</div>
+    <div data-i18n="tagpopover_new_tag" class="tag-create-title">New tag</div>
     <div class="tag-create-palette" id="tag-create-popover-palette"></div>
-    <input type="text" id="tag-create-popover-name" class="tag-create-input" placeholder="Tag name" maxlength="48" autocomplete="off" spellcheck="false">
+    <input data-i18n-placeholder="tag_create_name_placeholder" type="text" id="tag-create-popover-name" class="tag-create-input" placeholder="Tag name" maxlength="48" autocomplete="off" spellcheck="false">
     <div id="tag-create-popover-error" class="tag-create-error hidden" role="alert"></div>
     <div class="tag-create-actions">
-      <button id="tag-create-popover-save" type="button" class="tag-create-btn tag-create-btn-primary" disabled>Save</button>
-      <button id="tag-create-popover-cancel" type="button" class="tag-create-btn">Cancel</button>
+      <button data-i18n="common_save" id="tag-create-popover-save" type="button" class="tag-create-btn tag-create-btn-primary" disabled>Save</button>
+      <button data-i18n="common_cancel" id="tag-create-popover-cancel" type="button" class="tag-create-btn">Cancel</button>
     </div>
   </div>
 
   <script src="i18n.js"></script>
+  <script src="locales/en.js"></script>
+  <script src="i18n-dom.js"></script>
   <script src="storage.js"></script>
   <script src="pro-access.js"></script>
   <script src="license.js"></script>
