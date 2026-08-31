@@ -540,6 +540,21 @@ if (broken.length) {
   for (const b of broken) console.log("  ! " + b);
   process.exit(2);
 }
+// SINK MISUSE FAILS UNCONDITIONALLY, not behind ENFORCING.
+//
+// ENFORCING gates "this string has not migrated yet", which is a known, counted
+// backlog. A bare t() spliced into markup is a different thing entirely: it is a
+// DEFECT IN CODE THAT HAS ALREADY BEEN CONVERTED, and it is the silent one. The
+// first mutant run caught this distinction the hard way - the misuse was counted
+// in the total and the gate still exited 0, because it was filed with the
+// backlog instead of with the defects.
+const misuse = sites.filter((s) => s.pattern === "sink-misuse" && s.verdict === "violation");
+if (misuse.length) {
+  console.log("\nI18N SITE GATE: FAIL — " + misuse.length +
+              " bare t() spliced into markup (must be th()).");
+  for (const m of misuse.slice(0, 20)) console.log(`  ${m.file}:${m.line}  ${m.text}`);
+  process.exit(1);
+}
 if (catProblems.length) {
   console.log("\nI18N SITE GATE: FAIL — " + catProblems.length + " catalogue value problem(s).");
   process.exit(1);
