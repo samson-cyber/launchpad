@@ -13844,7 +13844,7 @@
       '<div class="shortcut' + (hasVariants ? ' has-variants' : '') + '" data-id="' + s.id + '">' +
         '<a href="' + esc(s.url) + '" class="shortcut-link" title="' + esc(s.title || s.url) + '">' +
           '<div class="shortcut-icon">' +
-            '<img src="' + favicon + '" alt="" width="24" height="24" loading="lazy" data-url="' + esc(s.url) + '">' +
+            '<img src="' + esc(favicon) + '" alt="" width="24" height="24" loading="lazy" data-url="' + esc(s.url) + '">' +
             badge +
             tagPills +
           "</div>" +
@@ -14210,7 +14210,7 @@
         ' title="' + esc(s.title || s.url) + '">' +
         '<span class="sidebar-shortcut-drag-handle" title="Drag to reorder">\u2807</span>' +
         chevron +
-        '<img src="' + favicon + '" alt="" width="16" height="16">' +
+        '<img src="' + esc(favicon) + '" alt="" width="16" height="16">' +
         '<span class="sidebar-shortcut-name">' + sidebarDisplayName + '</span>' +
         variantBadge +
       '</div>';
@@ -14218,14 +14218,14 @@
         html += '<div class="sidebar-variant-list" data-parent-id="' + s.id + '">';
         // Parent as first sub-item
         html += '<div class="sidebar-variant-item sidebar-shortcut-item" data-variant-url="' + esc(s.url) + '" title="' + esc(s.title || s.url) + '">' +
-          '<img src="' + favicon + '" alt="" width="16" height="16">' +
+          '<img src="' + esc(favicon) + '" alt="" width="16" height="16">' +
           '<span class="sidebar-shortcut-name">' + esc(s.title || getDomain(s.url)) + '</span>' +
         '</div>';
         // Then variants
         s.variants.forEach(function (v) {
           var vFavicon = v.favicon || getFaviconUrl(v);
           html += '<div class="sidebar-variant-item sidebar-shortcut-item" data-variant-url="' + esc(v.url) + '" title="' + esc(v.title || v.url) + '">' +
-            '<img src="' + vFavicon + '" alt="" width="16" height="16">' +
+            '<img src="' + esc(vFavicon) + '" alt="" width="16" height="16">' +
             '<span class="sidebar-shortcut-name">' + esc(v.customLabel || v.title || v.url) + '</span>' +
           '</div>';
         });
@@ -16033,7 +16033,7 @@
       '<div class="rc-item" data-rc-domain="' + esc(group.domain) + '">' +
         '<div class="rc-link">' +
           '<div class="rc-icon">' +
-            '<img src="' + favicon + '" alt="" width="20" height="20" loading="lazy">' +
+            '<img src="' + esc(favicon) + '" alt="" width="20" height="20" loading="lazy">' +
             badge +
           '</div>' +
           '<span class="rc-name">' + esc(group.domain) + '</span>' +
@@ -16050,7 +16050,7 @@
       '<div class="rc-item">' +
         '<a href="' + esc(tab.url) + '" class="rc-link" title="' + esc(title) + '">' +
           '<div class="rc-icon">' +
-            '<img src="' + favicon + '" alt="" width="20" height="20" loading="lazy">' +
+            '<img src="' + esc(favicon) + '" alt="" width="20" height="20" loading="lazy">' +
           '</div>' +
           '<span class="rc-name">' + esc(title) + '</span>' +
         '</a>' +
@@ -16089,7 +16089,7 @@
       var displayTitle = (p.title || group.domain) + countNote;
       return (
         '<a href="' + esc(p.url) + '" class="rc-panel-item" title="' + esc(p.url) + '">' +
-          '<img src="' + favicon + '" alt="" width="16" height="16" loading="lazy">' +
+          '<img src="' + esc(favicon) + '" alt="" width="16" height="16" loading="lazy">' +
           '<span class="rc-panel-item-title">' + esc(displayTitle) + '</span>' +
           (time ? '<span class="rc-panel-item-meta">' + time + '</span>' : '') +
         '</a>'
@@ -18501,10 +18501,24 @@
     return ws.groups.find(function (g) { return g.id === id; });
   }
 
+  // [1.5.1] esc() DELEGATES to escapeHtml. Its previous body built a span,
+  // set textContent and read innerHTML back, which escapes & < > but NOT
+  // quotes - the HTML serializer only needs to escape a quote inside an
+  // ATTRIBUTE value, and a text node has none. That made it correct for the
+  // text sinks it was written for and WRONG for the 31 attribute sinks it had
+  // since been reached for, where a user-supplied value containing a double
+  // quote closes the attribute early and everything after it parses as markup.
+  //
+  // Quotes are escaped UNCONDITIONALLY rather than by adding a second
+  // attribute-only helper, because a second helper is a second thing to
+  // forget - the E7 omission class this codebase has already paid for three
+  // times. It is safe unconditionally because every esc() call site sits
+  // inside a string that is parsed as HTML (swept: no caller assigns the
+  // result to textContent, .value or .href, compares it, or stores it), and
+  // in a TEXT position &quot; and &#39; render as " and ' - byte-identical
+  // for the user. It is also no longer DOM-dependent, which the old body was.
   function esc(str) {
-    var el = document.createElement("span");
-    el.textContent = str || "";
-    return el.innerHTML;
+    return escapeHtml(str);
   }
 
   function getDomain(url) {

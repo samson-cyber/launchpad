@@ -162,10 +162,20 @@ var Bookmarks = (function () {
 
   // ===== Utilities =====
 
+  // [1.5.1] Escapes quotes, matching newtab.js escapeHtml character for
+  // character. The previous body (span + textContent + innerHTML) escaped
+  // & < > but NOT quotes, for the reason explained on esc() in newtab.js.
+  // This file is a separate IIFE with no access to that one, so it carries
+  // the body rather than a dependency: a six-line pure function is cheaper to
+  // duplicate than a load-order coupling between two page scripts.
   function esc(str) {
-    var el = document.createElement("span");
-    el.textContent = str || "";
-    return el.innerHTML;
+    if (str == null) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   function getDomain(url) {
