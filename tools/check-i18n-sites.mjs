@@ -368,22 +368,82 @@ function checkCatalogues() {
         continue;
       }
       for (const [, key, body] of entries) {
+        // A PLURAL entry carries no "message" - it carries a form per CLDR
+        // category. Every form is a value a user reads, so each is checked by
+        // the same rules; checking only "message" would have exempted plurals
+        // from the markup, em-dash and entity rules entirely, which is a hole
+        // that opens the moment the first plural lands (R4 stage 1).
+        const values = [];
         const msg = /"message":\s*("(?:[^"\\]|\\.)*")/.exec(body);
-        if (!msg) { problems.push([`${f}/${key}`, "no message value"]); continue; }
-        let value;
-        try { value = JSON.parse(msg[1]); } catch { problems.push([`${f}/${key}`, "unparseable message"]); continue; }
-        if (/<\s*\/?\s*[a-z]/i.test(value)) problems.push([`${f}/${key}`, "value contains markup"]);
-        if (value.includes("—")) problems.push([`${f}/${key}`, "value contains an em dash"]);
-        // AN HTML ENTITY IN A VALUE IS ALWAYS WRONG, whichever accessor reads it.
-        // th() escapes the ampersand, so "&mdash;" renders as the literal seven
-        // characters; t() writes it into a text node, where it also renders
-        // literally. Either way the user sees the entity. It also hides em
-        // dashes from the rule above, which is how one shipped through R3:
-        // "Verification overdue &mdash; reconnect to keep access."
-        if (/&[a-zA-Z][a-zA-Z0-9]*;|&#\d+;|&#x[0-9a-fA-F]+;/.test(value)) {
-          problems.push([`${f}/${key}`, "value contains an HTML entity; store the character itself"]);
+        // One level of nesting allowed, because a plural FORM contains
+        // "{count}" and a lazy [\s\S]*? stops at that placeholder's brace,
+        // truncating the object to `{"one": "Move {count}` - which parses as
+        // nothing and reads as a broken catalogue rather than a broken regex.
+        const plural = /"plural":\s*(\{(?:[^{}]|\{[^{}]*\})*\})/.exec(body);
+        if (msg) {
+          try { values.push(["message", JSON.parse(msg[1])]); }
+          catch { problems.push([`${f}/${key}`, "unparseable message"]); continue; }
+        } else if (plural) {
+          let forms;
+          try { forms = JSON.parse(plural[1]); }
+          catch { problems.push([`${f}/${key}`, "unparseable plural forms"]); continue; }
+          const names = Object.keys(forms);
+          if (!names.length) { problems.push([`${f}/${key}`, "plural with no forms"]); continue; }
+          // English needs `other`; without it selectPluralForm has nothing to
+          // fall back to and t() returns the KEY at some count nobody tested.
+          if (!names.includes("other")) problems.push([`${f}/${key}`, "plural has no 'other' form"]);
+          for (const n of names) values.push([n, String(forms[n])]);
+        } else {
+          problems.push([`${f}/${key}`, "no message value"]); continue;
+        }
+        for (const [where, value] of values) {
+          const at = values.length > 1 ? `${f}/${key}[${where}]` : `${f}/${key}`;
+          if (/<\s*\/?\s*[a-z]/i.test(value)) problems.push([at, "value contains markup"]);
+          if (value.includes("—")) problems.push([at, "value contains an em dash"]);
+          // AN HTML ENTITY IN A VALUE IS ALWAYS WRONG, whichever accessor reads it.
+          // th() escapes the ampersand, so "&mdash;" renders as the literal seven
+          // characters; t() writes it into a text node, where it also renders
+          // literally. Either way the user sees the entity. It also hides em
+          // dashes from the rule above, which is how one shipped through R3:
+          // "Verification overdue &mdash; reconnect to keep access."
+          if (/&[a-zA-Z][a-zA-Z0-9]*;|&#\d+;|&#x[0-9a-fA-F]+;/.test(value)) {
+            problems.push([at, "value contains an HTML entity; store the character itself"]);
+          }
         }
         if (!/"description":/.test(body)) problems.push([`${f}/${key}`, "missing description"]);
+      }
+    }
+  }
+
+  // E7: TAG_PALETTE is an ENUMERATION and tagColorName() resolves each hex
+  // through TAG_COLOR_KEYS to a message. A ninth colour added to the palette
+  // without a map entry or a message falls back to the HEX CODE, which is the
+  // exact defect R4 fixed - "Color #4A90E2" read aloud to a screen reader.
+  //
+  // Both ends are DERIVED, from storage.js and newtab.js, never restated here:
+  // a check that carries its own copy of the list goes stale against the list
+  // it is checking. (My audit called this palette a set of slugs; it is hex,
+  // and only driving the real swatch said so. Deriving both ends is what stops
+  // the next such assumption from surviving.)
+  {
+    const sSrc = fs.readFileSync(path.join(repoRoot, "storage.js"), "utf8");
+    const nSrc = fs.readFileSync(path.join(repoRoot, "newtab.js"), "utf8");
+    const en = fs.readFileSync(path.join(repoRoot, "locales", "en.js"), "utf8");
+    const m = /var TAG_PALETTE = \[([\s\S]*?)\]/.exec(sSrc);
+    const mapM = /var TAG_COLOR_KEYS = \{([\s\S]*?)\}/.exec(nSrc);
+    if (!m) problems.push(["storage.js", "TAG_PALETTE not found - the E7 colour-key check cannot run"]);
+    else if (!mapM) problems.push(["newtab.js", "TAG_COLOR_KEYS not found - the E7 colour-key check cannot run"]);
+    else {
+      const hexes = [...m[1].matchAll(/"(#[0-9A-Fa-f]{3,8})"/g)].map((x) => x[1].toUpperCase());
+      const map = Object.fromEntries([...mapM[1].matchAll(/"(#[0-9A-Fa-f]{3,8})"\s*:\s*"([a-z0-9_]+)"/g)]
+        .map((x) => [x[1].toUpperCase(), x[2]]));
+      if (!hexes.length) problems.push(["storage.js", "TAG_PALETTE parsed empty"]);
+      for (const hex of hexes) {
+        const key = map[hex];
+        if (!key) { problems.push(["newtab.js", `TAG_PALETTE has ${hex} but TAG_COLOR_KEYS does not map it`]); continue; }
+        if (!new RegExp(`"${key}"\\s*:`).test(en)) {
+          problems.push(["locales/en.js", `TAG_COLOR_KEYS maps ${hex} to "${key}", which has no message`]);
+        }
       }
     }
   }

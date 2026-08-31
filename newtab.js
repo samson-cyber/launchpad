@@ -901,8 +901,8 @@
   function dashGoalsHtml(ws) {
     var entries = Storage.goalProgressList(ws);
     if (!entries.length) {
-      return '<div class="dash-note">No active goals — ' +
-          '<button type="button" class="dash-inline-link" data-dash-action="goto-tasks">' + th("dash_create_one_in_tasks") + '</button>.' +
+      return '<div class="dash-note">' + th("dash_no_active_goals") + ' ' +
+          '<button type="button" class="dash-inline-link" data-dash-action="goto-tasks">' + th("dash_create_one_in_tasks") + '</button>' +
         '</div>';
     }
     var shown = entries.slice(0, DASH_GOALS_MAX);
@@ -1078,7 +1078,7 @@
       var overdue = Storage.utcDay(t.dueAt) < todayUtc;
       return '<div class="dash-due-row">' +
           '<input type="checkbox" class="tt-task-check dash-due-check" data-task-id="' + escapeHtml(t.id) + '" ' +
-            'aria-label="Complete ' + escapeHtml(t.name) + '">' +
+            'aria-label="' + th("dash_due_complete_task_aria", { taskName: t.name }) + '">' +
           '<span class="dash-due-name">' + escapeHtml(t.name) + '</span>' +
           (overdue ? '<span class="dash-meta-due is-overdue">' + th("dash_overdue") + '</span>' : '') +
         '</div>';
@@ -4002,7 +4002,8 @@
     var label = kind === "goal" ? "goal" : "task";
     openTasksConfirmModal({
       title: t("purge_delete_permanently_3"),
-      message: 'Permanently delete the ' + label + ' "' + name + '"? This cannot be undone.',
+      message: kind === "goal" ? t("purge_delete_goal_named", { goalName: name })
+                               : t("purge_delete_task_named", { taskName: name }),
       confirmLabel: t("purge_delete_permanently_4"),
       dangerous: true,
       onConfirm: async function () {
@@ -5833,7 +5834,7 @@
           } else if (action === "delete") {
             await Storage.deleteGoalTemplate(data, templateId);
             refreshTemplatesPanel(ov);
-            showUndoToast('Template "' + tpl.name + '" deleted.', async function () {
+            showUndoToast(t("templates_template_deleted", { templateName: tpl.name }), async function () {
               // Restore = clear deletedAt (no dedicated restore fn; templates
               // have no Deleted-box surface in v1).
               var ws2 = Storage.getActiveWorkspace(data);
@@ -6518,7 +6519,7 @@
       bodyHtml: '<p class="tt-modal-message">This task’s due date (' + escapeHtml(taskDateStr) +
         ') is after ' + escapeHtml(goalName) + ' deadline (' + escapeHtml(goalDateStr) +
         '). Extend the goal deadline to match?</p>',
-      primaryLabel: "Extend goal to " + taskDateStr,
+      primaryLabel: t("goalconflict_extend_goal_to", { date: taskDateStr }),
       defaultFocus: "primary",
       onPrimary: async function () {
         try {
@@ -7450,7 +7451,7 @@
       chip.classList.toggle("is-readonly", !!ws.isReadOnly);
     }
     if (name) name.textContent = ws.name || ws.id;
-    btn.setAttribute("title", "Workspace: " + (ws.name || ws.id));
+    btn.setAttribute("title", t("workspace_switcher_title", { workspaceName: ws.name || ws.id }));
   }
 
   function bindWorkspaceSwitcher() {
@@ -7973,7 +7974,7 @@
 
     panel.classList.remove("hidden");
     var versionEl = $("#pro-settings-version");
-    if (versionEl) versionEl.textContent = "LaunchPad v" + chrome.runtime.getManifest().version;
+    if (versionEl) versionEl.textContent = t("settings_launchpad_version", { version: chrome.runtime.getManifest().version });
     renderProSubscriptionSection();
     renderProLicenseSection();
     renderProTagsSection();
@@ -8147,7 +8148,7 @@
     var key = (data.pro && data.pro.licenseKey) || null;
     if (key) {
       host.classList.remove("pro-license-empty");
-      host.textContent = "Active license: " + key;
+      host.textContent = t("prolicense_active_license", { licenseKey: key });
     } else {
       host.classList.add("pro-license-empty");
       host.textContent = t("pro_no_license_applied");
@@ -8488,8 +8489,8 @@
       remove.type = "button";
       remove.className = "focus-block-remove";
       remove.textContent = "×";
-      remove.title = "Remove " + entry;
-      remove.setAttribute("aria-label", "Remove " + entry);
+      remove.title = t("focusblock_remove_site", { site: entry });
+      remove.setAttribute("aria-label", t("focusblock_remove_site", { site: entry }));
       remove.addEventListener("click", async function () {
         try {
           if (await Storage.removeBlockedDomain(data, entry)) {
@@ -8752,9 +8753,30 @@
   // Carried as a custom property rather than an inline border-color so the hover
   // rule still wins when the pointer is over the swatch: an inline declaration
   // would beat :hover and silently kill that affordance.
+  // The swatch used to say "Color #4A90E2" to a screen reader. Storage.TAG_PALETTE
+  // is eight HEX values and its own source comments already name each one, so
+  // those names become the catalogue values and this map is the single place
+  // the correspondence lives.
+  //
+  // The fallback returns the hex, which is exactly today's behaviour and no
+  // worse - but check-i18n-sites asserts that every TAG_PALETTE entry appears
+  // here AND has a message, so a ninth colour cannot quietly ship as a hex code
+  // (E7). Written as a map rather than derived from the comments because a
+  // comment is not a data structure.
+  var TAG_COLOR_KEYS = {
+    "#4A90E2": "color_blue",   "#7ED321": "color_green",
+    "#F5A623": "color_orange", "#D0021B": "color_red",
+    "#9013FE": "color_purple", "#50E3C2": "color_teal",
+    "#F8E71C": "color_yellow", "#BD10E0": "color_magenta"
+  };
+  function tagColorName(color) {
+    var key = TAG_COLOR_KEYS[String(color).toUpperCase()];
+    return key && I18n.has(key) ? t(key) : String(color);
+  }
+
   function tagPaletteSwatchHTML(color, selected) {
     var cls = "pro-tag-swatch" + (selected ? " selected" : "");
-    return '<button type="button" class="' + cls + '" style="background:' + escapeHtml(color) + ';--swatch-ink:' + tagTextColorFor(color) + '" data-color="' + escapeHtml(color) + '" aria-label="Color ' + escapeHtml(color) + '"></button>';
+    return '<button type="button" class="' + cls + '" style="background:' + escapeHtml(color) + ';--swatch-ink:' + tagTextColorFor(color) + '" data-color="' + escapeHtml(color) + '" aria-label="' + th("tagpalette_choose_color", { colorName: tagColorName(color) }) + '"></button>';
   }
 
   function openTagCreateForm() {
@@ -8986,7 +9008,7 @@
     // Keep the block revealed so the row visibly leaves the trash group and
     // reappears above; collapsing here would look like the tag vanished.
     renderProTagsSection();
-    showToast('Tag "' + res.name + '" restored.');
+    showToast(t("protags_tag_restored", { tagName: res.name }));
   }
 
   async function handleTagDeleteClick(btn, tagId) {
@@ -10240,7 +10262,7 @@
     showSidebarPanel();
 
     panel.classList.remove("hidden");
-    document.getElementById('settings-version').textContent = 'LaunchPad v' + chrome.runtime.getManifest().version;
+    document.getElementById('settings-version').textContent = t("settings_launchpad_version", { version: chrome.runtime.getManifest().version });
     updateSettingsUI();
     // [1.3.0 R2] Re-read on EVERY open, which is how a permission revoked at
     // chrome://extensions since last time gets noticed and said out loud.
@@ -10457,7 +10479,7 @@
     var ts = Storage.getLastBackupAt(data);
     if (last) {
       if (ts) {
-        last.textContent = "Last backed up " + fmtShortDate(ts) + ".";
+        last.textContent = t("settings_last_backed_up", { date: fmtShortDate(ts) });
         last.hidden = false;
       } else {
         last.hidden = true;
@@ -10663,7 +10685,7 @@
         } else if (parsed.status === "corrupt-store") {
           // ALL OR NOTHING. Nothing has been written at this point and nothing
           // will be: a file that is wrong anywhere is not applied anywhere.
-          showToast("This backup is damaged in its " + parsed.store + " section. Nothing was imported.");
+          showToast(t("backup_damaged_section", { section: parsed.store }));
         } else {
           showToast(t("backup_this_backup_file_is_empty_or"));
         }
@@ -12151,8 +12173,8 @@
     var ms = satTaskWindow.taskId && satTaskWindow.ms > 0 ? satTaskWindow.ms : 0;
     if (!ms) return "";
     var txt = fmtDurationHM(ms) + " · last " + satWindowDays() + " days";
-    return '<div class="sat-window" title="Tracked time for this task over the last ' +
-      satWindowDays() + ' days — the engine keeps no more history than that.">' +
+    return '<div class="sat-window" title="' +
+      th("sat_window_tracked_time_title", { days: satWindowDays() }) + '">' +
       escapeHtml(txt) + '</div>';
   }
 
@@ -14001,7 +14023,11 @@
   // switcher is available (folds in the old renderTipsActionability logic).
   var GS_ROWS = [
     { step: "1", act: "add-shortcut", vis: "tip-vis-plus",   text: "Add your first shortcut" },
-    { step: "2", act: null,           vis: "tip-vis-menu",   html: 'Save a page with right-click &mdash; choose <strong>' + th("restore_add_to_launchpad") + '</strong>' },
+    // textKey, not text: GS_ROWS is a MODULE-LEVEL array, so a t() call written
+    // here runs once when newtab.js loads and the result is frozen. English
+    // looks right and a locale switch never updates it. The key is stored and
+    // resolved in the renderer instead, which runs per paint.
+    { step: "2", act: null,           vis: "tip-vis-menu",   textKey: "gettingstarted_save_with_right_click" },
     { step: "3", act: null,           vis: "tip-vis-drag",   inner: "<i></i><i></i>", text: "Nest one tile on another" },
     { step: "4", act: "add-group",    vis: "tip-vis-folder", text: "Create a group" },
     { step: "5", act: "workspaces",   vis: "tip-vis-layers", text: "Switch workspaces" },
@@ -14042,7 +14068,7 @@
         (actionable ? ' type="button" data-tip-act="' + r.act + '" aria-disabled="false"' : ' role="note"') + ">";
       return open +
           '<span class="tip-visual ' + r.vis + '" aria-hidden="true">' + (r.inner || "") + '</span>' +
-          '<span class="tip-text">' + (r.html || escapeHtml(r.text)) + '</span>' +
+          '<span class="tip-text">' + (r.html || (r.textKey ? th(r.textKey) : escapeHtml(r.text))) + '</span>' +
           '<span class="gs-check" aria-hidden="true">' + CHECK_SVG + '</span>' +
         "</" + tag + ">";
     }).join("");
@@ -15568,7 +15594,7 @@
     var total = Storage.getAllNamedSessions(ws).length;
 
     openTasksModal({
-      title: "Assign a session to " + task.name,
+      title: t("sessions_assign_to_task", { taskName: task.name }),
       bodyHtml: total
         ? pickerSearchHtml(total, "Search sessions") +
           '<div class="session-picker" data-picker-list>' + taskSessionPickerRowsHtml(ws, taskId) + '</div>'
@@ -15856,7 +15882,7 @@
     }
 
     var allBtn = $("#restore-all-btn");
-    if (allBtn) allBtn.textContent = "Restore All (" + tabCount + ")";
+    if (allBtn) allBtn.textContent = t("restore_restore_all_count", { count: tabCount });
 
     var tabList = $("#restore-tab-list");
     if (tabList) {
@@ -16750,7 +16776,7 @@
           render();
           var toast = $("#open-all-toast");
           if (toast) {
-            toast.textContent = "Ungrouped \"" + draggedTitle + "\"";
+            toast.textContent = t("group_ungrouped_toast", { shortcutName: draggedTitle });
             toast.classList.add("visible");
             clearTimeout(toast._timer);
             toast._timer = setTimeout(function () { toast.classList.remove("visible"); }, 3000);
@@ -17617,7 +17643,7 @@
     if (modalState.mode === "add") {
       // Check for domain match — offer to nest
       var existingMatch = findDomainMatchInGroup(modalState.groupId, url);
-      if (existingMatch && confirm('A shortcut for "' + (getBaseDomain(url) || url) + '" already exists (' + (existingMatch.title || '') + '). Nest this as a variant?')) {
+      if (existingMatch && confirm(t("addshortcut_domain_exists_nest", { domain: getBaseDomain(url) || url, existingName: existingMatch.title || "" }))) {
         if (!existingMatch.variants) existingMatch.variants = [];
         var variantTitle = name || generateVariantLabel(existingMatch.url, url, name, existingMatch.title);
         existingMatch.variants.push({
@@ -17857,16 +17883,16 @@
     var titleEl = $("#gd-title");
     var msgEl = $("#gd-message");
     var moveSection = $("#gd-move-section");
-    var moveCount = $("#gd-move-count");
+    var moveLabel = $("#gd-move-label");
     var moveTarget = $("#gd-move-target");
     var confirmBtn = $("#gd-confirm");
 
-    titleEl.textContent = 'Delete group "' + group.name + '"?';
+    titleEl.textContent = t("groupdelete_delete_group_named", { groupName: group.name });
 
     var count = group.shortcuts.length;
     if (count > 0) {
       msgEl.textContent = "This group has " + count + " shortcut" + (count !== 1 ? "s" : "") + ". You can move them to another group or delete everything.";
-      moveCount.textContent = count;
+      if (moveLabel) moveLabel.textContent = t("groupdelete_move_shortcuts_to", { count: count });
       // Build dropdown of other groups
       var moveWs = Storage.getActiveWorkspace(data);
       var moveGroups = (moveWs && moveWs.groups) || [];
@@ -17877,7 +17903,7 @@
       moveSection.classList.remove("hidden");
       confirmBtn.textContent = t("delete_delete_all");
     } else {
-      msgEl.textContent = 'Delete empty group "' + group.name + '"?';
+      msgEl.textContent = t("groupdelete_delete_empty_group_named", { groupName: group.name });
       moveSection.classList.add("hidden");
       confirmBtn.textContent = t("common_delete");
     }
@@ -18249,7 +18275,7 @@
 
         var toast = $("#open-all-toast");
         if (toast) {
-          toast.textContent = "Grouped \"" + draggedTitle + "\" under \"" + targetTitle + "\"";
+          toast.textContent = t("group_grouped_under_toast", { shortcutName: draggedTitle, targetName: targetTitle });
           toast.classList.add("visible");
           clearTimeout(toast._timer);
           toast._timer = setTimeout(function () { toast.classList.remove("visible"); }, 3000);
@@ -18380,7 +18406,7 @@
       if (!tip) return;
       var text = tip.querySelector(".nest-tip-text");
       if (text) {
-        text.textContent = "Drag \"" + match.second + "\" onto \"" + match.first + "\" to nest them — they share the same domain!";
+        text.textContent = t("nest_hint_same_domain", { shortcutName: match.second, targetName: match.first });
       }
       tip.classList.add("visible");
 

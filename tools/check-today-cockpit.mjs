@@ -642,7 +642,7 @@ await (async () => {
     check("render: the due list is capped and its overflow is counted out loud",
       /DASH_DUE_MAX/.test(dueBody) && /more due or overdue/.test(dueBody) && /goto-tasks/.test(dueBody), dueBody.slice(0, 80));
     check("render: the empty states say what they mean",
-      /dash_nothing_due_today/.test(dueBody) && /No active goals/.test(goalsBody));  // goals half is still a literal: the sentence is split by a <button>, so it is R4 interpolation work
+      /dash_nothing_due_today/.test(dueBody) && /dash_no_active_goals/.test(goalsBody));  // R4 split the sentence off the <button>; both halves are keys now
     // O2 in the markup, not just the cascade: any cockpit line that carries the
     // Tasks button must use .dash-note (colour-alpha de-emphasis), never
     // .insights-empty (container opacity), or the button ships flattened into a

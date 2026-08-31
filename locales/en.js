@@ -1785,8 +1785,8 @@ I18n.register("en", {
     "description": "Markup label in dashHeadHtml(). Rendered with th()."
   },
   "dash_create_one_in_tasks": {
-    "message": "create one in Tasks",
-    "description": "Markup label in dashGoalsHtml(). Rendered with th()."
+    "message": "Create one in Tasks.",
+    "description": "Inline link under the Dashboard goals empty state. It is a SENTENCE OF ITS OWN as of R4 - it used to be the tail of 'No active goals - create one in Tasks.', so it began lowercase and its full stop sat in the markup after the button."
   },
   "dash_day_streak": {
     "message": "day streak",
@@ -2467,5 +2467,151 @@ I18n.register("en", {
   "workspace_create": {
     "message": "Create",
     "description": "Markup label in buildWorkspaceDropdownBody(). Rendered with th()."
+  }
+});
+
+
+// ====================================================================
+// [1.5.0] R4 stage 1 - interpolated messages, named placeholders
+// ====================================================================
+I18n.register("en", {
+  "addshortcut_domain_exists_nest": {
+    "message": "A shortcut for \"{domain}\" already exists ({existingName}). Nest this as a variant?",
+    "description": "Offer to nest a new shortcut under an existing one. {domain} is a derived base domain; {existingName} is the user's title for the existing shortcut."
+  },
+  "backup_damaged_section": {
+    "message": "This backup is damaged in its {section} section. Nothing was imported.",
+    "description": "Import failure. {section} is a STORAGE KEY NAME such as 'data' or 'sessions' - technical, never translated."
+  },
+  "dash_due_complete_task_aria": {
+    "message": "Complete {taskName}",
+    "description": "Accessible name for the checkbox that completes a due task. {taskName} is the user's task title."
+  },
+  "dash_no_active_goals": {
+    "message": "No active goals.",
+    "description": "Dashboard goals empty state. The 'Create one in Tasks' control follows as a sibling; the sentence used to run into it through an em dash."
+  },
+  "focusblock_remove_site": {
+    "message": "Remove {site}",
+    "description": "Tooltip and accessible name for the control that removes one blocked site. {site} is a domain."
+  },
+  "gettingstarted_save_with_right_click": {
+    "message": "Save a page with right-click. Choose Add to LaunchPad.",
+    "description": "Getting-started step 2. 'Add to LaunchPad' is the context-menu item's own label (restore_add_to_launchpad) and must read identically there."
+  },
+  "goalconflict_extend_goal_to": {
+    "message": "Extend goal to {date}",
+    "description": "Primary action when a task's due date passes its goal deadline. {date} is an already-formatted short date."
+  },
+  "group_grouped_under_toast": {
+    "message": "Grouped \"{shortcutName}\" under \"{targetName}\"",
+    "description": "Toast after nesting. Both values are user-supplied shortcut titles."
+  },
+  "group_ungrouped_toast": {
+    "message": "Ungrouped \"{shortcutName}\"",
+    "description": "Toast after a shortcut is lifted out of a nest. {shortcutName} is the user's shortcut title."
+  },
+  "groupdelete_delete_empty_group_named": {
+    "message": "Delete empty group \"{groupName}\"?",
+    "description": "Message when the group being deleted holds no shortcuts. {groupName} is the user's group name."
+  },
+  "groupdelete_delete_group_named": {
+    "message": "Delete group \"{groupName}\"?",
+    "description": "Title of the delete-group dialog. {groupName} is the user's group name."
+  },
+  "nest_hint_same_domain": {
+    "message": "Drag \"{shortcutName}\" onto \"{targetName}\" to nest them. They share the same domain.",
+    "description": "Hint offering to nest two shortcuts. Both values are user-supplied shortcut titles."
+  },
+  "prolicense_active_license": {
+    "message": "Active license: {licenseKey}",
+    "description": "Shown when a license is active. {licenseKey} is the user's key."
+  },
+  "protags_tag_restored": {
+    "message": "Tag \"{tagName}\" restored.",
+    "description": "Toast after restoring a trashed tag. {tagName} is user-supplied."
+  },
+  "purge_delete_goal_named": {
+    "message": "Permanently delete the goal \"{goalName}\"? This cannot be undone.",
+    "description": "Confirm permanently deleting a GOAL from the Deleted box. See purge_delete_task_named."
+  },
+  "purge_delete_task_named": {
+    "message": "Permanently delete the task \"{taskName}\"? This cannot be undone.",
+    "description": "Confirm permanently deleting a TASK from the Deleted box. Separate from the goal wording on purpose: a translated noun spliced into a sentence inflects with the article and case in most languages."
+  },
+  "restore_restore_all_count": {
+    "message": "Restore All ({count})",
+    "description": "Button that reopens every tab in a saved session. {count} is the tab count. NOT a plural: a parenthesised numeral with no noun to inflect."
+  },
+  "sat_window_tracked_time_title": {
+    "message": "Tracked time for this task over the last {days} days. The engine keeps no more history than that.",
+    "description": "Tooltip on the active-task time window. {days} is the retention window in days (7 or 30)."
+  },
+  "sessions_assign_to_task": {
+    "message": "Assign a session to {taskName}",
+    "description": "Title of the session picker. {taskName} is the user's task title."
+  },
+  "settings_last_backed_up": {
+    "message": "Last backed up {date}.",
+    "description": "{date} is an ALREADY-FORMATTED short date such as '31 Aug'. Do not reformat it."
+  },
+  "settings_launchpad_version": {
+    "message": "LaunchPad v{version}",
+    "description": "Version line in Settings and Pro Settings. {version} is the manifest version string."
+  },
+  "tagpalette_choose_color": {
+    "message": "Choose {colorName}",
+    "description": "Accessible name for one swatch in the tag colour palette. {colorName} is a colour name from the palette. Names the ACTION and the colour; it replaced 'Color butter-yellow', which read a slug aloud."
+  },
+  "templates_template_deleted": {
+    "message": "Template \"{templateName}\" deleted.",
+    "description": "Undo toast after deleting a goal template. {templateName} is user-supplied."
+  },
+  "workspace_switcher_title": {
+    "message": "Workspace: {workspaceName}",
+    "description": "Tooltip on the workspace switcher. {workspaceName} is user-supplied and falls back to the workspace id."
+  },
+  "groupdelete_move_shortcuts_to": {
+    "plural": {"one": "Move {count} shortcut to:", "other": "Move {count} shortcuts to:"},
+    "description": "Label above the group picker when deleting a group that still holds shortcuts. {count} is how many will move. Replaced a sentence split by a <span> value holder."
+  }
+});
+
+
+// ====================================================================
+// [1.5.0] R4 stage 1 - TAG_PALETTE colour names
+// ====================================================================
+I18n.register("en", {
+  "color_blue": {
+    "message": "Blue",
+    "description": "Colour name for the tag palette swatch blue. Used by tagColorName(); the swatch label reads 'Choose <name>' rather than the hex code."
+  },
+  "color_green": {
+    "message": "Green",
+    "description": "Colour name for the tag palette swatch green. Used by tagColorName(); the swatch label reads 'Choose <name>' rather than the hex code."
+  },
+  "color_orange": {
+    "message": "Orange",
+    "description": "Colour name for the tag palette swatch orange. Used by tagColorName(); the swatch label reads 'Choose <name>' rather than the hex code."
+  },
+  "color_red": {
+    "message": "Red",
+    "description": "Colour name for the tag palette swatch red. Used by tagColorName(); the swatch label reads 'Choose <name>' rather than the hex code."
+  },
+  "color_purple": {
+    "message": "Purple",
+    "description": "Colour name for the tag palette swatch purple. Used by tagColorName(); the swatch label reads 'Choose <name>' rather than the hex code."
+  },
+  "color_teal": {
+    "message": "Teal",
+    "description": "Colour name for the tag palette swatch teal. Used by tagColorName(); the swatch label reads 'Choose <name>' rather than the hex code."
+  },
+  "color_yellow": {
+    "message": "Yellow",
+    "description": "Colour name for the tag palette swatch yellow. Used by tagColorName(); the swatch label reads 'Choose <name>' rather than the hex code."
+  },
+  "color_magenta": {
+    "message": "Magenta",
+    "description": "Colour name for the tag palette swatch magenta. Used by tagColorName(); the swatch label reads 'Choose <name>' rather than the hex code."
   }
 });
