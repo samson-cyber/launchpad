@@ -4465,6 +4465,45 @@ var Storage = (function () {
     return sessions.filter(function (s) { return !s.deletedAt; });
   }
 
+  // [1.4.4] PERMANENT removal, the pair the trash view needs. getDeletedNamedSessions
+  // already returns everything the VIEW reads (name, tabs for the count, deletedAt
+  // for the countdown), so no companion reader was needed - but there was no way
+  // to remove a trashed session for good, which is what made the trash a place
+  // things could only ever accumulate.
+  //
+  // PURE MUTATIONS, caller pairs the saveAll, matching the rest of this entity's
+  // family (deleteNamedSession, restoreNamedSession, attach/detach are all pure).
+  // The notes equivalents await internally; consistency within the entity wins,
+  // because a caller reading these four together should not have to remember
+  // which two save themselves.
+
+  /** Remove ONE trashed session for good. Refuses a live one. */
+  function deleteNamedSessionPermanent(data, sessionId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var sessions = ensureNamedSessionsArray(ws);
+    if (!sessions) return false;
+    var idx = sessions.findIndex(function (s) { return s && s.id === sessionId; });
+    if (idx === -1) return false;
+    // A LIVE session is not the trash view's to destroy: deleting one for good
+    // has to go through the trash, so the 5-second Undo and the retention window
+    // both get their turn.
+    if (!sessions[idx].deletedAt) return false;
+    sessions.splice(idx, 1);
+    return true;
+  }
+
+  /** Remove every TRASHED session. Live sessions are untouched. Returns the count. */
+  function emptyNamedSessionsTrash(data, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var sessions = ensureNamedSessionsArray(ws);
+    if (!sessions) return 0;
+    var removed = 0;
+    for (var i = sessions.length - 1; i >= 0; i--) {
+      if (sessions[i] && sessions[i].deletedAt) { sessions.splice(i, 1); removed++; }
+    }
+    return removed;
+  }
+
   function getDeletedNamedSessions(workspace) {
     var sessions = ensureNamedSessionsArray(workspace);
     if (!sessions) return [];
@@ -6567,6 +6606,9 @@ var Storage = (function () {
     restoreNamedSession: restoreNamedSession,
     getAllNamedSessions: getAllNamedSessions,
     getDeletedNamedSessions: getDeletedNamedSessions,
+    // [1.4.4] The trash view's two removals. Pure mutations; caller pairs saveAll.
+    deleteNamedSessionPermanent: deleteNamedSessionPermanent,
+    emptyNamedSessionsTrash: emptyNamedSessionsTrash,
     getNamedSessionById: getNamedSessionById,
     reorderNamedSessions: reorderNamedSessions,
     // [1.4.7] Goal completion releases unfinished children.

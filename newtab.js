@@ -10038,7 +10038,16 @@
     // [1.4.1] The session row menu opens OVER its own flyout. Without this the
     // click that picks Rename or Delete counts as a click outside the flyout,
     // closes it, and the action then runs against a surface that is gone.
-    "#session-ctx-menu"
+    "#session-ctx-menu",
+    // [1.4.4] The tasks-modal overlay, which is what openTasksModal builds and
+    // therefore what the session pickers and the sessions trash view all are.
+    // MEASURED before this was added: with the flyout open, opening a picker
+    // left the flyout up, but the first click INSIDE that modal counted as a
+    // click outside the flyout and closed it, so dismissing the modal returned
+    // the user to nothing. Same registration #session-ctx-menu got at [1.4.1],
+    // for the same reason, on a list that is a hardcoded literal rather than a
+    // registry - so every new spawned surface has to be added by hand.
+    ".tt-modal-overlay"
   ];
   var PANEL_OVERLAY_SELECTOR = PANEL_OVERLAY_SELECTORS.join(",");
 
@@ -14857,6 +14866,26 @@
            '</div>';
   }
 
+  // [1.4.4] The way into the trash, and the ONLY way: a deleted session used to
+  // be reachable for five seconds through the Undo toast and never again. It is
+  // the last row of the list rather than header chrome, so it reads as the end of
+  // the same collection, and it RETURNS "" at zero trashed sessions - no empty
+  // affordance, and no bottom gap either, because an empty string adds no box.
+  function sessionsTrashEntranceHtml(ws) {
+    var trashed = ws ? Storage.getDeletedNamedSessions(ws) : [];
+    if (!trashed.length) return "";
+    var label = trashed.length === 1
+      ? "1 session in trash"
+      : trashed.length + " sessions in trash";
+    return '<button type="button" class="sessions-trash-btn" data-sessions-trash' +
+      ' aria-label="' + esc(label) + '" title="' + esc(label) + '">' +
+        TRASH_SM_SVG +
+        '<span class="sessions-trash-label">Trash</span>' +
+        '<span class="sessions-trash-sep" aria-hidden="true">\u00b7</span>' +
+        '<span class="sessions-trash-count">' + trashed.length + '</span>' +
+      '</button>';
+  }
+
   function renderSessionsList() {
     var list = $("#sessions-list");
     var empty = $("#sessions-empty");
@@ -14870,7 +14899,7 @@
     list.innerHTML = sessions.map(function (s) {
       var t = (showTask && ws && s.taskId) ? Storage.getTaskById(ws, s.taskId) : null;
       return sessionRowHtml(s, t ? t.name : null);
-    }).join("");
+    }).join("") + sessionsTrashEntranceHtml(ws);
     if (empty) empty.classList.toggle("hidden", sessions.length > 0);
   }
 
@@ -15000,6 +15029,168 @@
     Storage.touchNamedSessionLaunched(data, sessionId);
     await Storage.saveAll(data);
     data = await Storage.getAll();
+  }
+
+  // ===== [1.4.4] The sessions trash view =====
+  //
+  // Built on openTasksModal, the same overlay the notes trash view uses, so the
+  // frosted surface, the ink tiers and the Escape/backdrop lifecycle come for
+  // free. Workspace-scoped: getDeletedNamedSessions reads the active workspace.
+  //
+  // THE COUNTDOWN reuses notesDaysRemaining / notesDaysRemainingLabel rather than
+  // recomputing: those already read the lifecycle constant out of storage
+  // (Storage.NOTE_TRASH_TTL_MS), so the retention number is never restated here
+  // and this surface follows the window if it ever changes. The bands come from
+  // trashCountdownClass, the shared helper the Deleted box and the notes trash
+  // both use - two trash surfaces disagreeing about urgency would be a defect.
+
+  function sessionsTrashRowHtml(s) {
+    var count = (s.tabs || []).length;
+    var days = notesDaysRemaining(s.deletedAt);
+    return '<li class="sessions-trash-row" data-trash-session-id="' + esc(s.id) + '">' +
+        '<div class="sessions-trash-main">' +
+          '<span class="sessions-trash-name">' + esc(s.name || "Untitled session") + '</span>' +
+          '<span class="sessions-trash-meta">' + count + (count === 1 ? " tab" : " tabs") +
+            ' <span class="sessions-trash-dot" aria-hidden="true">\u00b7</span> ' +
+            '<span class="sessions-trash-countdown ' + trashCountdownClass(days) + '">' +
+              esc(notesDaysRemainingLabel(s.deletedAt)) +
+            '</span>' +
+          '</span>' +
+        '</div>' +
+        '<div class="sessions-trash-actions">' +
+          '<button type="button" class="sessions-trash-action" data-trash-act="restore">Restore</button>' +
+          '<button type="button" class="sessions-trash-action is-danger" data-trash-act="purge">Delete permanently</button>' +
+        '</div>' +
+      '</li>';
+  }
+
+  function sessionsTrashBodyHtml() {
+    var ws = Storage.getActiveWorkspace(data);
+    var trashed = ws ? Storage.getDeletedNamedSessions(ws) : [];
+    if (!trashed.length) {
+      return '<div class="sessions-trash-empty">Nothing in the trash. Deleted sessions appear here before they are removed for good.</div>';
+    }
+    // Most recently trashed first: the session just deleted is the one most
+    // likely being looked for. Same ordering the notes trash uses.
+    var rows = trashed.slice().sort(function (a, b) {
+      return (b.deletedAt || 0) - (a.deletedAt || 0);
+    }).map(sessionsTrashRowHtml).join("");
+    return '<ul class="sessions-trash-list">' + rows + '</ul>';
+  }
+
+  function refreshSessionsTrashView(overlay) {
+    var body = overlay && overlay.querySelector("[data-sessions-trash-body]");
+    if (body) body.innerHTML = sessionsTrashBodyHtml();
+    renderSessionsList();
+  }
+
+  // Raising a confirm from this view DESTROYS it: openTasksModal is
+  // single-instance. Reopening from inside the callback is immediately undone,
+  // because openTasksModal closes the live modal AFTER the callback resolves on
+  // both the primary and the cancel path. Deferring to a macrotask is the idiom
+  // [1.1.3] established for exactly this, and it is why both outcomes reopen.
+  function reopenSessionsTrashView() {
+    setTimeout(function () { openSessionsTrashView(); }, 0);
+  }
+
+  function confirmPurgeSession(sessionId) {
+    var ws = Storage.getActiveWorkspace(data);
+    // Read from the TRASH reader, not getNamedSessionById. That one resolves
+    // through findLiveNamedSession and so cannot see a soft-deleted session by
+    // construction: every session reachable from this confirm is trashed, so it
+    // returned null every time and the "This session" fallback was not a fallback
+    // at all, it was the only branch that could ever run. Widening the by-id reader
+    // would be the wrong repair - launch, rename and reorder all resolve through it
+    // and must keep refusing trashed sessions. Naming it from the same array the
+    // view renders from also guarantees the confirm says exactly what the row said.
+    var trashed = ws ? Storage.getDeletedNamedSessions(ws) : [];
+    var s = null;
+    for (var i = 0; i < trashed.length; i++) {
+      if (trashed[i] && trashed[i].id === sessionId) { s = trashed[i]; break; }
+    }
+    var name = (s && s.name) ? s.name : "This session";
+    openTasksConfirmModal({
+      title: "Delete permanently?",
+      message: name + " will be removed for good. This cannot be undone.",
+      confirmLabel: "Delete permanently",
+      dangerous: true,
+      onConfirm: async function () {
+        Storage.deleteNamedSessionPermanent(data, sessionId);
+        await Storage.saveAll(data);
+        data = await Storage.getAll();
+        renderSessionsList();
+        reopenSessionsTrashView();
+      },
+      onCancel: function () { reopenSessionsTrashView(); }
+    });
+  }
+
+  function confirmEmptySessionsTrash() {
+    var ws = Storage.getActiveWorkspace(data);
+    var count = ws ? Storage.getDeletedNamedSessions(ws).length : 0;
+    if (!count) return;
+    openTasksConfirmModal({
+      title: "Empty the sessions trash?",
+      message: (count === 1 ? "1 session" : count + " sessions") +
+        " will be removed for good. This cannot be undone.",
+      confirmLabel: "Empty trash",
+      dangerous: true,
+      onConfirm: async function () {
+        Storage.emptyNamedSessionsTrash(data);
+        await Storage.saveAll(data);
+        data = await Storage.getAll();
+        renderSessionsList();
+        reopenSessionsTrashView();
+      },
+      onCancel: function () { reopenSessionsTrashView(); }
+    });
+  }
+
+  function openSessionsTrashView() {
+    openTasksModal({
+      title: "Sessions trash",
+      // [1.4.5] One dismissal, in the primary slot; Empty trash keeps its own
+      // extraButtons slot. The CONFIRMS raised from here keep their Cancel,
+      // because a confirm is a committing modal.
+      primaryLabel: "Done",
+      hideCancel: true,
+      defaultFocus: "primary",
+      bodyHtml: '<div class="sessions-trash-view" data-sessions-trash-body>' +
+          sessionsTrashBodyHtml() +
+        '</div>',
+      extraButtons: [{
+        label: "Empty trash",
+        className: "tt-modal-btn tt-modal-btn-danger sessions-trash-empty-btn",
+        onClick: function () {
+          // Deferred for the same single-instance reason as above: this handler
+          // resolves and the modal machinery runs immediately after it.
+          setTimeout(function () { confirmEmptySessionsTrash(); }, 0);
+          return false;
+        }
+      }],
+      onMounted: function (overlay) {
+        var body = overlay.querySelector("[data-sessions-trash-body]");
+        if (!body) return;
+        body.addEventListener("click", async function (e) {
+          var btn = e.target.closest("[data-trash-act]");
+          if (!btn) return;
+          var row = btn.closest("[data-trash-session-id]");
+          if (!row) return;
+          var id = row.getAttribute("data-trash-session-id");
+          if (btn.getAttribute("data-trash-act") === "restore") {
+            // restoreNamedSession only clears deletedAt, so the session returns
+            // to its ORIGINAL position in the array and therefore in the list.
+            Storage.restoreNamedSession(data, id);
+            await Storage.saveAll(data);
+            data = await Storage.getAll();
+            refreshSessionsTrashView(overlay);
+            showToast("Session restored.");
+            return;
+          }
+          confirmPurgeSession(id);
+        });
+      }
+    });
   }
 
   // ---- row actions -------------------------------------------------------
@@ -16246,6 +16437,15 @@
     });
 
     safeOn("#sessions-list", "click", function (e) {
+      // [1.4.4] Checked FIRST: the entrance is a sibling of the rows inside the
+      // same list, and it is not a .session-row, so the row branches below would
+      // simply miss it. Explicit is cheaper than relying on that.
+      if (e.target.closest("[data-sessions-trash]")) {
+        e.preventDefault();
+        e.stopPropagation();
+        openSessionsTrashView();
+        return;
+      }
       var more = e.target.closest(".session-row-more");
       var row = e.target.closest(".session-row");
       if (!row) return;
@@ -17218,7 +17418,24 @@
         // closeVariantCtxMenu on the line below. That is deliberately NOT the
         // layered behaviour of the outside click, which closes the menu first and
         // leaves the flyout up: Escape is a sweep, an outside click is a peel.
-        closeSessionsDropdown();
+        // [1.4.4] ...but a modal SPAWNED FROM the flyout absorbs the press
+        // instead. The trash view and the attach-to-task picker are both opened
+        // from inside the flyout, and each dismisses on its own Escape handler;
+        // that handler is bound at open time, so it runs AFTER this sweep and
+        // cannot defend itself. Without this guard one press closed the view and
+        // the flyout underneath it, dropping the user to the desktop rather than
+        // back where they were - which is not a sweep of one stack, it is two
+        // unrelated dismissals riding one key.
+        //
+        // This is the Escape half of the rule the outside-click path already
+        // encodes by listing .tt-modal-overlay in PANEL_OVERLAY_SELECTORS: a
+        // spawned overlay is not "outside" the panel that spawned it. Testing for
+        // the element is exact rather than approximate - openTasksModal appends it
+        // and closeTasksModal removes it, so presence IS openness. Scoped to that
+        // one selector on purpose: #bg-overlay and the history overlay have no
+        // Escape handler of their own and are closed by this sweep two lines up,
+        // so a blanket anyPanelOverlayOpen() guard here would strand them.
+        if (!document.querySelector(".tt-modal-overlay")) closeSessionsDropdown();
         closeVariantDropdown(); closeVariantCtxMenu(); closeVariantIconDialog(); closeNestSubmenu();
         closeTagSubmenu(); closeTagCreatePopover();
         var sidebar = $("#sidebar");

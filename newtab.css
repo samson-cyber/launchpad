@@ -5308,6 +5308,157 @@ html.has-bg:not(.bg-light) .vctx-item:focus-visible {
   outline-color: #8ab4f8;
 }
 
+/* ===== [1.4.4] The way into the sessions trash =====
+   Last row of the list, not header chrome, so it reads as the end of the same
+   collection. Rendered only when something is in there, so at zero trash there
+   is no control AND no gap: the builder returns an empty string, which adds no
+   box, and this rule therefore matches nothing. Mirrors .notes-trash-btn, the
+   same affordance one surface over. */
+.sessions-trash-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  color: var(--text-hint);
+  font-family: inherit;
+  font-size: var(--fs-12);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.sessions-trash-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
+}
+
+.sessions-trash-btn:focus-visible {
+  outline: 2px solid var(--sat-accent, #1a73e8);
+  outline-offset: -2px;
+}
+
+.sessions-trash-sep { opacity: 0.6; }
+.sessions-trash-count { font-variant-numeric: tabular-nums; }
+
+/* ===== [1.4.4] The trash view itself, inside the tasks-modal overlay ===== */
+.sessions-trash-view { max-height: 380px; overflow-y: auto; }
+
+.sessions-trash-empty {
+  padding: 18px 4px;
+  font-size: var(--fs-12);
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.sessions-trash-list { list-style: none; margin: 0; padding: 0; }
+
+.sessions-trash-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sessions-trash-row:last-child { border-bottom: none; }
+
+.sessions-trash-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+
+.sessions-trash-name {
+  font-size: var(--fs-13);
+  color: rgba(255, 255, 255, 0.92);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sessions-trash-meta {
+  font-size: var(--fs-11);
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.sessions-trash-dot { opacity: 0.6; }
+
+.sessions-trash-actions { flex: 0 0 auto; display: flex; gap: 6px; }
+
+.sessions-trash-action {
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.85);
+  font-family: inherit;
+  font-size: var(--fs-11);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.sessions-trash-action:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.sessions-trash-action.is-danger:hover {
+  background: rgba(217, 48, 37, 0.22);
+  border-color: rgba(217, 48, 37, 0.5);
+  color: #fff;
+}
+
+.sessions-trash-action:focus-visible {
+  outline: 2px solid var(--sat-accent, #8ab4f8);
+  outline-offset: 1px;
+}
+
+/* The countdown bands are the SHARED tt-trash-days-* classes, already defined
+   for the Deleted box and the notes trash; nothing is redefined here so the
+   three surfaces cannot drift on what urgent looks like. */
+
+/* ---- ink tiers ---- */
+html.has-bg .sessions-trash-btn {
+  border-top-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+html.has-bg .sessions-trash-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+html.has-bg:not(.bg-light) .sessions-trash-btn:focus-visible,
+html.has-bg:not(.bg-light) .sessions-trash-action:focus-visible {
+  outline-color: #8ab4f8;
+}
+
+html.bg-light .sessions-trash-btn {
+  border-top-color: rgba(0, 0, 0, 0.1);
+  color: var(--text-hint);
+}
+
+html.bg-light .sessions-trash-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
+}
+
+html.has-bg.bg-light .sessions-trash-empty { color: var(--text-hint); }
+html.has-bg.bg-light .sessions-trash-name { color: var(--text-primary); }
+html.has-bg.bg-light .sessions-trash-meta { color: var(--text-secondary); }
+html.has-bg.bg-light .sessions-trash-row { border-bottom-color: rgba(0, 0, 0, 0.1); }
+
+html.has-bg.bg-light .sessions-trash-action {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.16);
+  color: var(--text-primary);
+}
+
+html.has-bg.bg-light .sessions-trash-action:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--text-primary);
+}
+
 #sessions-empty {
   padding: 18px 14px;
   font-size: var(--fs-12);
