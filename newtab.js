@@ -3408,6 +3408,17 @@
     return !!(a && a.taskId === task.id && a.workspaceId === (workspace && workspace.id));
   }
 
+  // [1.4.4] ONE menu, two ways in. This opens the same openTaskContextMenu the
+  // right-click opens, at the pill instead of at the pointer; there is no second
+  // parallel menu to keep in step. Mirrors .tt-goal-menu-btn in markup, glyph and
+  // wiring, because it is the same affordance one level down the hierarchy.
+  function taskOptionsPillHtml(task) {
+    return '<button type="button" class="tt-task-options" data-task-id="' + escapeHtml(task.id) +
+      '" aria-label="Task options" title="Task options" aria-haspopup="menu">' +
+      THREE_DOT_SM_SVG +
+    '</button>';
+  }
+
   function taskRowHtml(workspace, task) {
     var checked = task.completed ? " checked" : "";
     var completedCls = task.completed ? " is-completed" : "";
@@ -3511,6 +3522,19 @@
         // measured time shows nothing at all rather than a "0m" that cannot tell
         // "never worked on" from "worked on before the window".
         '<span class="tt-task-time" data-task-time="' + escapeHtml(task.id) + '"></span>' +
+        // [1.4.4] The options pill. It lives INSIDE this cluster and is taken out
+        // of flow (position:absolute, pinned to the cluster\'s right edge), which is
+        // what lets it cost no width: the cluster is flex:1 and its contents pack
+        // left, so a measured row leaves 179px of empty space there even when the
+        // name is long enough to truncate. A flex child here would take its width
+        // from the name on every row, hovered or not; a fifth column in the
+        // controls grid beside it would cost ~30px of name on every row for the
+        // same reason it did in [1.4.2].
+        //
+        // It is rendered on EVERY row, not injected on hover, because a control
+        // that does not exist cannot be tabbed to. Hover and focus reveal the same
+        // element - the .note-trash precedent exactly.
+        taskOptionsPillHtml(task) +
       '</span>' +
       '<div class="tt-task-controls">' +
         '<span class="tt-task-slot tt-slot-priority">' + priorityPillHtml(task) + '</span>' +
@@ -4404,6 +4428,18 @@
         return;
       }
 
+      // [1.4.4] Task-row options pill → the SAME menu right-click opens, anchored
+      // under the pill exactly as .tt-goal-menu-btn anchors the goal menu.
+      var optPill = target.closest && target.closest(".tt-task-options");
+      if (optPill) {
+        e.preventDefault();
+        e.stopPropagation();
+        var optTaskId = optPill.getAttribute("data-task-id");
+        var optRect = optPill.getBoundingClientRect();
+        if (optTaskId) openTaskContextMenu(optRect.right, optRect.bottom + 4, optTaskId);
+        return;
+      }
+
       // [1.0.12] Task-row priority pill → priority popover (set / change / clear).
       var prioPill = target.closest && target.closest(".tt-prio-pill");
       if (prioPill) {
@@ -4974,7 +5010,7 @@
     if (collides && targetGoalId === null) {
       // Case 3 collision — standalone destination DISALLOWS the drop.
       revertSortableDrop(evt);
-      showToast('A standalone task named "' + taskName + '" already exists.');
+      showToast(taskGoalStandaloneCollisionText(taskName));
       return;
     }
 
@@ -4983,7 +5019,7 @@
       var suggested = Storage.generateUniqueTaskName(data, taskName, targetGoalId, taskId);
       openTasksConfirmModal({
         title: "Name conflict",
-        message: 'A task named "' + taskName + '" already exists in this goal. Rename to "' + suggested + '" or cancel?',
+        message: taskGoalCollisionText(taskName, suggested),
         confirmLabel: "Rename and add",
         onConfirm: async function () {
           // Defensive re-check on commit — another tab may have removed
@@ -6177,7 +6213,15 @@
       ctxEntityHeaderHtml("Task", task.name) +
       makeActiveHtml +
       '<button type="button" class="tt-ctx-item" data-action="edit">Edit</button>' +
+      // [1.4.4] Priority OPENS THE SHIPPED CONTROL rather than restating it. The
+      // row flag pill already owns the four levels, the active marker and Clear;
+      // a submenu or an inline copy would be a second list of the same choices,
+      // and the day a fifth level appears only one of them would learn about it.
+      '<button type="button" class="tt-ctx-item" data-action="priority">Priority</button>' +
       '<button type="button" class="tt-ctx-item" data-action="duplicate">Duplicate</button>' +
+      '<button type="button" class="tt-ctx-item" data-action="assign-goal">' +
+        (task.goalId ? "Move to another goal" : "Assign to a goal") +
+      '</button>' +
       sessionItemsHtml +
       '<button type="button" class="tt-ctx-item" data-action="toggle-complete">' + escapeHtml(completeLabel) + '</button>' +
       '<div class="tt-ctx-separator"></div>' +
@@ -6207,6 +6251,18 @@
         // clicking the name directly (startTaskNameEdit).
         var span = panel && panel.querySelector('.tt-task-row[data-task-id="' + taskId + '"] .tt-task-name');
         if (span && span.tagName === "SPAN") startTaskNameEdit(span, taskId);
+      } else if (action === "priority") {
+        // Anchored to the row\'s OWN flag pill, which is always rendered and still in
+        // the DOM after this menu closes, so the popover lands in exactly the same
+        // place it does when the pill is clicked directly. The menu item cannot be
+        // the anchor: closeGoalContextMenu has already detached it by now.
+        var pPanel = document.getElementById("tab-tasks");
+        var pPill = pPanel && pPanel.querySelector('.tt-task-row[data-task-id="' + taskId + '"] .tt-prio-pill');
+        var pWs = Storage.getActiveWorkspace(data);
+        var pTask = pWs && Storage.getTaskById(pWs, taskId);
+        if (pPill && pTask) openPriorityPillPopover(pPill, taskId, pTask.priority || null);
+      } else if (action === "assign-goal") {
+        openTaskGoalPicker(taskId);
       } else if (action === "attach-session") {
         openTaskSessionPicker(taskId);
       } else if (action === "detach-session") {
@@ -14914,6 +14970,144 @@
   // capture-phase scroll bug in its history (N1). Reusing it would mean
   // parameterising all of that; the modal family is what the plan named and what
   // the promote-to-task flow already uses.
+
+  // ===== [1.4.4] Assign a task to a goal, from the task menu =====
+  //
+  // Moving a task between goals ALREADY EXISTS: cross-goal drag, handled by
+  // handleTaskDrop over Storage.reassignTaskToGoal, with hasTaskNameCollision
+  // and generateUniqueTaskName deciding what happens on a name clash. This is
+  // the same operation reached from the menu, so it reuses those primitives and
+  // honours the SAME two rules rather than inventing softer ones:
+  //
+  //   target is a GOAL and the name collides  -> offer the unique name, or cancel
+  //   target is STANDALONE and it collides    -> refuse outright, say so, write nothing
+  //
+  // The copy for both lives in these two functions, which the drag path now
+  // calls too. Two call sites phrasing the same refusal differently is how the
+  // rules quietly stop being one rule.
+
+  function taskGoalStandaloneCollisionText(name) {
+    return 'A standalone task named "' + name + '" already exists.';
+  }
+
+  function taskGoalCollisionText(name, suggested) {
+    return 'A task named "' + name + '" already exists in this goal. Rename to "' +
+      suggested + '" or cancel?';
+  }
+
+  // The menu path. No DOM revert anywhere in here, unlike the drag path: nothing
+  // has moved on screen yet, so a refusal simply writes nothing.
+  async function commitTaskGoalAssign(taskId, targetGoalId) {
+    var ws = Storage.getActiveWorkspace(data);
+    var task = ws && Storage.getTaskById(ws, taskId);
+    if (!task) return;
+    if ((task.goalId || null) === targetGoalId) { closeTasksModal(); return; }
+
+    var taskName = task.name;
+    var collides = Storage.hasTaskNameCollision(data, taskName, targetGoalId, taskId);
+
+    if (collides && targetGoalId === null) {
+      closeTasksModal();
+      showToast(taskGoalStandaloneCollisionText(taskName));
+      return;
+    }
+
+    var applyMove = async function (opts) {
+      try {
+        await Storage.reassignTaskToGoal(data, taskId, targetGoalId, opts || {});
+        data = await Storage.getAll();
+        eagerRenderTasks();
+        var gname = targetGoalId
+          ? (Storage.getGoalById(Storage.getActiveWorkspace(data), targetGoalId) || {}).name
+          : null;
+        showToast(gname ? (taskName + " moved to " + gname + ".")
+                        : (taskName + " is now a standalone task."));
+      } catch (err) {
+        console.error("[LaunchPad] Tasks: menu reassign failed", err);
+      }
+    };
+
+    if (collides) {
+      var suggested = Storage.generateUniqueTaskName(data, taskName, targetGoalId, taskId);
+      // Single-instance modal: the picker must go before the confirm replaces it.
+      closeTasksModal();
+      setTimeout(function () {
+        openTasksConfirmModal({
+          title: "Name conflict",
+          message: taskGoalCollisionText(taskName, suggested),
+          confirmLabel: "Rename and move",
+          onConfirm: async function () {
+            // Re-checked at commit time, exactly as the drag path does: another
+            // tab may have removed the clashing task while the modal sat open.
+            var live = Storage.hasTaskNameCollision(data, taskName, targetGoalId, taskId);
+            var opts = {};
+            if (live) opts.newName = Storage.generateUniqueTaskName(data, taskName, targetGoalId, taskId);
+            await applyMove(opts);
+          },
+          onCancel: function () { setTimeout(function () { openTaskGoalPicker(taskId); }, 0); }
+        });
+      }, 0);
+      return;
+    }
+
+    closeTasksModal();
+    await applyMove(null);
+  }
+
+  function taskGoalPickerRowsHtml(ws, task) {
+    var goals = pickerFilterBy(Storage.getAllGoals(ws).filter(function (g) { return !g.completed; }),
+                               function (g) { return g.name; });
+    var current = task.goalId || null;
+    var rows = "";
+    // Standalone is offered as a real row rather than a "clear" button: it is a
+    // destination like any other, and the drag surface treats it as one too.
+    // It is filtered by the same query so the list cannot claim to be filtered
+    // while quietly keeping a row that does not match.
+    if (!pickerFilter.trim() || "no goal standalone".indexOf(pickerFilter.trim().toLowerCase()) !== -1) {
+      rows += '<button type="button" class="session-picker-row' + (current === null ? " is-current" : "") +
+        '" data-picker-goal="">' +
+        '<span class="session-picker-name">No goal (standalone)</span>' +
+        (current === null ? '<span class="session-picker-note">current</span>' : "") +
+      '</button>';
+    }
+    rows += goals.map(function (g) {
+      var isCurrent = g.id === current;
+      return '<button type="button" class="session-picker-row' + (isCurrent ? " is-current" : "") +
+        '" data-picker-goal="' + escapeHtml(g.id) + '">' +
+        '<span class="session-picker-name">' + escapeHtml(g.name) + '</span>' +
+        (isCurrent ? '<span class="session-picker-note">current</span>' : "") +
+      '</button>';
+    }).join("");
+    if (!rows) return pickerEmptyHtml("No goals match that.");
+    return rows;
+  }
+
+  function openTaskGoalPicker(taskId) {
+    var ws = Storage.getActiveWorkspace(data);
+    var task = ws ? Storage.getTaskById(ws, taskId) : null;
+    if (!ws || !task) return;
+    pickerFilter = "";
+    // +1 for the standalone row, which is a destination and counts toward the
+    // length that decides whether this list needs a search.
+    var total = Storage.getAllGoals(ws).filter(function (g) { return !g.completed; }).length + 1;
+
+    openTasksModal({
+      title: "Move " + task.name + " to",
+      bodyHtml: pickerSearchHtml(total, "Search goals") +
+        '<div class="session-picker" data-picker-list>' + taskGoalPickerRowsHtml(ws, task) + '</div>',
+      primaryLabel: "Cancel",
+      onPrimary: function () {},
+      onMounted: function (modalEl) {
+        wirePicker(modalEl, "data-picker-goal",
+          function () {
+            var w = Storage.getActiveWorkspace(data);
+            var t = w ? Storage.getTaskById(w, taskId) : null;
+            return t ? taskGoalPickerRowsHtml(w, t) : "";
+          },
+          function (goalId) { commitTaskGoalAssign(taskId, goalId || null); });
+      }
+    });
+  }
 
   // ===== [1.4.3] Picker search =====
   //

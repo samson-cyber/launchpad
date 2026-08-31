@@ -10653,6 +10653,85 @@ body.sat-card-open .tab-panel {
   display: flex;
   align-items: center;
   gap: 8px;
+  /* [1.4.4] Positioning context for the options pill, which is pinned to this
+     cluster's right edge and out of flow. position:relative changes no geometry
+     of its own; every child here is still laid out exactly as before. */
+  position: relative;
+}
+
+/* ===== [1.4.4] The task options pill =====
+
+   THE FAMILY. Same glyph, same 4x6 padding, same 4px radius, same 0.15s
+   opacity/background transition as .tt-goal-menu-btn, because it is the goal
+   kebab one level down the hierarchy. It differs in exactly one way: the goal
+   kebab sits at 0.6 opacity at rest, this one at 0. A goal card has one kebab;
+   a list has one per row, and a column of permanently visible dots down the
+   right of every task is noise the goal header never had.
+
+   WHY OUT OF FLOW. It costs no width at all. .tt-task-main is flex:1 and its
+   contents pack left, so on a measured 1042px row there is 179px of empty space
+   at its right edge even when the name is long enough to truncate; an in-flow
+   child would instead take its width from the name on every row, hovered or
+   not. The background is opaque enough to read cleanly in the one case where a
+   name does run the full width and the revealed pill sits over its tail.
+
+   REVEALED BY HOVER *AND* FOCUS. Hover-only would make every entry in this menu
+   unreachable without a mouse, and the pill is now the discoverable route to
+   priority, goal assignment and session attachment. Three selectors, the
+   .note-trash precedent: row hover, the pill's own focus ring, and focus
+   anywhere in the row. pointer-events is lifted with the opacity so an invisible
+   button never eats a click meant for the row. */
+.tt-task-options {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 4px;
+  background: rgba(30, 30, 30, 0.75);
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+
+.tt-task-row:hover .tt-task-options,
+.tt-task-row:focus-within .tt-task-options,
+.tt-task-options:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tt-task-options:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.tt-task-options:focus-visible {
+  outline: 2px solid var(--sat-accent, #8ab4f8);
+  outline-offset: 1px;
+}
+
+/* A completed row keeps the pill (Reactivate and Delete still apply), but the
+   drag handle is the precedent for staying out of the way mid-drag. */
+.tt-task-row.sortable-chosen .tt-task-options,
+.tt-task-row.sortable-drag .tt-task-options {
+  opacity: 0;
+}
+
+html.has-bg.bg-light .tt-task-options {
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--text-secondary);
+}
+
+html.has-bg.bg-light .tt-task-options:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--text-primary);
 }
 
 /* The chip itself. Quiet by design — it is reference, not a control, and it must
