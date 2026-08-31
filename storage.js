@@ -1176,10 +1176,15 @@ var Storage = (function () {
         var focusSeeded = ensureFocusBlockingState(existing);
         var notesSeeded = ensureNotesArrays(existing);
         var sessionsSeeded = ensureNamedSessionsArrays(existing);
-        // [1.4.7] Runs at most once per profile; the marker rides the same write.
+        // [1.4.7] Runs at most once per profile. The write is needed only on the
+        // run that actually sweeps - the one that finds the marker absent and
+        // has to persist it. Testing the marker AFTER the call would be true on
+        // every subsequent read and would make a warm blob write forever, which
+        // is precisely what the BG QUEUE gate's warm-fixture assertion catches.
+        var strandedUnswept = existing[STRANDED_SWEEP_MARKER] !== true;
         var strandedReleased = sweepStrandedTasks(existing);
         if (patched || trackingSeeded || focusSeeded || notesSeeded || sessionsSeeded ||
-            strandedReleased > 0 || existing[STRANDED_SWEEP_MARKER] === true) {
+            strandedUnswept) {
           await chrome.storage.local.set({ data: existing });
           if (patched) console.log("[LaunchPad] Backfilled missing deletedAt fields");
           if (trackingSeeded) console.log("[LaunchPad] Seeded per-workspace tracking state (default ON)");
