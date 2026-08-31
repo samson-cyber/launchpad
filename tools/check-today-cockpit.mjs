@@ -94,7 +94,17 @@ function boot(src) {
     "escapeHtml", "fmtShortDate", "dashboardSuggestionTier", "dashboardCompareSuggestions",
     "dashboardPickSuggestion", "dashboardDueLabel", "dashHeadHtml", "dashDueListHtml",
   ];
+  // [1.5.0] R3. The extracted builders now call th()/t(), which newtab.js binds
+  // inside its IIFE and this sandbox therefore does not have. Resolve them
+  // against the REAL catalogue rather than stubbing them to the key, so every
+  // assertion below still reads the actual rendered English - a stub returning
+  // the key would turn every copy assertion into a tautology about key names.
+  const i18nSrc = fs.readFileSync(path.join(repoRoot, "i18n.js"), "utf8");
+  const enSrc = fs.readFileSync(path.join(repoRoot, "locales", "en.js"), "utf8");
+  vm.runInContext(i18nSrc + "\n" + enSrc, ctx, { filename: "i18n" });
   vm.runInContext(
+    "function t(k, p) { return I18n.t(k, p); }\n" +
+    "function th(k, p) { return I18n.th(k, p); }\n" +
     PAGE_DECLS.map((n) => extractDecl(src.nt, n)).join("\n") + "\n" +
       PAGE_FNS.map((n) => extractFn(src.nt, n)).join("\n"),
     ctx, { filename: "newtab.js#head" });
@@ -612,7 +622,7 @@ await (async () => {
   check("render: goals and streak are the SECONDARY column", /dash-col-secondary[\s\S]*dashGoalsHtml/.test(render) && /dash-col-secondary[\s\S]*streakCard|streakCard[\s\S]*dash-col-secondary/.test(render));
   check("render: quick-add sits at the due-today module's foot", render.indexOf("dashDueListHtml") < render.indexOf("dashQuickAddHtml"));
   check("render: the suggestion block is the due module's HEAD, not a card of its own",
-    render.indexOf("dashHeadHtml") < render.indexOf("Due today") && !/class="dash-card"/.test(SRC.nt));
+    render.indexOf("dashHeadHtml") < render.indexOf("dashboard_due_today") && !/class="dash-card"/.test(SRC.nt));
   check("render: the streak and focused tile suppress on the SAME scope",
     /if \(scope\) dashRefreshStreak/.test(render) && /var streakCard = scope\s*$/m.test(render));
   check("render: the strip's blocked tile reads focusStats, and 0 renders as 0",
@@ -632,7 +642,7 @@ await (async () => {
     check("render: the due list is capped and its overflow is counted out loud",
       /DASH_DUE_MAX/.test(dueBody) && /more due or overdue/.test(dueBody) && /goto-tasks/.test(dueBody), dueBody.slice(0, 80));
     check("render: the empty states say what they mean",
-      /Nothing due today\./.test(dueBody) && /No active goals/.test(goalsBody));
+      /dash_nothing_due_today/.test(dueBody) && /No active goals/.test(goalsBody));  // goals half is still a literal: the sentence is split by a <button>, so it is R4 interpolation work
     // O2 in the markup, not just the cascade: any cockpit line that carries the
     // Tasks button must use .dash-note (colour-alpha de-emphasis), never
     // .insights-empty (container opacity), or the button ships flattened into a

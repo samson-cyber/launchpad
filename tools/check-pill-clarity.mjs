@@ -45,6 +45,27 @@ try {
   process.exit(2);
 }
 
+// [1.5.0] R3. Copy that used to sit in the markup as words now sits in the
+// catalogue behind t()/th(), so a SOURCE SLICE reads `title="' + th("k") + '"'.
+// resolveCopy() puts the words back by resolving through the REAL catalogue,
+// which keeps the copy traps below asserting what the user READS. Repointing
+// them at key names instead would make them tautologies about naming.
+const CATALOGUE = (() => {
+  const c = { console: { log() {}, warn() {}, error() {} } };
+  c.self = c; c.globalThis = c; c.window = c;
+  vm.createContext(c);
+  vm.runInContext(rd("i18n.js") + "\n" + rd("locales/en.js"), c, { filename: "i18n" });
+  if (!c.I18n || typeof c.I18n.t !== "function") throw new Error("catalogue did not load");
+  return c.I18n;
+})();
+// A call spliced BETWEEN two literals is replaced together with the `' + … + '`
+// that joins it, so the fragment reads as one continuous string the way it does
+// once rendered; a bare call is replaced on its own.
+const resolveCopy = (s) => String(s)
+  .replace(/'\s*\+\s*th?\("([A-Za-z0-9_]+)"\)\s*\+\s*'/g, (m, k) => (CATALOGUE.has(k) ? CATALOGUE.t(k) : m))
+  .replace(/"\s*\+\s*th?\("([A-Za-z0-9_]+)"\)\s*\+\s*"/g, (m, k) => (CATALOGUE.has(k) ? CATALOGUE.t(k) : m))
+  .replace(/\bth?\("([A-Za-z0-9_]+)"\)/g, (m, k) => (CATALOGUE.has(k) ? CATALOGUE.t(k) : m));
+
 function extractFn(src, name) {
   const anchor = `\n  function ${name}(`;
   const first = src.indexOf(anchor);
@@ -134,12 +155,20 @@ function boot(src) {
   ctx.self = ctx; ctx.globalThis = ctx; ctx.window = ctx;
   vm.createContext(ctx);
   vm.runInContext(src.storage, ctx, { filename: "storage.js" });
+  // [1.5.0] R3. The extracted builders now call t()/th(), which newtab.js binds
+  // inside its IIFE and this sandbox therefore does not have. Resolve them
+  // against the REAL catalogue rather than stubbing them to the key, so every
+  // copy assertion below still reads the actual rendered English — a stub that
+  // returned the key would turn each one into a tautology about key names.
+  vm.runInContext(rd("i18n.js") + "\n" + rd("locales/en.js"), ctx, { filename: "i18n" });
   // The renderers under test, from newtab.js itself. `data`, `satReadout`,
   // `satTaskWindow` and `Tracking` are the page globals they close over; the
   // suite drives them directly, which is the whole point — the indicator's
   // claim is a function of the readout, and that is what gets varied.
   vm.runInContext(
     [
+      "function t(k, p) { return I18n.t(k, p); }",
+      "function th(k, p) { return I18n.th(k, p); }",
       extractDecl(src.nt, "SAT_LIVE_TITLE"),
       extractDecl(src.nt, "SAT_ACTIVE_TITLE"),
       extractDecl(src.nt, "SAT_ALL_WORKSPACES"),
@@ -242,8 +271,8 @@ await (async () => {
     const end = ACTIONS.indexOf("</button>", i);
     return start === -1 || end === -1 ? "" : ACTIONS.slice(start, end + 9);
   };
-  const completeBtn = btn("complete");
-  const cancelBtn = btn("cancel");
+  const completeBtn = resolveCopy(btn("complete"));
+  const cancelBtn = resolveCopy(btn("cancel"));
 
   check("trap: the action row still carries all four controls",
     ["complete", "cancel", "pause", "switch"].every((a) => ACTIONS.includes(`data-sat-act="${a}"`)) ||
@@ -294,7 +323,7 @@ await (async () => {
     check("trap: the glyph-only control carries BOTH a title and an aria-label",
       /title="[^"]+"/.test(sw) && /aria-label="[^"]+"/.test(sw), sw.slice(0, 160));
     check("trap: Pause keeps its word (it is the loud recovery control when paused)",
-      /▶ Resume<\/button>/.test(CARD) && /⏸ Pause<\/button>/.test(CARD));
+      /▶ Resume<\/button>/.test(resolveCopy(CARD)) && /⏸ Pause<\/button>/.test(resolveCopy(CARD)));
   }
 
   // ================= 2. LIVENESS: the claim follows the engine ==============
