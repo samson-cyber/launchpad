@@ -5172,6 +5172,18 @@
       return '<button type="button" class="' + cls + ' tt-modal-extra" data-extra-index="' + i + '">' + escapeHtml(b.label || "") + '</button>';
     }).join("");
     var footerCls = "tt-modal-footer" + (extraButtons.length ? " tt-modal-footer-wrap" : "");
+    // [1.4.5] A modal with NO commit action has nothing to cancel, and rendering
+    // Cancel beside a dismissing primary gives it two buttons that do the same
+    // thing. The pickers hit the worst version of that: selection is by row
+    // click, so their primary was itself labelled "Cancel" and the footer read
+    // Cancel | Cancel, one of them styled as the affirmative action.
+    //
+    // Defaults to false, so every existing caller renders byte-for-byte the same
+    // footer. Hiding the BUTTON never removes a way out: the X, the overlay click
+    // and Escape all route through doCancel independently of it.
+    var hideCancel = opts.hideCancel === true;
+    var cancelHtml = hideCancel ? "" :
+      '<button type="button" class="tt-modal-btn tt-modal-cancel">Cancel</button>';
     overlay.innerHTML =
       '<div class="tt-modal" role="dialog" aria-modal="true">' +
         '<header class="tt-modal-header">' +
@@ -5180,7 +5192,7 @@
         '</header>' +
         '<div class="tt-modal-body">' + (opts.bodyHtml || "") + '</div>' +
         '<footer class="' + footerCls + '">' +
-          '<button type="button" class="tt-modal-btn tt-modal-cancel">Cancel</button>' +
+          cancelHtml +
           extraButtonsHtml +
           '<button type="button" class="' + primaryClass + '">' + escapeHtml(primaryLabel) + '</button>' +
         '</footer>' +
@@ -5197,7 +5209,8 @@
       if (e.target === overlay) doCancel();
     });
     overlay.querySelector(".tt-modal-close").addEventListener("click", doCancel);
-    overlay.querySelector(".tt-modal-cancel").addEventListener("click", doCancel);
+    var cancelBtn = overlay.querySelector(".tt-modal-cancel");
+    if (cancelBtn) cancelBtn.addEventListener("click", doCancel);
 
     var primaryBtn = overlay.querySelector(".tt-modal-primary");
     primaryBtn.addEventListener("click", async function () {
@@ -5232,7 +5245,9 @@
 
     var focusTarget = null;
     if (opts.defaultFocus === "cancel") {
-      focusTarget = overlay.querySelector(".tt-modal-cancel");
+      // Falls back to the primary when Cancel is not rendered, rather than
+      // focusing nothing and leaving the keyboard user outside the dialog.
+      focusTarget = overlay.querySelector(".tt-modal-cancel") || primaryBtn;
     } else if (opts.defaultFocus === "primary") {
       focusTarget = primaryBtn;
     } else {
@@ -15092,10 +15107,16 @@
     var total = Storage.getAllGoals(ws).filter(function (g) { return !g.completed; }).length + 1;
 
     openTasksModal({
-      title: "Move " + task.name + " to",
+      // [1.4.5] The title now agrees with the menu entry that opened it: that
+      // entry reads "Assign to a goal" on a standalone task and "Move to another
+      // goal" on a grouped one, and a dialog that renames the verb between the
+      // click and the panel reads as a different feature than the one asked for.
+      title: task.goalId ? ("Move " + task.name + " to another goal")
+                         : ("Assign " + task.name + " to a goal"),
       bodyHtml: pickerSearchHtml(total, "Search goals") +
         '<div class="session-picker" data-picker-list>' + taskGoalPickerRowsHtml(ws, task) + '</div>',
-      primaryLabel: "Cancel",
+      primaryLabel: "Close",
+      hideCancel: true,
       onPrimary: function () {},
       onMounted: function (modalEl) {
         wirePicker(modalEl, "data-picker-goal",
@@ -15261,7 +15282,8 @@
         ? pickerSearchHtml(total, "Search sessions") +
           '<div class="session-picker" data-picker-list>' + taskSessionPickerRowsHtml(ws, taskId) + '</div>'
         : '<p class="tt-modal-message">There are no saved sessions in this workspace yet.</p>',
-      primaryLabel: "Cancel",
+      primaryLabel: "Close",
+      hideCancel: true,
       onPrimary: function () {},
       onMounted: function (modalEl) {
         wirePicker(modalEl, "data-picker-session",
@@ -15286,7 +15308,12 @@
     openTasksModal({
       title: "Attach " + (session.name || "session") + " to a task",
       bodyHtml: attachPickerBodyHtml(ws, session.taskId),
-      primaryLabel: "Cancel",
+      // [1.4.5] ONE dismiss, in the primary slot, following the family: a modal
+      // that commits nothing labels that slot for what it does (the templates
+      // panel says Close, the notes trash says Done). Choosing a row IS the
+      // commit here, so there is no second action to offer.
+      primaryLabel: "Close",
+      hideCancel: true,
       onPrimary: function () {},
       onMounted: function (modalEl) {
         wirePicker(modalEl, "data-picker-task",
