@@ -56,7 +56,7 @@ I18n.register("en", {
     "sense": "tab.name"
   },
   "bgmodal_tip_use_launchpad_s_background": {
-    "message": "Tip: Use LaunchPad's background picker instead of Chrome's &lsquo;Customize Chrome&rsquo; to keep your shortcuts visible.",
+    "message": "Tip: Use LaunchPad's background picker instead of Chrome's ‘Customize Chrome’ to keep your shortcuts visible.",
     "description": "Text on the bgmodal surface."
   },
   "bgmodal_upload": {
@@ -224,7 +224,7 @@ I18n.register("en", {
     "description": "Text on the groupdelete surface."
   },
   "groupdelete_move_delete": {
-    "message": "Move &amp; Delete",
+    "message": "Move & Delete",
     "description": "Text on the groupdelete surface."
   },
   "groupdelete_shortcuts_to": {
@@ -359,16 +359,16 @@ I18n.register("en", {
     "message": "Search or type a URL",
     "description": "placeholder attribute on the page surface."
   },
+  "page_tip_right_click_any_webpage": {
+    "message": "💡 Tip: Right-click any webpage and select ‘Add to LaunchPad’ to quickly save it to any group!",
+    "description": "Text on the page surface."
+  },
   "page_ungroup_all": {
     "message": "Ungroup all",
     "description": "Text on the page surface."
   },
   "page_upload_custom_icon": {
     "message": "Upload custom icon",
-    "description": "Text on the page surface."
-  },
-  "page_x1f4a1_tip_right_click_any": {
-    "message": "&#x1F4A1; Tip: Right-click any webpage and select &lsquo;Add to LaunchPad&rsquo; to quickly save it to any group!",
     "description": "Text on the page surface."
   },
   "prosettings_about_title": {
@@ -420,7 +420,7 @@ I18n.register("en", {
     "description": "Text on the prosettings surface."
   },
   "prosettings_coming_in_v1_0_6": {
-    "message": "Coming in v1.0.6 &mdash; workspace management",
+    "message": "Coming in v1.0.6: workspace management",
     "description": "Text on the prosettings surface."
   },
   "prosettings_coming_in_v1_0_6_2": {
@@ -464,11 +464,11 @@ I18n.register("en", {
     "description": "Text on the prosettings surface."
   },
   "prosettings_no_blocked_sites_yet_add": {
-    "message": "No blocked sites yet. Add one below &mdash; subdomains are included automatically.",
+    "message": "No blocked sites yet. Add one below. Subdomains are included automatically.",
     "description": "Text on the prosettings surface."
   },
   "prosettings_no_tags_yet_create_your": {
-    "message": "No tags yet. Create your first tag with the + button below, or create a goal &mdash; each goal can auto-create a tag.",
+    "message": "No tags yet. Create your first tag with the + button below, or create a goal. Each goal can auto-create a tag.",
     "description": "Text on the prosettings surface."
   },
   "prosettings_none": {
