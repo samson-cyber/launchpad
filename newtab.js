@@ -6148,10 +6148,36 @@
           console.error("[LaunchPad] Tasks: saveGoalAsTemplate failed", err);
         }
       } else if (action === "complete") {
-        await Storage.completeGoal(data, goalId);
-        if (panel) renderTasksTab(panel, data);
-        celebrateGoalCompletion(goalId);   // [1.0.24 item 3] immediate, in place
-        renderInsightsPanelEager();         // [1.0.22 D10] Goal Crusher may have unlocked
+        // [1.4.7] Completing a goal now RELEASES its unfinished tasks to
+        // Standalone (storage does it in the same write). That is a visible
+        // move of the user's own work, so it is said out loud first - and only
+        // when there is something to say. A goal whose tasks are all finished
+        // completes exactly as it always did, with no interruption.
+        var stranded = Storage.getUnfinishedTasksInGoal(workspace, goalId);
+        var finishGoal = async function () {
+          await Storage.completeGoal(data, goalId);
+          if (panel) renderTasksTab(panel, data);
+          celebrateGoalCompletion(goalId);   // [1.0.24 item 3] immediate, in place
+          renderInsightsPanelEager();         // [1.0.22 D10] Goal Crusher may have unlocked
+          if (stranded.length) {
+            showToast(stranded.length === 1
+              ? "1 unfinished task moved to Standalone."
+              : stranded.length + " unfinished tasks moved to Standalone.");
+          }
+        };
+        if (!stranded.length) {
+          await finishGoal();
+          return;
+        }
+        openTasksConfirmModal({
+          title: "Complete this goal?",
+          message: '"' + goal.name + '" still has ' + stranded.length +
+            (stranded.length === 1
+              ? " unfinished task. Completing the goal moves it to Standalone so it stays visible."
+              : " unfinished tasks. Completing the goal moves them to Standalone so they stay visible."),
+          confirmLabel: "Complete goal",
+          onConfirm: finishGoal
+        });
       } else if (action === "delete") {
         var children = (workspace.tasks || []).filter(function (t) {
           return t.goalId === goalId && !t.deletedAt;

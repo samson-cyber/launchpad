@@ -1176,13 +1176,20 @@ var Storage = (function () {
         var focusSeeded = ensureFocusBlockingState(existing);
         var notesSeeded = ensureNotesArrays(existing);
         var sessionsSeeded = ensureNamedSessionsArrays(existing);
-        if (patched || trackingSeeded || focusSeeded || notesSeeded || sessionsSeeded) {
+        // [1.4.7] Runs at most once per profile; the marker rides the same write.
+        var strandedReleased = sweepStrandedTasks(existing);
+        if (patched || trackingSeeded || focusSeeded || notesSeeded || sessionsSeeded ||
+            strandedReleased > 0 || existing[STRANDED_SWEEP_MARKER] === true) {
           await chrome.storage.local.set({ data: existing });
           if (patched) console.log("[LaunchPad] Backfilled missing deletedAt fields");
           if (trackingSeeded) console.log("[LaunchPad] Seeded per-workspace tracking state (default ON)");
           if (focusSeeded) console.log("[LaunchPad] Seeded focus-blocking state (auto-arm default ON)");
           if (notesSeeded) console.log("[LaunchPad] Seeded per-workspace notes array");
           if (sessionsSeeded) console.log("[LaunchPad] Seeded per-workspace named-sessions array");
+          if (strandedReleased > 0) {
+            console.log("[LaunchPad] Released " + strandedReleased +
+              " task(s) stranded in a non-active goal back to Standalone");
+          }
         }
         return existing;
       }
@@ -1978,6 +1985,43 @@ var Storage = (function () {
    * finishes) or directly for manual "Mark complete" actions.
    * @returns {Promise<object|null>}
    */
+  // ===== [1.4.7] Completing a goal releases its unfinished tasks =====
+  //
+  // A goal that is not active is not drawn: goal cards come from
+  // getActiveGoals, the standalone list is goalId === null, and the Completed
+  // box lists the GOAL plus completed STANDALONE tasks. So an unfinished task
+  // left inside a completed goal is in storage and in no list on the page.
+  // Completing a goal now hands those tasks back to Standalone in the SAME
+  // write, which is where deleteGoal already soft-deletes its children: the
+  // parent's state change and its effect on the children are one atomic fact.
+  //
+  // COMPLETED children are deliberately left where they are. They are not
+  // stranded: the completed goal's own row in the Completed box is what
+  // represents them, and moving finished work to Standalone would be wrong.
+  //
+  // TAGS, DATES, PRIORITY AND TRACKED TIME ARE NOT TOUCHED - only goalId. This
+  // is deliberately NOT reassignTaskToGoal, which also swaps the goal auto-tag:
+  // the user did not ask to leave the goal, the goal ended underneath them, and
+  // silently stripping a tag they can see is a second surprise on top of the
+  // first.
+
+  /** Live, unfinished tasks in a goal. The UI counts these for its confirm. */
+  function getUnfinishedTasksInGoal(workspace, goalId) {
+    if (!workspace || !goalId) return [];
+    var tasks = ensureTasksArray(workspace);
+    if (!tasks) return [];
+    return tasks.filter(function (t) {
+      return t && !t.deletedAt && !t.completed && t.goalId === goalId;
+    });
+  }
+
+  /** Pure mutation, caller pairs the saveAll. Returns what it released. */
+  function releaseUnfinishedTasksFromGoal(workspace, goalId) {
+    var released = getUnfinishedTasksInGoal(workspace, goalId);
+    released.forEach(function (t) { t.goalId = null; });
+    return released;
+  }
+
   async function completeGoal(data, goalId, workspaceId) {
     var ws = resolveWorkspaceFromData(data, workspaceId);
     var goal = findLiveGoal(ws, goalId);
@@ -1986,6 +2030,9 @@ var Storage = (function () {
     goal.status = "completed";
     var goalNow = Date.now();
     goal.completedAt = goalNow;
+    // [1.4.7] PATH 1 of 2. Before the saveAll below, so no reader can observe a
+    // completed goal still holding an unfinished task.
+    releaseUnfinishedTasksFromGoal(ws, goalId);
     // [1.0.23] Achievements — manual goal completion, riding this write.
     achievementsOnCompletion(data, "goal-completed", { goal: goal }, goalNow);
     await saveAll(data);
@@ -2068,6 +2115,40 @@ var Storage = (function () {
    * Active goals: deletedAt === null && status === 'active'.
    * Order preserved as stored (caller sorts by displayOrder if it cares).
    */
+  // [1.4.7] ONE-TIME SWEEP for tasks already stranded before the fix shipped.
+  //
+  // Guarded by a stored marker rather than by being naturally idempotent: unlike
+  // seeding a missing array, "release everything in a non-active goal" is a
+  // judgement about history, not a repair of shape. Once it has run, it must
+  // never run again - a task deliberately placed somewhere later is not this
+  // sweep's business.
+  //
+  // The predicate is the one used to recover the reported task by hand: live
+  // task, goalId set, and that goal not in getActiveGoals - which covers a
+  // completed goal, a soft-deleted one, and a goalId pointing at a goal that no
+  // longer exists. It differs in ONE way, on purpose: completed tasks are left
+  // alone, because a finished task in a finished goal is represented by that
+  // goal's row and is not stranded.
+  var STRANDED_SWEEP_MARKER = "__strandedTaskSweep";
+
+  function sweepStrandedTasks(data) {
+    if (!data || data[STRANDED_SWEEP_MARKER]) return 0;
+    var n = 0;
+    (data.workspaces || []).forEach(function (ws) {
+      if (!ws || !Array.isArray(ws.tasks)) return;
+      var active = {};
+      getActiveGoals(ws).forEach(function (g) { active[g.id] = true; });
+      ws.tasks.forEach(function (t) {
+        if (!t || t.deletedAt || t.completed || !t.goalId) return;
+        if (active[t.goalId]) return;
+        t.goalId = null;
+        n++;
+      });
+    });
+    data[STRANDED_SWEEP_MARKER] = true;
+    return n;
+  }
+
   function getActiveGoals(workspace) {
     var goals = ensureGoalsArray(workspace);
     if (!goals) return [];
@@ -2463,6 +2544,14 @@ var Storage = (function () {
         if (allComplete) {
           goal.status = "completed";
           goal.completedAt = now;
+          // [1.4.7] PATH 2 of 2. This branch fires only when every live sibling
+          // is already complete, so today it releases nothing by construction -
+          // and it is called anyway, deliberately. The release belongs to "a
+          // goal became completed", not to one caller's reasoning about who is
+          // left; the day allComplete loosens, the release travels with it
+          // instead of being the line somebody forgets. (emptyTrash was the
+          // line somebody forgot in [2.1].)
+          releaseUnfinishedTasksFromGoal(ws, task.goalId);
           goalAutoCompleted = true;
           autoCompletedGoal = goal;
         }
@@ -6475,6 +6564,10 @@ var Storage = (function () {
     getDeletedNamedSessions: getDeletedNamedSessions,
     getNamedSessionById: getNamedSessionById,
     reorderNamedSessions: reorderNamedSessions,
+    // [1.4.7] Goal completion releases unfinished children.
+    getUnfinishedTasksInGoal: getUnfinishedTasksInGoal,
+    releaseUnfinishedTasksFromGoal: releaseUnfinishedTasksFromGoal,
+    sweepStrandedTasks: sweepStrandedTasks,
     // [1.4.2] Attachment. Per-field updaters; both halves of the one-to-one
     // invariant are enforced in attachNamedSessionToTask, not in the UI.
     attachNamedSessionToTask: attachNamedSessionToTask,
