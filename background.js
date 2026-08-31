@@ -1,5 +1,6 @@
-/* global chrome, importScripts, Storage, ProAccess, LicenseClient, Tracking */
+/* global chrome, importScripts, I18n, Storage, ProAccess, LicenseClient, Tracking */
 
+importScripts('i18n.js');
 importScripts('storage.js');
 importScripts('pro-access.js');
 importScripts('license.js');

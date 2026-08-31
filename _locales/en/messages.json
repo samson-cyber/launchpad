@@ -1,0 +1,10 @@
+{
+  "extension_name": {
+    "message": "LaunchPad - New Tab Shortcuts",
+    "description": "The extension's name, shown on the Chrome Web Store listing, in chrome://extensions and under the toolbar icon. Keep it short: the store truncates around 45 characters. 'LaunchPad' is the product name and is NOT translated."
+  },
+  "extension_description": {
+    "message": "Unlimited organized shortcuts on your new tab page. Groups, drag-and-drop, dark mode. Free and private.",
+    "description": "The Chrome Web Store short description, limit 132 characters. 'Free and private' is a factual claim about the product (no account, no tracking, all data local) and must stay accurate in every language, not become a marketing flourish."
+  }
+}

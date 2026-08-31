@@ -141,6 +141,19 @@ if ! node tools/check-bg-queue.mjs; then
   exit 1
 fi
 
+# i18n site gate ([1.5.0]). SKELETON: it does NOT yet fail on hardcoded strings,
+# because nothing has migrated and it would fail on all ~719 at once. What it
+# DOES enforce today is its own integrity — the pattern self-test plus two
+# anti-vacuity floors (P2) — and the catalogue value rules (no markup, no em
+# dash, every message described), so those hold from the first message R2
+# writes rather than being retrofitted across 763 values. Exit 2 means the gate
+# is broken, which is deliberately distinct from a violation. Flip ENFORCING at
+# the end of R3.
+if ! node tools/check-i18n-sites.mjs; then
+  echo 'ERROR: i18n site gate failed — the gate is broken, or a catalogue value breaks its rules.' >&2
+  exit 1
+fi
+
 # NOTE — the mutation passes (`--mutate` on either suite above) are development
 # verification, not release gates: they re-boot the subject once per seed and the
 # queue one takes ~16s. Run them when the code under test changes; the gates here
@@ -170,6 +183,8 @@ powershell.exe -NoProfile -Command "
     'pro-access.js',
     'storage.js',
     'tracking.js',
+    'i18n.js',
+    '_locales',
     'offscreen.html',
     'offscreen.js',
     'gate.html',

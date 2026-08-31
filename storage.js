@@ -239,6 +239,47 @@ var Storage = (function () {
   var TEXT_SIZES = ["small", "medium", "large"];
   var DEFAULT_TEXT_SIZE = "medium";
 
+  // [1.5.0] The UI-language preference. Same reader/writer shape as
+  // getTextSize deliberately: an unrecognised value is NOT written, so a
+  // corrupted preference can never reach a locale lookup or a user's backup as
+  // a language they never chose.
+  //
+  // ABSENCE IS MEANINGFUL AND IS THE DEFAULT. null means "never chosen", which
+  // is what lets I18n.negotiate fall through to the BROWSER UI language. A
+  // stored "en" is therefore NOT the same thing as no preference: it means the
+  // user picked English on a Russian browser and must keep getting English.
+  // Storing a default at install would destroy that distinction permanently.
+  //
+  // Validation is deliberately SHAPE-only (a BCP-47-ish tag), not a membership
+  // test against the shipped locales: a user who picked a language that a later
+  // build drops should keep their choice inert in storage rather than have it
+  // silently rewritten, and negotiate() already degrades an unavailable tag to
+  // its base and then to English at READ time, which is where that decision
+  // belongs.
+  var LOCALE_TAG = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
+
+  function getLocalePreference(data) {
+    var v = data && data.settings && data.settings.locale;
+    return (typeof v === "string" && LOCALE_TAG.test(v)) ? v : null;
+  }
+
+  async function setLocalePreference(data, val) {
+    if (!data || !data.settings) return false;
+    // null clears the preference and returns the user to browser-language
+    // following, which is a real thing to want and not the same as picking en.
+    if (val === null) {
+      if (!("locale" in data.settings)) return false;
+      delete data.settings.locale;
+      await saveAll(data);
+      return true;
+    }
+    if (typeof val !== "string" || !LOCALE_TAG.test(val)) return false;
+    if (data.settings.locale === val) return false;
+    data.settings.locale = val;
+    await saveAll(data);
+    return true;
+  }
+
   function getTextSize(data) {
     var v = data && data.settings && data.settings.textSize;
     return TEXT_SIZES.indexOf(v) === -1 ? DEFAULT_TEXT_SIZE : v;
@@ -6355,6 +6396,8 @@ var Storage = (function () {
     // [2.0] Text size — free accessibility setting, small | medium | large.
     getTextSize: getTextSize,
     setTextSize: setTextSize,
+    getLocalePreference: getLocalePreference,
+    setLocalePreference: setLocalePreference,
     TEXT_SIZES: TEXT_SIZES.slice(),
     // [1.0.20 F2] Combined-analytics toggle setter (Dashboard's cross-workspace view).
     setCombinedAnalyticsEnabled: setCombinedAnalyticsEnabled,
