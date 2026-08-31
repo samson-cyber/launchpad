@@ -331,7 +331,12 @@ await (async () => {
   // ======================= wiring ==========================================
   {
     const html = SRC.html;
-    const rowRe = /<label class="settings-label">Text Size<\/label>\s*<div class="settings-segmented" id="settings-text-size">/;
+    // Attribute-order tolerant. [1.5.0] R2 added data-i18n to every static
+    // label, and a structural assertion that pins itself to the exact attribute
+    // list fails on a change that did not touch the structure at all. What this
+    // row must have is a settings-label reading "Text Size" followed by the
+    // segmented control - not a particular spelling of the opening tag.
+    const rowRe = /<label[^>]*class="settings-label"[^>]*>Text Size<\/label>\s*<div[^>]*class="settings-segmented"[^>]*id="settings-text-size"[^>]*>/;
     check("wiring: the row exists, labelled and wired to #settings-text-size", rowRe.test(html));
     check("wiring: it carries exactly the three tiers as seg-btns",
       ["small", "medium", "large"].every((v) => new RegExp(`id="settings-text-size"[\\s\\S]{0,400}data-value="${v}"`).test(html)));
@@ -343,7 +348,7 @@ await (async () => {
       appearance.indexOf('id="settings-icon-size"') < appearance.indexOf('id="settings-text-size"') &&
       appearance.indexOf('id="settings-text-size"') < appearance.indexOf("settings-wallpaper-row"));
     check("wiring: it reuses the icon-size row's own classes — no new markup surface",
-      (html.match(/<div class="settings-row">\s*<label class="settings-label">Text Size/) || []).length === 1);
+      (html.match(/<div[^>]*class="settings-row"[^>]*>\s*<label[^>]*class="settings-label"[^>]*>Text Size/) || []).length === 1);
     // FREE, NEVER GATED. Neither the row nor its handler may sit behind Pro.
     check("wiring: the row is NOT inside any pro-gated container",
       !/pro-(only|gated|locked)[\s\S]{0,600}id="settings-text-size"/.test(html) &&
