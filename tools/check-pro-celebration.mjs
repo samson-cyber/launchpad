@@ -317,7 +317,11 @@ ok("no 'coffee' promo type is ever assigned", !/showType|lastPromo\s*=/.test(NT.
 ok("the support-the-dev line is gone", !NT.includes("Support the dev"));
 // The inverse: the RATING ask must still be here. Without these rows the four
 // above would pass just as well if someone deleted the whole promo system.
-ok("the rating toast copy survives", NT.includes("Enjoying LaunchPad? Leave a quick rating!"));
+// Matches the KEY. [1.5.0] R3 moved this copy into the catalogue, so asserting
+// on the words would now test where the English lives rather than whether the
+// rating ask still exists. The anti-vacuity purpose is unchanged: if someone
+// deleted the promo system, this key would go with it.
+ok("the rating toast copy survives", NT.includes("promo_enjoying_launchpad_leave_a_quick_rating"));
 ok("the rating toast links to the real store listing",
   NT.includes("https://chromewebstore.google.com/detail/launchpad-new-tab-shortcu/jfmmagapjdionoomkjmkfppcplkjilnp"));
 ok("the sidebar Rate entry survives", HTML.includes('id="sb-rate"'));
