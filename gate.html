@@ -22,6 +22,13 @@
 
     <p class="gate-footnote" id="gate-footnote"></p>
   </main>
+  <!-- [1.5.0] R2. gate.html is a user-visible surface and the face of the
+       blocking feature, so its markup is localized like any other. The three
+       i18n scripts load before gate.js so the static text is resolved before
+       the page fills in the dynamic parts. -->
+  <script src="i18n.js"></script>
+  <script src="locales/en.js"></script>
+  <script src="i18n-dom.js"></script>
   <script src="gate.js"></script>
 </body>
 </html>
