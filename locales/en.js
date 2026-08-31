@@ -2216,8 +2216,8 @@ I18n.register("en", {
     "message": "Track",
     "description": "Markup label in renderProWorkspaceList(). Rendered with th()."
   },
-  "pro_verification_overdue_mdash_reconnect_to_keep": {
-    "message": "Verification overdue &mdash; reconnect to keep access.",
+  "pro_verification_overdue": {
+    "message": "Verification overdue. Reconnect to keep access.",
     "description": "Markup label in renderProSubscriptionSection(). Rendered with th()."
   },
   "pro_you_re_pro": {

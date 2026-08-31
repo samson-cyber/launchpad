@@ -367,6 +367,15 @@ function checkCatalogues() {
         try { value = JSON.parse(msg[1]); } catch { problems.push([`${f}/${key}`, "unparseable message"]); continue; }
         if (/<\s*\/?\s*[a-z]/i.test(value)) problems.push([`${f}/${key}`, "value contains markup"]);
         if (value.includes("—")) problems.push([`${f}/${key}`, "value contains an em dash"]);
+        // AN HTML ENTITY IN A VALUE IS ALWAYS WRONG, whichever accessor reads it.
+        // th() escapes the ampersand, so "&mdash;" renders as the literal seven
+        // characters; t() writes it into a text node, where it also renders
+        // literally. Either way the user sees the entity. It also hides em
+        // dashes from the rule above, which is how one shipped through R3:
+        // "Verification overdue &mdash; reconnect to keep access."
+        if (/&[a-zA-Z][a-zA-Z0-9]*;|&#\d+;|&#x[0-9a-fA-F]+;/.test(value)) {
+          problems.push([`${f}/${key}`, "value contains an HTML entity; store the character itself"]);
+        }
         if (!/"description":/.test(body)) problems.push([`${f}/${key}`, "missing description"]);
       }
     }

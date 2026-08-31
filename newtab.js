@@ -8047,7 +8047,7 @@
     // verification date could be reported.
 
     if (level === "grace") {
-      html += '<span class="pro-warning">' + th("pro_verification_overdue_mdash_reconnect_to_keep") + '</span>';
+      html += '<span class="pro-warning">' + th("pro_verification_overdue") + '</span>';
     }
 
     host.innerHTML = html;

@@ -228,8 +228,14 @@ function codeOnly(src) {
 }
 structural("'Last verified' is GONE from the subscription section (one fact, one home)",
   !/Last verified/.test(codeOnly(extract(NT, "renderProSubscriptionSection", "newtab.js"))));
+// Matches the KEY, not the copy. [1.5.0] R3 moved every user-visible string in
+// this function into the catalogue, so asserting on the words tests where the
+// English lives rather than where the warning renders. The structural fact -
+// the grace warning is emitted by THIS section - is now expressed by the key
+// its call site names, which is exactly as strong and does not move when copy
+// is edited.
 structural("the grace warning stayed in the subscription section",
-  /Verification overdue/.test(extract(NT, "renderProSubscriptionSection", "newtab.js")));
+  /pro_verification_overdue/.test(extract(NT, "renderProSubscriptionSection", "newtab.js")));
 structural("'Last verified' now appears in the status line instead",
   /last verified/.test(extract(NT, "licenseStatusLine", "newtab.js")));
 structural("the line is gated on the same predicate as the button",
