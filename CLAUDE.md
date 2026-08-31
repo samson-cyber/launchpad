@@ -98,6 +98,9 @@ LaunchPad uses **two distinct, parallel numbering tracks**. They look alike but 
 - `background.js` — Service worker: session saving, context menus, tab listeners
 - `storage.js` — Storage utilities
 - `bookmarks.js` — Chrome bookmarks import
+- `i18n.js` — Message catalogue engine: `t()` plain text, `th()` HTML-escaped, `Intl.PluralRules`, locale negotiation. DOM-free on purpose, because it also loads in the service worker
+- `locales/en.js` — The UI catalogue, ~440 messages, each with a description
+- `i18n-dom.js` — The `data-i18n` pass over static markup. Replaces the text NODE, never `textContent`, so inline icons survive
 - `privacy-policy.html` — Hosted via GitHub Pages at `https://samson-cyber.github.io/launchpad/privacy-policy.html`
 - `build.sh` — ZIP packaging script (with clean-tree guard)
 

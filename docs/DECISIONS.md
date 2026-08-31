@@ -2001,3 +2001,171 @@ row conceded deliberate saving to Toby ("Collections and spaces; session save" a
 deliberate save with an automatic backup. That is no longer true, and the free-tier claims —
 still written about shortcuts only — now have a stronger version available, since named sessions
 are free and uncapped against a competitor whose free plan caps at 60 saved tabs.
+
+---
+
+## 2026-08-31 - localization: the hybrid mechanism, the escaping inversion, and the pause at R4
+
+The `[1.5.0]` arc, Asana 1217984014133950. Four rounds merged (R1 through R4), R5 scoped
+and not started. **Nothing here is user-visible: no string is translated, English is the
+only catalogue, and the product renders exactly as it did before.** The value delivered is
+that ~440 messages now have identifiers, descriptions and a single source of truth, and
+that the machinery to add a language exists.
+
+### The mechanism is HYBRID, and that is not a compromise
+
+`_locales/en/` plus `default_locale` carries the **manifest's two strings**, because that
+is the only way to localize the extension name and description, and it is also what
+localizes the **Chrome Web Store listing** - which for a non-English market is plausibly
+worth more than every in-product string combined.
+
+An **internal catalogue** (`i18n.js` plus `locales/en.js`) carries the ~761 UI strings, for
+two reasons `chrome.i18n` cannot answer. Twenty-eight strings need real plural categories
+and `chrome.i18n` has none, so putting `Intl.PluralRules` on top of it means writing the
+catalogue anyway with a redundant layer underneath. And `chrome.i18n` follows the browser's
+UI language with **no override API**, while an internal catalogue can offer runtime
+switching. "My browser is English and I want LaunchPad in Indonesian" is a real case for
+this audience, and the platform API structurally cannot serve it.
+
+`i18n.js` deliberately never touches `document`, because it also loads in the service
+worker. The DOM pass is a separate file added in R2.
+
+### The escaping decision INVERTED the original specification
+
+The plan specified that the primary accessor escape by default, with a raw accessor for the
+few sites that compose markup. Two measurements reversed it, and the reversal is ratified.
+
+**Zero of 431** unique user-visible strings contain inline markup, so a raw accessor would
+have had no legitimate caller and its only possible use would have been misuse. And
+`openTasksModal` already escapes at its own sink while roughly 120 sites are text sinks, so
+a pre-escaping primary would have **double-escaped** and printed `Backup &amp;amp; Restore`
+to users.
+
+**So the SINK decides, not the accessor and not the string.** `t()` returns plain text;
+`th()` returns the escaped form for concatenation into markup. The fail-safe property
+survives the inversion because the two mistakes are asymmetric: `th()` at a text sink is
+loud and cosmetic, `t()` into `innerHTML` is silent and dangerous. **Only the silent
+direction is mechanically enforced**, and the visible one polices itself. Ledger: BUGS.md
+**D21**.
+
+Alongside it, and blocking the 2.1.0 upload rather than this arc: `esc()` escaped text but
+not quotes while filling double-quoted attributes with user-typed session names. Fixed as a
+CLASS rather than as the instance - the escaper itself, so every call site moves at once,
+because a second attribute-only helper is a second thing to forget. BUGS.md **G5**,
+`0641149`, bug 1217985856381677.
+
+### Naming, and the split rule that came out of it
+
+Keys are **`surface_element_purpose`**, and they are **sense-carrying on purpose**: a
+catalogue keyed on English source text hands one translation to two strings that happen to
+match, and every translation-memory tool does the same. The worked case is "Import", a noun
+on three surfaces and a verb on a fourth. Each message also carries a **description**, and
+the gate fails a message that has none.
+
+**THE SPLIT RULE: a width-constrained label does not share a key with an unconstrained
+heading.** Raised on the Tasks tab label sharing with the Tasks page heading, and then
+applied by asking where else it held - which found **seven more**, all inherited from R2, in
+the shape of a sidebar label sharing with the heading of the panel it opens. Eight splits
+total. Two keys can carry one value; one key cannot carry two, and which lengths a language
+needs is a translator's call rather than ours.
+
+**What stays shared, deliberately:** a sidebar label and its OWN button's title attribute.
+That is one control and one string, and a tooltip is not a second surface.
+
+The eight split pairs keep **identical English values**. Splitting bought the option to
+diverge; exercising it is a separate copy decision, and there is no evidence today that any
+English tab label wants shortening.
+
+### The placeholder convention
+
+`{lowerCamelCase}`, naming what the value IS, never its type and never its position.
+
+1. **Name the entity, not "name".** `{taskName}`, `{groupName}`, `{sessionName}`. A bare
+   `{name}` tells a translator nothing about whether it inflects or whether it is a person.
+2. **`{count}` is reserved.** It selects the plural form, so a second quantity in the same
+   sentence takes a role name (`{openCount}`).
+3. **A formatted value says so.** `{date}` is an already-rendered short date and must not be
+   reformatted inside the sentence.
+
+Named rather than positional because a translation reorders freely, and several shipped
+sentences already start with their value. Where two counts are genuinely independent, the
+sentence becomes **two messages** rather than one message with two selectors - the saved-tabs
+toast is the worked case, where the second count inflects a verb as well as a noun.
+
+A translated noun is never spliced into a sentence: "Permanently delete the {kind}" became
+two whole messages, one per kind, because the article and the case move with the noun in
+most target languages.
+
+### Four scope decisions
+
+- **The four Tasks sort options stay WHOLE** ("Sort: created", not "Sort: " plus a word).
+  Splitting produces the sentence-assembly anti-pattern localization exists to remove:
+  languages differ on whether the label takes a colon, whether the word inflects after it,
+  and whether the label leads at all. The cost is that "Sort" is translated four times and
+  could drift, which is a translation-QA problem with a known remedy; frozen word order has
+  no remedy.
+- **`privacy-policy.html` is excluded from localization by decision**, and the reason is
+  recorded **in the gate itself** rather than only here. It ships, so it was in scope on the
+  facts; extracting its values into a catalogue the page cannot read would create a second
+  source of truth for text that is never translated, and two sources drift. Every other
+  surface degrades to a missing label; a privacy policy degrades to a legal document showing
+  message keys, served publicly. Revisit when a human translation is commissioned, and
+  extract and wire it in one deliberate change at that point.
+- **RTL is decided as logical-properties-going-forward, with no retrofit.** 114 physical
+  direction properties exist and zero logical ones. Converting them is filed separately and
+  is not a prerequisite for any translation round; authoring new work with
+  `inline-start`/`inline-end` costs nothing and keeps the door open.
+- **`gate.html` IS wired** (a user stopped mid-navigation is the last person who should meet
+  an untranslated page); `offscreen.html` is dropped (a title on a document that never
+  renders is not a user-visible string).
+
+### The finish line is the PROBE, with the gate as a proxy
+
+The instrument of record is a **pseudo-locale probe**: register a locale in which every key
+resolves to a marker, switch to it, walk the surfaces, and read what stayed English. A
+string that does not move is a string the catalogue does not govern - which is the question,
+and one no static analysis answers.
+
+The **site gate** is a fast proxy that runs in 0.1s, and it **must AGREE with the probe
+rather than substitute for it**. The evidence for the rule is this arc: the gate reported
+"76 await migration" while the probe found 81 ungoverned strings it structurally could not
+see, and was simultaneously reporting twelve broken markers as compliant because it shared a
+parser with the extractor that broke them.
+
+**R5 therefore adopts a reconciliation step that runs both and FAILS ON DISAGREEMENT.** A
+string the probe calls ungoverned and the gate calls migrated is a gate defect; a string the
+gate reports that the probe cannot reach is a missing fixture. A third number rides with it:
+literals the static scan classifies as messages that no enumerated state renders - the set
+nobody can verify - driven to zero by ADDING FIXTURES rather than by deleting the check.
+Ledger: BUGS.md **P7**.
+
+### Two findings recorded here because they outlive the arc
+
+**The achievements catalogue restates its own thresholds.** `INSIGHTS_BADGES` carries
+`desc: "Organize 50+ shortcuts"` while `storage.js` holds `ACH_CURATOR_TARGET = 50`, and the
+same for the goal, streak, deep-dive and variety targets. Change the constant today and the
+badge advertises the old number: a live E7 instance. R5.3 closes it by interpolating
+`{count}` from the constant rather than by retyping it into a sentence.
+
+**The demo badge table words the same achievements differently from the real one**
+("50+ shortcuts organized" against "Organize 50+ shortcuts"). Preview-is-the-promise says a
+preview shows what the user would actually get. **DECISION: the real badge wording is
+authoritative and the demo matches it**, resolved rather than translated twice.
+
+### The pause, and why it is here
+
+**Localization pauses after R4, with R5 scoped and not started.** The morning's pitch was
+extraction and plumbing in one clear run; R5's scoping found ~350 messages across five
+stages, thirteen surfaces and four structural pockets, comparable to R2, R3 and R4 combined.
+
+None of it reaches a user until translations exist, which is a separate decision not yet
+made. Meanwhile 102 users are on v2.0.0, which predates Notes, named sessions, Insights date
+ranges, lifetime totals and Backup and Restore - all finished and sitting on master, with
+the attribute-escaping fix waiting alongside them. **Shipping is what turns finished work
+into value**, and the language-share evidence will still be there next week.
+
+R4-complete is the cleanest boundary the arc offers: every round is merged, the gate is
+green, and the probe's number is honest about its own coverage. Resumption starts at
+**R5.0, the harness, before any string moves** - and its first act is to re-run the gate to
+see whether anything added in the interim introduced new hardcoded strings, which takes
+0.1s and is the point of having built it.

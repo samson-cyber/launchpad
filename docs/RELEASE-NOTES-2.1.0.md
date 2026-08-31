@@ -30,7 +30,8 @@ Sessions: save the tabs you are working in.
   and save on purpose, separate from the automatic five minute
   restore, which is unchanged.
 • Rename one, update it from the window you have open now, or
-  delete it. Deleted sessions wait 30 days in the trash.
+  delete it. Deleted sessions wait 30 days in a trash you can
+  open, so you can put one back or clear it out for good.
 • Free, with no limit on how many you keep.
 • On Pro, attach a session to a task and launch it straight
   from the task row.
@@ -78,8 +79,9 @@ in the trash.
 Sessions: name a set of open tabs, keep it, and relaunch the whole
 set into a new window in one click. These are sessions you name and
 save on purpose, separate from the automatic five minute restore,
-which is unchanged. Free and unlimited; on Pro you can attach one
-to a task.
+which is unchanged. Deleted ones wait 30 days in a trash you can
+open and restore from. Free and unlimited; on Pro you can attach
+one to a task.
 
 Task rows have a visible options button, so the row menu no longer
 needs a right click, and priority and move-to-a-goal live in it.
@@ -159,9 +161,16 @@ goals, and a New Tag button.
   earlier completion had hidden. Announcing it as a feature would misdescribe what
   changed, and omitting it would leave users unable to explain why tasks reappeared.
 - **"Internal maintenance" is deliberately vague and deliberately present.** It covers
-  the tracking-engine source-encoding fix and the rating-link host update, neither of
-  which a user can act on. Silently omitting engine-touching changes is how a listing
-  loses the right to be believed.
+  the tracking-engine source-encoding fix, the rating-link host update, an escaping fix
+  in how names are written into the page, and groundwork for future translation. None of
+  it is something a user can act on. Silently omitting engine-touching changes is how a
+  listing loses the right to be believed.
+- **NO CLAIM THAT ANYTHING IS TRANSLATED, because nothing is.** This build carries the
+  machinery for translation and exactly one language, English, rendering precisely what it
+  rendered before. Naming it in the copy would promise a language the user cannot select.
+  It is inside "internal maintenance" because it touched a great deal of code and a listing
+  that hides that is not being straight; it is not in the feature list because a feature
+  the user cannot use is not a feature.
 
 ## The internal items, for support answers
 
@@ -177,6 +186,19 @@ goals, and a New Tag button.
   address already stored, and appears only when two rows in the same dropdown share a
   title. LaunchPad does not read page content to work out which account a tile belongs
   to, and this feature deliberately does not either.
+- **Escaping fix for names written into the page.** The helper that puts a user's own text
+  into the page escaped the characters that matter in body text but not the quote
+  characters that matter inside an HTML attribute, so a session or tag named with a quote
+  could put markup where markup does not belong. It needed a name the user had typed
+  themselves, so it was never a route in from outside, and it is fixed in the shared helper
+  rather than at the one place it was noticed. If support is asked: no data was exposed and
+  no action is needed.
+- **Translation groundwork, with nothing translated.** Around 440 of the product's messages
+  now live in one catalogue with stable identifiers and a note for each explaining where it
+  appears, and the code asks that catalogue for them instead of holding the words inline.
+  English is the only language present and the words are unchanged, apart from a small
+  number of sentences reworded to drop a dash the house style no longer uses. Adding a
+  language is now a matter of supplying one file; that decision has not been made.
 
 ## Where this goes at upload
 

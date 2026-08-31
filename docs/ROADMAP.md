@@ -253,6 +253,40 @@ round.
 
 ---
 
+## [1.5.0] Localization — **MERGED, NOT SHIPPED, PAUSED AFTER R4** (2026-08-31)
+
+Asana 1217984014133950. On master and in the 2.1.0 build; **no user-visible change and no
+translated string.** English is the only catalogue. Listed here because roughly 700 lines of
+infrastructure and 440 migrated messages are otherwise invisible in this file, and because a
+reader who does not see it will assume the surface is still all hardcoded.
+
+- **R1 skeleton** (`844e322`) — `i18n.js` (DOM-free, so it also loads in the service worker),
+  `Intl.PluralRules`, locale negotiation with a stored preference, `_locales/en/` plus
+  `default_locale` for the manifest's two strings, and the construction-site gate with its
+  anti-vacuity floors. No strings moved.
+- **R2 static markup** (`29cd400`…`f949ea3`) — `data-i18n` attributes and the DOM pass; the
+  text node is replaced rather than `textContent`, so inline icons survive.
+- **R3 static JS labels** (`977b108`) — 437 conversions, one accessor chosen per SINK.
+- **R4 interpolation, plurals, em dashes** (`1e5ff29`, `7ae8e9f`, `5d5b998`, `186b137`,
+  `8a93008`) — named placeholders, real CLDR plural forms, and 28 prose em dashes rewritten.
+- **Escaping fix** (`0641149`, bug 1217985856381677) — `esc()` filled quoted attributes without
+  escaping quotes. Fixed as a class. **This one blocks the 2.1.0 upload** and is in the build.
+
+**PAUSED at R4-complete, deliberately, so 2.1.0 can ship.** R5 is scoped (~350 messages,
+five stages, thirteen surfaces) and not started; the scoping report on the task is the plan
+of record and R5.0 builds the verification harness before any string moves. None of this
+reaches a user until translations are commissioned, which is a separate decision.
+
+DECISIONS.md 2026-08-31 (localization) holds the mechanism, the escaping inversion, the
+naming and placeholder conventions, and the four scope decisions. BUGS.md **P7 to P14**,
+**D20**, **D21**, **G5** and **J9** hold what the arc cost to learn.
+
+**Filed separately, not blocking:** locale-aware dates and numbers (1217984149041947) and the
+RTL CSS conversion (114 physical direction properties; new work authors logical properties
+from here, with no retrofit).
+
+---
+
 ## Deferred: Pro v2
 
 Items worth building but out of scope for v1 to keep the 10-week build shippable.
