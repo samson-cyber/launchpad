@@ -93,6 +93,11 @@ function boot(src) {
   const PAGE_FNS = [
     "escapeHtml", "fmtShortDate", "dashboardSuggestionTier", "dashboardCompareSuggestions",
     "dashboardPickSuggestion", "dashboardDueLabel", "dashHeadHtml", "dashDueListHtml",
+    // [1.7.1] dashDueListHtml now renders the SHIPPED priority border, so it
+    // calls the Tasks tab's own taskPriorityClass. Added to the extracted set so
+    // the subject still boots. This widens what the harness LOADS, never what an
+    // assertion accepts.
+    "taskPriorityClass",
   ];
   // [1.5.0] R3. The extracted builders now call th()/t(), which newtab.js binds
   // inside its IIFE and this sandbox therefore does not have. Resolve them
@@ -622,10 +627,22 @@ await (async () => {
     if (i === -1) throw new Error("renderDashboardTab not found");
     return SRC.nt.slice(i, SRC.nt.indexOf("\n  }\n", i));
   })();
-  check("render: the greeting is the tab's header line, above every card", /dash-greeting[\s\S]*insights-strip[\s\S]*dash-cockpit/.test(render));
-  check("render: the stat strip is full-width, above the columns", render.indexOf("insights-strip") < render.indexOf("dash-cockpit"));
-  check("render: due-today is the PRIMARY column", /dash-col-primary[\s\S]*dashDueListHtml/.test(render));
-  check("render: goals and streak are the SECONDARY column", /dash-col-secondary[\s\S]*dashGoalsHtml/.test(render) && /dash-col-secondary[\s\S]*streakCard|streakCard[\s\S]*dash-col-secondary/.test(render));
+  // [1.7.1] THESE FOUR PROTECTED THE RETIRED TWO-COLUMN COCKPIT. The layout
+  // round replaced that structure deliberately, so each is re-anchored to the
+  // hero band / row-two shape. The PROPERTY each one guards is unchanged:
+  // the greeting still leads, the summary still sits above the detail, due-today
+  // is still the larger module, and goals and streak still each have a home.
+  check("render: the greeting is the tab's header line, above the band", /dash-greeting[\s\S]*dash-hero[\s\S]*dash-row2/.test(render));
+  check("render: the hero band is full-width, above row two", render.indexOf("dash-hero") < render.indexOf("dash-row2"));
+  check("render: due-today is the PRIMARY module of row two", /dash-today[\s\S]*dashDueListHtml/.test(render));
+  check("render: goals live in row two and the streak moved to the band's right", /dash-goals[\s\S]*dashGoalsHtml/.test(render) && /dash-hero-right[\s\S]*streakCard/.test(render));
+  // [1.7.1] NEW, and it is the round's load-bearing invariant: focused-today is
+  // the surface's ONE hero. --display-1 may be referenced exactly once in the
+  // whole stylesheet; a second use means something else is competing to be the
+  // point, which is the failure the band exists to prevent.
+  check("layout: --display-1 is used exactly ONCE in the stylesheet (the hero numeral)",
+    (SRC.css.match(/var\(--display-1\)/g) || []).length === 1 &&
+    /\.dash-hero-num\s*\{[^}]*font-size:\s*var\(--display-1\)/.test(SRC.css));
   check("render: quick-add sits at the due-today module's foot", render.indexOf("dashDueListHtml") < render.indexOf("dashQuickAddHtml"));
 // PROHIBITED-CLASS TEST BY EXACT TOKEN (2026-09-01, Asana 1218045515360272).
 //
@@ -660,7 +677,7 @@ const hasClassToken = (src, name) => {
   check("render: the strip's blocked tile reads focusStats, and 0 renders as 0",
     /Storage\.focusBlockedOnDay\(d, todayKey\)/.test(SRC.nt) && !/focusBlockedOnDay[\s\S]{0,120}\|\| *""/.test(SRC.nt));
   check("render: the blocking badge REUSES the pill's tri-state derivation",
-    /Storage\.focusArmState\(d\)/.test(SRC.nt.slice(SRC.nt.indexOf("function dashStripHtml"), SRC.nt.indexOf("function dashGoalsHtml"))));
+    /Storage\.focusArmState\(d\)/.test(SRC.nt.slice(SRC.nt.indexOf("function dashHeroBlockingHtml"), SRC.nt.indexOf("function dashGoalsHtml"))));
   check("render: completing the ACTIVE task routes through satComplete, not a second funnel",
     /active\.task\.id === taskId[\s\S]{0,200}await satComplete\(\)/.test(SRC.nt));
   // Caps are fine; SILENT caps are not — a list that stops at N and says nothing

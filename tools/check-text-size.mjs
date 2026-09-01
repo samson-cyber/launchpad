@@ -301,13 +301,35 @@ await (async () => {
     const cssNoComments = SRC.css.replace(/\/\*[\s\S]*?\*\//g, "");
     const decls = [...cssNoComments.matchAll(/font-size:\s*([^;]+);/g)].map((m) => m[1].trim());
     const bad = decls.filter((v) => {
-      if (/^var\(--fs-[0-9-]+\)(\s*!important)?$/.test(v)) return false;
+      // [1.7.1] --display-* JOINS THE RAMP. The hero numeral is the first
+      // visible use of these tokens, and the rule this assertion protects is
+      // "every size responds to the setting", not "every size is named --fs".
+      // ACCEPTING THEM IS EARNED, NOT ASSUMED: the assertion immediately
+      // below proves each --display-* is redefined in BOTH tier blocks, so a
+      // display token that silently stopped scaling would fail there rather
+      // than slip through here.
+      if (/^var\(--(fs|display)-[0-9-]+\)(\s*!important)?$/.test(v)) return false;
       if (/^0$/.test(v)) return false;
       const px = v.match(/^([0-9.]+)px(\s*!important)?$/);
       return !(px && parseFloat(px[1]) >= UNTOUCHED_FLOOR);
     });
     check("sheet: no font-size below the floor is a hard literal — the setting covers all of them",
       bad.length === 0, bad.slice(0, 8).join(" | "));
+    // [1.7.1] The other half of the bargain above: a --display-* token is only
+    // accepted as ramp-covered if it is PROVEN to move with the setting. Literal
+    // regexes throughout - the constructed-RegExp version of this cost a pass to
+    // escaping alone, and there is nothing here that needs to be dynamic.
+    const displayTokens = [...new Set(
+      [...cssNoComments.matchAll(/var\(--(display-[0-9-]+)\)/g)].map((m) => m[1])
+    )];
+    const smallBlk = (cssNoComments.match(/html\.text-size-small\s*\{([\s\S]*?)\}/) || ["", ""])[1];
+    const largeBlk = (cssNoComments.match(/html\.text-size-large\s*\{([\s\S]*?)\}/) || ["", ""])[1];
+    const definesToken = (blk, tk) => blk.split("\n").some((line) => line.trim().startsWith("--" + tk + ":"));
+    const unscaled = displayTokens.filter((tk) => !(definesToken(smallBlk, tk) && definesToken(largeBlk, tk)));
+    check("sheet: every --display-* token used for a font-size is redefined in BOTH text-size tiers",
+      displayTokens.length > 0 && smallBlk !== "" && largeBlk !== "" && unscaled.length === 0,
+      unscaled.length ? ("unscaled: " + unscaled.join(" | "))
+                      : (displayTokens.join(" ") + " scale in both tiers"));
     check("sheet: the ramp is actually load-bearing (hundreds of declarations, not a token nobody uses)",
       decls.filter((v) => v.startsWith("var(--fs-")).length >= 250,
       String(decls.filter((v) => v.startsWith("var(--fs-")).length));

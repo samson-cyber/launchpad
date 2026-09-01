@@ -840,60 +840,63 @@
   // Tile 1 is two-phase (the engine read lands a tick later); tiles 2-4 are
   // synchronous reads off `data`, so they are correct in the first paint and tick
   // immediately on a local mutation with no reload.
-  function dashStripHtml(d, ws, scope) {
-    var tiles = [];
+  // ===== [1.7.1] Hero band regions =====
+  //
+  // These three replace dashStripHtml, whose four tiles are redistributed rather
+  // than dropped: focused-today becomes the surface's ONE display-1 hero, the
+  // two COUNTS sit beneath it, and focus blocking joins the streak on the right
+  // because both are present-state readings rather than counts. Same four
+  // readers, same derivations, same suppression rules; only the placement moved.
+  //
+  // Storage.focusArmState is still READ rather than reimplemented, so the band
+  // can never disagree with the pill about whether blocking is on.
 
-    // Suppressed exactly as the old focused line was (D5): with per-workspace
-    // tracking off the reader honestly returns 0, and "0m focused today" would
-    // tell the user they did nothing when the truth is nothing was measured. The
-    // tile is absent rather than zeroed.
-    if (scope) {
-      tiles.push({
-        num: '<span data-dash-focused>—</span>',
-        // CASE ONLY. These two are still HARDCODED English rather than catalogue
-        // values, so they sit in the i18n backlog (the gate's "33 await migration").
-        // [1.6.5] sentence-cased them in place so the first stat tile matches the
-        // neighbours it sits beside; MIGRATING them belongs to the R5 i18n round,
-        // which owns adding keys and translator descriptions.
-        label: (scope.mode === "combined") ? "Focused today · all workspaces" : "Focused today"
-      });
-    }
+  // Left region. The ring ([1.7.2]) will wrap this figure; its space is left
+  // EMPTY this round rather than filled with a placeholder, so the shape can be
+  // judged before anything occupies it.
+  function dashHeroFocusHtml(scope) {
+    // Suppressed exactly as the old tile was (D5): with per-workspace tracking
+    // off the reader honestly returns 0, and "0m focused today" would tell the
+    // user they did nothing when the truth is nothing was measured.
+    if (!scope) return "";
+    return '<div class="dash-hero-figure" data-dash-ring-slot>' +
+        '<div class="dash-hero-num" data-dash-focused>—</div>' +
+        // CASE ONLY. Still HARDCODED English rather than catalogue values, so
+        // they remain in the i18n backlog (the gate's "33 await migration").
+        '<div class="dash-hero-label">' +
+          escapeHtml(scope.mode === "combined" ? "Focused today · all workspaces" : "Focused today") +
+        '</div>' +
+      '</div>';
+  }
 
+  function dashHeroCountsHtml(d, ws) {
     var todayKey = Storage.localDayKey();
+    // tasksCompletedOnDay is workspace-scoped; focusBlockedOnDay is not, because
+    // the blocker does not record a workspace by design (storage.js C8). Both
+    // labels keep the wording they had in the strip.
+    return '<div class="dash-hero-counts">' +
+        '<div class="dash-hero-count">' +
+          '<span class="dash-hero-count-num">' + escapeHtml(String(Storage.tasksCompletedOnDay(ws, todayKey))) + '</span>' +
+          '<span class="dash-hero-count-label">' + th("dash_tasks_completed") + '</span>' +
+        '</div>' +
+        '<div class="dash-hero-count">' +
+          '<span class="dash-hero-count-num">' + escapeHtml(String(Storage.focusBlockedOnDay(d, todayKey))) + '</span>' +
+          '<span class="dash-hero-count-label">' + th("dash_distractions_blocked") + '</span>' +
+        '</div>' +
+      '</div>';
+  }
 
-    tiles.push({
-      num: escapeHtml(String(Storage.tasksCompletedOnDay(ws, todayKey))),
-      label: t("dash_tasks_completed")
-    });
-
-    // A ZERO IS A REAL ANSWER HERE, and this is the one tile where that has to be
-    // said out loud. "0 distractions blocked" means the counter was running and
-    // nothing tried to get through — it is not the focused tile's measured-nothing
-    // case, because focusStats counts whether or not blocking is currently armed.
-    // The figure is global rather than scoped: focusStats is a single all-
-    // workspaces record by design (storage.js C8), so the label claims no scope it
-    // does not have.
-    tiles.push({
-      num: escapeHtml(String(Storage.focusBlockedOnDay(d, todayKey))),
-      label: t("dash_distractions_blocked")
-    });
-
-    // The pill's tri-state, READ rather than reimplemented. Storage.focusArmState
-    // is the same derivation satFocusRowHtml renders — including its honest
-    // reading that a PAUSED work phase is "off" — so the strip can never disagree
-    // with the pill about whether blocking is on. The wording is the pill's too.
+  // Right region. The pill's tri-state, READ rather than reimplemented, so the
+  // band can never disagree with the pill — including its honest reading that a
+  // PAUSED work phase is "off". The wording is the pill's too.
+  function dashHeroBlockingHtml(d) {
     var armState = Storage.focusArmState(d);
-    tiles.push({
-      num: armState === "off" ? "Off" : (armState === "auto" ? "On (auto)" : "On"),
-      label: t("dash_focus_blocking")
-    });
-
-    return tiles.map(function (t) {
-      return '<div class="insights-strip-item">' +
-          '<span class="insights-strip-num">' + t.num + '</span>' +
-          '<span class="insights-strip-label">' + t.label + '</span>' +
-        '</div>';
-    }).join("");
+    return '<div class="dash-hero-stat">' +
+        '<div class="dash-hero-stat-num">' +
+          escapeHtml(armState === "off" ? "Off" : (armState === "auto" ? "On (auto)" : "On")) +
+        '</div>' +
+        '<div class="dash-hero-stat-label">' + th("dash_focus_blocking") + '</div>' +
+      '</div>';
   }
 
   // ----- Module 2: goals progress -----
@@ -1081,7 +1084,12 @@
     var overflow = due.length - shown.length;
     return shown.map(function (t) {
       var overdue = Storage.utcDay(t.dueAt) < todayUtc;
-      return '<div class="dash-due-row">' +
+      // [1.7.1] Priority as the SHIPPED left border, via the same helper the
+      // Tasks tab uses, so the two surfaces cannot drift on what "high" looks
+      // like. The border is reserved transparent on every row (see the CSS) so
+      // prioritised and unprioritised rows stay aligned.
+      var prio = taskPriorityClass(t.priority);
+      return '<div class="dash-due-row' + (prio ? " " + prio : "") + '">' +
           '<input type="checkbox" class="tt-task-check dash-due-check" data-task-id="' + escapeHtml(t.id) + '" ' +
             'aria-label="' + th("dash_due_complete_task_aria", { taskName: t.name }) + '">' +
           '<span class="dash-due-name">' + escapeHtml(t.name) + '</span>' +
@@ -1140,37 +1148,64 @@
     // The streak is a TRACKING-derived module, so it obeys the same suppression
     // rule as the focused tile: with tracking off the engine legitimately measures
     // nothing, and a "0 day streak" would read as a failure the user did not have.
+    // [1.7.1] Was a .pp-insights-card in the secondary column; it is now a hero
+    // stat on the band's right. The data-dash-streak hook is unchanged, so
+    // dashRefreshStreak's two-phase patch still lands.
+    // ONE STRING IS DELIBERATELY NOT RENDERED HERE, and it is the only thing this
+    // round drops: the card's "Focus streak" title (dashboard_focus_streak). The
+    // band has no card titles, and dashStreakBodyHtml already emits its own
+    // "Day streak" label directly beneath the number, so keeping both would print
+    // the same fact twice in adjacent lines. The KEY is untouched and the title
+    // returns the moment the region wants a heading again.
     var streakCard = scope
-      ? '<div class="pp-insights-card">' +
-          '<div class="pp-dash-card-title">' + th("dashboard_focus_streak") + '</div>' +
-          '<div data-dash-streak>' + dashStreakBodyHtml(null) + '</div>' +
-        '</div>'
+      ? '<div class="dash-hero-stat" data-dash-streak>' + dashStreakBodyHtml(null) + '</div>'
       : '';
 
     panel.dataset.dashPeriod = period;
-    // LAYOUT: greeting, then the full-width strip, then two columns — due-today
-    // primary, goals + streak secondary — collapsing to one column at narrow
-    // width. The greeting is the TAB's header line now rather than a card title
-    // buried in two of five variants, so it is the one thing that is always there.
+    // [1.7.1] LAYOUT: greeting, then the HERO BAND (span 12, three regions of
+    // four), then row two — Today at span 7 and Goals at span 5. Tasks-width
+    // container rather than the retired 960px measure, so the Dashboard's
+    // content edge aligns with the Tasks tab's.
+    //
+    // WHAT MOVED, and nothing was dropped. The four strip tiles became the
+    // band's left and right regions (see dashHeroFocusHtml and friends); the
+    // pick-up card is unchanged and is now the band's centre; the streak moved
+    // from the secondary column to the band's right, beside focus blocking,
+    // because both are present-state. Due-today and Goals keep their modules and
+    // are now siblings at 7 and 5 rather than nested columns. The recap shell
+    // stays with Goals; the evening band redesign is [1.7.4].
+    //
+    // The ring ([1.7.2]) and the this-week strip ([1.7.3]) have RESERVED SPACE
+    // and no placeholder, so the shape can be judged before they fill it.
     panel.innerHTML =
       '<div class="dash-tab" data-period="' + period + '">' +
         '<div class="dash-greeting">' + escapeHtml(dashGreeting()) + '</div>' +
-        '<div class="insights-strip">' + dashStripHtml(d, ws, scope) + '</div>' +
-        '<div class="dash-cockpit">' +
-          '<div class="dash-col dash-col-primary">' +
+        '<div class="dash-hero">' +
+          '<div class="dash-hero-region dash-hero-left">' +
+            dashHeroFocusHtml(scope) +
+            dashHeroCountsHtml(d, ws) +
+          '</div>' +
+          '<div class="dash-hero-region dash-hero-centre">' +
+            dashHeadHtml(d, ws, period, dueOpen) +
+          '</div>' +
+          '<div class="dash-hero-region dash-hero-right">' +
+            streakCard +
+            dashHeroBlockingHtml(d) +
+          '</div>' +
+        '</div>' +
+        '<div class="dash-row2">' +
+          '<div class="dash-mod dash-today">' +
             '<div class="pp-insights-card">' +
-              dashHeadHtml(d, ws, period, dueOpen) +
               '<div class="pp-dash-card-title dash-due-title">' + th("dashboard_due_today") + '</div>' +
               '<div class="dash-due-list">' + dashDueListHtml(ws, dueOpen) + '</div>' +
               dashQuickAddHtml() +
             '</div>' +
           '</div>' +
-          '<div class="dash-col dash-col-secondary">' +
+          '<div class="dash-mod dash-goals">' +
             '<div class="pp-insights-card">' +
               '<div class="pp-dash-card-title">' + th("dashboard_goals") + '</div>' +
               '<div class="insights-task-list">' + dashGoalsHtml(ws) + '</div>' +
             '</div>' +
-            streakCard +
             recapShell +
           '</div>' +
         '</div>' +

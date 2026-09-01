@@ -223,6 +223,15 @@ html.bg-light {
 
 /* SMALL — today's sizing, byte for byte. Every value equals its token name. */
 html.text-size-small {
+  /* [1.7.1] THE DISPLAY RAMP SCALES WITH THE SETTING TOO. These tokens were
+     defined in [1.6.1] as fixed values because nothing referenced them. The
+     hero numeral now does, and the text-size gate is right that a visible size
+     outside the ramp is a size the setting silently fails to cover. Stepped in
+     proportion with the --fs tiers rather than by a flat multiplier, so the
+     hero stays a hero at Small. */
+  --display-1: 48px;
+  --display-2: 32px;
+  --display-3: 21px;
   --fs-8: 8px;
   --fs-9: 9px;
   --fs-10: 10px;
@@ -239,6 +248,9 @@ html.text-size-small {
 /* LARGE — one notch above Medium, compressed at the top so nothing overtakes
    the untouched 16px tier. */
 html.text-size-large {
+  --display-1: 64px;
+  --display-2: 40px;
+  --display-3: 27px;
   --fs-8: 10px;
   --fs-9: 11px;
   --fs-10: 12px;
@@ -9051,8 +9063,13 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   width: 100%;
   /* Wider than the retired single card's 640px because the cockpit is two
      columns; the board's 720px is a one-column measure. */
-  max-width: 960px;
-  padding: 0 var(--space-4);
+  /* [1.7.1] TASKS WIDTH. The retired 960px measure was a two-column cockpit
+     cap; the board is now a 12-column grid and adopts the Tasks tab's
+     container so the two surfaces share a content edge. 28px matches
+     .tasks-header / .tasks-body exactly, so Dashboard and Tasks content
+     start at the same x. */
+  max-width: none;
+  padding: 0 28px;
   /* [2.0 contrast fix] ON-CARD INK IS SET ONCE AT THE ROOT, exactly as
      .insights-tab does and for exactly the same reason. Until this round every
      .dash-tab descendant that carried text was inside .dash-card, which declared
@@ -9113,32 +9130,141 @@ html.has-bg.bg-light .dash-greeting {
    narrow width, where the primary column keeps its source order and lands first —
    which is the right order on a phone-width window too. minmax(0, …) on both
    tracks so a long task name ellipsises instead of blowing the grid out. */
-.dash-cockpit {
+/* ===== [1.7.1] Hero band + row two =====
+
+   TWELVE COLUMNS, TWICE. The band is three regions of four; row two is Today at
+   seven and Goals at five. Both grids are declared on the same track definition
+   so the two rows share one rhythm and a module can be re-spanned later without
+   a second grid to keep in step.
+
+   The ring ([1.7.2]) and the this-week strip ([1.7.3]) have RESERVED SPACE and
+   no placeholder: min-height on the figure and the right region holds the band's
+   shape open so it can be judged now and does not jump when they arrive. */
+
+.dash-hero,
+.dash-row2 {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: var(--space-4);
-  align-items: start;
+  align-items: stretch;
 }
 
-@media (max-width: 860px) {
-  .dash-cockpit {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
+.dash-hero-region { grid-column: span 4; min-width: 0; }
+.dash-mod         { min-width: 0; }
+.dash-today       { grid-column: span 7; }
+.dash-goals       { grid-column: span 5; display: flex; flex-direction: column; gap: var(--space-4); }
 
-.dash-col {
+/* The band's three regions read as one surface, so they share the card frame
+   rather than each carrying their own. The centre is the only one with a
+   control in it, which is why it is the only one that needs no extra emphasis:
+   the outlined button is the emphasis. */
+.dash-hero-region {
+  background: var(--pro-frost-card-bg);
+  -webkit-backdrop-filter: var(--pro-frost-card-blur);
+  backdrop-filter: var(--pro-frost-card-blur);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  min-width: 0;
+  gap: var(--space-3);
 }
 
-/* .pp-insights-card carries a margin-bottom for the board's plain block flow.
-   Inside a gapped flex column that margin double-spaces every module, so it is
-   zeroed here rather than removed from the shared class (the board still wants
-   it). */
-.dash-cockpit .pp-insights-card {
-  margin-bottom: 0;
+/* LEFT: the surface's one hero. --display-1 appears exactly here and nowhere
+   else on the Dashboard; if a second element ever wants this size, one of the
+   two is not the hero. */
+.dash-hero-figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  /* Reserved for [1.7.2]'s ring: the figure keeps the height the ring will need
+     so the band does not resize when it lands. */
+  min-height: 96px;
+  justify-content: center;
+}
+
+.dash-hero-num {
+  font-size: var(--display-1);
+  font-weight: var(--display-weight);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-primary);
+}
+
+.dash-hero-label {
+  font-size: var(--fs-12);
+  color: var(--ink-secondary);
+}
+
+.dash-hero-counts {
+  display: flex;
+  gap: var(--space-5);
+  margin-top: auto;
+}
+
+.dash-hero-count { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+.dash-hero-count-num {
+  font-size: var(--fs-15);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-secondary);
+}
+
+.dash-hero-count-label {
+  font-size: var(--fs-11);
+  color: var(--ink-meta);
+}
+
+/* CENTRE: the pick-up card. .dash-head keeps every one of its five variants. */
+.dash-hero-centre { justify-content: center; }
+
+/* RIGHT: streak and focus blocking at --display-3, with room kept for the
+   this-week strip ([1.7.3]) beneath them. */
+.dash-hero-right { gap: var(--space-4); }
+
+.dash-hero-stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+.dash-hero-stat-num {
+  font-size: var(--display-3);
+  font-weight: var(--display-weight);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-primary);
+}
+
+.dash-hero-stat-label {
+  font-size: var(--fs-12);
+  color: var(--ink-secondary);
+}
+
+/* The streak body ships its own num/label pair (.insights-strip-num/-label).
+   Inside the band it takes the band's sizes rather than the strip's, so the two
+   right-hand stats read as one family. */
+.dash-hero-stat .dash-streak { display: flex; flex-direction: column; gap: 2px; }
+
+.dash-hero-stat .insights-strip-num {
+  font-size: var(--display-3);
+  font-weight: var(--display-weight);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-primary);
+}
+
+.dash-hero-stat .insights-strip-label {
+  font-size: var(--fs-12);
+  color: var(--ink-secondary);
+}
+
+/* NARROW WIDTHS. Measured against `busy` rather than assumed: see the round's
+   report. The band's three regions cannot hold their content at four columns
+   once the container drops below roughly 1000px, so they go to a 12/12/12 stack
+   at the SAME 900px breakpoint the Notes panel already uses. A second
+   breakpoint was not introduced because the measurement did not demand one. */
+@media (max-width: 900px) {
+  .dash-hero-region { grid-column: span 12; }
+  .dash-today,
+  .dash-goals { grid-column: span 12; }
 }
 
 /* ----- Module 4's header block ----- */
@@ -9256,13 +9382,24 @@ html.has-bg.bg-light .dash-meta-prio {
   gap: 2px;
 }
 
+/* [1.7.1] 36px rows with the priority carried on a RESERVED left border, the
+   same 3px transparent-then-coloured pattern .tt-task-row uses, so a row
+   with no priority stays aligned with one that has it and the two surfaces
+   cannot drift on what a priority looks like. padding-left compensates the
+   border so the checkbox keeps its inset. */
 .dash-due-row {
   display: flex;
   align-items: center;
   gap: var(--space-2-5);
-  padding: 7px 0;
+  min-height: 36px;
+  padding: 0 0 0 9px;
   font-size: var(--fs-14);
+  border-left: 3px solid transparent;
 }
+.dash-due-row.tt-prio-urgent { border-left-color: var(--prio-urgent); }
+.dash-due-row.tt-prio-high   { border-left-color: var(--prio-high); }
+.dash-due-row.tt-prio-medium { border-left-color: var(--prio-medium); }
+.dash-due-row.tt-prio-low    { border-left-color: var(--prio-low); }
 
 /* The checkbox is the Tasks tab's own .tt-task-check — same size, same accent,
    same affordance, so completing a task looks identical wherever the user does
