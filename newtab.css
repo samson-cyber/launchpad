@@ -9021,7 +9021,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
      the last card must clear the window's bottom edge rather than ending flush
      against it. The panel is the scroll path (R1); clearance belongs here, never
      on the shared panel, which Home's grid scroller also sizes against. */
-  padding-bottom: var(--space-7);
+  padding-bottom: 48px;
 }
 
 /* The tab's header line, and the ONLY thing on this surface that sits bare over
