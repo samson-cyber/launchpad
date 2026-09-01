@@ -7,6 +7,118 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
+# ---------------------------------------------------------------------------
+# Push-state check. WARNS, NEVER REFUSES, and never changes the exit code.
+#
+# On 2026-09-01 origin/master sat 83 commits behind local: the whole 2.1.0 arc
+# existed on one disk. Nothing caught it, because the guard above asks whether
+# the tree is committed and never asks whether the commits went anywhere. A
+# release cut here would stamp and tag a commit with no remote copy, which is
+# the v1.0.3 uncommitted-ship exposure one step later in the pipeline.
+#
+# WHY A WARNING AND NOT A GUARD. The clean-tree guard above is absolute because
+# it can ALWAYS be satisfied: commit, then build. A push guard cannot be
+# satisfied offline, and a hard guard that fires on a plane teaches the habit of
+# overriding build.sh - after which the clean-tree guard is no longer absolute
+# either. One guard that is never bypassed is worth more than two that sometimes
+# are. See CLAUDE.md, Git Configuration.
+#
+# THE TRAP THIS IS BUILT AROUND: origin/master is a LOCAL ref. Comparing against
+# it WITHOUT a successful fetch reports IN SYNC from stale data - a confident
+# wrong answer, which is worse than no check. So the state starts UNKNOWN and is
+# only ever moved off UNKNOWN INSIDE the branch where the fetch demonstrably
+# succeeded. There is deliberately no path from a failed, timed-out or skipped
+# fetch to the IN SYNC branch; that is enforced by the nesting below, not by a
+# comment asking someone to be careful.
+#
+# Runs under `set -e`, so every command that may legitimately fail is either the
+# condition of an `if` or guarded with `|| true`.
+# ---------------------------------------------------------------------------
+push_state="UNKNOWN"
+push_reason="git is not on PATH"
+push_ahead=""
+push_behind=""
+
+if command -v git >/dev/null 2>&1; then
+  push_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  push_upstream="$(git rev-parse --abbrev-ref '@{u}' 2>/dev/null || true)"
+
+  if [ -z "$push_upstream" ]; then
+    push_reason="no upstream is configured for '${push_branch:-HEAD}'"
+  else
+    # Best effort, bounded, and never interactive: GIT_TERMINAL_PROMPT=0 and an
+    # emptied credential helper mean a repo needing auth fails fast instead of
+    # blocking a build on a password prompt nobody is watching.
+    push_fetched=0
+    if command -v timeout >/dev/null 2>&1; then
+      if GIT_TERMINAL_PROMPT=0 timeout 5 git -c credential.helper= fetch --quiet 2>/dev/null; then
+        push_fetched=1
+      fi
+    else
+      if GIT_TERMINAL_PROMPT=0 git -c credential.helper= fetch --quiet 2>/dev/null; then
+        push_fetched=1
+      fi
+    fi
+
+    if [ "$push_fetched" -ne 1 ]; then
+      push_reason="could not fetch from the remote, so '$push_upstream' may be stale"
+    else
+      # left = commits on the upstream we do not have, right = commits we have
+      # that it does not.
+      push_counts="$(git rev-list --left-right --count "$push_upstream...HEAD" 2>/dev/null || true)"
+      push_behind="$(printf '%s' "$push_counts" | awk '{print $1}')"
+      push_ahead="$(printf '%s' "$push_counts" | awk '{print $2}')"
+      case "${push_behind}|${push_ahead}" in
+        ''|*[!0-9]*\|*|*\|*[!0-9]*|*\|)
+          # Anything that is not two plain integers stays UNKNOWN rather than
+          # being coerced into a comparison.
+          push_reason="could not read the ahead/behind counts against '$push_upstream'"
+          ;;
+        *)
+          if [ "$push_ahead" -gt 0 ]; then
+            push_state="AHEAD"
+          else
+            push_state="IN_SYNC"
+          fi
+          ;;
+      esac
+    fi
+  fi
+fi
+
+push_behind_note=""
+if [ -n "$push_behind" ] && [ "$push_behind" != "0" ]; then
+  push_behind_note=" Behind by $push_behind (someone else has pushed); informational only."
+fi
+
+case "$push_state" in
+  IN_SYNC)
+    echo "Push state: IN SYNC with $push_upstream, fetched just now.$push_behind_note"
+    ;;
+  AHEAD)
+    echo "" >&2
+    echo "  ############################################################" >&2
+    echo "  WARNING: local '$push_branch' is AHEAD of $push_upstream" >&2
+    echo "           by $push_ahead commit(s)." >&2
+    echo "" >&2
+    echo "  A release built from here would stamp and tag a commit that" >&2
+    echo "  EXISTS ONLY ON THIS MACHINE. On 2026-09-01 that gap reached" >&2
+    echo "  83 commits before anyone noticed." >&2
+    echo "" >&2
+    echo "    git push origin $push_branch" >&2
+    echo "" >&2
+    echo "  The build is NOT blocked. This is a warning by design." >&2
+    if [ -n "$push_behind_note" ]; then
+      echo " $push_behind_note" >&2
+    fi
+    echo "  ############################################################" >&2
+    echo "" >&2
+    ;;
+  *)
+    echo "Push state: UNKNOWN - $push_reason; cannot tell whether commits here exist anywhere else." >&2
+    ;;
+esac
+
 # Ink gate: panel text that sets no colour falls through to --text-primary
 # (#202124) and is invisible on the dark frosted surface a wallpaper produces.
 # Shipped twice (a68dd89 Insights board, [1.0.18 B-2] sound picker) because it

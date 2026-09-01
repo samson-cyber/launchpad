@@ -54,6 +54,7 @@ Other projects in the same dev root: `reelabs`, `condence-ai`, `exhale-health`, 
 - **Default branch: `master`** (not `main`)
 - Old `main` branch has been deleted. Preserved as `main-archive` tag at commit `ac0c2ad` for historical reference.
 - `build.sh` refuses to build when the working tree has uncommitted changes. **Never bypass this guard** — it exists because code shipped to users was not in git for several months, and this was painful to untangle.
+- **`build.sh` also reports push state, and that one is a WARNING BY DESIGN, not a guard.** On 2026-09-01 `origin/master` was found sitting **83 commits** behind local: everything from the 2.0.1 batch through the whole 2.1.0 arc existed on one disk, and a release cut then would have stamped and tagged a commit with no remote copy. The clean-tree guard above is absolute because it can always be satisfied by committing; a push guard **cannot be satisfied offline**, and a hard guard that fires on a plane teaches the habit of overriding `build.sh` — after which the clean-tree guard is no longer absolute either. So it warns loudly, never blocks, and reports **UNKNOWN rather than IN SYNC** whenever the fetch behind it did not succeed, because `origin/master` is a local ref and a stale comparison is a confident wrong answer.
 
 ---
 
@@ -297,13 +298,13 @@ When starting a new Claude Chat session on LaunchPad:
 1. Read this `CLAUDE.md` file
 2. Skim `docs/ROADMAP.md` for current priorities
 3. Check Asana (`LaunchPad Pro - Development Log` project) for active tasks
-4. Check recent commits in `C:\Dev\Git\launchpad` via `git log --oneline -10`
+4. Check recent commits in `C:\Dev\Git\launchpad` via `git log --oneline -10`, and report the ahead-by count (`git rev-list --count origin/master..master` after a fetch) alongside them
 5. Proceed with the user's request
 
 When starting a new Claude Code session:
 
 1. Confirm working directory is `C:\Dev\Git\launchpad`
-2. Verify `git status` shows clean working tree (or understood in-progress work)
+2. Verify `git status` shows clean working tree (or understood in-progress work), and report the ahead-by count (`git fetch` then `git rev-list --count origin/master..master`) so unpushed work is visible before it accumulates
 3. Read any Asana task ID provided in the prompt
 4. Review the relevant sections of `docs/BUGS.md` that apply to the task's scope
 5. Proceed with the requested change
