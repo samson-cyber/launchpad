@@ -42,6 +42,14 @@
 // so at entry granularity dropping the locales/en.js script tag leaves `locales`
 // still allowed and still shipping, and instance 2 stays invisible.
 //
+// WHAT THIS GATE CANNOT SEE, stated so nobody assumes otherwise (BUGS.md Q17).
+// It detects a file that NOTHING references. It cannot detect a single page
+// losing a script it individually needs while another page still references that
+// file: locales/en.js is referenced by both newtab.html and gate.html, so
+// deleting its tag from newtab.html alone breaks the new-tab page and leaves this
+// gate green. That is a limit of absence-checking, not a bug here, and closing it
+// would need a per-page required-script assertion, which is a different check.
+//
 // Why raw zip entry names matter (RUNWAY STEP 1 live finding, 2026-07-21):
 // PowerShell 5.1's Compress-Archive wrote sub-directory entries with BACKSLASH
 // separators (icons\icon16.png, byte 0x5c). That violates the ZIP spec (APPNOTE
@@ -320,9 +328,10 @@ const EXPECTED_UNREFERENCED = [
 // other, and agreement is what this gate reports as success. So each source must
 // clear a floor, and a breach is exit 2 (gate broken), not exit 1 (violation).
 //
-// Floors are set near 75% of today's real counts: low enough that ordinary
+// Floors are set near 70% of today's MEASURED counts: low enough that ordinary
 // product change never trips them, high enough that a half-broken parser cannot
-// slip under. Today: REFERENCED 22, ALLOWED 26, PACKAGED 26, HTML pages 4.
+// slip under. Measured on the 2.1.0 tree: REFERENCED 21, ALLOWED 29 (25
+// allowlist entries, six of them directories), PACKAGED 29, HTML pages 4.
 // ---------------------------------------------------------------------------
 const FLOOR_REFERENCED = 15;
 const FLOOR_ALLOWED = 20;
