@@ -738,7 +738,18 @@ Accepted bugs and constraints we're not planning to fix. Format: date, area, des
 
 **Area:** Polish (free tier)
 **Description:** When user selects a light color background (white, light gray), the Settings panel retains its dark frosted glass style. Contrast is acceptable but inconsistent with the luminance-aware text styling elsewhere. Candidate for v1.0.5 polish.
-**Status:** Acknowledged, not fixing in current scope.
+**Status:** **RESOLVED, AND IT WAS ALREADY RESOLVED BEFORE ANYONE CHECKED.** [1.6.5] was scoped to fix this by moving the panels to the Floater tier. They were already on it: `html.has-bg #settings-panel, html.has-bg #pro-settings-panel` sets `background: var(--pro-frost-floater-bg)`, `html.bg-light` redefines that variable to `rgba(255,255,255,0.92)`, and explicit `html.bg-light` rules cover the border, header, close buttons and ink. Nothing was changed.
+
+Measured on the four reachable frames (Section O) rather than looked at, 2026-09-01:
+
+| frame | panel background | label ink | contrast |
+|---|---|---|---|
+| dark solid | `rgba(30,30,30,0.92)` | `rgba(255,255,255,0.7)` | 16.67:1 |
+| dark photo | `rgba(30,30,30,0.92)` | `rgba(255,255,255,0.7)` | 16.67:1 |
+| bright photo | `rgba(255,255,255,0.92)` | `rgb(95,99,104)` | 6.05:1 |
+| light solid | `rgba(255,255,255,0.92)` | `rgb(95,99,104)` | 6.05:1 |
+
+**The lesson is about the LIMITATION LOG, not the panel.** This entry sat open for four months after the thing it described had been fixed, because the fix arrived incidentally in an ink round that was not looking at this ticket. A limitation is only true on the day it is written; nothing re-checks it, and a stale one costs a round of scope that finds nothing to do. Backlog 1217977857203677 closes with it.
 
 ### 2026-04-24 — Free Tier — "+ New Group..." in right-click context menu silently creates "New Group" without prompting
 
