@@ -436,6 +436,12 @@ await (async () => {
       check("header: evening + five OVERDUE rows never says the work is done", !h.includes(DONE), h);
       eq("header: ...it says so plainly instead", headlineOf(h), FEW);
       eq("header: ...under its own variant, so the two states are distinguishable", variantOf(h), "evening-open");
+      // GROUP C NOTE (2026-09-01 assertion audit). This was the ONE hardcoded
+      // count of ten whose reason was not already carried by its own label. The
+      // label says "not empty"; the assertion says exactly FIVE, which is the
+      // fixture's overdue(5) above. So the number IS load-bearing — it asserts
+      // ALL FIVE render, not merely that something did — and the label understates
+      // it. If the fixture size changes, this number changes with it.
       check("header: ...and the list beneath it is not empty", !/Nothing due today\./.test(list(ws)) && (list(ws).match(/dash-due-row/g) || []).length === 5);
       check("header: ...with the same close-out title — the day IS over", /That’s the day/.test(h));
     }
@@ -622,6 +628,13 @@ await (async () => {
   check("render: goals and streak are the SECONDARY column", /dash-col-secondary[\s\S]*dashGoalsHtml/.test(render) && /dash-col-secondary[\s\S]*streakCard|streakCard[\s\S]*dash-col-secondary/.test(render));
   check("render: quick-add sits at the due-today module's foot", render.indexOf("dashDueListHtml") < render.indexOf("dashQuickAddHtml"));
   check("render: the suggestion block is the due module's HEAD, not a card of its own",
+    // GROUP A RESOLUTION (2026-09-01), WITH AN OPEN QUESTION. Exact class=
+    // equality was ruled APPROPRIATE — verbatim is the meaning. But that ruling
+    // was reasoned about POSITIVE assertions, and this one is NEGATIVE, where
+    // BUGS.md P16 says the opposite: renaming dash-card, or adding a second class
+    // to it, satisfies this prohibition without removing the thing prohibited.
+    // Left unchanged (that round forbade assertion changes). Decide it, do not
+    // assume the group ruling covers it.
     render.indexOf("dashHeadHtml") < render.indexOf("dashboard_due_today") && !/class="dash-card"/.test(SRC.nt));
   check("render: the streak and focused tile suppress on the SAME scope",
     /if \(scope\) dashRefreshStreak/.test(render) && /var streakCard = scope\s*$/m.test(render));

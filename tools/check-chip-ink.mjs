@@ -318,6 +318,11 @@ for (const cls of ["tt-tag-pill", "pp-tag-pill", "tag-pill", "sb-ws-chip", "pws-
   // and silently remove the hover affordance.
   check("ring: consumed as a CSS var so :hover still wins",
     /\.pro-tag-swatch\.selected \{[^}]*border-color: var\(--swatch-ink, #fff\);/.test(SRC.css));
+// GROUP D RESOLUTION (2026-09-01 assertion audit). The exact declaration text in
+// this file's CSS assertions IS the property, not an over-specification: the
+// contrast results below are computed FROM those literal values, so a
+// design-token change genuinely changes the measured ink and SHOULD fail here.
+// That is the gate working, not misfiring. Do not loosen them to "has a colour".
   check("ring: the hover rule is still there to win",
     /\.pro-tag-swatch:hover \{[^}]*border-color:/.test(SRC.css));
 }

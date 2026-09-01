@@ -347,6 +347,11 @@ await (async () => {
     check("wiring: ...directly beside Icon Size",
       appearance.indexOf('id="settings-icon-size"') < appearance.indexOf('id="settings-text-size"') &&
       appearance.indexOf('id="settings-text-size"') < appearance.indexOf("settings-wallpaper-row"));
+    // GROUP A RESOLUTION (2026-09-01 assertion audit). The exact class= equality
+    // here is APPROPRIATE, not over-specification: "reuses the row's own classes,
+    // no new markup surface" means VERBATIM, so a second class appearing is
+    // precisely what this exists to catch. Do not loosen it to "has this class".
+    // The count of 1 is load-bearing too — there must be exactly one Text Size row.
     check("wiring: it reuses the icon-size row's own classes — no new markup surface",
       (html.match(/<div[^>]*class="settings-row"[^>]*>\s*<label[^>]*class="settings-label"[^>]*>Text Size/) || []).length === 1);
     // FREE, NEVER GATED. Neither the row nor its handler may sit behind Pro.

@@ -354,6 +354,12 @@ await (async () => {
       /not tracked|while you browse|as soon as you browse/i.test(armed), armed);
     check("liveness: ...and the tooltip was reworded WITH the label, not left explaining the old one",
       /Ready/.test(armed.match(/title="([^"]*)"/)[1]) && !/\bActive\b/.test(armed.match(/title="([^"]*)"/)[1]), armed);
+    // GROUP B RESOLUTION (2026-09-01 assertion audit). Left tight deliberately.
+    // The property is arguably the SET rather than the order, so sorting before
+    // comparing would preserve the meaning — but these classes are emitted by our
+    // own code in a fixed order, a reorder would be a deliberate edit, and being
+    // exact costs nothing here. Loosening buys no robustness against any change
+    // that actually happens.
     check("liveness: the rename emitted no new classes — same three nodes, same ink coverage",
       (armed.match(/class="[^"]*"/g) || []).join(" ") === 'class="sat-live" class="sat-live-dot" class="sat-live-word"', armed);
 
@@ -808,6 +814,11 @@ await (async () => {
     check("takeover: FOCUSED TODAY is rendered beneath the ring during a running phase",
       /sat-pomo-stop-row[\s\S]*?sat-pomo-today">' \+ satHeadlineHtml\(paused\)[\s\S]*?satFocusRowHtml/.test(card));
     check("takeover: ...through the SAME builder the idle card uses, not a copy",
+      // GROUP A/C RESOLUTION (2026-09-01). The >= 2 count IS the property: both
+      // branches must go through the shared builder rather than one copying it.
+      // The trailing !/class="sat-time"/ is the SECOND negative exact-class
+      // instance flagged in BUGS.md P16 — a rename or an added class satisfies it
+      // without removing what it forbids. Left unchanged; decide it deliberately.
       (card.match(/satHeadlineHtml\(/g) || []).length >= 2 && !/class="sat-time"/.test(card));
     check("takeover: only its SCALE changes, and only in CSS",
       /\.sat-pomo-today \.sat-time \{[^}]*font-size: var\(--fs-15\)/.test(SRC.css));
