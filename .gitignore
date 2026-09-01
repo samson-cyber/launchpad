@@ -11,3 +11,4 @@ demo-data.js
 
 # Permission-comparison variant trees (built on demand; never committed)
 .permcheck/
+.capture-profile*/
