@@ -1,5 +1,11 @@
 # Chrome Web Store Listing
 
+**Live as of the 2.1.0 submission, 2026-09-01.** This file is the canonical record of
+what is on the listing. If it disagrees with the dashboard, the dashboard is right and
+this file is stale: fix the file. Title and Short Description below are byte-identical
+to `_locales/en/messages.json`, which is what Chrome resolves `__MSG_extension_name__`
+and `__MSG_extension_description__` against at install time.
+
 ## Title
 LaunchPad - New Tab Dashboard, Shortcuts, Tasks & Focus Time
 
@@ -11,50 +17,76 @@ Productivity
 
 ## Full Description
 
-**LaunchPad replaces Chrome's new tab page with unlimited organized shortcuts — no bloat, no accounts, completely private.**
+LaunchPad replaces Chrome's new tab with a page that actually holds your working day.
 
-Tired of Chrome's 10-shortcut limit? LaunchPad gives you unlimited shortcuts organized into custom groups, so every site you need is one click away.
+The free tier is a complete launcher. Unlimited shortcuts organised into groups you name, drag and drop, open a whole group in one click, wallpapers, browsing history, session restore, and named sessions you save and relaunch whenever you need them. No caps, no account, no sign-up.
 
-**KEY FEATURES**
+Pro adds the part nobody else does: it measures where your time actually went.
 
-• Unlimited shortcuts — no artificial caps, add as many as you need
-• Custom groups — organize shortcuts into labeled sections (Work, Social, Dev Tools, etc.)
-• Drag-and-drop — reorder shortcuts and entire groups by dragging
-• Dark mode — matches Chrome's native dark theme, or follows your system preference
-• Bookmarks import — import Chrome bookmark folders as shortcut groups in one click
-• Search bar — search using your default Chrome search engine
-• Right-click to add — right-click any page or link and choose "Add to LaunchPad"
-• Auto favicons — site icons are fetched automatically
-• Edit and remove — hover over any shortcut to edit its name/URL or remove it
-• Inline rename — click any group name to rename it on the spot
+FREE, FOREVER
 
-**FAST AND LIGHTWEIGHT**
+- Unlimited shortcuts, organised into groups you name
+- Open a whole group in one click
+- Named sessions: save the tabs you are working in and relaunch the set into a fresh window
+- Automatic session restore, so closing a window is never a loss
+- Wallpapers, solid colours, or your own image
+- Browsing history, grouped by site and searchable
+- Import from Chrome bookmarks or top sites
+- Right-click any page to add it
+- Backup and restore: export everything you have as a file you own
 
-LaunchPad loads instantly with zero lag. No heavy frameworks, no background processes, no resource drain. Just your shortcuts, ready to go.
+PRO
 
-**100% PRIVATE**
+- Tasks and goals that live on your new tab, with tags, priorities and due dates
+- A clock attached to whichever task is active, so you can see what a piece of work actually cost
+- Focus sessions with a break cycle, and site blocking that shows a quiet reminder page instead of taking your attention
+- Deep Work Time, time by site, time by tag, and your top tasks, measured automatically while you work
+- Insights over today, the past 7 days, the last 30, or any range inside your history
+- Lifetime focused time per task, once there is more of it than the 30-day window can show
+- Sticky notes beside your tasks, with drag to reorder, search, a trash you can restore from, and promote-a-note-into-a-task
+- Weekly automatic backup to your Downloads folder
+- Multiple workspaces, each with its own shortcuts, tasks and tracked time
 
-LaunchPad collects zero data. No analytics, no tracking, no accounts, no cloud sync. All your shortcuts are stored locally on your device using Chrome's built-in storage. Nothing ever leaves your browser.
+NOTHING LEAVES YOUR BROWSER
 
-**GETTING STARTED**
+There is no LaunchPad server. Your shortcuts, tasks, goals, notes, sessions and tracked time live in Chrome's local storage on your machine. No account to create, no analytics, no tracking, no scores and no reports sent anywhere. LaunchPad loads site icons and wallpaper images the way any web page loads an image, and on Pro it checks your licence key about once a day. Nothing else leaves your browser.
 
-1. Install LaunchPad
-2. Open a new tab
-3. Choose "Import from Chrome Bookmarks" or "Start from scratch"
-4. Add shortcuts, create groups, and organize your way
+PRICING
 
-**PERFECT FOR**
+The launcher is free forever. Pro is $4.99 a month or $39 a year, with a 7-day trial that needs no card and no sign-up.
 
-• Power users with dozens of frequently visited sites
-• Developers managing multiple projects and tools
-• Students organizing resources by class or subject
-• Anyone who wants a clean, fast, ad-free new tab page
+WHAT IS NEW IN 2.1.0
 
-**OPEN SOURCE**
+Sticky notes beside your tasks. Named sessions you save and relaunch. Insights date ranges including custom ranges. Lifetime focused time per task. Full backup and restore, with optional weekly automatic backups on Pro. Plus descriptions on new tasks and goals, a New Tag button, a task options menu, and a long list of fixes.
 
-LaunchPad is free and open source. View the code, report issues, or contribute at:
-https://github.com/samson-cyber/launchpad
+## Permission justifications (Privacy tab)
 
----
+> **GAP - NOT RECORDED.** The three justification texts live on the Chrome Web Store
+> Privacy tab, and this session cannot see the dashboard. The texts below are **not**
+> the listing copy and must not be pasted as such. They record what the code actually
+> does with each permission, so that whoever fills this in can check the live
+> justification against the truth rather than against memory. **Samson: paste the
+> three real justification strings over this block.**
+
+What the build actually uses each for, read from `manifest.json` at `2.1.0`:
+
+- **`history`** (required) - the history panel in the sidebar, which groups the user's
+  own browsing history by site and makes it searchable. Read-only; never transmitted.
+- **`webNavigation`** (required) - focus blocking. Navigations are inspected so a
+  blocked host can be replaced with the local reminder page (`gate.html`) while a
+  focus session is running. Also feeds per-site time attribution for Insights.
+- **`downloads`** (**optional**, requested at the moment of use) - writing the weekly
+  Pro backup file into the user's Downloads folder, and manual export. Not held
+  unless the user turns backups on. Worth stating as optional in the justification,
+  because a reviewer reading the manifest will see it in `optional_permissions`.
+
+Full declared set at 2.1.0, for reference: `storage`, `bookmarks`, `contextMenus`,
+`history`, `topSites`, `tabs`, `webNavigation`, `alarms`, `search`, `idle`,
+`offscreen`; optional `notifications`, `downloads`; hosts
+`https://live.dodopayments.com/*` and `https://mylaunchpad.me/*`.
+
+## Tags
+
+*Preserved from the pre-2.1.0 version of this file, unreviewed in this pass.*
 
 **Tags:** new tab, shortcuts, bookmarks, speed dial, unlimited, groups, organize, productivity, dark mode, free, private, drag and drop, new tab page, bookmark manager, quick access
