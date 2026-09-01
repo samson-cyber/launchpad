@@ -2328,12 +2328,46 @@ decided differently: **the beacon was a THIRD PARTY reading the URL after the sc
 which is a genuine leak to someone who otherwise would have had nothing; NEL is the
 existing party seeing an error-sampled subset of what it already has.
 
-**OPEN, and cheap: can Dodo append to a FRAGMENT instead of a query string?** A fragment
-(`#license_key=...`) is never sent to the server, which closes the whole class
-permanently rather than mitigating it per-surface: no wire exposure, no access log, no
-Navigation Timing entry, and the scrub becomes belt-and-braces instead of the only
-control. If Dodo's redirect configuration allows it, take it. **This is the only change
-that would make the accepted risk above unnecessary rather than merely accepted.**
+**CLOSED 2026-09-01, and the answer inverted the recommendation.** The question was
+whether Dodo could append to a FRAGMENT instead of a query string, since a fragment is
+never sent to a server. A full read of the dashboard and API reference found **no control
+of any kind over the return parameters**: not at product level (the licence-key entitlement
+drawer has four fields, none URL-related), not on the payment link (one `Redirect URL`
+field, and Advanced Settings covers only prefill and field-locking), not at account level
+(the only URL setting is the customer-portal exit), and not in the Checkout Sessions API,
+whose eighteen `feature_flags` are all about currency, editable fields, discounts and
+phone collection. `return_url` is documented as nothing more than "The url to redirect
+after payment failure or success". Fragment handling is **undocumented**, which is silence
+rather than a stated behaviour, so it is not something to design on.
+
+**What Dodo appends is now definitive**, from the return_url table: `payment_id` (one-time)
+or `subscription_id` (subscription), `status`, `license_key` "Present if the product has
+license keys enabled. Comma-separated if multiple keys", and `email` **"Present if the
+customer has an email on record"**. Two checks against our code: the comma-split in
+`handleCheckoutReturn` is correct and documented rather than folklore; and **`email` is
+conditional, not guaranteed**, which `background.js` already handles with
+`if (email) data.pro.email = email`. Both LaunchPad products are subscriptions, so live
+returns carry `subscription_id` and `status=active`, never `payment_id` or
+`status=succeeded`. Nothing in the handler reads either field, by design: entitlement comes
+from `LicenseClient.ensureValidated`, not from the redirect.
+
+**THE ONLY WAY TO KEEP THE KEY OFF THE WIRE IS TO STOP DODO APPENDING IT, AND THAT COSTS
+MORE THAN THE EXPOSURE.** The documented path is the `license_key.created` webhook, whose
+payload carries the key alongside `payment_id` and `subscription_id` server to server. It
+genuinely closes the class. But adopting it means: a Cloudflare Worker endpoint, a stored
+mapping from subscription id to licence key so the return page can collect it (the webhook
+and the redirect race, and the redirect frequently wins), a Dodo API key whose permissions
+are coarse enough to list every customer's keys, and a new authenticated endpoint to
+defend. **That trades a transient entry in an access log we already trust for a PERSISTENT
+KEY STORE we would have to build, secure and be trusted with.**
+
+It also collides with the product's central claim. The store listing says, in its own
+section heading, that **there is no LaunchPad server**. Building one to hold licence keys
+would make the strongest sentence in the listing false, in order to close an exposure to
+infrastructure the same listing already discloses we use. **The accepted risk stands, and
+it is now accepted on evidence rather than on assumption.** Revisit only if Dodo adds a
+return-parameter control, or if a server exists for some other reason and the store is a
+marginal addition rather than a new liability.
 
 Full finding, including the beacon that was removed and the measurements behind each
 claim, is filed on Asana 1217977486245315.
