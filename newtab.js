@@ -4211,8 +4211,15 @@
       ? '<ul class="tt-standalone-list">' +
           standaloneVisible.map(function (t) { return taskRowHtml(workspace, t); }).join("") +
         '</ul>'
+      // [1.6.5] Raised to match the free-tier preview's wording, which was the
+      // only copy of this sentence that got the empty-state pass. The preview
+      // read better than the product it previews, which inverts the
+      // preview-is-the-promise rule rather than merely missing it. Extended in
+      // place, English literals for now: these are concatenated BETWEEN two
+      // markup fragments, so they are invisible to the i18n site gate and were
+      // never migrated. Catalogue migration belongs to R5 (Asana 1218050333264862).
       : '<div class="tt-empty-state">' +
-          (tasksFiltersNarrowing() && standaloneActive.length ? 'No standalone tasks match the current filter.' : 'No standalone tasks.') +
+          (tasksFiltersNarrowing() && standaloneActive.length ? 'No standalone tasks match the current filter.' : 'No standalone tasks. New tasks land here unless you pick a goal.') +
         '</div>';
 
     // [1.0.12] Recurring: tag filter only (templates carry no priority/status);
@@ -4225,8 +4232,11 @@
       ? '<ul class="tt-recurring-list">' +
           recurringVisible.map(function (t) { return recurringRowHtml(workspace, t); }).join("") +
         '</ul>'
+      // [1.6.5] Same raise as the standalone list above, same R5 caveat. The
+      // "New Recurring" this names is the real button in this tab's own header,
+      // so the instruction is actionable from here.
       : '<div class="tt-empty-state">' +
-          (taskFilterState.tagIds.length && recurringTemplates.length ? 'No recurring tasks match the current filter.' : 'No recurring tasks.') +
+          (taskFilterState.tagIds.length && recurringTemplates.length ? 'No recurring tasks match the current filter.' : 'No recurring tasks. Create one with New Recurring.') +
         '</div>';
 
     // [1.0.12] Status drives ACTIVE-section visibility (locked interaction

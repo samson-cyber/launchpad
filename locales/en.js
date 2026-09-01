@@ -2492,8 +2492,8 @@ I18n.register("en", {
     "description": "Accessible name for the checkbox that completes a due task. {taskName} is the user's task title."
   },
   "dash_no_active_goals": {
-    "message": "No active goals. Create one in Tasks.",
-    "description": "Dashboard goals empty state. The 'Create one in Tasks' control follows as a sibling; the sentence used to run into it through an em dash."
+    "message": "No active goals.",
+    "description": "Dashboard goals empty state, in dashGoalsHtml(). STATE THE CONDITION ONLY, NEVER THE ACTION: the renderer appends a 'Create one in Tasks.' link (dash_create_one_in_tasks) immediately after this string, on the same line, so any call to action added here renders TWICE. [1.6.5] added 'Create one in Tasks.' to this message and shipped exactly that duplication. The sentence used to run into the link through an em dash; R4 made both halves standalone sentences."
   },
   "focusblock_remove_site": {
     "message": "Remove {site}",
