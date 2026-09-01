@@ -2289,3 +2289,51 @@ entirely in English converts a user into an immediate disappointment, and the re
 follows is worse than the install was worth. The two ship together per language or neither
 ships. This binds the listing round on 1217302412535620 and follows from the `[1.5.0]`
 localization work being groundwork rather than a shipped language.
+
+### The checkout-return scrub is an address-bar boundary, not a confidentiality boundary
+
+**The licence key transits the URL to Cloudflare on every checkout return, and that is
+ACCEPTED.** Dodo redirects to `https://mylaunchpad.me/checkout-return?license_key=...`, so
+the key is in the request line of a request Cloudflare terminates. This is **own
+infrastructure, not a third party**, and it is no different in kind from trusting the CDN
+to serve the site at all and to hold access logs while doing it. Accepting it is a
+decision, not an oversight, and it is recorded here so nobody re-litigates it from
+scratch.
+
+**What `history.replaceState` on `checkout-return.html` actually protects.** It rewrites
+the URL after the page loads, so it protects: the **address bar** (the key is not sitting
+in a window the user may screenshot, screen-share or read aloud), the **history entry**
+(the key is not persisted into browsing history, where the extension's own history panel
+could later surface it), and **anything reading `location.search` afterwards**, including
+scripts that run later on the page.
+
+**What it CANNOT protect, and this is the part the scrub's existence tends to obscure:**
+
+- **The wire.** The key is in the request line, sent before any script exists.
+- **Cloudflare's access logs.** Same reason. The request is logged when it arrives.
+- **Navigation Timing.** `performance.getEntriesByType("navigation")[0].name` retains the
+  ORIGINAL URL for the life of the document, and `replaceState` does not touch it.
+
+All three see the request **before the first line of script runs**, which is the general
+form: a client-side rewrite cannot retroactively unsend a request. **A future reader must
+not take the scrub to mean the key is not exposed.** It means the key is not left lying
+around in surfaces a person or a later script can read.
+
+**Cloudflare's NEL headers were investigated and closed as acceptable.** Network Error
+Logging on the zone reports to Cloudflare with `success_fraction 0.0`, so it fires on
+errors only, and it reports to the same party that already terminates the request and
+writes the access log. That makes it **a rounding error on data the CDN necessarily
+already holds**. This is the distinction that matters and it is why the two cases were
+decided differently: **the beacon was a THIRD PARTY reading the URL after the scrub**,
+which is a genuine leak to someone who otherwise would have had nothing; NEL is the
+existing party seeing an error-sampled subset of what it already has.
+
+**OPEN, and cheap: can Dodo append to a FRAGMENT instead of a query string?** A fragment
+(`#license_key=...`) is never sent to the server, which closes the whole class
+permanently rather than mitigating it per-surface: no wire exposure, no access log, no
+Navigation Timing entry, and the scrub becomes belt-and-braces instead of the only
+control. If Dodo's redirect configuration allows it, take it. **This is the only change
+that would make the accepted risk above unnecessary rather than merely accepted.**
+
+Full finding, including the beacon that was removed and the measurements behind each
+claim, is filed on Asana 1217977486245315.

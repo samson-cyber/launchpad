@@ -174,8 +174,8 @@ function isProAccessibleLevel(level) {
 - **Search before acting.** For factual questions about the codebase, use file view/grep. For web-facing facts, search the web.
 - **Read SKILL.md files** when relevant before code generation (docx, pdf, pptx, xlsx, frontend-design).
 - **Verify git state before destructive operations.** Confirm GitHub has latest commits before deleting any local folder.
-- **Use Asana for task tracking.** See `ASANA.md` for the workflow.
-- **Update docs as you go.** When a significant decision is made, add it to `DECISIONS.md`. When a spec changes, update the relevant spec file.
+- **Use Asana for task tracking.** See `docs/ASANA.md` for the workflow.
+- **Update docs as you go.** When a significant decision is made, add it to `docs/DECISIONS.md`. When a spec changes, update the relevant spec file.
 - **Read `docs/SPECS/design-guide.md` before any task that touches UI, and paste its Section 8 checklist into the PLAN.**
 - **Present Claude Code prompts in a single copy-pasteable code block** (not split across prose). This matches Samson's working preference.
 
@@ -267,7 +267,7 @@ section exists to prevent.
 - **Never bypass `build.sh`'s clean-tree guard.** Commit first, then build.
 - **Never work in OneDrive paths.** If a path includes `OneDrive`, stop and redirect to `C:\Dev\Git\`.
 - **Never put secrets in source files.** Firebase configs, API keys, and credentials belong in `.env` (gitignored) or equivalent.
-- **Never create an Asana task when the work belongs on an existing task.** One task per piece of work. See `ASANA.md`.
+- **Never create an Asana task when the work belongs on an existing task.** One task per piece of work. See `docs/ASANA.md`.
 - **Never overwrite a task's "Context" section** when updating from Claude Code. Context is written once at task creation and stays stable.
 
 ---
@@ -296,7 +296,7 @@ section exists to prevent.
 - `docs/ROADMAP.md` — What's in Pro v1, deferred to v2/v3, future considerations.
 - `docs/DECISIONS.md` — Architectural and product decisions with reasoning. Append-only log.
 - `docs/BUGS.md` — Audit checklist Claude Code runs at task completion, plus known limitations log.
-- `docs/HANDOVER.md` — Session handover document, updated when context limits approach.
+- **Session handover — the `HANDOVER CHECKPOINT` comment on Asana task `1214275087201909`.** That comment is canonical; the handover document itself says so. **There is deliberately no `docs/HANDOVER.md`.** This line pointed at one until 2026-09-01 and the file had never existed, so every session that followed the pointer found nothing. A committed copy is the wrong shape for this: it goes stale the moment the next checkpoint is posted, and a handover that reads as current while describing a session two checkpoints ago is worse than an absent one — the same hazard as the stale candidate zip, in prose.
 - `docs/SPECS/*.md` — Individual spec documents (UX, data model, tracking engine, etc.)
 - `docs/SPECS/design-guide.md` — The design guide: tokens, layouts, components, copy voice. Read it before any UI task; Section 8 is the checklist that goes into the PLAN.
 - `docs/RESEARCH/` — Point-in-time research snapshots, dated in the filename. Evidence behind decisions, not rules; the rules live in SPECS and DECISIONS.

@@ -179,6 +179,19 @@ Run when the task touched: any user data, storage, network calls, or third-party
 
   Consequence for the catalogue accessors: this is why `th()` escapes quotes as well, and why a value passed to it goes in **raw** rather than pre-escaped (**D21**). `0641149`, bug 1217985856381677.
 
+- **G6. A PERMISSION JUSTIFICATION WRITTEN FROM WHAT THE PERMISSION IS OBVIOUSLY FOR, RATHER THAN FROM ITS CALL SITES, OVERSTATES ACCESS — and the reader is a store reviewer holding the same manifest.** Three justifications were written from purpose on 2026-09-01. **Two were wrong, and both erred in the same direction: claiming MORE access than the product takes.**
+
+  1. **`webNavigation`** was described as feeding per-site time attribution as well as focus blocking. It does not. Every `chrome.webNavigation` reference in the tree is one of three listeners — `onBeforeNavigate`, `onHistoryStateUpdated`, `onReferenceFragmentUpdated` — all routed to a single handler that redirects a top-level frame to `gate.html`. Attribution rides `chrome.tabs.onActivated`/`onUpdated`, `chrome.windows.onFocusChanged` and `chrome.idle.onStateChanged`, **none of which need this permission**.
+  2. **`downloads`** was described as covering manual export. **The opposite is true**: manual export works with the permission DENIED, because the page builds a blob and clicks an `<a download>`. The only `chrome.downloads.download` call is the weekly auto-backup, which the service worker cannot do that way for lack of an anchor.
+
+  **Why this is its own line rather than an instance of E7.** E7 is code failing to know about code — a literal list that silently omits a new entity, symptomless until someone notices trash that never empties. The failure mode here is different in kind and in audience: **the reader is a human reviewer deciding whether the extension ships, and they can read the same `manifest.json` you can.** An overstatement is therefore not a stale comment, it is **a false claim to the party holding the decision** — a rejection risk and a trust problem, not a maintenance smell. It also fails in the opposite direction from most disclosure bugs, which understate; writing "we also use this for X" when you do not hands a reviewer a discrepancy they did not have to go looking for.
+
+  **THE CHECK: derive every justification from `grep`ped call sites, never from the permission's name.** For each declared permission, enumerate the actual references, name the API surface used, and say what it does with the result. `history` was checked the same way and was already right — the point is that being right by luck and right by derivation are indistinguishable in the written text, so derive all of them.
+
+  **COROLLARY — an OPTIONAL permission must be stated as optional and requested at point of use.** `downloads` and `notifications` are in `optional_permissions`, not `permissions`. A justification written as though the permission were standing is wrong against a manifest the reviewer can check, and it forfeits the strongest thing you could have said: that the extension does not hold it unless the user turns the feature on.
+
+  **THE NEGATIVE FINDING THAT MADE IT CONCLUSIVE:** grepping for `onBeforeRequest` returned **nothing**, and `webRequest` is **not declared in the manifest at all**. LaunchPad navigates a tab to its own page rather than inspecting traffic. That distinction is worth stating explicitly in a privacy justification, and it is only available to someone who searched for the API that is absent — a permission audit that only looks at what IS declared cannot produce it. `0a21974`, Asana 1217967430924095.
+
 ### Section H: Prototype Discipline
 
 Run when the task touched: `tracking-prototype.js` or any other experimental / prototype module.
