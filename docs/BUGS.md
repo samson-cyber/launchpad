@@ -597,6 +597,21 @@ Run when the task adds, extends, or relies on any automated gate, harness, or ge
 
   **THE UNRESOLVED CASE, recorded rather than decided.** The 2026-09-01 audit also ruled that exact `class="x"` equality is APPROPRIATE and must not be loosened, because "verbatim, no new markup surface" is genuinely the meaning. That ruling was reasoned about POSITIVE assertions. At least two instances are NEGATIVE — `!/class="dash-card"/` (check-today-cockpit) and `!/class="sat-time"/` (check-pill-clarity) — where the two rulings pull opposite ways: renaming the class, or adding a second one, would satisfy the prohibition without removing the thing prohibited. Neither was changed, because that round forbade assertion changes. **Whoever opens this next should decide those two rather than assume the group ruling covers them.**
 
+- **P17. `\b` DOES NOT DELIMIT A HYPHENATED NAME, so the obvious way to loosen a class or token assertion trades a false pass for a FALSE FAILURE.** P16 says a negative assertion must be as loose as its meaning permits. It does not say how, and the obvious how is wrong. Widening `!/class="dash-card"/` to `!/class="[^"]*\bdash-card\b/` reads as correct to everyone who has written a word-boundary regex — but **a hyphen is a NON-WORD character**, so `\b` matches *inside* a hyphenated name. `\bdash-card\b` therefore hits `pp-dash-card-title`, which is a different class.
+
+  Not hypothetical, and not a near miss: **measured on this tree, that form fails immediately on 16 live elements**, and its twin `\bsat-time\b` hits the real `sat-time-label`. A gate shipped that way would have failed on markup that was never prohibited, which is the false-failure half of the damage this whole arc was about — a gate that misfires on unrelated changes trains people to edit gates instead of code.
+
+  **THE CORRECT FORM IS TOKEN EQUALITY, NOT A BOUNDARY:** extract the `class` attribute, split its value on whitespace, and compare tokens exactly. `class="a b"` is a list, so read it as one.
+  ```js
+  const hasClassToken = (src, name) => {
+    const re = /class="([^"]*)"/g;
+    let m;
+    while ((m = re.exec(src))) if (m[1].trim().split(/\s+/).includes(name)) return true;
+    return false;
+  };
+  ```
+  **This generalises past CSS classes.** Every kebab-case identifier in this codebase has the same property — `data-i18n` keys, `data-*` attribute values, workspace and tag ids — so any "does this exact token appear" check written with `\b` is wrong in the same way. Both fixed sites carry the trap named in a comment, because the failure mode of this entry is somebody later "simplifying" the helper back into the regex that looks tidier. `55cd92d`, Asana 1218045515360272.
+
 Originating data points: the three `[1.0.18]` Round B / tags rounds. P1 was paid for in `a7cf131`, where three silent-but-well-formed WAV files were caught only by peak + DFT measurement. P2 came out of mutation-testing the ink gate erected in `8902816` — the mutation pass found the gate crediting the wrong theme class and, separately, silently inspecting zero nodes. P3 generalizes the practice that caught both, and the L2 discipline it descends from. P4 and P5 come out of the `[1.2.0]`/`[1.2.1]` trio rounds: P4 from the flash contradiction, P5 from discovering that eight rounds of harnesses had left no trace in the repo.
 
 
