@@ -175,6 +175,9 @@ and New Goal modals, and the **+ New Tag** button in the Tasks header.
 
 ## v1.2.0 — Notebooks
 
+**SCOPED 2026-09-01 as `[1.15.0]`, Asana 1218038593317315.** Nothing below is struck: this
+section keeps the design detail and the numbering note, which the arc table does not repeat.
+
 Organizational layer on top of standalone notes. Master-detail layout with left notebook column.
 Drag-to-combine creates notebooks; drag-out returns notes to standalone. Asana tasks not yet
 scoped — to be created once there is usage signal from shipped v1.1.
@@ -287,6 +290,46 @@ from here, with no retrofit).
 
 ---
 
+## Next: the 2026-09-01 expansion arcs
+
+Scoped 2026-09-01 against `docs/RESEARCH/launchpad-expansion-research-2026-09-01.md`. The
+rulings behind them are DECISIONS.md 2026-09-01, and the design rules every one of these
+follows are `docs/SPECS/design-guide.md` (Section 8 is the checklist each UI task pastes into
+its PLAN). Specs: Asana **1218038704670634** (expansion roadmap and design direction) and
+**1218038593317292** (notebooks and the surfaces that carry them).
+
+| Marker | Arc | Asana |
+| --- | --- | --- |
+| `[1.6.0]` | Design foundation pass | 1218038783461517 |
+| `[1.7.0]` | Dashboard cockpit | 1218038705160490 |
+| `[1.8.0]` | Insights re-tier, weekly review, best-hours capture, time export | 1218038740622992 |
+| `[1.9.0]` | Reach: popup, badge, commands | 1218038664219458 |
+| `[1.10.0]` | Launcher polish | 1218038740715460 |
+| `[1.11.0]` | Launcher data | 1218038836005613 |
+| `[1.12.0]` | Open tabs, park window, recently closed | 1218038664501728 |
+| `[1.13.0]` | Workspace mode and blocking depth | 1218038740975996 |
+| `[1.14.0]` | Tasks depth | 1218038740851588 |
+| `[1.15.0]` | Notebooks | 1218038593317315 |
+| `[1.16.0]` | Platform | 1218038783305055 |
+
+**The store-listing round is not an arc here.** It rides on **1217302412535620** and goes out
+with the 2.1.0 submission, under the 2026-09-01 ruling that a localised listing ships only
+paired with a translated catalogue for the same language.
+
+**Four items previously parked are now scoped inside these arcs** and are struck below where
+they sat, with a pointer rather than a deletion:
+
+- Analytics export, previously Deferred: Pro v3+, now inside `[1.8.0]` as time export.
+- Goal setting with numeric targets, previously Deferred: Pro v3+, now inside `[1.7.0]` as the
+  Dashboard target ring.
+- Habit tracking specialization, previously Deferred: Pro v2, now inside `[1.13.0]` as
+  workspace mode and blocking depth.
+- Notebooks, previously the standalone `v1.2.0` section above, now `[1.15.0]`. That section is
+  left intact rather than struck, because it carries detail and a numbering note this table
+  does not repeat.
+
+---
+
 ## Deferred: Pro v2
 
 Items worth building but out of scope for v1 to keep the 10-week build shippable.
@@ -296,14 +339,14 @@ Items worth building but out of scope for v1 to keep the 10-week build shippable
 - Manual workspace switching keyboard shortcut
 - ~~Pomodoro / sprint timer integrated into workspaces (deferred from Pro v1 per DECISIONS 2026-07-07)~~ — **un-deferred 2026-07-22** by the v2.0 design lock and shipped as **Focus sessions `[1.0.18]`**; see Pro v1 scope above
 - Per-domain opt-out for tracking (Personal workspace)
-- Habit tracking specialization for Personal workspace
+- ~~Habit tracking specialization for Personal workspace~~ — **scoped 2026-09-01** into `[1.13.0]` Workspace mode and blocking depth (1218038740975996); see "Next: the 2026-09-01 expansion arcs" above
 
 ---
 
 ## Deferred: Pro v3+
 
-- Goal setting with numeric targets ("2 hours of deep work today")
-- Analytics export (CSV, integrations with Toggl / Clockify)
+- ~~Goal setting with numeric targets ("2 hours of deep work today")~~ — **scoped 2026-09-01** into `[1.7.0]` Dashboard cockpit (1218038705160490) as the target ring; see "Next: the 2026-09-01 expansion arcs" above
+- ~~Analytics export (CSV, integrations with Toggl / Clockify)~~ — **scoped 2026-09-01** into `[1.8.0]` Insights re-tier as time export (1218038740622992); see "Next: the 2026-09-01 expansion arcs" above
 - Premium wallpaper collection / icon packs / CSS themes
 - Read-only calendar widget pulling today's events from Google Calendar
 - Full calendar UI (low priority; likely never if users don't request)

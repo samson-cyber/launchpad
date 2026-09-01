@@ -2169,3 +2169,112 @@ green, and the probe's number is honest about its own coverage. Resumption start
 **R5.0, the harness, before any string moves** - and its first act is to re-run the gate to
 see whether anything added in the interim introduced new hardcoded strings, which takes
 0.1s and is the point of having built it.
+
+---
+
+## 2026-09-01 - Expansion roadmap and design direction: rulings
+
+Nine rulings taken while scoping the expansion arcs against the 2026-09-01 research pass.
+Specs: Asana 1218038704670634 (expansion roadmap and design direction) and 1218038593317292
+(notebooks and the surfaces that carry them). The research they were taken against is
+`docs/RESEARCH/launchpad-expansion-research-2026-09-01.md`; the rules that follow from them
+live in `docs/SPECS/design-guide.md`, whose Section 8 is the checklist every UI task pastes
+into its PLAN.
+
+### The design direction is the instrument panel, and Home is exempt
+
+The product reads as an instrument panel: dense, calm, legible at a glance, with every
+surface answering "what is true right now" rather than decorating. **Home keeps the
+Google-default grid** and is deliberately outside that direction, because the launcher is the
+free tier's identity and a user who installed a new-tab page for shortcuts did not ask for a
+dashboard. The ink doctrine for all of it is **BUGS.md Section O**, Wallpaper-Panel Ink and
+Stacking Context. Older Asana comments refer to a "D14/D16 ink doctrine"; that is a garbled
+pointer and no such rule exists under those numbers, where D14 is routing and D15 is
+exemptions. Cite Section O.
+
+### E4 strict lock rejected again; E3 escalating friction is the answer
+
+A strict lock that a user cannot leave was proposed again and is rejected again, on the same
+ground as 2026-08-09: **the gate is a door, not a wall.** A blocker the user cannot open
+teaches them to disable the extension, and an extension that has been disabled blocks
+nothing. What ships instead is **E3, escalating friction**: a 10-second wait on the first
+attempt, 60 seconds on a repeat within the same session, and a typed sentence only under a
+**commitment toggle the user arms themselves**. The escalation is the persuasion and the
+toggle is the consent; neither is imposed. Reaffirms 2026-08-09 rather than amending it.
+
+### Workspace mode governs behaviour; budgets sit outside it
+
+**Workspace mode (Work / Casual) is the single switch** that governs which sessions run, which
+schedules apply, how much friction the gate raises, and whether reminders fire. **Budgets sit
+outside the mode**, because a budget is a limit the user set for themselves and a mode switch
+must not silently spend or restore it. The rule for ambiguity: a session runs under **the mode
+of the workspace it started in** and keeps it to the end, so switching workspaces mid-session
+never changes the rules the session began under, while **scheduled blocking follows the
+current workspace**, because a schedule is about now rather than about what was running.
+
+**AMENDS 2026-07-22 ("A focus session ENDS: the break auto-starts, the next work phase
+never does"), the E1 clause only.** The 2026-07-22 ruling was that work never begins
+without explicit user action, and its real
+stake was downstream: `[1.2.0]` auto-arms site blocking during work phases, so an auto-looping
+work phase would re-block the user's sites without consent. **In Work mode the next work phase
+now starts after a visible 10-second countdown with a cancel control, and a notification if
+notifications are permitted.** The consent property survives intact because the countdown is
+visible, cancellable and announced: what changes is that a user who wants continuity no longer
+has to click to get it. **It is never silent, and in Casual mode it does not auto-advance at
+all.** Amends the E1 clause only; the rest of that entry stands.
+
+### Imported named sessions show a placeholder until a refresh captures favicons
+
+A named session captures each tab's own `favIconUrl` at save time, and an imported session has
+none, because the tabs were never open in this browser. Imported sessions therefore render a
+**fresh-import placeholder tile** until the user runs refresh-from-window, which captures the
+real icons the same way an original capture does. **The never-derived favicon rule from
+2026-08-31 holds unchanged**: LaunchPad does not fetch an icon from any service to fill the
+gap, and it does not derive one from the hostname, because a saved-session row is the same
+category of data as a Time-by-Site row.
+
+### One free scratchpad note, in its own slot
+
+The free tier gets **one scratchpad note**, stored in a dedicated `homeNote` slot rather than
+as a member of the Notes collection, so it cannot be confused with a Pro note or migrated into
+one by accident. The store and in-product copy become **"one note free, unlimited on Pro"**,
+which is a truthful upgrade line rather than a teaser for a locked panel. **Expired is
+identical to free** here as everywhere: an expired user keeps the one note and loses the rest,
+which is the same shape as every other Pro surface and needs no special case.
+
+### Attach resources: one entry, and the launch relation is not tag attribution
+
+Session attachment, group attachment and shortcut attachment collapse into **one task-menu
+entry, "Attach resources"**, because three near-identical entries on one menu is a menu the
+user has to read rather than scan. The unification is presentational and the underlying
+relations stay distinct. **The launch relation is not tag attribution**: attaching a resource
+says "open this when I work on this task", while a tag says "this time counts towards that
+category", and conflating them would put launch targets into time reporting where they do not
+belong.
+
+### Weekly review is Insights; the Dashboard gains present-state modules
+
+**The weekly review lives on Insights and is written in the past tense**, because Insights is
+the surface that reports what happened and a review is a report. The Dashboard gains three
+present-state modules instead: **the target ring, today's three, and a this-week-so-far
+strip.** All three sit on the **same footing as the streak** already there, which is the
+existing precedent for a present-state module on that surface. The split is the tense: the
+Dashboard says what is true now, Insights says what was true.
+
+### Recently closed is built from tabs.onRemoved, not chrome.sessions
+
+**Recently closed is built from our own `tabs.onRemoved` record**, not from
+`chrome.sessions`. The reason is a permission consequence rather than a technical one: the
+`sessions` permission combines with the `history` permission already in the manifest to change
+the install-time warning text, and a scarier warning on a feature this small is a bad trade.
+Our own record is bounded, lives in local storage like everything else, and costs no new
+permission.
+
+### A localised store listing ships only with a translated catalogue
+
+**A localised store listing ships only paired with a translated in-product catalogue for the
+same language.** A listing that sells LaunchPad in Indonesian while the product renders
+entirely in English converts a user into an immediate disappointment, and the review that
+follows is worse than the install was worth. The two ship together per language or neither
+ships. This binds the listing round on 1217302412535620 and follows from the `[1.5.0]`
+localization work being groundwork rather than a shipped language.

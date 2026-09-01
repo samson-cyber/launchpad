@@ -163,6 +163,7 @@ function isProAccessibleLevel(level) {
 - **Verify git state before destructive operations.** Confirm GitHub has latest commits before deleting any local folder.
 - **Use Asana for task tracking.** See `ASANA.md` for the workflow.
 - **Update docs as you go.** When a significant decision is made, add it to `DECISIONS.md`. When a spec changes, update the relevant spec file.
+- **Read `docs/SPECS/design-guide.md` before any task that touches UI, and paste its Section 8 checklist into the PLAN.**
 - **Present Claude Code prompts in a single copy-pasteable code block** (not split across prose). This matches Samson's working preference.
 
 ---
@@ -284,6 +285,8 @@ section exists to prevent.
 - `docs/BUGS.md` — Audit checklist Claude Code runs at task completion, plus known limitations log.
 - `docs/HANDOVER.md` — Session handover document, updated when context limits approach.
 - `docs/SPECS/*.md` — Individual spec documents (UX, data model, tracking engine, etc.)
+- `docs/SPECS/design-guide.md` — The design guide: tokens, layouts, components, copy voice. Read it before any UI task; Section 8 is the checklist that goes into the PLAN.
+- `docs/RESEARCH/` — Point-in-time research snapshots, dated in the filename. Evidence behind decisions, not rules; the rules live in SPECS and DECISIONS.
 
 ---
 
