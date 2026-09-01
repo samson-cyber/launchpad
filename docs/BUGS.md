@@ -612,6 +612,18 @@ Run when the task adds, extends, or relies on any automated gate, harness, or ge
   ```
   **This generalises past CSS classes.** Every kebab-case identifier in this codebase has the same property — `data-i18n` keys, `data-*` attribute values, workspace and tag ids — so any "does this exact token appear" check written with `\b` is wrong in the same way. Both fixed sites carry the trap named in a comment, because the failure mode of this entry is somebody later "simplifying" the helper back into the regex that looks tidier. `55cd92d`, Asana 1218045515360272.
 
+- **P18. A POSITIONAL ELEMENT KEY TURNS A DOM-SHAPE DIFFERENCE INTO TOTAL NON-OVERLAP, and an intersection-blind differ reports that as success.** The computed-style harness keys each element by its ancestor path INCLUDING SIBLING INDICES. When `LP.devPro` failed to apply on one run, the Pro surfaces were absent, every downstream sibling index shifted by one, and **not a single key matched the baseline**. The differ compared the empty intersection, found no differing properties, and printed `PROPERTY DIFFS: 0`. A green result, over nothing.
+
+  This is P13's shape with a specific and non-obvious mechanism: the population was not empty because nothing existed, it was empty because **the two sides could not be aligned**. A count of compared items would have exposed it instantly and the tool did not report one.
+
+  **TWO FIXES, AND THE SECOND IS THE GENERALISABLE ONE.** Make the key robust where you can — but any structural key is fragile to structural change, so the durable fix is that **A DIFFER MUST REPORT AND FLOOR ITS INTERSECTION**. Ours now requires the intersection to cover ≥90% of the larger snapshot and reports `NOT EVIDENCE` below it, exit 2. Verified by feeding it a deliberately mismatched pair rather than assuming: a guard nobody has watched fire is a guard nobody knows works. `9634450`, Asana 1218038783461517.
+
+- **P19. A READINESS CHECK MUST WAIT FOR STABILISATION, NOT FOR A THRESHOLD — a hardcoded floor rots as the product grows, and it rots SILENTLY IN THE DIRECTION OF PASSING.** The same harness waited for "more than 700 elements" before snapshotting. The page renders in at least two stages, around 822 elements and then around 1092, so **the floor was satisfied by the first stage** and the tool captured a half-built page. Both sides were internally consistent, so the comparison was valid; it simply covered 25% less than it claimed to.
+
+  A threshold is wrong in both directions over time. Too low and it passes early, as here. Too high and it fails on a legitimately smaller page. **Neither failure announces itself**, because the number looks deliberate and nobody re-derives it. Waiting for the measured quantity to STOP MOVING — N consecutive equal samples, plus a minimum settle so an early plateau cannot satisfy it — needs no calibration and does not drift.
+
+  The corollary is the reason this is not just a harness note: **any "wait until ready" that is expressed as a magnitude rather than as a derivative is the same bug.** `9634450`, Asana 1218038783461517.
+
 Originating data points: the three `[1.0.18]` Round B / tags rounds. P1 was paid for in `a7cf131`, where three silent-but-well-formed WAV files were caught only by peak + DFT measurement. P2 came out of mutation-testing the ink gate erected in `8902816` — the mutation pass found the gate crediting the wrong theme class and, separately, silently inspecting zero nodes. P3 generalizes the practice that caught both, and the L2 discipline it descends from. P4 and P5 come out of the `[1.2.0]`/`[1.2.1]` trio rounds: P4 from the flash contradiction, P5 from discovering that eight rounds of harnesses had left no trace in the repo.
 
 

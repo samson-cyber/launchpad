@@ -728,8 +728,28 @@ const hasClassToken = (src, name) => {
     const block = SRC.css.slice(SRC.css.indexOf("[1.0.20 → 2.0] Live Dashboard tab"), SRC.css.indexOf("/* ----- Dashboard preview ----- */"));
     check("ink: the cockpit block uses the frost TIER VARIABLES, no literal rgba(30,30,30) or blur()",
       block.length > 2000 && !/rgba\(30, ?30, ?30/.test(block) && !/backdrop-filter: blur\(/.test(block), `block ${block.length} chars`);
+    // ASSERTS THE VALUE, NOT ITS SPELLING (P16/P17, and the same class as the
+    // assertion audit on 1217989152996164). This read the literal source text
+    // `padding-bottom: 48px`, so [1.6.2]'s token migration broke it WITHOUT
+    // changing the clearance it protects — the computed value was identical. An
+    // assertion that fails on a change it does not care about trains people to
+    // edit gates instead of code.
+    //
+    // What it MEANS: the board root carries 48px of bottom padding, so the last
+    // row is not flush to the viewport edge (Section R). So it now accepts the
+    // literal OR a token, and RESOLVES the token against :root to confirm it is
+    // still 48px. A token silently redefined to another value fails here, which
+    // the old literal check could not have caught either.
+    const tailDecl = (block.match(/\.dash-tab \{[^}]*?padding-bottom:\s*([^;]+);/) || [])[1];
+    const resolveSpace = (v) => {
+      const m = String(v).match(/^var\(\s*(--[\w-]+)\s*\)$/);
+      if (!m) return String(v).trim();
+      const def = SRC.css.match(new RegExp(m[1].replace(/[-]/g, "\\-") + "\\s*:\\s*([^;]+);"));
+      return def ? def[1].trim() : "(unresolved " + m[1] + ")";
+    };
     check("ink: Section R — the board root still carries its 48px tail clearance",
-      /\.dash-tab \{[^}]*padding-bottom: 48px;/.test(block));
+      !!tailDecl && resolveSpace(tailDecl) === "48px",
+      `declared "${tailDecl}" -> resolves to "${tailDecl ? resolveSpace(tailDecl) : "(absent)"}"`);
   }
 })();
 
