@@ -10733,7 +10733,11 @@ body.sat-card-open .tab-panel {
 }
 .tt-progress-pct-base {
   width: 100%;
-  color: var(--ink-primary);
+  /* STAYS A LITERAL until check-chip-ink.mjs stops requiring an rgba() here.
+     Its regex matches the first .tt-progress-pct-base rule containing an rgba
+     literal; tokenising this silently redirected it to the bg-light override and
+     it then compared two dark inks. The 0.02 snap to 0.90 IS applied. */
+  color: rgba(255, 255, 255, 0.90);
 }
 .tt-progress-pct-fill {
   width: 100cqw;
