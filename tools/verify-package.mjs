@@ -42,6 +42,14 @@
 // so at entry granularity dropping the locales/en.js script tag leaves `locales`
 // still allowed and still shipping, and instance 2 stays invisible.
 //
+// EXCUSED FROM NEEDING A REFERENCE IS NOT EXCUSED FROM NEEDING TO SHIP. The
+// first draft of this rewrite checked zip presence for REFERENCED files only,
+// which would have silently stopped verifying that gate.html, offscreen.html and
+// the three chimes are in the artifact — a coverage regression inside a coverage
+// tool, introduced while fixing a coverage defect, and caught by a diff re-read
+// rather than by any mutant. An entry in EXPECTED_UNREFERENCED is excused from
+// one question only. See mustBeInZip below, which is why that set is the union.
+//
 // WHAT THIS GATE CANNOT SEE, stated so nobody assumes otherwise (BUGS.md Q17).
 // It detects a file that NOTHING references. It cannot detect a single page
 // losing a script it individually needs while another page still references that

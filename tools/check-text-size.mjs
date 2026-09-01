@@ -373,13 +373,25 @@ await (async () => {
     const textCalls = (nt.match(/applyTextSize\(/g) || []).length - 1;
     check("wiring: applyTextSize is applied on at least as many paths as applyIconSize",
       textCalls >= iconCalls, `text ${textCalls} icon ${iconCalls}`);
-    for (const [label, anchor] of [
-      ["boot", 'applyIconSize(data.settings.iconSize || "medium");\n    applyTextSize'],
-      ["backup restore", 'applyIconSize(data.settings.iconSize || "medium");\n      applyTextSize'],
-      ["foreign-write re-render", 'applyIconSize((data && data.settings && data.settings.iconSize) || "medium");\n    applyTextSize'],
-    ]) {
-      check(`wiring: applied on the ${label} path, right beside applyIconSize`, nt.includes(anchor));
-    }
+    // WHAT THIS MEANS: every path that applies the icon size also applies the
+    // text size. It does NOT mean those two calls are separated by exactly four
+    // spaces on boot and exactly six on backup-restore, which is what the
+    // previous form asserted — three literals pinning indentation, a newline and
+    // applyIconSize's exact argument text. Reindenting the block, or changing how
+    // the icon size is read, failed a gate that was asserting neither. This is
+    // the same defect the round was opened for, in the same file.
+    //
+    // The click handler is excluded BY A PROPERTY rather than by a hardcoded
+    // exception: it passes btn.dataset.value and owns its own applyTextSize call
+    // a few lines later. Deriving the render paths this way also closes an
+    // under-specification the three literals had — a NEW render path added later
+    // was checked by nothing at all, because the list could not know about it.
+    const iconSites = [...nt.matchAll(/applyIconSize\(([^;]*)\);/g)]
+      .filter((m) => !/btn\.dataset\.value/.test(m[1]));
+    const unpaired = iconSites.filter((m) => !/applyTextSize\(/.test(nt.slice(m.index, m.index + 160)));
+    check("wiring: every data-render path applying icon size also applies text size",
+      iconSites.length >= 3 && unpaired.length === 0,
+      `${iconSites.length} render path(s), ${unpaired.length} without applyTextSize`);
     check("wiring: the settings panel syncs the control from the COERCED reader",
       /var textSize = Storage\.getTextSize\(data\);[\s\S]{0,220}#settings-text-size/.test(nt));
     check("wiring: applyTextSize mirrors applyIconSize's shape — remove both, add at most one",

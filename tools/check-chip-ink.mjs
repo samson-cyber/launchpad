@@ -412,8 +412,18 @@ for (const cls of ["tt-tag-pill", "pp-tag-pill", "tag-pill", "sb-ws-chip", "pws-
 // `color` on every frame — 2.86:1 and immovable. The U+FE0E text-presentation
 // selector was tried and measured: still fixed-colour. An inline SVG on
 // currentColor is what actually made it inherit the pill's ink.
+// OVER-SPECIFICATION IN A NEGATIVE ASSERTION IS A COVERAGE HOLE, NOT A FALSE
+// FAILURE. This read `!/tt-due-icon" aria-hidden="true">🗓/`, which pinned the
+// exact attribute ORDER and one specific codepoint. In a positive assertion that
+// would fail noisily on an unrelated edit; in a NEGATIVE one it can only ever
+// pass silently. Reordering the attributes, or reaching for 📅 / 📆 instead of
+// 🗓, would have reinstated the exact defect this line exists to forbid while the
+// gate stayed green. What it MEANS is "the due icon is not a colour emoji", so
+// it now asks that, attribute-order tolerant, against every pictographic
+// codepoint rather than one.
 check("due icon: rendered as an inline SVG, not a colour emoji",
-  /CALENDAR_SVG/.test(SRC.nt) && !/tt-due-icon" aria-hidden="true">🗓/.test(SRC.nt));
+  /CALENDAR_SVG/.test(SRC.nt) &&
+  !/tt-due-icon[^>]*>\s*['"]?\s*\p{Extended_Pictographic}/u.test(SRC.nt));
 check("due icon: the SVG takes currentColor, so the pill's ink reaches it",
   /var CALENDAR_SVG[^\n]*stroke="currentColor"/.test(SRC.nt));
 check("due icon: sized in em, so the existing font-size rules still own its size",
