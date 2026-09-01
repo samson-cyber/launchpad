@@ -297,6 +297,32 @@ var Storage = (function () {
     return true;
   }
 
+  // ===== [1.6.5] Wallpaper dim =====
+  // FREE, never gated: it is a legibility control, not a Pro feature. Default 0
+  // means no existing user sees any change until they move the slider.
+  var WALL_DIM_MAX = 0.6;
+
+  function getWallDim(data) {
+    var v = data && data.settings ? data.settings.wallDim : undefined;
+    var n = typeof v === "number" ? v : parseFloat(v);
+    if (!isFinite(n) || n < 0) return 0;
+    return n > WALL_DIM_MAX ? WALL_DIM_MAX : n;
+  }
+
+  async function setWallDim(data, val) {
+    if (!data || !data.settings) return false;
+    var n = typeof val === "number" ? val : parseFloat(val);
+    // An unparseable value is NOT written, same rule as setTextSize: storing junk
+    // and coercing on read leaves a value in the user's backup they never chose.
+    if (!isFinite(n)) return false;
+    if (n < 0) n = 0;
+    if (n > WALL_DIM_MAX) n = WALL_DIM_MAX;
+    if (getWallDim(data) === n && data.settings.wallDim === n) return false;
+    data.settings.wallDim = n;
+    await saveAll(data);
+    return true;
+  }
+
   // ===== Pomodoro settings ([1.0.18]) =====
   //
   // Four durations under data.settings.pomodoro, following the endOfDayMinutes
@@ -6396,6 +6422,9 @@ var Storage = (function () {
     // [2.0] Text size — free accessibility setting, small | medium | large.
     getTextSize: getTextSize,
     setTextSize: setTextSize,
+    getWallDim: getWallDim,
+    setWallDim: setWallDim,
+    WALL_DIM_MAX: WALL_DIM_MAX,
     getLocalePreference: getLocalePreference,
     setLocalePreference: setLocalePreference,
     TEXT_SIZES: TEXT_SIZES.slice(),

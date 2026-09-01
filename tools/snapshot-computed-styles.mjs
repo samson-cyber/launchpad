@@ -31,6 +31,23 @@
 // its numbers are trusted — the zero above is evidence about these eighteen
 // properties, not about the two modes in general.
 //
+// ================= WHAT THIS HARNESS CANNOT SEE =========================
+// IT CANNOT SEE TEXT-WIDTH CHANGES AT ALL. ONLY BOX CHANGES.
+//
+// getComputedStyle().width returns the USED BOX width. For a block element or a
+// stretched flex item that is the CONTAINER's width, which does not move when the
+// text inside it gets narrower or wider. [1.6.4] converted nineteen labels from
+// uppercase to sentence case — unambiguously narrower text — and this harness
+// reported ZERO width diffs, correctly, because not one of those boxes changed.
+//
+// So a change that reflows, re-wraps, clips or overflows TEXT inside a fixed box
+// is invisible here. A zero-width-diff result means "no box moved", never "no
+// layout changed". To see text metrics you must measure a Range or a probe span
+// (see the tabular-numerals proof in the [1.6.4] report), or look at a screenshot.
+// Three rounds have relied on this instrument; this limit was recorded only in an
+// Asana comment until [1.6.5] put it here, where it is read.
+// ========================================================================
+//
 // usage: node --experimental-websocket computed-snapshot.mjs <ext-dir> <out.json> <port>
 //        HEADED=1 ... to watch it run
 import fs from "node:fs";
@@ -42,7 +59,10 @@ const EXT = process.argv[2];
 const OUT = process.argv[3];
 const PORT = Number(process.argv[4] || 9471);
 const EDGE = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
-const PROFILE = path.resolve(".snap-profile-" + PORT);
+// Under .scratch/ by convention — see the note in capture-screenshots.mjs.
+// One ignored directory covers every profile any tool will ever create, so a
+// tool written later cannot forget to be ignored.
+const PROFILE = path.resolve(".scratch", "snap-profile-" + PORT);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const j = (p, m = "GET") => new Promise((res, rej) => {

@@ -50,7 +50,13 @@ const EXT_DIR = process.argv[2];
 const OUT_DIR = process.argv[3];
 const CHROME = process.argv[4] || "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const PORT = Number(process.env.CAPTURE_PORT || 9422);
-const PROFILE = path.resolve(".capture-profile");
+// EVERY SCRATCH PROFILE GOES UNDER .scratch/ — a CONVENTION, not a list.
+// .gitignore used to name five prefixes (scratch, capture, snap, tab, fp), which
+// is a hardcoded enumeration (BUGS.md E7) and failed the way enumerations do: two
+// profiles escaped in one session, the second committing 232 files. A new tool
+// written next month cannot forget this, because there is nothing to remember —
+// one ignored directory covers every profile any tool will ever create.
+const PROFILE = path.resolve(".scratch", "capture-profile");
 
 if (!EXT_DIR || !OUT_DIR) {
   console.error("usage: node tools/capture-screenshots.mjs <extension-dir> <output-dir> [chrome-path]");

@@ -6,6 +6,10 @@
   <link rel="stylesheet" href="newtab.css">
 </head>
 <body>
+  <!-- [1.6.5] Wallpaper dim. One full-page overlay between the wallpaper and
+       everything else, driven by --wall-dim (default 0, so no existing user
+       sees a change). pointer-events:none so it cannot intercept a click. -->
+  <div id="wall-dim" aria-hidden="true"></div>
   <aside id="sidebar">
     <div id="sidebar-top">
       <button data-i18n-title="sidebar_workspace" id="sb-workspace-switcher" class="sb-item sb-workspace-switcher hidden" type="button" title="Workspace">
@@ -312,6 +316,13 @@
             <div id="settings-wallpaper-thumb" class="settings-wallpaper-thumb"></div>
             <button data-i18n="settings_change" id="settings-change-wallpaper" type="button" class="settings-btn">Change</button>
             <button data-i18n="common_remove" id="settings-remove-wallpaper" type="button" class="settings-btn settings-btn-danger">Remove</button>
+          </div>
+        </div>
+        <div class="settings-row settings-dim-row">
+          <label data-i18n="settings_dim_wallpaper" class="settings-label" for="settings-wall-dim">Dim wallpaper</label>
+          <div class="settings-dim-controls">
+            <input id="settings-wall-dim" class="settings-dim-range" type="range" min="0" max="0.6" step="0.05" value="0">
+            <span id="settings-wall-dim-value" class="settings-dim-value">0%</span>
           </div>
         </div>
       </div>

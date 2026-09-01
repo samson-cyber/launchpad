@@ -680,6 +680,10 @@ I18n.register("en", {
     "description": "TEXT SIZE option. Independent of the icon-size control with the same word.",
     "sense": "size.text"
   },
+  "settings_dim_wallpaper": {
+    "message": "Dim wallpaper",
+    "description": "Label for the Settings range control that darkens the wallpaper behind the page. Sentence case, like every other settings label. Rendered by the data-i18n DOM pass."
+  },
   "settings_wallpaper": {
     "message": "Wallpaper",
     "description": "Text on the settings surface."
@@ -1088,7 +1092,7 @@ I18n.register("en", {
     "description": "Text sink in dashStartPeriodWatch(). Rendered with t()."
   },
   "dash_distractions_blocked": {
-    "message": "distractions blocked",
+    "message": "Distractions blocked",
     "description": "Text sink in dashStripHtml(). Rendered with t()."
   },
   "dash_first_week": {
@@ -1096,7 +1100,7 @@ I18n.register("en", {
     "description": "Text sink in dashStartPeriodWatch(). Rendered with t()."
   },
   "dash_focus_blocking": {
-    "message": "focus blocking",
+    "message": "Focus blocking",
     "description": "Text sink in dashStripHtml(). Rendered with t()."
   },
   "dash_fri": {
@@ -1120,7 +1124,7 @@ I18n.register("en", {
     "description": "Text sink in dashStartPeriodWatch(). Rendered with t()."
   },
   "dash_tasks_completed": {
-    "message": "tasks completed",
+    "message": "Tasks completed",
     "description": "Text sink in dashStripHtml(). Rendered with t()."
   },
   "dash_thu": {
@@ -1176,7 +1180,7 @@ I18n.register("en", {
     "description": "Text sink in openGoalContextMenu(). Rendered with t()."
   },
   "insights_daily_avg": {
-    "message": "daily avg",
+    "message": "Daily avg",
     "description": "Text sink in insightsStripHtml(). Rendered with t()."
   },
   "insights_last_30_days": {
@@ -1761,7 +1765,7 @@ I18n.register("en", {
     "description": "Markup label in completedBoxHtml(). Rendered with th()."
   },
   "completed_no_completed_tasks_yet": {
-    "message": "No completed tasks yet.",
+    "message": "No completed tasks yet. Finished tasks collect here.",
     "description": "Markup label in completedBoxHtml(). Rendered with th()."
   },
   "completed_reactivate": {
@@ -1789,7 +1793,7 @@ I18n.register("en", {
     "description": "Inline link under the Dashboard goals empty state. It is a SENTENCE OF ITS OWN as of R4 - it used to be the tail of 'No active goals - create one in Tasks.', so it began lowercase and its full stop sat in the markup after the button."
   },
   "dash_day_streak": {
-    "message": "day streak",
+    "message": "Day streak",
     "description": "Markup label in dashStreakBodyHtml(). Rendered with th()."
   },
   "dash_focus_on_something_today_to_start": {
@@ -1797,7 +1801,7 @@ I18n.register("en", {
     "description": "Markup label in dashStreakBodyHtml(). Rendered with th()."
   },
   "dash_nothing_due_today": {
-    "message": "Nothing due today.",
+    "message": "Nothing due today. Add one below.",
     "description": "Markup label in dashDueListHtml(). Rendered with th()."
   },
   "dash_nothing_on_the_list": {
@@ -1837,7 +1841,7 @@ I18n.register("en", {
     "description": "Markup label in dashHeadHtml(). Rendered with th()."
   },
   "dashboard_deep_work": {
-    "message": "deep work",
+    "message": "Deep work",
     "description": "Markup label in renderDashboardPreview(). Rendered with th()."
   },
   "dashboard_due_today": {
@@ -1853,11 +1857,11 @@ I18n.register("en", {
     "description": "Markup label in renderDashboardTab(). Rendered with th()."
   },
   "dashboard_goals_making_progress": {
-    "message": "goals making progress",
+    "message": "Goals making progress",
     "description": "Markup label in renderDashboardPreview(). Rendered with th()."
   },
   "dashboard_hours_of_deep_work": {
-    "message": "hours of deep work",
+    "message": "Hours of deep work",
     "description": "Markup label in renderDashboardPreview(). Rendered with th()."
   },
   "dashboard_how_did_today_feel": {
@@ -1869,7 +1873,7 @@ I18n.register("en", {
     "description": "Markup label in renderDashboardPreview(). Rendered with th()."
   },
   "dashboard_tasks_completed": {
-    "message": "tasks completed",
+    "message": "Tasks completed",
     "description": "Markup label in renderDashboardPreview(). Rendered with th()."
   },
   "dashboard_this_week": {
@@ -2017,11 +2021,11 @@ I18n.register("en", {
     "description": "Markup label in openGoalModal(). Rendered with th()."
   },
   "goal_no_tasks_match_the_current_filter": {
-    "message": "No tasks match the current filter.",
+    "message": "No tasks match the current filter. Clear it to see the rest.",
     "description": "Markup label in goalCardHtml(). Rendered with th()."
   },
   "goal_no_tasks_yet": {
-    "message": "No tasks yet.",
+    "message": "No tasks yet. Add the first one below.",
     "description": "Markup label in goalCardHtml(). Rendered with th()."
   },
   "goal_no_templates_yet": {
@@ -2065,7 +2069,7 @@ I18n.register("en", {
     "description": "Markup label in insightsRangeSelectorHtml(). Rendered with th()."
   },
   "insights_hours_day": {
-    "message": "hours / day",
+    "message": "Hours / day",
     "description": "Markup label in insightsBarChartSvg(). Rendered with th()."
   },
   "insights_time_by_tag_last_30_days": {
@@ -2377,7 +2381,7 @@ I18n.register("en", {
     "description": "Markup label in taskRowHtml(). Rendered with th()."
   },
   "task_there_are_no_saved_sessions_in": {
-    "message": "There are no saved sessions in this workspace yet.",
+    "message": "No saved sessions in this workspace yet. Save the tabs you have open.",
     "description": "Markup label in openTaskSessionPicker(). Rendered with th()."
   },
   "tasks_active_goals": {
@@ -2401,11 +2405,11 @@ I18n.register("en", {
     "description": "Markup label in renderTasksTab(). Rendered with th()."
   },
   "tasks_no_recurring_tasks": {
-    "message": "No recurring tasks",
+    "message": "No recurring tasks. Create one with New Recurring.",
     "description": "Markup label in renderTasksPreview(). Rendered with th()."
   },
   "tasks_no_standalone_tasks": {
-    "message": "No standalone tasks",
+    "message": "No standalone tasks. New tasks land here unless you pick a goal.",
     "description": "Markup label in renderTasksPreview(). Rendered with th()."
   },
   "tasks_priority": {
@@ -2488,7 +2492,7 @@ I18n.register("en", {
     "description": "Accessible name for the checkbox that completes a due task. {taskName} is the user's task title."
   },
   "dash_no_active_goals": {
-    "message": "No active goals.",
+    "message": "No active goals. Create one in Tasks.",
     "description": "Dashboard goals empty state. The 'Create one in Tasks' control follows as a sibling; the sentence used to run into it through an em dash."
   },
   "focusblock_remove_site": {

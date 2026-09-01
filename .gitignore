@@ -5,7 +5,14 @@ node_modules/
 dist/
 demo-data.js
 
-# Browser automation scratch profiles (test isolation; never committed)
+# Browser automation scratch profiles (test isolation; never committed).
+# THE CONVENTION: every tool in tools/ puts its profile under .scratch/, so this
+# ONE line covers every profile any future tool creates. The per-prefix patterns
+# below are the old enumeration (BUGS.md E7) and are KEPT ONLY so profiles left
+# on disk by an earlier round stay ignored. Do not add a sixth prefix; use .scratch/.
+.scratch/
+
+# --- legacy prefixes, retained for on-disk leftovers only ---
 .scratch-profile*/
 .scratch-pid
 

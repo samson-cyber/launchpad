@@ -850,7 +850,12 @@
     if (scope) {
       tiles.push({
         num: '<span data-dash-focused>—</span>',
-        label: (scope.mode === "combined") ? "focused today · all workspaces" : "focused today"
+        // CASE ONLY. These two are still HARDCODED English rather than catalogue
+        // values, so they sit in the i18n backlog (the gate's "33 await migration").
+        // [1.6.5] sentence-cased them in place so the first stat tile matches the
+        // neighbours it sits beside; MIGRATING them belongs to the R5 i18n round,
+        // which owns adding keys and translator descriptions.
+        label: (scope.mode === "combined") ? "Focused today · all workspaces" : "Focused today"
       });
     }
 
@@ -9198,6 +9203,7 @@
     await loadBackground();
     applyIconSize(data.settings.iconSize || "medium");
     applyTextSize(Storage.getTextSize(data));
+    applyWallDim(Storage.getWallDim(data));
     applySearch();
 
     // [1.0.19 D2] First-run seeding, behind the SAME latch the wizard used.
@@ -10298,6 +10304,13 @@
     // through the coercing reader, so a junk stored value shows Medium selected
     // rather than no selection at all.
     var textSize = Storage.getTextSize(data);
+    // [1.6.5] the dim control syncs from the COERCED reader too, so a value
+    // outside 0..0.6 in a restored backup shows as what will actually apply.
+    var wallDim = Storage.getWallDim(data);
+    var dimEl = document.getElementById("settings-wall-dim");
+    if (dimEl) dimEl.value = String(wallDim);
+    var dimOut = document.getElementById("settings-wall-dim-value");
+    if (dimOut) dimOut.textContent = Math.round(wallDim * 100) + "%";
     $$(".seg-btn", $("#settings-text-size")).forEach(function (btn) {
       btn.classList.toggle("active", btn.dataset.value === textSize);
     });
@@ -10344,6 +10357,17 @@
   //
   // Takes the coerced value from Storage.getTextSize, so an unrecognised stored
   // value can never reach classList as a class name.
+  // [1.6.5] Wallpaper dim. Writes the token on <html>; #wall-dim reads it as its
+  // opacity. Mirrors applyTextSize's shape: a pure apply with no storage in it,
+  // so it can be called from boot, from the handler and from a foreign-write
+  // re-render without any of them knowing about the others.
+  function applyWallDim(v) {
+    var n = typeof v === "number" ? v : parseFloat(v);
+    if (!isFinite(n) || n < 0) n = 0;
+    if (n > 0.6) n = 0.6;
+    document.documentElement.style.setProperty("--wall-dim", String(n));
+  }
+
   function applyTextSize(size) {
     var html = document.documentElement;
     html.classList.remove("text-size-small", "text-size-large");
@@ -10732,6 +10756,7 @@
       await loadBackground();
       applyIconSize(data.settings.iconSize || "medium");
       applyTextSize(Storage.getTextSize(data));
+    applyWallDim(Storage.getWallDim(data));
       refreshOldFavicons();
       render();
       showToast(parsed.schema >= 2 ? "Backup restored." : "Backup restored (older format).");
@@ -13819,6 +13844,7 @@
     loadBackground();
     applyIconSize((data && data.settings && data.settings.iconSize) || "medium");
     applyTextSize(Storage.getTextSize(data));
+    applyWallDim(Storage.getWallDim(data));
   }
 
   function groupHTML(group, singleGroup) {
@@ -16929,6 +16955,19 @@
     // await so the user sees the change on the click and not one storage round
     // trip later; setTextSize then validates and persists (and no-ops on a
     // re-click of the active tier).
+    safeOn("#settings-wall-dim", "input", async function (e) {
+      var v = e.target.value;
+      applyWallDim(v);                       // live, before the await
+      await Storage.setWallDim(data, v);
+      // Re-read: setWallDim clamps and refuses, so the control and the overlay
+      // must both show what is STORED, never what was dragged.
+      var stored = Storage.getWallDim(data);
+      applyWallDim(stored);
+      var out = document.getElementById("settings-wall-dim-value");
+      if (out) out.textContent = Math.round(stored * 100) + "%";
+      e.target.value = String(stored);
+    });
+
     safeOn("#settings-text-size", "click", async function (e) {
       var btn = e.target.closest(".seg-btn");
       if (!btn) return;
@@ -16937,6 +16976,7 @@
       // Re-read: setTextSize refuses an unrecognised value, so the control must
       // show what is STORED, never what was clicked.
       applyTextSize(Storage.getTextSize(data));
+    applyWallDim(Storage.getWallDim(data));
       updateSettingsUI();
       console.log("[LaunchPad] Text size set to:", Storage.getTextSize(data));
     });

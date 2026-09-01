@@ -257,6 +257,51 @@ html {
   background: var(--bg);
 }
 
+/* [1.6.5] WALLPAPER DIM OVERLAY.
+   Sits ABOVE the wallpaper (which is painted on body) and BELOW every panel:
+   z-index 1 puts it over the body background, and the lowest panel in this
+   sheet is z-index 2, so nothing that a user interacts with is affected.
+   pointer-events: none is load-bearing - without it this would swallow every
+   click on the shortcut grid.
+   opacity comes from --wall-dim, which defaults to 0, so the shipped
+   appearance is unchanged until the user moves the slider. */
+/* [1.6.5] Dim wallpaper control. INK IS DECLARED ON BOTH FRAMES (O1/O3): a new
+   text node with no colour inherits body's --text-primary (#202124) and is
+   invisible on the dark frosted Settings panel. That has shipped twice
+   (a68dd89, 8902816) and tools/check-panel-ink.mjs gates it. */
+.settings-dim-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.settings-dim-range {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+.settings-dim-value {
+  min-width: 34px;
+  text-align: right;
+  font-size: var(--fs-11);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+html.has-bg .settings-dim-value {
+  color: var(--ink-meta);
+}
+html.has-bg.bg-light .settings-dim-value {
+  color: var(--text-secondary);
+}
+
+#wall-dim {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: var(--wall-dim, 0);
+  pointer-events: none;
+  z-index: 1;
+}
+
 body {
   height: 100%;
   margin: 0;
