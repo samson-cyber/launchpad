@@ -1,10 +1,10 @@
 # Chrome Web Store Listing
 
 ## Title
-LaunchPad - New Tab Shortcuts
+LaunchPad - New Tab Dashboard, Shortcuts, Tasks & Focus Time
 
 ## Short Description (132 characters max)
-Unlimited organized shortcuts on your new tab page. Groups, drag-and-drop, dark mode, bookmarks import. Free and 100% private.
+Unlimited shortcuts on your new tab, free. Add tasks, focus sessions and measured time. No account, nothing leaves your browser.
 
 ## Category
 Productivity
