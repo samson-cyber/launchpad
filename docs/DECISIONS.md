@@ -2223,6 +2223,17 @@ visible, cancellable and announced: what changes is that a user who wants contin
 has to click to get it. **It is never silent, and in Casual mode it does not auto-advance at
 all.** Amends the E1 clause only; the rest of that entry stands.
 
+**2026-07-22 objected on a second ground, semantic rather than procedural**, and the consent
+argument above does not answer it: a session is something you start and finish, and a timer
+that silently puts you back on the clock is a treadmill rather than a session. A cancellable
+countdown does not settle that by itself, because it is consent by opt-out while the default
+outcome is still the machine resuming work. **What settles it is that the consent moved up a
+level**: Work mode is armed deliberately, per workspace, by a user who is choosing a
+structured environment, and Casual does not auto-advance at all, so the per-boundary countdown
+is the second layer rather than the only one. The user built the treadmill on purpose and can
+step off it at any boundary, which is the difference between a mode with two phases and a
+machine that will not let go.
+
 ### Imported named sessions show a placeholder until a refresh captures favicons
 
 A named session captures each tab's own `favIconUrl` at save time, and an imported session has
