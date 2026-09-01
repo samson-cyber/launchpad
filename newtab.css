@@ -39,6 +39,103 @@
   --prio-high:   #e67e22;
   --prio-medium: #f1c40f;
   --prio-low:    #5dade2;
+
+  /* ==================================================================
+     [1.6.1] DESIGN FOUNDATION TOKENS — DEFINED, NOT YET USED.
+     Nothing in this block is referenced anywhere yet. That is deliberate:
+     this round's acceptance criterion is that every computed style is
+     unchanged, which is only provable if the additions are inert. The
+     migration of literals onto these tokens is [1.6.2]; changing any
+     value is [1.6.3].
+
+     VALUES COME FROM MEASURING newtab.css, NOT FROM THE DESIGN GUIDE.
+     Where the two disagree the measurement won, per the [1.6.0] PLAN, and
+     the disagreements are recorded on Asana 1218038783461517 so the guide
+     can be amended rather than the tree bent to it.
+     ================================================================== */
+
+  /* Display sizes, above the --fs-8..--fs-15 ramp. These are the one group
+     taken FROM the guide rather than from measurement, because they are
+     forward-looking: [1.7] Dashboard and [1.8] Insights need them and no
+     current rule uses 56px. Weight 500 is the guide's, and the tree has no
+     competing convention above 15px. NOTE for [1.6.2]: the existing
+     above-15px literals are 16/17/18/20/22/24/26/32/36/42px (38 rules), so
+     three display tokens do NOT cover them; rounding those onto three
+     values moves pixels and is therefore [1.6.3]'s call, not [1.6.2]'s. */
+  --display-1: 56px;
+  --display-2: 36px;
+  --display-3: 24px;
+  --display-weight: 500;
+
+  /* Ink ramp on glass. FIVE roles, not the guide's four, and none of the
+     guide's four values survived contact with the tree.
+     Measured: 170 `color: rgba(255,255,255,a)` declarations, 23 distinct
+     alphas, which band cleanly as below (count = declarations in band):
+       >=0.85        25   mode 0.90
+       0.68 - 0.82   51   mode 0.70
+       0.56 - 0.66   27   mode 0.60
+       0.45 - 0.55   48   modes 0.50 (25) and 0.55 (22)
+       0.30 - 0.44   18   mode 0.40
+     The guide proposed 0.92 / 0.68 / 0.46 / 0.10. In this tree 0.68 has ONE
+     declaration, 0.46 has NONE, and 0.10 is not ink at all — it is a surface
+     value (47 backgrounds + 22 borders), which is why it appears below under
+     --surface-* instead. The fifth role exists because 0.60, 0.55 and 0.50
+     are three near-equal peaks (24/22/25), not one peak with drift; 0.55 in
+     particular is the pill's own eyebrow/label convention (.sat-eyebrow,
+     .sat-time-label, .sat-hero-label). */
+  --ink-primary: rgba(255, 255, 255, 0.90);
+  --ink-secondary: rgba(255, 255, 255, 0.70);
+  --ink-tertiary: rgba(255, 255, 255, 0.60);
+  --ink-quaternary: rgba(255, 255, 255, 0.50);
+  --ink-hint: rgba(255, 255, 255, 0.40);
+
+  /* Surface roles. These are the values the guide mislabelled as a fourth
+     ink role. They are hairlines and fills, never text: 0.18 is the modal /
+     panel border convention (23 border declarations) and 0.10 is the
+     standard tint (47 background + 22 border). */
+  --surface-line: rgba(255, 255, 255, 0.18);
+  --surface-fill: rgba(255, 255, 255, 0.10);
+
+  /* Radius. Measured: 277 declarations, 21 distinct values. The guide's
+     8 / 14 / 999 does not describe this tree — 14px does NOT OCCUR AT ALL,
+     and the three most common are 6px (62), 4px (54) and 8px (38). These
+     tokens name what is actually there; deciding whether 6 and 4 collapse
+     into one step moves pixels and belongs to [1.6.3].
+     Full distribution: 6px 62, 4px 54, 8px 38, 50% 27, 12px 20, 10px 16,
+     2px 14, 999px 13, 5px 9, 3px 8, then a tail of 8 values at <=3 each. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-pill: 999px;
+  --radius-circle: 50%;
+
+  /* One floater shadow, per the guide. Measured: 96 box-shadow declarations
+     across 57 distinct values, of which 11 are `none`. There is no single
+     dominant shadow — the most frequent real one is this, at 6 uses — so
+     this token is a TARGET rather than a description of current practice,
+     and collapsing 57 onto it is visible change, i.e. [1.6.3]. */
+  --shadow-floater: 0 4px 16px var(--shadow-color);
+
+  /* Spacing scale, per the guide's 4/8/12/16/24/32/48. Measured: 984 px
+     values on padding/margin/gap, of which 484 (49%) are already on this
+     scale and 500 (51%) are not. The off-scale population is dominated by
+     6px (140) and 10px (114); the rest is a tail. So this scale is a target,
+     not a description, and the 254 remaining off-scale values are a
+     [1.6.3] decision because moving 6px to 4px or 8px moves pixels. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Wallpaper dim. DEFINED AND WIRED TO NOTHING in this round, by design.
+     [1.6.4] adds the Settings slider that drives it and the overlay that
+     reads it. 0 means "no dim", so if anything ever reads it before that
+     round lands, the current appearance is what it gets. */
+  --wall-dim: 0;
 }
 
 html.bg-light {
