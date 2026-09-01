@@ -10304,6 +10304,9 @@
     // through the coercing reader, so a junk stored value shows Medium selected
     // rather than no selection at all.
     var textSize = Storage.getTextSize(data);
+    $$(".seg-btn", $("#settings-text-size")).forEach(function (btn) {
+      btn.classList.toggle("active", btn.dataset.value === textSize);
+    });
     // [1.6.5] the dim control syncs from the COERCED reader too, so a value
     // outside 0..0.6 in a restored backup shows as what will actually apply.
     var wallDim = Storage.getWallDim(data);
@@ -10311,9 +10314,6 @@
     if (dimEl) dimEl.value = String(wallDim);
     var dimOut = document.getElementById("settings-wall-dim-value");
     if (dimOut) dimOut.textContent = Math.round(wallDim * 100) + "%";
-    $$(".seg-btn", $("#settings-text-size")).forEach(function (btn) {
-      btn.classList.toggle("active", btn.dataset.value === textSize);
-    });
 
     // Wallpaper thumbnail
     updateWallpaperThumb();
