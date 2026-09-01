@@ -10,7 +10,22 @@
 // and "I looked at twelve and they were fine" is P7 — the instrument's null
 // result only covers where it looked.
 //
+// MEASURED 2026-09-01: HEADLESS AND HEADED AGREE EXACTLY, FOR WHAT THIS CAPTURES.
+// Run on an identical tree, `--headless=new` versus headed gave the same 1092
+// elements, the same devicePixelRatio (1), the same 1376x808 viewport, and ZERO
+// property diffs across both the dark and light branches. Headless noise floor
+// over two runs was also 0/1092. So headless is usable here and is the default.
+//
+// THE SCOPE OF THAT RESULT, because it is narrower than it sounds. This harness
+// captures colour, radius, shadow, font, spacing and opacity — all values
+// getComputedStyle resolves without rasterising. Font ANTIALIASING differences
+// cannot appear in them at all, and scrollbar presence would only show up in
+// LAYOUT GEOMETRY, which is not captured. If a future round starts capturing
+// width/height/offset, re-run this comparison before trusting it: the zero above
+// is evidence about these thirteen properties, not about the two modes in general.
+//
 // usage: node --experimental-websocket computed-snapshot.mjs <ext-dir> <out.json> <port>
+//        HEADED=1 ... to watch it run
 import fs from "node:fs";
 import path from "node:path";
 import { spawn, execSync } from "node:child_process";
@@ -40,11 +55,25 @@ process.on("exit", teardown);
 process.on("SIGINT", () => { teardown(); process.exit(130); });
 
 fs.rmSync(PROFILE, { recursive: true, force: true });
+// HEADLESS BY DEFAULT. A launching browser steals focus from whatever the
+// developer is doing, and these runs take minutes. `--headless=new` (not the old
+// headless) still loads extensions, still honours the extension-debugging flags,
+// and still serves getComputedStyle and CDP screenshots. Set HEADED=1 to watch.
+//
+// THE MODE IS STAMPED INTO THE OUTPUT and the differ refuses to compare across
+// modes. Headless can differ in devicePixelRatio, scrollbar presence and font
+// rendering, so a headed-versus-headless diff would show property changes that
+// have nothing to do with the CSS under test — a false finding that looks
+// exactly like a migration defect. Making that mechanical beats remembering it.
+const HEADLESS = process.env.HEADED !== "1";
+const MODE = HEADLESS ? "headless" : "headed";
 CHILD = spawn(EDGE, [
   `--user-data-dir=${PROFILE}`, "--no-first-run", "--no-default-browser-check", "--disable-sync",
   "--disable-features=DisableLoadExtensionCommandLineSwitch", "--enable-unsafe-extension-debugging",
   `--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`,
-  `--remote-debugging-port=${PORT}`, "--window-size=1400,900", "about:blank",
+  `--remote-debugging-port=${PORT}`, "--window-size=1400,900",
+  ...(HEADLESS ? ["--headless=new"] : []),
+  "about:blank",
 ], { stdio: "ignore" });
 
 let up = false;
@@ -160,6 +189,12 @@ await ev(`document.documentElement.classList.add("has-bg","bg-light"); 1`);
 await sleep(1200);
 const light = await ev(SNAP);
 
-fs.writeFileSync(OUT, JSON.stringify({ dark, light }, null, 0));
-console.log(`snapshot -> ${OUT}  dark:${Object.keys(dark).length} light:${Object.keys(light).length} elements`);
+// Record the environment alongside the data. `mode` is what the differ enforces;
+// dpr and the viewport are recorded because they are the properties most likely
+// to explain a cross-mode difference if one is ever investigated.
+const envInfo = await ev(`({ dpr: window.devicePixelRatio, w: innerWidth, h: innerHeight,
+  ua: navigator.userAgent.includes("Headless") })`);
+fs.writeFileSync(OUT, JSON.stringify({ mode: MODE, env: envInfo, dark, light }, null, 0));
+console.log(`snapshot -> ${OUT}  [${MODE}] dpr=${envInfo.dpr} ${envInfo.w}x${envInfo.h} ` +
+  `uaHeadless=${envInfo.ua}  dark:${Object.keys(dark).length} light:${Object.keys(light).length} elements`);
 process.exit(0);

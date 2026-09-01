@@ -11,6 +11,26 @@ const LABEL = process.argv[4] || "diff";
 const MIN_INTERSECTION_RATIO = 0.9;
 let vacuous = false;
 
+// CROSS-MODE COMPARISONS ARE REFUSED, not warned about. Headless and headed can
+// differ in devicePixelRatio, scrollbar presence and font rendering, so a diff
+// between them shows property changes caused by the BROWSER MODE and not by the
+// CSS under test. Those diffs look exactly like a migration defect, which is the
+// most expensive kind of false finding this harness could produce. Pass
+// ALLOW_CROSS_MODE=1 only when the cross-mode delta is itself the measurement.
+const modeA = A.mode || "unknown(pre-mode-stamp)";
+const modeB = B.mode || "unknown(pre-mode-stamp)";
+if (modeA !== modeB && process.env.ALLOW_CROSS_MODE !== "1") {
+  console.error(`\n[${LABEL}] REFUSED — snapshots were captured in DIFFERENT BROWSER MODES ` +
+    `(A=${modeA}, B=${modeB}).\n` +
+    `  A diff across modes reports browser-rendering differences as if they were CSS changes.\n` +
+    `  Re-capture both sides in the same mode. If the cross-mode delta IS what you want to\n` +
+    `  measure, re-run with ALLOW_CROSS_MODE=1 and read the result as a mode report, not as\n` +
+    `  a statement about the stylesheet.\n`);
+  process.exit(2);
+}
+if (modeA === modeB) console.log(`  mode: ${modeA} (both sides)`);
+else console.log(`  *** CROSS-MODE DIFF, explicitly allowed: A=${modeA} B=${modeB} ***`);
+
 let anyProp = 0;
 for (const branch of ["dark", "light"]) {
   const a = A[branch], b = B[branch];
