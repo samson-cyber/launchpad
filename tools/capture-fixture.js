@@ -155,13 +155,13 @@ async function __seedCaptureFixture() {
     }
 
     // ------------------------------------------------------------ notes
+    // Kept SHORT on purpose: the column is narrow and a long note is clipped
+    // mid-sentence at the fold, which reads as a bug rather than as more content.
     const NOTES = [
-      ["Ask finance whether the Q3 cut-off moved. If it did, the summary needs a new date range.", "butter-yellow"],
-      ["Onboarding: three steps is the target. Anything that cannot justify itself gets cut.", "mint"],
-      ["Studio said Thursday works if we confirm by Tuesday.", "soft-pink"],
-      ["Reading list: the piece on attention residue, and the follow-up on context switching.", "sky-blue"],
-      ["Renewal is annual, not monthly. Do not let it lapse again.", "peach"],
-      ["Draft opening line: the quarter was steadier than it looked from inside it.", "lavender"],
+      ["Ask finance if the Q3 cut-off moved.", "butter-yellow"],
+      ["Onboarding: three steps is the target.", "mint"],
+      ["Studio holds Thursday until Tuesday.", "soft-pink"],
+      ["Renewal is annual, not monthly.", "peach"],
     ];
     // createNote MUTATES `data` and does NOT save. Re-reading storage between
     // calls discarded every note on the first run; build them all, save once.
@@ -234,11 +234,18 @@ async function __seedCaptureFixture() {
       if (tw) byTag[tw] = Math.round(total * 0.52);
       if (ta) byTag[ta] = Math.round(total * 0.31);
       if (tb) byTag[tb] = total - (byTag[tw] || 0) - (byTag[ta] || 0);
+      // TASK time is attributed only to the LAST FEW DAYS and at a modest share.
+      // Spreading 45% of every day across thirty days accumulated to 16h35m and
+      // 22h38m on single tasks, which strains belief on a task row; a couple of
+      // hours reads true. Most of a day's focus belongs to no task at all, which
+      // is also what actually happens.
       const t1 = taskIds["Wireframe the shortened flow"], t2 = taskIds["Chart the quarter-over-quarter split"],
             t3 = taskIds["Draft the executive summary"];
-      if (t1) byTask[t1] = Math.round(total * 0.45);
-      if (t2) byTask[t2] = Math.round(total * 0.33);
-      if (t3) byTask[t3] = total - (byTask[t1] || 0) - (byTask[t2] || 0);
+      if (back <= 3) {
+        if (t1) byTask[t1] = Math.round(total * 0.30);
+        if (t2 && back <= 2) byTask[t2] = Math.round(total * 0.22);
+        if (t3 && back === 3) byTask[t3] = Math.round(total * 0.25);
+      }
       days[wsId + ":" + dayKey(back)] = {
         day: dayKey(back), workspaceId: wsId, totalFocusedMs: total,
         byDomain: byDomain, byTag: byTag, byTask: byTask,
@@ -275,8 +282,14 @@ async function __seedCaptureFixture() {
     data = await S.getAll();
     data.focusArmed = true;
     data.blockList = ["news.ycombinator.com", "youtube.com", "reddit.com", "x.com"];
-    // A believable blocked count, so the strip is not a row of zeroes.
-    data.focusStats = Object.assign({}, data.focusStats || {}, { blockedTotal: 34 });
+    // focusStats is { version, byDay: { <dayKey>: { blocked, snoozed } } }, and
+    // the Dashboard tile reads TODAY's bucket. `blockedTotal` was invented and
+    // the tile correctly showed 0 while frame 4 is the blocking page.
+    data.focusStats = data.focusStats && data.focusStats.byDay
+      ? data.focusStats : { version: 1, byDay: {} };
+    data.focusStats.byDay[dayKey(0)] = { blocked: 7, snoozed: 1 };
+    data.focusStats.byDay[dayKey(1)] = { blocked: 11, snoozed: 2 };
+    data.focusStats.byDay[dayKey(2)] = { blocked: 4, snoozed: 0 };
     await S.saveAll(data);
 
     return {

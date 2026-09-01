@@ -1,8 +1,10 @@
 #!/usr/bin/env node
-// Chrome Web Store screenshot capture. Six 1280x800 frames, from the PACKAGED
-// build, against a seeded fixture, reproducibly.
+// Chrome Web Store screenshot capture. Five 1280x800 frames by default, from
+// the PACKAGED build, against a seeded fixture, reproducibly. A sixth is
+// available behind CAPTURE_ATTACH_FRAME=1 - see the 06 block for why.
 //
-//   node tools/capture-screenshots.mjs <extension-dir> <output-dir> [chrome-path]
+//   node tools/capture-screenshots.mjs <extension-dir> <output-dir> [browser-path]
+//   (Node 20 needs --experimental-websocket; Node 22+ does not.)
 //
 //   <extension-dir>  an UNPACKED extension directory. For a listing set this is
 //                    the unpacked release artifact, never the working tree, so
@@ -56,6 +58,14 @@ if (!EXT_DIR || !OUT_DIR) {
 }
 if (!fs.existsSync(path.join(EXT_DIR, "manifest.json"))) {
   console.error(`SUBJECT DID NOT LOAD - no manifest.json in ${EXT_DIR}`);
+  process.exit(2);
+}
+// Node 22+ has a global WebSocket; Node 20 keeps it behind a flag. Say so here,
+// with the exact command, rather than throwing a bare ReferenceError from the
+// middle of the run once a browser is already open and holding a profile.
+if (typeof WebSocket === "undefined") {
+  console.error("NEEDS A GLOBAL WebSocket. On Node 20, re-run as:");
+  console.error("  node --experimental-websocket tools/capture-screenshots.mjs " + process.argv.slice(2).join(" "));
   process.exit(2);
 }
 
@@ -310,6 +320,25 @@ if (hover.hovered) {
   console.log("  hover pill: " + JSON.stringify(pill));
 }
 console.log("  hover held: " + hoverHeld);
+// The notes column leads with the ghost "New note" create affordance, which is
+// correct behaviour ([1.1.3], the ghost leads the stack) and reads as an empty
+// panel in a still. Scroll just past it so the frame opens on real notes; the
+// notes are short enough that none is clipped at the fold.
+const notesScroll = await page.ev(`(() => {
+  const cols = [].slice.call(document.querySelectorAll('#tab-tasks *')).filter((el) => {
+    const s = getComputedStyle(el);
+    return /auto|scroll/.test(s.overflowY) && el.scrollHeight > el.clientHeight + 8
+      && el.querySelector('.note-card, .note, [data-note-id]');
+  });
+  const col = cols[0];
+  if (!col) return { found: false };
+  const ghost = col.querySelector('.note-ghost, .notes-ghost, [data-note-ghost], .note-new');
+  const by = ghost ? Math.round(ghost.getBoundingClientRect().height + 14) : 0;
+  col.scrollTop = by;
+  return { found: true, scrolledBy: by, scrollTop: Math.round(col.scrollTop) };
+})()`);
+console.log("  notes column: " + JSON.stringify(notesScroll));
+await sleep(600);
 frames.push(await shoot(page, "02-tasks-and-notes.png"));
 
 // ---- 03 focus session, RUNNING with time on the clock --------------------
@@ -346,15 +375,72 @@ await j(`/json/close/${gate.targetId}`);
 // ---- 05 insights ---------------------------------------------------------
 console.log("\n  05 insights");
 await click('[data-tab="insights"]', 3000);
+// The stat strip's lead tile is a 7-DAY sub-total, and its label reads "last 7
+// days" for any range that ends today - so a 30-day board carried a "LAST 7
+// DAYS" headline over it. Arithmetically right, visually confusing. Selecting
+// the 7-day range makes the segment, the tile and the chart titles agree.
+const range7 = await click('[data-ins-range="7"]', 2600);
+console.log("  range control: " + range7);
+const insHead = await page.ev(`(() => {
+  const seg = document.querySelector('#tab-insights .seg-btn.active');
+  const tile = document.querySelector('#tab-insights .insights-strip-label');
+  const title = document.querySelector('#tab-insights .pp-dash-card-title');
+  return { segment: seg && seg.textContent.trim(), leadTile: tile && tile.textContent.trim(),
+           firstChart: title && title.textContent.trim() };
+})()`);
+console.log("  insights headline: " + JSON.stringify(insHead));
 frames.push(await shoot(page, "05-insights.png"));
 
 // ---- 06 sessions ---------------------------------------------------------
 console.log("\n  06 sessions");
-// Home first: the flyout was previously captured over a half-covered Insights
-// board, which reads as a mistake rather than as a panel over the grid.
-await click('[data-tab="home"]', 1600);
-await click("#sb-sessions", 2200);
+// WHY NOT THE SIDEBAR FLYOUT. #sessions-dropdown is `position: fixed;
+// left: 260px; width: 380px`, so at 1280 wide it always occupies x=260..640 and
+// bisects the centred wordmark ("...unchPad") and the tab bar ("ashboard"); and
+// the sidebar is necessarily EXPANDED for as long as it is open, because opening
+// a panel sets sidebarLocked to prevent collapse, so it also clips the left
+// column of shortcuts. There is no honest 1280x800 framing of that surface -
+// forcing the sidebar shut for the shot would show a state no user can reach.
+//
+// The ATTACH PICKER shows the same named sessions in a centred modal, and shows
+// them doing something: being attached to a task. Driven through the real
+// controls - hover the row, open its options pill, choose the entry (I11, I19).
+// DEFAULT: FIVE FRAMES. The store accepts five, and the sixth is worth having
+// only if you want the sessions surface represented at all - see the note above
+// for why the flyout itself cannot be framed. Set CAPTURE_ATTACH_FRAME=1 to add
+// it. It is honest but thin: three session names in a dialog over a blurred
+// board, without the tab counts and favicons the flyout showed.
+if (process.env.CAPTURE_ATTACH_FRAME === "1") {
+await click('[data-tab="tasks"]', 2400);
+const attachAt = await page.ev(`(() => {
+  const row = document.querySelector('#tab-tasks .tt-task-row, #tab-tasks [data-task-id]');
+  if (!row) return { ok: false, why: 'no task row' };
+  const r = row.getBoundingClientRect();
+  return { ok: true, x: Math.round(r.left + r.width * 0.5), y: Math.round(r.top + r.height / 2) };
+})()`);
+let attachOpened = { ok: false, why: "row not found" };
+if (attachAt.ok) {
+  await page.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: attachAt.x, y: attachAt.y, buttons: 0 });
+  await sleep(800);
+  attachOpened = await page.ev(`(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const pill = document.querySelector('#tab-tasks .tt-task-options, #tab-tasks [data-task-menu], #tab-tasks .tt-row-options');
+    if (!pill) return { ok: false, why: 'options pill not revealed' };
+    if (!(pill.getBoundingClientRect().width > 0)) return { ok: false, why: 'pill has a zero-size box' };
+    pill.click(); await wait(800);
+    const item = document.querySelector('[data-action="attach-session"]');
+    if (!item) return { ok: false, why: 'no attach-session entry in the open menu' };
+    item.click(); await wait(1400);
+    const modal = document.querySelector('.tt-modal, .modal-overlay:not(.hidden)');
+    const txt = modal ? modal.innerText.replace(/\\s+/g, ' ').trim().slice(0, 90) : null;
+    return { ok: !!modal, text: txt };
+  })()`, 30000);
+  console.log("  attach picker: " + JSON.stringify(attachOpened));
+}
+chk("06: the session picker opened through the real controls", attachOpened.ok === true, attachOpened.why || "");
 frames.push(await shoot(page, "06-sessions.png"));
+} else {
+  console.log("  06 sessions: SKIPPED by default (set CAPTURE_ATTACH_FRAME=1 to capture it)");
+}
 
 // ------------------------------------------------------------------ hygiene
 console.log("\n  frame hygiene");
