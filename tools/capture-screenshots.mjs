@@ -147,6 +147,13 @@ CHILD = spawn(CHROME, [
   `--load-extension=${EXT_DIR}`,
   `--remote-debugging-port=${PORT}`,
   "--window-size=1400,900",
+  // HEADLESS BY DEFAULT, same as the computed-style harness: a launching browser
+  // steals focus and these runs take minutes. `--headless=new` still loads
+  // extensions and still serves Page.captureScreenshot. HEADED=1 to watch.
+  // The frames are captured through Emulation.setDeviceMetricsOverride and each
+  // PNG's size is verified from its own IHDR, so the window mode cannot silently
+  // change what is produced.
+  ...(process.env.HEADED === "1" ? [] : ["--headless=new"]),
   "about:blank",
 ], { detached: false, stdio: "ignore" });
 

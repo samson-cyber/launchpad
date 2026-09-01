@@ -11908,7 +11908,7 @@
     return h > 0 ? h + ":" + pad(m) + ":" + pad(s) : m + ":" + pad(s);
   }
 
-  // FOCUSED TODAY — the engine's honest per-day reader (secondary line on the
+  // Focused today — the engine's honest per-day reader (secondary line on the
   // card). baseMs (rolled-up + closed) + the live open span iff a session is
   // stamped to this task; static between engine boundaries.
   function satLiveMs() {
@@ -11924,8 +11924,8 @@
   // cold-started in six days, so "this sitting" was six days long. Technically
   // true, practically meaningless — a number that fails the product's own
   // honesty standard. The accurate work-output number already existed one line
-  // below it (FOCUSED TODAY, engine-measured), so the fix is prominence, not
-  // machinery: FOCUSED TODAY takes the headline and activation becomes this
+  // below it (Focused today, engine-measured), so the fix is prominence, not
+  // machinery: Focused today takes the headline and activation becomes this
   // timestamp. A timestamp cannot accumulate into absurdity — it reads honest at
   // any age, including after a fortnight of sleep/lid-close.
   //
@@ -11994,7 +11994,7 @@
     return txt ? '<div class="sat-since">' + escapeHtml(txt) + '</div>' : "";
   }
 
-  // The card's headline block: FOCUSED TODAY as the big number, its label, and
+  // The card's headline block: Focused today as the big number, its label, and
   // the quiet since-line. ONE number in ONE place — the old small "focused
   // today" row is gone rather than duplicated under a headline showing the same
   // value.
@@ -12045,7 +12045,7 @@
   //
   // "Ready" says what the state actually is — it will count when you browse —
   // and it was chosen over "Armed" deliberately: this product already spends
-  // "armed" on FOCUS BLOCKING (focusArmed, isFocusManuallyArmed, the armed dot
+  // "armed" on Focus blocking (focusArmed, isFocusManuallyArmed, the armed dot
   // on the pill face), and borrowing it here would trade a collision with the
   // hero for a collision with the blocking vocabulary. The PULSING accruing
   // state keeps "Tracking", which was never ambiguous.
@@ -12189,9 +12189,9 @@
 
   // [2.0 hero swap] THE IDLE CARD'S HEADLINE — the activation stopwatch leads.
   //
-  // This AMENDS [1.2.3], which put FOCUSED TODAY in the hero slot. That call was
+  // This AMENDS [1.2.3], which put Focused today in the hero slot. That call was
   // right about the number and wrong about the slot, and the correction comes
-  // from repeated lived use rather than taste: FOCUSED TODAY only moves while a
+  // from repeated lived use rather than taste: Focused today only moves while a
   // TRACKABLE site is focused, and this page is not one — so the number a user
   // watches on the card is, by construction, the number that cannot move while
   // they are watching it. A hero that holds still reads broken. Samson reported
@@ -12212,14 +12212,14 @@
   //   - the timestamp stays directly beneath it, so a large figure always has
   //     the "since when" that makes it interpretable.
   //
-  // FOCUSED TODAY is DEMOTED, NOT DROPPED. It keeps its label, its liveness
+  // Focused today is DEMOTED, NOT DROPPED. It keeps its label, its liveness
   // indicator and its own class, one line below — the engine's measurement is
   // still the honest number and still always on screen. The two are never
   // blended and never summed; "focused" remains reserved for engine time and the
   // hero's unit word is "active", which is what a wall-clock measures.
   //
   // The pause statement is made ONCE, by the hero's unit word going to "Paused"
-  // with the amber treatment. FOCUSED TODAY keeps its own label below rather
+  // with the amber treatment. Focused today keeps its own label below rather
   // than becoming a second "PAUSED" on the same card — both numbers are frozen
   // and both are tinted, so the state is unmistakable without saying it twice.
   function satIdleHeadlineHtml(paused) {
@@ -12431,7 +12431,7 @@
 
   // Repaint the time text without a full re-render (which would fight the Switch
   // dropdown, kill hover states, reset the search field). [1.2.3] The pill's time
-  // and the card's LARGE headline now show the SAME number — FOCUSED TODAY — so
+  // and the card's LARGE headline now show the SAME number — Focused today — so
   // there is one value to paint into both.
   //
   // [2.0] EVERY TIME SURFACE ON THE WIDGET IS PAINTED HERE. The card's
@@ -12460,7 +12460,7 @@
         var frac = pomo.totalMs > 0 ? Math.max(0, Math.min(1, remaining / pomo.totalMs)) : 0;
         fill.style.strokeDashoffset = String(SAT_POMO_RING_C * (1 - frac));
       }
-      // [2.0 timing] The takeover now keeps FOCUSED TODAY beneath the ring, so
+      // [2.0 timing] The takeover now keeps Focused today beneath the ring, so
       // this branch can no longer return early — .sat-time IS in the DOM during a
       // running phase and would otherwise freeze at whatever it read when the
       // phase started. Falls through to the shared paint below.
@@ -12561,7 +12561,7 @@
 
   function satStartTick() {
     satStopTick();
-    // [1.2.3] FOCUSED TODAY is now the only ticking surface. It advances only
+    // [1.2.3] Focused today is now the only ticking surface. It advances only
     // while an engine session is open on this task, and freezes while paused, so
     // the existing gate (no task / paused -> no timer) still holds; the tick is
     // left ON for an active-but-not-currently-open task rather than tightened to
@@ -12648,7 +12648,7 @@
   // HONESTY. This is a WALL-CLOCK. The engine's figures are a different kind of
   // number — time the engine actually saw on a trackable site — and the two are
   // never added, averaged or shown as one figure: the stopwatch lives on the row,
-  // FOCUSED TODAY lives on the card. The word "focused" is reserved for the
+  // Focused today lives on the card. The word "focused" is reserved for the
   // engine and never appears here. The unit word is "active", which is what this
   // number actually measures.
   function satActiveElapsedMs() {
@@ -12907,7 +12907,7 @@
             '<span class="sat-pill-label">' + (paused ? 'Paused' : 'Active task') + '</span>' +
             '<span class="sat-pill-name">' + escapeHtml(res.task.name) + '</span>' +
           '</span>' +
-          // [1.2.3] FOCUSED TODAY, the same number the card leads with — not a
+          // [1.2.3] Focused today, the same number the card leads with — not a
           // wall-clock counter. No since-line on the face: there is no room, and
           // the card carries it. Frozen amber when paused, as before.
           '<span class="sat-pill-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</span>';
@@ -13072,7 +13072,7 @@
       // [2.0 timing] TWO NUMBERS, ONE SYSTEM. The takeover used to replace the
       // headline outright, so starting a focus session made today's total vanish
       // — the user traded the number they are accumulating for the number
-      // counting down. Now the ring stays the hero and FOCUSED TODAY sits
+      // counting down. Now the ring stays the hero and Focused today sits
       // beneath it, quieter (CSS shrinks it under .sat-expanded-pomo) but
       // present: this session above, today below.
       //

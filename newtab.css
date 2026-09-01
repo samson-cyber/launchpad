@@ -1953,8 +1953,7 @@ html.has-bg .modal-icon-btn:hover {
   font-size: var(--fs-13);
   font-weight: 500;
   color: var(--text-hint);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: normal;
   user-select: none;
 }
 
@@ -2493,8 +2492,7 @@ html.has-bg .rc-panel-item-meta {
   font-weight: 600;
   color: var(--text-secondary);
   margin: var(--space-1) 0 var(--space-2);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: normal;
 }
 
 .bg-section-heading + #bg-color-grid,
@@ -3886,8 +3884,7 @@ html.bg-light { --sat-amber: #8a6d09; }
   font-size: var(--fs-8);
   font-weight: 600;
   line-height: 1;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
+  letter-spacing: normal;
   white-space: nowrap;
   color: var(--ink-chrome);
 }
@@ -3950,8 +3947,7 @@ html.bg-light { --sat-amber: #8a6d09; }
 .sat-eyebrow {
   font-size: var(--fs-9);
   font-weight: 600;
-  letter-spacing: 0.7px;
-  text-transform: uppercase;
+  letter-spacing: normal;
   color: var(--ink-meta);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
@@ -4058,8 +4054,7 @@ html.bg-light { --sat-amber: #8a6d09; }
   gap: var(--space-1-5);
   font-size: var(--fs-10);
   font-weight: 500;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
+  letter-spacing: normal;
   color: var(--ink-meta);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
@@ -4091,8 +4086,7 @@ html.bg-light { --sat-amber: #8a6d09; }
   margin-top: 1px;
   font-size: var(--fs-10);
   font-weight: 500;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
+  letter-spacing: normal;
   /* LITERAL, not var(--ink-meta): check-pill-clarity requires
      color: rgba(255, 255, 255 here, and tokenising made its regex match a
      DIFFERENT rule instead of reporting absence (Q2). The 0.55 -> 0.60 tier
@@ -4532,8 +4526,7 @@ html.bg-light { --sat-amber: #8a6d09; }
 .sat-pomo-phase {
   font-size: var(--fs-9);
   font-weight: 600;
-  letter-spacing: 0.7px;
-  text-transform: uppercase;
+  letter-spacing: normal;
   color: var(--ink-meta);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
@@ -4638,8 +4631,7 @@ html.bg-light { --sat-amber: #8a6d09; }
   font: inherit;
   font-size: var(--fs-10);
   font-weight: 600;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
+  letter-spacing: normal;
   cursor: pointer;
   text-align: left;
 }
@@ -5966,8 +5958,7 @@ html.has-bg #restore-empty {
   font-size: var(--fs-11);
   font-weight: 600;
   color: var(--text-hint);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: normal;
   margin: 0 0 var(--space-3);
 }
 
@@ -8317,7 +8308,6 @@ html.has-bg.bg-light .workspace-readonly-banner {
 
 .tab-cta:hover {
   box-shadow: 0 2px 8px rgba(74, 144, 226, 0.6);
-  transform: translateY(-1px);
 }
 
 .tab-cta:active {
@@ -8472,7 +8462,6 @@ html.has-bg.bg-light .workspace-readonly-banner {
 
 .up-primary:hover {
   box-shadow: 0 4px 14px rgba(74, 144, 226, 0.55);
-  transform: translateY(-1px);
 }
 
 .up-divider {
@@ -8545,8 +8534,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
   gap: var(--space-2-5);
   margin: var(--space-3) 0 var(--space-2-5);
   font-size: var(--fs-11);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: normal;
   opacity: 0.6;
 }
 
@@ -8784,8 +8772,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   margin: 18px var(--space-1) var(--space-2);
   font-size: var(--fs-13);
   font-weight: 600;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
+  letter-spacing: normal;
   opacity: 0.78;
 }
 
@@ -9270,6 +9257,8 @@ html.has-bg.bg-light .dash-meta-prio {
    a pair that would have to be kept in step with them (and would need their own
    light overrides). Layout only. */
 .dash-streak {
+  /* [1.6.4] compared side by side, so the digits must not shuffle. */
+  font-variant-numeric: tabular-nums;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -9392,8 +9381,7 @@ html.has-bg.bg-light .dash-recap-value {
 .pp-dash-card-title {
   font-size: var(--fs-12);
   font-weight: 600;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
+  letter-spacing: normal;
   opacity: 0.7;
   margin-bottom: var(--space-3);
 }
@@ -9520,6 +9508,8 @@ html.has-bg.bg-light .dash-recap-value {
 }
 
 .pp-axis-label {
+  /* [1.6.4] compared side by side, so the digits must not shuffle. */
+  font-variant-numeric: tabular-nums;
   fill: #fff;
   font-size: var(--fs-10);
   opacity: 0.75;
@@ -9769,8 +9759,7 @@ html.has-bg.bg-light .pro-preview-banner-text {
 .insights-strip-label {
   font-size: var(--fs-11);
   opacity: 0.7;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
+  letter-spacing: normal;
 }
 
 /* Top tasks — rows inside a pp-insights-card, so ink inherits the card's ink
@@ -9889,8 +9878,7 @@ html.has-bg.bg-light .insights-task-bar {
 .badge-splash-icon svg { width: 34px; height: 34px; }
 .badge-splash-eyebrow {
   font-size: var(--fs-11);
-  letter-spacing: 1.2px;
-  text-transform: uppercase;
+  letter-spacing: normal;
   font-weight: 700;
   color: #ffd66e;
 }
@@ -9979,8 +9967,7 @@ html.has-bg.bg-light .badge-splash-icon { color: #8a5a00; border-color: rgba(138
 }
 .pro-celebrate-eyebrow {
   font-size: var(--fs-11);
-  letter-spacing: 1.2px;
-  text-transform: uppercase;
+  letter-spacing: normal;
   font-weight: 700;
   color: #ffd66e;
 }
@@ -10382,8 +10369,7 @@ body.sat-card-open .tab-panel {
   margin: 0 0 var(--space-3);
   font-size: var(--fs-13);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: normal;
   opacity: 0.78;
   display: flex;
   align-items: center;
@@ -10721,6 +10707,8 @@ body.sat-card-open .tab-panel {
    from the layering, not a halo). aria-hidden — the adjacent "X of Y tasks
    complete" text carries the value for assistive tech. */
 .tt-progress-pct {
+  /* [1.6.4] compared side by side, so the digits must not shuffle. */
+  font-variant-numeric: tabular-nums;
   position: absolute;
   top: 0;
   left: 0;
@@ -12140,8 +12128,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
 .tt-modal-label {
   font-size: var(--fs-12);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: normal;
   opacity: 0.78;
 }
 
@@ -13353,8 +13340,7 @@ button.tip-row.is-actionable:focus-visible {
 .gs-title {
   font-size: var(--fs-11);
   font-weight: 600;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
+  letter-spacing: normal;
   color: var(--ink-chrome);
   text-shadow: none;
 }
@@ -14088,8 +14074,7 @@ html.has-bg.bg-light .notes-panel {
   flex-shrink: 0;
   font-size: var(--fs-12);
   font-weight: 600;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
+  letter-spacing: normal;
   opacity: 0.7;
   padding-bottom: var(--space-3);
 }

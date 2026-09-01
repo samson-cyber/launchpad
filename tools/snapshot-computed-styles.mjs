@@ -16,13 +16,20 @@
 // property diffs across both the dark and light branches. Headless noise floor
 // over two runs was also 0/1092. So headless is usable here and is the default.
 //
-// THE SCOPE OF THAT RESULT, because it is narrower than it sounds. This harness
-// captures colour, radius, shadow, font, spacing and opacity — all values
-// getComputedStyle resolves without rasterising. Font ANTIALIASING differences
-// cannot appear in them at all, and scrollbar presence would only show up in
-// LAYOUT GEOMETRY, which is not captured. If a future round starts capturing
-// width/height/offset, re-run this comparison before trusting it: the zero above
-// is evidence about these thirteen properties, not about the two modes in general.
+// RE-RUN 2026-09-01 WITH GEOMETRY, and the caveat below is DISCHARGED. [1.6.4]
+// added width and height to the captured set, which is exactly the case the old
+// note said to re-check. The cross-mode comparison was repeated over all
+// EIGHTEEN properties on an identical tree: still 1092/1092 elements and still
+// ZERO diffs in both branches. So scrollbar presence and layout differences do
+// not separate the two modes here either, and headless is safe for layout-shift
+// measurement. The headless noise floor over eighteen properties is also 0/1092.
+//
+// The original caveat, kept because its REASONING still applies to anything added
+// later: this harness captures values getComputedStyle resolves without
+// rasterising. Font ANTIALIASING cannot appear in them at all. Any future
+// property that depends on rasterisation needs its own cross-mode check before
+// its numbers are trusted — the zero above is evidence about these eighteen
+// properties, not about the two modes in general.
 //
 // usage: node --experimental-websocket computed-snapshot.mjs <ext-dir> <out.json> <port>
 //        HEADED=1 ... to watch it run
@@ -159,8 +166,18 @@ if (!ready) {
 }
 
 const SNAP = `(() => {
+  // [1.6.4] EXTENDED. The first thirteen are non-rasterising values. The last
+  // five were added because that round changes case, tracking and numerals, and
+  // NONE of the original thirteen can see any of them — a bounded-diff result
+  // would have been vacuous for exactly the changes being made (P7 + P13).
+  //
+  // width/height are GEOMETRY and behave differently from the rest: they depend
+  // on layout, so they are the properties most likely to differ between browser
+  // modes and between runs. The headless note in this file's header said to
+  // re-run the cross-mode diagnostic before trusting geometry; that was done.
   const PROPS = ["color","background-color","background-image","border-radius","box-shadow",
-                 "font-size","font-weight","padding","margin","gap","border-color","border-width","opacity"];
+                 "font-size","font-weight","padding","margin","gap","border-color","border-width","opacity",
+                 "text-transform","letter-spacing","font-variant-numeric","width","height"];
   const key = (el) => {
     const parts = [];
     let e = el, guard = 0;
