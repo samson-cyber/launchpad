@@ -636,6 +636,13 @@ Run for any change to the website repo, to anything a CDN serves, or to a page t
 
 Accepted bugs and constraints we're not planning to fix. Format: date, area, description, reasoning.
 
+### 2026-09-01 — Build tooling — the push-state check offers NO protection offline, and UNKNOWN cannot be distinguished from badly ahead
+
+**Area:** `build.sh` push-state block (Asana 1218039022445037)
+**Description:** The check reports IN SYNC only when a fetch actually succeeded, which is deliberate: `origin/master` is a local ref, and comparing against it without fetching would report IN SYNC from stale data. The consequence is that **every offline build reports UNKNOWN**, and UNKNOWN is indistinguishable from "you are 83 commits ahead" — which is the exact state the check was written to catch. So the protection is present only when the network is, and a build on a plane gets none of it.
+**Reasoning:** Accepted rather than fixed, because the alternatives are worse. Falling back to the local ref when the fetch fails reintroduces the confident-wrong-answer failure this block exists to prevent. Refusing to build on UNKNOWN turns a warning into the hard guard the PLAN rejected, for the reason recorded in CLAUDE.md: a guard that fires on a plane teaches the habit of overriding `build.sh`, and that habit costs more than this check is worth.
+**Status:** Accepted. The compensating control is the session-start checklist line in CLAUDE.md, which asks for the ahead-by count at the start of a session rather than at build time — a different moment, usually online, and it is where the 83-commit gap should have been caught.
+
 ### 2026-04-24 — Tracking Prototype — `chrome.alarms` original 10s cadence not achievable
 
 **Area:** Prototype (tracking)
