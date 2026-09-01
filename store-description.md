@@ -71,14 +71,31 @@ Sticky notes beside your tasks. Named sessions you save and relaunch. Insights d
 What the build actually uses each for, read from `manifest.json` at `2.1.0`:
 
 - **`history`** (required) - the history panel in the sidebar, which groups the user's
-  own browsing history by site and makes it searchable. Read-only; never transmitted.
-- **`webNavigation`** (required) - focus blocking. Navigations are inspected so a
-  blocked host can be replaced with the local reminder page (`gate.html`) while a
-  focus session is running. Also feeds per-site time attribution for Insights.
-- **`downloads`** (**optional**, requested at the moment of use) - writing the weekly
-  Pro backup file into the user's Downloads folder, and manual export. Not held
-  unless the user turns backups on. Worth stating as optional in the justification,
-  because a reviewer reading the manifest will see it in `optional_permissions`.
+  own browsing history by site and makes it searchable. **Read-only, and provably so:
+  the codebase contains exactly one call, `chrome.history.search()`, and no
+  `deleteUrl` / `deleteRange` / `deleteAll` anywhere.** Results are filtered to drop
+  `chrome://` URLs, rendered in the panel, and never transmitted.
+- **`webNavigation`** (required) - focus blocking, and ONLY focus blocking. Three
+  listeners (`onBeforeNavigate`, `onHistoryStateUpdated`, `onReferenceFragmentUpdated`)
+  all route to a single handler that redirects a TOP-LEVEL frame to the local
+  reminder page (`gate.html`) when its host is on the block list during a focus
+  session. Subframes are deliberately excluded. It does NOT feed time tracking:
+  attribution rides `chrome.tabs.onActivated`/`onUpdated`,
+  `chrome.windows.onFocusChanged` and `chrome.idle.onStateChanged`.
+  **No `webRequest`.** The extension does not declare or use the blocking
+  webRequest API at all; it navigates the tab to its own page rather than
+  intercepting requests. That is worth stating in the justification, because it
+  is the difference between observing a navigation and inspecting traffic.
+- **`downloads`** (**optional**, requested at the moment of use) - the WEEKLY AUTOMATIC
+  Pro backup, and nothing else. It writes one file into `LaunchPad Backups/` with
+  `saveAs: false` and `conflictAction: "uniquify"`, so it never prompts and never
+  overwrites. **Manual export does NOT use it** and works with the permission
+  denied: the page builds a blob and clicks an `<a download>`. The permission
+  exists only because the weekly backup runs in the service worker, which has no
+  anchor to click. Not held unless the user turns automatic backups on, and if the
+  user revokes it the scheduling alarm is cleared rather than left to fail. Worth
+  stating as optional in the justification, because a reviewer reading the manifest
+  will see it in `optional_permissions`.
 
 Full declared set at 2.1.0, for reference: `storage`, `bookmarks`, `contextMenus`,
 `history`, `topSites`, `tabs`, `webNavigation`, `alarms`, `search`, `idle`,
