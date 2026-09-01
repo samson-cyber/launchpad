@@ -78,12 +78,40 @@ Light-wallpaper variants override Card and Floater under `html.has-bg.bg-light` 
 
 On glass (the card's white-alpha ramp):
 
-| Role | Value | Use |
-|---|---|---|
-| Primary | `rgba(255,255,255,0.92)` | headlines, hero numerals, task names |
-| Secondary | `rgba(255,255,255,0.68)` | labels, captions, secondary rows |
-| Tertiary | `rgba(255,255,255,0.46)` | timestamps, zero states, disabled |
-| Hairline | `rgba(255,255,255,0.10)` | dividers, card edges |
+> **CORRECTED 2026-09-01, by measurement ([1.6.1], Asana 1218038783461517).** This
+> section previously proposed FOUR roles at `0.92 / 0.68 / 0.46 / 0.10`. Counting
+> what the stylesheet actually does disproved all four:
+> **`0.68` had ONE declaration. `0.46` had NONE. `0.10` is not ink at all** — zero
+> `color:` uses; it is a surface value (47 backgrounds + 22 borders), so the
+> fourth "ink" role was mislabelled and is now filed under Surface below. Only
+> `0.92` existed as ink, and `0.90` was twice as common.
+> The real population is **170 `color: rgba(255,255,255,a)` declarations across 23
+> distinct alphas**, which band into FIVE roles, not four. The table below is that
+> measurement. The proposal is kept visible here rather than quietly replaced,
+> because a document that rewrites itself cannot be checked against what it used
+> to claim.
+
+| Role | Token | Value | Job (from the selectors that use it) | Decls |
+|---|---|---|---|---|
+| Primary | `--ink-primary` | `rgba(255,255,255,0.90)` | the NAME of the thing: group names, tag names, session rows, toast messages, dialog titles; also the hover promotion of a dimmer control | 25 |
+| Secondary | `--ink-secondary` | `rgba(255,255,255,0.70)` | body text and interactive labels: setting rows, sidebar items, headings, control text — the reading tier | 51 |
+| Meta | `--ink-meta` | `rgba(255,255,255,0.60)` | supporting metadata beside what it describes: counts, phase words, meta lines, "+N more", empty-filter text | 27 |
+| Chrome | `--ink-chrome` | `rgba(255,255,255,0.50)` | panel furniture rather than content: close buttons, submenu headers, section titles, drag handles, placeholders, empty states | 48 |
+| Hint | `--ink-hint` | `rgba(255,255,255,0.40)` | the faintest readable tier: chevrons, domains, the privacy line, disabled affordances | 18 |
+
+**Surface roles, which are NOT ink** (this is where the old `0.10` "Hairline" row belongs):
+
+| Role | Token | Value | Use | Decls |
+|---|---|---|---|---|
+| Line | `--surface-line` | `rgba(255,255,255,0.18)` | modal and panel hairlines | 23 borders |
+| Fill | `--surface-fill` | `rgba(255,255,255,0.10)` | the standard tint | 47 backgrounds + 22 borders |
+
+**`0.55` IS NOT A ROLE AND WAS DELIBERATELY NOT TOKENISED.** It has 22 declarations
+and no job that distinguishes it: its selectors split between Meta's description
+and Chrome's. [1.6.1] characterised it as "the pill's own eyebrow and label
+family" — **that was wrong, from a six-item sample; on full enumeration only 4 of
+22 are `.sat-*`.** It is drift between two adjacent tiers, and tokenising it would
+make an accident permanent. Those 22 remain literals for [1.6.3] to collapse.
 
 On light solid wallpaper, the same four roles re-based on a dark ramp (`rgba(32,33,36,…)` at 0.92 / 0.68 / 0.50 / 0.10). O3 is the rule: never use a light-theme token on a dark-default surface or vice versa; re-base on the surface's own family.
 
@@ -118,8 +146,32 @@ No gradient washes on cards or backgrounds. The single existing gradient (the CT
 
 ### 3.5 Shape, depth, spacing
 
-- **Radius scale, three values only:** 8px (tiles, buttons, inputs, chips), 14px (cards and panels), 999px (pills and rings). Same-radius-on-everything is the SaaS-card tell; the three-step scale is how hierarchy shows in silhouette.
-- **Elevation:** Card tier has no shadow (the blur and the hairline edge are its depth). Floater tier carries one shadow token, `0 12px 32px rgba(0,0,0,0.35)`. Menus carry the same. No other shadows anywhere, and no hover shadow lift.
+- **Radius scale.**
+  > **CORRECTED 2026-09-01, by measurement ([1.6.1]).** This read "three values
+  > only: 8px, 14px, 999px". **`14px` DOES NOT OCCUR ONCE in newtab.css.** The real
+  > population is **277 declarations across 21 distinct values**, and the three most
+  > common are **6px (62), 4px (54), 8px (38)**, then 50% (27), 12px (20), 10px (16),
+  > 2px (14), 999px (13), with a tail of 8 values at ≤9 uses each.
+  > [1.6.2] tokenised what is there — `--radius-sm` 4, `--radius-md` 6, `--radius-lg`
+  > 8, `--radius-xl` 12, `--radius-pill` 999px, `--radius-circle` 50% — absorbing 213
+  > of 277 as exact matches. **The collapse to a three-step scale is still the right
+  > goal and is deferred to [1.6.3]**, because it moves pixels on ~154 declarations
+  > and wants a visual check. The argument for it stands: 4, 6 and 8 are not
+  > distinguishable at a glance, so the current spread buys no hierarchy and costs
+  > consistency. Likely landing: 4 for controls, 8 for cards, 999 for pills, 50% for
+  > genuine circles.
+- **Elevation.**
+  > **CORRECTED 2026-09-01, by measurement ([1.6.1]).** This read "Floater tier
+  > carries one shadow token, `0 12px 32px rgba(0,0,0,0.35)`. No other shadows
+  > anywhere." There are **96 box-shadow declarations across 57 distinct values**,
+  > 11 of them `none`, and **no incumbent**: the most frequent real shadow is
+  > `0 4px 16px var(--shadow-color)` at **6 uses**, and 45 of the 57 values occur
+  > once or twice. The proposed value `0 12px 32px rgba(0,0,0,0.35)` does not appear
+  > at all. [1.6.2] defined `--shadow-floater` from the most frequent real value and
+  > migrated those 6; **the remaining 90 are [1.6.3]'s**, because collapsing 57
+  > shadows onto one is a visible change on every surface that carries one.
+  Card tier still has no shadow (the blur and the hairline edge are its depth), and
+  the no-hover-shadow-lift rule is unchanged.
 - **Spacing:** an 8px base, with 4 / 8 / 12 / 16 / 24 / 32 / 48 as the only steps. Card padding 20px. Gap between cards 16px. Section gap 32px.
 - **Grid:** Dashboard and Insights adopt the Tasks tab's content width (wide) and a 12-column grid with 16px gutters. Below 900px the same stacking breakpoint Notes already uses.
 
@@ -273,7 +325,7 @@ Paste into the PLAN of any task that touches UI:
 - One hero per surface; state which element it is in the PLAN.
 - Colour carries state only (accent, paused, earned, gate, urgent). Gold appears only on earned moments.
 - Type: system stack, weights 400/500/600, ramp tokens at or below 15px, the three display tokens above, tabular numerals on any number that ticks or is compared, sentence-case labels.
-- Radius 8 / 14 / 999. Shadow only on Floater and Menu tiers. Spacing on the 8px scale.
+- Radius from the `--radius-*` tokens (4 / 6 / 8 / 12 / 999px / 50%), NOT the old "8 / 14 / 999" — corrected 2026-09-01, 14px never existed in this tree. Shadow only on Floater and Menu tiers, via `--shadow-floater`. Spacing from `--space-1..7`; note only ~49% of existing values are on that scale, so match the neighbours rather than assuming.
 - Motion only in answer to an action, from the allowed list, with a reduced-motion fallback.
 - Copy per Section 6; consequence-labelled actions; boundaries name themselves.
 - New modules ship off or collapsed unless they are the surface's hero.
