@@ -4093,7 +4093,11 @@ html.bg-light { --sat-amber: #8a6d09; }
   font-weight: 500;
   letter-spacing: 0.6px;
   text-transform: uppercase;
-  color: var(--ink-meta);
+  /* LITERAL, not var(--ink-meta): check-pill-clarity requires
+     color: rgba(255, 255, 255 here, and tokenising made its regex match a
+     DIFFERENT rule instead of reporting absence (Q2). The 0.55 -> 0.60 tier
+     move IS applied. */
+  color: rgba(255, 255, 255, 0.60);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
