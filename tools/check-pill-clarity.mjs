@@ -813,13 +813,30 @@ await (async () => {
     const card = CARD;
     check("takeover: FOCUSED TODAY is rendered beneath the ring during a running phase",
       /sat-pomo-stop-row[\s\S]*?sat-pomo-today">' \+ satHeadlineHtml\(paused\)[\s\S]*?satFocusRowHtml/.test(card));
+    // The >= 2 count IS the property: both branches must go through the shared
+    // builder rather than one copying it. (Group C, 2026-09-01 audit.)
+    //
+    // The prohibited-class half is RESOLVED (2026-09-01, Asana 1218045515360272).
+    // It is a NEGATIVE assertion and it was over-specified: `!/class="sat-time"/`
+    // matched only the class as an ENTIRE attribute value, so class="sat-time
+    // extra" slipped past and the hand-rolled time span this forbids was
+    // reinstatable while the gate stayed green. The audit's Group A ruling ("exact
+    // class= equality is appropriate, do not loosen") was reasoned about POSITIVE
+    // assertions and does not extend here; BUGS.md P16 governs.
+    //
+    // DO NOT rewrite as /class="[^"]*\bsat-time\b/. A hyphen is a NON-WORD
+    // character, so \b matches inside hyphenated names: that form would trip on
+    // sat-time-label and sat-time-label-text, which are different classes. Its
+    // twin in check-today-cockpit trips on live markup for exactly this reason.
+    // Duplicated rather than shared because every gate in tools/ is standalone.
+    const hasClassToken = (src, name) => {
+      const re = /class="([^"]*)"/g;
+      let m;
+      while ((m = re.exec(src))) if (m[1].trim().split(/\s+/).includes(name)) return true;
+      return false;
+    };
     check("takeover: ...through the SAME builder the idle card uses, not a copy",
-      // GROUP A/C RESOLUTION (2026-09-01). The >= 2 count IS the property: both
-      // branches must go through the shared builder rather than one copying it.
-      // The trailing !/class="sat-time"/ is the SECOND negative exact-class
-      // instance flagged in BUGS.md P16 — a rename or an added class satisfies it
-      // without removing what it forbids. Left unchanged; decide it deliberately.
-      (card.match(/satHeadlineHtml\(/g) || []).length >= 2 && !/class="sat-time"/.test(card));
+      (card.match(/satHeadlineHtml\(/g) || []).length >= 2 && !hasClassToken(card, "sat-time"));
     check("takeover: only its SCALE changes, and only in CSS",
       /\.sat-pomo-today \.sat-time \{[^}]*font-size: var\(--fs-15\)/.test(SRC.css));
     check("takeover: the paint no longer returns early, so the kept headline still ticks",

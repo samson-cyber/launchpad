@@ -627,15 +627,34 @@ await (async () => {
   check("render: due-today is the PRIMARY column", /dash-col-primary[\s\S]*dashDueListHtml/.test(render));
   check("render: goals and streak are the SECONDARY column", /dash-col-secondary[\s\S]*dashGoalsHtml/.test(render) && /dash-col-secondary[\s\S]*streakCard|streakCard[\s\S]*dash-col-secondary/.test(render));
   check("render: quick-add sits at the due-today module's foot", render.indexOf("dashDueListHtml") < render.indexOf("dashQuickAddHtml"));
+// PROHIBITED-CLASS TEST BY EXACT TOKEN (2026-09-01, Asana 1218045515360272).
+//
+// RESOLVED: this is a NEGATIVE assertion and it was over-specified. The 2026-09-01
+// audit's Group A ruling — exact class= equality is APPROPRIATE, do not loosen —
+// was reasoned about POSITIVE assertions and does NOT extend here. BUGS.md P16 is
+// the governing rule: over-specification in a negative assertion cannot fail
+// loudly, only pass silently. `!/class="dash-card"/` only ever matched the class
+// as an ENTIRE attribute value, so class="dash-card extra" and class="extra
+// dash-card" both slipped past and the prohibited thing was reinstatable while
+// this gate stayed green.
+//
+// DO NOT "SIMPLIFY" THIS BACK INTO /class="[^"]*\bdash-card\b/. It looks right and
+// is wrong: a hyphen is a NON-WORD character, so \b matches inside a hyphenated
+// name. Measured on this tree, that form trips on `class="pp-dash-card-title"` —
+// a different class, on 16 live elements — turning a false pass into a false
+// failure, which is the other half of the damage the audit exists to prevent.
+//
+// Written here rather than shared with check-pill-clarity's twin: every gate in
+// tools/ is standalone and imports only node builtins, so a shared helper would
+// introduce the suite's first cross-gate dependency for six lines.
+const hasClassToken = (src, name) => {
+  const re = /class="([^"]*)"/g;
+  let m;
+  while ((m = re.exec(src))) if (m[1].trim().split(/\s+/).includes(name)) return true;
+  return false;
+};
   check("render: the suggestion block is the due module's HEAD, not a card of its own",
-    // GROUP A RESOLUTION (2026-09-01), WITH AN OPEN QUESTION. Exact class=
-    // equality was ruled APPROPRIATE — verbatim is the meaning. But that ruling
-    // was reasoned about POSITIVE assertions, and this one is NEGATIVE, where
-    // BUGS.md P16 says the opposite: renaming dash-card, or adding a second class
-    // to it, satisfies this prohibition without removing the thing prohibited.
-    // Left unchanged (that round forbade assertion changes). Decide it, do not
-    // assume the group ruling covers it.
-    render.indexOf("dashHeadHtml") < render.indexOf("dashboard_due_today") && !/class="dash-card"/.test(SRC.nt));
+    render.indexOf("dashHeadHtml") < render.indexOf("dashboard_due_today") && !hasClassToken(SRC.nt, "dash-card"));
   check("render: the streak and focused tile suppress on the SAME scope",
     /if \(scope\) dashRefreshStreak/.test(render) && /var streakCard = scope\s*$/m.test(render));
   check("render: the strip's blocked tile reads focusStats, and 0 renders as 0",

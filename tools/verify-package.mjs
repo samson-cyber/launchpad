@@ -319,15 +319,13 @@ const EXPECTED_UNREFERENCED = [
             "default_locale at install time. The path is a platform convention and is " +
             "never written down anywhere, so it cannot appear as a reference."
   },
-  {
-    p: "package.json",
-    reason: "UNJUSTIFIED SHIP, excused only to keep this round scoped. It is a six-line " +
-            "metadata stub (stale \"version\": \"1.0.0\"), Chrome never reads it, and " +
-            "nothing references it. It is here because build.sh's allowlist ships it and " +
-            "changing the allowlist is out of scope for Asana 1217989152996164 round 1. " +
-            "Revisit: either justify it or drop it from the allowlist."
-  }
 ];
+// package.json was the eighth entry here until 2026-09-01, excused with a reason
+// that said in its own words the ship was unjustified. It has now been dropped
+// from build.sh's allowlist (Asana 1218045515360272), so it no longer ships and
+// no longer needs excusing. The excuse had to go in the same commit: an entry for
+// a file that is no longer allowlisted is a stale excuse, which the stale-excuse
+// WARN exists to surface. That is the list working as designed.
 
 // ---------------------------------------------------------------------------
 // ANTI-VACUITY FLOORS (P13).

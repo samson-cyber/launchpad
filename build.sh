@@ -305,7 +305,6 @@ powershell.exe -NoProfile -Command "
     'gate.js',
     'gate.css',
     'privacy-policy.html',
-    'package.json',
     'assets',
     'icons',
     'lib',
