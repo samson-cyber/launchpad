@@ -63,6 +63,10 @@
      three display tokens do NOT cover them; rounding those onto three
      values moves pixels and is therefore [1.6.3]'s call, not [1.6.2]'s. */
   --display-1: 56px;
+  /* [1.7.2] The focus-ring dial. Its own token rather than a calc() off
+     --display-1, because the [1.7.1] invariant is that --display-1 appears
+     exactly ONCE in this stylesheet and the ring must not compete for it. */
+  --dash-ring-size: 72px;
   --display-2: 36px;
   --display-3: 24px;
   --display-weight: 500;
@@ -230,6 +234,7 @@ html.text-size-small {
      proportion with the --fs tiers rather than by a flat multiplier, so the
      hero stays a hero at Small. */
   --display-1: 48px;
+  --dash-ring-size: 60px;
   --display-2: 32px;
   --display-3: 21px;
   --fs-8: 8px;
@@ -249,6 +254,7 @@ html.text-size-small {
    the untouched 16px tier. */
 html.text-size-large {
   --display-1: 64px;
+  --dash-ring-size: 84px;
   --display-2: 40px;
   --display-3: 27px;
   --fs-8: 10px;
@@ -9182,6 +9188,78 @@ html.has-bg.bg-light .dash-greeting {
   min-height: 96px;
   justify-content: center;
 }
+/* ===== [1.7.2] The focus target ring =====
+
+   The ring is the numeral's CONTEXT, never a second hero. It sits behind and
+   around the number, in the accent on a hairline track, and carries no label of
+   its own: the figure it encircles is the reading.
+
+   IT DOES NOT REACH FOR --display-1. The [1.7.1] invariant is that the token
+   appears exactly once in this stylesheet, on .dash-hero-num, so a second use
+   here would fail that gate by design. The ring gets its own size token, stepped
+   across the same three tiers so the dial scales with the setting like the
+   numeral inside it. */
+/* THE RING SITS BESIDE THE NUMERAL, NOT AROUND IT, AND THE MEASUREMENT IS WHY.
+   The brief said "around"; the design guide's own diagram says "[ring] 2h 14m",
+   beside. Measured at 56px with tabular numerals, the numeral is 175px wide for
+   "9h59m" and 206px for "12h34m", so a ring enclosing it needs a ~250-290px
+   diameter. That is roughly five times the numeral's cap height, it would push
+   the band from 176px to about 300px, and it would make the RING the largest
+   object on the surface - which is exactly the "second hero" the round's own
+   constraint forbids. Beside, at ~72px, the ring reads as the numeral's context
+   and the band keeps the height [1.7.1] set. Reported rather than adopted
+   silently. */
+.dash-hero-dial {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.dash-ring {
+  flex: 0 0 auto;
+  width: var(--dash-ring-size);
+  height: var(--dash-ring-size);
+  transform: rotate(-90deg);        /* 12 o'clock start */
+  overflow: visible;
+}
+
+.dash-ring-track,
+.dash-ring-fill {
+  fill: none;
+  stroke-width: 6;                  /* non-scaling-stroke: exactly 6px at every tier */
+  stroke-linecap: round;
+}
+
+/* TRACK AND FILL ARE THE SHIPPED PILL RING'S, not new values. .sat-pomo-ring
+   already solved this exact problem on this exact material, including the light
+   override the hairline needs - --surface-line is a dark-branch value with no
+   light counterpart, so using it here would have left the track invisible on a
+   light wallpaper (BUGS Section O). One accent for both rings, one track
+   treatment for both. */
+.dash-ring-track { stroke: rgba(255, 255, 255, 0.14); }
+html.bg-light .dash-ring-track { stroke: rgba(0, 0, 0, 0.12); }
+
+/* NOTHING NAGS WHEN THE TARGET IS MISSED. One stroke colour at every value: a
+   ring at 40% is information, not a warning, so there is no red branch, no
+   amber branch and no "behind" state to author. */
+.dash-ring-fill { stroke: var(--accent); }
+
+/* ONE SWEEP, NEVER A LOOP. The class is added on the frame after paint and the
+   offset moves once; there is no animation and no iteration count, so there is
+   nothing that can repeat. */
+.dash-ring-fill.is-swept {
+  transition: stroke-dashoffset 400ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Static ring at the SAME value - the figure is not withheld, only the motion. */
+  .dash-ring-fill.is-swept { transition: none; }
+}
+
+/* The numeral keeps its own box and its own place; the ring is added beside it,
+   so the hero does not move when a target is set or cleared. */
+.dash-hero-dial .dash-hero-num { min-width: 0; }
 
 .dash-hero-num {
   font-size: var(--display-1);
@@ -9408,8 +9486,20 @@ html.has-bg.bg-light .dash-meta-prio {
   flex-shrink: 0;
 }
 
+/* [1.7.2] ITEM C - A REGRESSION [1.7.1] CAUSED, NOT A PRE-EXISTING ONE.
+   This was flex:1, which made the name eat every spare pixel and pinned the
+   overdue badge to the row's far edge. At the old ~560px column that was close
+   enough to read as one row; at the widened 768px column the badge sat roughly
+   450px from the name it qualifies, and a badge that far from its subject has
+   stopped qualifying it.
+   flex: 0 1 auto lets the name take only the width it needs and shrink (never
+   grow), so the badge follows immediately after it. min-width:0 keeps the
+   ellipsis working on a long name, which is the property flex:1 was carrying.
+   The row's trailing space now sits after the badge rather than between the two,
+   which is why the right edge is ragged: each badge is beside its own name
+   rather than aligned in a column with the names far away. */
 .dash-due-name {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -9835,6 +9925,34 @@ html.has-bg.bg-light .dash-recap-value {
 }
 
 /* Light-wallpaper luminance overrides — preview banner + content */
+/* [1.7.2] THE HERO BAND'S LIGHT BRANCH - A DEFECT [1.7.1] SHIPPED AND THIS
+   ROUND'S FOUR-FRAME MEASUREMENT CAUGHT. .dash-hero-region took its background
+   from var(--pro-frost-card-bg), which FLIPS WHITE under html.bg-light, but the
+   region was never added to the light-branch rule below that also flips the INK.
+   Measured on a light solid wallpaper: numeral and label at 1.00:1, white on
+   white, invisible. The ring was fine because it was keyed to the shipped pill
+   ring's values, which already had their light override.
+
+   THE INK TOKENS ARE REDEFINED ON THE REGION rather than each descendant being
+   patched, so every element that reads var(--ink-*) flips with the card - the
+   two counts, both right-hand stats, the streak's own strip classes, and
+   whatever [1.7.3] and [1.7.4] add next. Patching the four elements that exist
+   today would leave the next one to rediscover this. */
+html.has-bg.bg-light .dash-hero-region {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #222;
+  text-shadow: none;
+  --ink-primary: rgba(0, 0, 0, 0.87);
+  --ink-secondary: rgba(0, 0, 0, 0.66);
+  --ink-meta: rgba(0, 0, 0, 0.56);
+  --ink-chrome: rgba(0, 0, 0, 0.46);
+  --ink-hint: rgba(0, 0, 0, 0.38);
+}
+
+/* Row two's modules sit on .pp-insights-card, which the rule below already
+   covers; only the band needed its own entry. */
+
 html.has-bg.bg-light .pro-preview-banner,
 html.has-bg.bg-light .pp-dash-card,
 html.has-bg.bg-light .pp-goal-card,

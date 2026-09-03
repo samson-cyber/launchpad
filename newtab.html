@@ -422,6 +422,16 @@
           <input type="checkbox" id="pro-analytics-toggle">
           <span data-i18n="prosettings_show_combined_analytics_across_all">Show combined analytics across all workspaces</span>
         </label>
+        <div class="pomo-settings">
+          <label class="pomo-setting-row">
+            <span data-i18n="prosettings_daily_focus_target" class="pomo-setting-label">Daily focus target</span>
+            <span class="pomo-setting-field">
+              <input type="number" id="pro-focus-target" class="pomo-setting-input" min="15" max="720" step="15" inputmode="numeric" placeholder="none">
+              <span data-i18n="common_unit_minutes" class="pomo-setting-unit">min</span>
+            </span>
+          </label>
+        </div>
+        <p data-i18n="prosettings_focus_target_hint" class="pro-section-subtitle">Leave it empty for no target. The Dashboard ring appears once you set one.</p>
       </div>
       <div class="settings-section">
         <h3 data-i18n="prosettings_notes" class="settings-section-title">Notes</h3>

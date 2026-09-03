@@ -706,7 +706,35 @@
     var el = panel.querySelector('[data-dash-focused]');
     if (!el) return;
     var open = r.openSince ? Math.max(0, Date.now() - r.openSince) : 0;
-    el.textContent = fmtDurationHM(r.baseMs + open);
+    var focusedMs = r.baseMs + open;
+    el.textContent = fmtDurationHM(focusedMs);
+
+    // [1.7.2] THE RING RIDES THIS SAME READ. One reader, one staleness token,
+    // one value: the ring cannot report a different day's work from the numeral
+    // it encircles, because there is no second read to disagree with.
+    //
+    // CAPPED AT FULL ABOVE 100%, not wrapped. A wrapped ring at 250% would draw
+    // half a lap and read as 50% - actively wrong next to a numeral that says
+    // otherwise. Capping keeps the two agreeing, and nothing marks the overshoot:
+    // no colour change, no congratulation. The celebration doctrine reserves that
+    // for earned achievements, and a target the user set for themselves is not one.
+    var ring = panel.querySelector("[data-dash-ring]");
+    if (!ring) return;
+    var targetMin = Storage.getFocusTargetMin(data);
+    if (!targetMin) return;
+    var pct = Math.max(0, Math.min(1, focusedMs / (targetMin * 60000)));
+    var offset = DASH_RING_C * (1 - pct);
+    // The sweep is ONE transition to the value, never a loop. It is armed on the
+    // next frame so the browser has painted the empty ring first; setting the
+    // offset in the same frame the node was created would jump straight there
+    // with no sweep at all. dashRefreshFocused runs once per render, so this
+    // cannot re-fire on a tick.
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        ring.classList.add("is-swept");
+        ring.setAttribute("stroke-dashoffset", offset.toFixed(2));
+      });
+    });
   }
 
   // ===== [2.0] Day Recap — evening recap lines (PLAN D1) =====
@@ -851,16 +879,42 @@
   // Storage.focusArmState is still READ rather than reimplemented, so the band
   // can never disagree with the pill about whether blocking is on.
 
-  // Left region. The ring ([1.7.2]) will wrap this figure; its space is left
-  // EMPTY this round rather than filled with a placeholder, so the shape can be
-  // judged before anything occupies it.
-  function dashHeroFocusHtml(scope) {
+  // [1.7.2] The ring's geometry. A 100-unit viewBox so the SVG scales with the
+  // text-size tier from CSS alone, and vector-effect="non-scaling-stroke" so the
+  // 6px stroke stays exactly 6px at every tier instead of scaling with the box.
+  var DASH_RING_R = 45;
+  var DASH_RING_C = 2 * Math.PI * DASH_RING_R;      // 282.74
+
+  // Left region. THE RING IS ABSENT ENTIRELY WHEN NO TARGET IS SET - not empty,
+  // not at zero, not greyed. An empty ring shows a shortfall against a goal the
+  // user never chose, which is the nag the doctrine forbids. The numeral keeps
+  // the same size and the same place either way, so the hero does not move
+  // depending on whether a target exists; only the ring around it appears.
+  function dashHeroFocusHtml(scope, targetMin) {
     // Suppressed exactly as the old tile was (D5): with per-workspace tracking
     // off the reader honestly returns 0, and "0m focused today" would tell the
     // user they did nothing when the truth is nothing was measured.
     if (!scope) return "";
-    return '<div class="dash-hero-figure" data-dash-ring-slot>' +
-        '<div class="dash-hero-num" data-dash-focused>—</div>' +
+    var ring = "";
+    if (targetMin) {
+      // Starts EMPTY (offset = full circumference) and is swept to its value by
+      // dashRefreshFocused, once, on the same read that fills the numeral - so
+      // the ring and the number can never disagree about what was measured.
+      ring =
+        '<svg class="dash-ring" viewBox="0 0 100 100" aria-hidden="true" focusable="false">' +
+          '<circle class="dash-ring-track" cx="50" cy="50" r="' + DASH_RING_R + '" ' +
+            'vector-effect="non-scaling-stroke"></circle>' +
+          '<circle class="dash-ring-fill" cx="50" cy="50" r="' + DASH_RING_R + '" ' +
+            'vector-effect="non-scaling-stroke" data-dash-ring ' +
+            'stroke-dasharray="' + DASH_RING_C.toFixed(2) + '" ' +
+            'stroke-dashoffset="' + DASH_RING_C.toFixed(2) + '"></circle>' +
+        '</svg>';
+    }
+    return '<div class="dash-hero-figure' + (targetMin ? " has-ring" : "") + '" data-dash-ring-slot>' +
+        '<div class="dash-hero-dial">' +
+          ring +
+          '<div class="dash-hero-num" data-dash-focused>—</div>' +
+        '</div>' +
         // CASE ONLY. Still HARDCODED English rather than catalogue values, so
         // they remain in the i18n backlog (the gate's "33 await migration").
         '<div class="dash-hero-label">' +
@@ -1182,7 +1236,7 @@
         '<div class="dash-greeting">' + escapeHtml(dashGreeting()) + '</div>' +
         '<div class="dash-hero">' +
           '<div class="dash-hero-region dash-hero-left">' +
-            dashHeroFocusHtml(scope) +
+            dashHeroFocusHtml(scope, Storage.getFocusTargetMin(d)) +
             dashHeroCountsHtml(d, ws) +
           '</div>' +
           '<div class="dash-hero-region dash-hero-centre">' +
@@ -7909,6 +7963,23 @@
       ["#pomo-long-break-min", Storage.setPomodoroLongBreakMin],
       ["#pomo-cycles", Storage.setPomodoroCyclesBeforeLongBreak]
     ];
+    // [1.7.2] The daily focus target. Same shape as the four above - per-field
+    // updater on "change", then re-render so a CLAMPED or CLEARED value is
+    // reflected back into the box. Clearing the field is a real write (it stores
+    // null), which is how the user removes the target and the ring with it.
+    safeOn("#pro-focus-target", "change", async function (e) {
+      try {
+        await Storage.setFocusTargetMin(data, e.target.value);
+      } catch (err) {
+        console.error("[LaunchPad] Focus target: save failed", err);
+      }
+      renderProFocusTarget();
+      // The ring lives on the Dashboard, which is not this panel, so it is
+      // repainted explicitly rather than waiting for a tab switch.
+      var dashPanel = document.getElementById("tab-dashboard");
+      if (dashPanel && !dashPanel.classList.contains("hidden")) renderDashboardTab(dashPanel, data);
+    });
+
     pomoBindings.forEach(function (pair) {
       safeOn(pair[0], "change", async function (e) {
         try {
@@ -8447,6 +8518,17 @@
   // [1.0.18] Populate the four Pomodoro inputs from the defaulting reader, so a
   // missing/legacy/out-of-range stored value shows its clamped/defaulted number.
   // Pure population — the "change" handlers own writes.
+  // [1.7.2] Populate the target input from the defaulting reader. NULL RENDERS
+  // AS AN EMPTY FIELD rather than a 0: the placeholder says "none" and the empty
+  // box IS the no-target state, so the control can express absence directly
+  // instead of needing a separate "off" switch beside it.
+  function renderProFocusTarget() {
+    var el = $("#pro-focus-target");
+    if (!el) return;
+    var v = Storage.getFocusTargetMin(data);
+    el.value = (v === null || v === undefined) ? "" : String(v);
+  }
+
   function renderProPomodoroSettings() {
     var s = Storage.getPomodoroSettings(data);
     var set = function (sel, val) { var el = $(sel); if (el) el.value = String(val); };
@@ -13447,6 +13529,7 @@
     satPomoDurOpen = false;
     renderActiveTaskWidget();
     if (document.getElementById("pomo-work-min")) renderProPomodoroSettings();
+    if (document.getElementById("pro-focus-target")) renderProFocusTarget();
   }
 
   // [A2 D6] Confirm-gate for switching the active task WHILE a focus phase runs:

@@ -503,6 +503,14 @@ I18n.register("en", {
     "message": "Short break",
     "description": "Text on the prosettings surface."
   },
+  "prosettings_daily_focus_target": {
+    "message": "Daily focus target",
+    "description": "Label for the number input in Pro Settings > Analytics that sets a daily focused-time target in minutes. GLOBAL, not per workspace, because the Dashboard figure it is measured against can itself be combined across workspaces. An EMPTY field means no target, which is a real state: the Dashboard ring is absent entirely rather than shown at zero."
+  },
+  "prosettings_focus_target_hint": {
+    "message": "Leave it empty for no target. The Dashboard ring appears once you set one.",
+    "description": "Subtitle under the daily focus target input in Pro Settings > Analytics. States that absence of a target is a supported state, not an omission. Rendered by the data-i18n DOM pass."
+  },
   "prosettings_show_combined_analytics_across_all": {
     "message": "Show combined analytics across all workspaces",
     "description": "Text on the prosettings surface."

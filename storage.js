@@ -323,6 +323,70 @@ var Storage = (function () {
     return true;
   }
 
+
+  // ===== [1.7.2] F5 daily focus target =====
+  //
+  // GLOBAL, NOT PER-WORKSPACE, and the reason is that the figure it qualifies can
+  // itself be cross-workspace. dashFocusedScope returns {mode:"combined"} whenever
+  // combinedAnalyticsEnabled is on, and in that mode the hero numeral is the sum
+  // across every tracking workspace. A per-workspace target has NO DEFINED VALUE
+  // against a combined figure: summing the workspaces' targets would invent
+  // "4h in Work + 4h in Personal = 8h a day", which nobody set and nobody means.
+  // A global target compares against whatever the numeral currently shows, in
+  // both scope modes, which is the only comparison that is always well formed.
+  //
+  // NO DEFAULT. Absence of a target is a REAL STATE, not an unset one: with no
+  // target the ring is absent entirely and the numeral stands alone. So the
+  // reader returns null rather than a number, and every consumer branches on
+  // null rather than on a sentinel like 0 that would render as a 0% ring.
+  var FOCUS_TARGET_MIN_MIN = 15;         // a quarter hour is the smallest useful target
+  var FOCUS_TARGET_MIN_MAX = 720;        // twelve hours; beyond this it is not a day
+
+  // Returns MINUTES, or null when no target is set. Defaulting happens at READ
+  // (the getEndOfDayMinutes discipline), so a legacy install with no field, a
+  // cleared field and an out-of-range stored value all resolve here rather than
+  // at each call site.
+  function getFocusTargetMin(data) {
+    var v = data && data.settings ? data.settings.focusTargetMin : undefined;
+    if (v === null || v === undefined || v === "") return null;
+    var n = typeof v === "number" ? v : parseFloat(v);
+    if (!isFinite(n) || n <= 0) return null;
+    n = Math.round(n);
+    if (n < FOCUS_TARGET_MIN_MIN) n = FOCUS_TARGET_MIN_MIN;
+    if (n > FOCUS_TARGET_MIN_MAX) n = FOCUS_TARGET_MIN_MAX;
+    return n;
+  }
+
+  // Per-field writer, one field, no generic partial-object surface - the
+  // setPomodoroField discipline. CLEARING IS A FIRST-CLASS WRITE: an empty
+  // string or null stores null, which is how the user removes a target. That is
+  // deliberately distinguishable from an unparseable value like "abc", which is
+  // REFUSED rather than stored (the setWallDim/setTextSize rule: storing junk and
+  // coercing on read leaves a value in the user's backup they never chose).
+  async function setFocusTargetMin(data, val) {
+    if (!data || !data.settings) return false;
+    var next;
+    if (val === null || val === undefined || String(val).trim() === "") {
+      next = null;
+    } else {
+      var n = typeof val === "number" ? val : parseFloat(val);
+      if (!isFinite(n)) return false;
+      n = Math.round(n);
+      if (n <= 0) { next = null; }
+      else {
+        if (n < FOCUS_TARGET_MIN_MIN) n = FOCUS_TARGET_MIN_MIN;
+        if (n > FOCUS_TARGET_MIN_MAX) n = FOCUS_TARGET_MIN_MAX;
+        next = n;
+      }
+    }
+    var cur = data.settings.focusTargetMin;
+    if (cur === next) return false;
+    if (next === null) delete data.settings.focusTargetMin;
+    else data.settings.focusTargetMin = next;
+    await saveAll(data);
+    return true;
+  }
+
   // ===== Pomodoro settings ([1.0.18]) =====
   //
   // Four durations under data.settings.pomodoro, following the endOfDayMinutes
@@ -6436,6 +6500,8 @@ var Storage = (function () {
 
     // [1.0.18] Pomodoro settings — defaulting reader + four per-field updaters.
     getPomodoroSettings: getPomodoroSettings,
+    getFocusTargetMin: getFocusTargetMin,
+    setFocusTargetMin: setFocusTargetMin,
     setPomodoroWorkMin: setPomodoroWorkMin,
     setPomodoroShortBreakMin: setPomodoroShortBreakMin,
     setPomodoroLongBreakMin: setPomodoroLongBreakMin,
