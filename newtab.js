@@ -2148,7 +2148,19 @@
   // and a custom range makes both ends arbitrary. A todayIndex of -1 highlights no
   // bar at all, which is what a range ending in the past should do.
   function insightsBarChartSvg(hours, todayIndex, ariaLabel, startLabel, endLabel) {
-    var w = 560, h = 190, padX = 32, padTop = 28, padBottom = 32;
+    // [1.8.1] THE VIEWBOX IS WIDER BECAUSE THE BOARD IS. .pp-trend-chart is
+    // width:100%/height:auto, so the chart's height is purely its aspect ratio -
+    // and moving Insights from a 720px column to Tasks width scaled a 560x190
+    // box to roughly 1330x451. That is a 451px-tall chart, and on the empty
+    // profile it was 451px of nothing with a flat baseline at the bottom, which
+    // reads as broken rather than as "no history yet".
+    //
+    // Widening the box rather than capping the height keeps the text undistorted
+    // (preserveAspectRatio:none would stretch the axis captions) and leaves the
+    // vertical geometry untouched: padTop/padBottom are unchanged against the
+    // same h, so the plot area is the same shape it always was. Rendered bar
+    // width lands within a pixel of before.
+    var w = 1060, h = 190, padX = 32, padTop = 28, padBottom = 32;
     var maxH = Math.max.apply(null, hours) || 1;
     var step = (w - 2 * padX) / hours.length;
     var barW = step * 0.6;
@@ -2402,17 +2414,23 @@
               '<input type="date" class="insights-date" data-ins-to' +
                 ' min="' + toMin + '" max="' + hz.max + '" value="' + escapeHtml(to) + '">' +
             '</label>' +
-            // [1.2.2 R2] Names the floor DATE rather than restating the window
-            // length. hz.min is the very value the From input's min attribute
-            // carries, so the sentence and the control's actual floor are one
-            // source and cannot drift apart; it is derived from the engine's
-            // retention constant, so it also follows the system date on its own.
-            // Rendered through the board's existing locale date formatter, the
-            // same one the strip's best-day label uses.
-            '<p class="insights-range-note">History starts ' +
-              escapeHtml(fmtShortDate(insightsKeyToTs(hz.min))) + '</p>' +
           '</div>'
-        : '');
+        : '') +
+      // [1.8.1] THE HORIZON CAPTION IS ROW ONE'S, NOT THE CUSTOM PICKER'S.
+      // It used to render only while a custom range was open, so the board's
+      // floor date - the one fact that explains why a 30-day range can look
+      // short on a young profile - was hidden exactly when nobody was asking.
+      // Section 4.2 puts it on the selector row permanently.
+      //
+      // [1.2.2 R2] Names the floor DATE rather than restating the window
+      // length. hz.min is the very value the From input's min attribute
+      // carries, so the sentence and the control's actual floor are one
+      // source and cannot drift apart; it is derived from the engine's
+      // retention constant, so it also follows the system date on its own.
+      // Rendered through the board's existing locale date formatter, the
+      // same one the strip's best-day label uses.
+      '<p class="insights-range-note">History starts ' +
+        escapeHtml(fmtShortDate(insightsKeyToTs(hz.min))) + '</p>';
   }
 
   // ONE scope for the whole board (D3), the Dashboard convention verbatim:
@@ -2472,24 +2490,36 @@
     var rangeLabel = (customKeys && customKeys.length)
       ? insightsCustomLabel(customKeys)
       : insightsRangeLabel(rangeDays);
+    // [1.8.1] FOUR TIERS, per design-guide 4.2. The board was five equal cards
+    // in a column, so the selector, the totals and the chart all competed at
+    // the same weight and nothing said what the surface was for. Now:
+    //   row one   the range selector alone, with the horizon caption
+    //   hero      the period total and the bars, span 12
+    //   row two   tag / site / task as three EQUAL peers - equal because they
+    //             genuinely are peers, which is why this is the one row where
+    //             equal tiles are right rather than lazy
+    //   last      achievements
+    // Every element that rendered before still renders; only the tiering moved.
     var trackingShell = scope
-      ? insightsRangeSelectorHtml(rangeDays) +
-        '<div class="insights-strip" data-ins-strip></div>' +
-        '<div class="pp-insights-card">' +
+      ? '<div class="ins-row-range">' + insightsRangeSelectorHtml(rangeDays) + '</div>' +
+        '<div class="pp-insights-card ins-hero">' +
           '<div class="pp-dash-card-title">Deep Work · ' + escapeHtml(rangeLabel) + '</div>' +
-          '<div data-ins-deepwork></div>' +
+          '<div class="ins-hero-head" data-ins-strip></div>' +
+          '<div class="ins-hero-chart" data-ins-deepwork></div>' +
         '</div>' +
-        '<div class="pp-insights-card">' +
-          '<div class="pp-dash-card-title">Time by tag · ' + escapeHtml(rangeLabel) + '</div>' +
-          '<div class="pp-donut-row" data-ins-donut></div>' +
-        '</div>' +
-        '<div class="pp-insights-card">' +
-          '<div class="pp-dash-card-title">Time by site · ' + escapeHtml(rangeLabel) + '</div>' +
-          '<div class="insights-task-list insights-site-list" data-ins-topsites></div>' +
-        '</div>' +
-        '<div class="pp-insights-card">' +
-          '<div class="pp-dash-card-title">Top tasks · ' + escapeHtml(rangeLabel) + '</div>' +
-          '<div class="insights-task-list" data-ins-toptasks></div>' +
+        '<div class="ins-peers">' +
+          '<div class="pp-insights-card ins-peer">' +
+            '<div class="pp-dash-card-title">Time by tag · ' + escapeHtml(rangeLabel) + '</div>' +
+            '<div class="pp-donut-row" data-ins-donut></div>' +
+          '</div>' +
+          '<div class="pp-insights-card ins-peer">' +
+            '<div class="pp-dash-card-title">Time by site · ' + escapeHtml(rangeLabel) + '</div>' +
+            '<div class="insights-task-list insights-site-list" data-ins-topsites></div>' +
+          '</div>' +
+          '<div class="pp-insights-card ins-peer">' +
+            '<div class="pp-dash-card-title">Top tasks · ' + escapeHtml(rangeLabel) + '</div>' +
+            '<div class="insights-task-list" data-ins-toptasks></div>' +
+          '</div>' +
         '</div>'
       : "";
 
@@ -2664,12 +2694,31 @@
         label: bestMs > 0 ? ("best day · " + escapeHtml(fmtShortDate(insightsKeyToTs(bestKey)))) : "best day" },
       { num: fmtDurationHM(avgMs), label: t("insights_daily_avg") }
     ];
-    return items.map(function (it) {
-      return '<div class="insights-strip-item">' +
-          '<span class="insights-strip-num">' + escapeHtml(it.num) + '</span>' +
-          '<span class="insights-strip-label">' + it.label + '</span>' +
-        '</div>';
-    }).join("");
+    // [1.8.1] THE SAME THREE FIGURES, RE-TIERED. items[0] is the period total
+    // and becomes the board's one hero numeral; the other two sit beside it a
+    // tier down. Nothing is dropped and no reader changed - only which of the
+    // three is loudest.
+    //
+    // THE LEAD REUSES .dash-hero-num RATHER THAN DECLARING A SECOND NUMERAL.
+    // The [1.7.1] invariant is that --display-1 is referenced exactly once in
+    // the stylesheet; a second class would have needed the invariant widened.
+    // Reuse also stops the two boards drifting apart in type, because there is
+    // one declaration to change rather than two to keep in step - the same
+    // resolution [1.7.4] used for the preview.
+    var lead = items[0];
+    var aside = items.slice(1);
+    return '<div class="ins-hero-lead">' +
+        '<span class="dash-hero-num">' + escapeHtml(lead.num) + '</span>' +
+        '<span class="ins-hero-lead-label">' + lead.label + '</span>' +
+      '</div>' +
+      '<div class="ins-hero-aside">' +
+        aside.map(function (it) {
+          return '<div class="ins-hero-stat">' +
+              '<span class="ins-hero-stat-num">' + escapeHtml(it.num) + '</span>' +
+              '<span class="ins-hero-stat-label">' + it.label + '</span>' +
+            '</div>';
+        }).join("") +
+      '</div>';
   }
 
   // Time by Tag donut. Buckets are keyed (workspaceId, tagId) by the reader and

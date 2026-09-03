@@ -9373,6 +9373,7 @@ html.bg-light .dash-ring-track { stroke: rgba(0, 0, 0, 0.12); }
   .dash-hero-region { grid-column: span 12; }
   .dash-today,
   .dash-goals { grid-column: span 12; }
+
 }
 
 /* ----- Module 4's header block ----- */
@@ -10169,7 +10170,20 @@ html.has-bg.bg-light .pro-preview-banner-text {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  max-width: 720px;
+  /* [1.8.1] TASKS WIDTH, the measure [1.7.1] gave the Dashboard. The retired
+     720px was a one-column measure and the board is now a tiered grid; both
+     Pro boards and the Tasks tab share one content edge, and 28px matches
+     .tasks-header / .tasks-body exactly so their content starts at the same x. */
+  max-width: none;
+  /* [1.8.1] .dash-tab carries width:100% and .insights-tab never did - it did
+     not need to while a 720px cap held it. Without the cap the board became
+     shrink-to-fit, which measured as the board collapsing from 1084 to 819
+     the moment the peers stacked: the content got narrower, so the container
+     did too, and the board stopped filling its panel. Adopting the Dashboard
+     measure means adopting all of it. */
+  width: 100%;
+  padding-left: 28px;
+  padding-right: 28px;
   /* [2.0 contrast fix] On-card ink is LUMINANCE-CLASS-INDEPENDENT white, set
      once at the board root — the dark frost card guarantees the surface, so the
      ink is chosen once and never keyed to a wallpaper class (D14/D16). This
@@ -10211,24 +10225,135 @@ html.has-bg.bg-light .pro-preview-banner-text {
 
 /* Summary strip — slim frosted tiles on the CARD frame, so their ink is
    on-surface and ring-free (D16). Kept to the preview's visual weight. */
-.insights-strip {
+/* [1.8.1] ROW ONE: the selector alone, with the horizon caption trailing it.
+   The caption is the only other thing on the row, so it sits opposite the
+   control rather than under it, and drops beneath on narrow. */
+.ins-row-range {
   display: flex;
+  align-items: baseline;
+  justify-content: space-between;
   gap: var(--space-3);
   flex-wrap: wrap;
 }
-.insights-strip-item {
-  flex: 1;
-  min-width: 120px;
+.ins-row-range .insights-range { margin: 0; }
+/* The caption hardcoded `color: var(--text-secondary)` - a mid grey chosen for
+   a white page - which overrode the board root's ink and measured 2.37:1 on the
+   dark panel whenever NO wallpaper is set. Pre-existing, but it used to appear
+   only while the custom picker was open; row one makes it permanent, so it is
+   fixed here. Inheriting the board's resolved ink and stepping it back with
+   opacity is the pattern every other label on this board already uses, and it
+   is correct in all three branches rather than in one. */
+.ins-row-range .insights-range-note {
+  margin: 0;
+  color: inherit;
+  opacity: 0.7;
+}
+
+/* [1.8.1] LIGHT-BRANCH INK TOKENS FOR THE INSIGHTS CARDS, mirroring
+   html.has-bg.bg-light .dash-mod .pp-insights-card exactly. Borrowing
+   .dash-hero-num brought its `color: var(--ink-primary)` with it, and that
+   declaration beats the board root's inherited #222 - so on the white-tinted
+   card the hero numeral measured 1.02:1, white on white. The four-frame
+   measurement caught it; nothing on screen would have. */
+html.has-bg.bg-light .insights-tab .pp-insights-card {
+  --ink-primary: rgba(0, 0, 0, 0.87);
+  --ink-secondary: rgba(0, 0, 0, 0.66);
+  --ink-meta: rgba(0, 0, 0, 0.56);
+  --ink-chrome: rgba(0, 0, 0, 0.46);
+  --ink-hint: rgba(0, 0, 0, 0.38);
+}
+
+/* THE HERO, span 12 in effect: it is the only thing on its row. */
+.ins-hero-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+.ins-hero-lead {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: var(--space-3) var(--space-4);
-  border-radius:var(--radius-xl);
-  background: var(--pro-frost-card-bg);
-  backdrop-filter: var(--pro-frost-card-blur);
-  -webkit-backdrop-filter: var(--pro-frost-card-blur);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  min-width: 0;
 }
+/* The lead numeral is .dash-hero-num, borrowed rather than redeclared - see the
+   note in insightsStripHtml. Only its label is Insights' own. */
+.ins-hero-lead-label {
+  font-size: var(--fs-13);
+  opacity: 0.7;
+}
+.ins-hero-aside {
+  display: flex;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+.ins-hero-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ins-hero-stat-num {
+  font-size: var(--display-3);
+  font-weight: var(--display-weight);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+/* Secondary ink by OPACITY, not by token. var(--ink-secondary) is white at
+   :root, which would be invisible on the white-tinted light-wallpaper card;
+   opacity rides whatever colour the board root resolved and is therefore
+   correct in both branches. This is the .insights-strip-label pattern that
+   was already here, kept deliberately. */
+.ins-hero-stat-label {
+  font-size: var(--fs-11);
+  opacity: 0.7;
+  letter-spacing: normal;
+}
+.ins-hero-chart { width: 100%; }
+
+/* ROW TWO: three EQUAL peers. Equal because tag, site and task genuinely are
+   peers - the one row on either board where equal tiles are the right answer
+   rather than the lazy one. minmax(0,1fr) so a long tag or domain name cannot
+   push its column wider than its siblings. */
+.ins-peers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+.ins-peer { min-width: 0; }
+
+/* [1.8.1] THE PEERS STACK AT 1200, NOT AT 900, AND THE MEASUREMENT IS WHY.
+   Nothing breaks at 900 - .insights-task-name ellipsises, so the layout holds
+   and the body never scrolls horizontally at any width tested. What fails is
+   the CONTENT. Measured against the busy fixture at 1440/1280/1150/1050/1000/950/901/880:
+   above 1200 the only truncation is 2px on the single longest task name; at
+   1150 four names lose a quarter of their width; at 901 twelve rows are cut to
+   about 51px, which renders a domain as "notio..." and tells the reader
+   nothing. A card that is present but illegible is worse than one that has
+   stacked, so the peers stack while they still have something to say.
+
+   This is a SECOND breakpoint and it is introduced deliberately. The single
+   900px width still governs everything whose LAYOUT breaks; this one governs a
+   row whose layout survives and whose content does not, which is a different
+   question and needs a different answer. */
+@media (max-width: 1200px) {
+  .ins-peers { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* [1.8.1] .insights-strip and .insights-strip-item ARE retired - Insights was
+   their only emitter and the same three figures are now the hero lead and
+   aside. The two rules below are NOT: the Dashboard streak stat (newtab.js
+   :1264) and the Pro preview (:2072) both borrow them, a deliberate
+   zero-new-CSS reuse recorded at newtab.js:865.
+
+   I removed all four first, on the strength of Insights no longer emitting
+   them. The computed-style snapshot caught it - opacity 0.7 -> 1 on
+   .dash-streak > .insights-strip-label, a diff OUTSIDE the surface this round
+   touched. "Nothing in this file emits it any more" is not the same question
+   as "nothing emits it any more", and only the second one licenses a delete. */
 .insights-strip-num {
   font-size: 20px;
   font-weight: 600;
