@@ -717,7 +717,55 @@ async function runSuite(ctx, store, stats, listeners) {
       !/onWriteAdopt/.test(readSubject("background.js")));
   }
 
-  return rows;
+  // ===== CAPTURE-TIME REFERENCE WINDOWS ==================================
+  // A writer that YIELDS between capturing the object it saves and saving it
+  // persists a superseded snapshot, discarding everything written during the
+  // suspension. reconcilePomodoro did exactly that: `var fresh = await
+  // getAll()` is a real yield and it then saved the CAPTURE-TIME `data`.
+  // Reproduced through driven controls and fixed by saving `fresh`.
+  //
+  // WHY THESE ASSERTIONS ARE NAMED RATHER THAN GENERAL. The general form -
+  // "no writer yields between capture and save" - was prototyped over 173
+  // saveAll sites and flagged 6, of which 2 were FALSE POSITIVES: saves sitting
+  // in mutually exclusive branches, where the "intervening await" is another
+  // branch's own save and can never run on the same path. Distinguishing those
+  // needs real control-flow analysis, and a hand-rolled approximation that is
+  // wrong a third of the time is the P8 hazard - a parser confident enough to
+  // be believed. So the general gate is deferred to a real parser, and what is
+  // pinned here are the three specific invariants that carry the safety today.
+  {
+    const st = readSubject("storage.js");
+    const fnBody = (name) => {
+      const m = st.match(new RegExp("async function " + name + "\\([^)]*\\)[\\s\\S]*?\\n  \\}"));
+      return m ? m[0] : "";
+    };
+    const beforeFirstSave = (body) => {
+      const i = body.search(/await saveAll\(/);
+      return i === -1 ? null : body.slice(0, i);
+    };
+
+    // 1 + 2. The two sweeps are safe ONLY because they never suspend before
+    // their save: called un-awaited, they run to completion synchronously and
+    // the write is initiated in the same block, so nothing can interleave.
+    // One added await silently opens the window.
+    for (const name of ["purgeExpiredTrash", "runRecurringSweep"]) {
+      const body = fnBody(name);
+      const head = beforeFirstSave(body);
+      check(`${name}: NO await before its saveAll (un-awaited callers depend on this)`,
+        !!head && !/\bawait\b/.test(head),
+        head === null ? "no saveAll found" : "awaits: " + (head.match(/\bawait\b/g) || []).length);
+    }
+
+    // 3. reconcilePomodoro DOES yield - it must therefore save the object it
+    // captured AFTER that yield, never the one it was handed.
+    const rp = fnBody("reconcilePomodoro");
+    check("reconcilePomodoro: saves the POST-yield object (fresh), not the capture-time one",
+      /await saveAll\(\s*fresh\s*\)/.test(rp) && !/await saveAll\(\s*data\s*\)/.test(rp));
+    check("reconcilePomodoro: applies the new phase to the fresh object it saves",
+      /freshActive\.pomodoroState\s*=\s*nextPs/.test(rp));
+  }
+
+  return rows;
 }
 
 // --------------------------------------------------------------- mutations

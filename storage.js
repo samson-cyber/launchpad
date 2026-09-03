@@ -4021,6 +4021,11 @@ var Storage = (function () {
 
     // Guard: re-read fresh; if another tab already moved this exact boundary,
     // adopt its state into the caller's copy and skip the write (no double-count).
+    //
+    // THIS IS A BOUNDARY-COLLISION GUARD, NOT A STALENESS GUARD, and the
+    // difference is the whole of the bug fixed below. It asks one question -
+    // "did someone else already advance THIS phase" - and it is right to. It
+    // says nothing about any OTHER write that landed while we were suspended.
     var fresh = await getAll();
     var freshActive = getActiveTask(fresh);
     var freshPs = freshActive ? hydratePomodoroState(freshActive.pomodoroState) : null;
@@ -4029,8 +4034,24 @@ var Storage = (function () {
       return { action: "none", raced: true };
     }
 
+    // SAVE THE FRESH OBJECT, NOT THE ONE CAPTURED AT CALL TIME. The getAll above
+    // is a real yield: control returns to the event loop, and anything the page
+    // or another context writes in that window lands in storage. saveAll
+    // persists the WHOLE object, so writing back the capture-time `data` would
+    // silently discard every one of those writes - a shortcut added, a task
+    // created, a pick made - with no error on either side. Both call sites are
+    // un-awaited (newtab.js satMaybeReconcile via .then, background.js inside
+    // enqueueBgData), and the background queue cannot help here because the
+    // competing writer is in the PAGE. `fresh` already carries those writes, so
+    // applying the phase to it and saving it keeps both.
+    //
+    // The caller's copy is updated too, so a caller that keeps reading its own
+    // object still sees the new phase. On the page the adoption hook then makes
+    // `fresh` the module snapshot; in the service worker there is no hook, and
+    // this line is what keeps its local `data` correct.
+    freshActive.pomodoroState = nextPs;
     active.pomodoroState = nextPs;
-    await saveAll(data);
+    await saveAll(fresh);
     return result;
   }
 
