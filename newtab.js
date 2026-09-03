@@ -1050,6 +1050,12 @@
       onCancel: function () { announceThreePicked(pickedThisSession); },
       onMounted: function (overlay) {
         wirePicker(overlay, "data-picker-three", rowsHtml, async function (taskId) {
+          // Re-read at the POINT OF WRITE. saveAll persists the whole `data`
+          // object, so mutating a snapshot taken when the picker opened and
+          // writing it back silently discards anything saved in between - and
+          // an own-tab write is exactly the case storage.onChanged suppresses,
+          // so `data` is not refreshed for us. See BUGS.md L5.
+          data = await Storage.getAll();
           var next = Storage.getTodaysThree(data).concat([taskId]);
           var wrote = false;
           try {
@@ -1591,6 +1597,8 @@
       if (action === "unpick-three") {
         var dropId = btn.getAttribute("data-task-id");
         if (!dropId) return;
+        // Re-read at the point of write, as the pick path does - BUGS.md L5.
+        data = await Storage.getAll();
         var kept = Storage.getTodaysThree(data).filter(function (id) { return id !== dropId; });
         try {
           await Storage.setTodaysThree(data, kept);

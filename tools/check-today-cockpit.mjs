@@ -761,6 +761,23 @@ const hasClassToken = (src, name) => {
       /onPrimary:\s*function\s*\(\)\s*\{\s*announceThreePicked/.test(pickerBody) &&
       /onCancel:\s*function\s*\(\)\s*\{\s*announceThreePicked/.test(pickerBody) &&
       !/showToast\(\s*t\("dash_three_toast_(one|many)"/.test(pickerBody));
+    // 5. RE-READ AT THE POINT OF WRITE - BUGS.md L5. saveAll persists the WHOLE
+    //    `data` object, and storage.onChanged deliberately does not refresh
+    //    `data` after an own-tab write, so a handler that mutates the snapshot
+    //    it closed over silently discards anything saved since. Demonstrated
+    //    against 4217cb0: a task created between the render and the pick was
+    //    gone after the pick, with no error anywhere. The re-read must come
+    //    BEFORE the write, which is why this matches on order rather than
+    //    presence - a getAll() sitting after the save is the post-write refresh
+    //    that made three sibling branches read as fixed during the survey.
+    check("picker: RE-READS storage before writing, rather than saving a stale snapshot",
+      /data\s*=\s*await\s+Storage\.getAll\(\)[\s\S]{0,900}?Storage\.setTodaysThree\(\s*data\s*,/.test(pickerBody));
+  }
+  // The row x is the picker's other write path and carries the same hazard.
+  {
+    const unpick = (SRC.nt.match(/if \(action === "unpick-three"\)[\s\S]{0,700}?\n      \}/) || [""])[0];
+    check("unpick: RE-READS storage before writing, same as the pick path",
+      /data\s*=\s*await\s+Storage\.getAll\(\)[\s\S]{0,300}?Storage\.setTodaysThree\(\s*data\s*,/.test(unpick));
   }
   // The writer's own half of the bargain: it must not fail silently again.
   check("storage: setTodaysThree warns on every guard failure rather than returning a bare false",
