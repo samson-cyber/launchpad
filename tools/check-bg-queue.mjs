@@ -765,6 +765,57 @@ async function runSuite(ctx, store, stats, listeners) {
       /freshActive\.pomodoroState\s*=\s*nextPs/.test(rp));
   }
 
+  // ===== CAPTURE-TIME WINDOWS ACROSS A NETWORK CALL =====================
+  // The licence writers capture `data` at the head of their queued job and
+  // then make a NETWORK round trip - hundreds of ms to seconds - before
+  // saving. Writing the capture-time object back discarded everything the page
+  // wrote in that window. enqueueBgData does not help: it serialises background
+  // writers against each other, and the competing writer is the page.
+  //
+  // Reproduced through the real trigger (a tab navigating to the checkout
+  // return URL) with the licence response stubbed slow, and a shortcut added
+  // through the add-shortcut modal inside the window.
+  //
+  // The transplant is exact because license.js touches nothing outside
+  // `data.pro` - so these assertions pin BOTH halves: a fresh read, and the pro
+  // block carried onto it. Either alone would be wrong.
+  {
+    const bg = readSubject("background.js");
+    const jobBody = (label) => {
+      const i = bg.indexOf(`enqueueBgData("${label}"`);
+      if (i === -1) return "";
+      return bg.slice(i, i + 3000);
+    };
+
+    const rev = jobBody("license-revalidate");
+    check("revalidateLicenseBg: re-reads AFTER the network call before saving",
+      /var freshLic = await Storage\.getAll\(\)/.test(rev) &&
+      /await Storage\.saveAll\(\s*freshLic\s*\)/.test(rev));
+    check("revalidateLicenseBg: carries the pro block onto the fresh object",
+      /freshLic\.pro\s*=\s*data\.pro/.test(rev));
+
+    const ck = jobBody("checkout-return");
+    check("handleCheckoutReturn: its POST-NETWORK save uses a fresh object",
+      /ensureValidated\([\s\S]{0,600}?var freshCk = await Storage\.getAll\(\)/.test(ck) &&
+      /await Storage\.saveAll\(\s*freshCk\s*\)/.test(ck));
+    check("handleCheckoutReturn: carries the pro block onto the fresh object",
+      /freshCk\.pro\s*=\s*data\.pro/.test(ck));
+  }
+
+  // foldClosedBrowserSpan was AUDITED AND FOUND SAFE rather than fixed, and it
+  // is safe for one reason only: its own saveAll runs solely on the `!wrote`
+  // branch, and setTrackingPaused can return false only from two synchronous
+  // guards, before any I/O. So on the single path that reaches the outer save,
+  // nothing yielded to the event loop. Make that load-bearing property
+  // explicit - an unconditional save here would open a real window.
+  {
+    const st = readSubject("storage.js");
+    const m = st.match(/async function foldClosedBrowserSpan\([\s\S]*?\n  \}/);
+    const body = m ? m[0] : "";
+    check("foldClosedBrowserSpan: its own save stays on the !wrote branch",
+      /if \(!wrote\)\s*await saveAll\(data\)/.test(body));
+  }
+
   return rows;
 }
 

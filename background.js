@@ -414,7 +414,18 @@ function revalidateLicenseBg(reason) {
     var moved = data.pro.subscriptionStatus !== beforeStatus ||
                 (data.pro.lastVerifiedAt || 0) !== beforeVerified;
     if (moved) {
-      await Storage.saveAll(data);
+      // RE-READ BEFORE SAVING. `data` was captured at the head of this job and
+      // ensureValidated above is a NETWORK round trip - hundreds of ms to
+      // seconds - during which the page can write anything. saveAll persists
+      // the WHOLE object, so writing `data` back here discarded every one of
+      // those writes silently. enqueueBgData cannot help: it serialises
+      // background writers against EACH OTHER, and the competing writer is the
+      // page. license.js touches nothing but `data.pro` (22 references, all
+      // under it), so transplanting that one block onto a fresh snapshot is
+      // exact and loses nothing the revalidation computed.
+      var freshLic = await Storage.getAll();
+      freshLic.pro = data.pro;
+      await Storage.saveAll(freshLic);
       console.log("[LaunchPad] License revalidated (" + (reason || "unknown") +
         "):", data.pro.subscriptionStatus);
     }
@@ -1265,7 +1276,14 @@ async function handleCheckoutReturn(tabId, url) {
       await Storage.saveAll(data);
 
       var result = await LicenseClient.ensureValidated(data, firstKey);
-      await Storage.saveAll(data);
+      // Same shape as revalidateLicenseBg above, and the timing is worse: this
+      // runs the moment a user returns from checkout, when they are most likely
+      // to be actively using the extension. The FIRST saveAll in this job needs
+      // no re-read - nothing has yielded since the capture - but this one sits
+      // on the far side of a network call.
+      var freshCk = await Storage.getAll();
+      freshCk.pro = data.pro;
+      await Storage.saveAll(freshCk);
 
       if (result && result.ok) {
         console.log("[LaunchPad] Checkout return: license activated/validated", result.status || "(cached)");
