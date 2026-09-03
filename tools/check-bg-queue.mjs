@@ -765,7 +765,7 @@ async function runSuite(ctx, store, stats, listeners) {
       /freshActive\.pomodoroState\s*=\s*nextPs/.test(rp));
   }
 
-  return rows;
+  return rows;
 }
 
 // --------------------------------------------------------------- mutations
