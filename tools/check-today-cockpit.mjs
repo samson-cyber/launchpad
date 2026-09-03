@@ -722,6 +722,50 @@ const hasClassToken = (src, name) => {
         !/insights-empty/.test(body) && /dash-note/.test(body));
     }
   }
+  // ===================== THE PICKER'S WRITE PATH (2026-09-03) ================
+  //
+  // A shipped feature that did not work passed a round that reported complete,
+  // because [1.7.3] SEEDED the picks through setTodaysThree and then asserted the
+  // render. That proves the reader; it never touched the control.
+  //
+  // THIS GATE CANNOT CLICK. It boots a DOM-less slice in a VM, so the behavioural
+  // check - click, then read the persisted record - lives in the browser harness
+  // and is the real regression test. What CAN be pinned here is the SHAPE of the
+  // write path, and specifically the two properties whose absence made the
+  // failure both possible and invisible.
+  {
+    const pickerBody = extractFn(SRC.nt, "openTodaysThreePicker");
+    // 1. DATA FIRST. setTodaysThree(data, taskIds, workspaceId) - a call passing
+    //    the array first lands it in `data`, returns false and, before this
+    //    round, logged nothing.
+    check("picker: calls setTodaysThree with DATA FIRST, never (ids)",
+      /Storage\.setTodaysThree\(\s*data\s*,/.test(pickerBody) &&
+      !/Storage\.setTodaysThree\(\s*(?!data\b)[A-Za-z_$]/.test(pickerBody));
+    // 2. THE RETURN VALUE IS CHECKED. The old handler discarded the boolean and
+    //    closed the modal regardless, so a refused write was structurally
+    //    unreportable - the picker closed, nothing changed, nothing was logged.
+    //    This is the assertion that would have caught the reported defect's
+    //    SYMPTOM even without reproducing its cause.
+    check("picker: CHECKS the writer's return value and does not close on a refusal",
+      /(var|let|const)\s+wrote\s*=/.test(pickerBody) &&
+      /wrote\s*=\s*await\s+Storage\.setTodaysThree/.test(pickerBody) &&
+      /if\s*\(!wrote\)/.test(pickerBody));
+    // 3. AND IT TELLS THE USER. A refusal that only reaches the console is still
+    //    invisible to the person who clicked.
+    check("picker: surfaces a refused write to the user, not only to the console",
+      /if\s*\(!wrote\)[\s\S]{0,200}showToast/.test(pickerBody));
+    // 4. ONE TOAST PER SESSION. The modal stays open across picks, so the
+    //    acknowledgement fires from the CLOSE paths rather than from onPick -
+    //    three picks must not produce three toasts.
+    check("picker: acknowledges once on close, never once per pick",
+      /onPrimary:\s*function\s*\(\)\s*\{\s*announceThreePicked/.test(pickerBody) &&
+      /onCancel:\s*function\s*\(\)\s*\{\s*announceThreePicked/.test(pickerBody) &&
+      !/showToast\(\s*t\("dash_three_toast_(one|many)"/.test(pickerBody));
+  }
+  // The writer's own half of the bargain: it must not fail silently again.
+  check("storage: setTodaysThree warns on every guard failure rather than returning a bare false",
+    (SRC.storage.match(/console\.warn\("\[LaunchPad\] setTodaysThree:/g) || []).length >= 3);
+
   check("render: the streak window is the ENGINE's retention, not a restated 30",
     /Tracking\.lastNLocalDayKeys\(Tracking\.RETENTION_DAYS/.test(SRC.nt));
   // [1.7.4] THIS ASSERTION USED TO SAY THE OPPOSITE. It required the preview to

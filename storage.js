@@ -431,17 +431,40 @@ var Storage = (function () {
   // Per-field writer, one field, stamped with today's key. Passing [] clears the
   // pick, which is a real state rather than an absence - the user deciding
   // nothing headlines today.
+  //
+  // IT WARNS ON EVERY GUARD FAILURE, and that is a fix rather than the original
+  // design. This writer returned a BARE FALSE on a bad shape while every other
+  // writer in this layer console.warns ("createTask: name is required",
+  // "moveTaskToGoal: newGoalId must be a string"). A silent false is why a
+  // mis-shaped caller could produce no signal anywhere - not in the console, not
+  // in the UI, not in storage - which is exactly the state the 2026-09-03 live
+  // report describes. Silence here was an oversight, not a decision: a guard
+  // that refuses a write is telling the caller it is wrong, and that is worth
+  // saying out loud.
   async function setTodaysThree(data, taskIds, workspaceId) {
     var ws = resolveWorkspaceFromData(data, workspaceId);
-    if (!ws) return false;
-    if (!Array.isArray(taskIds)) return false;
+    if (!ws) {
+      console.warn("[LaunchPad] setTodaysThree: no workspace resolved (workspaceId:", workspaceId, ")");
+      return false;
+    }
+    if (!Array.isArray(taskIds)) {
+      // THE SHAPE MISTAKE THIS EXISTS TO CATCH: setTodaysThree(ids) instead of
+      // setTodaysThree(data, ids) lands the array in `data` and undefined here.
+      console.warn("[LaunchPad] setTodaysThree: taskIds must be an array, got", typeof taskIds,
+                   "- did the caller pass (ids) instead of (data, ids)?");
+      return false;
+    }
     var clean = [];
+    var dropped = [];
     taskIds.forEach(function (id) {
-      if (typeof id !== "string") return;
-      if (clean.indexOf(id) !== -1) return;                 // no duplicates
-      if (!findLiveTask(ws, id)) return;                    // no dead ids
+      if (typeof id !== "string") { dropped.push(String(id) + " (not a string)"); return; }
+      if (clean.indexOf(id) !== -1) return;                 // duplicate, silently coalesced
+      if (!findLiveTask(ws, id)) { dropped.push(id + " (no live task)"); return; }
       if (clean.length < TODAYS_THREE_MAX) clean.push(id);
     });
+    if (dropped.length) {
+      console.warn("[LaunchPad] setTodaysThree: dropped", dropped.length, "id(s):", dropped.join(", "));
+    }
     var cur = ws.todaysThree;
     if (cur && cur.day === localDayKey() && Array.isArray(cur.taskIds) &&
         cur.taskIds.length === clean.length &&

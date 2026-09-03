@@ -6678,6 +6678,24 @@ html.has-bg .pomo-setting-row {
 
 .pomo-setting-input:focus { outline: none; border-color: var(--accent); }
 
+/* [fix, 2026-09-03] AN EMPTY OPTIONAL FIELD MUST READ AS AN INVITATION, NOT AS
+   A LOCK. The daily focus target is the only OPTIONAL numeric input on these
+   surfaces - the four Pomodoro fields are always populated by their defaulting
+   reader and are never empty - and empty, it read as gated on a panel where
+   several controls genuinely are gated by tier.
+   THIS IS THE MIRROR OF THE [1.7.4] DISABLED-CTA FIX, and the same one rule:
+   THE AFFORDANCE MUST MATCH THE STATE. There, a dead button looked live; here,
+   a live field looked dead.
+   The placeholder now carries the hint ROLE explicitly rather than inheriting a
+   browser default that lands near the disabled ink, and the helper text beneath
+   already explains what empty means, so the placeholder can be an example
+   instead of the word "none". Scoped to the shared class so all five fields
+   stay consistent, which is why this is one rule and not one patch. */
+.pomo-setting-input::placeholder {
+  color: var(--ink-hint);
+  opacity: 1;                 /* Firefox dims placeholders by default */
+}
+
 /* [1.0.18] Hide the native number spinners: on the dark panel Chromium draws
    them as light-grey widgets that match nothing around them. SCOPED to this
    class deliberately — three other number inputs exist (.tt-recur-dom-input,
@@ -6692,9 +6710,19 @@ html.has-bg .pomo-setting-row {
 
 html.has-bg .pomo-setting-input {
   background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.14);
+  /* [fix] 0.14 -> 0.22. The reported complaint was that an empty optional field
+     "looks like a gated, unclickable field", and a hairline at 0.14 measured
+     1.54:1 against the floater - present, but not enough to say "input". */
+  border-color: rgba(255, 255, 255, 0.22);
   color: #fff;
 }
+
+/* [fix] THE PLACEHOLDER IS SET PER BRANCH, BESIDE THE INK IT BELONGS WITH.
+   The shared rule uses var(--ink-hint), which is white at :root - so on a LIGHT
+   wallpaper the placeholder was white on a white field, 1.04:1. The four-frame
+   pass caught it; the naive reading would not have, and this is the fifth time
+   this project has met the shape. */
+html.has-bg .pomo-setting-input::placeholder { color: rgba(255, 255, 255, 0.40); }
 
 /* [1.0.18 A2] Reset cycle-count control in the Focus sessions settings section. */
 .pomo-reset-row { display: flex; align-items: center; gap: var(--space-2-5); margin-top: var(--space-3); }
@@ -7105,9 +7133,11 @@ html.bg-light .pomo-setting-row {
 
 html.bg-light .pomo-setting-input {
   background: rgba(0, 0, 0, 0.04);
-  border-color: rgba(0, 0, 0, 0.14);
+  border-color: rgba(0, 0, 0, 0.22);
   color: var(--text-primary);
 }
+
+html.bg-light .pomo-setting-input::placeholder { color: rgba(0, 0, 0, 0.45); }
 
 /* Pro Settings — Tags */
 

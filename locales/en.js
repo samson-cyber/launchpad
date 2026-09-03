@@ -1151,6 +1151,18 @@ I18n.register("en", {
     "message": "Still open",
     "description": "Label under the count of tasks still due today, in the Dashboard's EVENING hero centre. Deliberately neutral: 'Still open' reports the board, where 'remaining' or 'outstanding' would imply an obligation the evening state exists not to press."
   },
+  "dash_three_toast_one": {
+    "message": "Added to today's three",
+    "description": "Toast shown when the Today's three picker closes after ONE task was picked. Confirms a deliberate, persisted, per-day choice; the picker stays open across picks so this fires once per session rather than once per pick."
+  },
+  "dash_three_toast_many": {
+    "message": "{count} added to today's three",
+    "description": "Toast shown when the Today's three picker closes after two or three tasks were picked. {count} is the number picked in that session. One toast per session, never one per pick, per the quiet-by-default rule."
+  },
+  "dash_three_toast_failed": {
+    "message": "That pick could not be saved.",
+    "description": "Toast shown when Storage.setTodaysThree REFUSES a pick. Previously the handler discarded the writer's boolean and closed regardless, so a refused write was invisible to the user and to the console. States the fact plainly without blaming the user; the console carries the reason."
+  },
   "dash_three_empty": {
     "message": "Nothing picked yet.",
     "description": "Empty state for Today's three, shown when the user has picked nothing for the current local day. STATE THE CONDITION ONLY, NEVER THE ACTION: [1.7.4] renders a 'Pick up to three' button (dash_three_pick_inline) immediately after this string on the same line, so any call to action added here renders TWICE. That is the duplication [1.6.5] shipped on dash_no_active_goals one arc earlier. An invitation, not a reprimand: picking nothing is a legitimate choice."

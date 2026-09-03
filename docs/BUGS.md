@@ -357,6 +357,18 @@ Run before publishing any console-based verification snippet (the kind written f
 
   **Any assertion about "what this control says" means its own text nodes**, because that is what the user reads next to an icon. Same trap in `innerText` and in `.closest(...).textContent`. The check that eventually shipped this rule was written into the gate so it cannot recur silently (**P8**). `1e5ff29`.
 
+- **J10. SEEDING STATE THROUGH THE WRITER AND THEN ASSERTING THE RENDER PROVES THE READER, NOT THE FEATURE.** A control's write path is exercised only by driving the control. Seed the record yourself and every assertion downstream of it — the reader, the renderer, the suppression rules, the rollover — can be perfectly correct while the button that is supposed to produce that record does nothing at all.
+
+  **The worked example is today's three.** `[1.7.3]` reported "with three picked, zero overlap between the lead and the list", and verified the day rollover by stamping a record under yesterday's key and reading back through the public reader. **Both assertions were true, and both were about the reader.** The picks were written by calling `Storage.setTodaysThree` directly; the picker was never clicked. The feature shipped, a human used it within days, and the module answered "Nothing picked yet" — with no trace in storage, no console output and no failing gate, because nothing in the round had ever asked the control to do its job.
+
+  **THE BRIEF SPECIFIED THE SHORTCUT, so the failure was in the instruction as much as the execution.** The `[1.7.3]` prompt said to test the rollover "by seeding a pick under yesterday's key ... rather than by reasoning about the code" — written to close one gap (reasoning instead of measuring) and opening another by naming the API-level route. An instruction that names the seam to test at can silently exclude the seam that matters.
+
+  **Distinguish from Q13**, which it sits beside and is not. Q13 is a fixture that encodes the code's own wrong assumption, so the test agrees with the code because both are wrong the same way. Here the fixture was CORRECT — the record it wrote was byte-identical to what the control should write — and the gap is that **it SUBSTITUTED for the user action**. A perfect fixture is exactly as blind to a dead button as a flawed one.
+
+  **The rule, stated so it can be applied without this story:** for any feature with a control, at least one assertion must begin with a click and end at persisted state. Seeded fixtures are for reaching states a control cannot reach cheaply (a 75-day history, yesterday's key, a purge boundary) — never for the state the control exists to produce. And the two are easy to tell apart: if a user could produce this state in under five seconds by clicking, seeding it instead is skipping the test.
+
+  The repair carries its own lesson about signal. `setTodaysThree` returned a bare `false` on a guard failure while every other writer in the layer `console.warn`s, and the picker discarded that boolean and closed regardless — so the write path was **structurally incapable of reporting its own failure**, in the console or to the user. A refused write that says nothing anywhere turns a five-minute diagnosis into a live-profile bug report. `2026-09-03`, Asana 1218146737495265.
+
 Originating data points: [1.0.10] commit 2f00d01 and [1.0.10.1] commit 71eafe0 — both shipped verification snippets that used the spy pattern despite explicit "stub `Storage.saveAll`" instruction in their PLANs. The "Storage changed externally" observation in J2 surfaced during [1.0.10] Phase A verification on 2026-05-10 and forced the broader stub-plus-backup pattern as the canonical answer.
 
 ### Section K: CSS Harness Environment Traps

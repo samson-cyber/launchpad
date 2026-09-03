@@ -995,6 +995,21 @@
   // (openTasksModal / pickerSearchHtml / wirePicker) that the goal and session
   // pickers already use, so it searches, keyboard-navigates and closes exactly
   // like they do rather than being a third implementation.
+  // [fix] The pick's acknowledgement. A pick is a deliberate, persisted, per-day
+  // act and the only feedback used to be that the picker closed and the module
+  // changed. One line, one call, on the shipped toast surface.
+  //
+  // NO EXTRA MARKER ON THE PICKED ROWS, and that is a decision. [1.7.3] ruled
+  // that a picked row and a promoted due row render identically, and adding a
+  // badge now would put a second element beside the priority border competing
+  // for the same glance. The lasting signal already exists and is stronger than
+  // a badge: the row sits under the "Today's three" heading, which [1.7.4]
+  // renders precisely when picks exist. Membership of that section IS the mark.
+  function announceThreePicked(count) {
+    if (!count) return;
+    showToast(count === 1 ? t("dash_three_toast_one") : t("dash_three_toast_many", { count: String(count) }));
+  }
+
   function openTodaysThreePicker() {
     var ws = Storage.getActiveWorkspace(data);
     if (!ws) return;
@@ -1003,6 +1018,10 @@
     var candidates = (ws.tasks || []).filter(function (t) {
       return t && !t.deletedAt && !t.completed && picked.indexOf(t.id) === -1;
     });
+    // [fix] ONE TOAST PER PICKER SESSION, not one per pick. Counted here and
+    // reported when the modal closes, so choosing three in a row acknowledges
+    // once rather than three times.
+    var pickedThisSession = 0;
 
     function rowsHtml() {
       var list = pickerFilterBy(candidates, function (t) { return t.name; });
@@ -1026,18 +1045,54 @@
         : '<p class="tt-modal-message">' + th("dash_three_no_tasks") + '</p>',
       primaryLabel: t("common_close"),
       hideCancel: true,
-      onPrimary: function () {},
-      onMounted: function (modalEl) {
-        wirePicker(modalEl, "data-picker-three", rowsHtml, async function (taskId) {
+      // Both close paths acknowledge: the Close button and Escape/backdrop.
+      onPrimary: function () { announceThreePicked(pickedThisSession); },
+      onCancel: function () { announceThreePicked(pickedThisSession); },
+      onMounted: function (overlay) {
+        wirePicker(overlay, "data-picker-three", rowsHtml, async function (taskId) {
           var next = Storage.getTodaysThree(data).concat([taskId]);
+          var wrote = false;
           try {
-            await Storage.setTodaysThree(data, next);
+            // THE HANDLER USED TO DISCARD THIS BOOLEAN. setTodaysThree returns
+            // true/false, and the old call ignored it, then closed the modal and
+            // re-rendered regardless - so a refused write produced exactly what
+            // the 2026-09-03 report describes: the picker closes, the module
+            // does not change, and nothing anywhere says why. Whatever made a
+            // write fail, the UI was STRUCTURALLY INCAPABLE of reporting it.
+            wrote = await Storage.setTodaysThree(data, next);
           } catch (err) {
             console.error("[LaunchPad] Today's three: save failed", err);
           }
-          closeTasksModal();
+          if (!wrote) {
+            // The writer refused or nothing changed. Say so to the user rather
+            // than closing on a no-op; the console carries the reason now.
+            showToast(t("dash_three_toast_failed"));
+            return;
+          }
+          picked = Storage.getTodaysThree(data);
+          pickedThisSession++;
+          // Drop the task just taken out of the candidate list, then repaint the
+          // picker in place.
+          candidates = candidates.filter(function (c) { return c.id !== taskId; });
+          var list = overlay.querySelector("[data-picker-list]");
+          if (list) list.innerHTML = rowsHtml();
+          // Repaint the board behind, so the lead updates as picks are made.
           var panel = document.getElementById("tab-dashboard");
           if (panel) renderDashboardTab(panel, data);
+          // THE MODAL STAYS OPEN. It used to close after every pick, so choosing
+          // three meant opening the picker three times - and it would have meant
+          // three toasts, which is the noise the quiet-by-default rule forbids.
+          // Closing only when the cap is reached keeps ONE toast per session.
+          // THE CAP CLOSES THE MODAL DIRECTLY, so it must announce here too:
+          // closeTasksModal() removes the overlay without running onPrimary or
+          // onCancel, so the auto-close path bypassed both hooks and the third
+          // pick acknowledged nothing. The counter is zeroed so a later close
+          // cannot toast a second time for the same session.
+          if (picked.length >= 3) {
+            announceThreePicked(pickedThisSession);
+            pickedThisSession = 0;
+            closeTasksModal();
+          }
         });
       }
     });
