@@ -1143,9 +1143,21 @@ I18n.register("en", {
     "message": "Pick",
     "description": "Button on the Today's three section header that opens the task picker. Hidden once three are picked, because there is nothing left to add."
   },
+  "dash_evening_finished": {
+    "message": "Finished today",
+    "description": "Label under the count of tasks completed today, in the Dashboard's EVENING hero centre. STATED AS FACT, never as praise or reproach: the evening band closes the day honestly and must not push the user back to work, so this is a reading and not a score."
+  },
+  "dash_evening_still_open": {
+    "message": "Still open",
+    "description": "Label under the count of tasks still due today, in the Dashboard's EVENING hero centre. Deliberately neutral: 'Still open' reports the board, where 'remaining' or 'outstanding' would imply an obligation the evening state exists not to press."
+  },
   "dash_three_empty": {
-    "message": "Nothing picked yet. Pick up to three tasks that matter today.",
-    "description": "Empty state for Today's three, shown when the user has picked nothing for the current local day. An invitation, not a reprimand: picking nothing is a legitimate choice. STATE THE CONDITION AND THE INVITATION ONLY, never a call to action that names the Pick button, which renders immediately above this line."
+    "message": "Nothing picked yet.",
+    "description": "Empty state for Today's three, shown when the user has picked nothing for the current local day. STATE THE CONDITION ONLY, NEVER THE ACTION: [1.7.4] renders a 'Pick up to three' button (dash_three_pick_inline) immediately after this string on the same line, so any call to action added here renders TWICE. That is the duplication [1.6.5] shipped on dash_no_active_goals one arc earlier. An invitation, not a reprimand: picking nothing is a legitimate choice."
+  },
+  "dash_three_pick_inline": {
+    "message": "Pick up to three",
+    "description": "Inline link after the Today's three empty state, opening the task picker. It is the ONLY affordance in that state: [1.7.4] removed the section heading and its hairline when nothing is picked, because an empty section does not earn furniture to announce its emptiness."
   },
   "dash_three_remove": {
     "message": "Remove from today's three",

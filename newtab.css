@@ -9493,6 +9493,49 @@ html.has-bg.bg-light .dash-meta-prio {
   font-variant-numeric: tabular-nums;
 }
 
+/* [1.7.4] THE PREVIEW'S DISABLED PRIMARY MUST READ AS LOCKED, NOT BROKEN.
+   The parity preview renders the pick-up card's outlined primary so the free
+   user sees the SHAPE of the product, but it is disabled - and at full accent
+   it looked entirely clickable, which is the [1.1.4] failure exactly: a control
+   that cannot do anything reads as broken rather than as locked. Dimmed and
+   cursor-blocked, it reads as part of a picture rather than as a dead button.
+   Scoped to :disabled so the real CTA is untouched. */
+.dash-cta:disabled,
+.dash-cta[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ===== [1.7.4] The evening summary =====
+
+   The evening centre's content weight. Two facts, side by side, at the same
+   size as the hero's own counts so the centre reads as a peer of the left
+   region rather than a thinner version of it. NO BUTTON by decision: the
+   outlined primary is reserved for resuming and the evening exists to close
+   the day, so the slot stays empty on purpose and the content carries the
+   region. Deliberately NOT --display-3: the streak and the week figure own that
+   size on this surface, and a third element at it would flatten the hierarchy
+   the band was built for. */
+.dash-evening-summary {
+  display: flex;
+  gap: var(--space-5);
+  margin-top: var(--space-4);
+}
+
+.dash-evening-fact { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+.dash-evening-num {
+  font-size: var(--fs-15);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-secondary);
+}
+
+.dash-evening-label {
+  font-size: var(--fs-11);
+  color: var(--ink-meta);
+}
+
 /* ===== [1.7.3] Today's three - the Today module's LEAD =====
 
    One module with a lead, not two lists stacked. The three sit above the
@@ -9503,6 +9546,17 @@ html.has-bg.bg-light .dash-meta-prio {
   margin-bottom: var(--space-3);
   padding-bottom: var(--space-3);
   border-bottom: 1px solid var(--surface-line);
+}
+
+/* [1.7.4] CONTENT EARNS ITS FURNITURE. With nothing picked there is no heading
+   and no rule: the invitation sits alone directly above "Due today". The old
+   shape stacked a heading, an invitation, a rule and a second heading with no
+   rows between them, which read as two labels rather than one module. The
+   spacing stays so the invitation is not crammed against the next heading. */
+.dash-three.is-empty {
+  padding-bottom: 0;
+  border-bottom: none;
+  margin-bottom: var(--space-4);
 }
 
 .dash-three-head {

@@ -564,9 +564,21 @@ await (async () => {
       // value is the part that is actually a class list.
       const classes = new Set((headBody.match(/class="([^"]+)"/g) || [])
         .flatMap((m) => m.slice(7, -1).split("'")[0].split(/\s+/)).filter(Boolean));
-      const known = ["dash-head", "pp-dash-card-title", "dash-headline", "dash-sub", "dash-cta", "dash-meta", "dash-meta-due", "is-overdue", "dash-meta-prio"];
+      // [1.7.4] The evening summary adds four. They are admitted to this list
+      // ONLY because the assertion below requires each one to declare its own
+      // ink in the sheet - an allowlist entry earned by a check rather than
+      // granted by a decision, which is what stops it rotting into a hole.
+      const known = ["dash-head", "pp-dash-card-title", "dash-headline", "dash-sub", "dash-cta", "dash-meta", "dash-meta-due", "is-overdue", "dash-meta-prio",
+                     "dash-evening-summary", "dash-evening-fact", "dash-evening-num", "dash-evening-label"];
       check("header: the new variant introduces NO new class — nothing unmeasured ships with it",
         [...classes].every((c) => known.includes(c)), [...classes].join(" "));
+      // The earning half: every class carrying TEXT in the evening summary must
+      // declare a colour, so a new head class cannot inherit its way onto a
+      // surface nobody measured (the O-series defect this arc hit three times).
+      const inkedEvening = ["dash-evening-num", "dash-evening-label"].filter((c) =>
+        new RegExp("\\." + c + "\\s*\\{[^}]*color:", "m").test(SRC.css));
+      check("header: ...and every evening-summary text class declares its own ink",
+        inkedEvening.length === 2, inkedEvening.join(" ") || "none declare colour");
       check("header: ...and the evening-open line rides .dash-headline like every other head",
         /data-dash-variant="evening-open"[\s\S]{0,300}class="dash-headline"/.test(headBody));
       check("header: ...so the ink rules already in the sheet cover it",
@@ -712,8 +724,30 @@ const hasClassToken = (src, name) => {
   }
   check("render: the streak window is the ENGINE's retention, not a restated 30",
     /Tracking\.lastNLocalDayKeys\(Tracking\.RETENTION_DAYS/.test(SRC.nt));
-  check("render: the free-tier Dashboard preview is untouched by the cockpit",
-    /function renderDashboardPreview\(\) \{\s*\n?\s*var d = DEMO_DASHBOARD_DATA;/.test(SRC.nt));
+  // [1.7.4] THIS ASSERTION USED TO SAY THE OPPOSITE. It required the preview to
+  // begin `var d = DEMO_DASHBOARD_DATA`, which pinned it to the legacy recap and
+  // let the gap to the real Dashboard widen through every round of this arc.
+  // Preview parity inverts that property by ruling, so the assertion is replaced
+  // rather than relaxed: it now guards MIRRORING plus the preview rule.
+  {
+    const prevBody = extractFn(SRC.nt, "renderDashboardPreview");
+    check("preview: mirrors the cockpit's layout - hero band, three regions, row two",
+      /dash-hero-left/.test(prevBody) && /dash-hero-centre/.test(prevBody) &&
+      /dash-hero-right/.test(prevBody) && /dash-row2/.test(prevBody) &&
+      /dash-today/.test(prevBody) && /dash-goals/.test(prevBody));
+    check("preview: uses the REAL numeral class, so --display-1 is still referenced once",
+      /class="dash-hero-num"/.test(prevBody) &&
+      (SRC.css.match(/var\(--display-1\)/g) || []).length === 1);
+    // Every control inert, and the picker absent entirely rather than present
+    // and dead - a modal trigger that opens nothing is worse than no trigger.
+    const buttons = prevBody.match(/<button[^>]*>/g) || [];
+    check("preview: every button is disabled - no enabled control of any kind",
+      buttons.length > 0 && buttons.every((b) => /\sdisabled/.test(b)), buttons.join(" | ").slice(0, 120));
+    check("preview: carries NO wired action and no picker",
+      !/data-dash-action/.test(prevBody) && !/pick-three/.test(prevBody));
+    check("preview: draws NO ring - the ring encodes a target a free user cannot set",
+      !/dash-ring/.test(prevBody));
+  }
 
   // ======================= O1 ink (JS-rendered, invisible to the static gate) ==
   // tools/check-panel-ink.mjs parses STATIC newtab.html. Every element above is

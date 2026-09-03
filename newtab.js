@@ -951,6 +951,28 @@
   // picks only because there is nothing left to add.
   function dashThreeHtml(ws, pickedIds) {
     var todayUtc = dashboardTodayAsUtcDay();
+
+    // [1.7.4] CONTENT EARNS ITS LABEL. With nothing picked, the heading and the
+    // hairline are NOT rendered: the invitation sits alone directly above "Due
+    // today". Empty, the old shape stacked a heading, an invitation, a rule and
+    // a second heading with no rows between them - four pieces of furniture and
+    // no content, which read as two labels rather than one module.
+    //
+    // The Pick control still has to be reachable, so it moves INLINE into the
+    // invitation, the same shape the goals empty state uses (a condition, then a
+    // link that carries the action). The prose states only the condition:
+    // "Nothing picked yet." never repeats the control's own words, which is
+    // BUGS D22, the duplication [1.6.5] shipped on this very surface.
+    if (!pickedIds.length) {
+      return '<div class="dash-three is-empty">' +
+          '<div class="dash-note">' + th("dash_three_empty") + ' ' +
+            '<button type="button" class="dash-inline-link" data-dash-action="pick-three">' +
+              th("dash_three_pick_inline") +
+            '</button>' +
+          '</div>' +
+        '</div>';
+    }
+
     var rows = pickedIds.map(function (id) {
       var t = Storage.getTaskById(ws, id);
       return t ? dashThreeRowHtml(ws, t, todayUtc) : "";
@@ -965,9 +987,7 @@
               '</button>'
             : '') +
         '</div>' +
-        (rows
-          ? '<div class="dash-three-list">' + rows + '</div>'
-          : '<div class="dash-note">' + th("dash_three_empty") + '</div>') +
+        '<div class="dash-three-list">' + rows + '</div>' +
       '</div>';
   }
 
@@ -1214,17 +1234,48 @@
       // header says so. The day is still over either way; that is why the title
       // does not move and the line is a statement rather than a nudge.
       var open = (dueOpen || []).length;
+
+      // [1.7.4] THE EVENING CENTRE IS THE DAY'S SUMMARY, NOT AN ABSENCE.
+      //
+      // Through this arc the evening band read as broken-symmetrical: the outer
+      // regions carried a numeral, a ring, a streak and a week figure while the
+      // centre rendered one line and a rule. The region was not quiet, it was
+      // empty, and the eye read that as a fault rather than as a choice.
+      //
+      // AND IT STAYS BUTTON-LESS, DELIBERATELY. The doctrine reserves the
+      // outlined primary for RESUMING, and the evening exists to close the day
+      // honestly, so a "keep going" control is forbidden outright. Every other
+      // candidate I considered was either that in disguise or a duplicate: a
+      // "review the day" button would scroll to the recap module already
+      // rendered in row two, three hundred pixels below on the same screen. An
+      // empty slot beside real content reads as restraint; an empty slot beside
+      // nothing reads as a bug. So the fix is CONTENT WEIGHT, which is what the
+      // summary line supplies, and the slot stays empty on purpose.
+      var doneToday = Storage.tasksCompletedOnDay(ws, Storage.localDayKey());
+      var summary = '<div class="dash-evening-summary">' +
+          '<span class="dash-evening-fact">' +
+            '<span class="dash-evening-num">' + escapeHtml(String(doneToday)) + '</span>' +
+            '<span class="dash-evening-label">' + th("dash_evening_finished") + '</span>' +
+          '</span>' +
+          '<span class="dash-evening-fact">' +
+            '<span class="dash-evening-num">' + escapeHtml(String(open)) + '</span>' +
+            '<span class="dash-evening-label">' + th("dash_evening_still_open") + '</span>' +
+          '</span>' +
+        '</div>';
+
       if (open > 0) {
         return '<div class="dash-head" data-dash-variant="evening-open">' +
             '<div class="pp-dash-card-title">That’s the day</div>' +
             '<div class="dash-headline">' +
               (open === 1 ? 'One still on the board.' : 'Still a few on the board.') +
             '</div>' +
+            summary +
           '</div>';
       }
       return '<div class="dash-head" data-dash-variant="evening">' +
           '<div class="pp-dash-card-title">' + th("dash_that_s_the_day") + '</div>' +
           '<div class="dash-headline">' + th("dash_work_s_done") + '</div>' +
+          summary +
         '</div>';
     }
 
@@ -1711,32 +1762,12 @@
     ]
   };
 
-  var DEMO_DASHBOARD_DATA = {
-    recap: {
-      deepWorkText: "3h 42m",
-      tasksCompleted: 4,
-      goalsProgressed: 1,
-      goalsTotal: 2,
-      longestStretch: "47m",
-      tagBreakdown: [
-        { tag: DEMO_TAG_PALETTE.shipQ3,    durationText: "1h 50m" },
-        { tag: DEMO_TAG_PALETTE.learnTs,   durationText: "1h 10m" },
-        { tag: DEMO_TAG_PALETTE.ungrouped, durationText: "42m" }
-      ]
-    },
-    weekly: {
-      todayIndex: 4, // Friday
-      days: [
-        { labelKey: "dash_mon", hours: 2.1 },
-        { labelKey: "dash_tue", hours: 3.5 },
-        { labelKey: "dash_wed", hours: 4.2 },
-        { labelKey: "dash_thu", hours: 1.8 },
-        { labelKey: "dash_fri", hours: 3.7 },
-        { labelKey: "dash_sat", hours: 0.5 },
-        { labelKey: "dash_sun", hours: 0   }
-      ]
-    }
-  };
+  // [1.7.4] DEMO_DASHBOARD_DATA was removed with the legacy preview it fed.
+  // Its recap/weekly shapes described a surface the product stopped rendering
+  // in [1.7.1]; the parity preview uses DEMO_DASH_BOARD instead. The pp-recap-*,
+  // pp-mood-* and pp-week-chart RULES in newtab.css are now orphaned too and are
+  // reported rather than deleted here - [1.8.0] rebuilds Insights and should
+  // decide their fate with that surface in front of it.
 
   var DEMO_INSIGHTS_DATA = {
     trend30: {
@@ -1863,68 +1894,159 @@
     '</div>';
   }
 
+  // ===== [1.7.4] PREVIEW PARITY =====
+  //
+  // THE PREVIEW IS WHAT A FREE USER BELIEVES PRO LOOKS LIKE, and until this
+  // round it showed a product that no longer exists: a legacy "Today's Recap"
+  // card and a demo week chart, drawn with pp-* classes that the real Dashboard
+  // stopped using in [1.7.1]. Every round of this arc widened the gap.
+  //
+  // IT REUSES THE REAL CLASSES, NOT COPIES OF THEM. .dash-hero, .dash-hero-num,
+  // .dash-three, .dash-due-row and the rest are the SAME rules the product
+  // renders, which is the preview doctrine in CLAUDE.md: same component, same
+  // styling path, differing only in data source and interactivity. It also
+  // resolves the [1.7.1] invariant cleanly - --display-1 is still referenced
+  // exactly ONCE in the stylesheet, on .dash-hero-num, because the preview
+  // borrows that rule rather than declaring a second numeral of its own.
+  //
+  // NO RING, AND THAT IS A DECISION. The ring's presence encodes "a target is
+  // set". A free user cannot set one, so drawing it would advertise a state
+  // they cannot reach, and it would also make the preview read BETTER than a
+  // Pro user's own default, which has no target until they choose one. Absent
+  // is the honest default.
+  //
+  // NO CREATE AFFORDANCES AND NO ENABLED CONTROLS. Every button here carries
+  // `disabled`; the picker is absent entirely rather than present-and-inert,
+  // because a control that cannot do anything reads as broken rather than as
+  // locked ([1.1.4]'s preview-ghost rule).
+  var DEMO_DASH_BOARD = {
+    focusedToday: "2h18m",
+    tasksCompleted: 4,
+    blocked: 12,
+    streak: "6",
+    weekSoFar: "9h40m",
+    blocking: "On",
+    pickup: { title: "Ship the Q3 report", goal: "in Q3 reporting" },
+    three: [
+      { name: "Draft the executive summary", prio: "tt-prio-high", overdue: false },
+      { name: "Pull regional revenue numbers", prio: "tt-prio-urgent", overdue: true }
+    ],
+    due: [
+      { name: "Reply to the design review thread", prio: "tt-prio-medium", overdue: false },
+      { name: "Book the studio for Thursday", prio: "", overdue: true },
+      { name: "Renew the domain", prio: "tt-prio-low", overdue: false }
+    ],
+    goals: [
+      { name: "Ship the Q3 report", pct: 40, frac: "2 of 5" },
+      { name: "Learn TypeScript", pct: 0, frac: "0 of 4" },
+      { name: "Rebuild onboarding flow", pct: 25, frac: "1 of 4" }
+    ]
+  };
+
+  function previewRowHtml(row, extraClass) {
+    return '<div class="dash-due-row' + (extraClass ? " " + extraClass : "") +
+        (row.prio ? " " + row.prio : "") + '">' +
+        '<input type="checkbox" class="tt-task-check dash-due-check" disabled>' +
+        '<span class="dash-due-name">' + escapeHtml(row.name) + '</span>' +
+        (row.overdue ? '<span class="dash-meta-due is-overdue">' + th("dash_overdue") + '</span>' : '') +
+      '</div>';
+  }
+
   function renderDashboardPreview() {
-    var d = DEMO_DASHBOARD_DATA;
-    var recap = d.recap;
+    var D = DEMO_DASH_BOARD;
 
-    var tagBreakdownHtml = recap.tagBreakdown.map(function (e) {
-      return '<div class="pp-tag-breakdown-item">' +
-          renderTagPill(e.tag) +
-          '<span class="pp-tag-breakdown-dur">' + escapeHtml(e.durationText) + '</span>' +
-        '</div>';
-    }).join("");
-
-    var emojis = ["😞", "😐", "🙂", "😊", "🎉"];
-    var emojiHtml = emojis.map(function (em) {
-      return '<button class="pp-emoji" type="button" disabled>' + em + '</button>';
-    }).join("");
-
-    // Weekly bar chart (inline SVG)
-    var w = 380, h = 170, padX = 28, padTop = 28, padBottom = 36;
-    var bars = d.weekly.days;
-    var maxH = Math.max.apply(null, bars.map(function (b) { return b.hours; })) || 1;
-    var step = (w - 2 * padX) / bars.length;
-    var barW = step * 0.55;
-    var chartH = h - padTop - padBottom;
-    var barsSvg = bars.map(function (b, i) {
-      var x = padX + step * i + (step - barW) / 2;
-      var bh = chartH * (b.hours / maxH);
-      var y = h - padBottom - bh;
-      var cls = (i === d.weekly.todayIndex) ? "pp-bar pp-bar-today" : "pp-bar";
-      return '<rect class="' + cls + '" x="' + x + '" y="' + y + '" width="' + barW + '" height="' + Math.max(bh, 1) + '" rx="3" />' +
-        '<text class="pp-bar-label" x="' + (x + barW / 2) + '" y="' + (h - padBottom + 16) + '">' + th(b.labelKey) + '</text>';
-    }).join("");
-    var weekSvg = '<svg class="pp-week-chart" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + th("dashboard_deep_work_hours_this_week") + '">' +
-        '<line class="pp-axis" x1="' + padX + '" y1="' + (h - padBottom) + '" x2="' + (w - padX) + '" y2="' + (h - padBottom) + '" />' +
-        barsSvg +
-        '<text class="pp-axis-label" x="' + padX + '" y="' + (padTop - 10) + '">' + th("dashboard_hours_of_deep_work") + '</text>' +
-      '</svg>';
-
-    var goalsPct = Math.round((recap.goalsProgressed / recap.goalsTotal) * 100);
-
-    return '<div class="pp-dash-grid">' +
-        '<div class="pp-dash-card pp-dash-card-recap">' +
-          '<div class="pp-dash-card-title">' + th("dashboard_today_s_recap") + '</div>' +
-          '<div class="pp-recap-big">' +
-            '<span class="pp-recap-big-num">' + escapeHtml(recap.deepWorkText) + '</span>' +
-            '<span class="pp-recap-big-label">' + th("dashboard_deep_work") + '</span>' +
+    var heroLeft =
+      '<div class="dash-hero-region dash-hero-left">' +
+        '<div class="dash-hero-figure">' +
+          '<div class="dash-hero-dial">' +
+            '<div class="dash-hero-num">' + escapeHtml(D.focusedToday) + '</div>' +
           '</div>' +
-          '<div class="pp-recap-row"><span class="pp-recap-num">' + recap.tasksCompleted + '</span>'  + th("dashboard_tasks_completed") + '</div>' +
-          '<div class="pp-recap-row pp-recap-row-stack">' +
-            '<div><span class="pp-recap-num">' + recap.goalsProgressed + ' of ' + recap.goalsTotal + '</span>'  + th("dashboard_goals_making_progress") + '</div>' +
-            '<div class="pp-progress-bar pp-progress-bar-sm"><div class="pp-progress-fill" style="width:' + goalsPct + '%"></div></div>' +
+          '<div class="dash-hero-label">Focused today</div>' +
+        '</div>' +
+        '<div class="dash-hero-counts">' +
+          '<div class="dash-hero-count">' +
+            '<span class="dash-hero-count-num">' + D.tasksCompleted + '</span>' +
+            '<span class="dash-hero-count-label">' + th("dash_tasks_completed") + '</span>' +
           '</div>' +
-          '<div class="pp-recap-row">' + th("dashboard_longest_focus_stretch") + ' <span class="pp-recap-num">' + escapeHtml(recap.longestStretch) + '</span></div>' +
-          '<div class="pp-tag-breakdown">' + tagBreakdownHtml + '</div>' +
-          '<div class="pp-mood-row">' +
-            '<div class="pp-mood-q">' + th("dashboard_how_did_today_feel") + '</div>' +
-            '<div class="pp-mood-emojis">' + emojiHtml + '</div>' +
+          '<div class="dash-hero-count">' +
+            '<span class="dash-hero-count-num">' + D.blocked + '</span>' +
+            '<span class="dash-hero-count-label">' + th("dash_distractions_blocked") + '</span>' +
           '</div>' +
         '</div>' +
-        '<div class="pp-dash-card pp-dash-card-week">' +
-          '<div class="pp-dash-card-title">' + th("dashboard_this_week") + '</div>' +
-          weekSvg +
+      '</div>';
+
+    // The pick-up card, with its outlined primary DISABLED rather than removed:
+    // the button is the shape of the surface and hiding it would understate what
+    // Pro looks like, while an enabled one would be a control that does nothing.
+    var heroCentre =
+      '<div class="dash-hero-region dash-hero-centre">' +
+        '<div class="dash-head" data-dash-variant="pickup">' +
+          '<div class="pp-dash-card-title">' + th("dash_pick_up_where_you_left_off") + '</div>' +
+          '<div class="dash-headline">' + escapeHtml(D.pickup.title) + '</div>' +
+          '<div class="dash-sub">' + escapeHtml(D.pickup.goal) + '</div>' +
+          '<button type="button" class="dash-cta" disabled>Continue</button>' +
         '</div>' +
+      '</div>';
+
+    var heroRight =
+      '<div class="dash-hero-region dash-hero-right">' +
+        '<div class="dash-hero-stat">' +
+          '<div class="dash-streak">' +
+            '<span class="insights-strip-num">' + D.streak + '</span>' +
+            '<span class="insights-strip-label">' + th("dash_day_streak") + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="dash-hero-stat">' +
+          '<div class="dash-hero-stat-num">' + escapeHtml(D.weekSoFar) + '</div>' +
+          '<div class="dash-hero-stat-label">' + th("dash_this_week_so_far") + '</div>' +
+        '</div>' +
+        '<div class="dash-hero-stat">' +
+          '<div class="dash-hero-stat-num">' + D.blocking + '</div>' +
+          '<div class="dash-hero-stat-label">' + th("dash_focus_blocking") + '</div>' +
+        '</div>' +
+      '</div>';
+
+    // THE PICKER IS ABSENT, not disabled: it opens a modal, and a modal trigger
+    // that opens nothing is the worst of both readings. The picked ROWS render,
+    // because they are what the feature looks like.
+    var today =
+      '<div class="dash-mod dash-today">' +
+        '<div class="pp-insights-card">' +
+          '<div class="dash-three">' +
+            '<div class="dash-three-head">' +
+              '<span class="pp-dash-card-title">' + th("dash_todays_three") + '</span>' +
+            '</div>' +
+            '<div class="dash-three-list">' +
+              D.three.map(function (r) { return previewRowHtml(r, "dash-three-row"); }).join("") +
+            '</div>' +
+          '</div>' +
+          '<div class="pp-dash-card-title dash-due-title">' + th("dashboard_due_today") + '</div>' +
+          '<div class="dash-due-list">' +
+            D.due.map(function (r) { return previewRowHtml(r); }).join("") +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    var goals =
+      '<div class="dash-mod dash-goals">' +
+        '<div class="pp-insights-card">' +
+          '<div class="pp-dash-card-title">' + th("dashboard_goals") + '</div>' +
+          '<div class="insights-task-list">' +
+            D.goals.map(function (g) {
+              return '<div class="insights-task-row">' +
+                  '<span class="insights-task-name">' + escapeHtml(g.name) + '</span>' +
+                  '<span class="insights-task-bar"><span class="insights-task-bar-fill" style="width:' + g.pct + '%"></span></span>' +
+                  '<span class="insights-task-dur">' + escapeHtml(g.frac) + '</span>' +
+                '</div>';
+            }).join("") +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    return '<div class="dash-tab" data-period="day">' +
+        '<div class="dash-greeting">Good afternoon</div>' +
+        '<div class="dash-hero">' + heroLeft + heroCentre + heroRight + '</div>' +
+        '<div class="dash-row2">' + today + goals + '</div>' +
       '</div>';
   }
 
