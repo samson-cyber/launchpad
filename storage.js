@@ -324,6 +324,133 @@ var Storage = (function () {
   }
 
 
+
+  // ===== [1.7.3] The local WEEK boundary =====
+  //
+  // NO WEEK CONVENTION EXISTED BEFORE THIS. Everything week-shaped in the tree is
+  // a ROLLING window, not a calendar week: the Insights presets are day COUNTS
+  // ([1,7,30] through lastNLocalDayKeys) stored as numbers precisely so there is
+  // one representation and no label to drift; the achievement streak is seven
+  // CONSECUTIVE days; ACH_VARIETY_WINDOW_MS is a rolling seven days; and a
+  // recurring template's daysOfWeek is a cadence selector, not a boundary.
+  //
+  // So this establishes one, and it must be the ONLY one - [1.8.0] calls these
+  // rather than computing a week of its own, for the same reason today's-three
+  // calls localDayKey rather than reimplementing the day.
+  //
+  // LOCALE FIRST DAY, WITH MONDAY AS THE DOCUMENTED FALLBACK. "This week" on a
+  // personal dashboard should mean what it means to the person reading it, and
+  // the product already negotiates locale (i18n.js, Intl.PluralRules), so a
+  // Sunday-first week for en-US and a Monday-first week elsewhere is consistent
+  // with how the rest of the product behaves. Intl.Locale.getWeekInfo is not
+  // everywhere - it is absent in older engines and in some worker contexts - so
+  // the fallback is ISO-8601 Monday, chosen rather than defaulted, and the whole
+  // read is wrapped because storage.js also loads in the service worker where
+  // navigator.language may not exist.
+  var WEEK_FIRST_DAY_FALLBACK = 1;              // ISO-8601 Monday
+
+  function localWeekFirstDay() {
+    try {
+      var tag = (typeof navigator !== "undefined" && navigator.language) ? navigator.language : "en";
+      var loc = new Intl.Locale(tag);
+      if (loc && typeof loc.getWeekInfo === "function") {
+        var info = loc.getWeekInfo();
+        if (info && typeof info.firstDay === "number" && info.firstDay >= 1 && info.firstDay <= 7) {
+          return info.firstDay;                 // 1 = Monday ... 7 = Sunday
+        }
+      }
+    } catch (e) { /* fall through */ }
+    return WEEK_FIRST_DAY_FALLBACK;
+  }
+
+  // Local midnight of the current week's first day. Walks the local calendar via
+  // setDate and re-anchors midnight, the same DST-safe technique the tracking
+  // engine uses for day keys - subtracting a fixed 24h would skip or repeat a
+  // calendar day across a DST boundary.
+  function startOfLocalWeek(ts) {
+    var d = new Date(ts == null ? Date.now() : ts);
+    d.setHours(0, 0, 0, 0);
+    var first = localWeekFirstDay();
+    var dow = d.getDay() === 0 ? 7 : d.getDay();   // JS Sunday is 0; treat as 7
+    var back = (dow - first + 7) % 7;
+    d.setDate(d.getDate() - back);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+
+  // Day keys from the week's first day up to and including TODAY - "so far",
+  // never the whole week, so the figure never counts days that have not happened.
+  // Built on localDayKey so it indexes straight into the tracking day aggregates.
+  function localWeekDayKeys(ts) {
+    var todayKey = localDayKey(ts);
+    var cursor = new Date(startOfLocalWeek(ts));
+    var out = [];
+    for (var i = 0; i < 7; i++) {
+      var k = localDayKey(cursor.getTime());
+      out.push(k);
+      if (k === todayKey) break;
+      cursor.setDate(cursor.getDate() + 1);
+      cursor.setHours(0, 0, 0, 0);
+    }
+    return out;
+  }
+
+  // ===== [1.7.3] G9 today's three =====
+  //
+  // PER-WORKSPACE, and the contrast with the focus target is deliberate. The
+  // target is GLOBAL because it measures a figure that can itself be summed
+  // across workspaces. These are TASK IDS, which only exist inside one
+  // workspace: a pick made in Studio has no meaning in Archive, and showing it
+  // there would reference a task that workspace does not contain.
+  //
+  // KEYED ON THE ENGINE'S OWN DAY KEY, never a second implementation of the day
+  // boundary. localDayKey delegates to achDayKey, and the suite asserts it is
+  // byte-identical to Tracking._localDayKey rather than assuming it - so a pick
+  // and the focused figure beside it can never disagree about which day it is.
+  // The [1.7.0] description carried a false 04:00 floor; local midnight is the
+  // only boundary in this codebase and this reads it rather than restating it.
+  var TODAYS_THREE_MAX = 3;
+
+  // Returns the ids picked FOR TODAY, or [] on any other day. THE ROLLOVER IS
+  // THE READ, not a cleanup job: yesterday's record simply stops matching, so
+  // there is no sweep to schedule and no window in which a stale pick can show.
+  // Dead ids (task deleted or purged since the pick) are dropped here too, so a
+  // caller never has to handle an id that resolves to nothing.
+  function getTodaysThree(data, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws) return [];
+    var rec = ws.todaysThree;
+    if (!rec || typeof rec !== "object") return [];
+    if (rec.day !== localDayKey()) return [];
+    if (!Array.isArray(rec.taskIds)) return [];
+    return rec.taskIds
+      .filter(function (id) { return typeof id === "string" && !!findLiveTask(ws, id); })
+      .slice(0, TODAYS_THREE_MAX);
+  }
+
+  // Per-field writer, one field, stamped with today's key. Passing [] clears the
+  // pick, which is a real state rather than an absence - the user deciding
+  // nothing headlines today.
+  async function setTodaysThree(data, taskIds, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws) return false;
+    if (!Array.isArray(taskIds)) return false;
+    var clean = [];
+    taskIds.forEach(function (id) {
+      if (typeof id !== "string") return;
+      if (clean.indexOf(id) !== -1) return;                 // no duplicates
+      if (!findLiveTask(ws, id)) return;                    // no dead ids
+      if (clean.length < TODAYS_THREE_MAX) clean.push(id);
+    });
+    var cur = ws.todaysThree;
+    if (cur && cur.day === localDayKey() && Array.isArray(cur.taskIds) &&
+        cur.taskIds.length === clean.length &&
+        cur.taskIds.every(function (v, i) { return v === clean[i]; })) return false;
+    ws.todaysThree = { day: localDayKey(), taskIds: clean };
+    await saveAll(data);
+    return true;
+  }
+
   // ===== [1.7.2] F5 daily focus target =====
   //
   // GLOBAL, NOT PER-WORKSPACE, and the reason is that the figure it qualifies can
@@ -6500,6 +6627,11 @@ var Storage = (function () {
 
     // [1.0.18] Pomodoro settings — defaulting reader + four per-field updaters.
     getPomodoroSettings: getPomodoroSettings,
+    startOfLocalWeek: startOfLocalWeek,
+    localWeekFirstDay: localWeekFirstDay,
+    localWeekDayKeys: localWeekDayKeys,
+    getTodaysThree: getTodaysThree,
+    setTodaysThree: setTodaysThree,
     getFocusTargetMin: getFocusTargetMin,
     setFocusTargetMin: setFocusTargetMin,
     setPomodoroWorkMin: setPomodoroWorkMin,

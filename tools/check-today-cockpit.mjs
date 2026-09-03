@@ -539,10 +539,18 @@ await (async () => {
       })();
       check("header: the head does NOT read the due set itself — it is handed the render's array",
         !/tasksDueByDay/.test(headBody) && /dueOpen/.test(headBody), headBody.slice(0, 60));
+      // [1.7.3] THE PROPERTY IS ONE READ FEEDING BOTH BUILDERS, NOT ONE VARIABLE
+      // NAME. Today's three promotes picked tasks out of the list, so the list is
+      // now handed dueRest - but dueRest is DERIVED from the single dueOpen read,
+      // so the head and the list still cannot disagree about the due set. The
+      // assertion therefore checks the derivation rather than the spelling, which
+      // is strictly stronger: a second tasksDueByDay call, or a list fed from
+      // anything not descended from that one read, still fails (BUGS P20).
       check("header: the render reads it exactly ONCE and feeds both builders",
         (renderBody.match(/tasksDueByDay/g) || []).length === 1 &&
         /dashHeadHtml\(d, ws, period, dueOpen\)/.test(renderBody) &&
-        /dashDueListHtml\(ws, dueOpen\)/.test(renderBody));
+        /dashDueListHtml\(ws, dueRest\)/.test(renderBody) &&
+        /var dueRest\s*=\s*\(dueOpen \|\| \[\]\)\.filter/.test(renderBody));
     }
 
     // --- O1: no new ink surface. The two new lines are .dash-headline inside

@@ -868,6 +868,161 @@
   // Tile 1 is two-phase (the engine read lands a tick later); tiles 2-4 are
   // synchronous reads off `data`, so they are correct in the first paint and tick
   // immediately on a local mutation with no reload.
+
+  // [1.7.3] THIS WEEK SO FAR. Present state, on the same footing as the streak,
+  // which is why it sits beside it at --display-3 rather than anywhere else.
+  //
+  // NOT A COMPARISON. There is deliberately no "vs last week", no arrow and no
+  // delta: the boards are organised by TENSE, the Dashboard answers "what about
+  // today" in the present, and week-versus-last is a past-tense reading that
+  // belongs to Insights and [1.8.0]. One figure and one label, so the right
+  // region reads as two peers rather than a list.
+  var dashWeekToken = 0;
+
+  function dashWeekHtml() {
+    return '<div class="dash-hero-stat">' +
+        '<div class="dash-hero-stat-num" data-dash-week>—</div>' +
+        '<div class="dash-hero-stat-label">' + th("dash_this_week_so_far") + '</div>' +
+      '</div>';
+  }
+
+  async function dashRefreshWeek(panel, scope) {
+    if (!panel || !scope) return;
+    if (typeof Tracking === "undefined" || !Tracking.focusedRangeForScope) return;
+    var token = ++dashWeekToken;
+    // Storage.localWeekDayKeys is the ONE week boundary in the product ([1.7.3]).
+    // [1.8.0] calls it too rather than computing a week of its own.
+    var keys = Storage.localWeekDayKeys();
+    var range;
+    try {
+      range = await Tracking.focusedRangeForScope(scope.workspaceId, keys);
+    } catch (err) {
+      console.error("[LaunchPad] Dashboard: week read failed", err);
+      return;
+    }
+    // Own token, matching dashStreakToken's reasoning: several reads fire from
+    // one render and a shared counter would make each invalidate the others.
+    if (token !== dashWeekToken) return;
+    var el = panel.querySelector("[data-dash-week]");
+    if (!el) return;
+    var total = 0;
+    Object.keys(range || {}).forEach(function (k) { total += range[k] || 0; });
+    // focusedRangeForScope already replaces TODAY's entry with the open-session
+    // inclusive read, so this figure and the hero numeral agree by construction
+    // rather than by two readers happening to match.
+    el.textContent = fmtDurationHM(total);
+  }
+
+
+  // ===== [1.7.3] G9 today's three =====
+  //
+  // IT LEADS THE TODAY MODULE, above the due-today list and inside the same
+  // card. Due-today is automatic context; the three are the deliberate answer to
+  // "what matters today", so the deliberate thing leads. One module, one lead,
+  // not a second card.
+  //
+  // A PICKED TASK THAT IS ALSO DUE TODAY APPEARS ONCE, PROMOTED, AND IS
+  // SUPPRESSED FROM THE LIST BELOW. Both readings were defensible and this is
+  // the reasoning for choosing suppression: the module is ONE list of today, and
+  // the same row printed twice inside one card reads as a duplicate-item bug
+  // whatever the intent behind it - the user cannot see two different reasons,
+  // only the same task twice. Nothing is lost by promoting it, because a picked
+  // row renders with the SAME chrome as a due row (priority border, overdue
+  // badge), so its due-ness travels with it rather than being left behind.
+  // The overflow count below is computed on the remaining set, so it stays true.
+
+  function dashThreeRowHtml(workspace, task, todayUtc) {
+    var overdue = (typeof task.dueAt === "number") && Storage.utcDay(task.dueAt) < todayUtc;
+    var prio = taskPriorityClass(task.priority);
+    return '<div class="dash-due-row dash-three-row' + (prio ? " " + prio : "") + '">' +
+        '<input type="checkbox" class="tt-task-check dash-due-check" data-task-id="' + escapeHtml(task.id) + '" ' +
+          'aria-label="' + th("dash_due_complete_task_aria", { taskName: task.name }) + '">' +
+        '<span class="dash-due-name">' + escapeHtml(task.name) + '</span>' +
+        (overdue ? '<span class="dash-meta-due is-overdue">' + th("dash_overdue") + '</span>' : '') +
+        '<button type="button" class="dash-three-drop" data-dash-action="unpick-three" ' +
+          'data-task-id="' + escapeHtml(task.id) + '" ' +
+          'aria-label="' + th("dash_three_remove_aria", { taskName: task.name }) + '" ' +
+          'title="' + th("dash_three_remove") + '">&times;</button>' +
+      '</div>';
+  }
+
+  // The lead block. THE PICKER IS A REAL, VISIBLE CONTROL - a labelled button on
+  // the section header, never a hidden gesture - and it is absent below three
+  // picks only because there is nothing left to add.
+  function dashThreeHtml(ws, pickedIds) {
+    var todayUtc = dashboardTodayAsUtcDay();
+    var rows = pickedIds.map(function (id) {
+      var t = Storage.getTaskById(ws, id);
+      return t ? dashThreeRowHtml(ws, t, todayUtc) : "";
+    }).join("");
+    var canAdd = pickedIds.length < 3;
+    return '<div class="dash-three">' +
+        '<div class="dash-three-head">' +
+          '<span class="pp-dash-card-title">' + th("dash_todays_three") + '</span>' +
+          (canAdd
+            ? '<button type="button" class="dash-three-pick" data-dash-action="pick-three">' +
+                th("dash_three_pick") +
+              '</button>'
+            : '') +
+        '</div>' +
+        (rows
+          ? '<div class="dash-three-list">' + rows + '</div>'
+          : '<div class="dash-note">' + th("dash_three_empty") + '</div>') +
+      '</div>';
+  }
+
+  // The picker itself, built on the SHIPPED modal + picker machinery
+  // (openTasksModal / pickerSearchHtml / wirePicker) that the goal and session
+  // pickers already use, so it searches, keyboard-navigates and closes exactly
+  // like they do rather than being a third implementation.
+  function openTodaysThreePicker() {
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return;
+    pickerFilter = "";
+    var picked = Storage.getTodaysThree(data);
+    var candidates = (ws.tasks || []).filter(function (t) {
+      return t && !t.deletedAt && !t.completed && picked.indexOf(t.id) === -1;
+    });
+
+    function rowsHtml() {
+      var list = pickerFilterBy(candidates, function (t) { return t.name; });
+      if (!list.length) {
+        return '<p class="tt-modal-message">' + th("dash_three_no_tasks") + '</p>';
+      }
+      return list.map(function (t) {
+        var goal = t.goalId ? Storage.getGoalById(ws, t.goalId) : null;
+        return '<button type="button" class="session-picker-row" data-picker-three="' + escapeHtml(t.id) + '">' +
+            '<span class="session-picker-name">' + escapeHtml(t.name) + '</span>' +
+            (goal ? '<span class="session-picker-note">' + escapeHtml(goal.name) + '</span>' : '') +
+          '</button>';
+      }).join("");
+    }
+
+    openTasksModal({
+      title: t("dash_three_pick_title"),
+      bodyHtml: candidates.length
+        ? pickerSearchHtml(candidates.length, t("dash_three_search")) +
+          '<div class="session-picker" data-picker-list>' + rowsHtml() + '</div>'
+        : '<p class="tt-modal-message">' + th("dash_three_no_tasks") + '</p>',
+      primaryLabel: t("common_close"),
+      hideCancel: true,
+      onPrimary: function () {},
+      onMounted: function (modalEl) {
+        wirePicker(modalEl, "data-picker-three", rowsHtml, async function (taskId) {
+          var next = Storage.getTodaysThree(data).concat([taskId]);
+          try {
+            await Storage.setTodaysThree(data, next);
+          } catch (err) {
+            console.error("[LaunchPad] Today's three: save failed", err);
+          }
+          closeTasksModal();
+          var panel = document.getElementById("tab-dashboard");
+          if (panel) renderDashboardTab(panel, data);
+        });
+      }
+    });
+  }
+
   // ===== [1.7.1] Hero band regions =====
   //
   // These three replace dashStripHtml, whose four tiles are redistributed rather
@@ -1194,6 +1349,16 @@
     // read would be a second chance for the two to disagree.
     var dueOpen = Storage.tasksDueByDay(ws, dashboardTodayAsUtcDay());
 
+    // [1.7.3] The picked three lead this module, so the list below shows THE
+    // REST. One read of the pick feeds both the lead block and the subtraction,
+    // so the two can never disagree about what was promoted - and the overflow
+    // count in dashDueListHtml is therefore computed on the remaining set and
+    // stays true.
+    var pickedThree = Storage.getTodaysThree(d);
+    var dueRest = (dueOpen || []).filter(function (t) {
+      return pickedThree.indexOf(t.id) === -1;
+    });
+
     // [2.0] Day Recap: today-scoped recap lines in the evening, unchanged, filled
     // two-phase by dashRefreshRecap and gated on the SAME scope that gates the
     // focused tile. :empty collapses it when every line suppresses.
@@ -1244,14 +1409,19 @@
           '</div>' +
           '<div class="dash-hero-region dash-hero-right">' +
             streakCard +
+            // [1.7.3] The week figure joins the streak as its PEER: both are
+            // present-state readings at --display-3, which is what fills the
+            // region [1.7.1] flagged as the band's weakest third.
+            (scope ? dashWeekHtml() : '') +
             dashHeroBlockingHtml(d) +
           '</div>' +
         '</div>' +
         '<div class="dash-row2">' +
           '<div class="dash-mod dash-today">' +
             '<div class="pp-insights-card">' +
+              dashThreeHtml(ws, pickedThree) +
               '<div class="pp-dash-card-title dash-due-title">' + th("dashboard_due_today") + '</div>' +
-              '<div class="dash-due-list">' + dashDueListHtml(ws, dueOpen) + '</div>' +
+              '<div class="dash-due-list">' + dashDueListHtml(ws, dueRest) + '</div>' +
               dashQuickAddHtml() +
             '</div>' +
           '</div>' +
@@ -1268,6 +1438,7 @@
     bindDashboardEvents(panel);
     dashRefreshFocused(panel, scope);
     if (scope) dashRefreshStreak(panel, scope);
+    if (scope) dashRefreshWeek(panel, scope);
     if (period === "evening" && scope) dashRefreshRecap(panel, scope, d);
 
     // [1.0.20 F1] Reconcile the first paint against the FRESH stored boundary.
@@ -1302,6 +1473,27 @@
       var btn = e.target.closest("[data-dash-action]");
       if (!btn) return;
       var action = btn.getAttribute("data-dash-action");
+
+      // [1.7.3] Today's three. The picker is a labelled control on the section
+      // header; removing a pick is the row's own x. Both go through
+      // Storage.setTodaysThree, the per-field writer, never a wholesale write.
+      if (action === "pick-three") {
+        openTodaysThreePicker();
+        return;
+      }
+
+      if (action === "unpick-three") {
+        var dropId = btn.getAttribute("data-task-id");
+        if (!dropId) return;
+        var kept = Storage.getTodaysThree(data).filter(function (id) { return id !== dropId; });
+        try {
+          await Storage.setTodaysThree(data, kept);
+        } catch (err) {
+          console.error("[LaunchPad] Today's three: remove failed", err);
+        }
+        renderDashboardTab(panel, data);
+        return;
+      }
 
       if (action === "lets-go") {
         var taskId = btn.getAttribute("data-task-id");
@@ -8527,6 +8719,14 @@
     if (!el) return;
     var v = Storage.getFocusTargetMin(data);
     el.value = (v === null || v === undefined) ? "" : String(v);
+    // [1.7.3, from the 1.7.2 REVIEW] ECHO THE FRIENDLY FORM. The field stays in
+    // MINUTES so it reads consistently beside the four Pomodoro inputs, and
+    // decimal hours would be an accountant's unit - people think "3h15m", not
+    // "3.25". So the unit does not change; the echo just removes the arithmetic,
+    // turning 240 into "4h" where the user can see it. Absent when no target is
+    // set, because there is nothing to echo and a stray "0m" would read as one.
+    var echo = $("#pro-focus-target-echo");
+    if (echo) echo.textContent = (v === null || v === undefined) ? "" : fmtDurationHM(v * 60000);
   }
 
   function renderProPomodoroSettings() {

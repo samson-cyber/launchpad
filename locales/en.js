@@ -1131,6 +1131,42 @@ I18n.register("en", {
     "message": "Sun",
     "description": "Text sink in dashStartPeriodWatch(). Rendered with t()."
   },
+  "dash_this_week_so_far": {
+    "message": "This week so far",
+    "description": "Label under the running focused-time total for the current calendar week, in the Dashboard hero band's right region beside the day streak. PRESENT STATE, never a comparison: there is deliberately no 'vs last week' here, because week-versus-last is a past-tense reading that belongs to Insights."
+  },
+  "dash_todays_three": {
+    "message": "Today's three",
+    "description": "Section heading for the up-to-three tasks the user has deliberately picked to headline today, leading the Dashboard's Today module above the automatic due-today list."
+  },
+  "dash_three_pick": {
+    "message": "Pick",
+    "description": "Button on the Today's three section header that opens the task picker. Hidden once three are picked, because there is nothing left to add."
+  },
+  "dash_three_empty": {
+    "message": "Nothing picked yet. Pick up to three tasks that matter today.",
+    "description": "Empty state for Today's three, shown when the user has picked nothing for the current local day. An invitation, not a reprimand: picking nothing is a legitimate choice. STATE THE CONDITION AND THE INVITATION ONLY, never a call to action that names the Pick button, which renders immediately above this line."
+  },
+  "dash_three_remove": {
+    "message": "Remove from today's three",
+    "description": "Tooltip on the small x that drops one task from Today's three. Removing a pick does not complete or delete the task."
+  },
+  "dash_three_remove_aria": {
+    "message": "Remove {taskName} from today's three",
+    "description": "Accessible name for the x that drops one task from Today's three. {taskName} is the user's task title. Uses the catalogue's own {name} interpolation, not the Chrome $NAME$ placeholder form, matching dash_due_complete_task_aria on the row beside it."
+  },
+  "dash_three_pick_title": {
+    "message": "Pick a task for today",
+    "description": "Title of the modal that picks one task into Today's three. Singular because the modal adds one at a time and closes."
+  },
+  "dash_three_search": {
+    "message": "Search tasks",
+    "description": "Placeholder for the search field in the Today's three picker modal."
+  },
+  "dash_three_no_tasks": {
+    "message": "No tasks left to pick in this workspace.",
+    "description": "Shown in the Today's three picker when every open task is already picked, or the workspace has no open tasks. Rendered with th()."
+  },
   "dash_tasks_completed": {
     "message": "Tasks completed",
     "description": "Text sink in dashStripHtml(). Rendered with t()."

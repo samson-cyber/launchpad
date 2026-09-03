@@ -9486,6 +9486,79 @@ html.has-bg.bg-light .dash-meta-prio {
   flex-shrink: 0;
 }
 
+.pomo-setting-echo {
+  margin-left: var(--space-2);
+  font-size: var(--fs-12);
+  color: var(--ink-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== [1.7.3] Today's three - the Today module's LEAD =====
+
+   One module with a lead, not two lists stacked. The three sit above the
+   due-today title inside the same card, separated by the card's own hairline
+   rather than by a second frame, so the eye reads "today" once and finds the
+   deliberate answer first and the automatic context beneath it. */
+.dash-three {
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--surface-line);
+}
+
+.dash-three-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+/* The picker is a REAL, LABELLED CONTROL, never a hidden gesture. Quiet enough
+   that it does not compete with the pick-up card's outlined primary button,
+   which stays the one primary on this surface. */
+.dash-three-pick {
+  flex: 0 0 auto;
+  font-size: var(--fs-12);
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--surface-line);
+  background: transparent;
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+
+.dash-three-pick:hover {
+  background: var(--surface-fill);
+  color: var(--ink-primary);
+}
+
+/* A picked row is a due row: SAME chrome, same priority border, same overdue
+   badge. That is what makes promoting a due task lossless - its due-ness travels
+   up with it rather than being left behind in the list it was removed from. */
+.dash-three-row .dash-three-drop {
+  flex: 0 0 auto;
+  margin-left: var(--space-2);
+  width: 20px;
+  height: 20px;
+  line-height: 1;
+  border: none;
+  background: transparent;
+  color: var(--ink-chrome);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+/* Revealed on hover or keyboard focus - focus-within so the control is reachable
+   without a pointer rather than being hover-only. */
+.dash-three-row:hover .dash-three-drop,
+.dash-three-row:focus-within .dash-three-drop { opacity: 1; }
+.dash-three-drop:hover { color: var(--ink-primary); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-three-row .dash-three-drop { transition: none; }
+}
+
 /* [1.7.2] ITEM C - A REGRESSION [1.7.1] CAUSED, NOT A PRE-EXISTING ONE.
    This was flex:1, which made the name eat every spare pixel and pinned the
    overdue badge to the row's far edge. At the old ~560px column that was close
@@ -9925,6 +9998,27 @@ html.has-bg.bg-light .dash-recap-value {
 }
 
 /* Light-wallpaper luminance overrides — preview banner + content */
+/* [1.7.3] ROW TWO'S MODULES NEED THE SAME TREATMENT THE BAND GOT, AND THE
+   COMPOSITING INK PASS IS WHAT FOUND IT. The shipped light-branch rule below
+   sets `color: #222` on .pp-insights-card, which fixes INHERITED ink - but any
+   descendant that declares its own colour through var(--ink-*) overrides that
+   and stays white. .dash-three-pick and .dash-three-drop did exactly that and
+   measured 1.01:1 on a light solid wallpaper, white on white.
+
+   This is the SAME SHAPE as the [1.7.2] hero-region defect one round earlier,
+   which is why it is fixed the same way and one level higher: redefining the
+   tokens on the module means every token-driven descendant flips with the card,
+   so the next control added inside row two does not have to rediscover this. */
+html.has-bg.bg-light .dash-mod .pp-insights-card {
+  --ink-primary: rgba(0, 0, 0, 0.87);
+  --ink-secondary: rgba(0, 0, 0, 0.66);
+  --ink-meta: rgba(0, 0, 0, 0.56);
+  --ink-chrome: rgba(0, 0, 0, 0.46);
+  --ink-hint: rgba(0, 0, 0, 0.38);
+  --surface-line: rgba(0, 0, 0, 0.14);
+  --surface-fill: rgba(0, 0, 0, 0.06);
+}
+
 /* [1.7.2] THE HERO BAND'S LIGHT BRANCH - A DEFECT [1.7.1] SHIPPED AND THIS
    ROUND'S FOUR-FRAME MEASUREMENT CAUGHT. .dash-hero-region took its background
    from var(--pro-frost-card-bg), which FLIPS WHITE under html.bg-light, but the
