@@ -669,6 +669,54 @@ async function runSuite(ctx, store, stats, listeners) {
       missing.length === 0, `missing: ${missing.join(", ")}`);
   }
 
+  // ===== L5 PAGE-SIDE WRITE ADOPTION =====================================
+  // The page half of this file's subject. L1 serializes background writers;
+  // nothing serializes page writers, and a writer that reads its OWN snapshot
+  // (addShortcut and five like it, bookmarks.js importSelected) leaves the
+  // page's module `data` superseded. saveAll now hands the persisted object
+  // back to a registered page callback so the call site cannot forget.
+  //
+  // THIS IS DELIBERATELY A SHAPE ASSERTION, NOT A BEHAVIOURAL ONE. The
+  // behavioural proof is the browser race (drive the control, then drive a
+  // second control that saves the shared `data`, assert the first write
+  // survives) and it lives outside this DOM-less harness. What is worth
+  // pinning here is exactly what the survey proved is easy to get wrong:
+  // "is the hook wired at all", which is a far cheaper question than
+  // distinguishing a pre-write re-read from a post-write refresh - the
+  // distinction that produced three false positives in that survey.
+  {
+    const st = readSubject("storage.js");
+    const nt = readSubject("newtab.js");
+
+    check("L5: the page REGISTERS a write-adoption callback",
+      /Storage\.onWriteAdopt\(\s*function\s*\([\w$]+\)\s*\{[^}]*\bdata\s*=/.test(nt));
+
+    check("L5: storage.js EXPORTS onWriteAdopt",
+      /onWriteAdopt:\s*onWriteAdopt/.test(st));
+
+    // Invocation must sit INSIDE saveAll and AFTER the awaited set, so nothing
+    // adopts an object that failed to persist.
+    const saveAllBody = (st.match(/async function saveAll\(data\)[\s\S]*?\n  \}/) || [""])[0];
+    check("L5: saveAll INVOKES the callback with the object it persisted",
+      /_adoptWrite\(\s*data\s*\)/.test(saveAllBody));
+    check("L5: it invokes AFTER the awaited storage write, not before",
+      /await chrome\.storage\.local\.set\([\s\S]*?_adoptWrite\(/.test(saveAllBody));
+
+    // The service worker imports this file and registers nothing. If the call
+    // were unguarded, every background write would throw on a null callback.
+    check("L5: the callback is OPTIONAL, so the service worker is unaffected",
+      /if\s*\(_adoptWrite\)/.test(saveAllBody) && /var _adoptWrite = null/.test(st));
+
+    // A page-side throw must not fail a write that already succeeded.
+    check("L5: a throwing adopter cannot fail the write that already landed",
+      /_adoptWrite\(\s*data\s*\)[\s\S]{0,120}catch/.test(saveAllBody));
+
+    // background.js must NOT register - that would let a background write
+    // reach into a page's snapshot, which is the opposite of the intent.
+    check("L5: background.js registers no adopter",
+      !/onWriteAdopt/.test(readSubject("background.js")));
+  }
+
   return rows;
 }
 

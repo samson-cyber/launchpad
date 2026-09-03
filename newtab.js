@@ -2,6 +2,20 @@
   "use strict";
 
   var data = null;
+  // [L5] Adopt every persisted object as the module snapshot. Registered here,
+  // beside the declaration, so it is in force before any handler can bind - and
+  // registered by the PAGE, because storage.js is also imported by the service
+  // worker, which registers nothing and is therefore unchanged.
+  //
+  // This is an identity assignment for every write that passes the shared
+  // `data` (all 75 page saveAll calls and every data-first writer). It only
+  // reassigns for a writer that read its own snapshot, which is the case the
+  // five call-site re-reads used to cover by hand.
+  //
+  // It deliberately does NOT render. The onChanged own-tab suppression exists
+  // to stop a re-render wiping DOM state mid-interaction; adopting a reference
+  // does not touch the DOM, and that path is untouched.
+  Storage.onWriteAdopt(function (persisted) { data = persisted; });
   var sortables = [];
   var groupSortable = null;
   var activeMenu = null;
@@ -17777,7 +17791,6 @@
       if (!activeMenu) return;
       await Storage.removeShortcut(activeMenu.groupId, activeMenu.shortcutId);
       hideMenu();
-      data = await Storage.getAll();
       render();
     });
     safeOn("#menu-open-default", "click", function () {
@@ -18269,7 +18282,6 @@
     var name = prompt(t("add_group_name"));
     if (!name || !name.trim()) return;
     await Storage.addGroup(name.trim());
-    data = await Storage.getAll();
     render();
     refreshGettingStartedIfOpen();
   }
@@ -18480,7 +18492,6 @@
     if (!groupId) return;
     hideDeleteDialog();
     await Storage.removeGroup(groupId);
-    data = await Storage.getAll();
     render();
   }
 
@@ -18502,7 +18513,6 @@
 
     hideDeleteDialog();
     await Storage.removeGroup(groupId);
-    data = await Storage.getAll();
     render();
   }
 

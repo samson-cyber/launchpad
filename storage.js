@@ -16,6 +16,31 @@ var Storage = (function () {
     : (Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
   var _pendingWriteIds = new Set();
 
+  // [L5] PAGE-SIDE WRITE ADOPTION. saveAll persists the WHOLE object, so a
+  // writer that read its OWN snapshot (addShortcut and the five like it,
+  // bookmarks.js importSelected) leaves the page's module `data` pointing at a
+  // superseded object. That was historically defused by a convention - re-read
+  // after the call - held at five call sites and enforced by nothing.
+  //
+  // Instead saveAll hands the object it just persisted back to whoever
+  // registered, so the page cannot be left holding a stale snapshot no matter
+  // which writer ran. Adoption does NOT render: the onChanged own-tab
+  // suppression exists to prevent a re-render wiping DOM state mid-interaction,
+  // and that path is untouched.
+  //
+  // It is also a no-op in the overwhelming majority of cases, which is why it
+  // is safe: every page saveAll call passes the shared `data`, so the callback
+  // receives the object that already IS `data` and the assignment is an
+  // identity. It only changes anything for the seven self-reading writers.
+  //
+  // OPTIONAL BY DESIGN. The service worker imports this file and registers
+  // nothing, so `_adoptWrite` stays null there and behaviour is exactly as
+  // before - no background write can reach into a page.
+  var _adoptWrite = null;
+  function onWriteAdopt(fn) {
+    _adoptWrite = (typeof fn === "function") ? fn : null;
+  }
+
   function genWriteId() {
     return (typeof crypto !== "undefined" && crypto.randomUUID)
       ? crypto.randomUUID()
@@ -1505,6 +1530,16 @@ var Storage = (function () {
         data: data,
         __lastWrite: { tab: TAB_INSTANCE_ID, writeId: writeId, ts: Date.now() }
       });
+      // Hand the persisted object to the page (see onWriteAdopt). AFTER the
+      // await, so nothing adopts an object that failed to persist, and inside
+      // its own try so a page-side throw cannot fail the write that succeeded.
+      if (_adoptWrite) {
+        try {
+          _adoptWrite(data);
+        } catch (adoptErr) {
+          console.error("[LaunchPad] Write adoption failed:", adoptErr);
+        }
+      }
     } catch (err) {
       console.error("[LaunchPad] Storage write failed:", err);
     }
@@ -6618,6 +6653,7 @@ var Storage = (function () {
     // [1.0.11.2] Write-provenance hooks — see saveAll() above.
     TAB_INSTANCE_ID: TAB_INSTANCE_ID,
     _pendingWriteIds: _pendingWriteIds,
+    onWriteAdopt: onWriteAdopt,
     getDefaultData: getDefaultData,
     getAll: getAll,
     saveAll: saveAll,
