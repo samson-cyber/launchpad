@@ -1251,6 +1251,46 @@ I18n.register("en", {
     "message": "Daily avg",
     "description": "Text sink in insightsStripHtml(). Rendered with t()."
   },
+  "insights_wk_title": {
+    "message": "This week vs last",
+    "description": "Title of the [1.8.3] weekly review card on Insights. Rendered with th()."
+  },
+  "insights_wk_span_one": {
+    "message": "{day}, against the same day last week",
+    "description": "Span caption on the weekly review card when the week is one day old (a Monday). Names WHICH days are being compared, because a like-for-like comparison over one day is a different claim from one over seven. Rendered with t()."
+  },
+  "insights_wk_span_many": {
+    "message": "{from}-{to}, against the same days last week",
+    "description": "Span caption on the weekly review card. The comparison is like-for-like: this week's elapsed days against the SAME days of last week, never a partial week against a whole one. Rendered with t()."
+  },
+  "insights_wk_no_prior": {
+    "message": "no last week yet",
+    "description": "Shown in place of the comparison on the weekly review card when no previous week exists at all. Deliberately not a 100% drop - there is nothing to compare to, which is different from having done less. Rendered with th()."
+  },
+  "insights_wk_focused": {
+    "message": "Focused",
+    "description": "Row label on the weekly review card. Rendered with th()."
+  },
+  "insights_wk_longest": {
+    "message": "Longest stretch",
+    "description": "Row label on the weekly review card - the longest single focus session in the week. Rendered with th()."
+  },
+  "insights_wk_blocked": {
+    "message": "Blocks",
+    "description": "Row label on the weekly review card - times a blocked site was intercepted. Rendered with th()."
+  },
+  "insights_wk_snoozed": {
+    "message": "Snoozes",
+    "description": "Row label on the weekly review card - times a block was snoozed. Rendered with th()."
+  },
+  "insights_wk_top_task": {
+    "message": "Top task",
+    "description": "Label on the weekly review card. Rendered with th()."
+  },
+  "insights_wk_top_tag": {
+    "message": "Top tag",
+    "description": "Label on the weekly review card. Rendered with th()."
+  },
   "insights_last_30_days": {
     "message": "last 30 days",
     "description": "Text sink in insightsKeyToTs(). Rendered with t()."

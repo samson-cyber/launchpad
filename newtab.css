@@ -10325,6 +10325,86 @@ html.has-bg.bg-light .insights-tab .pp-insights-card {
 }
 .ins-peer { min-width: 0; }
 
+/* [1.8.3] ROW THREE. Twelve columns on the same track definition the hero and
+   the peers use, so the three rows share one rhythm. The weekly card takes
+   span 4; the remaining EIGHT are the heatmap's ([1.8.5]) and are reserved
+   rather than filled - the [1.7.1] precedent, which held the hero band's shape
+   open before the ring and the strip existed so it could be judged early and
+   would not jump later. */
+.ins-row3 {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+.ins-weekly { grid-column: span 4; min-width: 0; }
+
+.ins-wk-span {
+  margin: 0 0 var(--space-3);
+  font-size: var(--fs-11);
+  opacity: 0.7;
+}
+.ins-wk-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* label | figure | delta. The figure and the delta are both right-anchored so
+   the eye reads down a column of numbers rather than across four ragged rows. */
+.ins-wk-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+.ins-wk-label {
+  font-size: var(--fs-12);
+  opacity: 0.7;
+}
+.ins-wk-now {
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+}
+
+/* THE ARROW AND ITS MAGNITUDE ARE NEUTRAL INK, AND THAT IS THE POINT OF THIS
+   CARD. No green, no red, no fill, no background - the only colour rule on the
+   board that exists to be NOT applied. A week with less focused time is
+   information, not a fault, and the moment this glyph turns red the surface
+   has started scoring the user. Ink comes from the board root by inheritance
+   and is stepped back with opacity, the same pattern every other label here
+   uses and the one that survives the light-wallpaper branch. */
+.ins-wk-delta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+.ins-wk-arrow { font-size: var(--fs-12); }
+.ins-wk-delta-none { opacity: 0.55; }
+
+.ins-wk-tops {
+  margin-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ins-wk-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ins-wk-top-name {
+  font-size: var(--fs-12);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* [1.8.1] THE PEERS STACK AT 1200, NOT AT 900, AND THE MEASUREMENT IS WHY.
    Nothing breaks at 900 - .insights-task-name ellipsises, so the layout holds
    and the body never scrolls horizontally at any width tested. What fails is
@@ -10341,6 +10421,11 @@ html.has-bg.bg-light .insights-tab .pp-insights-card {
    question and needs a different answer. */
 @media (max-width: 1200px) {
   .ins-peers { grid-template-columns: minmax(0, 1fr); }
+  /* [1.8.3] Row three stacks at the SAME width. A span-4 card is ~250px at
+     this size, which is narrower than the peers were when they were measured
+     unusable, so it goes full width with them rather than earning a third
+     breakpoint. */
+  .ins-weekly { grid-column: span 12; }
 }
 
 /* [1.8.1] .insights-strip and .insights-strip-item ARE retired - Insights was

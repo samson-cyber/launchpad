@@ -420,6 +420,41 @@ var Storage = (function () {
     return out;
   }
 
+  // [1.8.3] LAST week's seven day keys. It DELEGATES rather than computing a
+  // week of its own: startOfLocalWeek(ts) - 1 is the last millisecond of the
+  // previous week, and localWeekDayKeys walks from that week's first day up to
+  // and including the day that timestamp falls on - which is that week's last
+  // day. So it returns exactly seven keys, from one implementation.
+  //
+  // A second week calculation is the thing this must not become. The 04:00
+  // correction happened because two places decided what a boundary was; the
+  // weekly review card on Insights and the this-week-so-far strip on the
+  // Dashboard now describe the same week on two surfaces, and they agree by
+  // construction rather than by both being careful.
+  function lastLocalWeekDayKeys(ts) {
+    return localWeekDayKeys(startOfLocalWeek(ts) - 1);
+  }
+
+  // [1.8.3] Blocks and snoozes summed over a set of day keys.
+  //
+  // KEY ALIGNMENT IS THE THING TO GET RIGHT HERE AND IT IS NOT OBVIOUS:
+  // focusStats.byDay is keyed by achDayKey, the week helpers emit localDayKey,
+  // and the two are separate functions. They are byte-identical in
+  // construction - local calendar, YYYY-MM-DD, zero-padded - so the keys index
+  // straight in. If either ever changes, this reader silently returns zeroes
+  // rather than throwing, which is why the alignment is written down here.
+  function focusStatsForKeys(data, keys) {
+    var stats = ensureFocusStats(data);
+    var out = { blocked: 0, snoozed: 0 };
+    (keys || []).forEach(function (k) {
+      var b = stats.byDay[k];
+      if (!b) return;
+      out.blocked += b.blocked || 0;
+      out.snoozed += b.snoozed || 0;
+    });
+    return out;
+  }
+
   // ===== [1.7.3] G9 today's three =====
   //
   // PER-WORKSPACE, and the contrast with the focus target is deliberate. The
@@ -6710,6 +6745,8 @@ var Storage = (function () {
     startOfLocalWeek: startOfLocalWeek,
     localWeekFirstDay: localWeekFirstDay,
     localWeekDayKeys: localWeekDayKeys,
+    lastLocalWeekDayKeys: lastLocalWeekDayKeys,
+    focusStatsForKeys: focusStatsForKeys,
     getTodaysThree: getTodaysThree,
     setTodaysThree: setTodaysThree,
     getFocusTargetMin: getFocusTargetMin,

@@ -2520,6 +2520,17 @@
             '<div class="pp-dash-card-title">Top tasks · ' + escapeHtml(rangeLabel) + '</div>' +
             '<div class="insights-task-list" data-ins-toptasks></div>' +
           '</div>' +
+        '</div>' +
+        // [1.8.3] ROW THREE. Design guide 4.2 puts the heatmap at span 8 and
+        // the weekly review at span 4. The heatmap is [1.8.5], and the space
+        // it will occupy is RESERVED RATHER THAN FILLED WITH A PLACEHOLDER -
+        // the [1.7.1] precedent for the ring and the this-week strip, which
+        // held their shape open so the band could be judged before they landed
+        // and did not jump when they did. A placeholder would have to be
+        // designed, then deleted, and would be the only thing on the board
+        // making a promise.
+        '<div class="ins-row3">' +
+          '<div class="pp-insights-card ins-weekly" data-ins-weekly></div>' +
         '</div>'
       : "";
 
@@ -2531,6 +2542,89 @@
 
     bindInsightsEvents(panel);
     if (scope) insightsRefresh(panel, scope, d, rangeDays, customKeys);
+  }
+
+  // [1.8.3] Reads both weeks and paints the card. Separate from insightsRefresh
+  // because it is on its own window and must not be re-run when the range
+  // selector moves - and because a failure here must not take the rest of the
+  // board down with it.
+  async function insightsFillWeekly(panel, scope, d) {
+    var el = panel.querySelector("[data-ins-weekly]");
+    if (!el || !scope) return;
+    if (typeof Tracking === "undefined" || !Tracking.focusedRangeForScope) return;
+
+    // ONE implementation of the week boundary, called twice. thisKeys is
+    // "so far" by construction; lastKeys is last week's full seven, and the
+    // slice is what makes the comparison like-for-like.
+    var thisKeys = Storage.localWeekDayKeys();
+    var lastAll = Storage.lastLocalWeekDayKeys();
+    var lastKeys = lastAll.slice(0, thisKeys.length);
+
+    var res;
+    try {
+      res = await Promise.all([
+        Tracking.focusedRangeForScope(scope.workspaceId, thisKeys),
+        Tracking.focusedRangeForScope(scope.workspaceId, lastKeys),
+        Tracking.longestSessionForScope(scope.workspaceId, thisKeys),
+        Tracking.longestSessionForScope(scope.workspaceId, lastKeys),
+        Tracking.byTaskForScope(scope.workspaceId, thisKeys),
+        Tracking.byTagForScope(scope.workspaceId, thisKeys)
+      ]);
+    } catch (err) {
+      console.error("[LaunchPad] Insights: weekly read failed", err);
+      return;
+    }
+    var sum = function (m) {
+      return Object.keys(m || {}).reduce(function (a, k) { return a + (m[k] || 0); }, 0);
+    };
+    var topOf = function (recs, idKey, nameFor) {
+      var best = null;
+      (recs || []).forEach(function (r) { if (!best || r.ms > best.ms) best = r; });
+      return best ? nameFor(best[idKey]) : null;
+    };
+    var ws = Storage.getActiveWorkspace(d);
+    var blocksNow = Storage.focusStatsForKeys(d, thisKeys);
+    var blocksPrev = Storage.focusStatsForKeys(d, lastKeys);
+
+    // "Is there a previous week to compare to" is a question about the RECORD,
+    // not about whether that week had focus time in it. A user whose last week
+    // was genuinely idle should see a real comparison against zero; a user who
+    // did not have a last week should see no comparison at all. The two are
+    // distinguished by whether ANY of last week's days carry a figure the
+    // engine could have recorded - focus, a block, or a snooze.
+    var hasPrev = sum(res[1]) > 0 || res[3] > 0 ||
+      blocksPrev.blocked > 0 || blocksPrev.snoozed > 0;
+
+    var dayName = function (key) {
+      var p = String(key).split("-");
+      var dt = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+      return dt.toLocaleDateString(undefined, { weekday: "short" });
+    };
+    var spanLabel = thisKeys.length === 1
+      ? t("insights_wk_span_one", { day: dayName(thisKeys[0]) })
+      : t("insights_wk_span_many", {
+          from: dayName(thisKeys[0]),
+          to: dayName(thisKeys[thisKeys.length - 1])
+        });
+
+    el.innerHTML =
+      '<div class="pp-dash-card-title">' + th("insights_wk_title") + '</div>' +
+      insightsWeeklyHtml({
+        spanLabel: spanLabel,
+        hasPrev: hasPrev,
+        focusedNow: sum(res[0]), focusedPrev: sum(res[1]),
+        longestNow: res[2] || 0, longestPrev: res[3] || 0,
+        blockedNow: blocksNow.blocked, blockedPrev: blocksPrev.blocked,
+        snoozedNow: blocksNow.snoozed, snoozedPrev: blocksPrev.snoozed,
+        topTask: topOf(res[4], "taskId", function (id) {
+          var task = ws ? Storage.getTaskById(ws, id) : null;
+          return task ? task.name : null;
+        }),
+        topTag: topOf(res[5], "tagId", function (id) {
+          var tag = ws && Storage.getTagById ? Storage.getTagById(ws, id) : null;
+          return tag ? tag.name : null;
+        })
+      });
   }
 
   // [1.2.2] Delegated on the panel container, which survives the innerHTML
@@ -2600,6 +2694,99 @@
     });
   }
 
+  // ===== [1.8.3] F2 the weekly review card =====
+  //
+  // THE PARTIAL-WEEK PROBLEM, DECIDED RATHER THAN LEFT TO THE ARITHMETIC.
+  // On a Tuesday "this week" is two days and "last week" is seven. A raw
+  // comparison reports a 70% collapse every Monday morning that recovers by
+  // itself through the week - a number that means nothing and reads as a
+  // rebuke. Of the three options:
+  //   - COMPARE ONLY COMPLETED WEEKS: honest, but the card then says nothing
+  //     about the week the user is actually in, which is the week they care
+  //     about, and it is blank for seven days at a time.
+  //   - STATE THE PARTIALITY IN THE LABEL: the number is still wrong, it is
+  //     merely annotated. A caption does not repair a misleading figure.
+  //   - COMPARE LIKE FOR LIKE: this week's elapsed days against THE SAME DAYS
+  //     of last week. Chosen. On a Tuesday it is two days against two days,
+  //     which is a real comparison rather than an artefact of the calendar.
+  // The span is still named on the card, because "this week vs last" over two
+  // days is a different claim from over seven and the reader should be able to
+  // see which one they are being shown.
+  //
+  // ON A MONDAY the card compares today against last Monday. That is one day
+  // against one day - a small sample, and the label says so ("Mon") - but it is
+  // not a fabricated 85% drop, and it is the same shape the rest of the week
+  // uses rather than a special case that appears once and vanishes.
+  //
+  // THE ARROW IS NEUTRAL INK. Never green, never red, no fill, no background.
+  // A week with less focused time is information, not a fault. This is the only
+  // element on the board that compares anything, which is exactly why it is the
+  // one that has to get this right.
+  function insightsWeeklyDelta(now, prev, hasPrev) {
+    if (!hasPrev) return '<span class="ins-wk-delta ins-wk-delta-none">' + th("insights_wk_no_prior") + '</span>';
+    var diff = now - prev;
+    // Zero is its own state and gets the level glyph, not an arrow pointing at
+    // nothing. The threshold is exact equality: a one-minute difference is a
+    // difference, and rounding it away would be the product deciding what
+    // counts as change on the user's behalf.
+    var glyph = diff === 0 ? "\u2014" : (diff > 0 ? "\u2191" : "\u2193");
+    var mag = diff === 0 ? "" : fmtDurationHM(Math.abs(diff));
+    return '<span class="ins-wk-delta">' +
+        '<span class="ins-wk-arrow" aria-hidden="true">' + glyph + '</span>' +
+        (mag ? '<span class="ins-wk-mag">' + escapeHtml(mag) + '</span>' : '') +
+      '</span>';
+  }
+
+  function insightsWeeklyCountDelta(now, prev, hasPrev) {
+    if (!hasPrev) return '<span class="ins-wk-delta ins-wk-delta-none">' + th("insights_wk_no_prior") + '</span>';
+    var diff = now - prev;
+    var glyph = diff === 0 ? "\u2014" : (diff > 0 ? "\u2191" : "\u2193");
+    return '<span class="ins-wk-delta">' +
+        '<span class="ins-wk-arrow" aria-hidden="true">' + glyph + '</span>' +
+        (diff === 0 ? "" : '<span class="ins-wk-mag">' + Math.abs(diff) + '</span>') +
+      '</span>';
+  }
+
+  function insightsWeeklyRow(label, value, deltaHtml) {
+    return '<div class="ins-wk-row">' +
+        '<span class="ins-wk-label">' + label + '</span>' +
+        '<span class="ins-wk-now">' + escapeHtml(value) + '</span>' +
+        deltaHtml +
+      '</div>';
+  }
+
+  function insightsWeeklyHtml(w) {
+    // hasPrev is about whether a comparable week EXISTS AT ALL, not whether it
+    // had focus time. A new user's first week must not be reported as a 100%
+    // drop against a week that never happened - that is the difference between
+    // "you did less" and "there is nothing to compare to yet".
+    var hasPrev = w.hasPrev;
+    var rows =
+      insightsWeeklyRow(th("insights_wk_focused"), fmtDurationHM(w.focusedNow),
+        insightsWeeklyDelta(w.focusedNow, w.focusedPrev, hasPrev)) +
+      insightsWeeklyRow(th("insights_wk_longest"),
+        w.longestNow > 0 ? fmtDurationHM(w.longestNow) : "\u2014",
+        insightsWeeklyDelta(w.longestNow, w.longestPrev, hasPrev)) +
+      insightsWeeklyRow(th("insights_wk_blocked"), String(w.blockedNow),
+        insightsWeeklyCountDelta(w.blockedNow, w.blockedPrev, hasPrev)) +
+      insightsWeeklyRow(th("insights_wk_snoozed"), String(w.snoozedNow),
+        insightsWeeklyCountDelta(w.snoozedNow, w.snoozedPrev, hasPrev));
+
+    var tops = '<div class="ins-wk-tops">' +
+        '<div class="ins-wk-top">' +
+          '<span class="ins-wk-label">' + th("insights_wk_top_task") + '</span>' +
+          '<span class="ins-wk-top-name">' + escapeHtml(w.topTask || "\u2014") + '</span>' +
+        '</div>' +
+        '<div class="ins-wk-top">' +
+          '<span class="ins-wk-label">' + th("insights_wk_top_tag") + '</span>' +
+          '<span class="ins-wk-top-name">' + escapeHtml(w.topTag || "\u2014") + '</span>' +
+        '</div>' +
+      '</div>';
+
+    return '<p class="ins-wk-span">' + escapeHtml(w.spanLabel) + '</p>' +
+      '<div class="ins-wk-rows">' + rows + '</div>' + tops;
+  }
+
   function insightsFill(panel, selector, html) {
     var el = panel.querySelector(selector);
     if (el) el.innerHTML = html;
@@ -2659,6 +2846,12 @@
       insightsBarChartSvg(hours, todayIdx, "Deep work, " + rangeLabelNow,
         fmtShortDate(insightsKeyToTs(keys[0])),
         endsToday ? "today" : fmtShortDate(insightsKeyToTs(keys[keys.length - 1]))));
+    // [1.8.3] The weekly card is INDEPENDENT OF THE RANGE SELECTOR - it always
+    // describes this week against last, whatever window the rest of the board
+    // is showing. That is deliberate: "this week vs last" is a fixed question,
+    // and re-scoping it to a 30-day selection would make it answer a different
+    // one under the same title.
+    insightsFillWeekly(panel, scope, d);
     insightsFill(panel, "[data-ins-donut]", insightsTagDonutHtml(byTag, scopeTotalMs, d, combined, rangeLabelNow));
     insightsFill(panel, "[data-ins-topsites]", insightsTopSitesHtml(byDomain, d, combined, rangeLabelNow));
     insightsFill(panel, "[data-ins-toptasks]", insightsTopTasksHtml(byTask, d, combined, rangeLabelNow));

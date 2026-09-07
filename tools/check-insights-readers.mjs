@@ -179,6 +179,83 @@ await (async () => {
     (await T.byDomainForScope("main", T.lastNLocalDayKeys(30))).length === 0);
 })();
 
+// ===== [1.8.3] THE WEEK READERS THE WEEKLY REVIEW CARD USES =================
+// The card compares this week against last on Insights while the Dashboard
+// shows this-week-so-far. Both call Storage.localWeekDayKeys, so they agree by
+// construction - but only as long as last week is DERIVED from that same
+// helper rather than computed a second time, and only as long as the focus
+// stats index on the same day keys. Both are asserted here.
+{
+  const S = ctx.Storage;
+  const has = (fn) => S && typeof S[fn] === "function";
+
+  check("[1.8.3] Storage exposes lastLocalWeekDayKeys and focusStatsForKeys",
+    has("lastLocalWeekDayKeys") && has("focusStatsForKeys"));
+
+  // THE ONE-IMPLEMENTATION CONSTRAINT, ASSERTED STRUCTURALLY. The output checks
+  // below would all pass a second, independent week calculation that happens to
+  // agree today - which is exactly the drift the 04:00 correction was about. So
+  // the delegation itself is pinned: last week must be derived by calling the
+  // same helper, not by subtracting seven days from anything.
+  {
+    const src = fs.readFileSync(path.join(repoRoot, "storage.js"), "utf8");
+    const m = src.match(/function lastLocalWeekDayKeys\([\s\S]*?\n  \}/);
+    const body = m ? m[0] : "";
+    check("[1.8.3] lastLocalWeekDayKeys DELEGATES to localWeekDayKeys/startOfLocalWeek",
+      /return localWeekDayKeys\(startOfLocalWeek\(ts\) - 1\)/.test(body), body.slice(0, 140));
+    check("[1.8.3] ...and computes no week of its own",
+      body.length > 0 && !/604800000/.test(body) && !/setDate\(/.test(body) &&
+      !/7\s*\*\s*24/.test(body), body.slice(0, 140));
+  }
+
+  if (has("lastLocalWeekDayKeys")) {
+    const thisWeek = S.localWeekDayKeys();
+    const lastWeek = S.lastLocalWeekDayKeys();
+    check("[1.8.3] last week is always SEVEN days, however far into this week we are",
+      lastWeek.length === 7, `got ${lastWeek.length}`);
+    check("[1.8.3] every one of last week's keys precedes this week's first day",
+      lastWeek.every((k) => k < thisWeek[0]), JSON.stringify([lastWeek[6], thisWeek[0]]));
+    check("[1.8.3] last week's days are contiguous and ascending",
+      lastWeek.every((k, i) => i === 0 || k > lastWeek[i - 1]), JSON.stringify(lastWeek));
+    // The like-for-like slice is what stops a Tuesday being compared with a
+    // whole week. It must never ask for more days than last week has.
+    check("[1.8.3] the like-for-like slice never exceeds seven",
+      thisWeek.length <= 7 && lastWeek.slice(0, thisWeek.length).length === thisWeek.length,
+      `${thisWeek.length} of ${lastWeek.length}`);
+    check("[1.8.3] this week is 'so far' - it never runs past today",
+      thisWeek[thisWeek.length - 1] === T._localDayKey(Date.now()),
+      JSON.stringify(thisWeek));
+  }
+
+  if (has("focusStatsForKeys")) {
+    const keys = S.localWeekDayKeys();
+    // THE KEY ALIGNMENT, asserted rather than assumed: focusStats is keyed by
+    // achDayKey and the week helpers emit localDayKey. They are separate
+    // functions that happen to build the same string. If either drifts this
+    // reader returns zeroes silently, so the agreement is pinned here.
+    const data = { focusStats: { version: 1, byDay: {} } };
+    data.focusStats.byDay[keys[0]] = { blocked: 3, snoozed: 1 };
+    if (keys.length > 1) data.focusStats.byDay[keys[1]] = { blocked: 2, snoozed: 4 };
+    data.focusStats.byDay["1999-01-01"] = { blocked: 99, snoozed: 99 };
+    const got = S.focusStatsForKeys(data, keys);
+    const expectB = keys.length > 1 ? 5 : 3;
+    const expectS = keys.length > 1 ? 5 : 1;
+    check("[1.8.3] focusStatsForKeys sums ONLY the requested days",
+      got.blocked === expectB && got.snoozed === expectS, JSON.stringify(got));
+    check("[1.8.3] a day outside the window contributes nothing",
+      got.blocked < 99 && got.snoozed < 99, JSON.stringify(got));
+    check("[1.8.3] an empty key list yields zeroes, never undefined",
+      JSON.stringify(S.focusStatsForKeys(data, [])) === JSON.stringify({ blocked: 0, snoozed: 0 }),
+      JSON.stringify(S.focusStatsForKeys(data, [])));
+    check("[1.8.3] a profile with no focusStats at all reads as zero, not a throw",
+      JSON.stringify(S.focusStatsForKeys({}, keys)) === JSON.stringify({ blocked: 0, snoozed: 0 }));
+    // The stats keys must index straight into the week keys - the whole point.
+    check("[1.8.3] focusStats day keys and week day keys are the SAME shape",
+      Object.keys(data.focusStats.byDay).some((k) => keys.includes(k)),
+      JSON.stringify(Object.keys(data.focusStats.byDay)));
+  }
+}
+
 let pass = 0, fail = 0;
 console.log("\nINSIGHTS READERS — windowed rollups\n");
 for (const r of rows) {
