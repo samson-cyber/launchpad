@@ -426,7 +426,18 @@
       byDomain: {},
       byTag: {},
       byTask: {},
-      longestSessionMs: 0
+      longestSessionMs: 0,
+      // [1.8.2] HOUR-OF-DAY, 24 SLOTS, SPARSE - only hours with time land here.
+      //
+      // 24 rather than 168 (hour-by-weekday) BECAUSE THE WEEKDAY IS ALREADY
+      // KNOWN: this aggregate IS one calendar day, `agg.day` names it, and a
+      // weekday is a pure function of that key. Storing 168 slots per day would
+      // make 144 of them permanently unreachable - a single Tuesday can never
+      // put time in a Thursday column. The heatmap's weekday axis is built by
+      // grouping DAYS, not by a second index inside one.
+      // Cost at 30 days x 1 workspace: at most 720 integers, and far fewer in
+      // practice because only worked hours are keyed.
+      byHour: {}
     };
   }
 
@@ -448,12 +459,43 @@
   // Date rather than adding 24h, so DST-short and DST-long days split at their
   // real boundaries. Each step is strictly forward (the next local midnight is
   // always after the cursor), so this cannot spin.
+  // [1.8.2] The hour boundary, and it is deliberately the SAME SHAPE as
+  // startOfNextLocalDay rather than `ts + HOUR_MS`. Anchoring to the local
+  // clock and stepping with Date.setHours walks the local calendar, so a DST
+  // transition produces the 23- or 25-hour day the user actually lived through;
+  // a fixed 3600000 step would silently smear an hour across the wrong slot
+  // twice a year. Same reasoning that put lastNLocalDayKeys on setDate.
+  function startOfNextLocalHour(ts) {
+    var d = new Date(ts);
+    d.setMinutes(0, 0, 0);
+    d.setHours(d.getHours() + 1);
+    return d.getTime();
+  }
+
+  // Split a span into { hour, ms } pieces at local hour boundaries. Called on a
+  // segment that has ALREADY been split at local midnight, so every piece it
+  // returns belongs to one calendar day and one hour of it.
+  function splitAcrossLocalHours(start, end) {
+    var out = [];
+    var cursor = start;
+    while (cursor < end) {
+      var boundary = Math.min(end, startOfNextLocalHour(cursor));
+      out.push({ hour: new Date(cursor).getHours(), ms: boundary - cursor });
+      cursor = boundary;
+    }
+    return out;
+  }
+
   function splitAcrossLocalDays(start, end) {
     var out = [];
     var cursor = start;
     while (cursor < end) {
       var boundary = Math.min(end, startOfNextLocalDay(cursor));
-      out.push({ dayKey: localDayKey(cursor), ms: boundary - cursor });
+      // [1.8.2] `start`/`end` added so callers can sub-split the segment
+      // without recomputing the midnight boundary a second way. Additive: the
+      // existing callers read only dayKey and ms.
+      out.push({ dayKey: localDayKey(cursor), ms: boundary - cursor,
+                 start: cursor, end: boundary });
       cursor = boundary;
     }
     return out;
@@ -481,6 +523,18 @@
       var agg = days[key] || emptyDay(seg.dayKey, session.workspaceId);
 
       agg.totalFocusedMs += seg.ms;
+      // [1.8.2] Aggregates written before this round have no byHour. Create it
+      // lazily rather than migrating the store: a day that predates the field
+      // simply starts accumulating from its next contribution.
+      if (!agg.byHour) agg.byHour = {};
+      // The hours are split from the segment, which is already inside one
+      // calendar day - so midnight is honoured by splitAcrossLocalDays above
+      // and the hour boundaries by splitAcrossLocalHours, each exactly once.
+      // Summing these pieces reproduces seg.ms, which is what keeps byHour
+      // reconciling against totalFocusedMs.
+      splitAcrossLocalHours(seg.start, seg.end).forEach(function (h) {
+        agg.byHour[h.hour] = (agg.byHour[h.hour] || 0) + h.ms;
+      });
       agg.byDomain[session.domain] = (agg.byDomain[session.domain] || 0) + seg.ms;
       (session.tagIds || []).forEach(function (t) {
         agg.byTag[t] = (agg.byTag[t] || 0) + seg.ms;
@@ -717,6 +771,58 @@
     return true;
   }
 
+  // [1.8.2] ONE-TIME HOURLY BACKFILL, from the 30-day raw window.
+  //
+  // ORDERING, AND IT IS THE OPPOSITE CONSTRAINT TO backfillLifetime's. That one
+  // reads the DAY AGGREGATES and so must run before the rollup writes into
+  // them. This one reads the RAW SESSIONS, and the rollup's own hourly write
+  // covers every session it stamps - so the hazard here is the reverse: any
+  // session this backfill touches that the rollup will ALSO touch gets counted
+  // twice. It is therefore run BEFORE the rollup and processes ONLY sessions
+  // already stamped `aggregated`. Unstamped ones are left entirely to the
+  // rollup. The two sets are disjoint by the stamp, which is the same
+  // idempotency mechanism D3 already relies on.
+  //
+  // WHAT THIS CANNOT RECOVER, and it matters because a partial history looks
+  // exactly like a complete one on a heatmap:
+  //   - Any day whose raw sessions were pruned past the 30-day retention
+  //     window. tracking_days is never swept, so those aggregates still carry
+  //     totalFocusedMs with NO hourly detail to reconstruct it from.
+  //   - Any session captured before the engine existed at all.
+  // For those days byHour sums to LESS than totalFocusedMs, and no amount of
+  // reading storage can tell the difference between "did not work at 3pm" and
+  // "worked at 3pm before we recorded hours". So the floor is RECORDED rather
+  // than inferred: hourlyKnownFrom is the oldest session start this pass could
+  // actually see, and the chart is expected to say so instead of drawing a
+  // confident empty morning.
+  function backfillHourly(store, days) {
+    if (store.hourlyBackfilledAt) return false;      // one-time, guarded
+
+    var oldest = null;
+    (store.sessions || []).forEach(function (sess) {
+      if (!sess.aggregated) return;                  // the rollup owns these
+      var duration = (sess.end || 0) - (sess.start || 0);
+      if (!(duration > 0)) return;
+      if (oldest === null || sess.start < oldest) oldest = sess.start;
+      splitAcrossLocalDays(sess.start, sess.end).forEach(function (seg) {
+        var agg = days[dayAggregateKey(sess.workspaceId, seg.dayKey)];
+        if (!agg) return;                            // nothing to attach to
+        if (!agg.byHour) agg.byHour = {};
+        splitAcrossLocalHours(seg.start, seg.end).forEach(function (h) {
+          agg.byHour[h.hour] = (agg.byHour[h.hour] || 0) + h.ms;
+        });
+      });
+    });
+
+    // Anchored to the oldest record actually seen, never to now - the same
+    // honesty backfillLifetime's `since` needed for exactly the same reason.
+    // With no usable sessions there is no hour history to claim, and null says
+    // that rather than pretending the record starts today.
+    store.hourlyKnownFrom = oldest;
+    store.hourlyBackfilledAt = Date.now();
+    return true;                                     // ran; persist the flag
+  }
+
   async function rollupAndPruneInner() {
     var data = await Storage.getAll();
     var store = await readStore();
@@ -737,6 +843,10 @@
     // just rolled up and add it a second time - measured as an exact 2x on the
     // first close. Snapshot the history, then accumulate forward on top of it.
     var backfilled = backfillLifetime(store, days, data);
+    // [1.8.2] Before the rollup, and only over already-stamped sessions - see
+    // the note on backfillHourly for why that is the opposite ordering rule to
+    // the line above it.
+    var hourly = backfillHourly(store, days);
     var rolled = rollupUnaggregated(store, days, data, lifetime);
 
     var cutoff = Date.now() - RETENTION_DAYS * DAY_MS;
@@ -747,8 +857,14 @@
     });
     var pruned = before - store.sessions.length;
 
-    if (rolled || pruned || backfilled) {
-      await persist(store, rolled ? days : null);
+    if (rolled || pruned || backfilled || hourly) {
+      // [1.8.2] `days` must be persisted when the HOURLY BACKFILL touched them,
+      // not only when something was rolled up. It mutates aggregates without
+      // stamping any session, so on a profile whose backlog is already rolled
+      // up - the common case for an existing user - `rolled` is 0 and the
+      // backfill's work would have been computed and then dropped on the floor,
+      // with the flag persisted saying it was done. Silent, and permanent.
+      await persist(store, (rolled || hourly) ? days : null);
       console.log("[LaunchPad] Tracking: rolled up " + rolled + " session(s), pruned " + pruned +
         " past " + RETENTION_DAYS + "-day retention");
     }
@@ -1522,6 +1638,11 @@
     _attributeSession: attributeSession,
     _matchingBookmarks: matchingBookmarks,
     _splitAcrossLocalDays: splitAcrossLocalDays,
+    // [1.8.2] Same reason as the line above: an hour boundary cannot be waited
+    // for in a test any more than a midnight one can, so the harness drives the
+    // real functions with controlled timestamps rather than seeding their output.
+    _splitAcrossLocalHours: splitAcrossLocalHours,
+    _backfillHourly: backfillHourly,
     _rollupSessionInto: rollupSessionInto,
     _rollupUnaggregated: rollupUnaggregated,
     _dayAggregateKey: dayAggregateKey,

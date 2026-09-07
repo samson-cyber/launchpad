@@ -816,6 +816,52 @@ async function runSuite(ctx, store, stats, listeners) {
       /if \(!wrote\)\s*await saveAll\(data\)/.test(body));
   }
 
+  // ===== [1.8.2] HOURLY CAPTURE ORDERING ==================================
+  // The hourly bucket is written by the rollup AND, once, by a backfill over
+  // the raw window. The two must cover DISJOINT sets or every backfilled
+  // session is counted twice, and the only thing separating them is the
+  // `aggregated` stamp plus the order they run in. Nothing else enforces it,
+  // and a double-counted heatmap looks exactly like a busy one.
+  //
+  // These are shape assertions; the behavioural proof is the capture harness
+  // (200 random sessions reconciling, a session driven across midnight AND an
+  // hour boundary, the backfill run twice).
+  {
+    const tr = readSubject("tracking.js");
+
+    check("[1.8.2] the day aggregate declares byHour",
+      /byHour:\s*\{\}/.test(tr) && /function emptyDay\([\s\S]{0,900}?byHour/.test(tr));
+
+    // The hour boundary must walk the local clock, exactly as the day boundary
+    // does. A fixed +3600000 step smears an hour into the wrong slot at DST.
+    const nextHour = (tr.match(/function startOfNextLocalHour\([\s\S]*?\n  \}/) || [""])[0];
+    check("[1.8.2] the hour boundary steps via Date.setHours, not a fixed +3600000",
+      /setHours\(\s*d\.getHours\(\)\s*\+\s*1\s*\)/.test(nextHour) &&
+      !/3600000|60\s*\*\s*60\s*\*\s*1000/.test(nextHour));
+
+    const bf = (tr.match(/function backfillHourly\([\s\S]*?\n  \}/) || [""])[0];
+    check("[1.8.2] the backfill is ONE-TIME guarded",
+      /if \(store\.hourlyBackfilledAt\) return false/.test(bf) &&
+      /store\.hourlyBackfilledAt = Date\.now\(\)/.test(bf));
+    check("[1.8.2] the backfill SKIPS unstamped sessions (the rollup owns those)",
+      /if \(!sess\.aggregated\) return;/.test(bf));
+    check("[1.8.2] the backfill anchors hourlyKnownFrom to the OLDEST record, not now",
+      /store\.hourlyKnownFrom = oldest/.test(bf) && !/hourlyKnownFrom = Date\.now/.test(bf));
+
+    // Order inside the pass: backfill must be invoked BEFORE the rollup.
+    const pass = (tr.match(/async function rollupAndPruneInner\([\s\S]*?\n  \}/) || [""])[0];
+    const iBackfill = pass.indexOf("backfillHourly(store, days)");
+    const iRollup = pass.indexOf("rollupUnaggregated(store, days");
+    check("[1.8.2] backfillHourly runs BEFORE rollupUnaggregated in the pass",
+      iBackfill !== -1 && iRollup !== -1 && iBackfill < iRollup,
+      "backfill@" + iBackfill + " rollup@" + iRollup);
+
+    // The backfill mutates `days` without stamping anything, so a persist
+    // conditioned only on `rolled` would compute its work and drop it.
+    check("[1.8.2] the pass persists `days` when the hourly backfill touched them",
+      /persist\(store, \(rolled \|\| hourly\) \? days : null\)/.test(pass));
+  }
+
   return rows;
 }
 
