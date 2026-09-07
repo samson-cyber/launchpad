@@ -8799,9 +8799,19 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   flex: 1;
   overflow-y: auto;
   width: 100%;
-  max-width: 1100px;
+  /* [1.8.5 ITEM C] TASKS WIDTH, so the preview is the same BOARD at the same
+     measure. This capped at 1100px, which was right when the real boards were
+     narrower; [1.7.1] moved the Dashboard to the Tasks measure and [1.8.1] moved
+     Insights, and the shell was left behind - so a preview built card-for-card
+     against the product still rendered ~280px narrower, which is enough to wrap
+     the donut legend under the donut and make the peer row a different shape.
+     Parity is not just the same cards in the same order; it is the same cards at
+     the same size, because the preview is a promise about what Pro looks like.
+     28px horizontal matches .tasks-body and .insights-tab exactly, so the
+     preview's content edge lands on the same x as the product's. */
+  max-width: none;
   margin: 0 auto;
-  padding: var(--space-5) var(--space-5) var(--space-7);
+  padding: var(--space-5) 28px var(--space-7);
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   scrollbar-width: thin;
@@ -9816,44 +9826,17 @@ html.has-bg.bg-light .dash-recap-value {
   margin-bottom: var(--space-3);
 }
 
-.pp-recap-big {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2-5);
-  margin-bottom: var(--space-4);
-}
 
-.pp-recap-big-num {
-  font-size: 36px;
-  font-weight: 600;
-  line-height: 1;
-}
 
-.pp-recap-big-label {
-  font-size: var(--fs-13);
-  opacity: 0.75;
-}
 
-.pp-recap-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  flex-wrap: wrap;
-  font-size: var(--fs-13);
-  margin-bottom: var(--space-2);
-  opacity: 0.92;
-}
 
-.pp-recap-row-stack {
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-1);
-}
 
-.pp-recap-num {
-  font-weight: 600;
-}
 
+/* [1.8.5] RETIRED: pp-recap-*, pp-mood-* and pp-week-chart. [1.7.4] left them
+   for this arc to decide with the finished surface in front of it. Checked the
+   way [1.8.1] learned to check - every js and html file, not just the one that
+   used to emit them - and the only remaining mention anywhere was the [1.7.4]
+   note itself. Genuinely dead, so removed rather than carried into [1.9]. */
 .pp-tag-breakdown {
   display: flex;
   flex-wrap: wrap;
@@ -9874,22 +9857,8 @@ html.has-bg.bg-light .dash-recap-value {
   opacity: 0.85;
 }
 
-.pp-mood-row {
-  margin-top: var(--space-4);
-  padding-top: var(--space-3);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
 
-.pp-mood-q {
-  font-size: var(--fs-12);
-  opacity: 0.75;
-  margin-bottom: var(--space-1-5);
-}
 
-.pp-mood-emojis {
-  display: flex;
-  gap: var(--space-1-5);
-}
 
 .pp-emoji {
   width: 32px;
@@ -9908,7 +9877,10 @@ html.has-bg.bg-light .dash-recap-value {
   line-height: 1;
 }
 
-.pp-week-chart,
+/* .pp-week-chart was joined here and is retired [1.8.5]; .pp-trend-chart is
+   LIVE - the deep-work bar chart uses it. Removing the whole rule would have
+   taken the live selector with it, which is the comma-joined form of the
+   [1.8.1] orphan mistake. */
 .pp-trend-chart {
   width: 100%;
   height: auto;
@@ -10010,6 +9982,18 @@ html.has-bg.bg-light .dash-recap-value {
   width: 12px;
   height: 12px;
   border-radius:var(--radius-sm);
+}
+
+/* [1.8.5 ITEM G] The legend's MEASURE. The row is a 14px/1fr/auto grid, and a
+   1fr track will not shrink below its content unless min-width is cleared - so
+   a long tag name wrapped instead of truncating and took its value out of
+   alignment with the rows around it. Same three declarations as
+   .insights-task-name; the full name is on the title attribute. */
+.pp-donut-legend-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pp-donut-legend-hrs {
@@ -10255,6 +10239,17 @@ html.has-bg.bg-light .pro-preview-banner-text {
    ink comes from the board root by inheritance and is stepped with opacity
    rather than a token - the same reason the caption does it that way, and the
    same bright-photo caveat applies until [1.8.5] adds the text shadow. */
+/* [1.8.5 ITEM C] The preview's range row. A STATIC LABEL, not segmented
+   buttons: the preview must carry no enabled controls, and a segmented control
+   rendered inert reads as broken rather than as locked - the [1.1.4]
+   preview-ghost lesson. The export button is ABSENT here entirely rather than
+   disabled, for the same reason. */
+.insights-range-static {
+  font-size: var(--fs-12);
+  opacity: 0.7;
+}
+.ins-row-range-preview { margin-bottom: var(--space-4); }
+
 .insights-export-btn {
   background: none;
   border: 0;
@@ -10276,7 +10271,42 @@ html.has-bg.bg-light .pro-preview-banner-text {
    four-frame measurement caught it; nothing on screen would have. Mirrors the
    override .insights-range-note already carries for the same reason, and both
    sit on the same row for the same lack of a surface. */
-html.has-bg.bg-light .insights-export-btn { color: var(--text-secondary); }
+/* [1.8.5 ITEM E] --text-primary, NOT --text-secondary. These two nodes carry
+   `opacity: 0.7` from the rules above, so a secondary TOKEN stepped the ink a
+   second time: #5f6368 at 70% over a light wallpaper composites to rgb(139,142,145)
+   and measured 2.94:1, below the 4.5 bar. The project's rule is that ink is
+   stepped ONCE - by opacity, over a resolved colour - and the double-step is the
+   failure that rule exists to prevent. `inherit` is not available here: row one
+   has no card, and the board root resolves to WHITE even on the light branch,
+   which is why an explicit colour is needed at all. --text-primary at 70%
+   composites to rgb(95,95,95) and measures 5.77:1.
+
+   Caught by the four-frame pass, not by eye: on screen the old ink looked like
+   quiet grey text, because quiet grey text is exactly what under-contrast text
+   looks like. */
+html.has-bg.bg-light .insights-range-note,
+html.has-bg.bg-light .insights-export-btn { color: var(--text-primary); }
+
+/* [1.8.5 ITEM E] THE TWO BARE-TEXT NODES ON ROW ONE. Row one has no card, so
+   these sit directly on the wallpaper and measured 1.45:1 and 1.67:1 over a
+   bright photo - white on near-white. The guide's rule for text sitting
+   directly on wallpaper is a text shadow, which is what Home's grid names and
+   the search bar already use, so this is the established treatment rather than
+   a new one.
+
+   STATE THE HARNESS LIMIT, because it matters: tools/ink-ratio.mjs measures
+   COLOUR contrast and cannot see a text shadow. Those two nodes will still
+   measure ~1.45 and ~1.67 after this change. The mitigation is real and it is
+   UNMEASURED BY THAT INSTRUMENT - which is a gap in the evidence, not a reason
+   to claim the number moved.
+
+   Scoped to html.has-bg and NOT to bg-light: on the light-wallpaper branch the
+   ink is already dark (#5f6368) and a dark shadow under dark text would only
+   muddy it. */
+html.has-bg:not(.bg-light) .insights-range-note,
+html.has-bg:not(.bg-light) .insights-export-btn {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
 
 /* [1.8.1] LIGHT-BRANCH INK TOKENS FOR THE INSIGHTS CARDS, mirroring
    html.has-bg.bg-light .dash-mod .pp-insights-card exactly. Borrowing
@@ -10366,7 +10396,69 @@ html.has-bg.bg-light .insights-tab .pp-insights-card {
   gap: var(--space-4);
   align-items: start;
 }
+/* [1.8.5] THE 8/4 SPLIT, REVISITED RATHER THAN INHERITED. The guide specified
+   it before the weekly card existed. Measured now: the heatmap is a 24-COLUMN
+   grid, and at span 8 of a 1374 board its cells land near 32px - comfortable
+   for a pointer and readable as a shape. At span 6 they would be ~22px, which
+   is where a 24-wide grid stops reading as hours and starts reading as noise.
+   The weekly card demonstrably carries six rows at span 4. So 8/4 stands, now
+   on evidence rather than on the guide having said so first. */
+.ins-heat-card { grid-column: span 8; min-width: 0; }
 .ins-weekly { grid-column: span 4; min-width: 0; }
+
+/* THE GRID. Seven rows of 24, labelled down the side and ruled along the
+   bottom. minmax(0,1fr) on the cells so the row cannot push the card wider. */
+.ins-heat-grid { display: flex; flex-direction: column; gap: 3px; }
+.ins-heat-row { display: flex; align-items: center; gap: var(--space-2-5); }
+.ins-heat-daylabel {
+  flex: 0 0 1.4em;
+  font-size: var(--fs-11);
+  opacity: 0.7;
+  text-align: right;
+}
+.ins-heat-cells {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 3px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* An empty cell is a hairline, NOT a sixth alpha step - the eye should read
+   presence, not five shades of nearly nothing. */
+.ins-heat-cell {
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.07);
+}
+html.has-bg.bg-light .ins-heat-cell { background: rgba(0, 0, 0, 0.07); }
+.ins-heat-ruler .ins-heat-cells { gap: 3px; }
+/* [1.8.5] 0.7, NOT 0.6. On the light-wallpaper branch this ink is #222 rather
+   than white, and 0.6 of it over a light ground measured 4.24:1 - under the
+   4.5 bar, and invisible to anyone reading the dark branch, where the same
+   declaration measures 6.75:1. The ruler and the day labels are both axis
+   labels and the 0.1 step between them was a hierarchy nobody perceives, so
+   this round's new secondary text uses ONE value across all three nodes
+   (day label, hour ruler, caption) instead of three hand-picked ones. */
+.ins-heat-hour {
+  font-size: var(--fs-11);
+  opacity: 0.7;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.ins-heat-note {
+  margin: var(--space-3) 0 0;
+  font-size: var(--fs-11);
+  opacity: 0.7;
+}
+/* [1.8.5] Said ONCE for the card, per the [1.8.3] ruling, instead of on each of
+   four rows where it out-weighed the figures that were present. */
+.ins-wk-noprior {
+  margin: 0 0 var(--space-3);
+  font-size: var(--fs-11);
+  /* 0.7 for the reason .ins-heat-hour carries: 0.55 was chosen against the dark
+     branch and measured 3.65:1 on the light one. */
+  opacity: 0.7;
+}
 
 .ins-wk-span {
   margin: 0 0 var(--space-3);
@@ -10455,6 +10547,7 @@ html.has-bg.bg-light .insights-tab .pp-insights-card {
      unusable, so it goes full width with them rather than earning a third
      breakpoint. */
   .ins-weekly { grid-column: span 12; }
+  .ins-heat-card { grid-column: span 12; }
 }
 
 /* [1.8.1] .insights-strip and .insights-strip-item ARE retired - Insights was

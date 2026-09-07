@@ -1373,6 +1373,86 @@
   // keys on wsId + "\u0000" + id — a NUL composite-key separator, which can
   // never appear in a "main"/base36/"tag_"/"task_" id, and the key never leaves
   // this function; the emitted records carry the parts as explicit fields.
+  // [1.8.5] BEST FOCUS HOURS. Hour-of-day BY WEEKDAY, and the weekday comes
+  // from GROUPING DAYS ON THEIR OWN KEY - agg.day parsed to a local date - never
+  // from a second index inside the aggregate. That was [1.8.2]'s reason for
+  // storing 24 slots rather than 168: a day IS one weekday, so 144 of 168 would
+  // be permanently unreachable, and the weekday axis is a grouping rather than a
+  // dimension of storage.
+  //
+  // WHICH DAYS COUNT, and this is the honesty problem the chart exists inside.
+  // A day written before [1.8.2] has NO byHour at all, and a day at the edge of
+  // the raw window may have been only partly reconstructed by the backfill. In
+  // both cases the hours sum to LESS than the day's own total, and nothing in
+  // storage distinguishes "did not work at 3pm" from "worked at 3pm before we
+  // recorded hours". A heatmap that paints those days draws a confident empty
+  // morning over a day it knows nothing about.
+  //
+  // So the test is PER DAY AND EXACT rather than a date comparison: a day counts
+  // only if it HAS byHour and those hours ACCOUNT FOR ITS WHOLE TOTAL. That is
+  // strictly better than comparing against hourlyKnownFrom, which is a single
+  // boundary and cannot see a partially reconstructed day sitting on it. The
+  // boundary is still reported, because the caption needs a date to name.
+  async function bestHoursForScope(workspaceId, keys) {
+    var combined = (workspaceId == null);
+    var wanted = {};
+    (keys || []).forEach(function (k) { wanted[k] = true; });
+
+    var days = await readDays();
+    var store = await readStore();
+    var knownFrom = store.hourlyKnownFrom || null;
+    // grid[weekday 0-6][hour 0-23]; weekday 0 is Sunday, as Date.getDay reports.
+    var grid = [];
+    for (var w = 0; w < 7; w++) { grid.push(new Array(24).fill(0)); }
+
+    var included = {}, excluded = {}, totalMs = 0;
+    Object.keys(days).forEach(function (k) {
+      var agg = days[k];
+      if (!agg || !wanted[agg.day]) return;
+      if (!combined && agg.workspaceId !== workspaceId) return;
+
+      var dayTotal = agg.totalFocusedMs || 0;
+      var byHour = agg.byHour;
+      if (!byHour) { if (dayTotal > 0) excluded[agg.day] = true; return; }
+      var hourSum = 0;
+      Object.keys(byHour).forEach(function (h) { hourSum += byHour[h] || 0; });
+      // A day whose hours do not account for its total is PARTIAL. Counting it
+      // would understate the hours it lost and overstate the emptiness of the
+      // rest, which is the specific lie this guard exists to prevent.
+      if (hourSum < dayTotal) { if (dayTotal > 0) excluded[agg.day] = true; return; }
+
+      var parts = String(agg.day).split("-");
+      var dow = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getDay();
+      Object.keys(byHour).forEach(function (h) {
+        var hr = Number(h);
+        if (!(hr >= 0 && hr <= 23)) return;
+        grid[dow][hr] += byHour[h] || 0;
+        totalMs += byHour[h] || 0;
+      });
+      included[agg.day] = true;
+    });
+
+    var incKeys = Object.keys(included).sort();
+    return {
+      grid: grid,
+      totalMs: totalMs,
+      includedDays: incKeys.length,
+      excludedDays: Object.keys(excluded).length,
+      firstIncluded: incKeys.length ? incKeys[0] : null,
+      // The recorded boundary, surfaced so the caption can name a date even when
+      // every day in the window happens to be complete.
+      knownFrom: knownFrom
+    };
+  }
+
+  // The recorded floor of hour knowledge, written once by [1.8.2]'s backfill and
+  // anchored to the oldest session it could actually see. Null on a profile that
+  // had nothing to reconstruct.
+  async function hourlyKnownFrom() {
+    var store = await readStore();
+    return store.hourlyKnownFrom || null;
+  }
+
   async function rollupBucketOverWindow(workspaceId, keys, mapField, idField) {
     var combined = (workspaceId == null);
     var wanted = {};
@@ -1621,6 +1701,9 @@
     byDomainForScope: byDomainForScope,
     // [2.0] Day Recap "Longest session" line — scope+window-bounded max, settled-only.
     longestSessionForScope: longestSessionForScope,
+    // [1.8.5] Best-focus-hours grid, plus what it had to leave out.
+    bestHoursForScope: bestHoursForScope,
+    hourlyKnownFrom: hourlyKnownFrom,
 
     // Exposed for the Section I console harness — verification needs to drive
     // the gates and the store directly without waiting on real Chrome events.

@@ -838,7 +838,15 @@
     var lines = [];
     var topTask = dashRecapTopTask(byTask, d, combined);
     if (topTask) lines.push(dashRecapLineHtml("Most focused", topTask.name, topTask.ms));
-    if (longestMs > 0) lines.push(dashRecapLineHtml("Longest session", null, longestMs));
+    // [1.8.5 ITEM D] "STRETCH", NOT "SESSION", AND BOTH BOARDS NOW AGREE.
+    // "Session" already carries two other senses in this product - a saved TAB
+    // SET, and a BROWSER session - and the project's rule is that those stay
+    // distinguished. A third sense for "an unbroken run of focus" was the one
+    // that had to move, and the weekly card on Insights had already chosen
+    // "stretch" for the same figure. Two nouns for one concept on two boards a
+    // user moves between is an accident, not a distinction, so this is the
+    // Dashboard adopting the Insights word rather than the reverse.
+    if (longestMs > 0) lines.push(dashRecapLineHtml("Longest stretch", null, longestMs));
     var topTag = dashRecapTopTag(byTag, d, combined);
     if (topTag) lines.push(dashRecapLineHtml("Top tag", topTag.name, topTag.ms));
     // Empty when every line suppressed — the .dash-recap:empty rule collapses the
@@ -1841,10 +1849,48 @@
 
   // [1.7.4] DEMO_DASHBOARD_DATA was removed with the legacy preview it fed.
   // Its recap/weekly shapes described a surface the product stopped rendering
-  // in [1.7.1]; the parity preview uses DEMO_DASH_BOARD instead. The pp-recap-*,
-  // pp-mood-* and pp-week-chart RULES in newtab.css are now orphaned too and are
-  // reported rather than deleted here - [1.8.0] rebuilds Insights and should
-  // decide their fate with that surface in front of it.
+  // in [1.7.1]; the parity preview uses DEMO_DASH_BOARD instead.
+  //
+  // [1.8.5] DECIDED: the orphaned pp-recap-*, pp-mood-* and pp-week-chart rules
+  // are REMOVED from newtab.css. Checked across every js and html file rather
+  // than only the one that used to emit them - the [1.8.1] lesson, where a
+  // "dead" rule turned out to be borrowed by the Dashboard - and the only
+  // mention left anywhere was this note.
+
+  // [1.8.5] Demo rows for the preview's two list peers. SITE ROWS CARRY NO
+  // FAVICONS here either - the privacy invariant is about never reaching an icon
+  // service for a browsing domain, and a preview that showed icons would be
+  // promising something the product deliberately does not do.
+  var DEMO_PREVIEW_SITES = [
+    { name: "figma.com", ms: 7 * 3600000 + 20 * 60000 },
+    { name: "github.com", ms: 6 * 3600000 + 5 * 60000 },
+    { name: "notion.so", ms: 4 * 3600000 + 50 * 60000 },
+    { name: "linear.app", ms: 3 * 3600000 + 40 * 60000 },
+    { name: "docs.google.com", ms: 2 * 3600000 + 15 * 60000 },
+    { name: "stackoverflow.com", ms: 1 * 3600000 + 30 * 60000 }
+  ];
+  var DEMO_PREVIEW_TASKS = [
+    { name: "Ship the Q3 report", ms: 6 * 3600000 + 40 * 60000 },
+    { name: "Learn TypeScript generics", ms: 5 * 3600000 + 10 * 60000 },
+    { name: "Rewrite the onboarding email", ms: 3 * 3600000 + 55 * 60000 },
+    { name: "Review the design system", ms: 3 * 3600000 },
+    { name: "Plan next quarter", ms: 2 * 3600000 + 20 * 60000 },
+    { name: "Tidy the backlog", ms: 1 * 3600000 + 45 * 60000 }
+  ];
+
+  // The SAME row markup the product's list peers use, so the preview shows the
+  // component rather than an imitation of it.
+  function demoRowsHtml(rows) {
+    var max = rows.reduce(function (a, r) { return Math.max(a, r.ms); }, 1);
+    return rows.map(function (r) {
+      var pct = Math.round((r.ms / max) * 100);
+      return '<div class="insights-task-row">' +
+          '<span class="insights-task-name">' + escapeHtml(r.name) + '</span>' +
+          '<span class="insights-task-bar"><span class="insights-task-bar-fill" style="width:' + pct + '%"></span></span>' +
+          '<span class="insights-task-dur">' + fmtDurationHM(r.ms) + '</span>' +
+        '</div>';
+    }).join("");
+  }
 
   var DEMO_INSIGHTS_DATA = {
     trend30: {
@@ -2213,7 +2259,13 @@
     return rows.map(function (r) {
       return '<div class="pp-donut-legend-row">' +
           '<span class="pp-donut-legend-swatch" style="background:' + r.color + '"></span>' +
-          '<span class="pp-donut-legend-name">' + escapeHtml(r.name) + '</span>' +
+          // [1.8.5 ITEM G] title= carries the full name, because the CSS now
+          // truncates: at the donut card's span-4 measure the legend column is
+          // ~200px, and a real tag ("infrastructure and platform work") wrapped
+          // to two lines, which pushed its own value out of line with every
+          // other row's. Truncation matches .insights-task-name, the pattern
+          // this product already uses for long names in exactly this list shape.
+          '<span class="pp-donut-legend-name" title="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + '</span>' +
           '<span class="pp-donut-legend-hrs">' + r.valueText + '</span>' +
         '</div>';
     }).join("");
@@ -2248,13 +2300,100 @@
         '</div>';
     }).join("");
 
-    return '<div class="pp-insights-card">' +
-        '<div class="pp-dash-card-title">' + th("insights_deep_work_last_30_days") + '</div>' +
-        trendSvg +
+    // [1.8.5 ITEM C] PREVIEW PARITY. The preview MIRRORS the product's layout -
+    // row one, the hero, three peers, row three, achievements - and differs only
+    // in its data source and in carrying no interactivity. Until this round it
+    // was three stacked cards, which is what [1.8.1]'s frame 04 documented.
+    //
+    // NO CONTROLS, NOT DISABLED CONTROLS. The range selector is rendered as a
+    // static label rather than segmented buttons, and THE EXPORT BUTTON IS
+    // ABSENT ENTIRELY. A control that cannot do anything reads as broken rather
+    // than as locked, which is the [1.1.4] preview-ghost lesson: a create
+    // affordance on a surface that can never create is worse than an absent one.
+    //
+    // AND IT MUST NOT READ BETTER THAN THE PRODUCT. The demo numbers are the
+    // shape of a good week, not a spectacular one, and the heatmap below is
+    // built from the same five alpha steps the real one uses.
+
+    // The demo heatmap grid: a plausible weekday-morning-and-afternoon shape
+    // built from the demo trend, so the preview shows the SAME component the
+    // product does rather than a picture of one.
+    var demoGrid = [];
+    for (var dw = 0; dw < 7; dw++) {
+      var row = [];
+      for (var hr = 0; hr < 24; hr++) {
+        var weekend = (dw === 0 || dw === 6);
+        var core = (hr >= 9 && hr <= 12) || (hr >= 14 && hr <= 17);
+        var edge = (hr === 8 || hr === 13 || hr === 18);
+        var v = core ? (weekend ? 0.35 : 1) : (edge ? (weekend ? 0.15 : 0.5) : 0);
+        // a little variation so it does not read as a printed pattern
+        if (v > 0) v *= 0.7 + ((dw * 7 + hr) % 5) * 0.075;
+        row.push(Math.round(v * 3600000));
+      }
+      demoGrid.push(row);
+    }
+    var heatHtml = insightsHeatmapHtml({
+      grid: demoGrid, totalMs: 32 * 3600000, includedDays: 30, excludedDays: 0,
+      firstIncluded: null, knownFrom: null
+    }, "last 30 days");
+
+    var wkHtml = insightsWeeklyHtml({
+      spanLabel: th("insights_wk_preview_span"),
+      hasPrev: true,
+      focusedNow: 12 * 3600000 + 40 * 60000, focusedPrev: 11 * 3600000 + 55 * 60000,
+      longestNow: 92 * 60000, longestPrev: 78 * 60000,
+      blockedNow: 14, blockedPrev: 19,
+      snoozedNow: 3, snoozedPrev: 5,
+      topTask: th("insights_wk_preview_task"), topTag: th("insights_wk_preview_tag")
+    });
+
+    return '<div class="ins-row-range ins-row-range-preview">' +
+        '<span class="insights-range-static">' + th("insights_last_30_days") + '</span>' +
+        '<p class="insights-range-note">' + th("insights_preview_history") + '</p>' +
       '</div>' +
-      '<div class="pp-insights-card">' +
-        '<div class="pp-dash-card-title">' + th("insights_time_by_tag_last_30_days") + '</div>' +
-        '<div class="pp-donut-row">' + donutSvg + '<div class="pp-donut-legend">' + donutLegend + '</div></div>' +
+      '<div class="pp-insights-card ins-hero">' +
+        '<div class="pp-dash-card-title">' + th("insights_deep_work_last_30_days") + '</div>' +
+        '<div class="ins-hero-head">' +
+          '<div class="ins-hero-lead">' +
+            '<span class="dash-hero-num">32h</span>' +
+            '<span class="ins-hero-lead-label">' + th("insights_last_30_days") + '</span>' +
+          '</div>' +
+          '<div class="ins-hero-aside">' +
+            '<div class="ins-hero-stat">' +
+              '<span class="ins-hero-stat-num">3h48m</span>' +
+              '<span class="ins-hero-stat-label">' + th("insights_preview_best_day") + '</span>' +
+            '</div>' +
+            '<div class="ins-hero-stat">' +
+              '<span class="ins-hero-stat-num">1h4m</span>' +
+              '<span class="ins-hero-stat-label">' + th("insights_daily_avg") + '</span>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="ins-hero-chart">' + trendSvg + '</div>' +
+      '</div>' +
+      '<div class="ins-peers">' +
+        '<div class="pp-insights-card ins-peer">' +
+          '<div class="pp-dash-card-title">' + th("insights_time_by_tag_last_30_days") + '</div>' +
+          '<div class="pp-donut-row">' + donutSvg + '<div class="pp-donut-legend">' + donutLegend + '</div></div>' +
+        '</div>' +
+        '<div class="pp-insights-card ins-peer">' +
+          '<div class="pp-dash-card-title">' + th("insights_preview_by_site") + '</div>' +
+          '<div class="insights-task-list insights-site-list">' + demoRowsHtml(DEMO_PREVIEW_SITES) + '</div>' +
+        '</div>' +
+        '<div class="pp-insights-card ins-peer">' +
+          '<div class="pp-dash-card-title">' + th("insights_preview_top_tasks") + '</div>' +
+          '<div class="insights-task-list">' + demoRowsHtml(DEMO_PREVIEW_TASKS) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="ins-row3">' +
+        '<div class="pp-insights-card ins-heat-card">' +
+          '<div class="pp-dash-card-title">' + th("insights_heat_title") + '</div>' +
+          heatHtml +
+        '</div>' +
+        '<div class="pp-insights-card ins-weekly">' +
+          '<div class="pp-dash-card-title">' + th("insights_wk_title") + '</div>' +
+          wkHtml +
+        '</div>' +
       '</div>' +
       '<div class="pp-insights-card">' +
         '<div class="pp-dash-card-title">' + th("insights_achievements") + '</div>' +
@@ -2538,6 +2677,10 @@
         // designed, then deleted, and would be the only thing on the board
         // making a promise.
         '<div class="ins-row3">' +
+          '<div class="pp-insights-card ins-heat-card">' +
+            '<div class="pp-dash-card-title">' + th("insights_heat_title") + '</div>' +
+            '<div data-ins-heat></div>' +
+          '</div>' +
           '<div class="pp-insights-card ins-weekly" data-ins-weekly></div>' +
         '</div>'
       : "";
@@ -2739,7 +2882,12 @@
   // element on the board that compares anything, which is exactly why it is the
   // one that has to get this right.
   function insightsWeeklyDelta(now, prev, hasPrev) {
-    if (!hasPrev) return '<span class="ins-wk-delta ins-wk-delta-none">' + th("insights_wk_no_prior") + '</span>';
+    // [1.8.5, ruling 2 of the [1.8.3] REVIEW] The absence of a comparison is a
+    // property of THE CARD, not of each row. Repeating it four times turned a
+    // missing comparison into a block of text that out-weighed the figures that
+    // ARE present. Said once, under the span caption, and the rows simply carry
+    // no delta.
+    if (!hasPrev) return "";
     var diff = now - prev;
     // Zero is its own state and gets the level glyph, not an arrow pointing at
     // nothing. The threshold is exact equality: a one-minute difference is a
@@ -2754,7 +2902,7 @@
   }
 
   function insightsWeeklyCountDelta(now, prev, hasPrev) {
-    if (!hasPrev) return '<span class="ins-wk-delta ins-wk-delta-none">' + th("insights_wk_no_prior") + '</span>';
+    if (!hasPrev) return "";
     var diff = now - prev;
     var glyph = diff === 0 ? "\u2014" : (diff > 0 ? "\u2191" : "\u2193");
     return '<span class="ins-wk-delta">' +
@@ -2800,7 +2948,98 @@
       '</div>';
 
     return '<p class="ins-wk-span">' + escapeHtml(w.spanLabel) + '</p>' +
+      (hasPrev ? "" : '<p class="ins-wk-noprior">' + th("insights_wk_no_prior") + '</p>') +
       '<div class="ins-wk-rows">' + rows + '</div>' + tops;
+  }
+
+  // ===== [1.8.5] F3 best focus hours =====
+  //
+  // FIVE ACCENT ALPHA STEPS over a 7 x 24 grid. The scale is relative to the
+  // busiest cell rather than absolute, because "when do you focus" is a question
+  // about SHAPE - a light week and a heavy week should both show their own
+  // pattern rather than one of them rendering uniformly pale.
+  //
+  // Empty is not a step. A cell with no focus gets the hairline treatment and
+  // nothing else, so the eye reads presence rather than five shades of nearly
+  // nothing.
+  var HEAT_STEPS = [0.16, 0.32, 0.50, 0.70, 0.92];
+
+  function insightsHeatCellAlpha(ms, maxMs) {
+    if (!(ms > 0) || !(maxMs > 0)) return 0;
+    var frac = ms / maxMs;
+    var i = Math.min(HEAT_STEPS.length - 1, Math.floor(frac * HEAT_STEPS.length));
+    // A non-zero cell never falls to step 0 through rounding: any focus at all
+    // is visible, which is the difference between "a little" and "none".
+    return HEAT_STEPS[Math.max(0, i)];
+  }
+
+  function insightsHeatmapHtml(res, rangeLabel) {
+    if (!res || !res.includedDays) {
+      return '<div class="insights-empty">' +
+        th("insights_heat_none") + '</div>';
+    }
+    var grid = res.grid;
+    var max = 0;
+    grid.forEach(function (row) { row.forEach(function (v) { if (v > max) max = v; }); });
+
+    // Sunday-first is Date.getDay's own order; the row labels are rotated to the
+    // locale's first day so the chart reads in the week order the rest of the
+    // product uses (Storage.localWeekFirstDay, the one boundary).
+    var first = Storage.localWeekFirstDay ? Storage.localWeekFirstDay() : 1;   // 1=Mon..7=Sun
+    var order = [];
+    for (var i = 0; i < 7; i++) { order.push((first % 7 + i) % 7); }
+
+    var dayName = function (dow) {
+      var d = new Date(2026, 1, 1 + dow);   // 2026-02-01 is a Sunday
+      return d.toLocaleDateString(undefined, { weekday: "narrow" });
+    };
+
+    var rowsHtml = order.map(function (dow) {
+      var cells = grid[dow].map(function (ms, hr) {
+        var a = insightsHeatCellAlpha(ms, max);
+        var cls = a > 0 ? "ins-heat-cell ins-heat-on" : "ins-heat-cell";
+        var style = a > 0 ? ' style="background:rgba(111,177,255,' + a + ')"' : "";
+        return '<div class="' + cls + '"' + style +
+          ' title="' + escapeHtml(dayName(dow) + " " + String(hr).padStart(2, "0") + ":00 - " +
+            fmtDurationHM(ms)) + '"></div>';
+      }).join("");
+      return '<div class="ins-heat-row">' +
+          '<span class="ins-heat-daylabel">' + escapeHtml(dayName(dow)) + '</span>' +
+          '<div class="ins-heat-cells">' + cells + '</div>' +
+        '</div>';
+    }).join("");
+
+    // Hour ruler: only every sixth hour is labelled. Twenty-four labels across
+    // eight columns is unreadable, and the shape is what the chart is for.
+    var ruler = "";
+    for (var h = 0; h < 24; h++) {
+      ruler += '<span class="ins-heat-hour">' + (h % 6 === 0 ? String(h) : "") + '</span>';
+    }
+
+    // THE CAPTION CARRIES REAL WEIGHT, which is why days are EXCLUDED rather
+    // than drawn pale. See bestHoursForScope: a day whose hours do not account
+    // for its total is left out entirely, because painting it would assert an
+    // empty morning the data cannot support. Excluding silently would just move
+    // the dishonesty, so the caption says how many days it is actually showing
+    // and, when anything was dropped, from when the hours are known at all.
+    var known = res.knownFrom ? fmtShortDate(res.knownFrom) : null;
+    var caption = res.excludedDays > 0
+      ? t("insights_heat_partial", {
+          shown: String(res.includedDays),
+          dropped: String(res.excludedDays),
+          since: known || (res.firstIncluded ? fmtShortDate(insightsKeyToTs(res.firstIncluded)) : "")
+        })
+      : t("insights_heat_full", { shown: String(res.includedDays) });
+
+    return '<div class="ins-heat">' +
+        '<div class="ins-heat-grid">' + rowsHtml +
+          '<div class="ins-heat-row ins-heat-ruler">' +
+            '<span class="ins-heat-daylabel"></span>' +
+            '<div class="ins-heat-cells">' + ruler + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<p class="ins-heat-note">' + escapeHtml(caption) + '</p>' +
+      '</div>';
   }
 
   // ===== [1.8.4] F1 per-task and per-tag CSV export =====
@@ -3051,15 +3290,31 @@
     // and re-scoping it to a 30-day selection would make it answer a different
     // one under the same title.
     insightsFillWeekly(panel, scope, d);
+    // [1.8.5] The heatmap follows the SELECTED range, unlike the weekly card:
+    // "when do I focus" is a question about whatever window is on screen, where
+    // "this week vs last" is a fixed question. Different questions, different
+    // scoping, stated rather than inherited.
+    Tracking.bestHoursForScope(scope.workspaceId, keys).then(function (res) {
+      if (token !== insightsReadToken) return;
+      insightsFill(panel, "[data-ins-heat]", insightsHeatmapHtml(res, rangeLabelNow));
+    }).catch(function (err) {
+      console.error("[LaunchPad] Insights: best-hours read failed", err);
+    });
     insightsFill(panel, "[data-ins-donut]", insightsTagDonutHtml(byTag, scopeTotalMs, d, combined, rangeLabelNow));
     insightsFill(panel, "[data-ins-topsites]", insightsTopSitesHtml(byDomain, d, combined, rangeLabelNow));
     insightsFill(panel, "[data-ins-toptasks]", insightsTopTasksHtml(byTask, d, combined, rangeLabelNow));
   }
 
-  // Summary strip: rolling "Last 7 days" total (deliberately NOT a calendar week
-  // — no week-start locale question), "Best day" over the window (date + hours),
-  // and a flat "Daily avg" = total / 30 with zero days included (a calendar
-  // average). All local-day-key based, matching the aggregate basis.
+  // Summary strip: the PERIOD TOTAL for the selected range (the hero numeral
+  // since [1.8.1], corrected to actually mean the range in [1.8.5]), "Best day"
+  // over the window (date + hours), and a flat "Daily avg" = total / keys with
+  // zero days included (a calendar average). All local-day-key based, matching
+  // the aggregate basis, and all three now describe the SAME window - which is
+  // the property the board's title, chart and donut had already assumed.
+  // `endsToday` is retained in the signature and deliberately unused since
+  // [1.8.5]: it existed only to pick the rolling-seven-day branch that Item G
+  // removed. The parameter stays so every call site keeps its shape while the
+  // best-day/daily-avg readings below continue to take their window from `keys`.
   function insightsStripHtml(range, keys, scopeTotalMs, endsToday, rangeLabel) {
     // [1.2.2] Both figures used to assume a 30-key window: a fixed slice(-7) and
     // a literal /30 divisor. Under a shorter preset the slice would have silently
@@ -3067,8 +3322,6 @@
     // 1- or 7-day total by 30. Both now come from the key list, so the strip
     // re-windows with the rest of the board. At 30 keys the output is unchanged,
     // which is what keeps the default view exactly as it shipped.
-    var leadN = Math.min(7, keys.length);
-    var leadMs = keys.slice(-leadN).reduce(function (a, k) { return a + (range[k] || 0); }, 0);
     var bestKey = null, bestMs = 0;
     keys.forEach(function (k) {
       var v = range[k] || 0;
@@ -3076,12 +3329,25 @@
     });
     var avgMs = keys.length ? (scopeTotalMs / keys.length) : 0;
     var items = [
-      // "last 7 days" is only true of a window that ENDS today. For a range that
-      // ended in the past it would name the wrong seven days, so that case shows
-      // the whole range instead, labelled with the range itself.
-      endsToday
-        ? { num: fmtDurationHM(leadMs), label: leadN === 1 ? "today" : ("last " + leadN + " days") }
-        : { num: fmtDurationHM(scopeTotalMs), label: rangeLabel },
+      // [1.8.5 ITEM G] THE LEAD IS THE RANGE TOTAL. It used to be a rolling
+      // seven-day sum whenever the window ended today, which was a defensible
+      // THIRD of a three-figure strip. [1.8.1] then promoted items[0] to the
+      // board's single --display-1 numeral, and that promotion changed what the
+      // figure CLAIMS without changing the figure: on a board whose pill, card
+      // title, bar chart, donut and daily-avg all say "last 30 days", the
+      // loudest number on screen read 15h29m when the period total was 63h24m.
+      // The "last 7 days" label was present, but at --fs-12 beneath a display
+      // numeral the number is what gets read.
+      //
+      // Caught by this round's own preview-parity work: renderProPreview was
+      // written to say "32h / last 30 days", and the product disagreed with the
+      // preview that is supposed to mirror it.
+      //
+      // NOTHING IS LOST. A rolling seven-day reading is still one click away -
+      // it is the "Past 7 days" preset - so the range control now answers the
+      // question this figure used to answer, and the two branches that used to
+      // disagree are one.
+      { num: fmtDurationHM(scopeTotalMs), label: rangeLabel },
       { num: bestMs > 0 ? fmtDurationHM(bestMs) : "—",
         label: bestMs > 0 ? ("best day · " + escapeHtml(fmtShortDate(insightsKeyToTs(bestKey)))) : "best day" },
       { num: fmtDurationHM(avgMs), label: t("insights_daily_avg") }

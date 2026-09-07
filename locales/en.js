@@ -1251,6 +1251,50 @@ I18n.register("en", {
     "message": "Daily avg",
     "description": "Text sink in insightsStripHtml(). Rendered with t()."
   },
+  "insights_preview_history": {
+    "message": "Preview - example data",
+    "description": "Row-one caption on the Insights PREVIEW, where the horizon caption sits on the real board. Names the data as an example so the preview cannot be mistaken for the user's own history. Rendered with th()."
+  },
+  "insights_preview_best_day": {
+    "message": "best day",
+    "description": "Aside label on the Insights preview hero. Rendered with th()."
+  },
+  "insights_preview_by_site": {
+    "message": "Time by site - last 30 days",
+    "description": "Peer card title on the Insights preview. Site rows carry NO favicons here either. Rendered with th()."
+  },
+  "insights_preview_top_tasks": {
+    "message": "Top tasks - last 30 days",
+    "description": "Peer card title on the Insights preview. Rendered with th()."
+  },
+  "insights_wk_preview_span": {
+    "message": "Mon-Fri, against the same days last week",
+    "description": "Span caption on the weekly card in the Insights PREVIEW. Rendered with th()."
+  },
+  "insights_wk_preview_task": {
+    "message": "Ship the Q3 report",
+    "description": "Demo top task on the Insights preview weekly card. Rendered with th()."
+  },
+  "insights_wk_preview_tag": {
+    "message": "deep work",
+    "description": "Demo top tag on the Insights preview weekly card. Rendered with th()."
+  },
+  "insights_heat_title": {
+    "message": "Best focus hours",
+    "description": "Title of the [1.8.5] hour-by-weekday heatmap on Insights. Rendered with th()."
+  },
+  "insights_heat_none": {
+    "message": "No hour-level history yet. Hours are recorded from now on.",
+    "description": "Shown when NO day in the range has complete hourly data - a profile that predates [1.8.2]'s capture. Says what will happen rather than only what is missing. Rendered with th()."
+  },
+  "insights_heat_full": {
+    "message": "{shown} days, hours known for all of them",
+    "description": "Heatmap caption when every day in the range has complete hourly data. Rendered with t()."
+  },
+  "insights_heat_partial": {
+    "message": "{shown} days shown; {dropped} left out because their hours were not recorded (hours known from {since})",
+    "description": "Heatmap caption when days were EXCLUDED. Days without complete hourly data are dropped rather than drawn empty, because an empty cell would assert that no work happened at that hour when the truth is that it was not recorded. The caption is what stops that exclusion being silent. Rendered with t()."
+  },
   "insights_export": {
     "message": "Export CSV",
     "description": "The [1.8.4] export control on the Insights range row. Exports the SELECTED range. Rendered with th()."
@@ -2185,7 +2229,7 @@ I18n.register("en", {
     "description": "Markup label in insightsRangeSelectorHtml(). Rendered with th()."
   },
   "insights_deep_work_last_30_days": {
-    "message": "Deep Work, last 30 days",
+    "message": "Deep Work · last 30 days",
     "description": "Markup label in renderInsightsPreview(). Rendered with th()."
   },
   "insights_from": {
@@ -2197,7 +2241,7 @@ I18n.register("en", {
     "description": "Markup label in insightsBarChartSvg(). Rendered with th()."
   },
   "insights_time_by_tag_last_30_days": {
-    "message": "Time by tag, last 30 days",
+    "message": "Time by tag · last 30 days",
     "description": "Markup label in renderInsightsPreview(). Rendered with th()."
   },
   "insights_to": {
