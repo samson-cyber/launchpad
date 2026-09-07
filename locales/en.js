@@ -1251,6 +1251,22 @@ I18n.register("en", {
     "message": "Daily avg",
     "description": "Text sink in insightsStripHtml(). Rendered with t()."
   },
+  "insights_export": {
+    "message": "Export CSV",
+    "description": "The [1.8.4] export control on the Insights range row. Exports the SELECTED range. Rendered with th()."
+  },
+  "insights_export_done": {
+    "message": "Focus data exported.",
+    "description": "Toast after the CSV export downloads. Rendered with t()."
+  },
+  "insights_export_failed": {
+    "message": "Export failed - the focus history could not be read.",
+    "description": "Toast when the export's reads throw. Rendered with t()."
+  },
+  "insights_export_nothing": {
+    "message": "Nothing to export - tracking is off for this workspace.",
+    "description": "Toast when export is pressed with no tracking scope. Rendered with t()."
+  },
   "insights_wk_title": {
     "message": "This week vs last",
     "description": "Title of the [1.8.3] weekly review card on Insights. Rendered with th()."

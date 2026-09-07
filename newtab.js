@@ -2430,7 +2430,15 @@
       // Rendered through the board's existing locale date formatter, the
       // same one the strip's best-day label uses.
       '<p class="insights-range-note">History starts ' +
-        escapeHtml(fmtShortDate(insightsKeyToTs(hz.min))) + '</p>';
+        escapeHtml(fmtShortDate(insightsKeyToTs(hz.min))) + '</p>' +
+      // [1.8.4] THE EXPORT CONTROL SITS ON THE RANGE ROW, and that is a
+      // deliberate tension with design-guide 4.2, which says the selector is
+      // "the only control on the board". The guide was written before export
+      // existed; the button acts on exactly the range this row selects, so
+      // anywhere else would separate a control from the thing it operates on.
+      // Flagged in the report rather than resolved silently.
+      '<button type="button" class="insights-export-btn" data-ins-export>' +
+        th("insights_export") + '</button>';
   }
 
   // ONE scope for the whole board (D3), the Dashboard convention verbatim:
@@ -2634,6 +2642,14 @@
     if (panel.dataset.insBound === "1") return;
     panel.dataset.insBound = "1";
 
+    // [1.8.4] The export button, on the same delegated listener the range
+    // buttons use. It reads the SELECTED range at click time rather than
+    // capturing one at bind time, so it exports what is on screen now.
+    panel.addEventListener("click", function (e) {
+      if (!e.target.closest("[data-ins-export]")) return;
+      insightsExportCsv();
+    });
+
     panel.addEventListener("click", async function (e) {
       var btn = e.target.closest("[data-ins-range]");
       if (!btn) return;
@@ -2785,6 +2801,189 @@
 
     return '<p class="ins-wk-span">' + escapeHtml(w.spanLabel) + '</p>' +
       '<div class="ins-wk-rows">' + rows + '</div>' + tops;
+  }
+
+  // ===== [1.8.4] F1 per-task and per-tag CSV export =====
+  //
+  // ONE FILE WITH A `dimension` COLUMN, not four downloads. Four files from one
+  // click is genuinely surprising, and browsers throttle or prompt on multiple
+  // automatic downloads, so the "simple" option is also the unreliable one. The
+  // objection to mixed row types is that the columns disagree between types -
+  // and here they do not: every row is (dimension, name, id, status, ms). So a
+  // spreadsheet user gets one file, filters or pivots on `dimension`, and has
+  // exactly the four tables they would otherwise have had to open separately.
+  //
+  // THE RANGE IS THE BOARD'S SELECTED RANGE, not a second picker. The selector
+  // already carries a custom from/to for anything other than the presets, so a
+  // picker inside the export control would duplicate a control that exists two
+  // rows above it - and it would let the file disagree with what is on screen,
+  // which for a billing artefact is the wrong default.
+  //
+  // "focused" IS ENGINE-MEASURED TIME AND NOTHING ELSE. The columns say
+  // focused_ms / focused_hms / focused_hours, never "worked" or "elapsed", so
+  // the file cannot be read as a timesheet of wall clock.
+  function insightsExportRows(ctx) {
+    var rows = [];
+    var push = function (dim, name, id, status, ms) {
+      rows.push([dim, Storage.csvGuard(name), Storage.csvGuard(id), status,
+        String(Math.round(ms)), fmtDurationHM(ms), (ms / 3600000).toFixed(4)]);
+    };
+
+    // ---- meta, as data rows so the file stays valid CSV -------------------
+    // The brief's instruction was that where the numbers cannot reconcile the
+    // OUTPUT must say so, not just the report. These rows are how it says so.
+    rows.push(["meta", "range", ctx.rangeLabel, "", "", "", ""]);
+    rows.push(["meta", "from", ctx.keys[0] || "", "", "", "", ""]);
+    rows.push(["meta", "to", ctx.keys[ctx.keys.length - 1] || "", "", "", "", ""]);
+    rows.push(["meta", "exported_at", new Date().toISOString(), "", "", "", ""]);
+    rows.push(["meta", "scope", ctx.scopeLabel, "", "", "", ""]);
+    rows.push(["meta", "measure",
+      "engine-measured focused time only; not wall clock or time worked", "", "", "", ""]);
+    rows.push(["meta", "range_total", "", "", String(Math.round(ctx.totalMs)),
+      fmtDurationHM(ctx.totalMs), (ctx.totalMs / 3600000).toFixed(4)]);
+    rows.push(["meta", "reconciles",
+      "task, goal and domain rows each sum to range_total; tag rows do not - see tag_note",
+      "", "", "", ""]);
+    rows.push(["meta", "tag_note",
+      "a session carrying several tags counts in FULL under each of them, so tag rows can " +
+      "exceed range_total; untagged is then clamped at zero and may understate", "", "", "", ""]);
+
+    // ---- tasks ------------------------------------------------------------
+    // Trashed and purged tasks are INCLUDED. The board's Top-tasks list drops
+    // them (`if (!task) return`), which is defensible for a top-six list and
+    // wrong for an export: the time was really spent, and a billing file that
+    // silently omits it is worse than one that names it awkwardly.
+    var taskedMs = 0;
+    (ctx.byTask || []).forEach(function (b) {
+      taskedMs += b.ms;
+      var ws = Storage.resolveWorkspaceFromData(ctx.d, b.workspaceId);
+      var live = ws ? Storage.getTaskById(ws, b.taskId) : null;
+      if (live) { push("task", live.name, b.taskId, "active", b.ms); return; }
+      // getTaskById returns null for BOTH a trashed task and a purged one, so
+      // the raw array is searched to tell them apart. They are different facts:
+      // a trashed task still has its name, a purged one has nothing but its id.
+      var raw = ws && Array.isArray(ws.tasks)
+        ? ws.tasks.find(function (t) { return t.id === b.taskId; })
+        : null;
+      if (raw) { push("task", raw.name, b.taskId, "trashed", b.ms); return; }
+      // PURGED: no name exists anywhere. The id is the only truthful identifier
+      // left, so it goes in the id column and the name says what happened
+      // rather than inventing something that was never the task's name.
+      push("task", "(deleted task)", b.taskId, "purged", b.ms);
+    });
+    // Untasked focus is real and the engine records it in the total and in
+    // byDomain but never in byTask - its own comment says so. Emitting it as a
+    // row is what makes the task rows sum to the range total exactly.
+    var untaskedMs = Math.max(0, ctx.totalMs - taskedMs);
+    if (untaskedMs > 0) push("task", "(no task)", "", "none", untaskedMs);
+
+    // ---- goals ------------------------------------------------------------
+    // No byGoalForScope reader exists; a goal total is task time grouped by the
+    // task's goalId. A purged task cannot be grouped - its goalId died with it -
+    // so that time is named honestly rather than folded into "(no goal)", which
+    // would assert something unknown.
+    var byGoal = {}, unknownGoalMs = 0;
+    (ctx.byTask || []).forEach(function (b) {
+      var ws = Storage.resolveWorkspaceFromData(ctx.d, b.workspaceId);
+      var raw = ws && Array.isArray(ws.tasks)
+        ? ws.tasks.find(function (t) { return t.id === b.taskId; })
+        : null;
+      if (!raw) { unknownGoalMs += b.ms; return; }
+      var gid = raw.goalId || "";
+      byGoal[gid] = (byGoal[gid] || 0) + b.ms;
+    });
+    Object.keys(byGoal).forEach(function (gid) {
+      if (!gid) { push("goal", "(no goal)", "", "none", byGoal[gid]); return; }
+      var ws = Storage.getActiveWorkspace(ctx.d);
+      var goal = ws && Storage.getGoalById ? Storage.getGoalById(ws, gid) : null;
+      var raw = (!goal && ws && Array.isArray(ws.goals))
+        ? ws.goals.find(function (g) { return g.id === gid; }) : null;
+      if (goal) push("goal", goal.name, gid, "active", byGoal[gid]);
+      else if (raw) push("goal", raw.name, gid, "trashed", byGoal[gid]);
+      else push("goal", "(deleted goal)", gid, "purged", byGoal[gid]);
+    });
+    if (unknownGoalMs > 0) push("goal", "(goal unknown - task purged)", "", "purged", unknownGoalMs);
+    if (untaskedMs > 0) push("goal", "(no task)", "", "none", untaskedMs);
+
+    // ---- tags -------------------------------------------------------------
+    var tagTotal = 0;
+    (ctx.byTag || []).forEach(function (b) {
+      tagTotal += b.ms;
+      var ws = Storage.resolveWorkspaceFromData(ctx.d, b.workspaceId);
+      var tag = ws && Storage.getTagById ? Storage.getTagById(ws, b.tagId) : null;
+      var raw = (!tag && ws && Array.isArray(ws.tags))
+        ? ws.tags.find(function (t) { return t.id === b.tagId; }) : null;
+      if (tag) push("tag", tag.name, b.tagId, "active", b.ms);
+      else if (raw) push("tag", raw.name, b.tagId, "trashed", b.ms);
+      else push("tag", "(deleted tag)", b.tagId, "purged", b.ms);
+    });
+    // Derived exactly as the board's donut derives it, clamp included, so the
+    // file and the screen cannot disagree. The clamp is why tags carry a note.
+    var untaggedMs = Math.max(0, ctx.totalMs - tagTotal);
+    if (untaggedMs > 0) push("tag", "(untagged)", "", "none", untaggedMs);
+
+    // ---- domains ----------------------------------------------------------
+    // Every session carries a domain, so these sum to the total with no
+    // synthetic row needed.
+    (ctx.byDomain || []).forEach(function (b) {
+      push("domain", b.domain, b.domain, "active", b.ms);
+    });
+
+    return rows;
+  }
+
+  async function insightsExportCsv() {
+    var d = data;
+    var scope = insightsScope(d);
+    if (!scope) { showToast(t("insights_export_nothing")); return; }
+    var rangeDays = Storage.getInsightsRangeDays(d);
+    var customKeys = insightsCustom
+      ? Tracking.rangeLocalDayKeys(insightsCustom.from, insightsCustom.to)
+      : null;
+    var keys = (customKeys && customKeys.length) ? customKeys : Tracking.lastNLocalDayKeys(rangeDays);
+    var rangeLabel = (customKeys && customKeys.length)
+      ? insightsCustomLabel(keys) : insightsRangeLabel(rangeDays);
+
+    var res;
+    try {
+      res = await Promise.all([
+        Tracking.focusedRangeForScope(scope.workspaceId, keys),
+        Tracking.byTagForScope(scope.workspaceId, keys),
+        Tracking.byTaskForScope(scope.workspaceId, keys),
+        Tracking.byDomainForScope(scope.workspaceId, keys)
+      ]);
+    } catch (err) {
+      console.error("[LaunchPad] Insights: export read failed", err);
+      showToast(t("insights_export_failed"));
+      return;
+    }
+    var range = res[0];
+    var totalMs = keys.reduce(function (a, k) { return a + (range[k] || 0); }, 0);
+
+    var rows = insightsExportRows({
+      d: d, keys: keys, rangeLabel: rangeLabel,
+      scopeLabel: (scope.mode === "combined") ? "all workspaces" :
+        ((Storage.getActiveWorkspace(d) || {}).name || "workspace"),
+      totalMs: totalMs, byTag: res[1], byTask: res[2], byDomain: res[3]
+    });
+
+    var csv = Storage.buildCsv(
+      ["dimension", "name", "id", "status", "focused_ms", "focused_hms", "focused_hours"], rows);
+
+    // THE EXISTING ANCHOR PATH, verbatim in shape from exportBackup: the page
+    // mints an object URL, a detached <a download> is clicked and removed, the
+    // URL is revoked. No chrome.downloads, no permission - the optional
+    // downloads permission belongs to the weekly auto-backup and is untouched.
+    var blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = Storage.exportFilename(keys[0], keys[keys.length - 1]);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(t("insights_export_done"));
   }
 
   function insightsFill(panel, selector, html) {

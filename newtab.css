@@ -10249,6 +10249,35 @@ html.has-bg.bg-light .pro-preview-banner-text {
   opacity: 0.7;
 }
 
+/* [1.8.4] The export control. A QUIET button per the component table - text in
+   stepped-back ink, no border, no fill, rising to full ink on hover. It sits on
+   the range row beside the horizon caption, which has no card behind it, so its
+   ink comes from the board root by inheritance and is stepped with opacity
+   rather than a token - the same reason the caption does it that way, and the
+   same bright-photo caveat applies until [1.8.5] adds the text shadow. */
+.insights-export-btn {
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  margin: 0;
+  font: inherit;
+  font-size: var(--fs-12);
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.insights-export-btn:hover,
+.insights-export-btn:focus-visible { opacity: 1; }
+
+/* Row one has NO CARD behind it, so `color: inherit` picks up .insights-tab's
+   white - which measured 1.12:1 on the light wallpaper, white on white. The
+   four-frame measurement caught it; nothing on screen would have. Mirrors the
+   override .insights-range-note already carries for the same reason, and both
+   sit on the same row for the same lack of a surface. */
+html.has-bg.bg-light .insights-export-btn { color: var(--text-secondary); }
+
 /* [1.8.1] LIGHT-BRANCH INK TOKENS FOR THE INSIGHTS CARDS, mirroring
    html.has-bg.bg-light .dash-mod .pp-insights-card exactly. Borrowing
    .dash-hero-num brought its `color: var(--ink-primary)` with it, and that

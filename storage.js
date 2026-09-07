@@ -455,6 +455,68 @@ var Storage = (function () {
     return out;
   }
 
+  // ===== [1.8.4] F1 CSV export =====
+  //
+  // Pure string work, kept in storage.js so the Node-VM reader suite can drive
+  // it without a browser. The board gathers the numbers; this turns them into a
+  // file.
+
+  // A field is quoted whenever quoting could matter, and the quote character is
+  // doubled inside - RFC 4180. Newlines are NOT stripped: a task named over two
+  // lines is a real name, and quoting carries it correctly into a spreadsheet.
+  //
+  // FORMULA INJECTION. A cell whose text begins = + - @ (or a tab / carriage
+  // return, which some importers strip back to those) is evaluated as a formula
+  // by Excel and LibreOffice. A task legitimately named "-- rewrite the intro"
+  // is then a live formula in the recipient's spreadsheet, and =HYPERLINK(...)
+  // or a DDE payload in a task name is a real attack on whoever opens the file.
+  // The mitigation is a leading apostrophe, which spreadsheets treat as
+  // "the rest is text". It is applied INSIDE the quoted field so the CSV itself
+  // stays well-formed, and it is applied to the NAME columns only - the numeric
+  // columns are generated here and cannot begin with one of those characters.
+  var CSV_FORMULA_LEAD = ["=", "+", "-", "@", String.fromCharCode(9), String.fromCharCode(13)];
+
+  function csvGuard(v) {
+    var str = (v == null) ? "" : String(v);
+    if (str.length && CSV_FORMULA_LEAD.indexOf(str.charAt(0)) !== -1) return "'" + str;
+    return str;
+  }
+
+  function csvField(v) {
+    var str = (v == null) ? "" : String(v);
+    var q = String.fromCharCode(34);
+    return q + str.split(q).join(q + q) + q;
+  }
+
+  // Every field is quoted, not only the ones that need it. Conditional quoting
+  // is where CSV writers get subtly wrong, and a spreadsheet does not care.
+  function csvRow(fields) {
+    return (fields || []).map(csvField).join(",");
+  }
+
+  // CRLF between records, and that is RFC 4180's requirement rather than a
+  // preference - it is also what Excel expects. This is a DIFFERENT decision
+  // from the repository's own source-file line endings, which are LF; the file
+  // being written here is data leaving the product, not source.
+  //
+  // BOM: written. Excel reads a UTF-8 CSV without one as the system codepage,
+  // which turns every non-ASCII task name into mojibake. The BOM costs three
+  // bytes and is ignored by every other consumer that matters.
+  function buildCsv(header, rows) {
+    var CRLF = String.fromCharCode(13) + String.fromCharCode(10);
+    var BOM = String.fromCharCode(65279);
+    var out = [csvRow(header)];
+    (rows || []).forEach(function (r) { out.push(csvRow(r)); });
+    return BOM + out.join(CRLF) + CRLF;
+  }
+
+  function exportFilename(fromKey, toKey, now) {
+    var stamp = (fromKey && toKey)
+      ? (fromKey === toKey ? fromKey : fromKey + "_" + toKey)
+      : new Date(now || Date.now()).toISOString().slice(0, 10);
+    return "launchpad-focus-" + stamp + ".csv";
+  }
+
   // ===== [1.7.3] G9 today's three =====
   //
   // PER-WORKSPACE, and the contrast with the focus target is deliberate. The
@@ -6745,6 +6807,11 @@ var Storage = (function () {
     startOfLocalWeek: startOfLocalWeek,
     localWeekFirstDay: localWeekFirstDay,
     localWeekDayKeys: localWeekDayKeys,
+    csvGuard: csvGuard,
+    csvField: csvField,
+    csvRow: csvRow,
+    buildCsv: buildCsv,
+    exportFilename: exportFilename,
     lastLocalWeekDayKeys: lastLocalWeekDayKeys,
     focusStatsForKeys: focusStatsForKeys,
     getTodaysThree: getTodaysThree,

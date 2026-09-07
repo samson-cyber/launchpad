@@ -256,6 +256,76 @@ await (async () => {
   }
 }
 
+// ===== [1.8.4] CSV HYGIENE ================================================
+// The escaping is the security-relevant part of the export: a task name is
+// user-controlled text that ends up in someone's spreadsheet. These are pure
+// string functions, so they are pinned here rather than only in the browser.
+{
+  const S = ctx.Storage;
+  const Q = String.fromCharCode(34);
+
+  check("[1.8.4] Storage exposes the CSV helpers",
+    ["csvField", "csvGuard", "csvRow", "buildCsv", "exportFilename"]
+      .every((f) => typeof S[f] === "function"));
+
+  if (typeof S.csvField === "function") {
+    check("[1.8.4] every field is quoted, not only the ones that need it",
+      S.csvField("plain") === Q + "plain" + Q, S.csvField("plain"));
+    check("[1.8.4] an embedded quote is DOUBLED, per RFC 4180",
+      S.csvField('a' + Q + 'b') === Q + "a" + Q + Q + "b" + Q, S.csvField("a" + Q + "b"));
+    check("[1.8.4] a comma survives inside a quoted field",
+      S.csvField("a,b") === Q + "a,b" + Q, S.csvField("a,b"));
+    check("[1.8.4] a NEWLINE survives rather than being stripped - a two-line name is a real name",
+      S.csvField("a" + String.fromCharCode(10) + "b").indexOf(String.fromCharCode(10)) !== -1);
+    check("[1.8.4] null and undefined become empty, never the string 'undefined'",
+      S.csvField(null) === Q + Q && S.csvField(undefined) === Q + Q,
+      S.csvField(null) + "/" + S.csvField(undefined));
+  }
+
+  if (typeof S.csvGuard === "function") {
+    // FORMULA INJECTION. Each of these leads is evaluated by Excel and
+    // LibreOffice; a task named "=HYPERLINK(...)" would otherwise be live in the
+    // recipient's sheet. The guard prefixes an apostrophe, which spreadsheets
+    // read as "the rest is text".
+    ["=", "+", "-", "@"].forEach((c) => {
+      check("[1.8.4] a name beginning " + c + " is neutralised",
+        S.csvGuard(c + "danger").charAt(0) === "'" &&
+        S.csvGuard(c + "danger").slice(1) === c + "danger", S.csvGuard(c + "danger"));
+    });
+    check("[1.8.4] a leading TAB is neutralised too - importers strip it back to the lead",
+      S.csvGuard(String.fromCharCode(9) + "=x").charAt(0) === "'");
+    check("[1.8.4] a leading CR is neutralised",
+      S.csvGuard(String.fromCharCode(13) + "=x").charAt(0) === "'");
+    check("[1.8.4] an ORDINARY name is left completely alone",
+      S.csvGuard("Write the copy") === "Write the copy", S.csvGuard("Write the copy"));
+    check("[1.8.4] a name with = in the MIDDLE is not touched - only the lead is dangerous",
+      S.csvGuard("a=b") === "a=b", S.csvGuard("a=b"));
+  }
+
+  if (typeof S.buildCsv === "function") {
+    const out = S.buildCsv(["a", "b"], [["1", "2"], ["3", "4"]]);
+    check("[1.8.4] the file starts with a BOM - Excel reads UTF-8 without one as the system codepage",
+      out.charCodeAt(0) === 65279, String(out.charCodeAt(0)));
+    check("[1.8.4] records are separated by CRLF, per RFC 4180",
+      out.indexOf(String.fromCharCode(13) + String.fromCharCode(10)) !== -1 &&
+      out.split(String.fromCharCode(10)).length - 1 === out.split(String.fromCharCode(13)).length - 1,
+      JSON.stringify(out.slice(0, 24)));
+    check("[1.8.4] the file ends with a record separator",
+      out.slice(-2) === String.fromCharCode(13) + String.fromCharCode(10));
+    check("[1.8.4] the header is the first record",
+      out.indexOf(Q + "a" + Q + "," + Q + "b" + Q) === 1, JSON.stringify(out.slice(0, 12)));
+  }
+
+  if (typeof S.exportFilename === "function") {
+    check("[1.8.4] a multi-day range names both ends",
+      S.exportFilename("2026-09-01", "2026-09-07") === "launchpad-focus-2026-09-01_2026-09-07.csv",
+      S.exportFilename("2026-09-01", "2026-09-07"));
+    check("[1.8.4] a single-day range names it once, not twice",
+      S.exportFilename("2026-09-07", "2026-09-07") === "launchpad-focus-2026-09-07.csv",
+      S.exportFilename("2026-09-07", "2026-09-07"));
+  }
+}
+
 let pass = 0, fail = 0;
 console.log("\nINSIGHTS READERS — windowed rollups\n");
 for (const r of rows) {
