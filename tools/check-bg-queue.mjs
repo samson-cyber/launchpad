@@ -890,8 +890,30 @@ async function runSuite(ctx, store, stats, listeners) {
       /var ABSENT = \{ text: "", bg: null, ink: null \};/.test(BG));
     check("[1.9.2] DOCTRINE: no Pro access -> absent, before anything else is considered",
       /if \(!state\.pro\) return ABSENT;/.test(BG));
-    check("[1.9.2] DOCTRINE: no running phase -> absent",
-      /if \(!state\.phase \|\| state\.phaseEndsAt == null\) return ABSENT;/.test(BG));
+    // [1.9.2 fix] THE DOCTRINE'S BOUNDARY MOVED, and this assertion moved with it.
+    // It used to pin "no PHASE -> absent", which was the defect: a session with
+    // no Pomodoro is still a session and the badge showed nothing for it. What
+    // must hold is "no ACTIVE TASK -> absent" - that is the state a user is in
+    // most of the time and the one decision 6 is actually about.
+    check("[1.9.2 fix] DOCTRINE: no active task -> absent",
+      /if \(!state\.hasActiveTask\) return ABSENT;/.test(BG));
+    check("[1.9.2 fix] an UNBOUNDED session (no phase) still paints, counting up",
+      /var elapsed = state\.elapsedMs;[\s\S]{0,200}?Math\.floor\(elapsed \/ 60000\)/.test(BG));
+    check("[1.9.2 fix] ...from the PILL'S elapsed maths, shared through Storage",
+      /elapsedMs: Storage\.activeElapsedMs\(data, ref\)/.test(BG));
+    // ORDER IS THE PROPERTY, so it is asserted by position rather than by a
+    // regex spanning both: the paused branch must come BEFORE the phase branch,
+    // which is what makes a paused session show the mark whether or not a
+    // Pomodoro bounds it. Samson's session had no Pomodoro and showed nothing.
+    {
+      const pausedAt = BG.indexOf("if (state.paused) return { text:");
+      const phaseAt = BG.indexOf("if (state.phase && state.phaseEndsAt != null)");
+      const activeAt = BG.indexOf("if (!state.hasActiveTask) return ABSENT;");
+      check("[1.9.2 fix] paused is checked BEFORE the phase, so it covers both kinds of session",
+        pausedAt > 0 && phaseAt > 0 && pausedAt < phaseAt, `paused@${pausedAt} phase@${phaseAt}`);
+      check("[1.9.2 fix] ...and the active-task gate comes before both",
+        activeAt > 0 && activeAt < pausedAt, `active@${activeAt} paused@${pausedAt}`);
+    }
     check("[1.9.2] DOCTRINE: a phase past its end -> absent, not a stale number",
       /if \(!\(remaining > 0\)\) return ABSENT;/.test(BG));
 

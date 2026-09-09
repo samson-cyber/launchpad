@@ -4002,6 +4002,22 @@ var Storage = (function () {
   // satPomoPhaseTotalMs are now one-line delegations to these, so there is
   // exactly one implementation and the new tab's behaviour is unchanged.
 
+  // [1.9.2 fix] THE ACTIVATION STOPWATCH, shared for the same reason the phase
+  // readers were. This is the figure the pill shows as "0:08 active" - elapsed
+  // since the task was activated, with paused time deducted. It counts UP and it
+  // exists whenever a task is active, with or without a Pomodoro phase.
+  //
+  // It moved here because the BADGE needs it and newtab.js is a bare IIFE. The
+  // alternative was a sixth hand-written copy of a figure that must agree across
+  // three surfaces, which is the mistake 7d55682 spent a round undoing.
+  function activeElapsedMs(data, now) {
+    var a = getActiveTask(data);
+    if (!a || typeof a.startedAt !== "number" || !a.startedAt) return 0;
+    var ref = (typeof now === "number") ? now : Date.now();
+    var pausedTotal = (a.activePausedMs || 0) + (a.pausedAt != null ? Math.max(0, ref - a.pausedAt) : 0);
+    return Math.max(0, ref - a.startedAt - pausedTotal);
+  }
+
   // Phase eyebrow text. Kept beside the phase readers so a new phase cannot be
   // added in one place and labelled in another.
   var POMODORO_PHASE_LABELS = { work: "Work", shortBreak: "Break", longBreak: "Long break" };
@@ -7079,6 +7095,7 @@ var Storage = (function () {
     // [1.9.1] Shared with the companion module; see the block beside them.
     POMODORO_PHASE_LABELS: POMODORO_PHASE_LABELS,
     fmtDuration: fmtDuration,
+    activeElapsedMs: activeElapsedMs,
     pomodoroPhaseTotalMs: pomodoroPhaseTotalMs,
     runningPomodoro: runningPomodoro,
     pomodoroRemainingMs: pomodoroRemainingMs,

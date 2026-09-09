@@ -693,15 +693,46 @@ var BADGE_INK_ON_AMBER = "#202124";   // amber is a light chip; white on it fail
 // PURE (harnessed): what should the badge read for these inputs? No chrome
 // calls, no clock of its own - `now` is passed in - so every state can be
 // asserted directly without contriving a browser.
+// [1.9.2 fix] WHAT COUNTS AS "A SESSION RUNNING" - the defect this replaced.
+//
+// The first version gated the whole badge on a POMODORO PHASE. That is not what
+// the product means by a running session and it is not what the pill shows: a
+// user who activates a task without starting a Pomodoro has a session running,
+// the pill counts it UP as "0:08 active", and the badge showed nothing at all.
+// Reported from a real profile, reproduced in a populated one, and it is the
+// ordinary way to use the feature rather than an edge case.
+//
+// THE RULE NOW FOLLOWS THE PILL, which is what this arc promised:
+//   active task + a phase, running  -> minutes REMAINING (counts down)
+//   active task + no phase, running -> minutes ELAPSED   (counts up)
+//   active task, paused             -> the amber mark, either way
+//   no active task                  -> ABSENT
+//   no Pro access                   -> ABSENT
+// "Otherwise absent" is untouched: no active task still means no badge, which is
+// the state a user is in most of the time.
+//
+// BOTH NUMBERS ARE FLOOR, so the badge's minute is always the minute the pill is
+// displaying. The visible consequence is that an unbounded session reads "0" for
+// its first minute, exactly as the pill reads 0:08 - consistent, and flagged in
+// the report as the one thing worth a second opinion.
 function desiredBadge(state) {
   var ABSENT = { text: "", bg: null, ink: null };
   if (!state) return ABSENT;
   if (!state.pro) return ABSENT;                     // free / expired: never
-  if (!state.phase || state.phaseEndsAt == null) return ABSENT;  // nothing running
+  if (!state.hasActiveTask) return ABSENT;           // nothing running at all
   if (state.paused) return { text: "\u23F8", bg: BADGE_AMBER, ink: BADGE_INK_ON_AMBER };
-  var remaining = state.phaseEndsAt - state.now;
-  if (!(remaining > 0)) return ABSENT;               // past its end: the phase is over
-  return { text: String(Math.floor(remaining / 60000)), bg: BADGE_RUNNING_BG, ink: BADGE_INK };
+
+  if (state.phase && state.phaseEndsAt != null) {
+    var remaining = state.phaseEndsAt - state.now;
+    if (!(remaining > 0)) return ABSENT;             // past its end: the phase is over
+    return { text: String(Math.floor(remaining / 60000)), bg: BADGE_RUNNING_BG, ink: BADGE_INK };
+  }
+
+  // No phase bounds this session, so there is no "remaining" to show. The honest
+  // figure is how long it has been running, which is the pill's own numeral.
+  var elapsed = state.elapsedMs;
+  if (!(elapsed >= 0)) return ABSENT;
+  return { text: String(Math.floor(elapsed / 60000)), bg: BADGE_RUNNING_BG, ink: BADGE_INK };
 }
 
 // Collapse a `data` snapshot to the derivation inputs, the same shape
@@ -709,12 +740,16 @@ function desiredBadge(state) {
 function badgeStateFromData(data, now) {
   var active = Storage.getActiveTask(data);
   var ps = active ? Storage.hydratePomodoroState(active.pomodoroState) : null;
+  var ref = (typeof now === "number") ? now : Date.now();
   return {
     pro: ProAccess.hasProAccess(data),
+    hasActiveTask: !!active,
     paused: Storage.isTrackingPaused(data),
     phase: ps ? ps.phase : null,
     phaseEndsAt: ps ? ps.phaseEndsAt : null,
-    now: (typeof now === "number") ? now : Date.now()
+    // The pill's own stopwatch, from Storage so the two cannot disagree.
+    elapsedMs: Storage.activeElapsedMs(data, ref),
+    now: ref
   };
 }
 

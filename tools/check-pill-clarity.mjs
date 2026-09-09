@@ -572,12 +572,20 @@ await (async () => {
 
       // IT COUNTS FROM ACTIVATION, not from the browser sitting — that is what
       // makes it survive a restart.
+      // [1.9.2 fix] THE BODY MOVED TO storage.js as Storage.activeElapsedMs, so the
+      // toolbar badge shows the pill's own elapsed figure instead of a sixth
+      // hand-written copy. newtab.js's satActiveElapsedMs now delegates. The
+      // PROPERTIES are unchanged and are asserted where the code now lives -
+      // plus the delegation itself, so this cannot pass by the function simply
+      // having been deleted.
+      check("stopwatch: newtab.js delegates to the shared implementation",
+        /return Storage\.activeElapsedMs\(data\)/.test(extractFn(SRC.nt, "satActiveElapsedMs")));
       check("stopwatch: it counts from startedAt, never from the per-sitting anchor",
-        /a\.startedAt/.test(extractFn(SRC.nt, "satActiveElapsedMs")) &&
-        !/sessionAnchorAt/.test(extractFn(SRC.nt, "satActiveElapsedMs")));
+        /a\.startedAt/.test(extractFn(SRC.storage, "activeElapsedMs")) &&
+        !/sessionAnchorAt/.test(extractFn(SRC.storage, "activeElapsedMs")));
       check("stopwatch: ...and deducts the ACTIVATION-LIFETIME paused total, not the per-sitting one",
-        /a\.activePausedMs/.test(extractFn(SRC.nt, "satActiveElapsedMs")) &&
-        !/a\.pausedMs/.test(extractFn(SRC.nt, "satActiveElapsedMs")));
+        /a\.activePausedMs/.test(extractFn(SRC.storage, "activeElapsedMs")) &&
+        !/a\.pausedMs/.test(extractFn(SRC.storage, "activeElapsedMs")));
       // Per-path, NOT a count. This was `>= 3` and it went slack the moment
       // [2.0] added a fourth accrual path: removing one of the original three
       // still left three, so a real regression passed. A threshold over a

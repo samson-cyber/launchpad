@@ -60,6 +60,13 @@ function extractFromStorage(name) {
   return STORAGE_SRC.slice(start, end + 4);
 }
 const REAL_FMT_DURATION = new Function(extractFromStorage("fmtDuration") + "\n  return fmtDuration;")();
+// [1.9.2 fix] satActiveElapsedMs now delegates too, for the same reason the
+// formatter did: the toolbar badge needed the pill's elapsed maths and
+// newtab.js exports nothing. The stub gets the REAL body out of storage.js,
+// with getActiveTask injected into its scope so the extracted source runs
+// unmodified rather than being edited to fit the harness.
+const REAL_ACTIVE_ELAPSED = (getActiveTask) =>
+  new Function("getActiveTask", extractFromStorage("activeElapsedMs") + "\n  return activeElapsedMs;")(getActiveTask);
 
 // Build the subject: the real fmtShortDate + satActiveSinceText, with the two
 // globals they close over (Storage, data) injected. `mutate` exists for the
@@ -86,7 +93,9 @@ function subject({ activeTask, mutate }) {
     if (body === before) throw new Error("negative control did not apply — the anchor it patches has moved");
   }
   const factory = new Function("Storage", "data", body + "\n  return satActiveSinceText;");
-  return factory({ getActiveTask: () => activeTask, fmtDuration: REAL_FMT_DURATION }, {});
+  const getActiveTask = () => activeTask;
+  return factory({ getActiveTask: getActiveTask, fmtDuration: REAL_FMT_DURATION,
+                   activeElapsedMs: REAL_ACTIVE_ELAPSED(getActiveTask) }, {});
 }
 
 let loaded;

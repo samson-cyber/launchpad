@@ -13909,12 +13909,9 @@
   // Focused today lives on the card. The word "focused" is reserved for the
   // engine and never appears here. The unit word is "active", which is what this
   // number actually measures.
-  function satActiveElapsedMs() {
-    var a = Storage.getActiveTask(data);
-    if (!a || typeof a.startedAt !== "number" || !a.startedAt) return 0;
-    var pausedTotal = (a.activePausedMs || 0) + (a.pausedAt != null ? Math.max(0, Date.now() - a.pausedAt) : 0);
-    return Math.max(0, Date.now() - a.startedAt - pausedTotal);
-  }
+  // [1.9.2 fix] DELEGATES. The body moved to Storage so the toolbar badge shows
+  // the same elapsed figure this pill does, from the same code.
+  function satActiveElapsedMs() { return Storage.activeElapsedMs(data); }
 
   // M:SS under an hour, H:MM:SS under a day, then Xd Yh. The day form exists
   // because this count legitimately reaches it — a task left active over a
