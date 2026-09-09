@@ -3364,7 +3364,18 @@
     // one declaration to change rather than two to keep in step - the same
     // resolution [1.7.4] used for the preview.
     var lead = items[0];
-    var aside = items.slice(1);
+    // [1.8.6] AT A ONE-DAY RANGE THE TWO ASIDES SUPPRESS, and the decision is
+    // to drop them rather than to relabel them. Over a single day the period
+    // total, the best day and the daily average are ARITHMETICALLY THE SAME
+    // NUMBER - the checkpoint frame showed 2h22m printed three times across the
+    // hero - because both asides are readings whose whole purpose is to
+    // summarise ACROSS days. The best of one day is that day; the average of
+    // one day is that day. Neither is wrong, and that is exactly why relabelling
+    // them would not help: the figures are correct and they are empty, and a
+    // board whose organising principle is one honest number per claim should
+    // not print the same claim three times because the layout has room.
+    // The lead keeps the number; the row simply stops repeating it.
+    var aside = (keys.length <= 1) ? [] : items.slice(1);
     return '<div class="ins-hero-lead">' +
         '<span class="dash-hero-num">' + escapeHtml(lead.num) + '</span>' +
         '<span class="ins-hero-lead-label">' + lead.label + '</span>' +

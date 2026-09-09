@@ -10212,12 +10212,85 @@ html.has-bg.bg-light .pro-preview-banner-text {
 /* [1.8.1] ROW ONE: the selector alone, with the horizon caption trailing it.
    The caption is the only other thing on the row, so it sits opposite the
    control rather than under it, and drops beneath on narrow. */
+/* [1.8.6] ROW ONE GETS A SURFACE, and the reason is structural rather than a
+   count of nodes. On a bright detailed wallpaper the horizon caption and the
+   export button measured 1.14:1 and 1.20:1 - but so did the range pills beside
+   them, at 1.20:1 active and 1.15:1 idle. The [1.8.5] report said the segmented
+   control "reads perfectly" there; MEASURED, IT DOES NOT. It looked better only
+   because its active pill is a recognisable shape, and its own surface
+   (--surface-fill, a translucent white) makes the ground BRIGHTER rather than
+   occluding it. So the row did not have one working node and two failing ones.
+   It had four failing ones and no surface between any of them and the wallpaper.
+
+   THE MEASURABLE PROPERTY IS THE BACKDROP, NOT THE RATIO. tools/ink-ratio.mjs
+   measures colour and is blind to a text shadow, so "measure with and without
+   the shadow" returns the same number twice. What it can see is the composited
+   backdrop behind the text, and before this rule that backdrop tracked the
+   wallpaper exactly: rgb(32,33,36) on the dark default, rgb(242,242,242) on a
+   light wallpaper, rgb(230,226,212) on the bright ground. The wallpaper was
+   reaching the text. A Card-tier surface at 0.85 alpha ends that.
+
+   CARD TIER BY VARIABLE, BAR GEOMETRY. It takes --pro-frost-card-bg and
+   --pro-frost-card-blur because it is a persistent surface in the content flow,
+   which is what the Card tier is for; a Floater is for modals and a Menu for
+   transient popovers, and this is neither. It must NOT read as a fourth peer
+   card competing with row two, and it is kept distinct three ways, none of them
+   colour:
+     - RADIUS  --radius-lg (8px) against every .pp-insights-card's --radius-xl
+       (12px). A bar has a tighter corner than a panel.
+     - PADDING var(--space-2) var(--space-3) - 8/12 - against the cards' 18/20.
+       It hugs its controls instead of framing content.
+     - ELEVATION none. Every content card carries box-shadow 0 4px 16px and
+       lifts off the wallpaper; this one sits flat on it.
+   It also carries no .pp-dash-card-title, which every content card on this
+   board has, so nothing about it invites being read as content.
+
+   AND IT IS ONE LINE NOW. This is a layout change and it is deliberate, not a
+   side effect: .insights-range-note carries `flex: 1 0 100%` from the base rule
+   written for the custom picker, which forced the caption onto its own line and
+   the button onto a third. Three stacked lines with a surface behind them is a
+   105px block, which is a panel - the exact thing this must not read as. Auto
+   margin pulls the caption and the button together on the right of the pills. */
 .ins-row-range {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   flex-wrap: wrap;
+  background: var(--pro-frost-card-bg);
+  backdrop-filter: var(--pro-frost-card-blur);
+  -webkit-backdrop-filter: var(--pro-frost-card-blur);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2) var(--space-3);
+}
+.ins-row-range .insights-range-note {
+  flex: 0 1 auto;
+  margin-left: auto;
+}
+
+/* [1.8.6] THE IDLE RANGE PILL, and the two ways a first attempt at this rule
+   got it wrong, because both are the kind that measure fine on one branch.
+
+   html.has-bg .seg-btn paints idle labels in --ink-meta (white at 0.60), which
+   over the bar's composited backdrop measured 4.16:1 on the bright ground. The
+   fix is one declaration, and it needs BOTH of its exclusions:
+
+     :not(.bg-light) - because .bg-light IS .has-bg, an unqualified has-bg rule
+     also fires on the light-wallpaper branch, where the bar is white-tinted.
+     Near-white ink there measured 1.10:1. That is the trap CLAUDE.md names, and
+     writing it unqualified reproduced it exactly.
+
+     :not(.active) - because html.has-bg .seg-btn.active sets color #fff at the
+     same specificity, and this rule comes later in the file, so unqualified it
+     silently took the ACTIVE pill's ink DOWN from #fff to 0.78 and dropped it
+     from 4.80:1 to 3.64:1. A rule aimed at the idle state damaged the one state
+     that was already passing.
+
+   Scoped to the Insights range control, not .seg-btn generally: the same
+   declaration serves every segmented control in Settings, and widening it there
+   is a separate change that needs its own evidence. */
+html.has-bg:not(.bg-light) .insights-range-seg .seg-btn:not(.active) {
+  color: rgba(255, 255, 255, 0.78);
 }
 .ins-row-range .insights-range { margin: 0; }
 /* The caption hardcoded `color: var(--text-secondary)` - a mid grey chosen for
@@ -10230,7 +10303,17 @@ html.has-bg.bg-light .pro-preview-banner-text {
 .ins-row-range .insights-range-note {
   margin: 0;
   color: inherit;
-  opacity: 0.7;
+  /* [1.8.6] 0.8, NOT THE 0.7 SET IN [1.8.5]. The bar is Card tier at 0.85 alpha,
+     so 15% of the wallpaper still reaches through it: on the bright ground the
+     composited backdrop lands at rgb(60,59,57) rather than the rgb(30,30,31) of
+     the dark default, and stepped-back ink over that measured 4.02:1 - far
+     better than the 1.14:1 it replaced, and still under the bar. One step up
+     clears it on all four grounds. The surface does most of the work; this is
+     the part the surface alone could not do.
+     A first attempt set this in a SECOND rule of the same specificity placed
+     ABOVE this one, so this 0.7 kept winning and the measurement did not move.
+     Edited where the declaration actually lives instead. */
+  opacity: 0.8;
 }
 
 /* [1.8.4] The export control. A QUIET button per the component table - text in
@@ -10249,6 +10332,10 @@ html.has-bg.bg-light .pro-preview-banner-text {
   opacity: 0.7;
 }
 .ins-row-range-preview { margin-bottom: var(--space-4); }
+
+/* [1.8.6] At a one-day range insightsStripHtml emits no asides at all (see the
+   comment there); this keeps the empty flex child from holding a gap open. */
+.ins-hero-aside:empty { display: none; }
 
 .insights-export-btn {
   background: none;
@@ -10287,26 +10374,22 @@ html.has-bg.bg-light .pro-preview-banner-text {
 html.has-bg.bg-light .insights-range-note,
 html.has-bg.bg-light .insights-export-btn { color: var(--text-primary); }
 
-/* [1.8.5 ITEM E] THE TWO BARE-TEXT NODES ON ROW ONE. Row one has no card, so
-   these sit directly on the wallpaper and measured 1.45:1 and 1.67:1 over a
-   bright photo - white on near-white. The guide's rule for text sitting
-   directly on wallpaper is a text shadow, which is what Home's grid names and
-   the search bar already use, so this is the established treatment rather than
-   a new one.
+/* [1.8.6] THE [1.8.5] TEXT SHADOW ON THESE TWO NODES IS REMOVED, because the
+   surface above makes it redundant and the project's rule is that a mitigation
+   has to earn its place rather than accumulate.
 
-   STATE THE HARNESS LIMIT, because it matters: tools/ink-ratio.mjs measures
-   COLOUR contrast and cannot see a text shadow. Those two nodes will still
-   measure ~1.45 and ~1.67 after this change. The mitigation is real and it is
-   UNMEASURED BY THAT INSTRUMENT - which is a gap in the evidence, not a reason
-   to claim the number moved.
+   THE EVIDENCE, and its limit stated plainly. ink-ratio.mjs cannot see a text
+   shadow, so it cannot answer "is the shadow still helping" directly - asking
+   it with and without returns the identical number. The question it CAN answer
+   is whether there is anything left to mitigate, and the answer is measured:
+   with the bar in place the composited backdrop behind these two nodes is the
+   same on all four grounds instead of tracking the wallpaper, so the bright
+   detailed ground the shadow existed for no longer reaches the text at all.
+   A shadow against a hazard that has been occluded is belt and braces with no
+   evidence behind the braces, which is what the brief for this round rules out.
 
-   Scoped to html.has-bg and NOT to bg-light: on the light-wallpaper branch the
-   ink is already dark (#5f6368) and a dark shadow under dark text would only
-   muddy it. */
-html.has-bg:not(.bg-light) .insights-range-note,
-html.has-bg:not(.bg-light) .insights-export-btn {
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-}
+   The guide's rule is a shadow for text sitting DIRECTLY on wallpaper. After
+   this round no text on this board does. */
 
 /* [1.8.1] LIGHT-BRANCH INK TOKENS FOR THE INSIGHTS CARDS, mirroring
    html.has-bg.bg-light .dash-mod .pp-insights-card exactly. Borrowing
