@@ -11977,21 +11977,64 @@
         img.onerror = function () { reject(new Error("decode-failed")); };
         img.onload = function () {
           var max = Storage.ICON_MAX_DIM;
-          // CONTAIN, not cover: a logo that is not square keeps its whole self
-          // rather than having its edges cropped off by the tile.
-          var scale = Math.min(max / img.width, max / img.height, 1);
-          var w = Math.max(1, Math.round(img.width * scale));
-          var h = Math.max(1, Math.round(img.height * scale));
+          var sw = img.width, sh = img.height;
+          if (!sw || !sh) return reject(new Error("no-dimensions"));
+
+          // THE FIT RULE, from the SOURCE dimensions - before any scaling, since
+          // after the draw the canvas is square and the original ratio is gone.
+          //
+          //   up to 2:1, either orientation  -> COVER
+          //   beyond 2:1                     -> CONTAIN, on a filled tile
+          //
+          // WHY COVER IS THE DEFAULT, and it is a correction rather than a
+          // preference. [1.10.2] contained everything, and a ~2:1 upload came out
+          // as a thin strip floating in the middle of a 48px circle beside eight
+          // favicons that fill their own box. It read as broken. Cropping a 4:3
+          // or a 16:9 image loses edges nobody looks at; leaving it letterboxed
+          // costs the user the impression that the feature worked.
+          //
+          // WHY THE RULE STOPS AT 2:1. Past that, cropping stops trimming and
+          // starts destroying: a 10:1 wordmark cropped to a square is one or two
+          // letters, which is not the thing the user chose. So beyond 2:1 the
+          // image is contained - and sits on a FILLED tile, so the letterboxing
+          // reads as a deliberate frame rather than a hole.
+          //
+          // EXACTLY 2:1 TAKES THE COVER BRANCH. The boundary belongs on that side:
+          // "up to 2:1" reads inclusively, and 2:1 is where the common cases live
+          // - a 16:9 screenshot, a 2:1 banner, a wide photo - all of which have a
+          // subject near the centre and all of which look wrong letterboxed. A
+          // 2:1 crop keeps the central half, which for a logo-plus-wordmark is
+          // the logo. The ratio at which cropping starts losing the subject is
+          // past 2, not at it.
+          var ratio = Math.max(sw, sh) / Math.min(sw, sh);
+          var fit = ratio <= 2 ? "cover" : "contain";
+
+          // NO CAP AT 1, and that is a second fix. The old scale took
+          // Math.min(..., 1) so a source smaller than 128 was never scaled UP -
+          // it was drawn at natural size in the middle of a 128 canvas, and since
+          // the canvas renders at 24px a 32x32 upload came out as a 6px dot. That
+          // is wrong under either rule: the stored icon should always fill its
+          // canvas edge to edge (cover) or edge to edge in one axis (contain).
+          var scale = fit === "cover"
+            ? Math.max(max / sw, max / sh)
+            : Math.min(max / sw, max / sh);
+          var w = Math.max(1, Math.round(sw * scale));
+          var h = Math.max(1, Math.round(sh * scale));
+
           var c = document.createElement("canvas");
           c.width = max; c.height = max;
           var x = c.getContext("2d");
           x.clearRect(0, 0, max, max);
           x.imageSmoothingQuality = "high";
+          // Centred in both cases. Under cover the overflow falls outside the
+          // canvas and is cropped by it; under contain the shortfall stays
+          // transparent and the CSS chip fills it.
           x.drawImage(img, (max - w) / 2, (max - h) / 2, w, h);
+
           // WEBP keeps transparency AND is five times smaller than PNG here.
           var out = c.toDataURL("image/webp", 0.85);
           if (out.indexOf("data:image/webp") !== 0) out = c.toDataURL("image/png");
-          resolve(out);
+          resolve({ dataUrl: out, fit: fit, sourceW: sw, sourceH: sh, ratio: ratio });
         };
         img.src = reader.result;
       };
@@ -12074,8 +12117,8 @@
       var f = this.files && this.files[0];
       if (!f) return;
       try {
-        var dataUrl = await downscaleIconFile(f);
-        if (await applyShortcutIcon(shortcutId, { kind: "image", value: dataUrl })) closeIconPicker();
+        var enc = await downscaleIconFile(f);
+        if (await applyShortcutIcon(shortcutId, { kind: "image", value: enc.dataUrl, fit: enc.fit })) closeIconPicker();
       } catch (err) {
         console.error("[LaunchPad] Icon upload failed", err);
         showToast(t("icon_could_not_be_set"));
@@ -15753,7 +15796,12 @@
       // No data-url attribute: the global favicon-error fallback re-points a
       // broken img at Google's service, and a user's own icon must never be
       // silently replaced by a stranger's favicon.
-      return '<img class="shortcut-custom-img" src="' + esc(icon.value) + '" alt="" width="24" height="24">';
+      // data-fit drives the CSS chip. ABSENT MEANS COVER, so an icon stored
+      // before this fix (all of which were contained) renders unchanged rather
+      // than gaining a frame it was not designed with - re-uploading applies the
+      // new rule.
+      var fitAttr = icon.fit === "contain" ? ' data-fit="contain"' : '';
+      return '<img class="shortcut-custom-img"' + fitAttr + ' src="' + esc(icon.value) + '" alt="" width="24" height="24">';
     }
     if (icon && icon.kind === "emoji") {
       return '<span class="shortcut-custom-emoji" aria-hidden="true">' + esc(icon.value) + '</span>';

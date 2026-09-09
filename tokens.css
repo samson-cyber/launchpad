@@ -26,6 +26,12 @@
   --border: #dfe1e5;
   --shadow-color: rgba(32, 33, 36, 0.28);
   --icon-bg: #f1f3f4;
+  /* [1.10.2b] The tile behind a CONTAINED custom icon - one past 2:1, where
+     cropping would destroy the subject so the image is letterboxed instead.
+     It must contrast with --icon-bg above, which is the circle it sits inside,
+     or the letterboxing reads as a hole rather than a frame. Deliberately a
+     TOKEN and not a literal so [1.10.5] can theme it alongside --icon-bg. */
+  --icon-contain-bg: #d7dade;
   --icon-bg-hover: #e8eaed;
   --search-bg: #f1f3f4;
   --search-bg-focus: #fff;

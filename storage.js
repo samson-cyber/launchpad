@@ -396,7 +396,12 @@ var Storage = (function () {
     var ci = shortcut.customIcon;
     if (!ci || ICON_KINDS.indexOf(ci.kind) === -1) return null;
     if (typeof ci.value !== "string" || !ci.value) return null;
-    return { kind: ci.kind, value: ci.value };
+    // [1.10.2b] `fit` rides along for the image kind only. ABSENT MEANS COVER:
+    // icons stored before the fit rule existed keep rendering the way they were
+    // made, and nothing has to be migrated.
+    var out = { kind: ci.kind, value: ci.value };
+    if (ci.kind === "image" && ci.fit === "contain") out.fit = "contain";
+    return out;
   }
 
   function findShortcutById(ws, shortcutId) {
@@ -436,6 +441,9 @@ var Storage = (function () {
       }
     }
     sc.customIcon = { kind: icon.kind, value: icon.value };
+    // Only "contain" is stored. Cover is the default, so writing it would put a
+    // redundant field in every user's backup for no reader's benefit.
+    if (icon.kind === "image" && icon.fit === "contain") sc.customIcon.fit = "contain";
     await saveAll(data);
     return { ok: true, changed: true };
   }

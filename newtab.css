@@ -7145,6 +7145,11 @@ html.bg-light .rc-panel-item-meta {
   height: 20px;
 }
 
+/* [1.10.2b] The custom img is an <img> inside .shortcut-icon, so it already
+   inherits the tier sizes above. Stated here only to record that it was
+   checked: a covered custom icon must be the SAME size as the favicons beside
+   it at every icon-size setting, which is the parity this round is about. */
+
 .icon-size-small .shortcut-name,
 .icon-size-small .add-tile-label {
   font-size: var(--fs-11);
@@ -15387,11 +15392,36 @@ html.bg-light .launcher-row.is-active { outline-color: rgba(0, 0, 0, 0.3); }
 
 /* The three custom kinds share the favicon's box exactly, so a tile with a
    custom icon is the same size and alignment as one without. */
+/* [1.10.2b] THE COVER CASE, which is now the default. The stored canvas is
+   already square and already filled edge to edge by the downscaler, so this
+   just draws it at the same 24px a favicon gets. A custom icon and a favicon
+   now occupy identical boxes, which is the whole point: an icon that does not
+   fill its box reads as broken next to eight that do. */
 .shortcut-custom-img {
   width: 24px;
   height: 24px;
-  object-fit: contain;
+  object-fit: cover;
   border-radius: 4px;
+}
+
+/* THE CONTAIN CASE, past 2:1. The stored canvas has transparent bars, so
+   without a fill the image floats in the circle - exactly the "thin strip in a
+   circle" this round is fixing, just at a more extreme ratio.
+   THE FILL IS APPLIED IN CSS, NOT BAKED INTO THE PIXELS, and that is the load-
+   bearing choice. A baked colour is permanent and theme-blind: it could not
+   follow a wallpaper, could not follow [1.10.5]'s accents, and would leave every
+   icon uploaded today carrying a colour chosen today, forever. In CSS it is a
+   token like every other surface.
+   WHY A NEUTRAL rather than the accent: the accent is what the LETTERED tile
+   uses, and two different custom-icon kinds sharing one colour would make them
+   read as the same thing. [1.10.5] also redefines --accent, and a wordmark chip
+   changing colour with the theme is noise rather than signal.
+   WHY NOT SAMPLED FROM THE IMAGE: it must be baked to be cheap, which brings
+   back the permanence problem, and on a photo it is a coin flip. */
+.shortcut-custom-img[data-fit="contain"] {
+  object-fit: contain;
+  background: var(--icon-contain-bg);
+  padding: 1px;
 }
 .shortcut-custom-emoji,
 .shortcut-custom-letter {
