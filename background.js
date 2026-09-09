@@ -640,6 +640,125 @@ async function pruneOldSessions() {
 // code in the page. The notifications toggle is the user's consent for the SW to
 // advance phases in the BACKGROUND; with it OFF, behavior is exactly today's page-
 // side-only model (graceful unattended expiry).
+// ===== [1.9.2] THE FOCUS BADGE ============================================
+//
+// DECISION 6 GOVERNS THIS FILE: THE BADGE IS NOT A NAG. It is visible on every
+// page the user visits, which makes it the most nag-shaped surface in the
+// product, so it has exactly three states and the third one is nothing:
+//
+//   RUNNING   minutes remaining in the phase, as a number
+//   PAUSED    an amber mark, no number
+//   OTHERWISE ABSENT - setBadgeText({text: ""}). Not zero, not a dot, not a
+//             colour with empty text. Same rule as the focus ring with no
+//             target set: a surface with nothing to say says nothing.
+//
+// FREE AND EXPIRED ARE ABSENT, ALWAYS, gated on ProAccess.hasProAccess so a
+// `grace` user - a paying customer mid-renewal - keeps their badge. That gate
+// is canonical since 7d55682; this file used to hand-write it.
+//
+// THE NUMBER IS FLOOR, NOT CEIL, and that is the one judgement call here.
+// The badge must never show a number the pill would not show. The pill renders
+// M:SS, so at 21:54 it is displaying "21"-something for that whole minute;
+// floor(21:54) = 21 agrees with it, ceil would print 22 while the pill says 21.
+// The cost is that the final minute reads "0", which is honest - under a minute
+// left - and is NOT the absent state, which paints no badge at all.
+//
+// THE UPDATE MECHANISM IS (b): repaint on every session event, PLUS a coarse
+// repeating alarm for the minute boundary.
+//   (a) alarm only would lag up to a full period at start, pause, resume and
+//       end - the four moments the user is actually looking - and those are
+//       exactly where the badge and the pill disagreeing is worst.
+//   (c) paint once with the end time was rejected on its face: a static number
+//       for 25 minutes.
+// (b) costs almost nothing here because the wiring already exists: the worker
+// already re-derives reconcilePomodoroAlarm and reconcileHeartbeatAlarm from
+// chrome.storage.onChanged on `data`, and `data` is the SAME SOURCE THE PILL
+// READS. Following it is what keeps the two from drifting apart by design
+// rather than by discipline.
+//
+// WORST-CASE DRIFT is therefore one alarm period, and only between events: the
+// number can be one minute stale for at most BADGE_PERIOD_MINUTES. Measured in
+// the round's report rather than asserted here.
+var BADGE_ALARM = "focus-badge";
+// 0.5 = the MV3 floor on Chrome 120+. Older Chromes clamp repeating alarms to 1
+// minute and this extension supports 116, so on 116-119 the worst-case staleness
+// is 60s rather than 30s. Chrome accepts the value either way; it throttles at
+// FIRE time, so there is nothing to feature-detect and nothing that breaks.
+var BADGE_PERIOD_MINUTES = 0.5;
+var BADGE_AMBER = "#F1C40F";   // --sat-amber, the shipped paused colour
+var BADGE_RUNNING_BG = "#1A73E8";   // --accent
+var BADGE_INK = "#FFFFFF";
+var BADGE_INK_ON_AMBER = "#202124";   // amber is a light chip; white on it fails
+
+// PURE (harnessed): what should the badge read for these inputs? No chrome
+// calls, no clock of its own - `now` is passed in - so every state can be
+// asserted directly without contriving a browser.
+function desiredBadge(state) {
+  var ABSENT = { text: "", bg: null, ink: null };
+  if (!state) return ABSENT;
+  if (!state.pro) return ABSENT;                     // free / expired: never
+  if (!state.phase || state.phaseEndsAt == null) return ABSENT;  // nothing running
+  if (state.paused) return { text: "\u23F8", bg: BADGE_AMBER, ink: BADGE_INK_ON_AMBER };
+  var remaining = state.phaseEndsAt - state.now;
+  if (!(remaining > 0)) return ABSENT;               // past its end: the phase is over
+  return { text: String(Math.floor(remaining / 60000)), bg: BADGE_RUNNING_BG, ink: BADGE_INK };
+}
+
+// Collapse a `data` snapshot to the derivation inputs, the same shape
+// pomodoroAlarmStateFromData uses.
+function badgeStateFromData(data, now) {
+  var active = Storage.getActiveTask(data);
+  var ps = active ? Storage.hydratePomodoroState(active.pomodoroState) : null;
+  return {
+    pro: ProAccess.hasProAccess(data),
+    paused: Storage.isTrackingPaused(data),
+    phase: ps ? ps.phase : null,
+    phaseEndsAt: ps ? ps.phaseEndsAt : null,
+    now: (typeof now === "number") ? now : Date.now()
+  };
+}
+
+// Paint, and reconcile the ticking alarm to match. Writes NO `data`, so it
+// cannot feed back through onChanged - the same property every other reconcile
+// in this file depends on.
+//
+// THE COLOUR IS ALWAYS RE-SET WHEN THE BADGE RETURNS. Measured: a background
+// colour PERSISTS after the text is cleared, so a badge that goes absent and
+// comes back would otherwise inherit whatever colour it had last - amber after
+// a pause, on a running badge.
+async function reconcileBadge() {
+  var data;
+  try { data = await Storage.getAll(); }
+  catch (err) { console.error("[LaunchPad] Badge: read failed", err); return; }
+  var want = desiredBadge(badgeStateFromData(data));
+
+  try {
+    await chrome.action.setBadgeText({ text: want.text });
+    if (want.text) {
+      await chrome.action.setBadgeBackgroundColor({ color: want.bg });
+      if (chrome.action.setBadgeTextColor) {
+        await chrome.action.setBadgeTextColor({ color: want.ink });
+      }
+    }
+  } catch (err) {
+    // A toolbar that is not there yet (very early startup) must not take the
+    // worker down with it; the next reconcile will paint.
+    console.error("[LaunchPad] Badge: paint failed", err);
+  }
+
+  // The alarm ticks ONLY while a number is counting down. A paused badge is a
+  // static mark and an absent badge is nothing, so neither needs waking the
+  // worker every half minute - which is the difference between a badge and a
+  // background process that runs all day.
+  var ticking = !!want.text && want.text !== "\u23F8";
+  var existing = await chrome.alarms.get(BADGE_ALARM);
+  if (!ticking) {
+    if (existing) await chrome.alarms.clear(BADGE_ALARM);
+    return;
+  }
+  if (!existing) chrome.alarms.create(BADGE_ALARM, { periodInMinutes: BADGE_PERIOD_MINUTES });
+}
+
 var POMODORO_PHASE_ALARM = "pomodoro-phase";
 var POMODORO_NOTIF_ID = "launchpad-pomodoro";
 
@@ -945,6 +1064,11 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
   // all land in `data`, and they are exactly the transitions that turn the
   // liveness beat on and off. Idempotent and writes no `data`, so no loop.
   reconcileHeartbeatAlarm();
+  // [1.9.2] And the badge, for the same reason and from the same source the
+  // pill reads. This is mechanism (b)'s event half: start, pause, resume, end
+  // and every phase change land in `data`, so the badge is exact at all four
+  // moments the user is actually looking at it.
+  reconcileBadge();
 });
 
 chrome.runtime.onInstalled.addListener(function () {
@@ -970,6 +1094,9 @@ chrome.runtime.onInstalled.addListener(function () {
   // [2.0] An install/update is NOT a browser launch, so there is no closed span
   // to fold here — only the alarm to bring into line with stored state.
   reconcileHeartbeatAlarm();
+  // [1.9.2] A fresh install has no session, so this paints ABSENT - which is
+  // the point: the icon must not carry a badge before anything has happened.
+  reconcileBadge();
 });
 chrome.runtime.onStartup.addListener(function () {
   requestContextMenuRebuild();
@@ -1009,6 +1136,10 @@ chrome.runtime.onStartup.addListener(function () {
   // The bootstrap here cannot destroy the fold's evidence — it never overwrites
   // a stored beat (see reconcileHeartbeatAlarm).
   reconcileHeartbeatAlarm();
+  // [1.9.2] After the fold, so the badge reflects the state the fold settled
+  // on rather than the one the browser died in. A phase that expired overnight
+  // has already been closed by runPomodoroPhaseBg above, so this paints ABSENT.
+  reconcileBadge();
 });
 
 chrome.storage.onChanged.addListener(function (changes) {
@@ -1165,6 +1296,12 @@ chrome.alarms.onAlarm.addListener(function (alarm) {
     heartbeatBg();
   } else if (alarm.name === AUTO_BACKUP_ALARM) {
     runAutoBackup();
+  } else if (alarm.name === BADGE_ALARM) {
+    // [1.9.2] Mechanism (b)'s tick half. The alarm exists only while a number
+    // is counting down; reconcileBadge re-derives from storage rather than
+    // trusting that the alarm's existence still means a phase is running, the
+    // same defence heartbeatBg makes for the same reason.
+    reconcileBadge();
   }
 });
 

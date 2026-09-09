@@ -862,6 +862,74 @@ async function runSuite(ctx, store, stats, listeners) {
       /persist\(store, \(rolled \|\| hourly\) \? days : null\)/.test(pass));
   }
 
+  // ===== [1.9.2] THE FOCUS BADGE ==========================================
+  //
+  // DECISION 6 IS A DOCTRINE, AND A DOCTRINE WITH NO GATE IS A PREFERENCE.
+  // The badge is visible on every page the user visits, so "shows nothing when
+  // nothing is running" has to be enforced by something other than care.
+  //
+  // These are STATIC reads of background.js. reconcileBadge itself needs a
+  // chrome.action and a live storage, which this harness deliberately does not
+  // fake - the runtime behaviour is covered by the round's service-worker
+  // driver. What is pinned here is the SHAPE that makes the doctrine true:
+  // the derivation is pure and reachable, the absent state is the empty string,
+  // and the entitlement gate is the canonical one.
+  {
+    const BG = readSubject("background.js");
+
+    check("[1.9.2] the badge derivation exists and is PURE (a named function taking state)",
+      /function desiredBadge\(state\)/.test(BG));
+    check("[1.9.2] it is fed by a state-collapsing reader, like every other reconcile here",
+      /function badgeStateFromData\(data, now\)/.test(BG));
+    check("[1.9.2] the painter exists",
+      /async function reconcileBadge\(\)/.test(BG));
+
+    // THE DOCTRINE, three ways. Absent must be the EMPTY STRING - not "0", not
+    // a dot, not a colour with no text.
+    check("[1.9.2] DOCTRINE: the absent state is the empty string",
+      /var ABSENT = \{ text: "", bg: null, ink: null \};/.test(BG));
+    check("[1.9.2] DOCTRINE: no Pro access -> absent, before anything else is considered",
+      /if \(!state\.pro\) return ABSENT;/.test(BG));
+    check("[1.9.2] DOCTRINE: no running phase -> absent",
+      /if \(!state\.phase \|\| state\.phaseEndsAt == null\) return ABSENT;/.test(BG));
+    check("[1.9.2] DOCTRINE: a phase past its end -> absent, not a stale number",
+      /if \(!\(remaining > 0\)\) return ABSENT;/.test(BG));
+
+    // The gate must be the canonical one, or a `grace` customer loses the badge.
+    check("[1.9.2] the entitlement gate is ProAccess.hasProAccess, not a hand-written set",
+      /pro: ProAccess\.hasProAccess\(data\)/.test(BG));
+
+    // Mechanism (b): the event half must be wired to the SAME onChanged the
+    // other reconciles use, or the badge and the pill drift apart.
+    const onChangedBlock = BG.slice(BG.indexOf("chrome.storage.onChanged.addListener"));
+    check("[1.9.2] mechanism (b): the badge repaints on the same `data` onChanged the pill's source uses",
+      /reconcilePomodoroAlarm\(\);[\s\S]{0,600}?reconcileBadge\(\);/.test(onChangedBlock));
+    check("[1.9.2] ...and on startup, so a badge left painted by a dead browser is corrected",
+      /chrome\.runtime\.onStartup[\s\S]*?reconcileBadge\(\);/.test(BG));
+    check("[1.9.2] ...and the tick alarm is dispatched",
+      /alarm\.name === BADGE_ALARM[\s\S]{0,400}?reconcileBadge\(\);/.test(BG));
+
+    // The alarm must NOT run when there is nothing counting down: a badge that
+    // wakes the service worker every 30s forever is a background process, not a
+    // badge.
+    check("[1.9.2] the tick alarm is cleared whenever the badge is not counting down",
+      /if \(!ticking\) \{[\s\S]{0,200}?chrome\.alarms\.clear\(BADGE_ALARM\)/.test(BG));
+
+    // Paused is a mark, not a number, and it is the shipped amber.
+    check("[1.9.2] paused paints a mark rather than a number",
+      /if \(state\.paused\) return \{ text: "\\u23F8"/.test(BG));
+    check("[1.9.2] ...in the shipped --sat-amber",
+      /var BADGE_AMBER = "#F1C40F";/.test(BG));
+    check("[1.9.2] amber carries DARK ink (white on amber measures 1.66:1)",
+      /var BADGE_INK_ON_AMBER = "#202124";/.test(BG));
+
+    // NEGATIVE CONTROL for this block: the patterns must actually be capable of
+    // failing. If desiredBadge were renamed, every check above would silently
+    // stop matching and report nothing - so assert the source is non-trivial.
+    check("[1.9.2] anti-vacuity: background.js was actually read",
+      BG.length > 10000 && BG.includes("BADGE_ALARM"), `len=${BG.length}`);
+  }
+
   return rows;
 }
 
