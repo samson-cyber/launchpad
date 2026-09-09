@@ -1183,45 +1183,213 @@ chrome.storage.onChanged.addListener(function (changes) {
   }
 });
 
+// [1.9.3] EXTRACTED so the keyboard command reuses this exact path rather than
+// building a second one. The rules it encodes - which URLs are refused, where
+// the title comes from for a link versus a page, and when the tab's own favicon
+// is trusted over the S2 lookup - are the product's answer to "add this page",
+// and a command that re-derived them would drift from the right-click menu.
+// Returns null for a URL this product will not add.
+function buildShortcutRecord(info, tab) {
+  var url = (info && info.linkUrl) || (info && info.pageUrl) || (tab && tab.url) || "";
+  if (!url || url.startsWith("chrome://") || url.startsWith("chrome-extension://")) return null;
+
+  var isLink = !!(info && info.linkUrl);
+  var title = isLink
+    ? (info.linkUrl.replace(/^https?:\/\/(www\.)?/, "").split("/")[0] || info.linkUrl)
+    : ((tab && tab.title) || url);
+
+  var domain;
+  try { domain = new URL(url).hostname; } catch (e) { domain = url; }
+
+  var favicon;
+  if (!isLink && tab && tab.favIconUrl && !tab.favIconUrl.startsWith("chrome://")) {
+    favicon = tab.favIconUrl;
+  } else {
+    favicon = "https://www.google.com/s2/favicons?domain=" + domain + "&sz=128";
+  }
+
+  return {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    url: url,
+    title: title,
+    favicon: favicon,
+    addedAt: Date.now(),
+    deletedAt: null
+  };
+}
+
 chrome.contextMenus.onClicked.addListener(async function (info, tab) {
   var menuId = info.menuItemId;
   if (typeof menuId !== "string" || !menuId.startsWith("add-to-group_")) return;
 
   try {
-    var url = info.linkUrl || info.pageUrl || (tab && tab.url) || "";
-    if (!url || url.startsWith("chrome://") || url.startsWith("chrome-extension://")) {
-      console.warn("[LaunchPad] Skipping unsupported URL:", url);
+    var shortcut = buildShortcutRecord(info, tab);
+    if (!shortcut) {
+      console.warn("[LaunchPad] Skipping unsupported URL:",
+        (info.linkUrl || info.pageUrl || (tab && tab.url) || ""));
       return;
     }
-
-    var title = info.linkUrl
-      ? (info.linkUrl.replace(/^https?:\/\/(www\.)?/, "").split("/")[0] || info.linkUrl)
-      : ((tab && tab.title) || url);
-
-    var domain;
-    try { domain = new URL(url).hostname; } catch (e) { domain = url; }
-
-    var favicon;
-    if (!info.linkUrl && tab && tab.favIconUrl && !tab.favIconUrl.startsWith("chrome://")) {
-      favicon = tab.favIconUrl;
-    } else {
-      favicon = "https://www.google.com/s2/favicons?domain=" + domain + "&sz=128";
-    }
-
-    var shortcut = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
-      url: url,
-      title: title,
-      favicon: favicon,
-      addedAt: Date.now(),
-      deletedAt: null
-    };
-
     await addShortcutFromContextMenuBg(shortcut, menuId);
   } catch (err) {
     console.error("[LaunchPad] Failed to add shortcut:", err);
   }
 });
+
+// ===== [1.9.3] KEYBOARD COMMANDS ===========================================
+//
+// THE RULE THIS ROUND INHERITS FROM THE BADGE DEFECT: read the product's own
+// state, never re-decide what counts as active. Every command below calls the
+// same readers and writers the pill and the popup call. Nothing here invents a
+// second definition of a session, a capturable tab, or an entitlement.
+//
+// NO SUGGESTED KEYS ARE SHIPPED, and the reason is measured rather than
+// cautious. Chrome allows FOUR commands to carry suggested_key; a manifest with
+// five DOES NOT LOAD AT ALL - the extension is rejected outright, not merely
+// stripped of the extra binding. Shipping four would leave a later round one
+// command away from breaking the whole extension. And a suggested key that
+// collides with an existing shortcut binds to NOTHING while the extension still
+// loads: measured with Ctrl+T, which came back with an empty shortcut and no
+// error anywhere the user could see. That is a support problem the user has to
+// diagnose. Users bind their own at chrome://extensions/shortcuts, where every
+// command below appears with its description.
+//
+// A GATED COMMAND FAILS SILENTLY. It does not open a tab explaining what the
+// user cannot do - a keystroke that produces a nag is the same class decision 6
+// forbids for the badge.
+
+// (a) OPEN LAUNCHPAD. The explicit extension URL rather than chrome.tabs.create({}),
+// which would open whichever extension currently owns the new tab override.
+function cmdOpenLaunchpad() {
+  return chrome.tabs.create({ url: chrome.runtime.getURL("newtab.html") });
+}
+
+// (b) ADD CURRENT PAGE. Reuses buildShortcutRecord and the queued writer the
+// right-click menu uses. There is no menu here, so it targets the same
+// "ungrouped" fallback that menu path already resolves to for an unknown group.
+//
+// IT TAKES THE TAB CHROME HANDS THE LISTENER, and that is not a convenience.
+// This first read {active:true, currentWindow:true}, copied from newtab.js where
+// it is correct - a PAGE is in a window, so "current" means something. A SERVICE
+// WORKER IS IN NO WINDOW, so Chrome silently degrades currentWindow to the last
+// focused one, and the command then acts on whatever window happened to be
+// focused rather than the one the user pressed the key in. Measured, not
+// reasoned: with two windows open, both (b) and (c) no-opped against a window
+// full of extension pages while a real page sat active in the other. onCommand
+// passes the tab the keystroke fired on; that is the product's own answer to
+// "where am I", and re-deriving it is the mistake this round inherits.
+// The query remains as a fallback for a programmatic dispatch, which is how the
+// harness reaches it - see the note on (c).
+async function cmdAddCurrentPage(cmdTab) {
+  var tab = cmdTab;
+  if (!tab) {
+    var tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    tab = tabs && tabs[0];
+  }
+  if (!tab) return { skipped: "no-tab" };
+  var shortcut = buildShortcutRecord({ pageUrl: tab.url }, tab);
+  if (!shortcut) return { skipped: "unsupported-url" };
+  await addShortcutFromContextMenuBg(shortcut, "add-to-group_ungrouped");
+  return { added: shortcut.url };
+}
+
+// (c) SAVE WINDOW AS SESSION. Named sessions are a FREE feature, so this is not
+// gated. The allowlist and the newest-leads ordering both come from Storage, so
+// this and the new tab's own Save agree by construction.
+//
+// THE NAME IS AUTO-GENERATED, and that is forced rather than chosen: the new tab
+// asks with prompt(), which does not exist in a service worker. It follows the
+// page's own "Session N" shape so the two look the same in the list.
+//
+// SCOPED BY cmdTab.windowId for the reason spelled out on (b): "this window"
+// has to mean the window the key was pressed in, and a worker cannot work that
+// out for itself.
+async function cmdSaveWindowAsSession(cmdTab) {
+  var query = (cmdTab && typeof cmdTab.windowId === "number")
+    ? { windowId: cmdTab.windowId }
+    : { lastFocusedWindow: true };
+  var tabs = await chrome.tabs.query(query);
+  var eligible = [];
+  (tabs || []).forEach(function (t) {
+    if (!Storage.isCapturableSessionUrl(t.url)) return;
+    var fav = (t.favIconUrl && t.favIconUrl.indexOf("chrome://") !== 0) ? t.favIconUrl : null;
+    eligible.push({ url: t.url, title: t.title || "", favicon: fav });
+  });
+  // Nothing capturable is a NO-OP, not an empty session. A session that reopens
+  // nothing is worse than no session.
+  if (!eligible.length) return { skipped: "nothing-capturable" };
+
+  var result = { skipped: "no-workspace" };
+  await enqueueBgData("command-save-session", async function () {
+    var data = await Storage.getAll();
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return;
+    var n = (Storage.getAllNamedSessions(ws) || []).length + 1;
+    var created = Storage.createNamedSessionAtFront(data, { name: "Session " + n, tabs: eligible });
+    if (!created) { result = { skipped: "create-failed" }; return; }
+    await Storage.saveAll(data);
+    result = { saved: created.name, tabs: eligible.length };
+  });
+  return result;
+}
+
+// (d) PAUSE OR RESUME FOCUS.
+//
+// THE TASK CALLED THIS "start or pause" AND IT DOES NOT START ANYTHING, which is
+// a deliberate narrowing rather than an omission. Starting focus requires an
+// ACTIVE TASK, and with none set the only way to "start" would be to choose a
+// task on the user's behalf from a keystroke they may have mistyped. That is the
+// invention the badge defect's lesson forbids, so the no-active-task case does
+// NOTHING - it does not toggle the global pause flag either, because a global
+// pause with nothing running has no visible cause and the user would have no way
+// to tell why tracking stopped.
+//
+// The five states, decided:
+//   no active task                  -> NOTHING. No write of any kind.
+//   active task, no phase, running  -> PAUSE
+//   active task, no phase, paused   -> RESUME
+//   phase running                   -> PAUSE
+//   phase paused                    -> RESUME
+// The phase cases are not special: setTrackingPaused freezes a running phase and
+// resumes it where it left off, which is the same behaviour the pill's own pause
+// control produces. Reading trackingPaused rather than inferring from the phase
+// is the inherited rule applied literally.
+async function cmdToggleFocusPause() {
+  var result = { skipped: "unknown" };
+  await enqueueBgData("command-focus-toggle", async function () {
+    var data = await Storage.getAll();
+    // Pro-gated, silently. Focus tracking is a Pro feature; a free user's
+    // keystroke does nothing at all rather than opening an upsell.
+    if (!ProAccess.hasProAccess(data)) { result = { skipped: "not-pro" }; return; }
+    if (!Storage.getActiveTask(data)) { result = { skipped: "no-active-task" }; return; }
+
+    var wasPaused = Storage.isTrackingPaused(data);
+    var wrote = await Storage.setTrackingPaused(data, !wasPaused);
+    if (!wrote) { result = { skipped: "no-op" }; return; }
+    await Storage.saveAll(data);
+    result = { paused: !wasPaused };
+  });
+  return result;
+}
+
+// The dispatcher. Exported on self so the round's harness can drive the SAME
+// path chrome.commands dispatches to, rather than calling the handlers directly.
+async function runCommand(name, tab) {
+  try {
+    if (name === "open-launchpad") return await cmdOpenLaunchpad();
+    if (name === "add-current-page") return await cmdAddCurrentPage(tab);
+    if (name === "save-window-as-session") return await cmdSaveWindowAsSession(tab);
+    if (name === "toggle-focus-pause") return await cmdToggleFocusPause();
+    return { skipped: "unknown-command" };
+  } catch (err) {
+    console.error("[LaunchPad] Command failed (" + name + "):", err);
+    return { error: String(err && err.message || err) };
+  }
+}
+self.runCommand = runCommand;
+
+if (chrome.commands && chrome.commands.onCommand) {
+  chrome.commands.onCommand.addListener(function (name, tab) { runCommand(name, tab); });
+}
 
 // [L1] The getAll -> mutate -> saveAll tail of the right-click add, serialized —
 // same shape as every other queued background writer in this file

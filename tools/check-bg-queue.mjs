@@ -952,6 +952,118 @@ async function runSuite(ctx, store, stats, listeners) {
       BG.length > 10000 && BG.includes("BADGE_ALARM"), `len=${BG.length}`);
   }
 
+  // ===== [1.9.3] KEYBOARD COMMANDS =========================================
+  //
+  // Static reads of background.js and manifest.json. The runtime behaviour is
+  // covered by the round's service-worker driver, which drives every command
+  // through runCommand in a two-window profile. What is pinned here is the
+  // wiring that driver cannot protect from drift: the manifest and the
+  // dispatcher agreeing on names, and the two decisions that were WRONG on the
+  // first run of that driver and would look fine again if reverted.
+  {
+    const BG = readSubject("background.js");
+    const MAN = JSON.parse(readSubject("manifest.json"));
+    const cmds = MAN.commands || {};
+    const names = Object.keys(cmds);
+
+    check("[1.9.3] the manifest declares the four commands",
+      names.length === 4 && ["open-launchpad", "add-current-page",
+        "save-window-as-session", "toggle-focus-pause"].every(function (n) {
+          return names.indexOf(n) !== -1; }), JSON.stringify(names));
+
+    // EVERY NAME MUST BE DISPATCHED. A command in the manifest with no branch
+    // in runCommand appears on chrome://extensions/shortcuts, accepts a
+    // binding, and then does nothing when pressed - a dead key the user has to
+    // diagnose.
+    for (const n of names) {
+      check("[1.9.3] `" + n + "` is dispatched by runCommand",
+        BG.indexOf('name === "' + n + '"') !== -1);
+    }
+    // ...AND THE CONVERSE. A branch with no manifest entry is unreachable: it
+    // can never be pressed, so it is dead code that reads as a shipped feature.
+    // SCOPED TO runCommand'S OWN BODY. A file-wide scan for `name === "..."`
+    // also catches the runtime-message router, which speaks a different
+    // vocabulary - it matched "save-session" and failed this check on a correct
+    // tree the first time it ran.
+    const rcAt = BG.indexOf("async function runCommand(name, tab)");
+    const rcBody = rcAt > 0 ? BG.slice(rcAt, BG.indexOf("self.runCommand = runCommand;")) : "";
+    const branches = (rcBody.match(/name === "[a-z-]+"/g) || [])
+      .map(function (m) { return m.slice(10, -1); });
+    check("[1.9.3] ...and no dispatch branch is unreachable from the manifest",
+      rcBody.length > 100 && branches.length === names.length &&
+      branches.every(function (b) { return names.indexOf(b) !== -1; }),
+      JSON.stringify(branches));
+
+    // NO SUGGESTED KEYS. Chrome caps suggested_key at FOUR commands and a
+    // manifest with five DOES NOT LOAD AT ALL, so shipping four would leave the
+    // next command added one line from breaking the whole extension.
+    check("[1.9.3] no command ships a suggested_key",
+      names.every(function (n) { return !cmds[n].suggested_key; }),
+      JSON.stringify(names.filter(function (n) { return !!cmds[n].suggested_key; })));
+    // Every command needs a description or its row on the shortcuts page is
+    // blank and the user cannot tell what they are binding.
+    check("[1.9.3] every command carries a description for the shortcuts page",
+      names.every(function (n) { return typeof cmds[n].description === "string"
+        && cmds[n].description.length > 0; }));
+
+    // DEFECT 1, FOUND BY DRIVING IT. currentWindow is a PAGE idiom; a service
+    // worker is in no window, so Chrome degrades it to the last focused one and
+    // the command acts on the wrong window. onCommand hands the listener the
+    // tab the key fired on; that argument must reach both commands that need it.
+    check("[1.9.3] the onCommand listener takes the TAB Chrome passes it",
+      /onCommand\.addListener\(function \(name, tab\) \{ runCommand\(name, tab\); \}\)/.test(BG));
+    check("[1.9.3] ...and the dispatcher carries it through",
+      /async function runCommand\(name, tab\)/.test(BG));
+    check("[1.9.3] ...to add-current-page",
+      /if \(name === "add-current-page"\) return await cmdAddCurrentPage\(tab\);/.test(BG));
+    check("[1.9.3] ...and to save-window-as-session",
+      /if \(name === "save-window-as-session"\) return await cmdSaveWindowAsSession\(tab\);/.test(BG));
+    check("[1.9.3] save-window-as-session scopes by the KEYSTROKE'S windowId",
+      /\{ windowId: cmdTab\.windowId \}/.test(BG));
+    check("[1.9.3] no command re-introduces the currentWindow page idiom",
+      BG.indexOf("cmdAddCurrentPage") !== -1 &&
+      !/cmdAddCurrentPage[\s\S]{0,400}currentWindow/.test(BG) &&
+      !/cmdSaveWindowAsSession[\s\S]{0,400}currentWindow/.test(BG));
+
+    // DEFECT-SHAPE 2. The add path must REUSE the right-click menu's builder,
+    // not carry a second copy of the rules about which URLs are addable.
+    check("[1.9.3] the shortcut record builder is shared with the context menu",
+      /function buildShortcutRecord\(info, tab\)/.test(BG));
+    check("[1.9.3] ...and the context menu calls it rather than inlining the rules",
+      /var shortcut = buildShortcutRecord\(info, tab\);/.test(BG));
+    check("[1.9.3] ...and so does the command",
+      /var shortcut = buildShortcutRecord\(\{ pageUrl: tab\.url \}, tab\);/.test(BG));
+    check("[1.9.3] the session capture allowlist is Storage's, not a worker copy",
+      /Storage\.isCapturableSessionUrl\(t\.url\)/.test(BG) &&
+      !/SESSION_ALLOWED_SCHEMES/.test(BG));
+    check("[1.9.3] the newest-leads ordering is Storage's, not per-caller",
+      /Storage\.createNamedSessionAtFront\(/.test(BG));
+
+    // THE PRO GATE. Canonical, and silent.
+    check("[1.9.3] the gated command gates on ProAccess.hasProAccess",
+      /if \(!ProAccess\.hasProAccess\(data\)\) \{ result = \{ skipped: "not-pro" \}; return; \}/.test(BG));
+    check("[1.9.3] ...and FAILS SILENTLY: no gated command opens a tab or notifies",
+      !/cmdToggleFocusPause[\s\S]{0,900}?(chrome\.tabs\.create|chrome\.notifications|openUpgrade)/.test(BG));
+
+    // THE DECISION: with no active task it writes NOTHING. The driver's D1b
+    // proved a mutant that toggled the global flag here still returned the
+    // right-looking skip code, so the return value alone does not pin this.
+    {
+      const at = BG.indexOf('result = { skipped: "no-active-task" }');
+      const gate = BG.indexOf("if (!Storage.getActiveTask(data))");
+      const seg = gate > 0 ? BG.slice(gate, at + 60) : "";
+      check("[1.9.3] no active task -> returns without writing anything",
+        gate > 0 && at > gate && !/setTrackingPaused|saveAll/.test(seg), seg.length + " chars");
+    }
+    // Every write still goes through the FIFO, which is what this whole file is about.
+    check("[1.9.3] both writing commands go through enqueueBgData",
+      /enqueueBgData\("command-save-session"/.test(BG) &&
+      /enqueueBgData\("command-focus-toggle"/.test(BG));
+
+    check("[1.9.3] anti-vacuity: the manifest and background.js were actually read",
+      names.length > 0 && BG.indexOf("runCommand") !== -1, `cmds=${names.length} len=${BG.length}`);
+  }
+
   return rows;
 }
 

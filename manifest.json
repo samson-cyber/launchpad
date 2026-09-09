@@ -28,6 +28,20 @@
       "128": "icons/icon128.png"
     }
   },
+  "commands": {
+    "open-launchpad": {
+      "description": "Open LaunchPad in a new tab"
+    },
+    "add-current-page": {
+      "description": "Add the current page to LaunchPad"
+    },
+    "save-window-as-session": {
+      "description": "Save this window as a named session"
+    },
+    "toggle-focus-pause": {
+      "description": "Pause or resume focus tracking (Pro)"
+    }
+  },
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

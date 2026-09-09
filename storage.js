@@ -4913,6 +4913,42 @@ var Storage = (function () {
    * the caller pairs it with saveAll. Returns the new session, or null if the
    * workspace cannot be resolved.
    */
+  // [1.9.3] THE SESSION-CAPTURE ALLOWLIST, shared. It lived in newtab.js, which
+  // no other context can reach, and the keyboard command needs the SAME rule -
+  // a second copy in the service worker is exactly the shape of the badge
+  // defect, where one surface re-decided what the product already knew.
+  //
+  // Only http/https/file are capturable. A chrome:// or chrome-extension:// tab
+  // cannot be restored from a page context, so saving it would create a session
+  // that silently fails to reopen. Known asymmetry, measured rather than
+  // assumed: Edge's new tab is an https URL (ntp.msn.com) where Chrome's is
+  // chrome://newtab, so on Edge a browser new tab IS eligible. That is what the
+  // rule honestly says; excluding it would mean special-casing a vendor host.
+  var SESSION_ALLOWED_SCHEMES = ["http:", "https:", "file:"];
+
+  function isCapturableSessionUrl(url) {
+    if (typeof url !== "string" || !url) return false;
+    var scheme;
+    try { scheme = new URL(url).protocol; } catch (e) { return false; }
+    return SESSION_ALLOWED_SCHEMES.indexOf(scheme) !== -1;
+  }
+
+  // [1.9.3] Create a named session and move it to the FRONT. Newest leads, and
+  // that ordering is the product's, not a caller's preference - the new tab did
+  // it inline with a splice/unshift and the keyboard command would otherwise
+  // append, so the same action from two surfaces would order differently.
+  function createNamedSessionAtFront(data, fields, workspaceId) {
+    var created = createNamedSession(data, fields, workspaceId);
+    if (!created) return null;
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var arr = ws && ws.namedSessions;
+    if (Array.isArray(arr)) {
+      var at = arr.indexOf(created);
+      if (at !== -1) { arr.splice(at, 1); arr.unshift(created); }
+    }
+    return created;
+  }
+
   function createNamedSession(data, fields, workspaceId) {
     var ws = resolveWorkspaceFromData(data, workspaceId);
     if (!ws) {
@@ -7096,6 +7132,8 @@ var Storage = (function () {
     POMODORO_PHASE_LABELS: POMODORO_PHASE_LABELS,
     fmtDuration: fmtDuration,
     activeElapsedMs: activeElapsedMs,
+    isCapturableSessionUrl: isCapturableSessionUrl,
+    createNamedSessionAtFront: createNamedSessionAtFront,
     pomodoroPhaseTotalMs: pomodoroPhaseTotalMs,
     runningPomodoro: runningPomodoro,
     pomodoroRemainingMs: pomodoroRemainingMs,

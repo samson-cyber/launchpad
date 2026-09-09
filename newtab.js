@@ -16108,18 +16108,9 @@
   // URL (ntp.msn.com) where Chrome's is chrome://newtab, so on Edge a browser new tab
   // is eligible. That is what the rule honestly says; excluding it would mean
   // special-casing a vendor host, which is worse.
-  var SESSION_ALLOWED_SCHEMES = ["http:", "https:", "file:"];
-
-  function isCapturableSessionUrl(url) {
-    if (typeof url !== "string" || !url) return false;
-    var scheme;
-    try {
-      scheme = new URL(url).protocol;
-    } catch (e) {
-      return false;
-    }
-    return SESSION_ALLOWED_SCHEMES.indexOf(scheme) !== -1;
-  }
+  // [1.9.3] DELEGATES. The rule moved to Storage so the keyboard command applies
+  // the SAME allowlist; the reasoning above still describes it.
+  function isCapturableSessionUrl(url) { return Storage.isCapturableSessionUrl(url); }
 
   // The icon a tab carried at capture time, or the bundled placeholder. NEVER a
   // lookup: getFaviconUrl would fall through to Google's S2 service, which would
@@ -16283,13 +16274,12 @@
 
     var ws = Storage.getActiveWorkspace(data);
     if (!ws) return;
-    var created = Storage.createNamedSession(data, { name: String(name).trim(), tabs: captured.tabs });
+    // [1.9.3] Array order is canonical and newest leads, matching notes. The
+    // move USED to be done here by the caller; it is now in Storage, because the
+    // keyboard command creates sessions too and appending from one surface while
+    // unshifting from the other would order the same list two ways.
+    var created = Storage.createNamedSessionAtFront(data, { name: String(name).trim(), tabs: captured.tabs });
     if (!created) return;
-    // Array order is canonical and newest leads, matching notes: the caller does the
-    // move so the shared primitive stays untouched.
-    var arr = ws.namedSessions;
-    arr.splice(arr.indexOf(created), 1);
-    arr.unshift(created);
     await Storage.saveAll(data);
     data = await Storage.getAll();
     renderSessionsList();
