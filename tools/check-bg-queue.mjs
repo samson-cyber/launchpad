@@ -61,7 +61,7 @@ function boot(seeds = []) {
   }
 
   const store = {};
-  const stats = { gets: 0, sets: 0, dataSets: 0, pending: 0, tabsRemoved: [] };
+  const stats = { gets: 0, sets: 0, dataSets: 0, pending: 0, tabsRemoved: [], dataWrites: [] };
   const listeners = {};
   const cap = (name) => ({ addListener: (fn) => { (listeners[name] = listeners[name] || []).push(fn); }, removeListener() {} });
 
@@ -75,7 +75,25 @@ function boot(seeds = []) {
       return clone(store);                          // INDEPENDENT SNAPSHOT (2)
     },
     async set(o) {
-      stats.sets++; if ("data" in o) stats.dataSets++;
+      stats.sets++;
+      if ("data" in o) {
+        stats.dataSets++;
+        // [1218314553351830] THE PAYLOAD, not just the count. Every assertion in
+        // this suite reads the FINAL blob or counts writes, and both are blind to
+        // a clobber that a later write repairs. The checkout-return seed escaped
+        // for exactly that reason: un-queued, a concurrent favicon write DOES
+        // wipe the licence key, and the handler's own second write - a fresh
+        // re-read added by e550c75 for an unrelated staleness bug - puts it back
+        // before the suite ever looks. Recording each write lets an assertion see
+        // the sequence rather than the endpoint.
+        const dd = o.data || {};
+        stats.dataWrites.push({
+          licenseKey: dd.pro ? dd.pro.licenseKey : undefined,
+          favicon: (function () {
+            try { return dd.workspaces[0].groups[0].shortcuts[0].favicon; } catch (e) { return undefined; }
+          })(),
+        });
+      }
       stats.pending++;
       await sleep(LATENCY_MS);                     // INJECTED LATENCY on the write side too
       stats.pending--;
@@ -348,6 +366,43 @@ async function runSuite(ctx, store, stats, listeners) {
     check("S1: total `data` writes equal the sum of the solo runs (no write was swallowed)",
       stats.dataSets - before === solo.favicon + solo.checkout,
       `raced=${stats.dataSets - before} solo=${solo.favicon}+${solo.checkout}`);
+
+    // [1218314553351830] NO INTERMEDIATE CLOBBER, and this is the row that makes
+    // the "un-queue checkout-return" seed bite. It had been the suite's one
+    // standing ESCAPE.
+    //
+    // WHY THE OTHER THREE ROWS CANNOT CATCH IT. All of them read the FINAL blob
+    // or count writes. Un-queued, the race is:
+    //     checkout GET   (no key)
+    //     checkout SET   key persisted            <- the guarantee lands
+    //     favicon  GET   snapshot taken EARLIER, no key
+    //     favicon  SET   key GONE                 <- the clobber
+    //     checkout GET   fresh re-read, post-network
+    //     checkout SET   key restored             <- healed, before anyone looks
+    // Final state correct, write count correct, and a real clobber in the middle.
+    // Measured across five network-window widths, 0ms to 120ms: the mutant
+    // clobbers in 5 of 5 and the clean subject in 0 of 5, so this separates them
+    // deterministically rather than by timing luck.
+    //
+    // WHY THE INTERMEDIATE STATE IS WORTH ASSERTING, rather than shrugging at a
+    // self-healing race. handleCheckoutReturn's own comment states the guarantee
+    // the first write exists to provide: the key is on disk BEFORE the Dodo round
+    // trip, "if the network call fails, hangs, or the worker dies mid-flight".
+    // Un-queued, that key is wiped milliseconds later and only restored IF the
+    // job survives the network call - which is precisely the case the first write
+    // was written to cover. The healing is real but it is not the guarantee.
+    {
+      const writes = stats.dataWrites.slice(-(stats.dataSets - before));
+      let seenKey = false, clobbers = 0;
+      for (const w of writes) {
+        if (w.licenseKey) seenKey = true;
+        else if (seenKey) clobbers++;
+      }
+      check("S1: ...and no write DROPS a licence key an earlier write had persisted",
+        clobbers === 0,
+        `${clobbers} clobber(s) across ${writes.length} writes: ` +
+          JSON.stringify(writes.map((w) => (w.licenseKey ? "key" : "-"))));
+    }
   }
 
   // ===== S2 — favicon x idle-state, BOTH ORDERS ===========================

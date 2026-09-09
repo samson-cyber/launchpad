@@ -368,9 +368,18 @@ const SEEDS = [
   {
     name: "Pro level set widened to admit expired",
     note: "recorded R2 seed 7",
+    // [1218314553351830] RE-ANCHORED, and this is a MOVE not a rewrite: the seed
+    // still widens the accessible set to admit `expired`, which is the same
+    // subject matter it has always had. What changed is where the set lives.
+    // 7d55682 made isProAccessibleLevel canonical in pro-access.js so the popup
+    // and the badge could share one definition, and the operand order was
+    // normalised with it (trialing first). The anchor still pointed at
+    // background.js and had been reporting ANCHOR-MISS ever since, so this seed
+    // has protected nothing since that commit. pro-access.js was already in this
+    // runner's SUBJECT_FILES, so nothing else needed to change.
     seeds: [{
-      file: "background.js",
-      find: 'return level === "active" || level === "trialing" || level === "grace";',
+      file: "pro-access.js",
+      find: 'return level === "trialing" || level === "active" || level === "grace";',
       replace: 'return level === "active" || level === "trialing" || level === "grace" || level === "expired";',
     }],
   },
