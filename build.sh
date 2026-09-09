@@ -288,7 +288,23 @@ powershell.exe -NoProfile -Command "
     'manifest.json',
     'newtab.html',
     'newtab.js',
+    # [1.9.4] tokens.css AND THE FOUR COMPANION FILES WERE MISSING, and every
+    # one of them is load-bearing. They arrived in [1.9.1] and nothing added
+    # them here, so the shipped artifact would have carried a manifest pointing
+    # action.default_popup at a file that is not in the zip - a dead toolbar
+    # icon - and a newtab.html linking a stylesheet that is not there, which
+    # takes the ENTIRE token layer with it: every --fs-*, --display-*, radius,
+    # spacing and frost-tier variable undefined at once.
+    # Three rounds of runtime verification could not see this, because all of
+    # them drove the working TREE, where the files are present. Only the
+    # packaged build reads this list. That is the whole argument for the
+    # packaged-build smoke being a standing step rather than a nicety.
+    'tokens.css',
     'newtab.css',
+    'companion.html',
+    'companion.js',
+    'companion.css',
+    'companion-popup.js',
     'background.js',
     'bookmarks.js',
     'license.js',
