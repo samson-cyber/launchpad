@@ -1327,6 +1327,14 @@ I18n.register("en", {
     "message": "no last week yet",
     "description": "Shown in place of the comparison on the weekly review card when no previous week exists at all. Deliberately not a 100% drop - there is nothing to compare to, which is different from having done less. Rendered with th()."
   },
+  "launcher_search_the_web_for": {
+    "message": "Search the web for",
+    "description": "Prefix of the last row of the launcher results, followed by the user's quoted query. That row does exactly what pressing Enter with nothing selected does; it exists so the behaviour is visible rather than folklore. Rendered with t()."
+  },
+  "launcher_n_results": {
+    "message": "{n} results",
+    "description": "Announced in the launcher's polite live region when the query changes. Counts only LaunchPad's own matches - shortcuts, groups and sessions - and deliberately not the always-present web-search row, which is an action rather than a result. Rendered with t()."
+  },
   "companion_locked": {
     "message": "Focus tracking is a Pro feature. Open LaunchPad in a new tab to start a trial.",
     "description": "The only line the toolbar popup shows to a free or expired user. Rendered with t(). NOT a preview of the pill - D9 hides the pill entirely below Pro, and a preview surface must never render a create affordance, so this explains the empty popup instead of imitating it."

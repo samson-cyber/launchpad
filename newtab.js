@@ -11640,6 +11640,320 @@
     else if (size === "large") html.classList.add("text-size-large");
   }
 
+  // ===== [1.10.1] THE LAUNCHER ==============================================
+  //
+  // SEARCH-AS-LAUNCHER AND KEYBOARD NAVIGATION ARE ONE FEATURE. Built apart they
+  // produce two focus models that fight over the same key presses; built together
+  // there is exactly one focus and a set of rules for where it lives.
+  //
+  // THE FOCUS MODEL, stated before the code because it is the whole design.
+  // There is ONE DOM focus at all times. It is in one of two places:
+  //
+  //   GRID    focus is on a tile's own <a> (or the add tile's <button>). Arrow
+  //           keys move it. This is real DOM focus - no roving tabindex, so Tab
+  //           order is exactly what it is today and nothing about Tab changes.
+  //   SEARCH  focus is in #search-input. It STAYS THERE while results are being
+  //           navigated: the highlighted row is a VIRTUAL cursor (activeIndex +
+  //           aria-activedescendant), never a focused element.
+  //
+  // That second rule is the one that keeps this to one focus system. A results
+  // list whose rows take DOM focus would mean two things could be focused in the
+  // user's mind - the field they are typing into and the row they are choosing -
+  // and every keystroke would have to arbitrate. The combobox pattern says the
+  // input owns the cursor; the list only renders it.
+  //
+  // TRANSITIONS BETWEEN THE TWO:
+  //   "/" anywhere on Home                  -> SEARCH (text selected)
+  //   ArrowDown in SEARCH with NO query     -> GRID, first tile
+  //   ArrowDown in SEARCH with results      -> stays SEARCH, cursor moves down
+  //   ArrowUp in SEARCH past the first row  -> stays SEARCH, cursor released
+  //   ArrowUp in GRID from the top row      -> SEARCH
+  //   Escape in SEARCH with a query         -> query cleared, GRID
+  //
+  // EDGES, decided:
+  //   first result + ArrowUp   the cursor is RELEASED to "no selection", query
+  //                            intact. That is the way back to a plain web
+  //                            search without deleting what you typed, and it is
+  //                            why the cursor starts released rather than on row
+  //                            one. A second ArrowUp stays released.
+  //   last row + ArrowDown     stays on the last row. No wrap: the last row is
+  //                            always the web-search action, so wrapping would
+  //                            put "search the web" one key from the top of a
+  //                            list of your own shortcuts.
+  //   last tile + ArrowDown    stays. There is nothing below the grid.
+  //   first tile + ArrowUp     SEARCH. The grid's top edge is the search bar,
+  //                            visually and now behaviourally.
+  //   arrows with search empty ArrowDown enters the grid; ArrowUp does nothing.
+  //   arrows with results      move the cursor; they never enter the grid, so a
+  //                            long list cannot strand you.
+  var LAUNCHER_MAX = 8;
+  var launcherState = { results: [], activeIndex: -1, lastTileId: null };
+
+  // A launcher must not steal a key from something the user is typing into.
+  // Every text-entry surface on Home is an <input>, a <textarea>, or a <select>;
+  // there are no contentEditable surfaces in this page, and the guard covers that
+  // case anyway so one appearing later is already handled. Enumerated and
+  // asserted in the round's harness rather than trusted.
+  function isTypingTarget(el) {
+    if (!el) return false;
+    if (el.isContentEditable) return true;
+    var tag = el.tagName;
+    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+  }
+
+  // RANKING, and it is deliberately not a popularity contest.
+  //
+  //   1. PREFIX MATCHES BEFORE SUBSTRING. In a launcher you type the beginning
+  //      of the thing you want; "git" should reach GitHub before it reaches
+  //      "Digital Ocean".
+  //   2. Then SHORTER NAME FIRST, so the most specific match of several that all
+  //      start the same way comes first ("Mail" before "Mailchimp Campaigns").
+  //   3. Then the PRODUCT'S OWN ORDER - groupOrder, then position within the
+  //      group - so the list is stable between keystrokes instead of shuffling.
+  //
+  // NO RECENCY AND NO FREQUENCY, and that is a scope decision rather than a
+  // preference: ranking by either needs a visit counter, B5 was declined, and
+  // adding one here would smuggle a rejected feature in as an implementation
+  // detail. Nothing in the data model records when a shortcut was last opened.
+  function launcherScore(haystack, needle) {
+    if (!haystack) return -1;
+    var h = haystack.toLowerCase();
+    var i = h.indexOf(needle);
+    if (i === -1) return -1;
+    return i === 0 ? 0 : 1;              // 0 = prefix, 1 = substring
+  }
+
+  // Reads the SAME traversal render() uses - groupOrder, then groupMap, then each
+  // group's own shortcuts - plus Storage.getAllNamedSessions for sessions. Not a
+  // second definition of "what is on this page": the arc's standing rule is to
+  // read the product's own state rather than re-derive it, and re-deriving here
+  // would drift the moment demo groups or read-only workspaces changed.
+  function launcherSearch(query) {
+    var q = String(query || "").trim().toLowerCase();
+    if (!q) return [];
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return [];
+    var groups = ws.groups || [];
+    var groupOrder = ws.groupOrder || [];
+    var groupMap = {};
+    groups.forEach(function (g) { groupMap[g.id] = g; });
+    var out = [];
+
+    groupOrder.forEach(function (gid, gi) {
+      var g = groupMap[gid];
+      if (!g || g.id === "demo_intro") return;   // the teaching strip is not content
+      var gs = launcherScore(g.name, q);
+      if (gs !== -1) {
+        out.push({ kind: "group", id: g.id, label: g.name,
+                   sub: (g.shortcuts || []).length + " shortcuts",
+                   rank: gs, len: (g.name || "").length, ord: gi * 1000 });
+      }
+      (g.shortcuts || []).forEach(function (sc, si) {
+        // Title first, then the URL, so "github.com" finds a tile named "Repos".
+        var best = launcherScore(sc.title, q);
+        if (best === -1) best = launcherScore(sc.url, q);
+        if (best === -1) return;
+        out.push({ kind: "shortcut", id: sc.id, label: sc.title || getDomain(sc.url),
+                   sub: getDomain(sc.url), url: sc.url,
+                   rank: best, len: (sc.title || sc.url || "").length, ord: gi * 1000 + si });
+      });
+    });
+
+    (Storage.getAllNamedSessions(ws) || []).forEach(function (sess, si) {
+      var ss = launcherScore(sess.name, q);
+      if (ss === -1) return;
+      out.push({ kind: "session", id: sess.id, label: sess.name,
+                 sub: (sess.tabs || []).length + " tabs",
+                 rank: ss, len: (sess.name || "").length, ord: 900000 + si });
+    });
+
+    out.sort(function (a, b) {
+      if (a.rank !== b.rank) return a.rank - b.rank;
+      if (a.len !== b.len) return a.len - b.len;
+      return a.ord - b.ord;
+    });
+    return out.slice(0, LAUNCHER_MAX);
+  }
+
+  function launcherRowHtml(r, i) {
+    var icon;
+    if (r.kind === "shortcut") icon = '<img class="lr-icon" src="' + esc(getFaviconUrl({ url: r.url })) + '" alt="" width="16" height="16">';
+    else if (r.kind === "group") icon = '<span class="lr-icon lr-glyph" aria-hidden="true">\u25A6</span>';
+    else if (r.kind === "session") icon = '<span class="lr-icon lr-glyph" aria-hidden="true">\u29C9</span>';
+    else icon = '<span class="lr-icon lr-glyph" aria-hidden="true">\u2315</span>';
+    return (
+      '<li class="launcher-row" role="option" id="lr-' + i + '" aria-selected="false"' +
+          ' data-lr-index="' + i + '">' +
+        icon +
+        '<span class="lr-label">' + esc(r.label) + '</span>' +
+        '<span class="lr-sub">' + esc(r.sub || "") + '</span>' +
+      '</li>'
+    );
+  }
+
+  function launcherRender(query) {
+    var list = $("#launcher-results");
+    var input = $("#search-input");
+    var live = $("#launcher-live");
+    if (!list || !input) return;
+    var q = String(query || "").trim();
+    var hits = launcherSearch(q);
+
+    // THE WEB-SEARCH ACTION IS ALWAYS THE LAST ROW when there is a query. It is
+    // the same thing plain Enter does, rendered so the behaviour is visible
+    // rather than folklore.
+    var rows = hits.slice();
+    if (q) rows.push({ kind: "web", label: t("launcher_search_the_web_for") + ' "' + q + '"', sub: "" });
+
+    launcherState.results = rows;
+    launcherState.activeIndex = -1;             // released: plain Enter = web search
+
+    if (!q || !rows.length) {
+      list.innerHTML = "";
+      list.hidden = true;
+      input.setAttribute("aria-expanded", "false");
+      input.removeAttribute("aria-activedescendant");
+      if (live) live.textContent = "";
+      return;
+    }
+    list.innerHTML = rows.map(launcherRowHtml).join("");
+    list.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+    input.removeAttribute("aria-activedescendant");
+    if (live) live.textContent = t("launcher_n_results", { n: String(hits.length) });
+  }
+
+  function launcherSetActive(i) {
+    var list = $("#launcher-results");
+    var input = $("#search-input");
+    if (!list || !input) return;
+    var rows = list.querySelectorAll(".launcher-row");
+    for (var k = 0; k < rows.length; k++) {
+      var on = k === i;
+      rows[k].classList.toggle("is-active", on);
+      rows[k].setAttribute("aria-selected", on ? "true" : "false");
+      if (on && rows[k].scrollIntoView) rows[k].scrollIntoView({ block: "nearest" });
+    }
+    launcherState.activeIndex = i;
+    // THE VIRTUAL CURSOR. Focus stays in the input; this is the only thing that
+    // tells a screen reader which row is current.
+    if (i >= 0 && rows[i]) input.setAttribute("aria-activedescendant", rows[i].id);
+    else input.removeAttribute("aria-activedescendant");
+  }
+
+  function launcherClose(returnToGrid) {
+    var list = $("#launcher-results");
+    var input = $("#search-input");
+    if (list) { list.innerHTML = ""; list.hidden = true; }
+    if (input) {
+      input.value = "";
+      input.setAttribute("aria-expanded", "false");
+      input.removeAttribute("aria-activedescendant");
+    }
+    launcherState.results = [];
+    launcherState.activeIndex = -1;
+    var live = $("#launcher-live");
+    if (live) live.textContent = "";
+    if (returnToGrid) launcherFocusTile(0);
+  }
+
+  // ----- the grid half -------------------------------------------------------
+  //
+  // The tile list is read from the RENDERED DOM in document order, which for this
+  // grid is also visual order: .shortcuts-grid is a plain CSS grid with no
+  // `order` or `grid-auto-flow` reordering, so source order is what the eye sees.
+  // Reading the DOM rather than the data also means collapsed groups, read-only
+  // workspaces and the demo strip are handled by whatever render() already did.
+  function launcherTiles() {
+    return Array.prototype.slice.call(
+      document.querySelectorAll("#groups .shortcut > .shortcut-link, #groups .add-tile"));
+  }
+
+  function launcherFocusTile(i) {
+    var tiles = launcherTiles();
+    if (!tiles.length) { var si = $("#search-input"); if (si) si.focus(); return; }
+    var t2 = tiles[Math.max(0, Math.min(i, tiles.length - 1))];
+    t2.focus();
+    launcherState.lastTileId = i;
+  }
+
+  // ROWS ARE MEASURED, NOT COMPUTED. settings.columns is the requested column
+  // count, not the rendered one - the grid wraps responsively and a collapsed
+  // group contributes no row at all - so Up/Down derive the row from actual
+  // geometry: tiles sharing a top edge are a row. That is the same "read what was
+  // rendered" rule the tile list follows.
+  function launcherRowOf(tiles, idx) {
+    var top = Math.round(tiles[idx].getBoundingClientRect().top);
+    var row = [];
+    for (var i = 0; i < tiles.length; i++) {
+      if (Math.abs(Math.round(tiles[i].getBoundingClientRect().top) - top) <= 4) row.push(i);
+    }
+    return row;
+  }
+
+  function launcherMoveTile(dir) {
+    var tiles = launcherTiles();
+    if (!tiles.length) return;
+    var idx = tiles.indexOf(document.activeElement);
+    if (idx === -1) { launcherFocusTile(0); return; }
+
+    if (dir === "left") { if (idx > 0) launcherFocusTile(idx - 1); return; }
+    if (dir === "right") { if (idx < tiles.length - 1) launcherFocusTile(idx + 1); return; }
+
+    var row = launcherRowOf(tiles, idx);
+    var col = row.indexOf(idx);
+    if (dir === "up") {
+      if (row[0] === 0) { var si = $("#search-input"); if (si) { si.focus(); si.select(); } return; }
+      var prevEnd = row[0] - 1;
+      var prevRow = launcherRowOf(tiles, prevEnd);
+      launcherFocusTile(prevRow[Math.min(col, prevRow.length - 1)]);
+      return;
+    }
+    if (dir === "down") {
+      var last = row[row.length - 1];
+      if (last >= tiles.length - 1) return;            // nothing below the grid
+      var nextRow = launcherRowOf(tiles, last + 1);
+      launcherFocusTile(nextRow[Math.min(col, nextRow.length - 1)]);
+    }
+  }
+
+  // ----- opening -------------------------------------------------------------
+  function launcherOpenResult(r, newTab) {
+    if (!r) return;
+    if (r.kind === "web") { launcherRunWebSearch($("#search-input").value.trim(), newTab); return; }
+    if (r.kind === "shortcut") {
+      if (newTab) chrome.tabs.create({ url: r.url });
+      else chrome.tabs.update({ url: r.url });
+      return;
+    }
+    if (r.kind === "group") {
+      // The group's OWN opener, not a second implementation of open-all.
+      launcherClose(false);
+      openAllInGroup(r.id);
+      return;
+    }
+    if (r.kind === "session") {
+      launcherClose(false);
+      launchNamedSession(r.id);
+    }
+  }
+
+  // TODAY'S BEHAVIOUR, LIFTED VERBATIM out of the submit handler so both the
+  // plain-Enter path and the web row run the identical code. Decision 3: the web
+  // half stays chrome.search.query and is not touched.
+  function launcherRunWebSearch(query, newTab) {
+    if (!query) return;
+    if (query.indexOf(".") !== -1 && query.indexOf(" ") === -1) {
+      var url = query;
+      if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+      if (newTab) chrome.tabs.create({ url: url });
+      else chrome.tabs.update({ url: url });
+    } else {
+      // Chrome's built-in search — respects the user's default engine.
+      chrome.search.query({ text: query, disposition: newTab ? "NEW_TAB" : "CURRENT_TAB" });
+    }
+  }
+
   function applySearch() {
     var form = $("#search-form");
     var input = $("#search-input");
@@ -11649,17 +11963,100 @@
         e.preventDefault();
         var query = $("#search-input").value.trim();
         if (!query) return;
-        // Detect URLs: contains a dot and no spaces
-        if (query.indexOf(".") !== -1 && query.indexOf(" ") === -1) {
-          var url = query;
-          if (!/^https?:\/\//i.test(url)) url = "https://" + url;
-          chrome.tabs.update({ url: url });
-        } else {
-          // Use Chrome's built-in search — respects user's default search engine
-          chrome.search.query({ text: query, disposition: "CURRENT_TAB" });
-        }
+        // DECISION 2'S REGRESSION GUARD. Submit with NOTHING selected must do
+        // exactly what it did before this round: a web search or a URL jump. The
+        // launcher only ever intercepts when the user has actually chosen a row,
+        // and that interception happens on keydown, before submit fires.
+        launcherRunWebSearch(query, false);
       });
       form._searchHandlerAttached = true;
+    }
+
+    if (input && !input._launcherAttached) {
+      input.addEventListener("input", function () { launcherRender(input.value); });
+      input.addEventListener("keydown", function (e) {
+        var rows = launcherState.results;
+        var has = rows.length > 0;
+
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          // Empty query: the arrow is the bridge INTO the grid.
+          if (!has) { launcherFocusTile(0); return; }
+          if (launcherState.activeIndex < rows.length - 1) launcherSetActive(launcherState.activeIndex + 1);
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          if (!has) return;                       // nothing above an empty search
+          if (launcherState.activeIndex > 0) launcherSetActive(launcherState.activeIndex - 1);
+          else launcherSetActive(-1);             // released, query intact
+          return;
+        }
+        if (e.key === "Enter") {
+          if (launcherState.activeIndex >= 0) {
+            // A row is chosen: this is the launcher's Enter, not the form's.
+            e.preventDefault();
+            launcherOpenResult(rows[launcherState.activeIndex], e.ctrlKey || e.metaKey);
+            return;
+          }
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            launcherRunWebSearch(input.value.trim(), true);
+            return;
+          }
+          return;                                  // fall through to submit — today's path
+        }
+        if (e.key === "Escape") {
+          if (input.value) {
+            // Scoped: only claims Escape when there is something to clear, so the
+            // page-wide Escape sweep still owns every other case.
+            e.preventDefault();
+            e.stopPropagation();
+            launcherClose(true);
+          }
+        }
+      });
+      // A click on a row is the same action as Enter on it.
+      var list = $("#launcher-results");
+      if (list) {
+        list.addEventListener("mousedown", function (e) {
+          var row = e.target.closest && e.target.closest("[data-lr-index]");
+          if (!row) return;
+          e.preventDefault();                      // keep focus in the input
+          launcherOpenResult(launcherState.results[+row.getAttribute("data-lr-index")], e.ctrlKey || e.metaKey);
+        });
+      }
+      input._launcherAttached = true;
+    }
+
+    if (!document._launcherKeysAttached) {
+      document.addEventListener("keydown", function (e) {
+        // "/" FOCUSES SEARCH FROM ANYWHERE ON HOME - except while the user is
+        // typing. A launcher that hijacks a slash mid-sentence is worse than no
+        // shortcut, so every input, textarea, select and contentEditable
+        // surface swallows it, and so does any open modal.
+        if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          if (isTypingTarget(e.target)) return;
+          var si = $("#search-input");
+          if (!si) return;
+          e.preventDefault();
+          si.focus();
+          si.select();
+          return;
+        }
+        // Grid arrows. Only when focus is genuinely on a tile, so no other
+        // surface's arrow keys are taken.
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown") {
+          if (isTypingTarget(e.target)) return;
+          var act = document.activeElement;
+          if (!act || !act.closest || !act.closest("#groups")) return;
+          if (!act.matches(".shortcut-link, .add-tile")) return;
+          e.preventDefault();
+          launcherMoveTile(e.key === "ArrowLeft" ? "left" : e.key === "ArrowRight" ? "right"
+            : e.key === "ArrowUp" ? "up" : "down");
+        }
+      });
+      document._launcherKeysAttached = true;
     }
   }
 

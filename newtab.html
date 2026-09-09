@@ -141,14 +141,27 @@
 
     <!-- TAB PANELS -->
     <div id="tab-home" class="tab-panel" role="tabpanel" tabindex="-1">
+      <!-- [1.10.1] THE SEARCH BAR IS THE LAUNCHER. The input is a combobox over
+           #launcher-results; DOM focus never leaves it while the list is being
+           navigated, which is what keeps this to ONE focus at a time. The active
+           row is tracked virtually through aria-activedescendant. -->
       <form id="search-form" autocomplete="off">
         <div id="search-bar">
           <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
-          <input data-i18n-placeholder="page_search_or_type_a_url" type="text" id="search-input" placeholder="Search or type a URL" autofocus>
+          <input data-i18n-placeholder="page_search_or_type_a_url" type="text" id="search-input" placeholder="Search or type a URL" autofocus
+                 role="combobox" aria-expanded="false" aria-controls="launcher-results"
+                 aria-autocomplete="list" aria-haspopup="listbox">
         </div>
+        <!-- Rendered empty and hidden. A placeholder row would flash a state the
+             user is not in, the same reason companion-root ships empty. -->
+        <ul id="launcher-results" role="listbox" aria-label="Search results" hidden></ul>
       </form>
+      <!-- Announces the result count on each query change. Separate from the
+           listbox because a live region that IS the listbox re-announces every
+           row on every keystroke. -->
+      <div id="launcher-live" class="sr-only" role="status" aria-live="polite"></div>
       <div id="shortcut-grid-area">
         <div id="groups"></div>
       </div>

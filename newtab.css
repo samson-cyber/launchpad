@@ -15258,3 +15258,124 @@ html.has-bg.bg-light .notes-default-cycle {
   background-image: repeating-linear-gradient(45deg,
     rgba(0, 0, 0, 0.42) 0 3px, rgba(0, 0, 0, 0.1) 3px 6px);
 }
+
+/* ===== [1.10.1] THE LAUNCHER RESULTS ======================================
+   INK IS DECLARED, NEVER INHERITED. Eight consecutive rounds that added a
+   surface each found a white-on-white defect, always the same shape: a new text
+   rule with no `color`, inheriting body's dark ink, invisible on a dark frosted
+   panel. Every text node below states its colour, and every one has a
+   has-bg-scoped override, so the four-frame sweep has something to measure on
+   all four frames rather than a value that only exists on one.
+
+   FLOATER TIER: the results list is a transient surface over the page, which is
+   what that tier is for. It is anchored under the search bar rather than
+   position:fixed, so it moves with the bar on resize instead of drifting away
+   from it - the drift-close hazard the popover matrix records. */
+#launcher-results {
+  list-style: none;
+  margin: 6px auto 0;
+  padding: 4px;
+  max-width: 584px;
+  max-height: 320px;
+  overflow-y: auto;
+  border-radius: var(--radius-md);
+  background: var(--pro-frost-floater-bg);
+  backdrop-filter: var(--pro-frost-floater-blur);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.38);
+  text-align: left;
+  position: relative;
+  z-index: 900;
+}
+
+.launcher-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 7px var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: #fff;
+  font-size: var(--fs-13);
+  line-height: 1.3;
+}
+
+/* Hover and the virtual cursor are the SAME treatment on purpose: the row the
+   mouse is over and the row the arrow keys are on mean the same thing, and two
+   different highlights on one list would read as two selections. */
+.launcher-row:hover,
+.launcher-row.is-active {
+  background: rgba(255, 255, 255, 0.14);
+}
+.launcher-row.is-active {
+  outline: 1px solid rgba(255, 255, 255, 0.34);
+  outline-offset: -1px;
+}
+
+.lr-icon {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  object-fit: contain;
+}
+.lr-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-12);
+  color: #fff;
+  opacity: 0.85;
+}
+.lr-label {
+  flex: 1 1 auto;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The secondary column carries a REAL colour rather than an opacity step. A
+   double-stepped ink is what put row one of the [1.8.6] board at 2.94:1. */
+.lr-sub {
+  flex: 0 0 auto;
+  max-width: 45%;
+  color: #c9cdd3;
+  font-size: var(--fs-11);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* LIGHT WALLPAPER. The floater tier already flips its background under
+   html.bg-light; the ink has to flip with it or the whole list goes
+   white-on-white, which is the exact defect this block is written against. */
+html.bg-light .launcher-row,
+html.bg-light .lr-label,
+html.bg-light .lr-glyph { color: var(--text-primary); }
+html.bg-light .lr-sub { color: #5f6368; }
+html.bg-light .launcher-row:hover,
+html.bg-light .launcher-row.is-active { background: rgba(0, 0, 0, 0.08); }
+html.bg-light .launcher-row.is-active { outline-color: rgba(0, 0, 0, 0.3); }
+
+/* KEYBOARD FOCUS ON THE GRID must be visible. The tiles are anchors, so they
+   already take :focus-visible, but the default ring disappears against a
+   wallpaper - this states one that does not. */
+#groups .shortcut-link:focus-visible,
+#groups .add-tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+/* The live region is announced, never seen. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
