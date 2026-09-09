@@ -2371,3 +2371,82 @@ marginal addition rather than a new liability.
 
 Full finding, including the beacon that was removed and the measurements behind each
 claim, is filed on Asana 1217977486245315.
+
+---
+
+## 2026-09-09 — chrome.storage quota exhaustion is made VISIBLE, and `unlimitedStorage` is deliberately NOT requested
+
+**Context:** Found during `[1.10.2]` while measuring the storage cost of custom shortcut
+icons. `manifest.json` requests `storage` but not `unlimitedStorage`, so
+`chrome.storage.local` has the default 10 MB. There was no quota handling anywhere in the
+product: `saveAll`'s entire catch body was one `console.error`. Driven in a scratch profile
+rather than inferred, the failure is silent data loss. The set throws
+`Resource::kQuotaBytes quota exceeded`, the value reads back absent, and because the caller
+had already mutated the in-memory `data` and nothing told it otherwise, the page went on
+rendering the change. The user saw it apply and lost it at the next reload, with no message.
+
+**Alternatives considered, for how a refused write reaches the caller:**
+- Make `saveAll` THROW. Rejected: there are ~127 call sites outside `storage.js` and most
+  are deliberately fire-and-forget, so this converts every one into an unhandled rejection.
+- Make `saveAll` return a boolean and audit all ~127 sites. Rejected as the primary
+  mechanism: honest, but on day one every existing site ignores it, so the user still sees
+  nothing. It is also a sweep, and the surface it must cover keeps growing.
+- A hook the PAGE registers once, mirroring `Storage.onWriteAdopt` from L5.
+
+**Outcome:** all three of the cheap parts, with the hook doing the work. `saveAll` returns
+`true`/`false` AND notifies `Storage.onWriteFail`. The page registers one handler beside
+its `onWriteAdopt` registration; the service worker registers nothing and is unchanged.
+Call sites are audited case by case rather than in a sweep, and exactly one changed in this
+round: `setShortcutIcon` now reports `{ ok: false, reason: "not-saved" }`, because leaving
+it to claim success made the optimistic render RACE the hook's revert, and which of the two
+painted last was a scheduling accident.
+
+**The page does not just toast, it REVERTS.** A toast alone is half honest: the user reads
+"not saved" while looking straight at the thing that was apparently saved. The handler
+re-reads from disk and re-renders, so the loss happens ONCE, visibly, while the user is
+still there to act on it, instead of silently at the next reload. This deliberately
+overrides the own-tab render suppression that L5 is careful to respect, and that is the
+right trade here precisely because this path is not an interaction, it is a failure. The
+alternative to a wiped sidebar expansion is lost user data.
+
+**A proactive warning at 80%,** latched to once per 24h, scheduled 600ms after the promo
+toast's slot. `#open-all-toast` holds exactly one message, so whichever fires last is the
+one the user reads, and the storage warning has to be that one: it is latched, so being
+overwritten by a promo would cost the notice for a whole day rather than for one open.
+
+**A correctness fix found on the way, and it was the more dangerous half.** `getAll`'s
+one-time backfill writes sat inside the function's single `try`, so an over-quota backfill
+fell to the outer catch and `getAll` returned `getDefaultData()` — an EMPTY product from a
+profile that is merely FULL. The next write that did land would persist that over the top
+of the user's real data, turning a refused write into permanent loss. The backfill and the
+migration writes now have their own `try`/`catch` and the successfully-read data is
+returned. Proven both ways in a VM against the real `storage.js`: pre-fix it returns an
+empty default profile, post-fix the user's own shortcuts.
+
+**`unlimitedStorage` is NOT requested, and this is a product decision rather than a
+deferral.** The arc's PLAN decision 4 requires the permission diff against the packaged
+2.1.0 build to stay EMPTY, and 2.1.0 is in review, so a permission change now would alter
+the review surface of a submission that is already with Google. Beyond that it is not
+actually a fix for this defect: it moves the ceiling, it does not make a refused write
+visible, and every failure mode above survives it — a profile can still fill, and
+`getAll`'s backfill hazard was never about the quota's size. Visibility is the fix; more
+room is a separate question, and a better-informed one once the warning surface has told
+us whether real profiles ever approach the ceiling at all.
+
+**If it is ever taken, the install prompt must be checked against the real prompt, not the
+documentation.** That check was NOT performed this round, because the permission was not
+taken and verifying the prompt for a change we are not making is not evidence of anything.
+It is a prerequisite for the round that does take it. Note also that
+`chrome.storage.local.QUOTA_BYTES` stays 10485760 even when `unlimitedStorage` is granted:
+the permission stops the quota being ENFORCED, it does not change the number. So the
+constant would silently become a warning threshold rather than a ceiling, and the 80%
+warning must be revisited in the same commit rather than left to fire forever against a
+limit that no longer applies.
+
+**Verification.** `tools/check-storage-quota.mjs` (new, wired into `build.sh`) runs the
+real `storage.js` in a VM against a fake `chrome.storage.local` whose `set` can refuse:
+15 rows, 8 mutation seeds, 0 escaped. The user-visible half was driven in a real scratch
+profile, asserting the TRANSITION rather than the endpoint (BUGS.md P22) — at the END the
+pre-fix and post-fix trees AGREE, since the icon is absent from disk and from the page in
+both. Only the state immediately after the click separates them: pre-fix `dom=emoji,
+disk=null, toast=false`; post-fix `dom=null, disk=null, toast="Chrome's storage is full…"`.

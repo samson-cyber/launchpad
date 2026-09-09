@@ -41,6 +41,100 @@ var Storage = (function () {
     _adoptWrite = (typeof fn === "function") ? fn : null;
   }
 
+  // ===== [1.10.3] STORAGE QUOTA — MAKING AN OVER-QUOTA WRITE VISIBLE ========
+  //
+  // chrome.storage.local gets 10 MB here: `manifest.json` requests "storage"
+  // and NOT "unlimitedStorage". saveAll writes the WHOLE data object on EVERY
+  // write, so the ceiling is a property of the profile's TOTAL size rather than
+  // of the field being edited — a Pomodoro tick fails exactly as readily as an
+  // icon upload, and the write that finally fails is very unlikely to be the
+  // one that made the profile big.
+  //
+  // WHAT USED TO HAPPEN, MEASURED IN A SCRATCH PROFILE RATHER THAN INFERRED.
+  // The set throws "Resource::kQuotaBytes quota exceeded" and the value reads
+  // back ABSENT; saveAll's entire catch body was one console.error. The caller
+  // had already mutated the in-memory `data`, and nothing told it otherwise, so
+  // the page kept rendering the change. The user saw it apply and lost it at
+  // the next reload, with no message. That is silent data loss, and a console
+  // line is not a surface — nobody has DevTools open on their new tab page.
+  //
+  // THE FIX IS STRUCTURAL, NOT A SWEEP — the same argument L5 made for
+  // onWriteAdopt, and for the same reason. There are ~127 saveAll call sites
+  // outside this file and most are deliberately fire-and-forget: making saveAll
+  // THROW would turn every one of them into an unhandled rejection, and making
+  // it return false would be honest but ignored by all of them on day one. So
+  // saveAll does both cheap things and one useful one — it returns a boolean
+  // for the callers that can genuinely branch on it, and it notifies a failure
+  // hook the PAGE registers once. The service worker registers nothing, so its
+  // behaviour is unchanged, exactly as with _adoptWrite.
+  //
+  // Read the ceiling from the API rather than hardcoding it, with the
+  // documented default as the fallback. NOTE, because it is a trap worth
+  // naming: `QUOTA_BYTES` stays 10485760 even when "unlimitedStorage" is
+  // granted — that permission stops the quota being ENFORCED, it does not
+  // change this number. If the permission is ever added (a store-review
+  // decision, deliberately NOT taken in this round — see DECISIONS.md), this
+  // constant silently becomes a warning threshold rather than a real ceiling,
+  // and the pressure warning below must be revisited rather than left to fire
+  // forever against a limit that no longer applies.
+  var QUOTA_BYTES = (typeof chrome !== "undefined" && chrome.storage &&
+    chrome.storage.local && chrome.storage.local.QUOTA_BYTES) || 10485760;
+
+  // 80% leaves ~2 MB of headroom — room to actually act on the warning rather
+  // than a notice that arrives with the door already shut.
+  var QUOTA_WARN_RATIO = 0.8;
+
+  // Chrome reports this as "Resource::kQuotaBytes quota exceeded". Matched on
+  // the WORD rather than the exact sentence: the wording is not a documented
+  // contract and has changed across versions, and a write that failed for any
+  // other reason must still reach the user as a failure. This flag only picks
+  // which sentence they read, never whether they are told at all.
+  function isQuotaError(err) {
+    var msg = String((err && (err.message || err.name)) || err || "");
+    return /quota/i.test(msg);
+  }
+
+  var _onWriteFail = null;
+  function onWriteFail(fn) {
+    _onWriteFail = (typeof fn === "function") ? fn : null;
+  }
+
+  // EVERY persistence failure in this file goes through here, so there is one
+  // place that decides what a failed write looks like. `where` names the site
+  // because a failed backfill inside getAll and a failed saveAll are very
+  // different events to anyone reading a console.
+  function reportWriteFailure(err, where) {
+    var quota = isQuotaError(err);
+    console.error("[LaunchPad] Storage write failed" +
+      (quota ? " (QUOTA EXCEEDED)" : "") + " at " + where + ":", err);
+    if (_onWriteFail) {
+      try {
+        _onWriteFail({ quota: quota, where: where, error: err });
+      } catch (hookErr) {
+        console.error("[LaunchPad] Write-failure hook threw:", hookErr);
+      }
+    }
+    return quota;
+  }
+
+  // Proactive pressure read, for the warning that arrives BEFORE the ceiling.
+  // Returns null rather than throwing when getBytesInUse is unavailable — the
+  // same treatment tracking.js already gives it — so a caller can tell "not
+  // measurable" apart from "measured, and fine".
+  async function getStorageUsage() {
+    try {
+      var bytes = await chrome.storage.local.getBytesInUse(null);
+      if (typeof bytes !== "number" || !isFinite(bytes)) return null;
+      return {
+        bytes: bytes,
+        quota: QUOTA_BYTES,
+        ratio: QUOTA_BYTES > 0 ? bytes / QUOTA_BYTES : 0
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
   function genWriteId() {
     return (typeof crypto !== "undefined" && crypto.randomUUID)
       ? crypto.randomUUID()
@@ -427,7 +521,15 @@ var Storage = (function () {
     if (icon === null) {                     // CLEAR
       if (!sc.customIcon) return { ok: true, changed: false };
       delete sc.customIcon;                  // deleted, not nulled - see above
-      await saveAll(data);
+      // [1.10.3] The first caller to actually READ saveAll's new return value.
+      // Not a blanket change to the ~127 sites - this one earns it, because the
+      // alternative is a RACE: the write-failure hook re-renders from disk while
+      // applyShortcutIcon renders optimistically, and which of the two paints
+      // last is a matter of scheduling. Reporting the failure here makes the
+      // caller skip its render entirely, so the outcome is decided rather than
+      // timed. The user-facing toast still comes from the hook; see the
+      // "not-saved" branch in applyShortcutIcon for why this one stays silent.
+      if (!(await saveAll(data))) return { ok: false, reason: "not-saved" };
       return { ok: true, changed: true };
     }
     if (!icon || ICON_KINDS.indexOf(icon.kind) === -1) return { ok: false, reason: "bad-kind" };
@@ -444,7 +546,7 @@ var Storage = (function () {
     // Only "contain" is stored. Cover is the default, so writing it would put a
     // redundant field in every user's backup for no reader's benefit.
     if (icon.kind === "image" && icon.fit === "contain") sc.customIcon.fit = "contain";
-    await saveAll(data);
+    if (!(await saveAll(data))) return { ok: false, reason: "not-saved" };
     return { ok: true, changed: true };
   }
 
@@ -1726,15 +1828,27 @@ var Storage = (function () {
         var strandedReleased = sweepStrandedTasks(existing);
         if (patched || trackingSeeded || focusSeeded || notesSeeded || sessionsSeeded ||
             strandedUnswept) {
-          await chrome.storage.local.set({ data: existing });
-          if (patched) console.log("[LaunchPad] Backfilled missing deletedAt fields");
-          if (trackingSeeded) console.log("[LaunchPad] Seeded per-workspace tracking state (default ON)");
-          if (focusSeeded) console.log("[LaunchPad] Seeded focus-blocking state (auto-arm default ON)");
-          if (notesSeeded) console.log("[LaunchPad] Seeded per-workspace notes array");
-          if (sessionsSeeded) console.log("[LaunchPad] Seeded per-workspace named-sessions array");
-          if (strandedReleased > 0) {
-            console.log("[LaunchPad] Released " + strandedReleased +
-              " task(s) stranded in a non-active goal back to Standalone");
+          // [1.10.3] THE BACKFILL WRITE GETS ITS OWN try/catch, AND THIS IS A
+          // CORRECTNESS FIX RATHER THAN TIDYING. It used to sit inside this
+          // function's single try, so an over-quota backfill fell through to the
+          // outer catch and getAll returned getDefaultData() — handing the page
+          // an EMPTY product built from a profile that is merely FULL. The next
+          // write that did succeed would then persist that empty product over
+          // the top of the user's real data, turning a failed write into
+          // permanent loss. The READ succeeded; return what it read.
+          try {
+            await chrome.storage.local.set({ data: existing });
+            if (patched) console.log("[LaunchPad] Backfilled missing deletedAt fields");
+            if (trackingSeeded) console.log("[LaunchPad] Seeded per-workspace tracking state (default ON)");
+            if (focusSeeded) console.log("[LaunchPad] Seeded focus-blocking state (auto-arm default ON)");
+            if (notesSeeded) console.log("[LaunchPad] Seeded per-workspace notes array");
+            if (sessionsSeeded) console.log("[LaunchPad] Seeded per-workspace named-sessions array");
+            if (strandedReleased > 0) {
+              console.log("[LaunchPad] Released " + strandedReleased +
+                " task(s) stranded in a non-active goal back to Standalone");
+            }
+          } catch (backfillErr) {
+            reportWriteFailure(backfillErr, "getAll backfill");
           }
         }
         return existing;
@@ -1742,10 +1856,25 @@ var Storage = (function () {
 
       // Old shape: backup, migrate, persist.
       console.log("[LaunchPad] Migrating storage to workspace-aware shape...");
-      await chrome.storage.local.set({ data_pre_migration_backup: existing });
-      var migrated = migrate(existing);
-      await chrome.storage.local.set({ data: migrated });
-      console.log("[LaunchPad] Migration complete. Backup saved as data_pre_migration_backup.");
+      // [1.10.3] Same rule as the backfill above, for the same reason: a write
+      // that could not land is not grounds for handing back a DEFAULT profile.
+      // Ordering is unchanged (backup, then migrate, then persist) so the backup
+      // still captures the pre-migration shape before ensureDeletedAtFields
+      // touches the arrays both objects share. If either set fails, the
+      // OLD-SHAPE data is still on disk untouched — the set that would have
+      // replaced it is precisely the one that failed — and the migrated view is
+      // correct in memory, so return that and let the user see their own
+      // shortcuts rather than none.
+      var migrated = null;
+      try {
+        await chrome.storage.local.set({ data_pre_migration_backup: existing });
+        migrated = migrate(existing);
+        await chrome.storage.local.set({ data: migrated });
+        console.log("[LaunchPad] Migration complete. Backup saved as data_pre_migration_backup.");
+      } catch (migErr) {
+        reportWriteFailure(migErr, "getAll migration");
+        if (!migrated) migrated = migrate(existing);
+      }
       return migrated;
     } catch (err) {
       console.error("[LaunchPad] Storage read failed:", err);
@@ -1753,13 +1882,24 @@ var Storage = (function () {
     }
   }
 
+  // [1.10.3] RETURNS TRUE IF THE OBJECT REACHED DISK, FALSE IF IT DID NOT.
+  // Existing fire-and-forget callers are unaffected — an ignored return value is
+  // exactly as ignored as the undefined they used to get — but a caller that can
+  // do something better than the toast (refuse to close a modal, keep an Undo
+  // alive) now has something to branch on. The user-facing half is the failure
+  // hook, which fires whether or not anybody reads this boolean.
   async function saveAll(data) {
+    // [1.10.3] Declared OUTSIDE the try so the catch can un-pend it. A failed
+    // set fires no onChanged at all, so a writeId added here and left behind sits
+    // in _pendingWriteIds forever — a slow leak, and worse than a leak if a later
+    // write ever reused the value, since the provenance gate would suppress that
+    // render. Nothing generates ids that way today; the cleanup costs one line.
+    var writeId = genWriteId();
     try {
       // [1.0.11.2] Tag this write so the newtab's onChanged listener can
       // distinguish OWN writes from foreign ones (other tab, service worker).
       // Both keys land in the same chrome.storage.local.set call so they
       // arrive atomically in a single onChanged event.
-      var writeId = genWriteId();
       _pendingWriteIds.add(writeId);
       await chrome.storage.local.set({
         data: data,
@@ -1775,8 +1915,11 @@ var Storage = (function () {
           console.error("[LaunchPad] Write adoption failed:", adoptErr);
         }
       }
+      return true;
     } catch (err) {
-      console.error("[LaunchPad] Storage write failed:", err);
+      _pendingWriteIds.delete(writeId);
+      reportWriteFailure(err, "saveAll");
+      return false;
     }
   }
 
@@ -7055,6 +7198,14 @@ var Storage = (function () {
     TAB_INSTANCE_ID: TAB_INSTANCE_ID,
     _pendingWriteIds: _pendingWriteIds,
     onWriteAdopt: onWriteAdopt,
+    // [1.10.3] Quota surface. onWriteFail is the page-registered hook that turns
+    // a dropped write into something the user can see; the rest is the proactive
+    // half, so the warning can arrive before the ceiling instead of at it.
+    onWriteFail: onWriteFail,
+    getStorageUsage: getStorageUsage,
+    isQuotaError: isQuotaError,
+    QUOTA_BYTES: QUOTA_BYTES,
+    QUOTA_WARN_RATIO: QUOTA_WARN_RATIO,
     getDefaultData: getDefaultData,
     getAll: getAll,
     saveAll: saveAll,

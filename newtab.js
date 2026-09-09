@@ -16,6 +16,14 @@
   // to stop a re-render wiping DOM state mid-interaction; adopting a reference
   // does not touch the DOM, and that path is untouched.
   Storage.onWriteAdopt(function (persisted) { data = persisted; });
+
+  // [1.10.3] THE OTHER HALF OF THE SAME HOOK IDEA: a write that FAILED. See the
+  // quota block in storage.js for why this is a hook rather than a sweep over
+  // ~127 call sites. Registered here beside the adopt hook, and by the PAGE
+  // only — the service worker imports storage.js and registers nothing, so a
+  // background write keeps its old console-only behaviour and cannot reach into
+  // a tab that may not exist.
+  Storage.onWriteFail(function (info) { handleStorageWriteFailure(info); });
   var sortables = [];
   var groupSortable = null;
   var activeMenu = null;
@@ -10571,6 +10579,28 @@
     // who earned badges and then bought is exactly the collision case.
     if (!isProOnboardingBusy()) runAchievementsOnOpen();
 
+    // [1.10.3] Storage pressure, on a timer that lands AFTER the promo toast's
+    // 2000ms slot, because the two share one toast surface and #open-all-toast
+    // holds exactly one message: whichever fires last is the one the user reads.
+    // The storage warning has to be that one. It is latched to once per 24h, so
+    // being overwritten by a promo would cost the user the notice for a whole
+    // day, not merely this open.
+    //
+    // It sits HERE, after the achievements splash, rather than up beside the
+    // other on-open surfaces, and that placement is load-bearing in a way worth
+    // recording: check-pro-celebration.mjs pins the arbitration block by reading
+    // a fixed-length window from the celebration comment, so anything inserted
+    // between that comment and the runAchievementsOnOpen guard pushes the guard
+    // out of the window and fails the gate. Widening the window to fit a new
+    // surface would be loosening a gate to accommodate a change, which is
+    // backwards; moving the surface costs nothing.
+    setTimeout(function () {
+      if (isProOnboardingBusy()) return;
+      maybeWarnStoragePressure().catch(function (err) {
+        console.error("[LaunchPad] Storage pressure check failed", err);
+      });
+    }, 2600);
+
     // [2.0] The reopen moment. The amber paused card is the real surface — it
     // already shows the frozen count, the PAUSED state and Resume — so this is
     // only the one line that explains WHY a task the user left running is
@@ -10737,7 +10767,7 @@
   var PRO_TOUR_STEPS = [
     { sel: '.tab[data-tab="tasks"]',     text: "Plan it: tasks, goals, and recurring work live here." },
     { sel: '.tab[data-tab="dashboard"]', text: "See your focused time add up across every workspace." },
-    { sel: '.tab[data-tab="insights"]',  text: "Deep work, tags, sites, top tasks — measured automatically." },
+    { sel: '.tab[data-tab="insights"]',  text: "Deep work, tags, sites, top tasks. Measured automatically." },
     { sel: '#active-task-pill',          text: "Start a focus session here; blocking arms itself while you work." }
   ];
 
@@ -12053,6 +12083,18 @@
   async function applyShortcutIcon(shortcutId, icon) {
     var res = await Storage.setShortcutIcon(data, shortcutId, icon);
     if (!res.ok) {
+      if (res.reason === "not-saved") {
+        // [1.10.3] SILENT ON PURPOSE, and the only place in this file that is.
+        // The write-failure hook has already put up the specific toast ("storage
+        // is full", or the generic write failure) and already re-rendered from
+        // disk. Adding "that icon could not be set" on top would replace a
+        // message that explains the cause and names the fix with one that
+        // explains nothing — the toast surface holds exactly one message, so the
+        // second call does not stack, it OVERWRITES. Returning false is the
+        // whole job here: it stops the optimistic render and keeps the picker
+        // open, which is the truthful outcome for an action that did not take.
+        return false;
+      }
       if (res.reason === "too-large") {
         showToast(t("icon_too_large", { kb: String(Math.round(res.cap / 1024)) }));
       } else {
@@ -12339,6 +12381,116 @@
     toast._timer = setTimeout(function () {
       toast.classList.remove("visible");
     }, durationMs || 3000);
+  }
+
+  // ===== [1.10.3] STORAGE WRITE FAILURE — THE USER-FACING HALF =============
+  //
+  // Registered against Storage.onWriteFail beside the `data` declaration. Two
+  // things happen here, and the SECOND one is the one that matters.
+  //
+  //   1. A toast, because a console.error is not a surface.
+  //   2. RE-READ FROM DISK AND RE-RENDER, so the page stops showing a change
+  //      that is not saved.
+  //
+  // Without (2) the toast is only half honest: the user reads "not saved" while
+  // looking straight at the thing that was apparently saved, and the product
+  // goes on rendering a state that will evaporate at the next reload. Dropping
+  // back to what is actually persisted makes the loss happen ONCE, visibly,
+  // while the user is still there to do something about it — rather than
+  // silently, later, when they have long since moved on. It is a worse moment
+  // and a much better outcome.
+  //
+  // This deliberately overrides the own-tab render suppression that L5's
+  // adoption hook is so careful to respect. That suppression exists to stop a
+  // re-render wiping DOM state MID-INTERACTION, which is a real cost — and it
+  // is the right trade here precisely because this path is not an interaction,
+  // it is a failure. The alternative to a wiped sidebar expansion is lost user
+  // data.
+  //
+  // 12 seconds rather than the 3s default: this is the only notice the user
+  // gets, it arrives unprompted, and it asks them to do something.
+  var STORAGE_FAIL_TOAST_MS = 12000;
+  // A full profile does not fail once. Every subsequent write fails too, and
+  // several of them are on timers (the Pomodoro tick, the badge reconcile), so
+  // an unthrottled handler would restack the toast and re-render on a loop.
+  // One notice per window, and one recovery in flight at a time.
+  var STORAGE_FAIL_QUIET_MS = 30000;
+  var storageFailLastShownAt = 0;
+  var storageFailRecovering = false;
+
+  function handleStorageWriteFailure(info) {
+    var quota = !!(info && info.quota);
+    var now = Date.now();
+    if (now - storageFailLastShownAt < STORAGE_FAIL_QUIET_MS) return;
+    storageFailLastShownAt = now;
+    showToast(quota ? t("storage_full_change_not_saved") : t("storage_write_failed"),
+      STORAGE_FAIL_TOAST_MS);
+    revertToPersistedState();
+  }
+
+  // Drop the unsaved in-memory change by re-reading what is actually on disk.
+  // Fire-and-forget with its own guard: the caller is a synchronous catch block
+  // inside saveAll and must not be made to wait on a render.
+  async function revertToPersistedState() {
+    // Storage.getAll can itself attempt a write (the one-time backfills), which
+    // on a full profile fails and re-enters this handler. The flag is what stops
+    // that becoming a loop; the quiet window above would mostly hide it, but
+    // "mostly" is not a guard.
+    if (storageFailRecovering) return;
+    storageFailRecovering = true;
+    try {
+      var persisted = await Storage.getAll();
+      if (persisted) {
+        data = persisted;
+        if (!data.settings) data.settings = { columns: 6 };
+        render();
+        applyAccessLevelUI();
+      }
+    } catch (err) {
+      // Nothing better to offer than the toast that already went up. Re-reading
+      // failed too, so leaving the stale in-memory view alone is the least-bad
+      // of two bad options — it is at least the state the user was looking at.
+      console.error("[LaunchPad] Could not re-read persisted state after a failed write:", err);
+    } finally {
+      storageFailRecovering = false;
+    }
+  }
+
+  // ===== [1.10.3] THE PROACTIVE HALF — WARN BEFORE THE CEILING, NOT AT IT ===
+  //
+  // The reactive path above is a bereavement notice: by the time it fires the
+  // write is already lost. This one runs on open and tells the user while they
+  // can still act, which for the storage-heavy features ([1.10.2] custom icons,
+  // wallpapers) is the difference between "delete a few icons" and "your next
+  // edit vanishes".
+  //
+  // AT MOST ONCE PER 24 HOURS, latched in settings. A new tab page opens dozens
+  // of times a day; a warning on every open is a warning nobody reads, and the
+  // condition it reports changes slowly by nature. The latch is a normal
+  // setting write, so on an already-full profile it will itself fail — which is
+  // harmless and mildly useful: the notice simply shows again next open, which
+  // is the correct behaviour for a profile that is genuinely out of room.
+  var STORAGE_NOTICE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+  async function maybeWarnStoragePressure() {
+    var usage = await Storage.getStorageUsage();
+    // null means getBytesInUse is unavailable, NOT that usage is fine. Saying
+    // nothing is right either way, but the distinction matters to anyone
+    // debugging why no warning appeared.
+    if (!usage) return false;
+    if (usage.ratio < Storage.QUOTA_WARN_RATIO) return false;
+
+    if (!data.settings) data.settings = { columns: 6 };
+    var last = data.settings.storageNoticeAt || 0;
+    if (Date.now() - last < STORAGE_NOTICE_INTERVAL_MS) return false;
+
+    data.settings.storageNoticeAt = Date.now();
+    // Not awaited for the toast's sake — the notice is the point, and it must
+    // show even on the profile where this very write is the one that fails.
+    Storage.saveAll(data);
+    showToast(t("storage_nearly_full", { pct: String(Math.round(usage.ratio * 100)) }),
+      STORAGE_FAIL_TOAST_MS);
+    return true;
   }
 
   // Toast with an Undo action link and a fixed lifetime (default 5s). Reuses the

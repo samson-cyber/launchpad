@@ -253,6 +253,18 @@ if ! node tools/check-bg-queue.mjs; then
   exit 1
 fi
 
+# [1.10.3] STORAGE-QUOTA VISIBILITY. Beside the L1 gate above because it guards
+# the same thing from the other end: that one stops one writer's blob silently
+# overwriting another's, this one stops a write chrome.storage REFUSED from
+# looking like one that succeeded. Both failure modes are invisible at the call
+# site and both end as lost user data, which is why neither is left to habit.
+# In-process VM run against the real storage.js, ~0.3s. `--mutate` re-runs it
+# against 8 seeded reversions of this round's fixes.
+if ! node tools/check-storage-quota.mjs; then
+  echo 'ERROR: storage-quota gate failed — a refused write can pass for a successful one.' >&2
+  exit 1
+fi
+
 # MUTATION BOOT CHECK (Asana 1218320168124333). Not a gate over the product -
 # a gate over the INSTRUMENTS. Every mutation runner materialises the subject to
 # a scratch tree and re-runs itself; each carried a hand-written list of files to

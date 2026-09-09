@@ -1351,6 +1351,18 @@ I18n.register("en", {
     "message": "That image is still over {kb} KB after resizing. Try a simpler one.",
     "description": "Shown when an uploaded icon exceeds the per-icon cap even after downscaling. The cap is a backstop rather than the main control: chrome.storage writes the whole data object every time, and an over-quota write is silently dropped, so an oversized icon is refused honestly here instead. Rendered with t()."
   },
+  "storage_full_change_not_saved": {
+    "message": "Chrome's storage is full, so that change was not saved. Remove a few custom icons, wallpapers or old sessions to free up room.",
+    "description": "[1.10.3] Shown when a write to chrome.storage.local is rejected for quota. The page has already dropped back to the last saved state by the time this appears, so the past tense is literal rather than a warning about the future: the change is gone, not at risk. It names the three things a user can actually delete to recover space; a bare 'storage is full' leaves them with no move. Rendered with t()."
+  },
+  "storage_write_failed": {
+    "message": "That change could not be saved. LaunchPad has gone back to the last saved version.",
+    "description": "[1.10.3] Shown when a write fails for a reason that is NOT the quota: an I/O error, a corrupt profile, an extension being updated underneath the page. Deliberately does not guess at a cause the code does not know, but does state the consequence, because the page has just re-rendered underneath the user and an unexplained visual revert is worse than a vague one. Rendered with t()."
+  },
+  "storage_nearly_full": {
+    "message": "LaunchPad is using {pct}% of Chrome's storage. Remove a few custom icons, wallpapers or old sessions before new changes stop saving.",
+    "description": "[1.10.3] The PROACTIVE warning, shown on open at most once a day once usage crosses 80% of the 10 MB chrome.storage.local quota. Distinct from storage_full_change_not_saved in tense and in stakes: nothing has been lost yet, and the whole value of the message is that it arrives while the user can still act. {pct} is a whole number already rounded by the caller. Rendered with t()."
+  },
   "icon_could_not_be_set": {
     "message": "That icon could not be set.",
     "description": "Shown when reading or decoding an uploaded image fails. Rendered with t()."
