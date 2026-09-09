@@ -10476,6 +10476,8 @@
     await loadBackground();
     applyIconSize(data.settings.iconSize || "medium");
     applyTextSize(Storage.getTextSize(data));
+    applyLayout(Storage.getLayout(data));
+    applyFocusView(Storage.isFocusView(data));
     applyWallDim(Storage.getWallDim(data));
     applySearch();
 
@@ -11670,6 +11672,34 @@
     else if (size === "large") html.classList.add("text-size-large");
   }
 
+  // [1.10.3] Layout — the THIRD use of the same root-class mechanism, put here
+  // beside the other two on purpose: one apply path, one shape, and the default
+  // ("grid") is the unclassed base exactly as "medium" is for both ramps.
+  function applyLayout(layout) {
+    var html = document.documentElement;
+    html.classList.remove("layout-compact", "layout-list");
+    if (layout === "compact") html.classList.add("layout-compact");
+    else if (layout === "list") html.classList.add("layout-list");
+  }
+
+  // [1.10.3] Focus view. Same mechanism again; a SEPARATE class because it is
+  // orthogonal to layout - you can be in Focus view from any of the three, and
+  // leaving it must put you back in the layout you had.
+  function applyFocusView(on) {
+    document.documentElement.classList.toggle("focus-view", !!on);
+  }
+
+  async function setFocusViewAndApply(on) {
+    applyFocusView(on);
+    await Storage.setFocusView(data, on);
+    // The grid is display:none in Focus view, so tiles have no geometry. Move
+    // focus somewhere real rather than leaving it on a hidden element: a focused
+    // display:none node takes no keys and shows no ring, so the page reads as
+    // unresponsive - a keyboard trap in a mode whose whole risk is being stuck.
+    var target = on ? $("#focus-exit") : $("#search-input");
+    if (target) target.focus();
+  }
+
   // ===== [1.10.1] THE LAUNCHER ==============================================
   //
   // SEARCH-AS-LAUNCHER AND KEYBOARD NAVIGATION ARE ONE FEATURE. Built apart they
@@ -11927,6 +11957,25 @@
     return row;
   }
 
+  // [1.10.3] ARROW SEMANTICS ACROSS THE THREE LAYOUTS - where [1.10.1]'s
+  // keyboard work first meets a layout that is not a grid.
+  //
+  //   grid, compact   Left/Right step one tile in document order. Up/Down move a
+  //                   ROW, measured from geometry (tiles sharing a top edge are
+  //                   a row), so a denser grid with more columns per row is
+  //                   handled without anything being told the column count.
+  //   list            Up/Down step ONE tile - and nothing special was needed for
+  //                   that. In a single-column grid every tile is its own row,
+  //                   so the same measured code already produces the right
+  //                   answer. Left/Right ALSO step one tile, and that is a
+  //                   decision rather than an oversight: the tile list is
+  //                   one-dimensional in document order however it is painted,
+  //                   and a forgiving key beats a pedantic one. Making them dead
+  //                   in list view would be defensible and would feel broken.
+  //
+  // THE LAUNCHER'S TWO BRIDGES ARE INDEX-BASED, not geometry-based - ArrowUp
+  // from tile 0 reaches search, ArrowDown from an empty search reaches tile 0 -
+  // so they behave identically in all three layouts with no change at all.
   function launcherMoveTile(dir) {
     var tiles = launcherTiles();
     if (!tiles.length) return;
@@ -12243,6 +12292,67 @@
     }, 15000);
   }
   function stopClockTick() { if (clockTimer) { clearInterval(clockTimer); clockTimer = null; } }
+
+  function bindLayoutSettings() {
+    var seg = $("#settings-layout");
+    if (seg && !seg._layoutBound) {
+      seg.addEventListener("click", async function (e) {
+        var btn = e.target.closest(".seg-btn");
+        if (!btn) return;
+        applyLayout(btn.dataset.value);          // eager, so the grid reflows now
+        await Storage.setLayout(data, btn.dataset.value);
+        renderLayoutSettings();
+        // The tiles changed SHAPE, so Sortable's cached geometry is stale.
+        // render() tears the instances down and rebuilds them, which is what it
+        // already does after any structural change - reusing that rather than
+        // reaching into Sortable is the whole reason list view stayed a grid.
+        render();
+      });
+      seg._layoutBound = true;
+    }
+    var fv = $("#settings-focus-view");
+    if (fv && !fv._focusBound) {
+      fv.addEventListener("change", async function () {
+        await setFocusViewAndApply(fv.checked);
+      });
+      fv._focusBound = true;
+    }
+    var exit = $("#focus-exit");
+    if (exit && !exit._focusBound) {
+      exit.addEventListener("click", async function () {
+        await setFocusViewAndApply(false);
+        renderLayoutSettings();
+      });
+      exit._focusBound = true;
+    }
+    if (!document._focusEscAttached) {
+      // ESCAPE IS A SECOND WAY OUT, never the only one. It runs in the bubble
+      // phase after the page-wide Escape sweep, and only when Focus view is
+      // actually on and the press did not come from a text field - so it cannot
+      // take the key from a modal, a menu or the launcher, all of which the
+      // sweep owns and all of which close first.
+      document.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape") return;
+        if (!document.documentElement.classList.contains("focus-view")) return;
+        var t2 = e.target;
+        if (t2 && (t2.tagName === "INPUT" || t2.tagName === "TEXTAREA" || t2.isContentEditable)) return;
+        setFocusViewAndApply(false).then(renderLayoutSettings);
+      });
+      document._focusEscAttached = true;
+    }
+  }
+
+  function renderLayoutSettings() {
+    var seg = $("#settings-layout");
+    if (seg) {
+      var layout = Storage.getLayout(data);
+      $$(".seg-btn", seg).forEach(function (btn) {
+        btn.classList.toggle("active", btn.dataset.value === layout);
+      });
+    }
+    var fv = $("#settings-focus-view");
+    if (fv) fv.checked = Storage.isFocusView(data);
+  }
 
   function bindClockSettings() {
     [["#settings-clock-time", "time"], ["#settings-clock-date", "date"],
@@ -12838,6 +12948,8 @@
       await loadBackground();
       applyIconSize(data.settings.iconSize || "medium");
       applyTextSize(Storage.getTextSize(data));
+      applyLayout(Storage.getLayout(data));
+      applyFocusView(Storage.isFocusView(data));
     applyWallDim(Storage.getWallDim(data));
       refreshOldFavicons();
       render();
@@ -15873,6 +15985,8 @@
     renderClockLine();
     bindClockSettings();
     renderClockSettings();
+    bindLayoutSettings();
+    renderLayoutSettings();
     renderSidebarGroups();
     renderActiveTaskWidget();
     initSidebarSortable();
@@ -15890,6 +16004,8 @@
     loadBackground();
     applyIconSize((data && data.settings && data.settings.iconSize) || "medium");
     applyTextSize(Storage.getTextSize(data));
+    applyLayout(Storage.getLayout(data));
+    applyFocusView(Storage.isFocusView(data));
     applyWallDim(Storage.getWallDim(data));
   }
 

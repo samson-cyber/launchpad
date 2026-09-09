@@ -15542,3 +15542,132 @@ html.bg-light .ip-emoji:hover { background: rgba(0, 0, 0, 0.1); }
 
 .settings-row-stack { display: block; }
 .settings-row-stack .settings-label { display: block; margin-bottom: 6px; }
+
+/* ===== [1.10.3] LAYOUT: COMPACT AND LIST, AND FOCUS VIEW ==================
+   Root classes on <html>, exactly like icon-size-* and text-size-*, with the
+   shipped grid left UNCLASSED so the default needs no rule at all. Everything
+   below is additive: remove the class and the page is byte-identical to what it
+   was before this round. */
+
+/* ----- COMPACT DENSITY -----
+   A TIGHTER SETTING ON THE EXISTING RAMPS, not a new scale. It changes exactly
+   three things and every one of them comes from a token:
+     the grid's row and column gap   --space-2/--space-4  ->  --space-1/--space-2
+     the tile's own padding          --space-3/--space-2  ->  --space-1-5/--space-1
+     the tile's minimum column       96px -> 76px, so more fit per row
+   It does NOT change the icon size or the name size: those are the icon-size and
+   text-size ramps' job, and a density control that also resized type would mean
+   two settings fighting over the same pixels. Density is spacing. */
+html.layout-compact .shortcuts-grid {
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: var(--space-1) var(--space-2);
+}
+html.layout-compact .shortcut {
+  padding: var(--space-1-5) 0 var(--space-1);
+}
+html.layout-compact .group {
+  margin-bottom: var(--space-4);
+}
+
+/* ----- LIST VIEW -----
+   STILL A CSS GRID, deliberately, with one column instead of many.
+   That is the load-bearing choice in this round. The obvious implementation is
+   `display: flex; flex-direction: column`, and it would have broken
+   drag-to-reorder: SortableJS is initialised against .shortcuts-grid and works
+   out drop positions from the children's boxes. Changing the container's display
+   type mid-life is exactly the kind of thing its geometry code is not expecting.
+   A single-column grid keeps the container, the display type and the child list
+   identical - only the track count changes - so Sortable sees a layout it
+   already handles (one column is the degenerate case of many) and the nesting
+   drop target and the variant bubbles, which are per-tile, never notice. */
+html.layout-list .shortcuts-grid {
+  grid-template-columns: 1fr;
+  gap: 2px;
+}
+html.layout-list .shortcut {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1-5) var(--space-2);
+  text-align: left;
+  border-radius: var(--radius-md);
+}
+html.layout-list .shortcut-link {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+html.layout-list .shortcut-icon {
+  margin-bottom: 0;
+  flex: 0 0 auto;
+}
+html.layout-list .shortcut-name {
+  max-width: none;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The add tile becomes a row too, or it sits as a lone square in a column of
+   rows and reads as a rendering fault. */
+html.layout-list .add-tile {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  width: 100%;
+  gap: var(--space-3);
+  padding: var(--space-1-5) var(--space-2);
+  text-align: left;
+}
+html.layout-list .add-tile-icon { margin: 0; }
+html.layout-list .add-tile-label { max-width: none; }
+
+/* ----- FOCUS VIEW -----
+   Hides the grid and the sidebar, leaving the search bar and the pill.
+   IT DOES NOT TOUCH THE SIDEBAR'S LOCK MACHINERY. The sidebar has .expanded and
+   .sidebar-locked, but neither is a HIDDEN state - collapsed is still 48px of
+   visible rail - so there is nothing to reuse, and BUGS.md I4 is explicit that
+   the lock flags are where this kind of change goes wrong. One class hides the
+   rail outright and zeroes the margin that reserved space for it; sidebarLocked
+   is never read or written. */
+html.focus-view #sidebar { display: none; }
+html.focus-view #content { margin-left: 0; }
+html.focus-view #shortcut-grid-area { display: none; }
+html.focus-view #tab-bar { display: none; }
+
+/* THE EXIT, and it is the whole safety argument for a mode that persists.
+   Rendered inside the view, always visible, never conditional on hover or on a
+   surface that focus view has just hidden. */
+#focus-exit {
+  position: fixed;
+  top: var(--space-4);
+  left: var(--space-4);
+  z-index: 300;
+  display: none;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(30, 30, 30, 0.72);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font-family: inherit;
+  font-size: var(--fs-13);
+  cursor: pointer;
+}
+html.focus-view #focus-exit { display: inline-flex; }
+#focus-exit:hover { background: rgba(30, 30, 30, 0.88); }
+#focus-exit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+html.bg-light #focus-exit {
+  background: rgba(255, 255, 255, 0.86);
+  border-color: rgba(0, 0, 0, 0.16);
+  color: var(--text-primary);
+}
+html.bg-light #focus-exit:hover { background: rgba(255, 255, 255, 0.96); }

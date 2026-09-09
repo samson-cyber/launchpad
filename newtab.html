@@ -187,6 +187,12 @@
     inner .sat-pill-face button. Hidden entirely for free users (D9). Frosted fill
     (not the sidebar's translucent bg) so text is legible on any wallpaper.
   -->
+  <!-- [1.10.3] THE FOCUS-VIEW EXIT. Deliberately a SIBLING of #content rather
+       than a child of it: Focus view hides the sidebar, the tab bar and the
+       grid, and an exit living inside any of those would be hidden by the very
+       mode it exists to leave. Hidden by default; shown only by
+       html.focus-view. This is the safety argument for the mode persisting. -->
+  <button type="button" id="focus-exit" data-i18n="focus_leave_focus_view">Leave Focus view</button>
   <div id="active-task-pill" class="hidden"></div>
 
   <div id="history-overlay" class="hidden">
@@ -328,6 +334,24 @@
             <button data-i18n="settings_iconsize_medium" class="seg-btn" data-value="medium" type="button">Medium</button>
             <button data-i18n="settings_iconsize_large" class="seg-btn" data-value="large" type="button">Large</button>
           </div>
+        </div>
+        <!-- [1.10.3] LAYOUT. A third segmented control in the same shape as
+             Icon Size and Text Size above, because it is the same kind of
+             setting: one value, a root class, the default unclassed. -->
+        <div class="settings-row">
+          <label data-i18n="settings_layout" class="settings-label">Layout</label>
+          <div class="settings-segmented" id="settings-layout">
+            <button data-i18n="settings_layout_grid" class="seg-btn" data-value="grid" type="button">Grid</button>
+            <button data-i18n="settings_layout_compact" class="seg-btn" data-value="compact" type="button">Compact</button>
+            <button data-i18n="settings_layout_list" class="seg-btn" data-value="list" type="button">List</button>
+          </div>
+        </div>
+        <div class="settings-row settings-row-stack">
+          <label data-i18n="settings_focus_view" class="settings-label">Focus view</label>
+          <label class="pro-toggle-row">
+            <input type="checkbox" id="settings-focus-view">
+            <span data-i18n="settings_hide_the_grid_and_sidebar">Hide the grid and sidebar, leaving search</span>
+          </label>
         </div>
         <!-- [1.10.2] THREE SEPARATE TOGGLES, all OFF by default. They are three
              different kinds of thing - a live clock, a static date, a tone

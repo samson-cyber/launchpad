@@ -1379,6 +1379,34 @@ I18n.register("en", {
     "message": "Good evening",
     "description": "Greeting on the optional clock line, from 18:00. Rendered with t()."
   },
+  "settings_layout": {
+    "message": "Layout",
+    "description": "Appearance settings label for the grid / compact / list segmented control. Rendered by the data-i18n pass."
+  },
+  "settings_layout_grid": {
+    "message": "Grid",
+    "description": "Layout option: the shipped tile grid. The DEFAULT, and the unclassed base - a user who never opens Settings sees exactly this. Rendered by the data-i18n pass."
+  },
+  "settings_layout_compact": {
+    "message": "Compact",
+    "description": "Layout option: the same grid at a tighter density. Changes spacing only - gaps, tile padding and the minimum column width - never the icon or text size, which are their own ramps. Rendered by the data-i18n pass."
+  },
+  "settings_layout_list": {
+    "message": "List",
+    "description": "Layout option: tiles become full-width rows. Still a CSS grid with one column, so drag-to-reorder keeps working. Rendered by the data-i18n pass."
+  },
+  "settings_focus_view": {
+    "message": "Focus view",
+    "description": "Appearance settings label for the Focus view toggle. Rendered by the data-i18n pass."
+  },
+  "settings_hide_the_grid_and_sidebar": {
+    "message": "Hide the grid and sidebar, leaving search",
+    "description": "The Focus view toggle. Off by default. It persists across reloads, which is why the view carries its own always-visible exit control. Rendered by the data-i18n pass."
+  },
+  "focus_leave_focus_view": {
+    "message": "Leave Focus view",
+    "description": "The exit control shown only in Focus view, pinned top-left outside the content region so nothing the view hides can hide it too. Escape does the same thing. Rendered by the data-i18n pass."
+  },
   "settings_clock_line": {
     "message": "Clock line",
     "description": "Appearance settings label for the three clock-line toggles. Rendered by the data-i18n pass."

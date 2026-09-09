@@ -404,6 +404,64 @@ var Storage = (function () {
     return TEXT_SIZES.indexOf(v) === -1 ? DEFAULT_TEXT_SIZE : v;
   }
 
+  // ===== [1.10.3] LAYOUT AND FOCUS VIEW ====================================
+  //
+  // BUILT ON THE EXISTING RAMPS, NOT BESIDE THEM. iconSize and textSize both
+  // work the same way: a value on data.settings, a coercing reader that refuses
+  // junk, and a ROOT CLASS on <html> with the default left unclassed so the
+  // shipped look needs no class at all. Layout is a third of exactly that shape.
+  //
+  // A NOTE ON settings.columns, because "build on the existing settings" has to
+  // start with which ones are real. `columns: 6` has been persisted in the
+  // default skeleton since the beginning and is DEAD: there is no settings
+  // control for it, and it is never written to CSS. The grid is
+  // `repeat(auto-fill, minmax(96px, 1fr))` and responds to width, not to a
+  // column count. The one place the word appears in a layout context reads
+  // grid-template-columns back OUT of the computed style. So this round builds
+  // on iconSize and textSize, which are live, and leaves the dead field alone
+  // rather than reviving a setting nobody asked for.
+  var LAYOUTS = ["grid", "compact", "list"];
+  var DEFAULT_LAYOUT = "grid";
+
+  function getLayout(data) {
+    var v = data && data.settings && data.settings.layout;
+    return LAYOUTS.indexOf(v) === -1 ? DEFAULT_LAYOUT : v;
+  }
+
+  async function setLayout(data, val) {
+    if (!data || !data.settings) return false;
+    // An unrecognised value is NOT written - the same rule setTextSize follows,
+    // so a corrupted preference never reaches a user's backup as a layout they
+    // never chose.
+    if (LAYOUTS.indexOf(val) === -1) return false;
+    if (getLayout(data) === val && data.settings.layout === val) return false;
+    data.settings.layout = val;
+    await saveAll(data);
+    return true;
+  }
+
+  // FOCUS VIEW IS A VIEW, AND IT PERSISTS. A mode you have to re-enter on every
+  // new tab is not a mode, it is a button you press constantly - and the whole
+  // point of this one is to stay out of the way for a stretch of work. So it is
+  // stored like a setting even though it reads like a state.
+  //
+  // THAT DECISION RAISES THE BAR ON THE EXIT rather than lowering it: a mode
+  // that survives reloads and hides both the grid and the sidebar could strand a
+  // user across every new tab they open. The exit is therefore a visible,
+  // labelled control rendered INSIDE the view, plus Escape - see the page side.
+  function isFocusView(data) {
+    return !!(data && data.settings && data.settings.focusView === true);
+  }
+
+  async function setFocusView(data, on) {
+    if (!data || !data.settings) return false;
+    var next = !!on;
+    if (data.settings.focusView === next) return false;
+    data.settings.focusView = next;
+    await saveAll(data);
+    return true;
+  }
+
   // ===== [1.10.2] THE CLOCK LINE ===========================================
   //
   // OFF BY DEFAULT, per PLAN decision 2. A user who installs and never opens
@@ -7442,6 +7500,11 @@ var Storage = (function () {
     POMODORO_PHASE_LABELS: POMODORO_PHASE_LABELS,
     fmtDuration: fmtDuration,
     activeElapsedMs: activeElapsedMs,
+    LAYOUTS: LAYOUTS,
+    getLayout: getLayout,
+    setLayout: setLayout,
+    isFocusView: isFocusView,
+    setFocusView: setFocusView,
     getClockSettings: getClockSettings,
     setClockSetting: setClockSetting,
     getShortcutIcon: getShortcutIcon,
