@@ -3146,7 +3146,24 @@
       else push("goal", "(deleted goal)", gid, "purged", byGoal[gid]);
     });
     if (unknownGoalMs > 0) push("goal", "(goal unknown - task purged)", "", "purged", unknownGoalMs);
-    if (untaskedMs > 0) push("goal", "(no task)", "", "none", untaskedMs);
+    // THE GOAL DIMENSION SAYS THIS IN ITS OWN VOICE. It read "(no task)" until
+    // 2026-09-09 - the TASK dimension's label, borrowed verbatim, which is how it
+    // reached a live export as: goal,(no task),,none,2134763. The tag dimension
+    // says "(untagged)" rather than borrowing, so goal was the only one of three
+    // speaking as another dimension.
+    //
+    // THREE ABSENCES IN THIS DIMENSION AND THEY ARE NOT THE SAME FACT:
+    //   "(no goal)"                    a task exists and carries no goalId.
+    //   "(goal unknown - task purged)" a task existed, its goalId died with it,
+    //                                  so the goal is UNKNOWN rather than absent
+    //                                  - [1.8.4] kept these apart deliberately
+    //                                  and this label must not blur into it.
+    //   "(no goal - untasked)"         there was no task at all, so no goal was
+    //                                  ever possible. Not unknown - impossible.
+    // It leads with the goal noun like both siblings, names the cause after the
+    // dash exactly as "(goal unknown - task purged)" does, and reuses no other
+    // dimension's wording.
+    if (untaskedMs > 0) push("goal", "(no goal - untasked)", "", "none", untaskedMs);
 
     // ---- tags -------------------------------------------------------------
     var tagTotal = 0;

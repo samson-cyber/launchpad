@@ -326,6 +326,44 @@ await (async () => {
   }
 }
 
+// ===== [2026-09-09] EXPORT ABSENCE LABELS ==================================
+// The goal dimension shipped the TASK dimension's "(no task)" label, and it
+// reached a real export before anyone noticed. These are static assertions over
+// newtab.js rather than VM ones, because insightsExportRows lives on the page
+// and this suite loads storage.js and tracking.js - a static read is the honest
+// way to pin a string literal that no loadable module owns.
+{
+  const nSrc = fs.readFileSync(path.join(repoRoot, "newtab.js"), "utf8");
+  const re = /push\("(task|goal|tag)",\s*"(\([^"]*\))"/g;
+  const byDim = { task: [], goal: [], tag: [] };
+  let m;
+  while ((m = re.exec(nSrc)) !== null) byDim[m[1]].push(m[2]);
+  const all = byDim.task.concat(byDim.goal, byDim.tag);
+
+  check("[2026-09-09] the export still emits parenthesised absence labels",
+    all.length >= 6, JSON.stringify(byDim));
+  check("[2026-09-09] EVERY absence label is unique across the three dimensions",
+    new Set(all).size === all.length, JSON.stringify(all));
+  check("[2026-09-09] the goal dimension does NOT reuse the task dimension's (no task)",
+    byDim.goal.indexOf("(no task)") === -1, JSON.stringify(byDim.goal));
+  check("[2026-09-09] the task dimension keeps (no task) as its own",
+    byDim.task.indexOf("(no task)") !== -1, JSON.stringify(byDim.task));
+  check("[2026-09-09] the tag dimension keeps (untagged) as its own",
+    byDim.tag.indexOf("(untagged)") !== -1, JSON.stringify(byDim.tag));
+  // The two goal absences are DIFFERENT FACTS - no goal possible vs goal
+  // unknowable - and [1.8.4] kept them apart on purpose.
+  check("[2026-09-09] untasked goal time is distinct from purged-task goal time",
+    byDim.goal.indexOf("(no goal - untasked)") !== -1 &&
+    byDim.goal.indexOf("(goal unknown - task purged)") !== -1 &&
+    byDim.goal.indexOf("(no goal)") !== -1, JSON.stringify(byDim.goal));
+  // Each dimension's ABSENCE label (the "none"-status one) differs pairwise.
+  const absence = { task: "(no task)", goal: "(no goal - untasked)", tag: "(untagged)" };
+  check("[2026-09-09] the three dimensions' untasked/absence labels are pairwise distinct",
+    new Set(Object.values(absence)).size === 3 &&
+    Object.keys(absence).every((k) => byDim[k].indexOf(absence[k]) !== -1),
+    JSON.stringify(absence));
+}
+
 let pass = 0, fail = 0;
 console.log("\nINSIGHTS READERS — windowed rollups\n");
 for (const r of rows) {
