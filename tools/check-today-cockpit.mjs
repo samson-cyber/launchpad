@@ -39,7 +39,12 @@ const rd = (f) => fs.readFileSync(path.join(repoRoot, f), "utf8").replace(/\r\n/
 
 let SRC;
 try {
-  SRC = { storage: rd("storage.js"), tracking: rd("tracking.js"), nt: rd("newtab.js"), css: rd("newtab.css") };
+  SRC = { storage: rd("storage.js"), tracking: rd("tracking.js"), nt: rd("newtab.js"), css: rd("tokens.css") + "\n" + rd("newtab.css")  /* [1.9.1] THE TOKEN LAYER IS TWO FILES NOW.
+    The :root blocks moved to tokens.css so the toolbar popup could share them, and
+    newtab.html links it immediately before newtab.css. A gate that resolves var(--x)
+    against newtab.css alone stopped finding any token and reported the SURFACE as
+    broken when only its own input had changed. Reading the layer in cascade order is
+    reading what the browser reads. */ };
 } catch (e) {
   console.error(`TODAY COCKPIT: SUBJECT DID NOT LOAD — ${e.message}`);
   process.exit(2);

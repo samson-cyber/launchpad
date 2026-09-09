@@ -39,6 +39,28 @@ function extract(name) {
   return SRC.slice(start, end + 4);
 }
 
+// [1.9.1] satFmtLong NOW DELEGATES to Storage.fmtDuration, which moved into
+// storage.js so the toolbar popup could share one implementation instead of
+// carrying a second. This gate injects its own fake Storage, so it has to carry
+// that function too - and it takes the REAL SOURCE rather than a hand-written
+// stand-in, because a gate that asserts against its own copy of a formatter is
+// asserting about the gate.
+let STORAGE_SRC;
+try {
+  STORAGE_SRC = fs.readFileSync(path.join(repoRoot, "storage.js"), "utf8").replace(/\r\n/g, "\n");
+} catch (e) {
+  console.error(`SINCE FORMAT: SUBJECT DID NOT LOAD — cannot read storage.js (${e.message})`);
+  process.exit(2);
+}
+function extractFromStorage(name) {
+  const start = STORAGE_SRC.indexOf(`  function ${name}(`);
+  if (start === -1) throw new Error(`function ${name}() not found in storage.js`);
+  const end = STORAGE_SRC.indexOf("\n  }\n", start);
+  if (end === -1) throw new Error(`could not find the end of ${name}() in storage.js`);
+  return STORAGE_SRC.slice(start, end + 4);
+}
+const REAL_FMT_DURATION = new Function(extractFromStorage("fmtDuration") + "\n  return fmtDuration;")();
+
 // Build the subject: the real fmtShortDate + satActiveSinceText, with the two
 // globals they close over (Storage, data) injected. `mutate` exists for the
 // negative control at the end — a suite that cannot be made to fail is not a
@@ -64,7 +86,7 @@ function subject({ activeTask, mutate }) {
     if (body === before) throw new Error("negative control did not apply — the anchor it patches has moved");
   }
   const factory = new Function("Storage", "data", body + "\n  return satActiveSinceText;");
-  return factory({ getActiveTask: () => activeTask }, {});
+  return factory({ getActiveTask: () => activeTask, fmtDuration: REAL_FMT_DURATION }, {});
 }
 
 let loaded;

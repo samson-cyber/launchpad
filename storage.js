@@ -3983,6 +3983,78 @@ var Storage = (function () {
   // can never read as a running phase. A legacy A1 running phase (no
   // phaseDurationMs) hydrates it to null; the display falls back to current
   // settings for that one phase (see the pill's satRunningPomo), so nothing breaks.
+  // ===== [1.9.1] THE PILL'S NUMERALS AND PHASE STATE, MOVED HERE TO BE SHARED ===
+  //
+  // WHY THEY MOVED. The toolbar popup ([1.9.0] arc) renders the pill's content
+  // in a DIFFERENT CONTEXT. newtab.js is a bare IIFE with no exports, so every
+  // one of these lived somewhere the popup cannot reach - not by policy, by
+  // construction. The choice was to copy them or to move them, and two
+  // implementations of the pill's arithmetic will disagree within a release:
+  // that is the today's-three picker and the goal-completion defect both.
+  //
+  // WHAT MOVED IS ONLY THE PART THAT MUST NOT DIVERGE - the formatter and the
+  // phase maths. THE MARKUP DID NOT MOVE and should not: a 360px popup is not a
+  // docked card, so the two surfaces legitimately build different DOM from the
+  // same numbers. Sharing state and formatting is the point; sharing markup
+  // would be the wrong kind of reuse.
+  //
+  // newtab.js's satFmtLong / satRunningPomo / satPomoRemainingMs /
+  // satPomoPhaseTotalMs are now one-line delegations to these, so there is
+  // exactly one implementation and the new tab's behaviour is unchanged.
+
+  // Phase eyebrow text. Kept beside the phase readers so a new phase cannot be
+  // added in one place and labelled in another.
+  var POMODORO_PHASE_LABELS = { work: "Work", shortBreak: "Break", longBreak: "Long break" };
+
+  // H:MM:SS above an hour, M:SS below it. THE CLAMP IS THE POINT and it lives at
+  // the formatter because that is the single funnel every time surface flows
+  // through - the pill, the card, the popup, the tab title. A phase that runs
+  // past phaseEndsAt holds at 0:00 rather than ticking negative, and the
+  // `!(ms > 0)` form folds NaN too, since NaN > 0 is false.
+  function fmtDuration(ms) {
+    if (!(ms > 0)) ms = 0;
+    var totalSec = Math.floor(ms / 1000);
+    var h = Math.floor(totalSec / 3600);
+    var m = Math.floor((totalSec % 3600) / 60);
+    var sec = totalSec % 60;
+    var pad = function (n) { return n < 10 ? "0" + n : String(n); };
+    return h > 0 ? h + ":" + pad(m) + ":" + pad(sec) : m + ":" + pad(sec);
+  }
+
+  // Fallback total (ms) for a phase from CURRENT settings. Used ONLY when a
+  // legacy A1 running phase carries no stamped phaseDurationMs; fresh phases
+  // stamp their own, so this is not the normal path.
+  function pomodoroPhaseTotalMs(data, phase) {
+    var s = getPomodoroSettings(data);
+    if (phase === "work") return s.workMin * 60000;
+    if (phase === "shortBreak") return s.shortBreakMin * 60000;
+    if (phase === "longBreak") return s.longBreakMin * 60000;
+    return 0;
+  }
+
+  // The running phase, or null. totalMs is the STAMPED phaseDurationMs (exact),
+  // falling back to current settings only for a legacy phase. Pure read.
+  function runningPomodoro(data) {
+    var a = getActiveTask(data);
+    if (!a) return null;
+    var ps = hydratePomodoroState(a.pomodoroState);
+    if (!ps.phase || ps.phaseEndsAt == null) return null;
+    var totalMs = ps.phaseDurationMs || pomodoroPhaseTotalMs(data, ps.phase);
+    return { phase: ps.phase, phaseEndsAt: ps.phaseEndsAt, totalMs: totalMs, cycleCount: ps.cycleCount };
+  }
+
+  // Remaining ms on a running phase. A GLOBAL PAUSE FREEZES IT at the moment the
+  // pause began rather than letting wall-clock keep draining it, which is why
+  // this reads pausedAt rather than simply differencing against now.
+  function pomodoroRemainingMs(data, pomo, now) {
+    var ref = (typeof now === "number") ? now : Date.now();
+    if (isTrackingPaused(data)) {
+      var a = getActiveTask(data);
+      if (a && a.pausedAt != null) ref = a.pausedAt;
+    }
+    return Math.max(0, pomo.phaseEndsAt - ref);
+  }
+
   function hydratePomodoroState(ps) {
     if (!ps || typeof ps !== "object") return emptyPomodoroState();
     var phase = (ps.phase === "work" || ps.phase === "shortBreak" || ps.phase === "longBreak") ? ps.phase : null;
@@ -7004,6 +7076,12 @@ var Storage = (function () {
     // [1.0.18] Pomodoro phase state (rides data.activeTask.pomodoroState).
     emptyPomodoroState: emptyPomodoroState,
     hydratePomodoroState: hydratePomodoroState,
+    // [1.9.1] Shared with the companion module; see the block beside them.
+    POMODORO_PHASE_LABELS: POMODORO_PHASE_LABELS,
+    fmtDuration: fmtDuration,
+    pomodoroPhaseTotalMs: pomodoroPhaseTotalMs,
+    runningPomodoro: runningPomodoro,
+    pomodoroRemainingMs: pomodoroRemainingMs,
     startPomodoroPhase: startPomodoroPhase,
     stopPomodoro: stopPomodoro,
     // [1.0.18 A2] auto-advance / expiry / cycle reset + the pure phase-transition

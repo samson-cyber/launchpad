@@ -1327,6 +1327,30 @@ I18n.register("en", {
     "message": "no last week yet",
     "description": "Shown in place of the comparison on the weekly review card when no previous week exists at all. Deliberately not a 100% drop - there is nothing to compare to, which is different from having done less. Rendered with th()."
   },
+  "companion_locked": {
+    "message": "Focus tracking is a Pro feature. Open LaunchPad in a new tab to start a trial.",
+    "description": "The only line the toolbar popup shows to a free or expired user. Rendered with t(). NOT a preview of the pill - D9 hides the pill entirely below Pro, and a preview surface must never render a create affordance, so this explains the empty popup instead of imitating it."
+  },
+  "companion_no_active_task": {
+    "message": "No active task",
+    "description": "Toolbar popup, empty state. Mirrors the pill's own empty text. Rendered with t()."
+  },
+  "companion_active_task": {
+    "message": "Active task",
+    "description": "Toolbar popup eyebrow above the task name while focus is running. Rendered with t()."
+  },
+  "companion_paused": {
+    "message": "Paused",
+    "description": "Toolbar popup eyebrow when tracking is globally paused. The numeral freezes with it. Rendered with t()."
+  },
+  "companion_focused_today": {
+    "message": "Focused today",
+    "description": "Toolbar popup label under the numeral. Names WHICH number it is - the same focused-today figure the pill and the card lead with, not a wall-clock counter. Rendered with t()."
+  },
+  "companion_remaining": {
+    "message": "Remaining",
+    "description": "Toolbar popup label under the numeral during a running Pomodoro phase, where the countdown replaces the focused-today figure. Rendered with t()."
+  },
   "insights_wk_focused": {
     "message": "Focused",
     "description": "Row label on the weekly review card. Rendered with th()."

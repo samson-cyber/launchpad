@@ -364,9 +364,9 @@
 
   // ===== Tab Bar =====
 
-  function isProAccessibleLevel(level) {
-    return level === "trialing" || level === "active" || level === "grace";
-  }
+  // [1.9.1] DELEGATES to pro-access.js, which is reachable from every context.
+  // The rule is documented as having one source of truth; it now has one.
+  function isProAccessibleLevel(level) { return ProAccess.isProAccessibleLevel(level); }
 
   function bindTabBar() {
     var bar = $("#tab-bar");
@@ -13181,22 +13181,10 @@
   // jitter as they tick. The slim pill and the card's large timer share this ONE
   // formatter — the pill ticks at second resolution too (the honest ticker), just
   // rendered smaller.
-  function satFmtLong(ms) {
-    // [1.0.18 fix] Clamp at the formatter — the single point EVERY time surface
-    // flows through (ACTIVE, FOCUSED, and the pomodoro countdown on card / pill /
-    // tab-title). Guarantees no negative or NaN duration can ever render: a phase
-    // that runs past phaseEndsAt holds at 0:00 instead of ticking negative. The
-    // `!(ms > 0)` form also folds NaN (NaN > 0 is false) to 0. Pomodoro remaining
-    // is already floored in satPomoRemainingMs; this is the belt-and-braces that
-    // makes the guarantee independent of any caller.
-    if (!(ms > 0)) ms = 0;
-    var totalSec = Math.floor(ms / 1000);
-    var h = Math.floor(totalSec / 3600);
-    var m = Math.floor((totalSec % 3600) / 60);
-    var s = totalSec % 60;
-    var pad = function (n) { return n < 10 ? "0" + n : String(n); };
-    return h > 0 ? h + ":" + pad(m) + ":" + pad(s) : m + ":" + pad(s);
-  }
+  // [1.9.1] DELEGATES. The body moved to Storage so the toolbar popup renders
+  // the same numerals from the same code; the clamp rationale lives there now.
+  // Kept as a local name because ~20 call sites read better with it.
+  function satFmtLong(ms) { return Storage.fmtDuration(ms); }
 
   // Focused today — the engine's honest per-day reader (secondary line on the
   // card). baseMs (rolled-up + closed) + the live open span iff a session is
@@ -13556,7 +13544,7 @@
   // session" (D9), phase labels stay Work / Break / Long break.
   var SAT_POMO_RING_R = 44;                        // must match the <circle r> in satCardHtml
   var SAT_POMO_RING_C = 2 * Math.PI * SAT_POMO_RING_R;
-  var SAT_POMO_PHASE_LABEL = { work: "Work", shortBreak: "Break", longBreak: "Long break" };
+  var SAT_POMO_PHASE_LABEL = Storage.POMODORO_PHASE_LABELS;   // [1.9.1] shared with the popup
   var SAT_BASE_TITLE = null;                        // page title, captured lazily on first paint
   var satReconciling = false;                       // one reconcile write in flight at a time
   var satPomoDurOpen = false;                        // D10 duration-chip picker open (card-local UI state)
@@ -13564,24 +13552,11 @@
   // Fallback total (ms) of a phase from CURRENT settings — used ONLY when a legacy
   // A1 running phase carries no stamped phaseDurationMs. Fresh phases stamp their
   // duration at start, so the ring reads the phase's own length (A2 D1-AMEND).
-  function satPomoPhaseTotalMs(phase) {
-    var s = Storage.getPomodoroSettings(data);
-    if (phase === "work") return s.workMin * 60000;
-    if (phase === "shortBreak") return s.shortBreakMin * 60000;
-    if (phase === "longBreak") return s.longBreakMin * 60000;
-    return 0;
-  }
+  function satPomoPhaseTotalMs(phase) { return Storage.pomodoroPhaseTotalMs(data, phase); }
 
   // The running phase, or null. totalMs is the STAMPED phaseDurationMs (exact),
   // falling back to current settings only for a legacy A1 phase. Pure read.
-  function satRunningPomo() {
-    var a = Storage.getActiveTask(data);
-    if (!a) return null;
-    var ps = Storage.hydratePomodoroState(a.pomodoroState);
-    if (!ps.phase || ps.phaseEndsAt == null) return null;
-    var totalMs = ps.phaseDurationMs || satPomoPhaseTotalMs(ps.phase);
-    return { phase: ps.phase, phaseEndsAt: ps.phaseEndsAt, totalMs: totalMs, cycleCount: ps.cycleCount };
-  }
+  function satRunningPomo() { return Storage.runningPomodoro(data); }
 
   // [E1] The session-complete DISPLAY state: phase null + cycleCount > 0 + the
   // stored sessionComplete marker (set only by a completed break — Stop and
@@ -13599,14 +13574,7 @@
   // paused the countdown FREEZES: it reads phaseEndsAt - pausedAt, exactly what
   // setTrackingPaused's resume shift restores continuity against. Caller passes
   // the record to avoid re-reading per element.
-  function satPomoRemainingMs(pomo) {
-    var ref = Date.now();
-    if (Storage.isTrackingPaused(data)) {
-      var a = Storage.getActiveTask(data);
-      if (a && a.pausedAt != null) ref = a.pausedAt;
-    }
-    return Math.max(0, pomo.phaseEndsAt - ref);
-  }
+  function satPomoRemainingMs(pomo) { return Storage.pomodoroRemainingMs(data, pomo); }
 
   // [E2] Toast copy for a work-phase completion — focus is the protagonist. The
   // minutes are the COMPLETED phase's stamped phaseDurationMs, NOT current

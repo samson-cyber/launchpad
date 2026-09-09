@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- [1.9.1] THE TOOLBAR POPUP. Not the sidebar (the in-page column) and not
+       the side panel (Chrome's, arriving in [1.16.0]). The same companion
+       module mounts in both; this file is only the shell that gives it a
+       container and the module scripts.
+
+       SCRIPT ORDER MIRRORS newtab.html EXACTLY so there is one initialisation
+       path rather than a second invented one: i18n, the catalogue, the DOM
+       pass, then storage, pro-access and tracking. i18n-dom self-initialises on
+       DOMContentLoaded and re-applies on a locale change, so static markup here
+       needs no bespoke wiring. -->
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="companion.css">
+</head>
+<body class="cmp-popup">
+  <div class="cmp-root" id="companion-root">
+    <!-- Rendered by companion.js. Empty on purpose: a hard-coded placeholder
+         would flash a state the user is not in. -->
+  </div>
+
+  <script src="i18n.js"></script>
+  <script src="locales/en.js"></script>
+  <script src="i18n-dom.js"></script>
+  <script src="storage.js"></script>
+  <script src="pro-access.js"></script>
+  <script src="tracking.js"></script>
+  <script src="companion.js"></script>
+  <script src="companion-popup.js"></script>
+</body>
+</html>

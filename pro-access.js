@@ -170,6 +170,28 @@
     return data.pro.subscriptionStatus === "active" && !!data.pro.licenseKey;
   }
 
+  // ===== [1.9.1] THE ACCESSIBLE-LEVEL GATE, MADE REACHABLE =====================
+  //
+  // CLAUDE.md calls isProAccessibleLevel "the single source of truth for which
+  // of them get the real surface", and warns that a hand-written check silently
+  // locks out every `grace` user, who is a paying customer. It lived in
+  // newtab.js's IIFE, which no other context can reach - so every other context
+  // hand-wrote it anyway: newtab.js, background.js twice, and tracking.js as a
+  // CAPTURING_LEVELS array. Four copies of a rule documented as having one.
+  //
+  // The toolbar popup would have been the fifth. It lives here instead, beside
+  // getProAccessLevel whose output it classifies, so any context that can ask
+  // for the level can also ask what the level MEANS. newtab.js now delegates.
+  // background.js and tracking.js still carry their own and are REPORTED rather
+  // than changed here - the service worker is a different risk surface.
+  function isProAccessibleLevel(level) {
+    return level === "trialing" || level === "active" || level === "grace";
+  }
+
+  function hasProAccess(data) {
+    return isProAccessibleLevel(getProAccessLevel(data));
+  }
+
   var ProAccess = {
     TRIAL_DURATION_MS: TRIAL_DURATION_MS,
     OFFLINE_GRACE_MS: OFFLINE_GRACE_MS,
@@ -181,7 +203,9 @@
     reconcileProState: reconcileProState,
     isReactivationOfferActive: isReactivationOfferActive,
     trialDaysRemaining: trialDaysRemaining,
-    isRealProEntitlement: isRealProEntitlement
+    isRealProEntitlement: isRealProEntitlement,
+    isProAccessibleLevel: isProAccessibleLevel,
+    hasProAccess: hasProAccess
   };
 
   if (typeof self !== "undefined") self.ProAccess = ProAccess;
