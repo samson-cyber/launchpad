@@ -283,9 +283,9 @@ async function runAutoBackup() {
   var data = await Storage.getAll();
   if (!Storage.getAutoBackupEnabled(data)) return { skipped: "disabled" };
 
-  var level = ProAccess.getProAccessLevel(data);
-  var proOk = (level === "trialing" || level === "active" || level === "grace");
-  if (!proOk) return { skipped: "not-pro" };
+  // [2026-09-09] DELEGATES. This was a hand-written level set; it agreed with
+  // the canonical one, but agreeing today is not the same as being the same rule.
+  if (!ProAccess.hasProAccess(data)) return { skipped: "not-pro" };
 
   if (!(await hasDownloadsPermission())) {
     // Revoked out from under us. Reflect it in the stored state and stop.
@@ -1492,13 +1492,23 @@ var FOCUS_GATE_PAGE = "gate.html";
 // billing origin. Subdomains included.
 var FOCUS_NEVER_HOSTS = ["mylaunchpad.me", "live.dodopayments.com"];
 
-// Mirrors newtab.js's isProAccessibleLevel. Duplicated deliberately: that
-// helper lives in the page and is not exported from pro-access.js, and a
-// one-line predicate is a better trade than widening ProAccess's surface for
-// the hot path. Keep the two in step.
+// [2026-09-09] DELEGATES, and the comment that stood here is worth keeping in
+// mind rather than deleting. It read: "Duplicated deliberately: that helper
+// lives in the page and is not exported from pro-access.js, and a one-line
+// predicate is a better trade than widening ProAccess's surface for the hot
+// path. Keep the two in step."
+//
+// THE PREMISE WAS TRUE WHEN WRITTEN AND IS NOT TRUE NOW. [1.9.1] made
+// isProAccessibleLevel canonical in pro-access.js precisely because the popup
+// would otherwise have been the fifth hand-written copy, so the trade the
+// comment weighed no longer exists - the surface is already widened, and what
+// is left is only the duplication. "Keep the two in step" was an instruction to
+// a human that nothing enforced; there is now a gate instead.
+//
+// pro-access.js is importScripts'd at the top of this file, before any function
+// body here can run, so ProAccess is defined at every call site below.
 function focusProActive(data) {
-  var level = ProAccess.getProAccessLevel(data);
-  return level === "active" || level === "trialing" || level === "grace";
+  return ProAccess.hasProAccess(data);
 }
 
 // SCHEME ALLOWLIST, not a blocklist. Only http(s) is ever intercepted, which

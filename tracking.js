@@ -58,12 +58,23 @@
   // Fixed at 60s in v1; user-configurable threshold is v2.1 (spec, Out of scope).
   var IDLE_DETECTION_SECONDS = 60;
 
-  // Entitlement levels that permit capture. 'grace' is included deliberately
-  // (PLAN AMENDMENT A3): the user is still entitled during the offline-grace
-  // window, and focus history cannot be backfilled once the moment has passed.
-  // 'expired' and 'free' stop capture; existing records are preserved untouched,
-  // consistent with read-only downgrade behavior elsewhere in Pro.
-  var CAPTURING_LEVELS = ["active", "trialing", "grace"];
+  // [2026-09-09] THE CAPTURING_LEVELS ARRAY IS GONE; the gate below delegates to
+  // ProAccess.isProAccessibleLevel. The reasoning it carried is still true and is
+  // kept: 'grace' is included deliberately (PLAN AMENDMENT A3) because the user
+  // is still entitled during the offline-grace window and focus history cannot
+  // be backfilled once the moment has passed; 'expired' and 'free' stop capture
+  // while existing records are preserved untouched.
+  //
+  // What changed is WHERE that rule lives. An array here made "capture is
+  // allowed for exactly the levels that get the real surface" a claim two files
+  // had to keep true independently. It was true - measured, not assumed, before
+  // this change - but a rule that happens to agree is not a rule with one
+  // source. The array was exported as Tracking.CAPTURING_LEVELS and had no
+  // consumer anywhere in the repo, so the export goes with it.
+  //
+  // pro-access.js loads before tracking.js in all three contexts that use it:
+  // background.js importScripts it first, and newtab.html and companion.html
+  // both link it above tracking.js.
 
   // Serialized op chain. Boundary events can arrive faster than a
   // read-modify-write round-trips (rapid tab switching), which would drop
@@ -199,7 +210,7 @@
       console.error("[LaunchPad] Tracking: entitlement check failed:", e);
       return { ok: false, reason: "entitlement-lost" };
     }
-    if (CAPTURING_LEVELS.indexOf(level) === -1) return { ok: false, reason: "entitlement-lost" };
+    if (!ProAccess.isProAccessibleLevel(level)) return { ok: false, reason: "entitlement-lost" };
 
     // Manual pause. Idle never writes this flag — a user who manually paused
     // stays paused after returning to the keyboard (spec, Manual pause).
@@ -1656,7 +1667,6 @@
     DAYS_KEY: DAYS_KEY,
     RETENTION_DAYS: RETENTION_DAYS,
     IDLE_DETECTION_SECONDS: IDLE_DETECTION_SECONDS,
-    CAPTURING_LEVELS: CAPTURING_LEVELS,
 
     start: start,
     sync: sync,

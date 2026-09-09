@@ -263,5 +263,90 @@ structural("...and overrides it on a dark wallpaper",
 structural("...and again on a light wallpaper",
   /html\.has-bg\.bg-light\s+\.pro-license-check-status\s*\{[^}]*color/.test(CSS));
 
+// ===== [2026-09-09] THE ACCESS-LEVEL SET LIVES IN ONE FILE ==================
+//
+// THE SIXTH INSTANCE OF THE HARDCODED-ENUMERATION CLASS in this project - after
+// the purge sweep, emptyTrash, PANEL_OVERLAY_SELECTORS, and the package gate
+// table twice. isProAccessibleLevel had been hand-written FOUR times because it
+// was unreachable outside newtab.js; every copy happened to agree, which is
+// exactly why nobody noticed. A rule that agrees by luck is one edit from a
+// paying `grace` customer losing focus blocking, capture and their badge.
+//
+// THE PATTERN: any construct, in any .js file other than pro-access.js, that
+// names ALL THREE accessible levels inside one statement or one array literal.
+// That is the SHAPE of the access check, and matching the shape rather than the
+// exact spelling is what makes reordering or rewriting it as an array still
+// trip the gate.
+//
+// WHAT IT DELIBERATELY DOES NOT FLAG, because these are not the access check:
+//   - two-level branches like `level === "active" || level === "grace"`, which
+//     newtab.js uses for the manage-subscription branch where a trial has no
+//     subscription to manage;
+//   - per-level display switches ("Plan: Trial" / "Plan: Pro"), which must
+//     branch per level by their nature.
+// A gate that flagged those would be turned off within a week.
+//
+// WHAT IT WOULD MISS, stated rather than left for someone to discover:
+//   - a set spelled differently: constants, `L.ACTIVE`, or levels assembled
+//     from variables rather than string literals;
+//   - a check written as a SERIES of separate comparisons across several
+//     statements, or an early-return chain, rather than one expression;
+//   - the inverse formulation - excluding "free" and "expired" instead of
+//     admitting the three - which is the same rule and would pass silently;
+//   - any non-.js surface. CLAUDE.md quotes the function verbatim on purpose
+//     and is not scanned.
+// It catches the copy-paste that actually happened four times, not every
+// possible re-expression of the idea.
+{
+  const LEVELS = ["trialing", "active", "grace"];
+  const jsFiles = fs.readdirSync(repoRoot)
+    .filter((f) => f.endsWith(".js") && f !== "pro-access.js");
+  const offenders = [];
+  for (const f of jsFiles) {
+    const src = fs.readFileSync(path.join(repoRoot, f), "utf8").replace(/\r\n/g, "\n");
+    // Strip comments first, or the explanatory notes THIS round added - which
+    // quote the old arrays on purpose - would be reported as offenders.
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
+    // Candidate units: one array literal, or one statement (no ; or newline).
+    const units = (code.match(/\[[^\]\n]{0,200}\]/g) || [])
+      .concat(code.split(/[;\n]/));
+    for (const u of units) {
+      if (LEVELS.every((l) => u.includes('"' + l + '"') || u.includes("'" + l + "'"))) {
+        offenders.push(f + ": " + u.trim().slice(0, 90));
+      }
+    }
+  }
+  structural("the accessible-level set appears in NO .js file but pro-access.js",
+    offenders.length === 0);
+  if (offenders.length) offenders.forEach((o) => console.log("      offender: " + o));
+
+  // ANTI-VACUITY. If the pattern cannot find the real one, it is not a pattern.
+  const canonical = fs.readFileSync(path.join(repoRoot, "pro-access.js"), "utf8");
+  const canonUnits = canonical.split(/[;\n]/);
+  structural("...and the pattern DOES match the canonical definition, so it is not inert",
+    canonUnits.some((u) => LEVELS.every((l) => u.includes('"' + l + '"'))));
+
+  // The canonical function must also still exist and be exported, or the
+  // delegations above are pointing at nothing.
+  structural("pro-access.js still defines isProAccessibleLevel",
+    /function isProAccessibleLevel\s*\(/.test(canonical));
+  structural("...and exports it",
+    /isProAccessibleLevel:\s*isProAccessibleLevel/.test(canonical));
+  structural("...and exports hasProAccess, which the delegations use",
+    /hasProAccess:\s*hasProAccess/.test(canonical));
+
+  // The three former copies must be delegating, not merely absent.
+  const bg = fs.readFileSync(path.join(repoRoot, "background.js"), "utf8");
+  const tr = fs.readFileSync(path.join(repoRoot, "tracking.js"), "utf8");
+  structural("background.js runAutoBackup gates through ProAccess",
+    /if \(!ProAccess\.hasProAccess\(data\)\) return \{ skipped: "not-pro" \}/.test(bg));
+  structural("background.js focusProActive delegates",
+    /function focusProActive\(data\) \{\s*\n\s*return ProAccess\.hasProAccess\(data\);/.test(bg));
+  structural("tracking.js gates capture through ProAccess",
+    /if \(!ProAccess\.isProAccessibleLevel\(level\)\)/.test(tr));
+  structural("tracking.js no longer carries a CAPTURING_LEVELS array",
+    !/var CAPTURING_LEVELS\s*=/.test(tr));
+}
+
 console.log(`\nLICENSE LINE: ${fail ? "FAIL" : "PASS"} — ${pass} passed, ${fail} failed.`);
 process.exit(fail ? 1 : 0);
