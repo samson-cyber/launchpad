@@ -310,6 +310,136 @@ var Storage = (function () {
     return TEXT_SIZES.indexOf(v) === -1 ? DEFAULT_TEXT_SIZE : v;
   }
 
+  // ===== [1.10.2] THE CLOCK LINE ===========================================
+  //
+  // OFF BY DEFAULT, per PLAN decision 2. A user who installs and never opens
+  // Settings sees exactly what they see today - the default is not "a quiet
+  // clock", it is no clock at all and no reserved space for one.
+  //
+  // THREE SEPARATE TOGGLES, and the reason is that they are three different
+  // KINDS of thing rather than three parts of one widget. The clock is live and
+  // changes every minute; the date is static for a day; the greeting is a tone
+  // choice some people find warm and others find twee. Bundling them would mean
+  // a user who wants the time has to accept being greeted, which is exactly the
+  // "everything on, twenty minutes of turning things off" complaint the
+  // quiet-by-default rule exists to answer.
+  //
+  // ZERO NETWORK. Intl.DateTimeFormat only - no timezone lookup, no geolocation,
+  // no clock API. The browser already knows the user's locale and zone.
+  function getClockSettings(data) {
+    var s = (data && data.settings) || {};
+    return {
+      time: s.clockTime === true,
+      date: s.clockDate === true,
+      greeting: s.clockGreeting === true
+    };
+  }
+
+  async function setClockSetting(data, which, on) {
+    if (!data || !data.settings) return false;
+    var key = which === "time" ? "clockTime" : which === "date" ? "clockDate"
+      : which === "greeting" ? "clockGreeting" : null;
+    if (!key) return false;
+    var next = !!on;
+    if (data.settings[key] === next) return false;   // no-op writes nothing
+    data.settings[key] = next;
+    await saveAll(data);
+    return true;
+  }
+
+  // ===== [1.10.2] CUSTOM SHORTCUT ICONS ====================================
+  //
+  // FREE, per PLAN decision 5. Not a Pro sweetener and not a tier boundary: it is
+  // the single most-cited grievance in the competitor set (Speed Dial 2 moved it
+  // behind Pro and its reviews are still angry), and giving it away is worth more
+  // than the revenue it would raise.
+  //
+  // THE SHAPE: one optional field on the shortcut, `customIcon`, holding
+  //   { kind: "image", value: "<data URL>" }   an upload, already downscaled
+  //   { kind: "emoji", value: "\u{1F680}" }        a single emoji
+  //   { kind: "letter", value: "A" }           a lettered tile in the accent
+  // ABSENT means "no override" - the favicon chain resolves exactly as it does
+  // today. Clearing deletes the field rather than writing a null, so a cleared
+  // icon is byte-identical to one that was never set and the round trip through
+  // export and import cannot preserve a tombstone.
+  //
+  // THE SIZE CEILING, MEASURED BEFORE THIS WAS BUILT rather than discovered
+  // after it shipped. chrome.storage.local gives 10 MB (no unlimitedStorage
+  // permission), and saveAll persists the WHOLE data object on EVERY write - the
+  // Pomodoro tick, the badge reconcile, every task edit. So an icon's cost is
+  // paid on every write in the product, not only on export.
+  //
+  //   a raw 512x512 PNG upload   715.6 KB each   ONLY 14 FIT IN THE QUOTA AT ALL
+  //   the same at 128x128 PNG     45.7 KB        200 icons = 89.6% of quota
+  //   128x128 WEBP q85             8.7 KB        200 icons = 17.4%, 1169 would fit
+  //
+  // DOWNSCALE ON UPLOAD to 128x128 WEBP q85, with a hard byte cap as a backstop.
+  // Downscaling rather than refusing is the point: a cap alone would reject the
+  // user's own photo and send them to find an image editor, which is the
+  // grievance decision 5 exists to avoid. 128 is not arbitrary either - it is the
+  // size this product already asks Google's favicon service for, so a custom
+  // icon renders at the same resolution as everything beside it.
+  //
+  // THE CAP IS A BACKSTOP, NOT THE CONTROL. Canvas encoding can surprise you, and
+  // an icon that somehow arrives oversized must be refused HONESTLY rather than
+  // handed to saveAll - because saveAll's catch is console.error and nothing
+  // else, so an over-quota write is accepted in memory, silently dropped on
+  // disk, and lost at the next reload. Measured: the set throws
+  // "Resource::kQuotaBytes quota exceeded", the value reads back absent, and the
+  // user sees their change until they reload.
+  var ICON_MAX_DIM = 128;
+  var ICON_MAX_BYTES = 48 * 1024;
+  var ICON_KINDS = ["image", "emoji", "letter"];
+
+  function getShortcutIcon(shortcut) {
+    if (!shortcut || !shortcut.customIcon) return null;
+    var ci = shortcut.customIcon;
+    if (!ci || ICON_KINDS.indexOf(ci.kind) === -1) return null;
+    if (typeof ci.value !== "string" || !ci.value) return null;
+    return { kind: ci.kind, value: ci.value };
+  }
+
+  function findShortcutById(ws, shortcutId) {
+    if (!ws) return null;
+    var groups = ws.groups || [];
+    for (var i = 0; i < groups.length; i++) {
+      var list = groups[i].shortcuts || [];
+      for (var k = 0; k < list.length; k++) {
+        if (list[k].id === shortcutId) return list[k];
+      }
+    }
+    return null;
+  }
+
+  // Returns { ok: true } or { ok: false, reason } - never throws, and never
+  // writes when it is going to refuse. The caller shows the reason.
+  async function setShortcutIcon(data, shortcutId, icon, workspaceId) {
+    if (!data) return { ok: false, reason: "no-data" };
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var sc = findShortcutById(ws, shortcutId);
+    if (!sc) return { ok: false, reason: "not-found" };
+
+    if (icon === null) {                     // CLEAR
+      if (!sc.customIcon) return { ok: true, changed: false };
+      delete sc.customIcon;                  // deleted, not nulled - see above
+      await saveAll(data);
+      return { ok: true, changed: true };
+    }
+    if (!icon || ICON_KINDS.indexOf(icon.kind) === -1) return { ok: false, reason: "bad-kind" };
+    if (typeof icon.value !== "string" || !icon.value) return { ok: false, reason: "empty" };
+    if (icon.kind === "image") {
+      if (icon.value.indexOf("data:image/") !== 0) return { ok: false, reason: "not-a-data-url" };
+      // The backstop. Refused BEFORE the write, so nothing reaches saveAll that
+      // saveAll would silently drop.
+      if (icon.value.length > ICON_MAX_BYTES) {
+        return { ok: false, reason: "too-large", bytes: icon.value.length, cap: ICON_MAX_BYTES };
+      }
+    }
+    sc.customIcon = { kind: icon.kind, value: icon.value };
+    await saveAll(data);
+    return { ok: true, changed: true };
+  }
+
   async function setTextSize(data, val) {
     if (!data || !data.settings) return false;
     // An unrecognised value is NOT written. The alternative — storing it and
@@ -7153,6 +7283,13 @@ var Storage = (function () {
     POMODORO_PHASE_LABELS: POMODORO_PHASE_LABELS,
     fmtDuration: fmtDuration,
     activeElapsedMs: activeElapsedMs,
+    getClockSettings: getClockSettings,
+    setClockSetting: setClockSetting,
+    getShortcutIcon: getShortcutIcon,
+    setShortcutIcon: setShortcutIcon,
+    findShortcutById: findShortcutById,
+    ICON_MAX_DIM: ICON_MAX_DIM,
+    ICON_MAX_BYTES: ICON_MAX_BYTES,
     fmtStopwatch: fmtStopwatch,
     isCapturableSessionUrl: isCapturableSessionUrl,
     createNamedSessionAtFront: createNamedSessionAtFront,

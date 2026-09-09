@@ -141,6 +141,11 @@
 
     <!-- TAB PANELS -->
     <div id="tab-home" class="tab-panel" role="tabpanel" tabindex="-1">
+      <!-- [1.10.2] THE CLOCK LINE. ONE line above the search bar and nothing
+           else (decision 1). Ships HIDDEN and EMPTY: with every toggle off it
+           has no content and no height, so a user who never opens Settings sees
+           a grid whose first row sits exactly where it does today. -->
+      <div id="clock-line" hidden></div>
       <!-- [1.10.1] THE SEARCH BAR IS THE LAUNCHER. The input is a combobox over
            #launcher-results; DOM focus never leaves it while the list is being
            navigated, which is what keeps this to ONE focus at a time. The active
@@ -323,6 +328,25 @@
             <button data-i18n="settings_iconsize_medium" class="seg-btn" data-value="medium" type="button">Medium</button>
             <button data-i18n="settings_iconsize_large" class="seg-btn" data-value="large" type="button">Large</button>
           </div>
+        </div>
+        <!-- [1.10.2] THREE SEPARATE TOGGLES, all OFF by default. They are three
+             different kinds of thing - a live clock, a static date, a tone
+             choice - so bundling them would force a user who wants the time to
+             accept being greeted. -->
+        <div class="settings-row settings-row-stack">
+          <label data-i18n="settings_clock_line" class="settings-label">Clock line</label>
+          <label class="pro-toggle-row">
+            <input type="checkbox" id="settings-clock-time">
+            <span data-i18n="settings_show_the_time">Show the time</span>
+          </label>
+          <label class="pro-toggle-row">
+            <input type="checkbox" id="settings-clock-date">
+            <span data-i18n="settings_show_the_date">Show the date</span>
+          </label>
+          <label class="pro-toggle-row">
+            <input type="checkbox" id="settings-clock-greeting">
+            <span data-i18n="settings_show_a_greeting">Show a greeting</span>
+          </label>
         </div>
         <div class="settings-row settings-wallpaper-row">
           <label data-i18n="settings_wallpaper" class="settings-label">Wallpaper</label>

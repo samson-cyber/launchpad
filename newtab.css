@@ -15379,3 +15379,136 @@ html.bg-light .launcher-row.is-active { outline-color: rgba(0, 0, 0, 0.3); }
   white-space: nowrap;
   border: 0;
 }
+
+/* ===== [1.10.2] CUSTOM ICONS AND THE CLOCK LINE ===========================
+   INK IS DECLARED, NEVER INHERITED - nine consecutive rounds adding a surface
+   have each found a white-on-white defect, always the same shape. Every text
+   node here states a colour and has a light-wallpaper override. */
+
+/* The three custom kinds share the favicon's box exactly, so a tile with a
+   custom icon is the same size and alignment as one without. */
+.shortcut-custom-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+.shortcut-custom-emoji,
+.shortcut-custom-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  line-height: 1;
+  font-size: 18px;
+}
+/* THE LETTERED TILE READS THE ACCENT TOKEN. [1.10.5] adds accents by
+   redefining --accent, so this follows them with no edit. White ink on the
+   accent is the pair the product already ships for accent-filled controls. */
+.shortcut-custom-letter {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-radius: 6px;
+  font-size: var(--fs-14);
+  font-weight: 600;
+}
+
+/* ----- the clock line -----
+   HIDDEN AND EMPTY BY DEFAULT. [hidden] already collapses it, and the margin
+   lives on the element rather than on a wrapper so an absent clock reserves no
+   space at all - the grid's first row must not move for a user who never opens
+   Settings. */
+#clock-line {
+  margin: 0 auto 10px;
+  text-align: center;
+  font-size: var(--fs-14);
+  line-height: 1.35;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+#clock-line[hidden] { display: none; }
+.clock-time { font-weight: 600; color: #fff; }
+.clock-date { color: #e3e6ea; }
+.clock-greeting { color: #e3e6ea; }
+.clock-sep { color: #b9bfc7; margin: 0 8px; }
+
+html.bg-light #clock-line,
+html.bg-light .clock-time { color: var(--text-primary); text-shadow: none; }
+html.bg-light .clock-date,
+html.bg-light .clock-greeting { color: #3c4043; }
+html.bg-light .clock-sep { color: #80868b; }
+
+/* ----- the icon picker -----
+   FLOATER tier: a transient surface over the page. Centred rather than anchored
+   to the tile, because a tile near the viewport edge would push an anchored
+   popover off-screen and this round is not adding a positioning engine. */
+.icon-picker {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2100;
+  width: 320px;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--pro-frost-floater-bg);
+  backdrop-filter: var(--pro-frost-floater-blur);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  color: #fff;
+}
+.ip-title {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: var(--space-2);
+}
+.ip-row { display: flex; gap: var(--space-2); }
+.ip-btn {
+  flex: 1;
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-family: inherit;
+  font-size: var(--fs-13);
+  cursor: pointer;
+}
+.ip-btn:hover { background: rgba(255, 255, 255, 0.16); }
+.ip-clear { width: 100%; margin-top: var(--space-3); }
+.ip-emoji-label {
+  margin: var(--space-3) 0 var(--space-1);
+  font-size: var(--fs-11);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #c9cdd3;
+}
+.ip-emoji-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.ip-emoji {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: #fff;
+}
+.ip-emoji:hover { background: rgba(255, 255, 255, 0.18); }
+
+html.bg-light .icon-picker,
+html.bg-light .ip-title,
+html.bg-light .ip-btn,
+html.bg-light .ip-emoji { color: var(--text-primary); }
+html.bg-light .ip-emoji-label { color: #5f6368; }
+html.bg-light .ip-btn,
+html.bg-light .ip-emoji { background: rgba(0, 0, 0, 0.05); border-color: rgba(0, 0, 0, 0.14); }
+html.bg-light .ip-btn:hover,
+html.bg-light .ip-emoji:hover { background: rgba(0, 0, 0, 0.1); }
+
+.settings-row-stack { display: block; }
+.settings-row-stack .settings-label { display: block; margin-bottom: 6px; }

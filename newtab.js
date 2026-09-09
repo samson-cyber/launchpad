@@ -11686,6 +11686,12 @@
   //   arrows with search empty ArrowDown enters the grid; ArrowUp does nothing.
   //   arrows with results      move the cursor; they never enter the grid, so a
   //                            long list cannot strand you.
+  // [1.10.2] A small, deliberately unfashionable emoji set. A full picker is a
+  // component; this is twelve that cover the common cases and cost nothing.
+  var ICON_EMOJI = ["\u2B50", "\u2764\uFE0F", "\u{1F525}", "\u{1F4E7}", "\u{1F4C5}", "\u{1F4B0}",
+                    "\u{1F3B5}", "\u{1F4F7}", "\u{1F4DA}", "\u{1F4BB}", "\u{1F6D2}", "\u2708\uFE0F"];
+  var iconPickerState = null;
+  var clockTimer = null;
   var LAUNCHER_MAX = 8;
   var launcherState = { results: [], activeIndex: -1, lastTileId: null };
 
@@ -11952,6 +11958,225 @@
       // Chrome's built-in search — respects the user's default engine.
       chrome.search.query({ text: query, disposition: newTab ? "NEW_TAB" : "CURRENT_TAB" });
     }
+  }
+
+  // ===== [1.10.2] THE ICON PICKER ==========================================
+  //
+  // DOWNSCALE ON UPLOAD, which is the control that makes this feature safe. See
+  // the measurements in storage.js: a raw 512 PNG is 715 KB and only fourteen of
+  // them fit in the whole quota, while the same image at 128 WEBP q85 is 8.7 KB
+  // and eleven hundred would fit. The user's own photo is accepted and made
+  // small, rather than refused and handed back to them to fix.
+  function downscaleIconFile(file) {
+    return new Promise(function (resolve, reject) {
+      if (!file || !/^image\//.test(file.type)) return reject(new Error("not-an-image"));
+      var reader = new FileReader();
+      reader.onerror = function () { reject(new Error("read-failed")); };
+      reader.onload = function () {
+        var img = new Image();
+        img.onerror = function () { reject(new Error("decode-failed")); };
+        img.onload = function () {
+          var max = Storage.ICON_MAX_DIM;
+          // CONTAIN, not cover: a logo that is not square keeps its whole self
+          // rather than having its edges cropped off by the tile.
+          var scale = Math.min(max / img.width, max / img.height, 1);
+          var w = Math.max(1, Math.round(img.width * scale));
+          var h = Math.max(1, Math.round(img.height * scale));
+          var c = document.createElement("canvas");
+          c.width = max; c.height = max;
+          var x = c.getContext("2d");
+          x.clearRect(0, 0, max, max);
+          x.imageSmoothingQuality = "high";
+          x.drawImage(img, (max - w) / 2, (max - h) / 2, w, h);
+          // WEBP keeps transparency AND is five times smaller than PNG here.
+          var out = c.toDataURL("image/webp", 0.85);
+          if (out.indexOf("data:image/webp") !== 0) out = c.toDataURL("image/png");
+          resolve(out);
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // [1.10.2] THE DRIVE HANDLE, for the same reason [1.9.3] put the command
+  // dispatcher on `self` and [1.9.4] exported the popup's mounted view: the
+  // round's harness must exercise the REAL downscaler, not a copy of it written
+  // to look like it. A file chooser cannot be driven from CDP, so this is the
+  // only way to prove that a 512px upload really is made small on the way in.
+  if (typeof window !== "undefined") window.__downscale = function (f) { return downscaleIconFile(f); };
+  if (typeof window !== "undefined") window.__openIconPicker = function (id) { return openIconPicker(id); };
+
+  async function applyShortcutIcon(shortcutId, icon) {
+    var res = await Storage.setShortcutIcon(data, shortcutId, icon);
+    if (!res.ok) {
+      if (res.reason === "too-large") {
+        showToast(t("icon_too_large", { kb: String(Math.round(res.cap / 1024)) }));
+      } else {
+        showToast(t("icon_could_not_be_set"));
+      }
+      return false;
+    }
+    render();
+    return true;
+  }
+
+  function openIconPicker(shortcutId) {
+    var ws = Storage.getActiveWorkspace(data);
+    var sc = Storage.findShortcutById(ws, shortcutId);
+    if (!sc) return;
+    closeIconPicker();
+    var current = Storage.getShortcutIcon(sc);
+    var letter = (sc.title || getDomain(sc.url) || "?").trim().charAt(0).toUpperCase() || "?";
+    var el = document.createElement("div");
+    el.className = "icon-picker";
+    el.id = "icon-picker";
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-label", t("icon_choose_an_icon"));
+    el.innerHTML =
+      '<div class="ip-title">' + th("icon_choose_an_icon") + '</div>' +
+      '<div class="ip-row">' +
+        '<button type="button" class="ip-btn" data-ip="upload">' + th("icon_upload_an_image") + '</button>' +
+        '<button type="button" class="ip-btn" data-ip="letter">' + th("icon_use_a_letter") + '</button>' +
+      '</div>' +
+      '<div class="ip-emoji-label">' + th("icon_or_pick_an_emoji") + '</div>' +
+      '<div class="ip-emoji-row">' +
+        ICON_EMOJI.map(function (e) {
+          return '<button type="button" class="ip-emoji" data-ip="emoji" data-emoji="' + esc(e) + '">' + esc(e) + '</button>';
+        }).join("") +
+      '</div>' +
+      (current ? '<button type="button" class="ip-btn ip-clear" data-ip="clear">' + th("icon_remove_custom_icon") + '</button>' : '') +
+      '<input type="file" id="ip-file" accept="image/*" hidden>';
+    document.body.appendChild(el);
+    iconPickerState = { shortcutId: shortcutId, letter: letter, el: el };
+
+    el.addEventListener("click", async function (e) {
+      var btn = e.target.closest("[data-ip]");
+      if (!btn) return;
+      var act = btn.getAttribute("data-ip");
+      if (act === "upload") { el.querySelector("#ip-file").click(); return; }
+      if (act === "letter") {
+        if (await applyShortcutIcon(shortcutId, { kind: "letter", value: letter })) closeIconPicker();
+        return;
+      }
+      if (act === "emoji") {
+        if (await applyShortcutIcon(shortcutId, { kind: "emoji", value: btn.getAttribute("data-emoji") })) closeIconPicker();
+        return;
+      }
+      if (act === "clear") {
+        // REMOVING RESTORES THE FAVICON, never a blank. setShortcutIcon deletes
+        // the field, so the favicon chain resolves exactly as it did before an
+        // icon was ever set.
+        if (await applyShortcutIcon(shortcutId, null)) closeIconPicker();
+      }
+    });
+    el.querySelector("#ip-file").addEventListener("change", async function () {
+      var f = this.files && this.files[0];
+      if (!f) return;
+      try {
+        var dataUrl = await downscaleIconFile(f);
+        if (await applyShortcutIcon(shortcutId, { kind: "image", value: dataUrl })) closeIconPicker();
+      } catch (err) {
+        console.error("[LaunchPad] Icon upload failed", err);
+        showToast(t("icon_could_not_be_set"));
+      }
+    });
+    // Dismissal, matching the notes-menu lifecycle: outside click and Escape,
+    // bound on the next tick so the click that opened this cannot close it.
+    setTimeout(function () {
+      if (!iconPickerState) return;
+      iconPickerState.onDoc = function (ev) {
+        if (iconPickerState && iconPickerState.el.contains(ev.target)) return;
+        closeIconPicker();
+      };
+      iconPickerState.onKey = function (ev) { if (ev.key === "Escape") closeIconPicker(); };
+      document.addEventListener("mousedown", iconPickerState.onDoc, true);
+      document.addEventListener("keydown", iconPickerState.onKey, true);
+    }, 0);
+  }
+
+  function closeIconPicker() {
+    if (!iconPickerState) return;
+    if (iconPickerState.onDoc) document.removeEventListener("mousedown", iconPickerState.onDoc, true);
+    if (iconPickerState.onKey) document.removeEventListener("keydown", iconPickerState.onKey, true);
+    if (iconPickerState.el && iconPickerState.el.parentNode) iconPickerState.el.parentNode.removeChild(iconPickerState.el);
+    iconPickerState = null;
+  }
+
+  // ===== [1.10.2] THE CLOCK LINE ===========================================
+  //
+  // ONE LINE ABOVE THE SEARCH BAR and nothing else, per decision 1. It renders
+  // into an element that is EMPTY AND HIDDEN when every toggle is off, so a user
+  // who never opens Settings gets no node with height, no reserved space, and a
+  // grid whose first row sits exactly where it sits today.
+  //
+  // ZERO NETWORK: Intl.DateTimeFormat with the browser's own locale and zone.
+  function greetingFor(hour) {
+    if (hour < 12) return t("clock_good_morning");
+    if (hour < 18) return t("clock_good_afternoon");
+    return t("clock_good_evening");
+  }
+
+  function renderClockLine() {
+    var el = $("#clock-line");
+    if (!el) return;
+    var cfg = Storage.getClockSettings(data);
+    if (!cfg.time && !cfg.date && !cfg.greeting) {
+      el.innerHTML = "";
+      el.hidden = true;                 // no node with height - see above
+      stopClockTick();
+      return;
+    }
+    var now = new Date();
+    var parts = [];
+    if (cfg.greeting) parts.push('<span class="clock-greeting">' + esc(greetingFor(now.getHours())) + '</span>');
+    if (cfg.time) {
+      var timeStr;
+      try { timeStr = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(now); }
+      catch (e) { timeStr = now.getHours() + ":" + String(now.getMinutes()).padStart(2, "0"); }
+      parts.push('<span class="clock-time">' + esc(timeStr) + '</span>');
+    }
+    if (cfg.date) {
+      var dateStr;
+      try { dateStr = new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" }).format(now); }
+      catch (e) { dateStr = now.toDateString(); }
+      parts.push('<span class="clock-date">' + esc(dateStr) + '</span>');
+    }
+    el.innerHTML = parts.join('<span class="clock-sep" aria-hidden="true">\u00B7</span>');
+    el.hidden = false;
+    if (cfg.time) startClockTick(); else stopClockTick();
+  }
+
+  // Only a MOVING number earns a timer, the same rule the pill and the popup
+  // follow. Date-only and greeting-only lines tick nothing.
+  function startClockTick() {
+    stopClockTick();
+    clockTimer = setInterval(function () {
+      var cfg = Storage.getClockSettings(data);
+      if (!cfg.time) { stopClockTick(); return; }
+      renderClockLine();
+    }, 15000);
+  }
+  function stopClockTick() { if (clockTimer) { clearInterval(clockTimer); clockTimer = null; } }
+
+  function bindClockSettings() {
+    [["#settings-clock-time", "time"], ["#settings-clock-date", "date"],
+     ["#settings-clock-greeting", "greeting"]].forEach(function (pair) {
+      var box = $(pair[0]);
+      if (!box || box._clockBound) return;
+      box.addEventListener("change", async function () {
+        await Storage.setClockSetting(data, pair[1], box.checked);
+        renderClockLine();
+      });
+      box._clockBound = true;
+    });
+  }
+
+  function renderClockSettings() {
+    var cfg = Storage.getClockSettings(data);
+    var t1 = $("#settings-clock-time"); if (t1) t1.checked = cfg.time;
+    var t2 = $("#settings-clock-date"); if (t2) t2.checked = cfg.date;
+    var t3 = $("#settings-clock-greeting"); if (t3) t3.checked = cfg.greeting;
   }
 
   function applySearch() {
@@ -15450,6 +15675,9 @@
       .join("");
     ensureAllPlaceholders();
     initSortables();
+    renderClockLine();
+    bindClockSettings();
+    renderClockSettings();
     renderSidebarGroups();
     renderActiveTaskWidget();
     initSidebarSortable();
@@ -15507,6 +15735,35 @@
     );
   }
 
+  // [1.10.2] THE ICON SLOT. Three custom kinds, and the favicon when there is no
+  // override at all.
+  //
+  // ONLY THE IMAGE KIND CAN GO THROUGH getFaviconUrl, because that function
+  // returns a URL string and an emoji or a letter is not one. So the branch is
+  // here, in the markup, rather than as a fourth priority in the favicon chain -
+  // which keeps getFaviconUrl doing exactly one thing and means a shortcut with
+  // no override emits byte-identical markup to what it emitted before this round.
+  //
+  // THE LETTERED TILE READS THE ACCENT TOKEN, never a literal colour. [1.10.5]
+  // adds more accents by redefining --accent, and a hard-coded #1a73e8 here
+  // would need finding and fixing three rounds later.
+  function shortcutIconInnerHTML(s, favicon) {
+    var icon = Storage.getShortcutIcon(s);
+    if (icon && icon.kind === "image") {
+      // No data-url attribute: the global favicon-error fallback re-points a
+      // broken img at Google's service, and a user's own icon must never be
+      // silently replaced by a stranger's favicon.
+      return '<img class="shortcut-custom-img" src="' + esc(icon.value) + '" alt="" width="24" height="24">';
+    }
+    if (icon && icon.kind === "emoji") {
+      return '<span class="shortcut-custom-emoji" aria-hidden="true">' + esc(icon.value) + '</span>';
+    }
+    if (icon && icon.kind === "letter") {
+      return '<span class="shortcut-custom-letter" aria-hidden="true">' + esc(icon.value.slice(0, 2)) + '</span>';
+    }
+    return '<img src="' + esc(favicon) + '" alt="" width="24" height="24" loading="lazy" data-url="' + esc(s.url) + '">';
+  }
+
   function shortcutHTML(s) {
     var domain = getDomain(s.url);
     var favicon = getFaviconUrl(s);
@@ -15522,7 +15779,7 @@
       '<div class="shortcut' + (hasVariants ? ' has-variants' : '') + '" data-id="' + s.id + '">' +
         '<a href="' + esc(s.url) + '" class="shortcut-link" title="' + esc(s.title || s.url) + '">' +
           '<div class="shortcut-icon">' +
-            '<img src="' + esc(favicon) + '" alt="" width="24" height="24" loading="lazy" data-url="' + esc(s.url) + '">' +
+            shortcutIconInnerHTML(s, favicon) +
             badge +
             tagPills +
           "</div>" +
@@ -18672,6 +18929,16 @@
     document.addEventListener("error", function (e) {
       var img = e.target;
       if (img.tagName !== "IMG") return;
+      // [1.10.2] A USER'S OWN ICON IS NEVER REPLACED BY A STRANGER'S FAVICON.
+      // This fallback re-points any broken img inside .shortcut-icon at Google's
+      // favicon service, and a custom uploaded icon lives in exactly that box -
+      // so an icon that failed to decode was silently becoming the site's
+      // favicon, which looks like the upload having quietly not worked.
+      // Found by the export/import round trip, where a deliberately undecodable
+      // data URL came back rendering a google.com/s2 URL.
+      // A broken custom icon shows the browser's own broken-image state, which
+      // is honest: the user chose that file and can choose another.
+      if (img.classList.contains("shortcut-custom-img")) return;
       if (!img.closest(".shortcut-icon, .rc-icon, .ob-popular-icon, .ob-preview-favicon, .restore-tab-item, .rc-panel-item")) return;
 
       var url = img.dataset.url || (img.closest("a[href]") && img.closest("a[href]").href) || "";
@@ -18703,6 +18970,19 @@
     // Delegated clicks on groups container
     safeOn("#groups", "click", function (e) {
       var el;
+
+      // [1.10.2] The icon picker, opened by shift-clicking a tile's icon. A
+      // menu entry lands in [1.10.3] with the rest of the tile menu work; this
+      // is the affordance that makes the feature reachable now without
+      // restructuring a menu this round is not scoped to touch.
+      el = e.target.closest(".shortcut-icon");
+      if (el && e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        var sh = el.closest(".shortcut");
+        if (sh) openIconPicker(sh.getAttribute("data-id"));
+        return;
+      }
 
       // Group name — inline rename (must check BEFORE group-header-left)
       el = e.target.closest(".group-name");

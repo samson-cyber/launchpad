@@ -1327,6 +1327,62 @@ I18n.register("en", {
     "message": "no last week yet",
     "description": "Shown in place of the comparison on the weekly review card when no previous week exists at all. Deliberately not a 100% drop - there is nothing to compare to, which is different from having done less. Rendered with th()."
   },
+  "icon_choose_an_icon": {
+    "message": "Choose an icon",
+    "description": "Title of the custom-icon picker, opened by shift-clicking a shortcut's icon. Rendered with th()."
+  },
+  "icon_upload_an_image": {
+    "message": "Upload an image",
+    "description": "Picker button that opens a file chooser. The image is downscaled to 128x128 WEBP on the way in rather than stored at its original size - a raw 512px PNG is 715 KB and only fourteen would fit in the whole extension quota. Rendered with th()."
+  },
+  "icon_use_a_letter": {
+    "message": "Use a letter",
+    "description": "Picker button that makes a lettered tile in the accent colour from the shortcut's first character. Rendered with th()."
+  },
+  "icon_or_pick_an_emoji": {
+    "message": "Or pick an emoji",
+    "description": "Label above the emoji row in the icon picker. Rendered with th()."
+  },
+  "icon_remove_custom_icon": {
+    "message": "Remove custom icon",
+    "description": "Picker button, shown only when a custom icon is set. Removing restores the site's favicon rather than leaving a blank tile. Rendered with th()."
+  },
+  "icon_too_large": {
+    "message": "That image is still over {kb} KB after resizing. Try a simpler one.",
+    "description": "Shown when an uploaded icon exceeds the per-icon cap even after downscaling. The cap is a backstop rather than the main control: chrome.storage writes the whole data object every time, and an over-quota write is silently dropped, so an oversized icon is refused honestly here instead. Rendered with t()."
+  },
+  "icon_could_not_be_set": {
+    "message": "That icon could not be set.",
+    "description": "Shown when reading or decoding an uploaded image fails. Rendered with t()."
+  },
+  "clock_good_morning": {
+    "message": "Good morning",
+    "description": "Greeting on the optional clock line, before noon. Off by default. Rendered with t()."
+  },
+  "clock_good_afternoon": {
+    "message": "Good afternoon",
+    "description": "Greeting on the optional clock line, noon to 18:00. Rendered with t()."
+  },
+  "clock_good_evening": {
+    "message": "Good evening",
+    "description": "Greeting on the optional clock line, from 18:00. Rendered with t()."
+  },
+  "settings_clock_line": {
+    "message": "Clock line",
+    "description": "Appearance settings label for the three clock-line toggles. Rendered by the data-i18n pass."
+  },
+  "settings_show_the_time": {
+    "message": "Show the time",
+    "description": "Clock-line toggle. Separate from the date and greeting because it is the only one that ticks. Off by default. Rendered by the data-i18n pass."
+  },
+  "settings_show_the_date": {
+    "message": "Show the date",
+    "description": "Clock-line toggle, independent of the time. Off by default. Rendered by the data-i18n pass."
+  },
+  "settings_show_a_greeting": {
+    "message": "Show a greeting",
+    "description": "Clock-line toggle. Separate because a greeting is a tone choice some people find warm and others find twee, and bundling it would force it on anyone who wanted the time. Off by default. Rendered by the data-i18n pass."
+  },
   "launcher_search_the_web_for": {
     "message": "Search the web for",
     "description": "Prefix of the last row of the launcher results, followed by the user's quoted query. That row does exactly what pressing Enter with nothing selected does; it exists so the behaviour is visible rather than folklore. Rendered with t()."
