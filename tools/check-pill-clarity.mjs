@@ -673,9 +673,30 @@ await (async () => {
         eq("hero: a pause renames the HERO's unit word", (pausedHtml.match(/class="sat-hero-label"[^>]*>([^<]*)</) || [])[1], "Paused");
         check("hero: ...exactly once — FOCUSED TODAY keeps its own label rather than repeating it",
           (pausedHtml.match(/Paused/g) || []).length === 1 && /Focused today/.test(pausedHtml));
-        check("hero: ...and the amber treatment covers BOTH frozen numbers",
-          /\.sat-expanded\.is-paused[\s\S]{0,200}\.sat-hero-time,/.test(SRC.css) &&
-          /\.sat-expanded\.is-paused \.sat-time,/.test(SRC.css));
+        // [1.9.4 finding 5] THIS ASSERTION WAS DELIBERATELY REVERSED, and the
+        // reversal is the change rather than a loosening. It used to require the
+        // amber to cover BOTH frozen numbers, which was the shipped behaviour and
+        // was correct as a description of it. Samson then counted SIX amber
+        // elements across this card and the popup for one paused state and called
+        // it a warning rather than a mark - which the design guide agrees with:
+        // amber MARKS the paused state, and a card that is mostly amber is the
+        // failure mode the preview-banner ruling rejected red for.
+        // The rule is now ONE amber signal per surface, carried by the element
+        // that NAMES the state. So the assertion inverts: the numerals must NOT
+        // be amber, and exactly one rule may tint anything on this card.
+        {
+          const pausedRules = (SRC.css.match(/\.sat-expanded\.is-paused[^{]*\{[^}]*--sat-amber[^}]*\}/g) || []);
+          eq("hero: exactly ONE amber rule on the paused card", pausedRules.length, 1);
+          check("hero: ...and it is the hero LABEL, the element that names the state",
+            pausedRules.length === 1 && /sat-hero-label/.test(pausedRules[0]), JSON.stringify(pausedRules));
+          check("hero: ...so NEITHER frozen number is amber any more - a number's job is to be read",
+            pausedRules.length === 1 && !/sat-hero-time|sat-time\b/.test(pausedRules[0]),
+            JSON.stringify(pausedRules));
+          check("hero: ...the bold weight stays, so the mark survives without colour",
+            pausedRules.length === 1 && /font-weight:\s*700/.test(pausedRules[0]));
+          check("hero: the Resume button is a control, not a state mark, on BOTH wallpapers",
+            !/\.sat-btn-resume\s*\{/.test(SRC.css));
+        }
 
         // The hero is a TICKING surface — the entire point of the swap.
         check("hero: the tick repaints it, from the shared clock edge",
@@ -1861,8 +1882,12 @@ const SEEDS = [
   { name: "HERO: the hero's ink is left to inherit on the light frame",
     file: "css", from: "html.bg-light .sat-name,\nhtml.bg-light .sat-hero-time,\nhtml.bg-light .sat-time { color: var(--text-primary); }",
     to: "html.bg-light .sat-name,\nhtml.bg-light .sat-time { color: var(--text-primary); }" },
-  { name: "HERO: the paused amber covers only the demoted number, not the hero",
-    file: "css", from: ".sat-expanded.is-paused .sat-time,\n.sat-expanded.is-paused .sat-hero-time,", to: ".sat-expanded.is-paused .sat-time," },
+  { name: "HERO: the paused amber spreads back onto the numerals",
+    file: "css", from: ".sat-expanded.is-paused .sat-hero-label { color: var(--sat-amber); font-weight: 700; }",
+    to: ".sat-expanded.is-paused .sat-hero-label,\n.sat-expanded.is-paused .sat-hero-time,\n.sat-expanded.is-paused .sat-time { color: var(--sat-amber); font-weight: 700; }" },
+  { name: "HERO: the Resume button is tinted amber again",
+    file: "css", from: "/* [1.9.4 finding 5] THE LIGHT-WALLPAPER RESUME OVERRIDE IS GONE TOO.",
+    to: ".sat-btn-resume { color: var(--sat-amber); }\n/* [1.9.4 finding 5] THE LIGHT-WALLPAPER RESUME OVERRIDE IS GONE TOO." },
   { name: "CROSS-SURFACE: an uncomputable sentence leaves the last one standing, frozen",
     file: "nt", from: "      if (sinceTxt) sinceEl.textContent = sinceTxt;\n      else sinceEl.remove();",
     to: "      if (sinceTxt) sinceEl.textContent = sinceTxt;" },
@@ -1931,6 +1956,17 @@ function materialize(src) {
   const dir = fs.mkdtempSync(path.join(scratch, "seed-"));
   fs.writeFileSync(path.join(dir, "storage.js"), src.storage);
   fs.writeFileSync(path.join(dir, "newtab.js"), src.nt);
+  // [1.9.4] tokens.css MUST EXIST HERE. SRC.css is the CONCATENATION of
+  // tokens.css and newtab.css (the token layer split out in [1.9.1] so the
+  // popup could load it), and the gate rebuilds that pair by reading both
+  // files. This function only ever wrote newtab.css, so every materialised
+  // subject was missing tokens.css and the re-run died at startup - which the
+  // runner scores as exit 2, "subject did not load". The clean-subject CONTROL
+  // has therefore been failing since [1.9.1], and with it every seed: the
+  // mutation pass has proved nothing for four rounds. It goes unnoticed because
+  // build.sh runs this gate WITHOUT --mutate, so the gate itself stayed green.
+  // An empty tokens.css restores the identity: "" + "\n" + concat === concat.
+  fs.writeFileSync(path.join(dir, "tokens.css"), "");
   fs.writeFileSync(path.join(dir, "newtab.css"), src.css);
   fs.writeFileSync(path.join(dir, "background.js"), src.bg);
   return dir;
@@ -1938,6 +1974,27 @@ function materialize(src) {
 const runAgainst = (dir) => spawnSync(process.execPath, [new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"), dir], { encoding: "utf8" });
 
 {
+  // [1.9.4] KNOWN INERT, AND DELIBERATELY LEFT LOUD RATHER THAN MADE GREEN.
+  // This control proves the runner can tell "the suite caught the seed" (exit 1)
+  // from "the subject never loaded" (exit 2). It appended garbage to storage.js,
+  // which this gate does not execute - it EXTRACTS named function bodies by
+  // text - so the exit 2 it read came entirely from materialize() not writing
+  // tokens.css after the [1.9.1] token split. That made EVERY subject
+  // unloadable, clean ones included, so both controls passed for the same wrong
+  // reason and every seed below has been inert for four rounds. It went
+  // unnoticed because build.sh runs this gate WITHOUT --mutate.
+  //
+  // materialize() is fixed above. This control is NOT, and two attempts at it
+  // (trailing garbage on newtab.js, renaming a required function) still exited
+  // 1 rather than 2, so the load-detection path needs its own investigation
+  // rather than another guess inside a round about the popup. The runner now
+  // says so and refuses to score, which is the honest state: a mutation pass
+  // that cannot prove anything must not report that it did.
+  //
+  // The two [1.9.4] seeds added below are therefore NOT verified here. The same
+  // two properties - one amber rule on the paused card, and the Resume button
+  // untinted - are asserted and mutation-proven in check-bg-queue.mjs's [1.9.4]
+  // block, which is run by build.sh and whose seeds were confirmed to redden.
   const broken = Object.assign({}, SRC, { storage: SRC.storage + "\nthis is not javascript(" });
   const r = runAgainst(materialize(broken));
   console.log(`  ${r.status === 2 ? "OK  " : "BAD "} control: an unloadable subject exits 2 (got ${r.status}), and is not scored`);

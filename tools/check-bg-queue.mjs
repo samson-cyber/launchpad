@@ -1064,6 +1064,127 @@ async function runSuite(ctx, store, stats, listeners) {
       names.length > 0 && BG.indexOf("runCommand") !== -1, `cmds=${names.length} len=${BG.length}`);
   }
 
+  // ===== [1.9.4] THE COMPANION POPUP =======================================
+  //
+  // Static reads. The runtime behaviour is covered by the round's popup driver,
+  // which renders every state and drives the pause control through the view the
+  // shell mounted. What is pinned here is what that driver cannot protect from
+  // drift, plus the two traps this round actually fell into.
+  {
+    const CJ = readSubject("companion.js");
+    const CP = readSubject("companion-popup.js");
+    const CC = readSubject("companion.css");
+    const TK = readSubject("tokens.css");
+    const NC = readSubject("newtab.css");
+
+    // FINDING 2. The hero is the ACTIVATION STOPWATCH, from Storage, in the
+    // pill's form. It led with the engine's focused-today figure, which is
+    // honestly zero whenever the engine has seen no trackable time - so the
+    // popup's headline was a zero while a real session ran.
+    check("[1.9.4] the popup's hero is the activation stopwatch, not the engine figure",
+      /hero = Storage\.fmtStopwatch\(liveActiveMs\(st, now\)\)/.test(CJ));
+    check("[1.9.4] ...and the TICK repaints it from the same pair",
+      /Storage\.fmtStopwatch\(liveActiveMs\(state, now\)\)/.test(CJ));
+    check("[1.9.4] the stopwatch FORMATTER is shared with the pill, not re-implemented",
+      /function fmtStopwatch\(ms\)/.test(readSubject("storage.js")) &&
+      /function satFmtStopwatch\(ms\) \{ return Storage\.fmtStopwatch\(ms\); \}/.test(readSubject("newtab.js")));
+    check("[1.9.4] ...and the ELAPSED reader is Storage's, so pill, popup and badge agree",
+      /Storage\.activeElapsedMs\(data\)/.test(CJ));
+    // The two number FAMILIES must stay separately labelled. newtab.js's
+    // vocabulary law: "focused" belongs to the engine and never labels a
+    // wall-clock.
+    check("[1.9.4] the hero label names the QUANTITY and does not switch on pause",
+      /heroLabel = t\("companion_active"\);/.test(CJ));
+    check("[1.9.4] ...so the state word is said ONCE, by the head",
+      !/heroLabel = st\.paused/.test(CJ));
+    check("[1.9.4] focused-today is still rendered, subordinate, with its own label",
+      /data-cmp-focused/.test(CJ) && /companion_focused_today/.test(CJ));
+
+    // FINDING 3. ONE pause path. A second one is the defect this arc found twice
+    // and it is invisible from the surface: the flag flips either way, and only
+    // the writer's side effects (the pause stamp, the resume shift, the counter
+    // accounting) tell them apart.
+    check("[1.9.4] the pause control calls the SHARED writer",
+      /await Storage\.setTrackingPaused\(fresh, action === "pause"\)/.test(CJ));
+    check("[1.9.4] ...and never assigns the flag directly",
+      !/\.trackingPaused\s*=/.test(CJ));
+    check("[1.9.4] ...re-reading `data` at the point of write, not trusting the open-time read",
+      /var fresh = await Storage\.getAll\(\);[\s\S]{0,120}setTrackingPaused/.test(CJ));
+    check("[1.9.4] the destructive-adjacent controls are NOT on this surface",
+      !/data-cmp-act="(complete|end|switch|cancel)"/.test(CJ));
+
+    // FINDING 1. One route, in every state, built the canonical way.
+    check("[1.9.4] the route opens the extension's OWN page, not the new tab override",
+      /chrome\.tabs\.create\(\{ url: chrome\.runtime\.getURL\("newtab\.html"\) \}\)/.test(CJ));
+    check("[1.9.4] ...and it is offered in the LOCKED state",
+      /cmp-locked-text[\s\S]{0,200}?routeHtml\(\)/.test(CJ));
+    check("[1.9.4] ...and in the EMPTY state",
+      /cmp-empty-row[\s\S]{0,600}?routeHtml\(\)/.test(CJ));
+    check("[1.9.4] ...and beside the pause control while a session runs",
+      /data-cmp-act="open"/.test(CJ) && /function actionsHtml\(st\)/.test(CJ));
+
+    // FINDING 5. ONE amber signal per surface.
+    {
+      const cardAmber = (NC.match(/\.sat-expanded\.is-paused[^{]*\{[^}]*--sat-amber[^}]*\}/g) || []);
+      check("[1.9.4] the pill's paused CARD carries exactly one amber rule",
+        cardAmber.length === 1, JSON.stringify(cardAmber));
+      check("[1.9.4] ...on the hero LABEL, not on either numeral",
+        cardAmber.length === 1 && /sat-hero-label/.test(cardAmber[0]) &&
+        !/sat-hero-time|sat-time\b/.test(cardAmber[0]), JSON.stringify(cardAmber));
+      check("[1.9.4] the Resume button is no longer tinted amber",
+        !/\.sat-btn-resume\s*\{/.test(NC));
+      const slim = (NC.match(/#active-task-pill\.is-paused[^{]*\{[^}]*--sat-amber[^}]*\}/g) || []);
+      check("[1.9.4] the SLIM pill carries exactly one amber rule, on the glyph",
+        slim.length === 1 && /sat-pill-glyph/.test(slim[0]) &&
+        !/sat-pill-time/.test(slim[0]), JSON.stringify(slim));
+      check("[1.9.4] the popup's numeral is not amber",
+        !/cmp-hero[^}]*\{[^}]*--sat-amber/.test(CC) && !/\.cmp-sub[^}]*--sat-amber/.test(CC));
+    }
+
+    // THE TRAP THIS ROUND FELL INTO, generalised. companion.html loads ONLY
+    // tokens.css and companion.css - deliberately not newtab.css - so any custom
+    // property companion.css consumes must be defined in one of those two. An
+    // undefined one makes the declaration invalid at computed-value time: no
+    // console warning, no visible error, the rule simply never applies.
+    // --fs-16 had been referenced since [1.9.1] and does not exist anywhere in
+    // this product; the task name had been silently rendering at the inherited
+    // size ever since.
+    {
+      const used = new Set((CC.match(/var\(\s*(--[A-Za-z0-9-]+)/g) || [])
+        .map(m => m.replace(/var\(\s*/, "")));
+      // NOT anchored to line start: tokens.css writes one-liners like
+      // `:root { --sat-amber: #f1c40f; }`, and an anchored scan misses every
+      // property defined that way - which reported --sat-amber as undefined on a
+      // correct tree the first time this ran.
+      const DEF = /(?:^|[{;\s])(--[A-Za-z0-9-]+)\s*:/g;
+      const defined = new Set();
+      for (const src of [TK, CC]) { let m; DEF.lastIndex = 0;
+        while ((m = DEF.exec(src)) !== null) defined.add(m[1]); }
+      const missing = [...used].filter(v => !defined.has(v));
+      check("[1.9.4] every custom property companion.css uses is DEFINED in the layer it loads",
+        missing.length === 0, JSON.stringify(missing));
+      check("[1.9.4] anti-vacuity: that scan found real properties to check",
+        used.size > 8 && defined.size > 20, `used=${used.size} defined=${defined.size}`);
+    }
+
+    // The drive handle, so the round's own instrument stays honest.
+    check("[1.9.4] the popup shell exports the view it mounted, so a harness drives THAT one",
+      /window\.__companionView = view;/.test(CP));
+    // The module must stay surface-agnostic for [1.16.0]'s side-panel mount.
+    check("[1.9.4] the module still takes its container as a parameter",
+      /function mount\(container, opts\)/.test(CJ));
+    // COMMENTS STRIPPED FIRST. companion.js's own header says "nothing here reads
+    // document.body or a hard-coded id" - so a raw scan matches the sentence
+    // promising the property and fails on a tree that keeps it.
+    const CJ_CODE = CJ.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    check("[1.9.4] ...and its CODE reads no document.body and no fixed id",
+      !/document\.body|getElementById\(/.test(CJ_CODE));
+
+    check("[1.9.4] anti-vacuity: the companion sources were actually read",
+      CJ.length > 4000 && CC.length > 2000 && CP.length > 500,
+      `js=${CJ.length} css=${CC.length} shell=${CP.length}`);
+  }
+
   return rows;
 }
 

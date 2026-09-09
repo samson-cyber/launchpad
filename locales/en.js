@@ -1345,7 +1345,23 @@ I18n.register("en", {
   },
   "companion_focused_today": {
     "message": "Focused today",
-    "description": "Toolbar popup label under the numeral. Names WHICH number it is - the same focused-today figure the pill and the card lead with, not a wall-clock counter. Rendered with t()."
+    "description": "Toolbar popup label under the SECONDARY numeral - the engine's figure, time actually seen on a trackable site. [1.9.4] CORRECTION: this description previously read 'the same focused-today figure the pill and the card lead with, not a wall-clock counter', which was FALSE in both halves - the [2.0] hero swap made the card lead with the activation stopwatch, and that stopwatch is precisely a wall-clock. The popup was built to that false description and led with a number that is honestly zero whenever the engine has seen no trackable time, which is what Samson found. Rendered with t()."
+  },
+  "companion_active": {
+    "message": "Active",
+    "description": "Toolbar popup label under the HERO numeral while a session runs. The pill's own word for this quantity. It is a WALL-CLOCK - time since the task was activated, less paused and idle spans - so the label is never 'Focused', which is reserved for the engine's figure. Rendered with t()."
+  },
+  "companion_pause": {
+    "message": "Pause",
+    "description": "Toolbar popup button that pauses tracking globally, so the user does not have to open a new tab to stop the clock. Rendered with t()."
+  },
+  "companion_resume": {
+    "message": "Resume",
+    "description": "Toolbar popup button shown in place of Pause while tracking is paused. Rendered with t()."
+  },
+  "companion_open_launchpad": {
+    "message": "Open LaunchPad",
+    "description": "Toolbar popup button, present in every state including the empty and the Pro-locked one. The popup's single route out: the empty popup is this surface's most common state and offered no way anywhere. Deliberately NOT a task picker - activating a task starts tracking, and that decision belongs on the page where the board is visible. Rendered with t()."
   },
   "companion_remaining": {
     "message": "Remaining",

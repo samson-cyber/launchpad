@@ -1334,6 +1334,13 @@ async function cmdSaveWindowAsSession(cmdTab) {
 
 // (d) PAUSE OR RESUME FOCUS.
 //
+// [1.9.4] THREE SURFACES, TWO RESOLUTIONS, AND THAT IS DELIBERATE. The pill and
+// the popup both show the activation stopwatch PER SECOND. The BADGE shows
+// minutes and MUST NOT be "fixed" to match: an 8px toolbar badge re-rendering
+// every second is unreadable, and a number that never stops moving on every page
+// the user visits is a nag by construction, which decision 6 forbids. Badge
+// minutes, popup seconds, pill seconds.
+//
 // THE TASK CALLED THIS "start or pause" AND IT DOES NOT START ANYTHING, which is
 // a deliberate narrowing rather than an omission. Starting focus requires an
 // ACTIVE TASK, and with none set the only way to "start" would be to choose a
@@ -1363,9 +1370,13 @@ async function cmdToggleFocusPause() {
     if (!Storage.getActiveTask(data)) { result = { skipped: "no-active-task" }; return; }
 
     var wasPaused = Storage.isTrackingPaused(data);
+    // [1.9.4] NO saveAll HERE. setTrackingPaused persists its own write and
+    // returns whether anything changed; the explicit save [1.9.3] added after it
+    // was a SECOND identical write of the same object, which emitted a second
+    // onChanged and made every listener re-render twice for one keystroke.
+    // Found by reading the writer while wiring the popup's pause control to it.
     var wrote = await Storage.setTrackingPaused(data, !wasPaused);
     if (!wrote) { result = { skipped: "no-op" }; return; }
-    await Storage.saveAll(data);
     result = { paused: !wasPaused };
   });
   return result;

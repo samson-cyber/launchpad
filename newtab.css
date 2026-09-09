@@ -4103,10 +4103,12 @@ html.bg-light { --sat-amber: #8a6d09; }
    Amber accent + a visibly frozen timer, unmistakable on either wallpaper via the
    --sat-amber luminance token (D3). */
 
-/* Slim pill (minimized or empty): amber pause glyph, eyebrow and frozen time. */
-#active-task-pill.is-paused .sat-pill-glyph,
-#active-task-pill.is-paused .sat-pill-label,
-#active-task-pill.is-paused .sat-pill-time { color: var(--sat-amber); }
+/* Slim pill (minimized or empty): ONE amber signal, the pause GLYPH.
+   [1.9.4 finding 5] It used to tint the glyph, the label AND the frozen time.
+   The glyph is the element that names the state on a surface with no room for
+   words, so it keeps the mark; the label and the time drop to their normal ink,
+   where the time is easier to read than it was in amber. */
+#active-task-pill.is-paused .sat-pill-glyph { color: var(--sat-amber); }
 
 /* Empty + paused: the amber glyph is the resume CONTROL (one click out of the
    paused-with-no-task hole). It reads as clickable — pointer + a hover brighten —
@@ -4120,12 +4122,21 @@ html.bg-light { --sat-amber: #8a6d09; }
    closed, so neither figure is moving. The WORD "Paused" is said once, by the
    hero's unit label — a second copy under FOCUSED TODAY would be the
    duplication [1.2.3] removed, and the amber already marks it frozen. */
-.sat-expanded.is-paused .sat-time,
-.sat-expanded.is-paused .sat-hero-time,
-.sat-expanded.is-paused .sat-hero-label,
-.sat-expanded.is-paused .sat-time-label { color: var(--sat-amber); }
-.sat-expanded.is-paused .sat-hero-label,
-.sat-expanded.is-paused .sat-time-label { font-weight: 700; }
+/* [1.9.4 finding 5] ONE AMBER SIGNAL ON THIS CARD, and it is the HERO LABEL -
+   the word "Paused" directly under the stopwatch it describes.
+   This used to tint four things: both numerals and both of their labels. Samson
+   counted six amber elements across this card and the popup for one paused
+   state, and the guide's own rule is that amber MARKS the state. A card that is
+   mostly amber reads as a WARNING, which is precisely the failure mode the
+   preview-banner ruling rejected red for.
+   The numerals go back to normal ink. Their being frozen is still true and still
+   said - in the word directly beneath the hero - and a number's job is to be
+   read. The bold weight stays on the hero label, so the mark survives for anyone
+   who cannot separate the two hues.
+   FOCUSED TODAY's label loses both the amber and the bold: it is not the state's
+   name, and repeating the mark on it was the duplication that made the card look
+   like an alert. */
+.sat-expanded.is-paused .sat-hero-label { color: var(--sat-amber); font-weight: 700; }
 
 /* D8: foreign active task — say where it lives, offer the switch. */
 .sat-foreign {
@@ -4224,12 +4235,15 @@ html.bg-light { --sat-amber: #8a6d09; }
 /* The loud amber Resume control (paused state). Placed after .sat-btn so it wins
    on the base/dark theme; the bg-light override lives with the other bg-light
    card rules. */
-.sat-btn-resume {
-  background: rgba(241, 196, 15, 0.16);
-  border-color: rgba(241, 196, 15, 0.5);
-  color: var(--sat-amber);
-}
-.sat-btn-resume:hover { background: rgba(241, 196, 15, 0.28); }
+/* [1.9.4 finding 5] THE RESUME BUTTON IS NO LONGER AMBER. It was the fourth
+   amber element on a paused card and the loudest, carrying the tint in three
+   properties at once - text, background and border.
+   A control is not a state mark. This button is already unmistakable: it is the
+   only button on the card that says "Resume", it sits where Pause sat, and the
+   card it is on says Paused in amber two lines above. Tinting it as well spent
+   the signal on something that did not need it.
+   Deliberately left as the base .sat-btn treatment rather than given a new one,
+   so there is one button look on this card and no third variant to maintain. */
 
 /* [1.0.18] Pomodoro — running-phase card + Start control (Round A1). */
 
@@ -4813,15 +4827,13 @@ html.bg-light .sat-btn {
 
 html.bg-light .sat-btn:hover { background: rgba(0, 0, 0, 0.09); }
 
-/* Amber on white needs a darker ink than the on-dark #f1c40f. Higher specificity
-   than html.bg-light .sat-btn so the Resume control stays amber on a light
-   wallpaper instead of picking up the generic light-button ink. */
-html.bg-light .sat-btn-resume {
-  background: rgba(241, 196, 15, 0.22);
-  border-color: rgba(191, 154, 10, 0.55);
-  color: #8a6d09;
-}
-html.bg-light .sat-btn-resume:hover { background: rgba(241, 196, 15, 0.32); }
+/* [1.9.4 finding 5] THE LIGHT-WALLPAPER RESUME OVERRIDE IS GONE TOO. Removing
+   only the dark rule would have demoted the button on a dark wallpaper and left
+   it amber on a light one - the same control, two different meanings, decided by
+   the user's background image. The button now takes the generic
+   html.bg-light .sat-btn ink on both, which is the point: it is a control, not a
+   state mark. Caught by the build gate, not by looking, because the frames this
+   round captured are all dark - the popup has no wallpaper behind it at all. */
 
 /* The dropdown rides .tt-context-menu, which goes white-on-light via
    `html.has-bg.bg-light .tt-context-menu` — so only the pieces that set their

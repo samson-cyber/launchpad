@@ -13916,14 +13916,9 @@
   // M:SS under an hour, H:MM:SS under a day, then Xd Yh. The day form exists
   // because this count legitimately reaches it — a task left active over a
   // weekend is a real state, and "54:12:07" is a number nobody can read.
-  function satFmtStopwatch(ms) {
-    if (!(ms > 0)) ms = 0;
-    var totalSec = Math.floor(ms / 1000);
-    if (totalSec < 86400) return satFmtLong(ms);
-    var days = Math.floor(totalSec / 86400);
-    var hours = Math.floor((totalSec % 86400) / 3600);
-    return days + "d " + hours + "h";
-  }
+  // [1.9.4] DELEGATES. The body moved to Storage so the toolbar popup leads with
+  // the same numeral this pill does, in the same form, including the day case.
+  function satFmtStopwatch(ms) { return Storage.fmtStopwatch(ms); }
 
   // [2.0] THE CLOCK EDGE — the count as one string, read once.
   //

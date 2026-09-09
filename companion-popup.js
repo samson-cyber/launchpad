@@ -41,6 +41,15 @@
 
   var view = Companion.mount(root, {});
 
+  // [1.9.4] THE DRIVE HANDLE. Exported for the same reason [1.9.3] put the
+  // command dispatcher on `self`: a harness must drive the view THIS FILE
+  // mounted, not one of its own. Mounting a second view on the same container
+  // is not a neutral act - both tick, both write the same node, and whichever
+  // painted last wins, so an assertion can read a value the code under test
+  // never produced. Not hypothetical: it made a mutant that reverted the hero
+  // numeral look alive for the first two assertions of this round's own suite.
+  window.__companionView = view;
+
   view.render().catch(function (err) {
     console.error("[LaunchPad] Companion popup: first render failed", err);
   });

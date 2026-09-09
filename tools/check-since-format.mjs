@@ -67,6 +67,13 @@ const REAL_FMT_DURATION = new Function(extractFromStorage("fmtDuration") + "\n  
 // unmodified rather than being edited to fit the harness.
 const REAL_ACTIVE_ELAPSED = (getActiveTask) =>
   new Function("getActiveTask", extractFromStorage("activeElapsedMs") + "\n  return activeElapsedMs;")(getActiveTask);
+// [1.9.4] satFmtStopwatch DELEGATES NOW TOO. Its body - the "Xd Yh" day form -
+// moved to Storage so the toolbar popup leads with the same numeral in the same
+// shape. Same treatment as the two above: extract the REAL body, with the
+// fmtDuration it calls injected, rather than stub a lookalike that would let the
+// shipped one drift while this gate stayed green.
+const REAL_FMT_STOPWATCH = new Function("fmtDuration",
+  extractFromStorage("fmtStopwatch") + "\n  return fmtStopwatch;")(REAL_FMT_DURATION);
 
 // Build the subject: the real fmtShortDate + satActiveSinceText, with the two
 // globals they close over (Storage, data) injected. `mutate` exists for the
@@ -95,6 +102,7 @@ function subject({ activeTask, mutate }) {
   const factory = new Function("Storage", "data", body + "\n  return satActiveSinceText;");
   const getActiveTask = () => activeTask;
   return factory({ getActiveTask: getActiveTask, fmtDuration: REAL_FMT_DURATION,
+                   fmtStopwatch: REAL_FMT_STOPWATCH,
                    activeElapsedMs: REAL_ACTIVE_ELAPSED(getActiveTask) }, {});
 }
 

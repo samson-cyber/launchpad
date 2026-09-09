@@ -85,6 +85,23 @@ var Companion = (function () {
         label: Storage.POMODORO_PHASE_LABELS[pomo.phase] || "Focus",
         remainingMs: Storage.pomodoroRemainingMs(data, pomo)
       } : null,
+      // [1.9.4 finding 2] THE SESSION NUMERAL, and it is a DIFFERENT KIND OF
+      // NUMBER from focusedMs below. This is the ACTIVATION STOPWATCH - wall
+      // clock since the task was activated, less paused and idle spans - which
+      // is what the pill leads with and what the badge counts. focusedMs is the
+      // ENGINE's figure: time it actually saw on a trackable site. newtab.js
+      // states the law this obeys: "the two are never added, averaged or shown
+      // as one figure", and the word "focused" is reserved for the engine.
+      //
+      // The popup led with focusedMs, which is why Samson's popup showed 0:00
+      // as its hero while a real session ran - the engine had seen no trackable
+      // time yet, so the number was HONESTLY zero and completely useless as a
+      // headline. It was not a resolution bug: fmtDuration already prints
+      // seconds. It was the wrong quantity.
+      activeMs: res ? Storage.activeElapsedMs(data) : 0,
+      // The stopwatch ticks from a fixed origin rather than being incremented,
+      // so a tick that fires late cannot drift. Frozen while paused, exactly as
+      // Storage.activeElapsedMs computes it.
       focusedMs: 0,
       focusedOpenSince: null
     };
@@ -115,43 +132,108 @@ var Companion = (function () {
     return st.focusedMs + Math.max(0, ref - st.focusedOpenSince);
   }
 
+  // The live stopwatch. Recomputed from the state's read moment rather than
+  // incremented, and FROZEN while paused - the same rule liveFocusedMs follows
+  // and the same one Storage.activeElapsedMs encodes.
+  function liveActiveMs(st, now) {
+    if (!st || !st.task) return 0;
+    if (st.paused) return st.activeMs;
+    var ref = (typeof now === "number") ? now : Date.now();
+    return st.activeMs + Math.max(0, ref - (st.readAt || ref));
+  }
+
   // ----------------------------------------------------------------- view
   //
   // Pure: state in, HTML out. No storage reads, no Date.now() except through the
   // caller's `now`, so a harness can render every state without contriving one.
+  // [1.9.4 finding 1] THE ROUTE OUT, and it is ONE route on purpose.
+  //
+  // The empty popup is this surface's MOST COMMON state - most of the time no
+  // session is running - and it offered a sentence and nothing else. A user who
+  // clicked the toolbar icon from a webpage came looking for something.
+  //
+  // OPEN LAUNCHPAD, NOT A TASK PICKER, and the reasoning is the rule this arc
+  // established. Choosing a task ACTIVATES it and starts tracking; that is a
+  // decision the product makes on a full page where the board, the goals and the
+  // priorities are visible. Making it from a 360px surface with none of that
+  // context is the same class of error as a keyboard command starting a session
+  // on a keystroke the user may have mistyped - [1.9.3] refused that, and this
+  // refuses it for the same reason. The pill's own "+" in this state is not a
+  // counter-example: it opens a picker ON the page that already shows the board.
+  //
+  // It is also the only route that serves BOTH empty states. The popup is empty
+  // when no task is active AND when the user is free or expired, and a picker
+  // answers only the first.
+  //
+  // The URL is built with runtime.getURL exactly as the open-launchpad command
+  // builds it - never chrome.tabs.create({}), which opens whichever extension
+  // currently owns the new tab override.
+  function routeHtml() {
+    return '<div class="cmp-actions cmp-actions-route">' +
+        '<button type="button" class="cmp-btn cmp-btn-route" data-cmp-act="open">' +
+          esc(t("companion_open_launchpad")) +
+        '</button>' +
+      '</div>';
+  }
+
   function viewHtml(st, now) {
     if (!st.pro) {
       // NOT A PREVIEW STUB. D9 hides the pill entirely for free users and the
       // guide forbids a preview surface that renders a create affordance, so
       // this is one sentence and no controls - it explains the empty popup
       // rather than imitating the thing it cannot show.
+      // [1.9.4] The sentence told the user to open LaunchPad and gave them no
+      // way to do it, which is the same dead end finding 1 is about. Still not a
+      // preview and still no create affordance - one route, no imitation of the
+      // surface it cannot show.
       return '<div class="cmp-locked">' +
           '<p class="cmp-locked-text">' + esc(t("companion_locked")) + '</p>' +
+          routeHtml() +
         '</div>';
     }
 
     if (!st.task) {
-      return '<div class="cmp-body cmp-empty">' +
-          (st.paused ? '<span class="cmp-glyph cmp-glyph-paused" aria-hidden="true">&#9208;</span>' : '') +
-          '<span class="cmp-empty-text">' + esc(t("companion_no_active_task")) + '</span>' +
-          (st.paused ? '<span class="cmp-eyebrow cmp-eyebrow-paused">' + esc(t("companion_paused")) + '</span>' : '') +
+      // [1.9.5 finding 5] ONE amber signal: the head says the state, so the
+      // eyebrow carries it and nothing else does.
+      return '<div class="cmp-body cmp-empty' + (st.paused ? " is-paused" : "") + '">' +
+          '<div class="cmp-empty-row">' +
+            (st.paused ? '<span class="cmp-glyph cmp-glyph-paused" aria-hidden="true">&#9208;</span>' : '') +
+            '<span class="cmp-empty-text">' + esc(t("companion_no_active_task")) + '</span>' +
+            (st.paused ? '<span class="cmp-eyebrow cmp-eyebrow-paused">' + esc(t("companion_paused")) + '</span>' : '') +
+          '</div>' +
+          routeHtml() +
         '</div>';
     }
 
-    var eyebrow, numeral, glyph, numeralClass;
+    // [1.9.4 finding 2] THE HERO IS THE SESSION NUMERAL, at the pill's
+    // resolution, in the pill's form, from the pill's function. During a running
+    // phase the COUNTDOWN takes the hero, exactly as the pill's phase takeover
+    // does - it is still the session numeral, just the bounded one.
+    var glyph, eyebrow, hero, heroLabel, heroClass;
     if (st.pomo) {
-      // A running phase REPLACES the focused-today figure with the countdown,
-      // as it does on the pill: two numerals racing each other on a 360px
-      // surface is exactly the "one honest number per claim" failure.
       glyph = "&#9711;";
       eyebrow = st.pomo.label;
-      numeral = Storage.fmtDuration(st.pomo.remainingMs);
-      numeralClass = "cmp-numeral cmp-numeral-countdown";
+      hero = Storage.fmtDuration(st.pomo.remainingMs);
+      heroLabel = t("companion_remaining");
+      heroClass = "cmp-hero cmp-hero-countdown";
     } else {
       glyph = st.paused ? "&#9208;" : "&#9654;";
       eyebrow = st.paused ? t("companion_paused") : t("companion_active_task");
-      numeral = Storage.fmtDuration(liveFocusedMs(st, now));
-      numeralClass = "cmp-numeral";
+      hero = Storage.fmtStopwatch(liveActiveMs(st, now));
+      // THE LABEL NAMES THE QUANTITY, NOT THE STATE, and it does not switch when
+      // paused. The pill's card has no eyebrow, so its hero label is the only
+      // place the state can be said and it says it there. This surface DOES have
+      // an eyebrow, and making the label switch too printed "PAUSED" twice on one
+      // 360px card - once in amber at the top and once in grey four lines down.
+      // Caught by looking at the rendered frame, not by reading the code.
+      //
+      // The state is said ONCE, in the head, where the amber marks it. This label
+      // answers the other question - WHICH number is this - and the answer does
+      // not change when the clock stops: it is still the wall-clock time on this
+      // task, the pill's "active" quantity, never "focused", which is the
+      // engine's word and belongs to the figure on the right.
+      heroLabel = t("companion_active");
+      heroClass = "cmp-hero";
     }
 
     return '<div class="cmp-body' + (st.paused ? " is-paused" : "") + '">' +
@@ -163,10 +245,51 @@ var Companion = (function () {
         (st.goalName
           ? '<div class="cmp-goal" title="' + esc(st.goalName) + '">' + esc(st.goalName) + '</div>'
           : '') +
-        '<div class="' + numeralClass + '" data-cmp-numeral>' + esc(numeral) + '</div>' +
-        '<div class="cmp-numeral-label">' +
-          esc(st.pomo ? t("companion_remaining") : t("companion_focused_today")) +
+        // [1.9.4 finding 4] TWO COLUMNS. The card this mirrors shows both
+        // numbers; showing both here fills the horizontal space a short task
+        // name leaves empty, and keeps the two FAMILIES visibly separate - the
+        // wall-clock on the left, the engine's figure on the right - rather than
+        // stacking them where they read as one ramp of the same quantity.
+        '<div class="cmp-metrics">' +
+          '<div class="cmp-metric cmp-metric-hero">' +
+            '<div class="' + heroClass + '" data-cmp-hero>' + esc(hero) + '</div>' +
+            '<div class="cmp-metric-label">' + esc(heroLabel) + '</div>' +
+          '</div>' +
+          '<div class="cmp-metric cmp-metric-today">' +
+            '<div class="cmp-sub" data-cmp-focused>' + esc(Storage.fmtDuration(liveFocusedMs(st, now))) + '</div>' +
+            '<div class="cmp-metric-label">' + esc(t("companion_focused_today")) + '</div>' +
+          '</div>' +
         '</div>' +
+        actionsHtml(st) +
+      '</div>';
+  }
+
+  // [1.9.4 finding 3] WHICH CONTROLS, AND WHAT IS DELIBERATELY ABSENT.
+  //
+  // Pause and resume, and the route. That is the whole set, and the omissions
+  // are the decision rather than an unfinished list:
+  //
+  //   COMPLETE and END FOR NOW are not here. Both end the session and one ends
+  //   the task; both are destructive-adjacent, neither has an undo, and this is
+  //   a surface the user dismisses by clicking away from it. A misfire costs a
+  //   real session. They live on the card, where the board is visible and the
+  //   consequence is legible.
+  //   SWITCH TASK is not here: it needs the task list, which is the picker
+  //   finding 1 declined for the same reason.
+  //   START A FOCUS SESSION, the duration segment and the blocking toggle are
+  //   not here: they are configuration, and nobody mid-page reaches for the
+  //   toolbar to configure a Pomodoro.
+  //
+  // What is left is the question this popup exists to answer - "what am I
+  // doing, and can I stop the clock without leaving this page" - which is
+  // exactly what Samson asked for.
+  function actionsHtml(st) {
+    var pauseLabel = st.paused ? t("companion_resume") : t("companion_pause");
+    return '<div class="cmp-actions">' +
+        '<button type="button" class="cmp-btn cmp-btn-primary" data-cmp-act="' +
+          (st.paused ? "resume" : "pause") + '">' + esc(pauseLabel) + '</button>' +
+        '<button type="button" class="cmp-btn cmp-btn-route" data-cmp-act="open">' +
+          esc(t("companion_open_launchpad")) + '</button>' +
       '</div>';
   }
 
@@ -183,24 +306,40 @@ var Companion = (function () {
     var timer = null;
     var stopped = false;
 
+    // [1.9.4] BOTH numerals tick, and they are recomputed from the state's read
+    // moment rather than incremented, so a tick that fires late cannot drift.
+    // A running phase counts DOWN; the stopwatch and the engine figure count UP.
     function paintNumeral() {
       if (!state || !state.pro || !state.task) return;
-      var el = container.querySelector("[data-cmp-numeral]");
-      if (!el) return;
-      // A running phase counts DOWN and the focused figure counts UP, so the
-      // tick recomputes from the state rather than incrementing a display value.
-      var next = state.pomo
-        ? Storage.fmtDuration(Math.max(0, state.pomo.remainingMs - (Date.now() - state.readAt)))
-        : Storage.fmtDuration(liveFocusedMs(state));
-      if (el.textContent !== next) el.textContent = next;
+      var now = Date.now();
+      var hero = container.querySelector("[data-cmp-hero]");
+      if (hero) {
+        var nextHero = state.pomo
+          ? Storage.fmtDuration(Math.max(0, state.pomo.remainingMs - (now - state.readAt)))
+          : Storage.fmtStopwatch(liveActiveMs(state, now));
+        if (hero.textContent !== nextHero) hero.textContent = nextHero;
+      }
+      var today = container.querySelector("[data-cmp-focused]");
+      if (today) {
+        var nextToday = Storage.fmtDuration(liveFocusedMs(state, now));
+        if (today.textContent !== nextToday) today.textContent = nextToday;
+      }
     }
 
     function startTick() {
       stopTick();
       // Only a moving number earns a timer. A paused or empty popup ticks
       // nothing, which is the same rule the pill's satStopTick follows.
+      //
+      // [1.9.4] THE CONDITION CHANGED WITH THE HERO. It used to stop whenever
+      // the ENGINE had no open span, because the engine's figure was the only
+      // number on the surface. The stopwatch moves whenever a task is active and
+      // tracking is not paused - which is most of the time the engine is idle,
+      // since the engine only counts trackable sites. Keeping the old condition
+      // would have frozen the new hero on exactly the pages this popup exists
+      // for.
       if (!state || !state.pro || !state.task) return;
-      if (!state.pomo && (state.paused || !state.focusedOpenSince)) return;
+      if (state.paused) return;
       timer = setInterval(paintNumeral, tickMs);
     }
     function stopTick() { if (timer) { clearInterval(timer); timer = null; } }
@@ -216,6 +355,54 @@ var Companion = (function () {
       startTick();
       return state;
     }
+
+    // [1.9.4] THE CONTROLS. One delegated listener on the container, so a
+    // re-render replaces the buttons without leaking a listener per paint.
+    //
+    // EVERY WRITE GOES THROUGH THE FUNCTION THE PILL CALLS. Storage.setTrackingPaused
+    // is the single writer for this flag: it maintains the activation counters,
+    // folds a pending idle span, slides a running phase's endpoint by the paused
+    // duration on resume, and persists the whole object itself. A popup that set
+    // data.trackingPaused directly would be a SECOND pause path, which is the
+    // exact defect this arc found twice - and it would silently break the phase
+    // shift and the counter accounting, neither of which is visible from here.
+    //
+    // `data` IS RE-READ AT THE POINT OF WRITE, never taken from the object
+    // readState returned when the popup opened. The popup is a foreign context
+    // whose Storage._adoptWrite is a no-op (registered in [1.9.1] against
+    // exactly this moment); an object read at open time can be superseded by the
+    // page or the service worker before the user clicks.
+    async function act(action) {
+      if (action === "open") {
+        // The same URL the open-launchpad command builds, for the same reason:
+        // chrome.tabs.create({}) would open whichever extension owns the new tab
+        // override, which need not be this one.
+        await chrome.tabs.create({ url: chrome.runtime.getURL("newtab.html") });
+        // The popup is done once it has handed off to a full page.
+        if (typeof window !== "undefined" && window.close) window.close();
+        return;
+      }
+      if (action === "pause" || action === "resume") {
+        try {
+          var fresh = await Storage.getAll();
+          await Storage.setTrackingPaused(fresh, action === "pause");
+        } catch (err) {
+          console.error("[LaunchPad] Companion: pause toggle failed", err);
+        }
+        // EAGER RE-RENDER, matching satSetPaused. The onChanged path would also
+        // fire here, but waiting for a storage round trip to reflect a click the
+        // user just made is the lag this surface can least afford.
+        await render();
+      }
+    }
+
+    function onClick(ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest("[data-cmp-act]") : null;
+      if (!btn || !container.contains(btn)) return;
+      ev.preventDefault();
+      act(btn.getAttribute("data-cmp-act"));
+    }
+    container.addEventListener("click", onClick);
 
     // CROSS-CONTEXT REFRESH, AND WHY IT WORKS HERE.
     // storage.js generates TAB_INSTANCE_ID per CONTEXT. The new tab's writes
@@ -244,19 +431,25 @@ var Companion = (function () {
     function destroy() {
       stopped = true;
       stopTick();
+      container.removeEventListener("click", onClick);
       if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
         chrome.storage.onChanged.removeListener(onChanged);
       }
     }
 
-    return { render: render, destroy: destroy, getState: function () { return state; } };
+    // `act` is exported so a harness drives the SAME function the click handler
+    // calls, rather than a lookalike. J10, and [1.9.3]'s mutant 2 is why the
+    // result is then read from storage rather than from a return value.
+    return { render: render, destroy: destroy, act: act,
+             getState: function () { return state; } };
   }
 
   return {
     mount: mount,
     readState: readState,
     viewHtml: viewHtml,
-    liveFocusedMs: liveFocusedMs
+    liveFocusedMs: liveFocusedMs,
+    liveActiveMs: liveActiveMs
   };
 })();
 

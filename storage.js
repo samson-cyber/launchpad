@@ -4037,6 +4037,27 @@ var Storage = (function () {
     return h > 0 ? h + ":" + pad(m) + ":" + pad(sec) : m + ":" + pad(sec);
   }
 
+  // [1.9.4] THE STOPWATCH FORM, shared with the popup.
+  //
+  // fmtDuration above is the DURATION formatter (M:SS / H:MM:SS). This is the
+  // ACTIVATION STOPWATCH's formatter, which adds one case: past a day it drops
+  // to "Xd Yh", because this count legitimately reaches it - a task left active
+  // over a weekend is a real state and "54:12:07" is a number nobody can read.
+  //
+  // It lived in newtab.js as satFmtStopwatch, which no other context can reach.
+  // The popup now leads with this same number, and a second copy would mean the
+  // two surfaces agreed for the first day and diverged after it - the drift this
+  // arc has now found three times. Same reason isCapturableSessionUrl and
+  // activeElapsedMs moved here.
+  function fmtStopwatch(ms) {
+    if (!(ms > 0)) ms = 0;
+    var totalSec = Math.floor(ms / 1000);
+    if (totalSec < 86400) return fmtDuration(ms);
+    var days = Math.floor(totalSec / 86400);
+    var hours = Math.floor((totalSec % 86400) / 3600);
+    return days + "d " + hours + "h";
+  }
+
   // Fallback total (ms) for a phase from CURRENT settings. Used ONLY when a
   // legacy A1 running phase carries no stamped phaseDurationMs; fresh phases
   // stamp their own, so this is not the normal path.
@@ -7132,6 +7153,7 @@ var Storage = (function () {
     POMODORO_PHASE_LABELS: POMODORO_PHASE_LABELS,
     fmtDuration: fmtDuration,
     activeElapsedMs: activeElapsedMs,
+    fmtStopwatch: fmtStopwatch,
     isCapturableSessionUrl: isCapturableSessionUrl,
     createNamedSessionAtFront: createNamedSessionAtFront,
     pomodoroPhaseTotalMs: pomodoroPhaseTotalMs,
