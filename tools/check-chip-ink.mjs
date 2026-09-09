@@ -30,11 +30,81 @@ import vm from "node:vm";
 
 const repoRoot = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : process.cwd();
 const MUTATE = process.argv.includes("--mutate");
+// [1218320168124333] --boot-check: materialise the CLEAN subject, run it, and
+// report only whether it BOOTS. No seeds, so it costs one child process instead
+// of one per seed, which is what makes it affordable in build.sh.
+//
+// This is the cheap half of the structural fix. The declared SUBJECT_FILES list
+// PREVENTS the loader and materialize() from diverging; this DETECTS it anyway,
+// on every build, for the whole class - including a divergence introduced by a
+// mechanism nobody anticipated. Four runners were silently dead when it was
+// written, three of them for the same reason and one for two reasons, and none
+// of it surfaced because build.sh runs these gates without --mutate.
+const BOOTCHECK = process.argv.includes("--boot-check");
 const TABLE = process.argv.includes("--table");
 const clone = (v) => JSON.parse(JSON.stringify(v));
 
 // core.autocrlf=true -> CRLF in the working tree; normalize before slicing (M).
-const rd = (f) => fs.readFileSync(path.join(repoRoot, f), "utf8").replace(/\r\n/g, "\n");
+// [1218320168124333] EVERY FILE THE SUBJECT READS, DECLARED ONCE.
+//
+// THE HARDCODED-ENUMERATION CLASS, and this runner was one of four instances.
+// The loader read one set of files; materialize() wrote a different,
+// hand-maintained set; nothing compared them. When the token layer split out in
+// [1.9.1] the loader gained tokens.css and materialize() did not, so every
+// materialised subject - clean ones included - failed to boot, and this suite
+// has proved nothing since.
+//
+// The two lists are now ONE list, walked by both the loader and materialize(),
+// and the self-check below proves it really covers every rd() in this file.
+const SUBJECT_FILES = [
+  "newtab.js",
+  "tokens.css",
+  "newtab.css",
+  "storage.js",
+];
+
+const RAW = {};
+const rd = (f) => {
+  if (Object.prototype.hasOwnProperty.call(RAW, f)) return RAW[f];
+  return (RAW[f] = fs.readFileSync(path.join(repoRoot, f), "utf8").replace(/\r\n/g, "\n"));
+};
+
+// Write every declared file verbatim into a materialised subject. Called first
+// by materialize(), which then overrides the mutable ones.
+function writeSubjectFiles(dir) {
+  for (const f of SUBJECT_FILES) {
+    const dest = path.join(dir, f);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, rd(f));
+  }
+}
+
+// SELF-CHECK, DYNAMIC. Every subject file actually READ must be declared.
+//
+// This began as a regex over this file's own source looking for rd("..."), and
+// that instrument was wrong twice over. It matched rd() calls written inside
+// COMMENTS, so it failed on a correct tree; and - the fatal one - it could not
+// see a subject read written as a bare fs.readFileSync(path.join(repoRoot, ...)),
+// which is exactly how check-today-cockpit read i18n.js. A static scan for one
+// call shape cannot enumerate reads written in another.
+//
+// So the check is dynamic: rd() records what it actually read, and this compares
+// that record against the declaration. It cannot be fooled by call form, because
+// it observes the effect rather than the syntax. Every load-time read must go
+// through rd() for that to hold, which is now the rule in these files.
+function assertSubjectFilesComplete() {
+  const actuallyRead = Object.keys(RAW);
+  const undeclared = actuallyRead.filter((f) => SUBJECT_FILES.indexOf(f) === -1);
+  if (undeclared.length) {
+    console.error("CHIP INK: SUBJECT DID NOT LOAD — SUBJECT_FILES does not cover " +
+      JSON.stringify(undeclared) + "; add them, or materialize() writes subjects that cannot boot.");
+    process.exit(2);
+  }
+  if (!actuallyRead.length) {
+    console.error("CHIP INK: SUBJECT DID NOT LOAD — nothing was read through rd(), so this check proves nothing.");
+    process.exit(2);
+  }
+}
 
 let SRC;
 try {
@@ -461,7 +531,10 @@ if (TABLE) {
   for (const t of table) console.log("  " + pad(t.fill, 12) + pad(t.ink, 12) + pad(t.ratio, 8) + (t.dark ? "dark (hue-matched)" : "white"));
   console.log();
 }
-if (!MUTATE) {
+// The subject has finished loading; every read it made is now recorded.
+assertSubjectFilesComplete();
+
+if (!MUTATE && !BOOTCHECK) {
   for (const r of rows) {
     console.log(`  ${r.pass ? "PASS" : "FAIL"}  ${r.name}${r.pass ? "" : "   << " + r.detail}`);
     r.pass ? pass++ : fail++;
@@ -475,7 +548,7 @@ if (!MUTATE && rows.length < MIN) {
   console.log(`\nCHIP INK: FAIL — only ${rows.length} assertions ran (expected >= ${MIN}); the suite is broken, not clean.\n`);
   process.exit(1);
 }
-if (!MUTATE) {
+if (!MUTATE && !BOOTCHECK) {
   console.log(`\nCHIP INK: ${fail === 0 ? "PASS" : "FAIL"} — ${pass} passed, ${fail} failed\n`);
   process.exit(fail ? 1 : 0);
 }
@@ -548,13 +621,35 @@ const SEEDS = [
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "lp-chip-mut-"));
 function materialize(src) {
   const dir = fs.mkdtempSync(path.join(scratch, "seed-"));
+  writeSubjectFiles(dir);
+  // Then the ones the seeds mutate, overriding the verbatim copies. src.css is
+  // the CONCATENATION of tokens.css and newtab.css, so the pair is written as
+  // "" + concat to preserve the identity the loader rebuilds.
   fs.writeFileSync(path.join(dir, "newtab.js"), src.nt);
+  fs.writeFileSync(path.join(dir, "tokens.css"), "");
   fs.writeFileSync(path.join(dir, "newtab.css"), src.css);
   fs.writeFileSync(path.join(dir, "storage.js"), src.storage);
   return dir;
 }
 const selfPath = new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 const runAgainst = (dir) => spawnSync(process.execPath, [selfPath, dir], { encoding: "utf8" });
+
+if (BOOTCHECK) {
+  const dir = materialize(SRC);
+  const r = runAgainst(dir);
+  if (r.status === 0) {
+    console.log("BOOT-CHECK OK CHIP INK — the clean materialised subject boots");
+    process.exit(0);
+  }
+  console.log("BOOT-CHECK DEAD CHIP INK — the clean materialised subject exits " + r.status);
+  console.log("       every seed in this runner is inert until this is fixed.");
+  const why = (r.stderr || "").trim().split("\n").filter(Boolean).slice(0, 3).join("\n       ");
+  if (why) console.log("       " + why);
+  const tail = (r.stdout || "").trim().split("\n").filter(Boolean).slice(-2).join("\n       ");
+  if (tail) console.log("       " + tail);
+  process.exit(1);
+}
+
 
 // CONTROL (Q1): an unloadable subject must report BROKEN and not be scored.
 {

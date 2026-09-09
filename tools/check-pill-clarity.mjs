@@ -31,30 +31,101 @@ import vm from "node:vm";
 
 const repoRoot = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : process.cwd();
 const MUTATE = process.argv.includes("--mutate");
+// [1218320168124333] --boot-check: materialise the CLEAN subject, run it, and
+// report only whether it BOOTS. No seeds, so it costs one child process instead
+// of one per seed, which is what makes it affordable in build.sh.
+//
+// This is the cheap half of the structural fix. The declared SUBJECT_FILES list
+// PREVENTS the loader and materialize() from diverging; this DETECTS it anyway,
+// on every build, for the whole class - including a divergence introduced by a
+// mechanism nobody anticipated. Four runners were silently dead when it was
+// written, three of them for the same reason and one for two reasons, and none
+// of it surfaced because build.sh runs these gates without --mutate.
+const BOOTCHECK = process.argv.includes("--boot-check");
 const clone = (v) => JSON.parse(JSON.stringify(v));
-const rd = (f) => fs.readFileSync(path.join(repoRoot, f), "utf8").replace(/\r\n/g, "\n");
+// [1218320168124333] EVERY FILE THE SUBJECT READS, DECLARED ONCE.
+//
+// THE DEFECT THIS REPLACES is the hardcoded-enumeration class, and it had two
+// instances in this one file. The loader read a set of files; materialize()
+// wrote a DIFFERENT, hand-maintained set; and nothing compared them. When the
+// token layer split out in [1.9.1] the loader gained tokens.css and
+// materialize() did not, so every materialised subject - clean ones included -
+// failed to boot. i18n.js and locales/en.js had been in the same position since
+// 977b108 (2026-08-31), which is when this runner last could have scored.
+//
+// The two lists are now ONE list. The loader reads from it and materialize()
+// writes from it, so a future split cannot desynchronise them: adding a file to
+// this array is the whole change. The self-check below then proves the array
+// really does cover every rd() in this file, which is the half a shared list
+// alone would not give.
+const SUBJECT_FILES = [
+  "storage.js",
+  "newtab.js",
+  "tokens.css",
+  "newtab.css",
+  "background.js",
+  // Read to resolve t()/th() against the REAL catalogue rather than stubbing it
+  // (see resolveCopy). Loaded OUTSIDE the try/catch below, which is why a
+  // missing one exited 1 - node's uncaught-exception code - instead of the
+  // gate's 2, and the runner scores exit 1 as "the suite caught the seed".
+  // A missing file therefore scored every seed GREEN. That is the shape that
+  // makes this worth a declared list rather than a third hand-patch.
+  "i18n.js",
+  "locales/en.js",
+];
+
+const RAW = {};
+const rd = (f) => {
+  if (Object.prototype.hasOwnProperty.call(RAW, f)) return RAW[f];
+  return (RAW[f] = fs.readFileSync(path.join(repoRoot, f), "utf8").replace(/\r\n/g, "\n"));
+};
+
+// SELF-CHECK, DYNAMIC. Every subject file actually READ must be declared.
+//
+// This began as a regex over this file's own source looking for rd("..."), and
+// that instrument was wrong twice over. It matched rd() calls written inside
+// COMMENTS, so it failed on a correct tree; and - the fatal one - it could not
+// see a subject read written as a bare fs.readFileSync(path.join(repoRoot, ...)),
+// which is exactly how check-today-cockpit read i18n.js. A static scan for one
+// call shape cannot enumerate reads written in another.
+//
+// So the check is dynamic: rd() records what it actually read, and this compares
+// that record against the declaration. It cannot be fooled by call form, because
+// it observes the effect rather than the syntax. Every load-time read must go
+// through rd() for that to hold, which is now the rule in these files.
+function assertSubjectFilesComplete() {
+  const actuallyRead = Object.keys(RAW);
+  const undeclared = actuallyRead.filter((f) => SUBJECT_FILES.indexOf(f) === -1);
+  if (undeclared.length) {
+    console.error("PILL CLARITY: SUBJECT DID NOT LOAD — SUBJECT_FILES does not cover " +
+      JSON.stringify(undeclared) + "; add them, or materialize() writes subjects that cannot boot.");
+    process.exit(2);
+  }
+  if (!actuallyRead.length) {
+    console.error("PILL CLARITY: SUBJECT DID NOT LOAD — nothing was read through rd(), so this check proves nothing.");
+    process.exit(2);
+  }
+}
 
 let SRC;
 try {
   // [2.0] background.js joins the subject list: the heartbeat derivation and
   // the onStartup ordering it depends on both live there, and the stopwatch's
   // number is what goes wrong when either is off.
-  SRC = { storage: rd("storage.js"), nt: rd("newtab.js"), css: rd("tokens.css") + "\n" + rd("newtab.css")  /* [1.9.1] THE TOKEN LAYER IS TWO FILES NOW.
+  // [1218320168124333] THE CATALOGUE IS A SUBJECT NOW, not merely a dependency.
+  // [1.5.0] R3 moved this pill's copy out of the markup and into locales/en.js
+  // behind t()/th(). The copy ASSERTIONS followed - resolveCopy resolves through
+  // the REAL catalogue, so they still read what the user reads - but the SEEDS
+  // did not: several still anchored on literals that no longer exist in
+  // newtab.js and reported ANCHOR-MISS. The properties they protect are alive
+  // and are enforced in the catalogue, so the catalogue has to be mutable for a
+  // seed to reach them.
+  SRC = { storage: rd("storage.js"), nt: rd("newtab.js"), cat: rd("locales/en.js"), css: rd("tokens.css") + "\n" + rd("newtab.css")  /* [1.9.1] THE TOKEN LAYER IS TWO FILES NOW.
     The :root blocks moved to tokens.css so the toolbar popup could share them, and
     newtab.html links it immediately before newtab.css. A gate that resolves var(--x)
     against newtab.css alone stopped finding any token and reported the SURFACE as
     broken when only its own input had changed. Reading the layer in cascade order is
-    reading what the browser reads. */, bg: rd("background.js"),
-    // [1.9.5] THE COPY LAYER IS SEEDABLE. Every word this suite asserts is a word
-    // the user READS, and since [1.5.0] those words live here rather than in the
-    // markup — newtab.js holds th("sat_worked_on_this_task") and en.js holds
-    // "worked on this task". Three copy seeds were written before that move and
-    // had been anchor-missing ever since, because the literal they mutate is no
-    // longer in newtab.js. Seeding the catalogue puts them back on the real
-    // regression: the RENDERED WORD changing. resolveCopy and boot() both read
-    // this file from the subject directory, so a seeded message reaches every
-    // copy assertion exactly as a real edit would.
-    en: rd("locales/en.js") };
+    reading what the browser reads. */, bg: rd("background.js") };
 } catch (e) {
   console.error(`PILL CLARITY: SUBJECT DID NOT LOAD — ${e.message}`);
   process.exit(2);
@@ -65,26 +136,26 @@ try {
 // resolveCopy() puts the words back by resolving through the REAL catalogue,
 // which keeps the copy traps below asserting what the user READS. Repointing
 // them at key names instead would make them tautologies about naming.
-// [1.9.5] THIS LOAD OWES THE SAME EXIT 2 AS EVERY OTHER ONE. It reads two files
-// off disk and executes them, which is the definition of loading the subject —
-// but it sat at module top level with no try/catch, so a missing or broken
-// i18n.js threw uncaught and Node exited 1. Exit 1 is the runner's word for
-// "the suite caught the seed", so a subject that never loaded was scored as a
-// mutation caught. That inverted the mutation pass's one honest signal, and it
-// is what made the --mutate self-controls unreadable for four rounds. Every
-// path that reads or executes the subject exits 2; there are no exceptions.
 const CATALOGUE = (() => {
+  const c = { console: { log() {}, warn() {}, error() {} } };
+  c.self = c; c.globalThis = c; c.window = c;
+  vm.createContext(c);
+  // [1218320168124333] GUARDED. This read sat outside the try/catch that guards
+  // SRC, so a missing i18n.js threw an UNCAUGHT ENOENT and node exited 1 - the
+  // same code the runner reads as "the suite caught the seed". A missing file
+  // would therefore have scored all 116 seeds CAUGHT. Any failure to LOAD must
+  // exit 2, never 1, or the runner cannot tell a dead harness from a live one.
   try {
-    const c = { console: { log() {}, warn() {}, error() {} } };
-    c.self = c; c.globalThis = c; c.window = c;
-    vm.createContext(c);
     vm.runInContext(rd("i18n.js") + "\n" + rd("locales/en.js"), c, { filename: "i18n" });
-    if (!c.I18n || typeof c.I18n.t !== "function") throw new Error("catalogue did not load");
-    return c.I18n;
   } catch (e) {
-    console.error(`PILL CLARITY: SUBJECT DID NOT LOAD — ${e && e.message}`);
+    console.error(`PILL CLARITY: SUBJECT DID NOT LOAD — catalogue: ${e.message}`);
     process.exit(2);
   }
+  if (!c.I18n || typeof c.I18n.t !== "function") {
+    console.error("PILL CLARITY: SUBJECT DID NOT LOAD — catalogue did not load");
+    process.exit(2);
+  }
+  return c.I18n;
 })();
 // A call spliced BETWEEN two literals is replaced together with the `' + … + '`
 // that joins it, so the fragment reads as one continuous string the way it does
@@ -462,6 +533,12 @@ await (async () => {
     check("window: ...suppressed entirely when tracking is off, not painted as zero",
       /if \(!scope\) return;/.test(tt));
     const satWin = extractAsyncFn(SRC.nt, "satRefreshTaskWindow");
+    // [1218320168124333] MERGED FROM 1d3284e, which reached this file
+    // concurrently and independently. Both runs diagnosed the same boot fault and
+    // both re-anchored the same rotted seeds; that run ALSO closed the escape this
+    // one only reported, because its brief did not hold assertion subject matter
+    // out of scope. The tighter rule is kept: the escape is real, and a red row
+    // nobody is allowed to fix is worth less than the fix.
     check("window: the pill's read is staleness-tokened like every other engine read here",
       /var token = \+\+satWindowToken;/.test(satWin) && /if \(token !== satWindowToken\) return;/.test(satWin));
     // [1.9.5] EVERY await, not merely one of them. This was a REAL COVERAGE GAP,
@@ -1619,7 +1696,10 @@ await (async () => {
 })();
 
 let pass = 0, fail = 0;
-if (!MUTATE) {
+// The subject has finished loading; every read it made is now recorded.
+assertSubjectFilesComplete();
+
+if (!MUTATE && !BOOTCHECK) {
   console.log("\nPILL CLARITY — consequence labels, liveness, overlap, windowed time\n");
   for (const r of rows) { console.log(`  ${r.pass ? "PASS" : "FAIL"}  ${r.name}${r.pass ? "" : "   << " + r.detail}`); r.pass ? pass++ : fail++; }
 } else {
@@ -1631,7 +1711,7 @@ if (!MUTATE && rows.length < MIN) {
   console.log(`\nPILL CLARITY: FAIL — only ${rows.length} assertions ran (expected >= ${MIN}); the suite is broken, not clean.\n`);
   process.exit(1);
 }
-if (!MUTATE) {
+if (!MUTATE && !BOOTCHECK) {
   console.log(`\nPILL CLARITY: ${fail === 0 ? "PASS" : "FAIL"} — ${pass} passed, ${fail} failed\n`);
   process.exit(fail ? 1 : 0);
 }
@@ -1676,11 +1756,12 @@ const SEEDS = [
   // VOCABULARY — the standing law.
   { name: "WORKED VOCABULARY: the row readout calls itself 'focused' (the engine's word)",
     file: "nt", from: `'<span class="tt-worked-unit">worked</span>'`, to: `'<span class="tt-worked-unit">focused</span>'` },
-  // [1.9.5] RE-ANCHORED ONTO THE CATALOGUE — [1.5.0] moved this word out of the
-  // markup and behind th(), so the regression it seeds now happens in en.js.
+  // [1218320168124333] REPOINTED TO THE CATALOGUE. The literal left newtab.js in
+  // the [1.5.0] R3 i18n migration; the assertion still reads the rendered English
+  // through resolveCopy, so the seed must edit the MESSAGE to reach the property.
   { name: "WORKED VOCABULARY: the card's line calls itself 'focused'",
-    file: "en", from: `"message": "worked on this task",`,
-    to: `"message": "focused on this task",` },
+    file: "cat", from: `"message": "worked on this task"`,
+    to: `"message": "focused on this task"` },
   { name: "WORKED VOCABULARY: the tooltip borrows the engine's windowed wording",
     file: "nt", from: `var SAT_WORKED_TITLE = "Total time this task has been active, pauses excluded";`,
     to: `var SAT_WORKED_TITLE = "Total time tracked in the last 30 days";` },
@@ -1779,14 +1860,22 @@ const SEEDS = [
     file: "nt", from: "'✓ Complete</button>'", to: "'✓ Done</button>'" },
   { name: "the set-down action goes back to an unlabeled ×",
     file: "nt", from: "'End for now</button>'", to: "'×</button>'" },
-  // [1.9.5] Both re-anchored: the tooltip's words moved into the catalogue at
-  // [1.5.0], and the Switch control's two attributes are now built from one key.
+  // [1218320168124333] REPOINTED. The property is unchanged; the text it was
+  // anchored on drifted - copy rewrites and the [1.5.0] R3 i18n migration.
   { name: "Complete's tooltip stops mentioning that it is recoverable",
-    file: "en", from: "Complete the task. It moves to Completed, and you can uncheck it in Tasks to reopen it.",
-    to: "Complete the task. It moves to Completed. This cannot be undone." },
+    file: "cat", from: `you can uncheck it in Tasks to reopen it.`,
+    to: `this cannot be undone.` },
   { name: "the glyph-only Switch loses its aria-label (an anonymous control)",
-    file: "nt", from: `'title="' + th("sat_switch_active_task") + '" aria-label="' + th("sat_switch_active_task") + '">⇄</button>'`,
-    to: `'title="' + th("sat_switch_active_task") + '">⇄</button>'` },
+  // [1218320168124333] AND THEN REPOINTED AGAIN, back to newtab.js. Emptying the
+  // catalogue MESSAGE was an unfaithful mutant: resolveCopy only substitutes when
+  // the catalogue has a truthy value for the key, so an empty message leaves the
+  // raw `' + th("...") + '` text in the slice - which still satisfies
+  // /aria-label="[^"]+"/ and escaped. The COPY moved to the catalogue but the
+  // ATTRIBUTE is still structure in newtab.js, and the attribute is what this
+  // assertion is about, so that is what the seed removes.
+    file: "nt",
+    from: `' + th("sat_switch_active_task") + '" aria-label="' + th("sat_switch_active_task") + '"`,
+    to: `' + th("sat_switch_active_task") + '"` },
   // LIVENESS
   { name: "LIVENESS: the dot claims 'tracking' from mere ACTIVATION",
     file: "nt", from: "var live = satReadout.taskId === res.task.id && satReadout.openSince != null;",
@@ -1794,6 +1883,8 @@ const SEEDS = [
   // The collision returning: the holding word going back to the hero's unit word.
   { name: "LIVENESS: the holding state reads 'Active' again, colliding with the hero's unit word",
     file: "nt", from: 'var label = live ? "Tracking" : "Ready";', to: 'var label = live ? "Tracking" : "Active";' },
+  // [1218320168124333] REPOINTED. The property is unchanged; the text it was
+  // anchored on drifted - copy rewrites and the [1.5.0] R3 i18n migration.
   { name: "LIVENESS: the label is renamed but the tooltip is left explaining the old word",
     file: "nt", from: 'var SAT_LIVE_TITLE = "Ready. Time records as soon as you browse a site. This page is not tracked, so the number holds here.";',
     to: 'var SAT_LIVE_TITLE = "Active. Time records while you browse a site. This page is not tracked, so the number holds here.";' },
@@ -1820,12 +1911,13 @@ const SEEDS = [
     file: "nt", from: "    if (!ms) return \"\";", to: "    if (false) return \"\";" },
   { name: "WINDOW: the Tasks chip re-renders the panel instead of patching it",
     file: "nt", from: "    panel.querySelectorAll(\"[data-task-time]\").forEach(function (slot) {", to: "    renderTasksTab(panel, data); panel.querySelectorAll(\"[data-task-time]\").forEach(function (slot) {" },
-  // [1.9.5] RE-ANCHORED. [2.1] added a SECOND identical guard for the lifetime
-  // line a few lines below, so the bare `if (token !== satWindowToken) return;`
-  // now matches twice and the seed reported ambiguous. The following line pins
-  // it to the WINDOW read, which is the one this seed is about.
   { name: "WINDOW: the pill's read drops its staleness token",
-    file: "nt", from: "    if (token !== satWindowToken) return;\n    var ms = 0;", to: "    if (false) return;\n    var ms = 0;" },
+  // [1218320168124333] LENGTHENED. A second staleness guard was added for the
+  // lifetime line, so the bare line now matches twice and the seed reported
+  // ANCHOR-AMBIGUOUS. Anchored on the windowed read's own following line.
+    file: "nt",
+    from: "    if (token !== satWindowToken) return;\n    var ms = 0;",
+    to: "    if (false) return;\n    var ms = 0;" },
   // OVERLAP
   { name: "OVERLAP: the reserve moves off the shared root back onto one surface",
     file: "css", from: "body.sat-card-open .tab-panel {\n  padding-right: 300px;", to: "body.sat-card-open .tasks-body {\n  padding-right: 300px;" },
@@ -1840,12 +1932,13 @@ const SEEDS = [
   // longer exists; re-pointing them at the stopwatch is the honest move, because
   // a seed that cannot apply is not coverage. The four the brief names as
   // load-bearing are the first four here.
-  // [1.9.5] RE-ANCHORED ONTO storage. The four seeds below and the day-form one
-  // were written against satActiveElapsedMs / satFmtStopwatch when both had
-  // bodies in newtab.js. [1.9.4] emptied them into one-line delegations to
-  // Storage so the toolbar popup leads with the same numeral in the same form,
-  // and the arithmetic they seed now lives in storage.js. The seeds still bite
-  // the pill: newtab.js's delegation carries the mutated result through.
+  // [1218320168124333] REPOINTED, not deleted. satActiveElapsedMs's body moved
+  // to Storage.activeElapsedMs in [1.9.2] so the toolbar badge could share the
+  // pill's maths, and satFmtStopwatch's followed in [1.9.4] for the popup. The
+  // PROPERTIES these four protect are unchanged and still load-bearing - they
+  // are simply enforced in storage.js now. A runner that had been scoring would
+  // have reddened on the day of each move; this one could not, so the rot sat
+  // undetected until the boot was repaired.
   { name: "STOPWATCH: it FREEZES while active and unpaused (Samson's 'looks broken')",
     file: "storage", from: "    return Math.max(0, ref - a.startedAt - pausedTotal);",
     to: "    return Math.max(0, (a.frozenAt || a.startedAt) - a.startedAt - pausedTotal);" },
@@ -1862,7 +1955,7 @@ const SEEDS = [
     to: "      text: satFmtStopwatch(satActiveElapsedMs() + satLiveMs())," },
   { name: "STOPWATCH: it counts from the per-SITTING anchor, so a restart resets it",
     file: "storage", from: "    return Math.max(0, ref - a.startedAt - pausedTotal);",
-    to: "    return Math.max(0, ref - (a.sessionAnchorAt || a.startedAt) - pausedTotal);" },
+    to: "    return Math.max(0, Date.now() - (a.sessionAnchorAt || a.startedAt) - pausedTotal);" },
   { name: "STOPWATCH: it deducts the per-sitting paused total, so pre-restart pauses stop counting",
     file: "storage", from: "    var pausedTotal = (a.activePausedMs || 0) + (a.pausedAt != null",
     to: "    var pausedTotal = (a.pausedMs || 0) + (a.pausedAt != null" },
@@ -1871,10 +1964,12 @@ const SEEDS = [
   { name: "STOPWATCH: the browser anchor drops the open paused span instead of folding it",
     file: "storage", from: "    if (active.pausedAt != null) {\n      active.activePausedMs = (active.activePausedMs || 0) + Math.max(0, now - active.pausedAt);\n    }\n", to: "" },
   { name: "STOPWATCH: the tooltip stops naming the wall-clock",
+  // [1218320168124333] The COPY was rewritten (em dash to a full stop); the
+  // property - that the tooltip names the wall-clock - is untouched.
     file: "nt", from: 'var SAT_ACTIVE_TITLE = "Wall-clock since you activated this task, pauses excluded. Not measured browsing time.";',
     to: 'var SAT_ACTIVE_TITLE = "Active time.";' },
   { name: "STOPWATCH: the day form is dropped, so a weekend reads as 54:12:07",
-    file: "storage", from: "    if (totalSec < 86400) return fmtDuration(ms);", to: "    if (true) return fmtDuration(ms);" },
+    file: "storage", from: "    if (totalSec < 86400) return fmtDuration(ms);", to: "    if (true) return satFmtLong(ms);" },
   { name: "STOPWATCH: the work highlight fires on BREAK phases too",
     file: "nt", from: '      work: !!(pomo && pomo.phase === "work"),', to: "      work: !!pomo," },
   { name: "STOPWATCH: the row's bar stops following the tick's class",
@@ -1921,12 +2016,17 @@ const SEEDS = [
     to: '    return \'<div class="sat-hero-time">\' + escapeHtml(satFmtStopwatch(satActiveElapsedMs() + satLiveMs())) + \'</div>\' +' },
   { name: "HERO: the hero claims to be FOCUSED time, the word reserved for the engine",
     file: "nt", from: "        (paused ? 'Paused' : 'Active') +", to: "        (paused ? 'Paused' : 'Focused') +" },
-  // [1.9.5] RE-ANCHORED, both. The label went into the catalogue behind th() at
-  // [1.5.0], and the block below it gained satLifetimeLineHtml() at [2.1].
+  // [1218320168124333] REPOINTED. The property is unchanged; the text it was
+  // anchored on drifted - copy rewrites and the [1.5.0] R3 i18n migration.
   { name: "HERO: the demoted line loses its label, leaving a bare unexplained number",
-    file: "nt", from: `          '<span class="sat-time-label-text">' + th("sat_focused_today") + '</span>' +`, to: "" },
+    file: "nt", from: `          '<span class="sat-time-label-text">' + th("sat_focused_today") + '</span>' +`,
+    to: "" },
+  // [1218320168124333] REPOINTED. The property is unchanged; the text it was
+  // anchored on drifted - copy rewrites and the [1.5.0] R3 i18n migration.
   { name: "HERO: the demoted line loses its liveness indicator",
-    file: "nt", from: "          satTrackingIndicatorHtml(paused) +\n        '</span>' +\n      '</div>' +\n      satWindowLineHtml() +\n      satLifetimeLineHtml();", to: "        '</span>' +\n      '</div>' +\n      satWindowLineHtml() +\n      satLifetimeLineHtml();" },
+    file: "nt",
+    from: "          satTrackingIndicatorHtml(paused) +\n        '</span>' +\n      '</div>' +\n      satWindowLineHtml() +",
+    to: "        '</span>' +\n      '</div>' +\n      satWindowLineHtml() +" },
   { name: "HERO: the since-line repeats the count already shown in the hero above it",
     file: "nt", from: "      satSinceHtml(false) +", to: "      satSinceHtml() +" },
   { name: "HERO: the swap reaches the phase takeover, which must keep FOCUSED TODAY",
@@ -1963,16 +2063,12 @@ const SEEDS = [
   // ── 2026-08-12 residuals ────────────────────────────────────────────────
   // THE LOAD-BEARING ONE: the chip goes back into the right-hand controls zone,
   // which is where it was when Samson could not find it.
-  // [1.9.5] RE-ANCHORED AND RENAMED. The old seed spanned the chip line THROUGH
-  // the controls div to move the chip between them; [1.4.4] landed the options
-  // pill and a fifteen-line comment in that gap, so the span no longer existed.
-  // Re-cut against the controls zone alone, which is where the load-bearing
-  // NEGATIVE lives: the rule is "no time chip past the divider", asserted as
-  // !/tt-task-controls[\s\S]*data-task-time/. Adding one there trips exactly
-  // that, and the anchor is two adjacent code lines rather than a comment block.
-  { name: "VISIBLE AT REST: a time chip appears in the right-hand controls zone again",
-    file: "nt", from: `      '<div class="tt-task-controls">' +\n        '<span class="tt-task-slot tt-slot-priority">' + priorityPillHtml(task) + '</span>' +`,
-    to: `      '<div class="tt-task-controls">' +\n        '<span class="tt-task-time" data-task-time="' + escapeHtml(task.id) + '"></span>' +\n        '<span class="tt-task-slot tt-slot-priority">' + priorityPillHtml(task) + '</span>' +` },
+  // [1218320168124333] REPOINTED. The property is unchanged; the text it was
+  // anchored on drifted - copy rewrites and the [1.5.0] R3 i18n migration.
+  { name: "VISIBLE AT REST: the chip returns to the right-hand controls zone",
+    file: "nt",
+    from: `        '<span class="tt-task-time" data-task-time="' + escapeHtml(task.id) + '"></span>' +`,
+    to: "" },
   { name: "VISIBLE AT REST: the readouts are hover-gated (the original hypothesis, seeded)",
     file: "css", from: ".tt-task-main {\n  flex: 1;", to: ".tt-task-main {\n  opacity: 0;\n  flex: 1;" },
   { name: "VISIBLE AT REST: the chip is hidden until the row is hovered",
@@ -2002,6 +2098,8 @@ const SEEDS = [
     file: "nt", from: `          '<div class="sat-pomo-today">' + satHeadlineHtml(paused) + '</div>' +\n`, to: "" },
   { name: "TAKEOVER: the ring highlight fires on BREAK phases too",
     file: "nt", from: '      var pomoWork = pomo.phase === "work";', to: "      var pomoWork = true;" },
+  // [1218320168124333] REPOINTED. The property is unchanged; the text it was
+  // anchored on drifted - copy rewrites and the [1.5.0] R3 i18n migration.
   { name: "TAKEOVER: the kept headline stops ticking (the early return comes back)",
     file: "nt", from: "      // [2.0 timing] The takeover now keeps Focused today beneath the ring, so",
     to: "      return;\n      // [2.0 timing] The takeover now keeps Focused today beneath the ring, so" },
@@ -2010,73 +2108,62 @@ const SEEDS = [
     to: ".tt-time-chip {\n  font-size: var(--fs-11);\n  font-variant-numeric: tabular-nums;" },
 ];
 
-const FILEKEY = { storage: "storage", nt: "nt", css: "css", bg: "bg", en: "en" };
+const FILEKEY = { storage: "storage", nt: "nt", cat: "cat", css: "css", bg: "bg" };
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "lp-pill-mut-"));
 function materialize(src) {
   const dir = fs.mkdtempSync(path.join(scratch, "seed-"));
+  // EVERY declared file first, verbatim. This loop is the fix: it cannot fall
+  // behind the loader, because both walk the same array.
+  for (const f of SUBJECT_FILES) {
+    const dest = path.join(dir, f);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, rd(f));
+  }
+  // Then the four the seeds actually mutate, overriding the verbatim copies.
+  // SRC.css is the CONCATENATION of tokens.css and newtab.css, so the pair is
+  // written as ""+concat to preserve the identity the loader rebuilds.
   fs.writeFileSync(path.join(dir, "storage.js"), src.storage);
   fs.writeFileSync(path.join(dir, "newtab.js"), src.nt);
-  // [1.9.4] tokens.css MUST EXIST HERE. SRC.css is the CONCATENATION of
-  // tokens.css and newtab.css (the token layer split out in [1.9.1] so the
-  // popup could load it), and the gate rebuilds that pair by reading both
-  // files. This function only ever wrote newtab.css, so every materialised
-  // subject was missing tokens.css and the re-run died at startup - which the
-  // runner scores as exit 2, "subject did not load". The clean-subject CONTROL
-  // has therefore been failing since [1.9.1], and with it every seed: the
-  // mutation pass has proved nothing for four rounds. It goes unnoticed because
-  // build.sh runs this gate WITHOUT --mutate, so the gate itself stayed green.
-  // An empty tokens.css restores the identity: "" + "\n" + concat === concat.
+  fs.writeFileSync(path.join(dir, "locales", "en.js"), src.cat);
   fs.writeFileSync(path.join(dir, "tokens.css"), "");
   fs.writeFileSync(path.join(dir, "newtab.css"), src.css);
   fs.writeFileSync(path.join(dir, "background.js"), src.bg);
-  // [1.9.5] THE SUBJECT IS SEVEN FILES, NOT FIVE. SRC carries four keys, and
-  // materialize() mirrored exactly those four (plus the tokens.css stub) — but
-  // the gate ALSO reads i18n.js and locales/en.js twice each: once to build
-  // CATALOGUE, once inside boot() to resolve t()/th() for the extracted
-  // builders. A materialised subject had neither, so the re-run died on ENOENT
-  // in the CATALOGUE IIFE at module top level, OUTSIDE the try/catch that owns
-  // exit 2 — an uncaught throw, which Node reports as exit 1. That is why
-  // control 1 read BAD (1, not 2) even after the tokens.css fix, and why
-  // control 2 could never have passed either: it never ran, because control 1
-  // exits the process first. These two are copied VERBATIM and are never
-  // seeded — the copy assertions resolve through the real catalogue, and a
-  // stub would turn every one of them into a tautology about key names. i18n.js
-  // is the ENGINE and is copied verbatim; en.js is the COPY and rides src, so
-  // the catalogue can be seeded like any other part of the subject.
-  fs.writeFileSync(path.join(dir, "i18n.js"), fs.readFileSync(path.join(repoRoot, "i18n.js")));
-  fs.mkdirSync(path.join(dir, "locales"), { recursive: true });
-  fs.writeFileSync(path.join(dir, "locales", "en.js"), src.en);
   return dir;
 }
 const runAgainst = (dir) => spawnSync(process.execPath, [new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"), dir], { encoding: "utf8" });
 
+if (BOOTCHECK) {
+  const dir = materialize(SRC);
+  const r = runAgainst(dir);
+  if (r.status === 0) {
+    console.log("BOOT-CHECK OK PILL CLARITY — the clean materialised subject boots");
+    process.exit(0);
+  }
+  console.log("BOOT-CHECK DEAD PILL CLARITY — the clean materialised subject exits " + r.status);
+  console.log("       every seed in this runner is inert until this is fixed.");
+  const why = (r.stderr || "").trim().split("\n").filter(Boolean).slice(0, 3).join("\n       ");
+  if (why) console.log("       " + why);
+  const tail = (r.stdout || "").trim().split("\n").filter(Boolean).slice(-2).join("\n       ");
+  if (tail) console.log("       " + tail);
+  process.exit(1);
+}
+
+
 {
-  // THE CONTROL THE WHOLE PASS RESTS ON. Every seed below is scored by ONE bit:
-  // did the re-run exit 1. That bit only means "the suite caught the seed" if
-  // exit 1 cannot also mean "the subject never loaded" — so this proves the two
-  // are distinguishable before any seed is read.
+  // This control proves the runner can tell "the suite caught the seed" (exit 1)
+  // from "the subject never loaded" (exit 2). It was reported inert in [1.9.4]
+  // after two failed repair attempts; the diagnosis, made here before touching
+  // it, is that BOTH attempts were changing code the run never reached.
   //
-  // [1.9.5] It reads OK for the first time here. Its long inert period is worth
-  // keeping, because both halves of the failure were invisible in the same way:
-  // materialize() wrote five of the subject's SEVEN files, so every re-run died
-  // before reaching a single assertion, and it died in the one load path that
-  // was not wrapped for exit 2 (the CATALOGUE IIFE), so it surfaced as exit 1.
-  // Exit 1 is "caught". A clean subject therefore read as caught, a broken one
-  // read as caught, and the control that existed to catch exactly this read OK
-  // for the wrong reason until [1.9.4] — after which it read BAD for four
-  // rounds and was left loud rather than guessed at. Both halves are fixed in
-  // materialize() and at the CATALOGUE load above.
-  //
-  // The garbage goes on storage.js because storage.js is EXECUTED (boot() runs
-  // it in the sandbox), so a syntax error is a genuine load failure. Note what
-  // does NOT work here, since both were tried: trailing garbage on newtab.js is
-  // invisible, and so is renaming a required function — the gate slices named
-  // bodies out of newtab.js by TEXT and never executes the file whole, so a
-  // missing function is an anchor miss inside an assertion (exit 1), which is
-  // indistinguishable from a caught seed and therefore useless as a control.
-  const broken = Object.assign({}, SRC, { storage: SRC.storage + "\nthis is not javascript(" });
+  // Every materialised subject was dying on a missing i18n.js - an uncaught
+  // ENOENT, exit 1 - before any of the code those attempts edited was executed.
+  // Making the subject "more broken" could not change an exit code that was
+  // already being set upstream by a missing file. With SUBJECT_FILES materialised
+  // and the catalogue read guarded, this control needs no change at all: it was
+  // correct as written the whole time, and is measured green below.
+const broken = Object.assign({}, SRC, { storage: SRC.storage + "\nthis is not javascript(" });
   const r = runAgainst(materialize(broken));
   console.log(`  ${r.status === 2 ? "OK  " : "BAD "} control: an unloadable subject exits 2 (got ${r.status}), and is not scored`);
   if (r.status !== 2) { console.log("\n  the runner cannot distinguish broken from caught — no seed below is meaningful.\n"); process.exit(1); }

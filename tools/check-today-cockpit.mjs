@@ -30,12 +30,85 @@ import vm from "node:vm";
 
 const repoRoot = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : process.cwd();
 const MUTATE = process.argv.includes("--mutate");
+// [1218320168124333] --boot-check: materialise the CLEAN subject, run it, and
+// report only whether it BOOTS. No seeds, so it costs one child process instead
+// of one per seed, which is what makes it affordable in build.sh.
+//
+// This is the cheap half of the structural fix. The declared SUBJECT_FILES list
+// PREVENTS the loader and materialize() from diverging; this DETECTS it anyway,
+// on every build, for the whole class - including a divergence introduced by a
+// mechanism nobody anticipated. Four runners were silently dead when it was
+// written, three of them for the same reason and one for two reasons, and none
+// of it surfaced because build.sh runs these gates without --mutate.
+const BOOTCHECK = process.argv.includes("--boot-check");
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const DAY = 86400000;
 
 // core.autocrlf=true -> CRLF in the working tree; normalize before slicing or
 // every anchor below silently misses (BUGS.md M).
-const rd = (f) => fs.readFileSync(path.join(repoRoot, f), "utf8").replace(/\r\n/g, "\n");
+// [1218320168124333] EVERY FILE THE SUBJECT READS, DECLARED ONCE.
+//
+// THE HARDCODED-ENUMERATION CLASS, and this runner was one of four instances.
+// The loader read one set of files; materialize() wrote a different,
+// hand-maintained set; nothing compared them. When the token layer split out in
+// [1.9.1] the loader gained tokens.css and materialize() did not, so every
+// materialised subject - clean ones included - failed to boot, and this suite
+// has proved nothing since.
+//
+// The two lists are now ONE list, walked by both the loader and materialize(),
+// and the self-check below proves it really covers every rd() in this file.
+const SUBJECT_FILES = [
+  "storage.js",
+  "tracking.js",
+  "newtab.js",
+  "tokens.css",
+  "newtab.css",
+  "i18n.js",
+  "locales/en.js",
+];
+
+const RAW = {};
+const rd = (f) => {
+  if (Object.prototype.hasOwnProperty.call(RAW, f)) return RAW[f];
+  return (RAW[f] = fs.readFileSync(path.join(repoRoot, f), "utf8").replace(/\r\n/g, "\n"));
+};
+
+// Write every declared file verbatim into a materialised subject. Called first
+// by materialize(), which then overrides the mutable ones.
+function writeSubjectFiles(dir) {
+  for (const f of SUBJECT_FILES) {
+    const dest = path.join(dir, f);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, rd(f));
+  }
+}
+
+// SELF-CHECK, DYNAMIC. Every subject file actually READ must be declared.
+//
+// This began as a regex over this file's own source looking for rd("..."), and
+// that instrument was wrong twice over. It matched rd() calls written inside
+// COMMENTS, so it failed on a correct tree; and - the fatal one - it could not
+// see a subject read written as a bare fs.readFileSync(path.join(repoRoot, ...)),
+// which is exactly how check-today-cockpit read i18n.js. A static scan for one
+// call shape cannot enumerate reads written in another.
+//
+// So the check is dynamic: rd() records what it actually read, and this compares
+// that record against the declaration. It cannot be fooled by call form, because
+// it observes the effect rather than the syntax. Every load-time read must go
+// through rd() for that to hold, which is now the rule in these files.
+function assertSubjectFilesComplete() {
+  const actuallyRead = Object.keys(RAW);
+  const undeclared = actuallyRead.filter((f) => SUBJECT_FILES.indexOf(f) === -1);
+  if (undeclared.length) {
+    console.error("TODAY COCKPIT: SUBJECT DID NOT LOAD — SUBJECT_FILES does not cover " +
+      JSON.stringify(undeclared) + "; add them, or materialize() writes subjects that cannot boot.");
+    process.exit(2);
+  }
+  if (!actuallyRead.length) {
+    console.error("TODAY COCKPIT: SUBJECT DID NOT LOAD — nothing was read through rd(), so this check proves nothing.");
+    process.exit(2);
+  }
+}
 
 let SRC;
 try {
@@ -109,8 +182,11 @@ function boot(src) {
   // against the REAL catalogue rather than stubbing them to the key, so every
   // assertion below still reads the actual rendered English - a stub returning
   // the key would turn every copy assertion into a tautology about key names.
-  const i18nSrc = fs.readFileSync(path.join(repoRoot, "i18n.js"), "utf8");
-  const enSrc = fs.readFileSync(path.join(repoRoot, "locales", "en.js"), "utf8");
+  // [1218320168124333] THROUGH rd(). These were bare readFileSync calls, which
+  // is why neither materialize() nor a scan for rd() could see them, and why this
+  // runner still could not boot after tokens.css was added to its list.
+  const i18nSrc = rd("i18n.js");
+  const enSrc = rd("locales/en.js");
   vm.runInContext(i18nSrc + "\n" + enSrc, ctx, { filename: "i18n" });
   vm.runInContext(
     "function t(k, p) { return I18n.t(k, p); }\n" +
@@ -882,7 +958,10 @@ const hasClassToken = (src, name) => {
 // Report.
 // ---------------------------------------------------------------------------
 let pass = 0, fail = 0;
-if (!MUTATE) {
+// The subject has finished loading; every read it made is now recorded.
+assertSubjectFilesComplete();
+
+if (!MUTATE && !BOOTCHECK) {
   console.log("\nTODAY COCKPIT — the Dashboard's five modules\n");
   for (const r of rows) {
     if (r.skip) { console.log(`  SKIP  ${r.name}   << ${r.detail}`); pass++; continue; }
@@ -902,7 +981,7 @@ if (!MUTATE && rows.length < MIN) {
   process.exit(1);
 }
 
-if (!MUTATE) {
+if (!MUTATE && !BOOTCHECK) {
   console.log(`\nTODAY COCKPIT: ${fail === 0 ? "PASS" : "FAIL"} — ${pass} passed${SKIPPED ? ` (${SKIPPED} skipped)` : ""}, ${fail} failed\n`);
   process.exit(fail ? 1 : 0);
 }
@@ -960,13 +1039,20 @@ const SEEDS = [
   { name: "ink: the greeting goes back to bare white (white-on-white by default)",
     file: "css", from: ".dash-greeting {\n  font-size: 22px;\n  font-weight: 600;\n  line-height: 1.2;\n  color: var(--text-primary);",
     to: ".dash-greeting {\n  font-size: 22px;\n  font-weight: 600;\n  line-height: 1.2;\n  color: #fff;" },
+  // [1218320168124333] REPOINTED. The property is unchanged; the source text it
+  // was anchored on drifted - the [1.5.0] R3 i18n migration and a comment edit
+  // between the two lines this anchor spanned.
   { name: "ink: note lines go back to the opacity-dimmed class (the O2 button trap)",
-    file: "nt", from: "'<div class=\"dash-note\">No active goals — '", to: "'<div class=\"insights-empty\">No active goals — '" },
+    file: "nt", from: `'<div class="dash-note">' + th("dash_no_active_goals") + ' '`,
+    to: `'<div class="insights-empty">' + th("dash_no_active_goals") + ' '` },
   // The 2026-08-11 follow-up, seeded from both sides of the condition it added.
   { name: "header: the board gate removed — evening claims 'Work’s done.' over open rows again",
     file: "nt", from: "      if (open > 0) {", to: "      if (false) {" },
+  // [1218320168124333] REPOINTED. The property is unchanged; the source text it
+  // was anchored on drifted - the [1.5.0] R3 i18n migration and a comment edit
+  // between the two lines this anchor spanned.
   { name: "header: the gate inverted — the close-out line can never render",
-    file: "nt", from: "      var open = (dueOpen || []).length;\n      if (open > 0) {", to: "      var open = (dueOpen || []).length;\n      if (open >= 0) {" },
+    file: "nt", from: "      var open = (dueOpen || []).length;", to: "      var open = 1;" },
   { name: "header: the gate counts ALL tasks, not the open due set (done work keeps the day open)",
     file: "nt", from: "      var open = (dueOpen || []).length;", to: "      var open = ((ws && ws.tasks) || []).length;" },
   { name: "header: the plural boundary slips by one (a single item reads as 'a few')",
@@ -974,8 +1060,12 @@ const SEEDS = [
   // The declaration line matches the same call text, so the anchor carries the
   // render's indentation and trailing `+` — reported as an anchor-miss on the
   // first run of this seed, which is the Q2 failure mode working.
+  // [1218320168124333] REPOINTED. The property is unchanged; the source text it
+  // was anchored on drifted - the [1.5.0] R3 i18n migration and a comment edit
+  // between the two lines this anchor spanned.
   { name: "header: the head is fed an empty array instead of the render's read",
-    file: "nt", from: "\n              dashHeadHtml(d, ws, period, dueOpen) +", to: "\n              dashHeadHtml(d, ws, period, []) +" },
+    file: "nt", from: "            dashHeadHtml(d, ws, period, dueOpen) +",
+    to: "            dashHeadHtml(d, ws, period, []) +" },
   { name: "header: evening precedence yields to an active task",
     file: "nt", from: "    if (period === \"evening\") {", to: "    if (period === \"evening\" && !Storage.resolveActiveTask(d)) {" },
 ];
@@ -995,13 +1085,35 @@ import os from "node:os";
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "lp-cockpit-mut-"));
 function materialize(src) {
   const dir = fs.mkdtempSync(path.join(scratch, "seed-"));
+  writeSubjectFiles(dir);
+  // Then the ones the seeds mutate. src.css is the CONCATENATION of tokens.css
+  // and newtab.css, so the pair is written as "" + concat to preserve the
+  // identity the loader rebuilds.
   fs.writeFileSync(path.join(dir, "storage.js"), src.storage);
   fs.writeFileSync(path.join(dir, "tracking.js"), src.tracking);
   fs.writeFileSync(path.join(dir, "newtab.js"), src.nt);
+  fs.writeFileSync(path.join(dir, "tokens.css"), "");
   fs.writeFileSync(path.join(dir, "newtab.css"), src.css);
   return dir;
 }
 const runAgainst = (dir) => spawnSync(process.execPath, [new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"), dir], { encoding: "utf8" });
+
+if (BOOTCHECK) {
+  const dir = materialize(SRC);
+  const r = runAgainst(dir);
+  if (r.status === 0) {
+    console.log("BOOT-CHECK OK TODAY COCKPIT — the clean materialised subject boots");
+    process.exit(0);
+  }
+  console.log("BOOT-CHECK DEAD TODAY COCKPIT — the clean materialised subject exits " + r.status);
+  console.log("       every seed in this runner is inert until this is fixed.");
+  const why = (r.stderr || "").trim().split("\n").filter(Boolean).slice(0, 3).join("\n       ");
+  if (why) console.log("       " + why);
+  const tail = (r.stdout || "").trim().split("\n").filter(Boolean).slice(-2).join("\n       ");
+  if (tail) console.log("       " + tail);
+  process.exit(1);
+}
+
 
 // CONTROL (Q1). An unloadable subject must be reported as BROKEN (exit 2) and
 // must NOT be scored as a caught mutant — otherwise every syntax error reads as

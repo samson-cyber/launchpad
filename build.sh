@@ -253,6 +253,26 @@ if ! node tools/check-bg-queue.mjs; then
   exit 1
 fi
 
+# MUTATION BOOT CHECK (Asana 1218320168124333). Not a gate over the product -
+# a gate over the INSTRUMENTS. Every mutation runner materialises the subject to
+# a scratch tree and re-runs itself; each carried a hand-written list of files to
+# write, separate from the list its loader reads, with nothing comparing them. A
+# file split therefore killed the runner silently, and FOUR of the four were dead
+# when this was added - three since the [1.9.1] token split, one since 977b108.
+#
+# It runs each runner's --boot-check: materialise the clean subject, confirm it
+# runs, stop. One child per runner rather than one per seed, which is what makes
+# it affordable here; whether a seed still BITES is the full --mutate pass's
+# question and is deliberately not asked on every build.
+#
+# THIS BLOCK IS THE ONLY REASON ANY OF IT IS VISIBLE. The gates themselves are
+# run WITHOUT --mutate below, so a dead seeding pass shows up nowhere else, and
+# two of the runners were scoring their own boot failure as a passing control.
+if ! node tools/check-mutation-boot.mjs; then
+  echo 'ERROR: a mutation runner cannot boot its own subject — its seeds prove nothing.' >&2
+  exit 1
+fi
+
 # i18n site gate ([1.5.0]). SKELETON: it does NOT yet fail on hardcoded strings,
 # because nothing has migrated and it would fail on all ~719 at once. What it
 # DOES enforce today is its own integrity — the pattern self-test plus two

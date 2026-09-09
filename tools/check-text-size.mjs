@@ -34,11 +34,84 @@ import vm from "node:vm";
 
 const repoRoot = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : process.cwd();
 const MUTATE = process.argv.includes("--mutate");
+// [1218320168124333] --boot-check: materialise the CLEAN subject, run it, and
+// report only whether it BOOTS. No seeds, so it costs one child process instead
+// of one per seed, which is what makes it affordable in build.sh.
+//
+// This is the cheap half of the structural fix. The declared SUBJECT_FILES list
+// PREVENTS the loader and materialize() from diverging; this DETECTS it anyway,
+// on every build, for the whole class - including a divergence introduced by a
+// mechanism nobody anticipated. Four runners were silently dead when it was
+// written, three of them for the same reason and one for two reasons, and none
+// of it surfaced because build.sh runs these gates without --mutate.
+const BOOTCHECK = process.argv.includes("--boot-check");
 const TABLE = process.argv.includes("--table");
 const clone = (v) => JSON.parse(JSON.stringify(v));
 
 // core.autocrlf=true -> CRLF in the working tree; normalize before slicing.
-const rd = (f) => fs.readFileSync(path.join(repoRoot, f), "utf8").replace(/\r\n/g, "\n");
+// [1218320168124333] EVERY FILE THE SUBJECT READS, DECLARED ONCE.
+//
+// THE HARDCODED-ENUMERATION CLASS, and this runner was one of four instances.
+// The loader read one set of files; materialize() wrote a different,
+// hand-maintained set; nothing compared them. When the token layer split out in
+// [1.9.1] the loader gained tokens.css and materialize() did not, so every
+// materialised subject - clean ones included - failed to boot, and this suite
+// has proved nothing since.
+//
+// The two lists are now ONE list, walked by both the loader and materialize(),
+// and the self-check below proves it really covers every rd() in this file.
+const SUBJECT_FILES = [
+  "storage.js",
+  "newtab.js",
+  "tokens.css",
+  "newtab.css",
+  "newtab.html",
+  "gate.css",
+  "gate.js",
+];
+
+const RAW = {};
+const rd = (f) => {
+  if (Object.prototype.hasOwnProperty.call(RAW, f)) return RAW[f];
+  return (RAW[f] = fs.readFileSync(path.join(repoRoot, f), "utf8").replace(/\r\n/g, "\n"));
+};
+
+// Write every declared file verbatim into a materialised subject. Called first
+// by materialize(), which then overrides the mutable ones.
+function writeSubjectFiles(dir) {
+  for (const f of SUBJECT_FILES) {
+    const dest = path.join(dir, f);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, rd(f));
+  }
+}
+
+// SELF-CHECK, DYNAMIC. Every subject file actually READ must be declared.
+//
+// This began as a regex over this file's own source looking for rd("..."), and
+// that instrument was wrong twice over. It matched rd() calls written inside
+// COMMENTS, so it failed on a correct tree; and - the fatal one - it could not
+// see a subject read written as a bare fs.readFileSync(path.join(repoRoot, ...)),
+// which is exactly how check-today-cockpit read i18n.js. A static scan for one
+// call shape cannot enumerate reads written in another.
+//
+// So the check is dynamic: rd() records what it actually read, and this compares
+// that record against the declaration. It cannot be fooled by call form, because
+// it observes the effect rather than the syntax. Every load-time read must go
+// through rd() for that to hold, which is now the rule in these files.
+function assertSubjectFilesComplete() {
+  const actuallyRead = Object.keys(RAW);
+  const undeclared = actuallyRead.filter((f) => SUBJECT_FILES.indexOf(f) === -1);
+  if (undeclared.length) {
+    console.error("TEXT SIZE: SUBJECT DID NOT LOAD — SUBJECT_FILES does not cover " +
+      JSON.stringify(undeclared) + "; add them, or materialize() writes subjects that cannot boot.");
+    process.exit(2);
+  }
+  if (!actuallyRead.length) {
+    console.error("TEXT SIZE: SUBJECT DID NOT LOAD — nothing was read through rd(), so this check proves nothing.");
+    process.exit(2);
+  }
+}
 
 let SRC;
 try {
@@ -451,7 +524,10 @@ if (TABLE && !MUTATE) {
 }
 
 let pass = 0, fail = 0;
-if (!MUTATE) {
+// The subject has finished loading; every read it made is now recorded.
+assertSubjectFilesComplete();
+
+if (!MUTATE && !BOOTCHECK) {
   console.log("\nTEXT SIZE — Settings > Appearance, three tiers over one token ramp\n");
   for (const r of rows) {
     console.log(`  ${r.pass ? "PASS" : "FAIL"}  ${r.name}${r.pass ? "" : "   << " + r.detail}`);
@@ -467,7 +543,7 @@ if (!MUTATE && rows.length < MIN) {
   console.log(`\nTEXT SIZE: FAIL — only ${rows.length} assertions ran (expected >= ${MIN}); the suite is broken, not clean.\n`);
   process.exit(1);
 }
-if (!MUTATE) {
+if (!MUTATE && !BOOTCHECK) {
   console.log(`\nTEXT SIZE: ${fail === 0 ? "PASS" : "FAIL"} — ${pass} passed, ${fail} failed\n`);
   process.exit(fail ? 1 : 0);
 }
@@ -480,15 +556,19 @@ console.log("\nTEXT SIZE — mutation seeding\n");
 const SEEDS = [
   // THE LOAD-BEARING SEED. Small must be today's sizing; break one value and the
   // naming invariant has to catch it.
+  // [1218320168124333] REPOINTED. [1.7.1] put the DISPLAY ramp at the top of
+  // each tier block, so --fs-8 is no longer the first declaration after the
+  // selector and these three anchors stopped matching. The tiers themselves are
+  // unchanged; only the line the anchor grabs has moved.
   { name: "SMALL IS NOT IDENTICAL — one token in the small block is bumped",
-    file: "css", from: "html.text-size-small {\n  --fs-8: 8px;\n  --fs-9: 9px;\n  --fs-10: 10px;\n  --fs-11: 11px;",
-    to:            "html.text-size-small {\n  --fs-8: 8px;\n  --fs-9: 9px;\n  --fs-10: 10px;\n  --fs-11: 12px;" },
+    file: "css", from: "  --fs-8: 8px;\n  --fs-9: 9px;\n  --fs-10: 10px;\n  --fs-11: 11px;",
+    to:            "  --fs-8: 8px;\n  --fs-9: 9px;\n  --fs-10: 10px;\n  --fs-11: 12px;" },
   { name: "SMALL IS NOT IDENTICAL — the whole small block is the medium ramp",
-    file: "css", from: "html.text-size-small {\n  --fs-8: 8px;", to: "html.text-size-small {\n  --fs-8: 9px;" },
+    file: "css", from: "  --display-3: 21px;\n  --fs-8: 8px;", to: "  --display-3: 21px;\n  --fs-8: 9px;" },
   { name: "medium stops bumping — the default tier is just small again",
     file: "css", from: ":root {\n  --fs-8: 9px;\n  --fs-9: 10px;", to: ":root {\n  --fs-8: 8px;\n  --fs-9: 9px;" },
   { name: "the ramp inverts — large pushes a 14px token past the untouched 16px tier",
-    file: "css", from: "html.text-size-large {\n  --fs-8: 10px;", to: "html.text-size-large {\n  --fs-8: 18px;" },
+    file: "css", from: "  --display-3: 27px;\n  --fs-8: 10px;", to: "  --display-3: 27px;\n  --fs-8: 18px;" },
   { name: "a hard literal creeps back into the sheet (a rule the setting no longer covers)",
     file: "css", from: ".pro-tour-text { font-size: var(--fs-13);", to: ".pro-tour-text { font-size: 13px;" },
   { name: "a token is referenced but never defined (the declaration silently drops)",
@@ -524,17 +604,37 @@ import os from "node:os";
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "lp-textsize-mut-"));
 function materialize(src) {
   const dir = fs.mkdtempSync(path.join(scratch, "seed-"));
+  // Every declared file verbatim - which covers gate.css and gate.js, written
+  // here by hand before, and tokens.css, which was not written at all.
+  writeSubjectFiles(dir);
+  // Then the ones the seeds mutate. src.css is the CONCATENATION of tokens.css
+  // and newtab.css, so the pair is written as "" + concat to preserve the
+  // identity the loader rebuilds.
   fs.writeFileSync(path.join(dir, "storage.js"), src.storage);
   fs.writeFileSync(path.join(dir, "newtab.js"), src.nt);
+  fs.writeFileSync(path.join(dir, "tokens.css"), "");
   fs.writeFileSync(path.join(dir, "newtab.css"), src.css);
   fs.writeFileSync(path.join(dir, "newtab.html"), src.html);
-  // Read verbatim: the gate-page boundary assertion reads these two, and a
-  // mutant must not fail merely because they are absent from the scratch tree.
-  fs.writeFileSync(path.join(dir, "gate.css"), rd("gate.css"));
-  fs.writeFileSync(path.join(dir, "gate.js"), rd("gate.js"));
   return dir;
 }
 const runAgainst = (dir) => spawnSync(process.execPath, [new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"), dir], { encoding: "utf8" });
+
+if (BOOTCHECK) {
+  const dir = materialize(SRC);
+  const r = runAgainst(dir);
+  if (r.status === 0) {
+    console.log("BOOT-CHECK OK TEXT SIZE — the clean materialised subject boots");
+    process.exit(0);
+  }
+  console.log("BOOT-CHECK DEAD TEXT SIZE — the clean materialised subject exits " + r.status);
+  console.log("       every seed in this runner is inert until this is fixed.");
+  const why = (r.stderr || "").trim().split("\n").filter(Boolean).slice(0, 3).join("\n       ");
+  if (why) console.log("       " + why);
+  const tail = (r.stdout || "").trim().split("\n").filter(Boolean).slice(-2).join("\n       ");
+  if (tail) console.log("       " + tail);
+  process.exit(1);
+}
+
 
 // CONTROL (Q1).
 {
