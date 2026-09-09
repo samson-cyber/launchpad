@@ -838,15 +838,19 @@
     var lines = [];
     var topTask = dashRecapTopTask(byTask, d, combined);
     if (topTask) lines.push(dashRecapLineHtml("Most focused", topTask.name, topTask.ms));
-    // [1.8.5 ITEM D] "STRETCH", NOT "SESSION", AND BOTH BOARDS NOW AGREE.
-    // "Session" already carries two other senses in this product - a saved TAB
-    // SET, and a BROWSER session - and the project's rule is that those stay
-    // distinguished. A third sense for "an unbroken run of focus" was the one
-    // that had to move, and the weekly card on Insights had already chosen
-    // "stretch" for the same figure. Two nouns for one concept on two boards a
-    // user moves between is an accident, not a distinction, so this is the
-    // Dashboard adopting the Insights word rather than the reverse.
-    if (longestMs > 0) lines.push(dashRecapLineHtml("Longest stretch", null, longestMs));
+    // "SESSION" DELIBERATELY CARRIES A FOURTH SENSE HERE. Ruled 2026-09-09,
+    // reversing [1.8.5] item D. That round renamed this to "Longest stretch"
+    // because "session" already means a saved TAB SET and a BROWSER session, and
+    // it argued the third sense had to move. The reasoning stands as recorded and
+    // was overruled anyway: both boards read "Longest session". Not drift, and
+    // not to be re-litigated as a collision.
+    //
+    // THIS LABEL IS A HARDCODED ENGLISH LITERAL, not a catalogue key - as are
+    // "Most focused" and "Top tag" beside it. That is pre-existing and is part of
+    // the untokenised backlog check-i18n-sites reports; it is why this revert had
+    // to touch a render site at all, where the Insights half was one catalogue
+    // value. Flagged rather than fixed: tokenising the recap is its own change.
+    if (longestMs > 0) lines.push(dashRecapLineHtml("Longest session", null, longestMs));
     var topTag = dashRecapTopTag(byTag, d, combined);
     if (topTag) lines.push(dashRecapLineHtml("Top tag", topTag.name, topTag.ms));
     // Empty when every line suppressed — the .dash-recap:empty rule collapses the

@@ -1331,9 +1331,14 @@ I18n.register("en", {
     "message": "Focused",
     "description": "Row label on the weekly review card. Rendered with th()."
   },
+  // "SESSION" DELIBERATELY CARRIES A FOURTH SENSE HERE. Ruled 2026-09-09,
+  // reversing [1.8.5] item D, which had renamed this to "Longest stretch" on the
+  // grounds that the word already means a saved tab set and a browser session.
+  // That reasoning is recorded and was set aside: this is not drift, and it is
+  // not to be re-litigated as a collision with the other three senses.
   "insights_wk_longest": {
-    "message": "Longest stretch",
-    "description": "Row label on the weekly review card - the longest single focus session in the week. Rendered with th()."
+    "message": "Longest session",
+    "description": "Row label on the weekly review card - the longest single unbroken focus session in the week. Uses 'session' in the focus sense, which is deliberate and was ruled on 2026-09-09; do not disambiguate it against the saved-tab-set or browser senses. Rendered with th()."
   },
   "insights_wk_blocked": {
     "message": "Blocks",
