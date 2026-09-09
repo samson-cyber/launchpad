@@ -2,17 +2,41 @@
 // ===========================================================================
 // SEED-FIXTURE — one parameterised seeder for every harness this project runs.
 //
-//   node tools/seed-fixture.mjs --profile busy  --user-data-dir .scratch/demo
-//   node tools/seed-fixture.mjs --profile calm  --user-data-dir .scratch/shots
-//   node tools/seed-fixture.mjs --profile empty --user-data-dir .scratch/zero
+//   node --experimental-websocket tools/seed-fixture.mjs --profile busy  --user-data-dir .scratch/demo
+//   node --experimental-websocket tools/seed-fixture.mjs --profile calm  --user-data-dir .scratch/shots
+//   node --experimental-websocket tools/seed-fixture.mjs --profile empty --user-data-dir .scratch/zero
+//
+// --experimental-websocket IS REQUIRED ON NODE 20 and these lines did not carry
+// it. WebSocket only became a global without a flag in Node 21; on the Node 20
+// this machine runs, the documented command dies at line ~129 with
+// "ReferenceError: WebSocket is not defined" AFTER it has already launched a
+// browser and printed its SEED banner, so it reads like a harness fault rather
+// than a missing flag. Harmless to pass on a newer Node.
 //
 // Optional: --port N (default 9700), --keep (leave the browser running),
 //           --headed (watch it), --verify (drive the surfaces and report).
+//
+// TO OPEN A REAL WINDOW YOU CAN CLICK AROUND IN — seeded, Pro on, persistent:
+//
+//   node --experimental-websocket tools/seed-fixture.mjs \
+//     --profile busy-messy --user-data-dir .scratch/demo --port 9800 --headed --keep
+//
+// --headed drops --headless=new so a window appears; --keep stops teardown
+// killing it when this script exits, so the browser outlives the command and
+// the profile at .scratch/demo persists until it is deleted. Close the window
+// when done, then:  rm -rf .scratch/demo
 //
 // PROFILES
 //   calm   tools/capture-fixture.js, unchanged and called by reference. Store
 //          frames must not move because this file changed.
 //   busy   tools/fixture-profiles.js, the full coverage list.
+//   busy-messy
+//          exactly `busy`, with the HOUR distribution swapped for a realistic
+//          one (morning peak, lunch dip, lighter afternoon, minority evening
+//          tail, lighter weekends, empty days, an all-nighter and an early
+//          bird). `busy` lays every day down starting at 09:00, which makes the
+//          best-hours heatmap a solid rectangle - fine for coverage, useless
+//          for judging whether the five alpha steps read as a gradient.
 //   empty  a fresh Pro profile with nothing in it.
 //
 // It seeds through the PAGE, because window.Storage and window.Tracking are the
@@ -33,7 +57,7 @@ const PROFILE  = arg("--profile", "busy");
 const USER_DIR = arg("--user-data-dir", null);
 const PORT     = Number(arg("--port", 9700));
 const EDGE     = arg("--browser", "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe");
-const VALID    = ["calm", "busy", "empty"];
+const VALID    = ["calm", "busy", "empty", "busy-messy"];
 
 // =========================================================================
 // THE GUARD. FIRST THING, BEFORE A BROWSER EXISTS.
@@ -99,7 +123,15 @@ CHILD = spawn(EDGE, [
   "--disable-features=DisableLoadExtensionCommandLineSwitch", "--enable-unsafe-extension-debugging",
   `--disable-extensions-except=${REPO}`, `--load-extension=${REPO}`, `--remote-debugging-port=${PORT}`,
   "--window-size=1400,900", ...(flag("--headed") ? [] : ["--headless=new"]), "about:blank"
-], { stdio: "ignore" });
+// DETACHED WHEN --keep, OR --keep DOES NOT ACTUALLY KEEP ANYTHING. Without this
+// the child stays in the parent's process group, and when the seeder exits the
+// group goes with it - so the browser --keep exists to preserve was dead within
+// a second of the "browser left running (pid N)" line being printed. The message
+// was true when it was written and false by the time anyone read it, which is
+// the worst kind of harness output. detached + unref makes the child its own
+// group leader so it outlives the command that started it.
+], { stdio: "ignore", detached: flag("--keep") });
+if (flag("--keep")) CHILD.unref();
 
 for (let i = 0; i < 30; i++) { await sleep(1000); try { await j("/json/version"); break; } catch {} }
 await sleep(2500);

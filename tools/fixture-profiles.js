@@ -139,7 +139,7 @@ var __FIXTURE_PROFILES = (function () {
     "research", "infrastructure and platform work"      // long: truncates the pill
   ];
 
-  async function seedBusy(S, T) {
+  async function seedBusy(S, T, opts) {
     var log = [];
     var data = await S.getAll();
 
@@ -416,7 +416,7 @@ var __FIXTURE_PROFILES = (function () {
     log.push("Archive: nothing at all — the in-profile route to every zero state");
 
     // ---- tracking. See seedTracking for why this is the delicate half.
-    var track = await seedTracking(S, T, studio, taskByName, log);
+    var track = await seedTracking(S, T, studio, taskByName, log, (opts && opts.hours) || "tidy");
 
     // ---- Pro on, onboarding quiet
     data = await S.getAll();
@@ -506,7 +506,130 @@ var __FIXTURE_PROFILES = (function () {
     return out;
   }
 
-  async function seedTracking(S, T, wsId, taskByName, log) {
+
+  // =======================================================================
+  // [1.8.5 JUDGEMENT] THE MESSY HOUR DISTRIBUTION.
+  //
+  // WHY A SECOND GENERATOR RATHER THAN A CHANGE TO THE FIRST. The tidy one
+  // starts every single day at exactly 09:00 and lays its blocks end to end,
+  // so all 75 days pile into 09-14 and the heatmap shows one solid rectangle.
+  // That is fine for the coverage the `busy` profile exists to give, and it is
+  // useless for judging whether five alpha steps read as a gradient, because a
+  // rectangle has no gradient to read. But `busy` is also the fixture behind
+  // committed store frames and this round's checkpoint captures, so changing
+  // its distribution would move all of them. New profile, old one untouched.
+  //
+  // THE DISTRIBUTION, stated so the frames can be argued with:
+  //   - MORNING PEAK. Weekdays open 08:00-09:45 with jitter, 2-4 blocks of
+  //     25-59 min separated by 5-20 min gaps, cut off at 12:30. This is the
+  //     day's centre of mass and should be the darkest band.
+  //   - THE LUNCH DIP. Nothing between roughly 12:30 and 13:30 on most days;
+  //     35% of days get one short 10-21 min check-in at ~12:30-12:55, so the
+  //     dip is LOW rather than EMPTY - an empty band would be a easier read
+  //     than the product will ever actually get.
+  //   - AFTERNOON. 85% of weekdays, opening 13:00-14:50, 1-3 blocks of 20-49
+  //     min, cut off at 17:45. Deliberately lighter than the morning.
+  //   - AN EVENING TAIL on 35% of weekdays only, one block at 20:00-21:45.
+  //     A minority, because that is what makes it a tail rather than a third
+  //     peak, and it is the band most likely to land on the lowest alpha step.
+  //   - WEEKENDS ARE LIGHTER AND LATER. Only 30% of weekend days have any
+  //     work at all; when they do it is 1-2 blocks starting 10:00-12:50, and
+  //     never in the evening.
+  //   - 10% OF WEEKDAYS ARE EMPTY. A real month has them.
+  //   - TWO NAMED ANOMALIES, not emergent ones, so they can be pointed at:
+  //     d=9 is an ALL-NIGHTER starting 22:10 and running 4h20m, which crosses
+  //     local midnight and therefore exercises splitAcrossLocalDays and
+  //     splitAcrossLocalHours rather than merely decorating the chart; d=22 is
+  //     an EARLY BIRD, three blocks from 05:40 and nothing after 11:00.
+  //
+  // DETERMINISTIC. R() is a sin-based hash of (day, slot), not Math.random,
+  // so two runs produce the same profile and two frames are comparable.
+  // =======================================================================
+  function seedTrackingSessionsMessy(wsId, taskIds) {
+    var out = [];
+    var DOMAINS = [
+      "github.com", "figma.com", "linear.app", "notion.so", "stratechery.com",
+      "app.slack.com", "developer.mozilla.org", "supabase.com", "excalidraw.com"
+    ];
+    var CLOSED_BY = [
+      "domain-change", "tab-switch", "window-focus", "state-change",
+      "window-blur", "no-active-tab", "not-trackable", "paused",
+      "tracking-disabled", "no-workspace", "entitlement-lost", "no-data",
+      "orphan-reconciled", "import", "unknown"
+    ];
+    var ids = Object.keys(taskIds).map(function (k) { return taskIds[k]; });
+    var seq = 0;
+    var R = function (d, k) { var x = Math.sin(d * 97.13 + k * 31.7) * 10000; return x - Math.floor(x); };
+
+    function push(dayMs, hh, mm, mins, d, b) {
+      var dt = new Date(dayMs);
+      dt.setHours(hh, mm, 0, 0);
+      var start = dt.getTime();
+      out.push({
+        id: "sess_seed_" + (seq++),
+        workspaceId: wsId,
+        domain: DOMAINS[(d + b) % DOMAINS.length],
+        start: start,
+        end: start + mins * 60 * 1000,
+        activeTaskId: (b % 3 === 2) ? null : (ids.length ? ids[(d + b) % ids.length] : null),
+        closedBy: CLOSED_BY[(d * 3 + b) % CLOSED_BY.length],
+        aggregated: false
+      });
+    }
+
+    for (var d = HISTORY_DAYS; d >= 0; d--) {
+      var dayMs = Date.now() - d * DAY;
+      var dow = new Date(dayMs).getDay();
+      var weekend = (dow === 0 || dow === 6);
+      var b = 0;
+
+      if (d === 9) { push(dayMs, 22, 10, 260, d, b++); continue; }   // the all-nighter
+      if (d === 22) {                                                // the early bird
+        push(dayMs, 5, 40, 95, d, b++);
+        push(dayMs, 7, 25, 70, d, b++);
+        push(dayMs, 9, 5, 55, d, b++);
+        continue;
+      }
+
+      if (R(d, 1) < (weekend ? 0.70 : 0.10)) continue;               // an empty day
+
+      if (weekend) {
+        var wS = 10 + Math.floor(R(d, 2) * 3);
+        push(dayMs, wS, Math.floor(R(d, 3) * 50), 30 + Math.floor(R(d, 4) * 40), d, b++);
+        if (R(d, 5) < 0.5) push(dayMs, wS + 2, Math.floor(R(d, 6) * 40), 25 + Math.floor(R(d, 7) * 30), d, b++);
+        continue;
+      }
+
+      var cur = (8 + Math.floor(R(d, 8) * 2)) * 60 + Math.floor(R(d, 9) * 45);
+      var mBlocks = 2 + Math.floor(R(d, 10) * 3);
+      for (var i = 0; i < mBlocks; i++) {
+        var len = 25 + Math.floor(R(d, 11 + i) * 35);
+        push(dayMs, Math.floor(cur / 60), cur % 60, len, d, b++);
+        cur += len + 5 + Math.floor(R(d, 20 + i) * 16);
+        if (cur > 12 * 60 + 30) break;
+      }
+
+      if (R(d, 30) < 0.35) push(dayMs, 12, 30 + Math.floor(R(d, 31) * 25), 10 + Math.floor(R(d, 32) * 12), d, b++);
+
+      if (R(d, 33) < 0.85) {
+        var ac = (13 + Math.floor(R(d, 34) * 2)) * 60 + Math.floor(R(d, 35) * 50);
+        var aBlocks = 1 + Math.floor(R(d, 36) * 3);
+        for (var k = 0; k < aBlocks; k++) {
+          var alen = 20 + Math.floor(R(d, 37 + k) * 30);
+          push(dayMs, Math.floor(ac / 60), ac % 60, alen, d, b++);
+          ac += alen + 8 + Math.floor(R(d, 45 + k) * 25);
+          if (ac > 17 * 60 + 45) break;
+        }
+      }
+
+      if (R(d, 50) < 0.35) {
+        push(dayMs, 20 + Math.floor(R(d, 51) * 2), Math.floor(R(d, 52) * 45), 25 + Math.floor(R(d, 53) * 40), d, b++);
+      }
+    }
+    return out;
+  }
+
+  async function seedTracking(S, T, wsId, taskByName, log, hoursMode) {
     if (!T || typeof T.restoreStores !== "function") {
       log.push("tracking: SKIPPED — window.Tracking is not on this page");
       return { seeded: false };
@@ -517,7 +640,9 @@ var __FIXTURE_PROFILES = (function () {
     Object.keys(taskByName).forEach(function (k) {
       if (k !== "File the quarterly paperwork") attributable[k] = taskByName[k];
     });
-    var sessions = seedTrackingSessions(wsId, attributable);
+    var sessions = (hoursMode === "messy")
+      ? seedTrackingSessionsMessy(wsId, attributable)
+      : seedTrackingSessions(wsId, attributable);
 
     // pass 1 — the engine builds the aggregates from raw sessions
     await T.restoreStores({ sessions: sessions, open: null }, {});
@@ -534,7 +659,8 @@ var __FIXTURE_PROFILES = (function () {
     var afterDays = (await chrome.storage.local.get("tracking_days")).tracking_days || {};
     var life = after.lifetime || {};
     log.push("tracking: " + sessions.length + " sessions over " + HISTORY_DAYS +
-             " days, " + Object.keys(afterDays).length + " day aggregates, every closedBy reason");
+             " days, " + Object.keys(afterDays).length + " day aggregates, every closedBy reason" +
+             " [hours: " + (hoursMode === "messy" ? "MESSY" : "tidy 09:00 block") + "]");
     return {
       seeded: true,
       sessionsSeeded: sessions.length,
@@ -576,6 +702,9 @@ async function __seedProfile(name) {
   if (!S) return { ok: false, error: "window.Storage is not on this page" };
   try {
     if (name === "busy")  return await __FIXTURE_PROFILES.seedBusy(S, T);
+    // Everything `busy` lays down, with only the hour distribution swapped, so
+    // a heatmap captured under both differs in SHAPE and nothing else.
+    if (name === "busy-messy") return await __FIXTURE_PROFILES.seedBusy(S, T, { hours: "messy" });
     if (name === "empty") return await __FIXTURE_PROFILES.seedEmpty(S);
     return { ok: false, error: "unknown profile: " + name };
   } catch (e) {
