@@ -33,6 +33,19 @@
      TOKEN and not a literal so [1.10.5] can theme it alongside --icon-bg. */
   --icon-contain-bg: #d7dade;
   --icon-bg-hover: #e8eaed;
+  /* [1.10.6] THE SIZE OF WHATEVER SITS INSIDE THE ICON CIRCLE, and the single
+     source of truth for it. Before this, the icon-size ramp set `.shortcut-icon
+     img { width: 20/24/28px }` as literals, which reached favicons and uploaded
+     images because those are <img> - and silently missed the EMOJI and LETTERED
+     icons, which are <span>. They stayed pinned at 24px, so a chosen icon was
+     larger than a favicon at Small and smaller at Large.
+     Making it a token rather than adding the spans to the literal selector is
+     deliberate: a parallel ramp drifts the first time either half changes, and
+     that is exactly how the two got out of step in the first place.
+     ROW SURFACES OVERRIDE IT rather than hard-coding their own sizes, so the
+     launcher, the sidebar tree and the nest picker render the same five kinds
+     through the same rules at their own scale. */
+  --icon-inner: 24px;
   --search-bg: #f1f3f4;
   --search-bg-focus: #fff;
   --accent: #1a73e8;

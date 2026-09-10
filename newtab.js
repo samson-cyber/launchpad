@@ -11831,6 +11831,9 @@
         if (best === -1) best = launcherScore(sc.url, q);
         if (best === -1) return;
         out.push({ kind: "shortcut", id: sc.id, label: sc.title || getDomain(sc.url),
+                   // [1.10.6] Carry the shortcut itself, so the row can render
+                   // the icon the user chose rather than the site's favicon.
+                   sc: sc,
                    sub: getDomain(sc.url), url: sc.url,
                    rank: best, len: (sc.title || sc.url || "").length, ord: gi * 1000 + si });
       });
@@ -11854,7 +11857,14 @@
 
   function launcherRowHtml(r, i) {
     var icon;
-    if (r.kind === "shortcut") icon = '<img class="lr-icon" src="' + esc(getFaviconUrl({ url: r.url })) + '" alt="" width="16" height="16">';
+    if (r.kind === "shortcut") {
+      // [1.10.6] ONE IDENTITY. This used to build a favicon <img> directly,
+      // which is why a shortcut showed its emoji on the grid and a Google
+      // favicon here at the same moment.
+      var sc = r.sc || (r.id ? Storage.findShortcutById(Storage.getActiveWorkspace(data), r.id) : null);
+      icon = sc ? shortcutIconHTML(sc, getFaviconUrl(sc), "lr-icon")
+                : '<img class="lr-icon" src="' + esc(getFaviconUrl({ url: r.url })) + '" alt="">';
+    }
     else if (r.kind === "group") icon = '<span class="lr-icon lr-glyph" aria-hidden="true">\u25A6</span>';
     else if (r.kind === "session") icon = '<span class="lr-icon lr-glyph" aria-hidden="true">\u29C9</span>';
     else icon = '<span class="lr-icon lr-glyph" aria-hidden="true">\u2315</span>';
@@ -13584,7 +13594,7 @@
     $(".nest-submenu-list", panel).innerHTML = others.map(function (s) {
       var favicon = getFaviconUrl(s);
       return '<button class="nest-submenu-item" data-target-id="' + s.id + '" type="button">' +
-        '<img src="' + esc(favicon) + '" alt="" width="20" height="20">' +
+        shortcutIconHTML(s, favicon, "nest-submenu-icon") +
         '<span>' + esc(s.title || getDomain(s.url)) + '</span>' +
       '</button>';
     }).join("");
@@ -16092,7 +16102,20 @@
   // THE LETTERED TILE READS THE ACCENT TOKEN, never a literal colour. [1.10.5]
   // adds more accents by redefining --accent, and a hard-coded #1a73e8 here
   // would need finding and fixing three rounds later.
-  function shortcutIconInnerHTML(s, favicon) {
+  // [1.10.6] THE ONE PLACE A SHORTCUT'S ICON BECOMES MARKUP.
+  //
+  // Every surface that shows a shortcut calls this: the grid, the launcher
+  // rows, the sidebar tree and its variant rows, and the nest picker. Before
+  // this round only the grid did, and the rest called getFaviconUrl() straight,
+  // so a shortcut given an emoji or a letter kept showing a stranger's favicon
+  // everywhere except the one surface that had been tested.
+  //
+  // `extraClass` names the CONTEXT, not the size - the size arrives through
+  // --icon-inner, which each context sets in CSS. A renderer that took pixels
+  // would have to agree with the grid's ramp by hand, and agreeing by hand is
+  // how the emoji and the favicon got out of step to begin with.
+  function shortcutIconHTML(s, favicon, extraClass) {
+    var cls = extraClass ? (" " + extraClass) : "";
     var icon = Storage.getShortcutIcon(s);
     if (icon && icon.kind === "image") {
       // No data-url attribute: the global favicon-error fallback re-points a
@@ -16103,15 +16126,18 @@
       // than gaining a frame it was not designed with - re-uploading applies the
       // new rule.
       var fitAttr = icon.fit === "contain" ? ' data-fit="contain"' : '';
-      return '<img class="shortcut-custom-img"' + fitAttr + ' src="' + esc(icon.value) + '" alt="" width="24" height="24">';
+      // No width/height attributes any more: they said 24 at every icon size,
+      // which CSS overrode on the grid and nothing overrode elsewhere.
+      return '<img class="shortcut-custom-img' + cls + '"' + fitAttr + ' src="' + esc(icon.value) + '" alt="">';
     }
     if (icon && icon.kind === "emoji") {
-      return '<span class="shortcut-custom-emoji" aria-hidden="true">' + esc(icon.value) + '</span>';
+      return '<span class="shortcut-custom-emoji' + cls + '" aria-hidden="true">' + esc(icon.value) + '</span>';
     }
     if (icon && icon.kind === "letter") {
-      return '<span class="shortcut-custom-letter" aria-hidden="true">' + esc(icon.value.slice(0, 2)) + '</span>';
+      return '<span class="shortcut-custom-letter' + cls + '" aria-hidden="true">' + esc(icon.value.slice(0, 2)) + '</span>';
     }
-    return '<img src="' + esc(favicon) + '" alt="" width="24" height="24" loading="lazy" data-url="' + esc(s.url) + '">';
+    return '<img' + (cls ? ' class="' + cls.slice(1) + '"' : '') + ' src="' + esc(favicon) +
+      '" alt="" loading="lazy" data-url="' + esc(s.url) + '">';
   }
 
   function shortcutHTML(s) {
@@ -16129,7 +16155,7 @@
       '<div class="shortcut' + (hasVariants ? ' has-variants' : '') + '" data-id="' + s.id + '">' +
         '<a href="' + esc(s.url) + '" class="shortcut-link" title="' + esc(s.title || s.url) + '">' +
           '<div class="shortcut-icon">' +
-            shortcutIconInnerHTML(s, favicon) +
+            shortcutIconHTML(s, favicon) +
             badge +
             tagPills +
           "</div>" +
@@ -16484,6 +16510,7 @@
     }
     return group.shortcuts.map(function (s) {
       var favicon = getFaviconUrl(s);
+      var iconHtml = shortcutIconHTML(s, favicon, "sidebar-shortcut-icon");
       var hasVariants = s.variants && s.variants.length > 0;
       var chevron = hasVariants
         ? '<span class="sidebar-variant-chevron" data-shortcut-id="' + s.id + '">\u25B8</span>'
@@ -16499,7 +16526,7 @@
         ' title="' + esc(s.title || s.url) + '">' +
         '<span class="sidebar-shortcut-drag-handle" title="' + th("sidebar_drag_to_reorder_2") + '">\u2807</span>' +
         chevron +
-        '<img src="' + esc(favicon) + '" alt="" width="16" height="16">' +
+        iconHtml +
         '<span class="sidebar-shortcut-name">' + sidebarDisplayName + '</span>' +
         variantBadge +
       '</div>';
@@ -16507,11 +16534,15 @@
         html += '<div class="sidebar-variant-list" data-parent-id="' + s.id + '">';
         // Parent as first sub-item
         html += '<div class="sidebar-variant-item sidebar-shortcut-item" data-variant-url="' + esc(s.url) + '" title="' + esc(s.title || s.url) + '">' +
-          '<img src="' + esc(favicon) + '" alt="" width="16" height="16">' +
+          iconHtml +
           '<span class="sidebar-shortcut-name">' + esc(s.title || getDomain(s.url)) + '</span>' +
         '</div>';
         // Then variants
         s.variants.forEach(function (v) {
+          // [1.10.6] A VARIANT KEEPS ITS OWN FAVICON, on purpose. It is a
+          // saved URL under a shortcut rather than a shortcut of its own, so it
+          // has no customIcon to read; and painting the parent's chosen icon on
+          // every variant would make several distinct URLs look identical.
           var vFavicon = v.favicon || getFaviconUrl(v);
           html += '<div class="sidebar-variant-item sidebar-shortcut-item" data-variant-url="' + esc(v.url) + '" title="' + esc(v.title || v.url) + '">' +
             '<img src="' + esc(vFavicon) + '" alt="" width="16" height="16">' +

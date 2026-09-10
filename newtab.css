@@ -986,8 +986,8 @@ html.has-bg .gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
 }
 
 .shortcut-icon img {
-  width: 24px;
-  height: 24px;
+  width: var(--icon-inner);
+  height: var(--icon-inner);
   border-radius: 2px;
 }
 
@@ -7218,15 +7218,15 @@ html.bg-light .rc-panel-item-meta {
   height: 36px;
 }
 
-.icon-size-small .shortcut-icon img {
-  width: 20px;
-  height: 20px;
+.icon-size-small {
+  --icon-inner: 20px;
 }
 
-/* [1.10.2b] The custom img is an <img> inside .shortcut-icon, so it already
-   inherits the tier sizes above. Stated here only to record that it was
-   checked: a covered custom icon must be the SAME size as the favicons beside
-   it at every icon-size setting, which is the parity this round is about. */
+/* [1.10.6] The tier above sets --icon-inner and nothing else, because EVERY
+   kind that can sit in the circle now reads that one token: the favicon <img>,
+   the uploaded <img>, and the emoji and lettered <span>s. [1.10.2b] checked the
+   img case and was right about it - an <img> inherited the old literal rule.
+   The spans did not, and that gap is what [1.10.5] measured. */
 
 .icon-size-small .shortcut-name,
 .icon-size-small .add-tile-label {
@@ -7244,9 +7244,8 @@ html.bg-light .rc-panel-item-meta {
   height: 56px;
 }
 
-.icon-size-large .shortcut-icon img {
-  width: 28px;
-  height: 28px;
+.icon-size-large {
+  --icon-inner: 28px;
 }
 
 .icon-size-large .shortcut-name,
@@ -15402,6 +15401,31 @@ html.has-bg.bg-light .notes-default-cycle {
   border-radius: 3px;
   object-fit: contain;
 }
+
+/* [1.10.6] ONE IDENTITY PER SHORTCUT, AT EACH SURFACE'S OWN SCALE.
+   These surfaces render the same five icon kinds the grid does, through the
+   same markup and the same rules; all they change is --icon-inner. Before this
+   they called getFaviconUrl() directly, so a shortcut given an emoji or a
+   letter still showed a stranger's favicon everywhere except the grid. */
+.lr-icon.shortcut-custom-emoji,
+.lr-icon.shortcut-custom-letter,
+.sidebar-shortcut-item .shortcut-custom-emoji,
+.sidebar-shortcut-item .shortcut-custom-letter,
+.nest-submenu-item .shortcut-custom-emoji,
+.nest-submenu-item .shortcut-custom-letter {
+  flex: 0 0 auto;
+}
+.launcher-row { --icon-inner: 16px; }
+.sidebar-shortcut-item, .sidebar-variant-item { --icon-inner: 16px; }
+.nest-submenu-item { --icon-inner: 20px; }
+/* The lettered chip's corner has to come down with it, or a 16px tile with a
+   6px radius reads as a circle rather than a rounded square. */
+.launcher-row .shortcut-custom-letter,
+.sidebar-shortcut-item .shortcut-custom-letter,
+.sidebar-variant-item .shortcut-custom-letter,
+.nest-submenu-item .shortcut-custom-letter {
+  border-radius: 4px;
+}
 .lr-glyph {
   display: inline-flex;
   align-items: center;
@@ -15476,8 +15500,8 @@ html.bg-light .launcher-row.is-active { outline-color: rgba(0, 0, 0, 0.3); }
    now occupy identical boxes, which is the whole point: an icon that does not
    fill its box reads as broken next to eight that do. */
 .shortcut-custom-img {
-  width: 24px;
-  height: 24px;
+  width: var(--icon-inner);
+  height: var(--icon-inner);
   object-fit: cover;
   border-radius: 4px;
 }
@@ -15501,24 +15525,39 @@ html.bg-light .launcher-row.is-active { outline-color: rgba(0, 0, 0, 0.3); }
   background: var(--icon-contain-bg);
   padding: 1px;
 }
+/* [1.10.6] THE EMOJI IS A GLYPH, NOT A BOX, so scaling it is a font-size
+   change and the box only decides where the glyph is centred. The 0.75 ratio
+   reproduces today's 18px exactly at the default 24px token, so a profile that
+   never opens Settings is unchanged; Small and Large now give 15px and 21px
+   instead of 18px at every size.
+   line-height:1 with flex centring on both axes is what keeps the glyph
+   optically centred as it grows - an emoji carries its own baseline metrics, so
+   letting line-height follow the font would push it low in the circle. */
 .shortcut-custom-emoji,
 .shortcut-custom-letter {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--icon-inner);
+  height: var(--icon-inner);
   line-height: 1;
-  font-size: 18px;
+  font-size: calc(var(--icon-inner) * 0.75);
 }
 /* THE LETTERED TILE READS THE ACCENT TOKEN. [1.10.5] adds accents by
    redefining --accent, so this follows them with no edit. White ink on the
    accent is the pair the product already ships for accent-filled controls. */
+/* [1.10.6] The letter now scales with the ICON ramp rather than the TEXT ramp.
+   It read var(--fs-14) before, which is a body-text token: changing Text size
+   resized the letter while its circle stood still, and changing Icon size
+   resized the circle while the letter stood still. Both are wrong for a glyph
+   that lives inside an icon. 0.625 x the token reproduces 15px at the default -
+   identical to --fs-14 at the default text size - so nothing moves for a
+   profile that never opens Settings. */
 .shortcut-custom-letter {
   background: var(--accent);
   color: var(--accent-text);
   border-radius: 6px;
-  font-size: var(--fs-14);
+  font-size: calc(var(--icon-inner) * 0.625);
   font-weight: 600;
 }
 

@@ -387,6 +387,19 @@ await (async () => {
       // display token that silently stopped scaling would fail there rather
       // than slip through here.
       if (/^var\(--(fs|display)-[0-9-]+\)(\s*!important)?$/.test(v)) return false;
+      // [1.10.6] --icon-inner JOINS ON THE SAME TERMS. This assertion's rule is
+      // "every size responds to THE setting", and until now there was only one
+      // setting that could govern type. An icon GLYPH - the emoji and the
+      // lettered tile inside .shortcut-icon - is governed by Icon size, not by
+      // Text size: it has to track the circle it sits in. [1.10.5] measured what
+      // happens when it does not, and the answer was a chosen icon larger than a
+      // favicon at Small and smaller at Large.
+      // Leaving these on the text ramp would not be stricter, it would be wrong
+      // in the other direction - the glyph would resize while its circle stood
+      // still. ACCEPTING THEM IS EARNED THE SAME WAY --display-* earned it: the
+      // assertion below proves --icon-inner is redefined in BOTH icon-size
+      // tiers, so a glyph that silently stopped scaling fails there.
+      if (/^calc\(var\(--icon-inner\)\s*\*\s*[0-9.]+\)(\s*!important)?$/.test(v)) return false;
       if (/^0$/.test(v)) return false;
       const px = v.match(/^([0-9.]+)px(\s*!important)?$/);
       return !(px && parseFloat(px[1]) >= UNTOUCHED_FLOOR);
@@ -408,6 +421,21 @@ await (async () => {
       displayTokens.length > 0 && smallBlk !== "" && largeBlk !== "" && unscaled.length === 0,
       unscaled.length ? ("unscaled: " + unscaled.join(" | "))
                       : (displayTokens.join(" ") + " scale in both tiers"));
+    // [1.10.6] The proof that earns the --icon-inner acceptance above. The
+    // icon-size tiers are written WITHOUT the html. prefix in the sheet, unlike
+    // the text-size ones, so the regexes differ deliberately rather than by
+    // accident - matching html\.icon-size-small here would find nothing and the
+    // assertion would pass vacuously.
+    const usesIconInner = /calc\(var\(--icon-inner\)/.test(cssNoComments);
+    const iconSmallBlk = (cssNoComments.match(/(?:^|[^-\w])\.icon-size-small\s*\{([\s\S]*?)\}/) || ["", ""])[1];
+    const iconLargeBlk = (cssNoComments.match(/(?:^|[^-\w])\.icon-size-large\s*\{([\s\S]*?)\}/) || ["", ""])[1];
+    const iconInnerScales =
+      /--icon-inner\s*:/.test(iconSmallBlk) && /--icon-inner\s*:/.test(iconLargeBlk);
+    check("sheet: --icon-inner, used for icon-glyph font-sizes, is redefined in BOTH icon-size tiers",
+      !usesIconInner || iconInnerScales,
+      usesIconInner ? ("small:" + (/--icon-inner\s*:/.test(iconSmallBlk) ? "yes" : "NO") +
+                       " large:" + (/--icon-inner\s*:/.test(iconLargeBlk) ? "yes" : "NO"))
+                    : "not used");
     check("sheet: the ramp is actually load-bearing (hundreds of declarations, not a token nobody uses)",
       decls.filter((v) => v.startsWith("var(--fs-")).length >= 250,
       String(decls.filter((v) => v.startsWith("var(--fs-")).length));
