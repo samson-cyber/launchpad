@@ -1379,26 +1379,6 @@ I18n.register("en", {
     "message": "Good evening",
     "description": "Greeting on the optional clock line, from 18:00. Rendered with t()."
   },
-  "settings_accent": {
-    "message": "Accent",
-    "description": "Appearance settings label for the accent colour segmented control. Rendered by the data-i18n pass."
-  },
-  "settings_accent_blue": {
-    "message": "Blue",
-    "description": "Accent option: today's shipped #1a73e8. The DEFAULT and the unclassed base - a user who never opens Settings gets exactly this. Rendered by the data-i18n pass."
-  },
-  "settings_accent_green": {
-    "message": "Green",
-    "description": "Accent option. Chosen dark enough that white ink on an accent fill still clears 4.5:1, which the lettered shortcut tile requires. Rendered by the data-i18n pass."
-  },
-  "settings_accent_purple": {
-    "message": "Purple",
-    "description": "Accent option. Same contrast constraint as green. Rendered by the data-i18n pass."
-  },
-  "settings_accent_amber": {
-    "message": "Amber",
-    "description": "Accent option. A warm accent held deliberately dark - a lighter amber would fail white ink on the lettered tile. Rendered by the data-i18n pass."
-  },
   "settings_layout": {
     "message": "Layout",
     "description": "Appearance settings label for the grid / compact / list segmented control. Rendered by the data-i18n pass."

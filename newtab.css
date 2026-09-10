@@ -10,30 +10,21 @@ html.bg-light {
   --pro-frost-floater-bg: rgba(255, 255, 255, 0.92);
 }
 
-/* ===== [1.10.4] ACCENTS =====
- *
- * ONE TOKEN, REDEFINED. --accent has 50 consumers in this sheet and
- * --accent-text has 10; both are read through var(), so redefining the pair on
- * a root class reaches every one of them with no other edit. --sat-accent
- * already derives from --accent and follows automatically. BLUE IS THE
- * UNCLASSED BASE - it is today's #1a73e8, so a profile that never opens
- * Settings resolves the identical value (decision 2).
- *
- * WHY THESE FOUR AND NOT A WIDER PALETTE. The binding constraint is the
- * LETTERED TILE (.shortcut-custom-letter), which fills with --accent and inks
- * with --accent-text. White on the shipped blue is 4.51:1 - it clears AA by
- * six thousandths, so it is the first surface any lighter accent breaks. Every
- * accent below is therefore at or below the blue's relative luminance
- * (0.183), keeping white ink valid and letting --accent-text stay #fff for all
- * four. The measured table is in the round's report. A lighter accent - a pink
- * or a yellow - is not simply unavailable: it would need the outline-not-fill
- * treatment on the lettered tile first, which is a separate change.
- *
- * ACCENT IS NOT A THEME. It does not touch the frost tiers, the wallpaper
- * luminance classes, or any ink role that is not already accent-coloured. */
-html.accent-green  { --accent: #188038; }
-html.accent-purple { --accent: #7b1fa2; }
-html.accent-amber  { --accent: #b45309; }
+/* [1.10.8] THE ACCENT PICKER WAS REMOVED, AND --accent DELIBERATELY STAYS.
+   [1.10.4] added html.accent-green / -purple / -amber here, each redefining
+   --accent, with blue as the unclassed base. On a real profile the setting
+   changed almost nothing a user could see: the token's ~50 consumers are
+   nearly all on Pro surfaces, while the things that LOOK accent-coloured on
+   Home - the Pro chip, the sidebar avatar, the active tab - are hard-coded
+   blue LITERALS the token never reached. A control that visibly does almost
+   nothing reads as broken rather than absent, so it was cut rather than
+   finished; finishing it means classifying ~54 literals into genuine accent,
+   Pro identity and Google brand blue, which is filed as its own task.
+   WHAT REMAINS IS ONE TOKEN AT ONE VALUE. --accent and --accent-text keep
+   their shipped values in tokens.css and every consumer is untouched - the
+   lettered tile, the focus ring, the progress fills, the selected states. This
+   round removed a CHOICE, not a colour. Do not re-add the classes without the
+   literals work; without it they produce the same near-invisible setting. */
 
 /* ===== [2.0] Text size (Settings > Appearance) =====
  *

@@ -420,31 +420,24 @@ var Storage = (function () {
   // grid-template-columns back OUT of the computed style. So this round builds
   // on iconSize and textSize, which are live, and leaves the dead field alone
   // rather than reviving a setting nobody asked for.
-  // [1.10.4] ACCENTS. Same shape as LAYOUTS and the two size ramps: a closed
-  // list, a DEFAULT that is the unclassed base, and an unrecognised value is
-  // never written. "blue" is today's shipped #1a73e8 and stays the default, so
-  // a fresh profile is pixel-identical (decision 2).
+  // [1.10.8] THE ACCENT SETTING WAS REMOVED, and this is the sweep that keeps a
+  // profile which already chose one from carrying a dangling preference.
   //
-  // THE PALETTE IS CONSTRAINED BY THE LETTERED TILE, not by taste. That tile is
-  // `background: var(--accent); color: var(--accent-text)` and white on the
-  // shipped blue measures 4.51:1 - it clears AA by six thousandths. So every
-  // accent here has to be at least as dark as the blue, or white ink on it
-  // fails and the tile is the first surface to break. Each one is measured
-  // rather than eyeballed; the round reports the table.
-  var ACCENTS = ["blue", "green", "purple", "amber"];
-  var DEFAULT_ACCENT = "blue";
-
-  function getAccent(data) {
-    var v = data && data.settings && data.settings.accent;
-    return ACCENTS.indexOf(v) === -1 ? DEFAULT_ACCENT : v;
-  }
-
-  async function setAccent(data, val) {
-    if (!data || !data.settings) return false;
-    if (ACCENTS.indexOf(val) === -1) return false;
-    if (getAccent(data) === val && data.settings.accent === val) return false;
-    data.settings.accent = val;
-    await saveAll(data);
+  // WHY A SWEEP RATHER THAN LEAVING IT: settings.accent would otherwise sit in
+  // the blob forever and ride inside every backup envelope, where a later
+  // reader would find a key naming a feature that no longer exists. The class
+  // it drove is gone, so the profile already RENDERS correctly - blue, the
+  // unclassed base - and this is about the stored shape, not the pixels.
+  //
+  // IDEMPOTENT BY CONSTRUCTION, which the backfill caller requires: it reports
+  // changed only when the key is actually present, so the write happens once
+  // and the next load finds nothing to do. That is the same contract
+  // ensureTrackingState and ensureFocusBlockingState hold, and the reason the
+  // BG QUEUE gate's warm-fixture assertion does not see a blob writing forever.
+  function dropAccentSetting(data) {
+    if (!data || !data.settings || typeof data.settings !== "object") return false;
+    if (!Object.prototype.hasOwnProperty.call(data.settings, "accent")) return false;
+    delete data.settings.accent;
     return true;
   }
 
@@ -1905,6 +1898,7 @@ var Storage = (function () {
         var focusSeeded = ensureFocusBlockingState(existing);
         var notesSeeded = ensureNotesArrays(existing);
         var sessionsSeeded = ensureNamedSessionsArrays(existing);
+        var accentDropped = dropAccentSetting(existing);
         // [1.4.7] Runs at most once per profile. The write is needed only on the
         // run that actually sweeps - the one that finds the marker absent and
         // has to persist it. Testing the marker AFTER the call would be true on
@@ -1913,7 +1907,7 @@ var Storage = (function () {
         var strandedUnswept = existing[STRANDED_SWEEP_MARKER] !== true;
         var strandedReleased = sweepStrandedTasks(existing);
         if (patched || trackingSeeded || focusSeeded || notesSeeded || sessionsSeeded ||
-            strandedUnswept) {
+            accentDropped || strandedUnswept) {
           // [1.10.3] THE BACKFILL WRITE GETS ITS OWN try/catch, AND THIS IS A
           // CORRECTNESS FIX RATHER THAN TIDYING. It used to sit inside this
           // function's single try, so an over-quota backfill fell through to the
@@ -7528,9 +7522,6 @@ var Storage = (function () {
     POMODORO_PHASE_LABELS: POMODORO_PHASE_LABELS,
     fmtDuration: fmtDuration,
     activeElapsedMs: activeElapsedMs,
-    ACCENTS: ACCENTS,
-    getAccent: getAccent,
-    setAccent: setAccent,
     LAYOUTS: LAYOUTS,
     getLayout: getLayout,
     setLayout: setLayout,
