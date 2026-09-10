@@ -580,10 +580,29 @@ body {
   margin-bottom: var(--space-5);
 }
 
+/* [1.11.1b] FINDING 3. `justify-content: space-between` pinned the actions to
+   the far right of the HEADER, and the header spans the whole grid column -
+   #shortcut-grid-area is max-width 1100px - while a group's tiles occupy only
+   the columns they need. So a three-tile group whose tiles ended near x=700 put
+   its Open All at x=1277, floating in the wallpaper 500px from anything it
+   belongs to.
+   That was survivable while the control was hover-revealed, because it only
+   appeared when the pointer was already on the header and the header was the
+   thing being pointed at. [1.10.10] made it permanent, and a permanent control
+   has to sit where it reads as owned.
+   ALIGNED TO THE GROUP NAME, not to the last tile and not to a fixed inset from
+   the grid's right edge. The last tile is the tempting one and it is the worst:
+   the tile count changes with the window, the layout and the icon size, so the
+   control would move whenever any of those did, and it needs measurement in JS
+   that CSS cannot express. A fixed right inset keeps the bug for any group
+   narrower than the grid, which is most of them. Immediately after the name is
+   the only anchor that is identical at one tile and at a full row, in all three
+   layouts, and it needs no measurement at all. */
 .group-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: var(--space-2);
   padding: var(--space-1) 0;
   margin-bottom: var(--space-1);
 }
@@ -14191,6 +14210,26 @@ html.bg-light .demo-tile-body { color: #3c4043; }
   backdrop-filter: var(--pro-frost-floater-blur, blur(14px));
   border-right: 1px solid var(--surface-fill);
   color: #fff;
+  /* [1.11.1b] FINDING 2. These panels OVERLAY the grid, and a tile sliced in
+     half at the panel's edge reads as a rendering fault rather than as
+     layering. The oldest panel in the chain has always answered that with an
+     elevation cue - #settings-panel carries `box-shadow: 4px 0 24px
+     var(--shadow-color)` - and this newer family simply never got one.
+
+     THE SHADOW ALONE IS HALF A FIX, AND THE MEASUREMENT SAYS SO. --shadow-color
+     is rgba(32,33,36,0.28), which is near-black. Sampling the painted luminance
+     of the 8px immediately right of the panel edge, against the far field, with
+     the shadow on and off: on a PALE wallpaper it contributes 28.9 luminance
+     levels - plainly visible. On a DARK wallpaper it contributes 1.77 - a black
+     shadow on a black ground, present in the computed style and invisible to a
+     person. Samson runs a dark wallpaper, so shipping only this would have been
+     a fix that measured true and changed nothing he can see.
+     So the edge carries BOTH cues and lets the ground pick: the dark shadow,
+     which reads on light grounds, and a 1px light hairline offset just outside
+     the panel, which reads on dark ones. Each is invisible where the other
+     works, which is why both are unconditional rather than split across a
+     bg-light rule. */
+  box-shadow: 4px 0 24px var(--shadow-color), 1px 0 0 rgba(255, 255, 255, 0.14);
 }
 
 /* ===== [1.11.1 B9] Live Chrome bookmarks panel ===========================
@@ -14233,7 +14272,25 @@ html.bg-light .demo-tile-body { color: #3c4043; }
   -webkit-backdrop-filter: var(--pro-frost-floater-blur, blur(14px));
   border-right: 1px solid var(--surface-fill);
   color: var(--ink-primary);
+  box-shadow: 4px 0 24px var(--shadow-color), 1px 0 0 rgba(255, 255, 255, 0.14);
 }
+
+/* [1.11.1b] FINDING 2, THE RULING: THE OVERLAY STAYS, AND IT IS NOT A [1.11.1]
+   REGRESSION. All seven sidebar surfaces are `position: fixed`; not one of them
+   has ever pushed #content aside, so a sliced grid is what Settings, Tips,
+   Import, Restore Session and Sessions have all done since they shipped.
+   PUSHING CONTENT ASIDE FOR ALL SEVEN WAS CONSIDERED AND REJECTED. It is not
+   the one-rule change it looks like: the seven live under FIVE separate
+   positioning rules - #settings-panel at left:260px, #pro-settings-panel,
+   #import-panel/#tips-panel/#bookmarks-panel at left:var(--sidebar-w), plus
+   #restore-dropdown and #sessions-dropdown, which are not full-height panels at
+   all. And it would land a second content-shifting mechanism on top of
+   [1.10.11]'s docked-card reserve, which also moves #content; the two firing
+   together is a combination nothing has ever exercised, and [1.10.12] is a
+   recent reminder of what an unexamined interaction between two movements
+   costs.
+   So the problem to solve was not the overlay but that it READ as broken, and
+   the cue for that already existed one panel over. */
 
 html.bg-light #bookmarks-panel {
   --ink-primary: rgba(0, 0, 0, 0.87);
@@ -14242,11 +14299,29 @@ html.bg-light #bookmarks-panel {
   --ink-chrome: rgba(0, 0, 0, 0.46);
 }
 
+/* [1.11.1b] FINDING 1. The intro ran wall to wall while the header above it was
+   inset, because .settings-body is `padding: var(--space-2) 0` - zero
+   horizontal by design - and the inset every sibling panel shows comes from
+   .settings-section, which each of them wraps its content in and [1.11.1] did
+   not. The markup now uses that wrapper, so this panel inherits the shared
+   inset instead of carrying a private copy of the number.
+   The TREE then pulls its own share back, because a 16px section inset plus
+   13px per depth level plus the row's own 8px would put a level-6 title 102px
+   into a 320px panel. Rows bleed to the section's edges and pay for their
+   indentation out of that, so depth has somewhere to go. */
+.bm-section {
+  padding-bottom: var(--space-2);
+}
+
 .bm-intro {
   margin: 0 0 var(--space-3);
   font-size: var(--fs-12);
   line-height: 1.45;
   color: var(--ink-meta);
+}
+
+#bm-tree {
+  margin: 0 calc(-1 * var(--space-3));
 }
 
 #bm-tree {
