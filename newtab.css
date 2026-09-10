@@ -11174,14 +11174,41 @@ html.has-bg.bg-light .pro-celebrate-btn:not(.is-primary):hover { background: rgb
    what the minimize chevron is for. Released in the ≤720px stacked layout for the
    same reason the header rule released it there: a right gutter on a full-width
    stacked column is dead space. The transition keeps it a slide, not a jump,
-   matching the card's own minimize feel. */
-body.sat-card-open .tab-panel {
+   matching the card's own minimize feel.
+
+   [1.10.11] THE RESERVE MOVED UP ONE LEVEL, FROM .tab-panel TO #content, AND
+   THAT IS THIS RULE'S OWN ARGUMENT APPLIED ONE STEP FURTHER.
+   The note above is right that the reserve belongs on a shared root rather than
+   being solved per surface. It stopped one element too low. .tab-panel is the
+   shared root of the four PANELS, but it is not the shared root of the page:
+   #content-header is its SIBLING, as the comment at the top of this file says
+   in as many words. So the reserve narrowed the box that centres the clock, the
+   search bar and the grid, and did not narrow the box that centres the logo and
+   the tab bar.
+   THE ARITHMETIC, measured at Samson's 1659px viewport: #content-header is
+   1547px wide and centred; .tab-panel's content box is 1547 - 300 = 1247px and
+   centred inside the same 1547px. Two boxes sharing a left edge and differing
+   by 300px in width have centres 150px apart. His profile reported the logo at
+   -0.01 and the search bar at -150.00, and the 150 is exactly half this 300.
+   It is not the sidebar (48), not the content gutter (56), and not their sum.
+   This is the defect three rounds failed to find, and it hid for a specific
+   reason worth recording: the rule is keyed on `body.sat-card-open`, which is
+   only set for a PRO user who has an ACTIVE TASK selected. Every fixture used
+   to chase this read "No active task", so every measurement was taken on a page
+   where the rule could not apply. [1.10.4] and [1.10.9] both measured a
+   correctly centred page and concluded the report was mistaken.
+   #content is the real shared root - it contains the header AND all four
+   panels, and nothing else. The card itself is a sibling of #content, so
+   padding here cannot push the card it is making room for. Both boxes now
+   narrow together, so the whole column re-centres in the space left over, which
+   is what a docked right-hand panel is supposed to do. */
+body.sat-card-open #content {
   padding-right: 300px;
   transition: padding-right 200ms ease;
 }
 
 @media (max-width: 720px) {
-  body.sat-card-open .tab-panel { padding-right: 0; }
+  body.sat-card-open #content { padding-right: 0; }
 }
 
 .tasks-action {

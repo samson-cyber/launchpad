@@ -998,8 +998,18 @@ await (async () => {
   }
 
   // ================= 3. OVERLAP: the reserve ================================
-  check("overlap: the reserve is on the SHARED panel root (R1), gated on the card being open",
-    /body\.sat-card-open \.tab-panel \{[^}]*padding-right: 300px;/.test(SRC.css));
+  check("overlap: the reserve is on the SHARED root (R1), gated on the card being open",
+    /body\.sat-card-open #content \{[^}]*padding-right: 300px;/.test(SRC.css));
+  // [1.10.11] AND IT IS ON #content, NOT .tab-panel. This is not a cosmetic
+  // move. #content-header is a SIBLING of .tab-panel, so a reserve on the panel
+  // narrows the box that centres the clock, the search bar and the grid while
+  // leaving the box that centres the logo and the tab bar at full width - and
+  // two boxes sharing a left edge and differing by 300px have centres 150px
+  // apart. That was a visible 150px disagreement on every Pro profile with an
+  // active task, and it survived three rounds of measurement because every
+  // fixture had no active task and so never set the class.
+  check("overlap: the reserve is NOT back on .tab-panel, which would decentre the panel against the header",
+    !/body\.sat-card-open \.tab-panel \{/.test(SRC.css.replace(/\/\*[\s\S]*?\*\//g, "")));
   // The compounding trap: two reserves inside one another would throw the header
   // cluster into the middle of the page.
   {
@@ -1012,9 +1022,14 @@ await (async () => {
       !/\.tasks-header-right \{[^}]*margin-right: 300px/.test(cssCode));
   }
   check("overlap: released in the stacked layout, where a right gutter is dead space",
-    /@media \(max-width: 720px\) \{\s*body\.sat-card-open \.tab-panel \{ padding-right: 0; \}/.test(SRC.css));
+    /@media \(max-width: 720px\) \{\s*body\.sat-card-open #content \{ padding-right: 0; \}/.test(SRC.css));
   check("overlap: it slides rather than jumping, matching the card's minimize feel",
-    /body\.sat-card-open \.tab-panel \{[^}]*transition: padding-right/.test(SRC.css));
+    /body\.sat-card-open #content \{[^}]*transition: padding-right/.test(SRC.css));
+  // The reserve's whole point is clearance, so assert the number as well as the
+  // placement: 300 is the 280px card at right:14 plus breathing room, and a
+  // reserve narrower than the card would put content back under it.
+  check("overlap: the reserve still clears the 280px card docked at right: 14",
+    /body\.sat-card-open #content \{[^}]*padding-right: 300px;/.test(SRC.css));
   check("overlap: the class it keys on is really toggled by the widget",
     /classList\.toggle\("sat-card-open", showCard\)/.test(SRC.nt));
 
@@ -1920,9 +1935,13 @@ const SEEDS = [
     to: "    if (false) return;\n    var ms = 0;" },
   // OVERLAP
   { name: "OVERLAP: the reserve moves off the shared root back onto one surface",
-    file: "css", from: "body.sat-card-open .tab-panel {\n  padding-right: 300px;", to: "body.sat-card-open .tasks-body {\n  padding-right: 300px;" },
+    file: "css", from: "body.sat-card-open #content {\n  padding-right: 300px;", to: "body.sat-card-open .tasks-body {\n  padding-right: 300px;" },
+  // [1.10.11] The regression this round fixed, seeded exactly: put the reserve
+  // back on .tab-panel and the panel decentres 150px against its own header.
+  { name: "OVERLAP: the reserve slides back down to .tab-panel and decentres the panel against the header",
+    file: "css", from: "body.sat-card-open #content {\n  padding-right: 300px;", to: "body.sat-card-open .tab-panel {\n  padding-right: 300px;" },
   { name: "OVERLAP: the old header reserve comes back and compounds to 600px",
-    file: "css", from: "body.sat-card-open .tab-panel {\n  padding-right: 300px;", to: "body.sat-card-open .tasks-header-right {\n  margin-right: 300px;\n}\nbody.sat-card-open .tab-panel {\n  padding-right: 300px;" },
+    file: "css", from: "body.sat-card-open #content {\n  padding-right: 300px;", to: "body.sat-card-open .tasks-header-right {\n  margin-right: 300px;\n}\nbody.sat-card-open #content {\n  padding-right: 300px;" },
   // INK
   { name: "INK: the windowed line loses its light-wallpaper override",
     file: "css", from: "html.bg-light .sat-live,\nhtml.bg-light .sat-window { color: var(--text-secondary); text-shadow: none; }",

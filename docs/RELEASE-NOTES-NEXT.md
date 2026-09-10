@@ -83,6 +83,26 @@ Two things worth knowing if this comes up:
   while they only appeared under the pointer; it is not survivable for a control
   that is always on screen, so both now rest at 4.8:1 and 3.4:1.
 
+### The alignment bug was real, and it only ever affected Pro users with an active task
+
+`[1.10.11]` found it after three rounds of measuring the wrong page. The docked
+active-task card reserves a 300px lane so content does not slide under it, and
+that reserve sat on `.tab-panel` - which centres the clock, the search bar and
+the grid, but **not** the logo and tab bar, because the header is a sibling of
+the panel rather than a child. The result was Home's header sitting **150px** to
+the right of Home's content, on any Pro profile with an active task selected,
+whenever the card was expanded.
+
+The reserve now sits on `#content`, which contains the header *and* all four
+panels, so the whole column re-centres together in the space the card leaves.
+Clearance from the card is unchanged at 62px, measured at 1280, 1659 and 1920.
+
+If a user asks why this was never noticed: every test fixture read "No active
+task", so the class that applies the reserve was never set. It is worth a line
+in the notes only if the release is thin - the users who saw it are Pro users who
+keep an active task running, and to them it will read as the page finally
+lining up.
+
 ### Not in the notes, deliberately
 
 - **The accent picker.** `[1.10.4]` added a Settings > Appearance > Accent row
