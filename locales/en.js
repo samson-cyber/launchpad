@@ -154,6 +154,47 @@ I18n.register("en", {
     "description": "Names the \"History\" feature wherever it appears. Shared by 3 sinks: newtab.html:20 text, newtab.html:172 text, newtab.html:16 attr:title.",
     "sense": "feature.name"
   },
+  "feature_bookmarks_name": {
+    "message": "Bookmarks",
+    "description": "Names the Bookmarks feature wherever it appears: the sidebar entry, its title attribute and the tree aria-label.",
+    "sense": "feature.name"
+  },
+  "bookmarks_panel_heading": {
+    "message": "Bookmarks",
+    "description": "Heading of the bookmarks panel."
+  },
+  "bookmarks_panel_intro": {
+    "message": "Your Chrome bookmarks, live. Click to open, or add one to LaunchPad.",
+    "description": "One-line explanation at the top of the bookmarks panel."
+  },
+  "bookmarks_empty": {
+    "message": "No bookmarks yet",
+    "description": "Shown in the bookmarks panel when the browser has no bookmarks at all."
+  },
+  "bookmarks_empty_hint": {
+    "message": "Bookmarks you save in Chrome show up here.",
+    "description": "Second line of the bookmarks panel empty state."
+  },
+  "bookmarks_untitled": {
+    "message": "Untitled",
+    "description": "Fallback label for a bookmark or folder saved with no title."
+  },
+  "bookmarks_add_to_launchpad": {
+    "message": "Add to LaunchPad",
+    "description": "Tooltip on the per-row button that copies a bookmark into the current workspace."
+  },
+  "bookmarks_added_toast": {
+    "message": "Added \"{title}\" to LaunchPad",
+    "description": "Toast confirming a bookmark was copied into the current workspace from the bookmarks panel. {title} is the bookmark's own title."
+  },
+  "bookmarks_add_needs_group": {
+    "message": "Add a group first, then add bookmarks to it",
+    "description": "Toast shown when there is no group to add a bookmark into."
+  },
+  "bookmarks_folder_count": {
+    "plural": {"=0": "Empty", "one": "1 item", "other": "{count} items"},
+    "description": "Count of direct children on a bookmarks folder row. The =0 form reads Empty rather than 0 items, because an empty folder is a state rather than a quantity."
+  },
   "feature_import_name": {
     "message": "Import",
     "description": "The NAME of the Import feature, on the sidebar and its panel header. Shared by 3 sinks: newtab.html:56 text, newtab.html:244 text, newtab.html:52 attr:title.",

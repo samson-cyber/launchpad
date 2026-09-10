@@ -11335,6 +11335,11 @@
     // [1.0.19 D5/D6] Both new panels join the chain so they are mutually
     // exclusive with Settings/Pro Settings/Restore exactly like every other
     // sidebar-locking surface.
+    // [1.11.1 B9] The bookmarks panel joins the chain rather than inventing a
+    // third idiom. It is NOT modelled on #history-overlay: that is a fullscreen
+    // modal with its own backdrop, deliberately outside this chain, and copying
+    // it would have been the third pattern this file warns against above.
+    { name: "bookmarks",        selector: "#bookmarks-panel",    open: function () { openBookmarksPanel(); },   close: function (opts) { closeBookmarksPanel(opts); } },
     { name: "import",           selector: "#import-panel",       open: function () { openImportPanel(); },      close: function (opts) { closeImportPanel(opts); } },
     { name: "tips",             selector: "#tips-panel",         open: function () { openTipsPanel(); },        close: function (opts) { closeTipsPanel(opts); } }
   ];
@@ -11509,6 +11514,180 @@
     }
   }
   function closeImportPanel(opts) { closeSimplePanel("#import-panel", opts); }
+
+  // ===== [1.11.1 B9] Live Chrome bookmarks panel ==========================
+  //
+  // THE READ IS ONE-WAY, AND THAT IS A RULE RATHER THAN AN OVERSIGHT. This
+  // module calls chrome.bookmarks.getTree and the four change EVENTS. It never
+  // calls create, remove, removeTree, move or update. A user's bookmark tree
+  // belongs to the browser and to them; holding the permission so we can READ
+  // it for the importer does not license writing to it, and a launcher that
+  // silently reorganised someone's bookmarks would be a much worse bug than any
+  // it could fix. tools/check-bookmarks-readonly.mjs asserts this at build time
+  // against the whole extension, not just this file.
+  //
+  // WHY THE EXISTING IMPORTER IS NOT REUSED. bookmarks.js walks the tree and
+  // FLATTENS it: one LaunchPad group per folder, direct children only, nesting
+  // discarded. That is right for a one-shot import and useless for browsing,
+  // which is the whole point of this panel - so this renders the real hierarchy
+  // and leaves the importer alone.
+  var bmExpanded = null;        // folder id -> true, for folders the user opened
+  var bmListenersBound = false;
+  var bmRefreshTimer = null;
+  var bmSeededDefault = false;
+
+  function bmLabel(node) {
+    var title = (node.title || "").trim();
+    return title || (node.url ? getDomain(node.url).replace(/^www\./, "") : t("bookmarks_untitled"));
+  }
+
+  // Only EXPANDED folders render their children. This is what keeps the panel
+  // O(visible rows) instead of O(tree): a collapsed folder costs one row no
+  // matter how many thousands of bookmarks hang off it.
+  function bmNodeHtml(node, depth) {
+    var isFolder = !node.url;
+    var label = esc(bmLabel(node));
+    if (!isFolder) {
+      return '<div class="bm-row bm-bookmark" role="treeitem" style="--bm-depth:' + depth + '">' +
+        '<a class="bm-open" href="' + esc(node.url) + '" title="' + esc(node.url) + '">' +
+          '<img class="bm-favicon" src="' + esc(getFaviconUrl(node.url)) + '" alt="" loading="lazy" data-url="' + esc(node.url) + '">' +
+          '<span class="bm-title">' + label + '</span>' +
+        '</a>' +
+        '<button class="bm-add" type="button" data-bm-url="' + esc(node.url) + '" data-bm-title="' + label +
+          '" title="' + esc(t("bookmarks_add_to_launchpad")) + '" aria-label="' + esc(t("bookmarks_add_to_launchpad")) + '">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>' +
+        '</button>' +
+      '</div>';
+    }
+    var kids = node.children || [];
+    var open = !!(bmExpanded && bmExpanded[node.id]);
+    var html = '<div class="bm-row bm-folder' + (open ? " is-open" : "") + '" role="treeitem" aria-expanded="' + (open ? "true" : "false") + '" style="--bm-depth:' + depth + '">' +
+      '<button class="bm-folder-toggle" type="button" data-bm-folder="' + esc(node.id) + '">' +
+        '<svg class="bm-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>' +
+        '<span class="bm-title">' + label + '</span>' +
+        '<span class="bm-count">' + esc(t("bookmarks_folder_count", { count: kids.length })) + '</span>' +
+      '</button>' +
+    '</div>';
+    if (open) {
+      for (var i = 0; i < kids.length; i++) html += bmNodeHtml(kids[i], depth + 1);
+    }
+    return html;
+  }
+
+  async function renderBookmarksTree() {
+    var host = $("#bm-tree");
+    if (!host) return;
+    var roots = [];
+    try {
+      var tree = await chrome.bookmarks.getTree();
+      roots = (tree && tree[0] && tree[0].children) || [];
+    } catch (err) {
+      console.error("[LaunchPad] Failed to read bookmarks:", err);
+    }
+    if (!bmExpanded) bmExpanded = Object.create(null);
+    // First open only: show the first root that actually has something in it,
+    // so the panel does not greet a new user with two closed folders. Every
+    // later render honours whatever the user has opened since.
+    if (!bmSeededDefault) {
+      bmSeededDefault = true;
+      for (var r = 0; r < roots.length; r++) {
+        if ((roots[r].children || []).length) { bmExpanded[roots[r].id] = true; break; }
+      }
+    }
+    var total = 0;
+    (function count(nodes) {
+      for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i].url) total++;
+        else count(nodes[i].children || []);
+      }
+    })(roots);
+    if (!total) {
+      host.innerHTML = '<div class="bm-empty">' +
+        '<p class="bm-empty-title">' + esc(t("bookmarks_empty")) + '</p>' +
+        '<p class="bm-empty-hint">' + esc(t("bookmarks_empty_hint")) + '</p>' +
+      '</div>';
+      return;
+    }
+    var html = "";
+    for (var k = 0; k < roots.length; k++) html += bmNodeHtml(roots[k], 0);
+    host.innerHTML = html;
+  }
+
+  function bmIsOpen() {
+    var p = $("#bookmarks-panel");
+    return !!(p && !p.classList.contains("hidden"));
+  }
+
+  // DEBOUNCED, and only while the panel is open. A Chrome sync landing can fire
+  // hundreds of these in a burst; coalescing them into one re-read is the
+  // difference between a panel that stays true and one that thrashes. With the
+  // panel CLOSED there is no listener at all, so a user with 3,000 bookmarks
+  // editing one pays nothing.
+  function bmScheduleRefresh() {
+    if (bmRefreshTimer) clearTimeout(bmRefreshTimer);
+    bmRefreshTimer = setTimeout(function () {
+      bmRefreshTimer = null;
+      if (bmIsOpen()) renderBookmarksTree();
+    }, 150);
+  }
+
+  var BM_EVENTS = ["onCreated", "onRemoved", "onChanged", "onMoved"];
+
+  function bmBindListeners() {
+    if (bmListenersBound) return;
+    for (var i = 0; i < BM_EVENTS.length; i++) {
+      try { chrome.bookmarks[BM_EVENTS[i]].addListener(bmScheduleRefresh); } catch (e) {}
+    }
+    bmListenersBound = true;
+  }
+
+  function bmUnbindListeners() {
+    if (!bmListenersBound) return;
+    for (var i = 0; i < BM_EVENTS.length; i++) {
+      try { chrome.bookmarks[BM_EVENTS[i]].removeListener(bmScheduleRefresh); } catch (e) {}
+    }
+    bmListenersBound = false;
+    if (bmRefreshTimer) { clearTimeout(bmRefreshTimer); bmRefreshTimer = null; }
+  }
+
+  // The add affordance goes through Storage.addShortcut - the same writer the
+  // add-shortcut modal uses - rather than pushing onto ws.groups here. One
+  // writer means tag inheritance, id assignment and addedAt all behave the same
+  // whichever surface the shortcut came from.
+  async function bmAddToLaunchPad(url, title) {
+    var ws = Storage.getActiveWorkspace(data);
+    var groups = (ws && ws.groups) || [];
+    var live = groups.filter(function (g) { return !g.deletedAt; });
+    var target = null;
+    for (var i = 0; i < live.length; i++) if (live[i].id === "ungrouped") { target = live[i]; break; }
+    if (!target) target = live[0] || null;
+    // No group to add into. Say so rather than creating one silently - group
+    // creation is the user's decision and there is a control for it.
+    if (!target) { showToast(t("bookmarks_add_needs_group")); return; }
+    await Storage.addShortcut(target.id, {
+      url: url,
+      title: title || getDomain(url).replace(/^www\./, ""),
+      favicon: getFaviconUrl(url)
+    });
+    data = await Storage.getAll();
+    render();
+    showToast(t("bookmarks_added_toast", { title: title || getDomain(url) }));
+  }
+
+  async function openBookmarksPanel() {
+    var panel = $("#bookmarks-panel");
+    if (panel && !panel.classList.contains("hidden")) { closeBookmarksPanel(); return; }
+    if (openSimplePanel("#bookmarks-panel")) {
+      await renderBookmarksTree();
+      bmBindListeners();
+      bindSimplePanelOutside("#bookmarks-panel", "#sb-bookmarks", function () { closeBookmarksPanel(); });
+    }
+  }
+
+  function closeBookmarksPanel(opts) {
+    bmUnbindListeners();
+    closeSimplePanel("#bookmarks-panel", opts);
+  }
 
   function openTipsPanel() {
     var panel = $("#tips-panel");
@@ -19068,6 +19247,30 @@
     // [1.0.19 D5/D6] Import + Tips sidebar entries and their panels.
     safeOn("#sb-import", "click", function (e) { e.stopPropagation(); openPanel("import"); });
     safeOn("#sb-tips", "click", function (e) { e.stopPropagation(); openPanel("tips"); });
+    safeOn("#sb-bookmarks", "click", function (e) { e.stopPropagation(); openPanel("bookmarks"); });
+    safeOn("#bookmarks-close", "click", function () { closeBookmarksPanel(); });
+    // Delegated once on the static host, so re-rendering the tree never leaves
+    // a stale handler behind.
+    safeOn("#bm-tree", "click", function (e) {
+      var toggle = e.target.closest(".bm-folder-toggle");
+      if (toggle) {
+        var id = toggle.dataset.bmFolder;
+        if (!bmExpanded) bmExpanded = Object.create(null);
+        if (bmExpanded[id]) delete bmExpanded[id]; else bmExpanded[id] = true;
+        renderBookmarksTree();
+        return;
+      }
+      var add = e.target.closest(".bm-add");
+      if (add) {
+        e.preventDefault();
+        e.stopPropagation();
+        bmAddToLaunchPad(add.dataset.bmUrl, add.dataset.bmTitle);
+        return;
+      }
+      // Anything else is the row's own <a>, which navigates on its own. Leaving
+      // it alone is what keeps middle-click and ctrl-click working.
+    });
+
     safeOn("#import-close", "click", function () { closeImportPanel(); });
     safeOn("#tips-close", "click", function () { closeTipsPanel(); });
     safeOn("#import-top-sites", "click", function () {

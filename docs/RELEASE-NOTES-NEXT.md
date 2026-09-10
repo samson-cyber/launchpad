@@ -15,6 +15,16 @@ build.**
 ## PASTE THIS - "What's new" (draft, grows until the release is cut)
 
 ```
+Browse your Chrome bookmarks without leaving the new tab.
+
+• A new Bookmarks entry in the sidebar opens your real bookmark
+  tree - folders expand, and clicking anything opens it.
+• It stays in step with Chrome: add or rename a bookmark and the
+  panel updates while it is open.
+• Hover any bookmark to add it straight into LaunchPad.
+• LaunchPad only ever READS your bookmarks. It never creates,
+  moves, renames or deletes anything in them.
+
 Shortcut icons are bigger and easier to see.
 
 • Every icon now fills much more of its circle, so logos read
@@ -110,6 +120,24 @@ task", so the class that applies the reserve was never set. It is worth a line
 in the notes only if the release is thin - the users who saw it are Pro users who
 keep an active task running, and to them it will read as the page finally
 lining up.
+
+### The bookmarks panel needs no new permission, and that was checked first
+
+`bookmarks` has been in the manifest since long before this, held so the
+one-shot importer could read the tree. The panel reads the same tree, so **the
+permission diff against the packaged `v2.1.0` build is empty** - no new install
+warning on anyone's update. That was verified as the first act of `[1.11.1]`,
+because if it had NOT been held the whole item needed re-deciding rather than
+quietly shipping a warning.
+
+Worth having ready if anyone asks: **the read is one-way and enforced.**
+`tools/check-bookmarks-readonly.mjs` fails the build if any shipped file calls
+`create`, `remove`, `removeTree`, `move` or `update` on `chrome.bookmarks`,
+including through dynamic member access.
+
+Performance, measured rather than hoped: opening the panel took 65ms at 100
+bookmarks, 82ms at 1,000 and 73ms at 3,000, because only expanded folders render
+their children. Expanding one folder holding all 3,000 took 236ms.
 
 ### Not in the notes, deliberately
 

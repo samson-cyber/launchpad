@@ -24,6 +24,12 @@
         </svg>
         <span data-i18n="feature_history_name" class="sb-label">History</span>
       </button>
+      <button data-i18n-title="feature_bookmarks_name" id="sb-bookmarks" class="sb-item" type="button" title="Bookmarks">
+        <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span data-i18n="feature_bookmarks_name" class="sb-label">Bookmarks</span>
+      </button>
       <button data-i18n-title="feature_restore_session_name" id="sb-restore" class="sb-item" type="button" title="Restore Session">
         <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
@@ -268,6 +274,17 @@
   <!-- [1.0.19 D5] Import — the permanent home for both existing flows. Top
        Sites was wizard-only before this; removing the wizard would have
        deleted its only route. -->
+  <div id="bookmarks-panel" class="hidden">
+    <div class="settings-header">
+      <span data-i18n="bookmarks_panel_heading">Bookmarks</span>
+      <button data-i18n-title="common_close" id="bookmarks-close" type="button" title="Close">&times;</button>
+    </div>
+    <div class="settings-body">
+      <p data-i18n="bookmarks_panel_intro" class="bm-intro">Your Chrome bookmarks, live. Click to open, or add one to LaunchPad.</p>
+      <div id="bm-tree" role="tree" data-i18n-aria-label="feature_bookmarks_name" aria-label="Bookmarks"></div>
+    </div>
+  </div>
+
   <div id="import-panel" class="hidden">
     <div class="settings-header">
       <span data-i18n="import_panel_heading">Import</span>

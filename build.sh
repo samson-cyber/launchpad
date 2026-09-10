@@ -265,6 +265,16 @@ if ! node tools/check-storage-quota.mjs; then
   exit 1
 fi
 
+# [1.11.1 B9] The bookmark tree is READ-ONLY. The `bookmarks` permission is held
+# so the importer and the live panel can read it; that does not license writing,
+# and a launcher quietly reorganising someone's bookmarks would be a far worse
+# defect than any it could fix. Catches dynamic access too, because the panel
+# subscribes to change events through chrome.bookmarks[name].
+if ! node tools/check-bookmarks-readonly.mjs; then
+  echo 'ERROR: bookmarks read-only gate failed — the extension can write to the user'"'"'s bookmark tree.' >&2
+  exit 1
+fi
+
 # MUTATION BOOT CHECK (Asana 1218320168124333). Not a gate over the product -
 # a gate over the INSTRUMENTS. Every mutation runner materialises the subject to
 # a scratch tree and re-runs itself; each carried a hand-written list of files to

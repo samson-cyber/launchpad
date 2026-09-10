@@ -14193,6 +14193,191 @@ html.bg-light .demo-tile-body { color: #3c4043; }
   color: #fff;
 }
 
+/* ===== [1.11.1 B9] Live Chrome bookmarks panel ===========================
+   Same geometry and the same frosted surface as its two siblings above, so
+   the sidebar keeps one panel idiom rather than three.
+
+   THE INK IS DELIBERATELY NOT `color: #fff`, which is what those siblings do.
+   --pro-frost-floater-bg is rgba(30,30,30,0.92) by default and is redefined to
+   rgba(255,255,255,0.92) under html.bg-light, so a hard white ink on this
+   surface is white on a WHITE panel the moment a pale wallpaper is set - the
+   shape of the fault [1.10.9] found on the modal icon button and [1.10.10]
+   found on the group header controls.
+
+   AND THE OBVIOUS CONCLUSION FROM THAT WAS WRONG, so it is recorded rather than
+   repeated. This comment first claimed the defect was live on #import-panel and
+   #tips-panel today. It is NOT. Measured across all seven of the Import panel's
+   rendered text nodes on a pale wallpaper, the worst is 3.35:1 - the close
+   glyph, a control rather than body text, above the 3:1 a control needs - and
+   every other node clears 4.5:1, because each one declares its own colour and
+   nothing actually inherits that #fff. The hazard there is LATENT, not live:
+   the first descendant added without its own `color` inherits white onto a
+   possibly-white panel, and that is a trap for whoever edits those panels next
+   rather than a bug a user can see now.
+   This panel avoids the trap by construction instead of relying on every
+   descendant to remember: it paints through the --ink-* tokens and restates
+   their dark values on the light surface, which is the pattern
+   html.has-bg.bg-light .pp-insights-card already uses. Measured on four
+   grounds: titles 13.6 to 16.0:1, the intro line 4.9 to 6.8:1, the item count
+   3.5 to 5.1:1. */
+#bookmarks-panel {
+  position: fixed;
+  left: var(--sidebar-w, 220px);
+  top: 0;
+  bottom: 0;
+  width: 320px;
+  z-index: 1200;
+  overflow-y: auto;
+  background: var(--pro-frost-floater-bg, rgba(30, 30, 30, 0.92));
+  backdrop-filter: var(--pro-frost-floater-blur, blur(14px));
+  -webkit-backdrop-filter: var(--pro-frost-floater-blur, blur(14px));
+  border-right: 1px solid var(--surface-fill);
+  color: var(--ink-primary);
+}
+
+html.bg-light #bookmarks-panel {
+  --ink-primary: rgba(0, 0, 0, 0.87);
+  --ink-secondary: rgba(0, 0, 0, 0.66);
+  --ink-meta: rgba(0, 0, 0, 0.56);
+  --ink-chrome: rgba(0, 0, 0, 0.46);
+}
+
+.bm-intro {
+  margin: 0 0 var(--space-3);
+  font-size: var(--fs-12);
+  line-height: 1.45;
+  color: var(--ink-meta);
+}
+
+#bm-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* One row shape for folders and bookmarks alike. Depth is a custom property
+   rather than a nested DOM, so the tree stays a flat list and a deep folder
+   costs no extra containers. */
+.bm-row {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  border-radius: var(--radius-sm);
+  padding-left: calc(var(--bm-depth, 0) * 13px);
+}
+
+.bm-row:hover {
+  background: var(--surface-fill);
+}
+
+.bm-folder-toggle,
+.bm-open {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;            /* [1.10.9] the lever that lets the title ellipse */
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--fs-13);
+  padding: var(--space-1) var(--space-2);
+  color: var(--ink-primary);
+  text-decoration: none;
+  text-align: left;
+}
+
+.bm-chevron {
+  flex-shrink: 0;
+  color: var(--ink-chrome);
+  transition: transform 0.18s ease;
+}
+
+.bm-folder.is-open .bm-chevron {
+  transform: rotate(90deg);
+}
+
+.bm-favicon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  object-fit: contain;
+}
+
+.bm-title {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bm-count {
+  flex-shrink: 0;
+  font-size: var(--fs-12);
+  color: var(--ink-chrome);
+  white-space: nowrap;
+}
+
+/* THE ADD BUTTON IS A HOVER REVEAL, AND [1.10.10] IS WHY THAT IS ALLOWED HERE.
+   That round made the group header's Open All permanent because its reveal was
+   hiding DISCOVERY - a capability with no other route, on a row that repeats a
+   handful of times per screen. This is the other category the same rule names:
+   a bookmarks tree is a dense repeating list, hundreds of rows deep, and a
+   permanent + on every one of them is the wall that reveal exists to prevent.
+   The panel's own intro line carries the discovery instead, so the capability
+   is announced in prose and the control is revealed on approach.
+   :focus-within is not optional. [1.10.10] also found that an opacity-0 button
+   stays in the tab order, so a keyboard user lands on something invisible;
+   revealing on focus is what stops this being that same defect again. */
+.bm-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: var(--space-1);
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-circle);
+  cursor: pointer;
+  color: var(--ink-chrome);
+  opacity: 0;
+  transition: opacity 0.15s, background-color 0.15s, color 0.15s;
+}
+
+.bm-row:hover .bm-add,
+.bm-row:focus-within .bm-add {
+  opacity: 1;
+}
+
+.bm-add:hover {
+  background: var(--surface-fill);
+  color: var(--ink-primary);
+}
+
+.bm-empty {
+  padding: var(--space-5) var(--space-3);
+  text-align: center;
+}
+
+.bm-empty-title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--ink-primary);
+}
+
+.bm-empty-hint {
+  margin: 0;
+  font-size: var(--fs-12);
+  color: var(--ink-meta);
+}
+
 /* [1.0.19 D15] Close affordance for the two new panels.
 
    AUDIT: a single convention already exists across all four close controls
