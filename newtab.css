@@ -669,6 +669,27 @@ html.has-bg .group-name-input {
   transform: rotate(-90deg);
 }
 
+/* [1.10.10] OPEN ALL IS PERMANENT. It used to sit at opacity 0 and appear on
+   .group-header:hover.
+   The guide allows a hover reveal, and the [1.6.4] audit kept the ones it found
+   - but every reveal it kept was about DENSITY: the task row's options pill
+   hides because 36px rows repeat down a panel and a control on each one turns
+   the list into a wall. A group header is not that. There are a handful per
+   screen, separated by whole grids of tiles, and nothing about the row is
+   crowded. What was actually being hidden here is DISCOVERY: "open every
+   shortcut in this group in new tabs" is a capability no one guesses, its only
+   other route is a right-click menu that is equally unguessable, and Samson has
+   used this product daily for months without finding it. A reveal that hides a
+   capability rather than decluttering a list is the wrong side of that rule.
+   NOTE WHAT THIS DOES NOT COST. opacity is not a layout property, so the button
+   has occupied its space in the header all along - the header height, the gap
+   to the first tile row and the grid's vertical rhythm are byte-identical
+   before and after. The cost is ink, and it is paid at --ink-meta, the token
+   the guide names for a resting quiet control, promoting to --ink-primary on
+   hover exactly as before.
+   It also closes a real keyboard defect: an opacity-0 button is still in the
+   tab order, so a keyboard user has always been able to land on this control
+   while it was invisible. */
 .group-open-all-btn {
   border: none;
   background: transparent;
@@ -676,15 +697,10 @@ html.has-bg .group-name-input {
   font-size: var(--fs-12);
   font-family: inherit;
   color: rgba(0, 0, 0, 0.4);
-  opacity: 0;
-  transition: opacity 200ms, color 150ms;
+  transition: color 150ms, background-color 150ms;
   padding: 2px var(--space-2);
   border-radius:var(--radius-sm);
   white-space: nowrap;
-}
-
-.group-header:hover .group-open-all-btn {
-  opacity: 1;
 }
 
 .group-open-all-btn:hover {
@@ -692,6 +708,19 @@ html.has-bg .group-name-input {
   background: var(--bg-hover);
 }
 
+/* [1.10.10] AND THE THREE-DOT WITH IT, rather than leaving one of the two
+   behind.
+   The tempting split is to say Open All is a labelled verb that teaches a
+   capability by existing, while "..." is only a door and teaches nothing - so
+   promote the first and leave the second on hover. That reasoning fails on this
+   row for two reasons. This menu is the ONLY pointer-visible route to rename,
+   recolour and delete a group; the alternative is the same right-click nobody
+   finds, so it is the identical discovery problem one level up. And a row that
+   shows one control at rest while its neighbour materialises on hover reads as
+   the resting control being unfinished, which trades a discovery bug for a
+   jitter bug.
+   Same accounting as above: no layout moves, the ink is --ink-chrome at rest
+   under a wallpaper, and the invisible-but-tabbable defect is closed here too. */
 .group-more-btn {
   display: flex;
   align-items: center;
@@ -703,13 +732,8 @@ html.has-bg .group-name-input {
   border-radius:var(--radius-circle);
   cursor: pointer;
   color: var(--text-hint);
-  opacity: 0;
-  transition: background-color 0.15s, opacity 0.15s;
+  transition: background-color 0.15s, color 0.15s;
   flex-shrink: 0;
-}
-
-.group-header:hover .group-more-btn {
-  opacity: 1;
 }
 
 .group-more-btn:hover {
@@ -2732,6 +2756,49 @@ html.has-bg:not(.bg-light) .group-more-btn {
 html.has-bg:not(.bg-light) .group-more-btn:hover {
   background: rgba(255, 255, 255, 0.15);
   color: #fff;
+}
+
+/* [1.10.10] THE LIGHT-WALLPAPER HALF OF THE SAME PAIR, which never existed.
+   The rules above give both group-header controls their resting ink under a
+   DARK wallpaper. There was no matching rule for a light one, so on bg-light
+   they fell through to base colours meant for a light PAGE: rgba(0,0,0,0.4) for
+   Open All and --text-hint (#9aa0a6) for the three-dot. Measured on a pale
+   wallpaper that is 2.80:1 and 2.31:1 - under the 3:1 a control needs.
+   It is pre-existing, and while both were hover-only it was survivable: you
+   only saw them once you had already found them with the pointer. This round
+   makes them permanent, so their RESTING contrast is now the contrast a user
+   reads, and shipping a control that is always on screen and cannot be read
+   would fail the finding it was meant to fix.
+   Same shape as [1.10.9]'s white-on-white modal button, and the same lesson:
+   a `:not(.bg-light)` rule is only half a pair, and the other half falls
+   through to whatever the base rule happened to be for.
+   The ink tokens cannot do this on their own - --ink-meta and --ink-chrome are
+   white in tokens.css and are only flipped to their black values inside
+   specific card subtrees, not by html.bg-light - so the tokens are restated on
+   the header, which is the pattern html.has-bg.bg-light .pp-insights-card
+   already uses. */
+html.has-bg.bg-light .group-header {
+  --ink-primary: rgba(0, 0, 0, 0.87);
+  --ink-meta: rgba(0, 0, 0, 0.56);
+  --ink-chrome: rgba(0, 0, 0, 0.46);
+}
+
+html.has-bg.bg-light .group-open-all-btn {
+  color: var(--ink-meta);
+}
+
+html.has-bg.bg-light .group-open-all-btn:hover {
+  color: var(--ink-primary);
+  background: var(--surface-fill);
+}
+
+html.has-bg.bg-light .group-more-btn {
+  color: var(--ink-chrome);
+}
+
+html.has-bg.bg-light .group-more-btn:hover {
+  color: var(--ink-primary);
+  background: rgba(0, 0, 0, 0.06);
 }
 
 html.has-bg:not(.bg-light) .shortcut-name {

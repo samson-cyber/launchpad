@@ -24,6 +24,14 @@ Shortcut icons are bigger and easier to see.
 • Small, Medium and Large icon sizes all scale together, and
   emoji and lettered icons now grow with the setting like every
   other icon does.
+
+Group actions no longer hide until you hover.
+
+• "Open All" and the group menu are now always visible on every
+  group heading, so opening a whole group in tabs is something
+  you can find rather than something you have to discover.
+  Nothing moved to make room - those controls always occupied
+  that space, they were simply invisible.
 ```
 
 ---
@@ -56,6 +64,24 @@ Two known limits, both worth knowing before anyone answers a support mail:
 - **Requesting a larger favicon cannot create detail a site does not publish.**
   The Google S2 request went from `sz=128` to `sz=256` for HiDPI headroom, but a
   site that only ships a 16px or 32px icon returns a soft image at any size.
+
+### The group controls were already taking up their space
+
+`[1.10.10]` made `Open All` and the group `...` menu permanent. They had been at
+`opacity: 0`, revealed on `.group-header:hover` — and because `opacity` is not a
+layout property, **the header height, every first-tile position and the total
+grid height are byte-identical before and after**. There is no density cost to
+warn anyone about; the only change is ink.
+
+Two things worth knowing if this comes up:
+
+- It also closes a keyboard defect nobody reported. An `opacity: 0` button is
+  still in the tab order, so a keyboard user has always been able to land on
+  these controls while they were invisible.
+- The same round found that neither control had a light-wallpaper ink rule, so
+  on a pale wallpaper they rested at 2.80:1 and 2.31:1. That was survivable
+  while they only appeared under the pointer; it is not survivable for a control
+  that is always on screen, so both now rest at 4.8:1 and 3.4:1.
 
 ### Not in the notes, deliberately
 
