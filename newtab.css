@@ -10,6 +10,31 @@ html.bg-light {
   --pro-frost-floater-bg: rgba(255, 255, 255, 0.92);
 }
 
+/* ===== [1.10.4] ACCENTS =====
+ *
+ * ONE TOKEN, REDEFINED. --accent has 50 consumers in this sheet and
+ * --accent-text has 10; both are read through var(), so redefining the pair on
+ * a root class reaches every one of them with no other edit. --sat-accent
+ * already derives from --accent and follows automatically. BLUE IS THE
+ * UNCLASSED BASE - it is today's #1a73e8, so a profile that never opens
+ * Settings resolves the identical value (decision 2).
+ *
+ * WHY THESE FOUR AND NOT A WIDER PALETTE. The binding constraint is the
+ * LETTERED TILE (.shortcut-custom-letter), which fills with --accent and inks
+ * with --accent-text. White on the shipped blue is 4.51:1 - it clears AA by
+ * six thousandths, so it is the first surface any lighter accent breaks. Every
+ * accent below is therefore at or below the blue's relative luminance
+ * (0.183), keeping white ink valid and letting --accent-text stay #fff for all
+ * four. The measured table is in the round's report. A lighter accent - a pink
+ * or a yellow - is not simply unavailable: it would need the outline-not-fill
+ * treatment on the lettered tile first, which is a separate change.
+ *
+ * ACCENT IS NOT A THEME. It does not touch the frost tiers, the wallpaper
+ * luminance classes, or any ink role that is not already accent-coloured. */
+html.accent-green  { --accent: #188038; }
+html.accent-purple { --accent: #7b1fa2; }
+html.accent-amber  { --accent: #b45309; }
+
 /* ===== [2.0] Text size (Settings > Appearance) =====
  *
  * A FREE, never-gated accessibility setting, applied the way Icon Size is: a
@@ -289,6 +314,59 @@ body {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
 }
+
+/* ===== [1.10.4] ONE CENTRING REFERENCE FOR HOME'S HEADER AND ITS CONTENT =====
+ *
+ * THE MEASURED DEFECT, which is not the one that was reported. Every element -
+ * #brand-logo, #tab-bar, #clock-line, #search-bar, #shortcut-grid-area and
+ * .shortcuts-grid - already shares ONE reference: #content, whose 56px
+ * margin-left reserves the sidebar's rail. Measured spread between them is
+ * 0.01px at every viewport width, in Focus view, and with the sidebar expanded
+ * or locked. The "roughly 28px" that was observed is not header-vs-content at
+ * all: it is the whole centred column sitting 28px right of the WINDOW centre,
+ * which is exactly half of that 56px reservation and is intentional.
+ *
+ * THERE IS, HOWEVER, A REAL DIVERGENCE, and this rule is for it.
+ * #content-header is a SIBLING of .tab-panel, not a child. When .tab-panel
+ * gains a vertical scrollbar its content box narrows, so the elements INSIDE it
+ * (clock line, search bar, grid) shift left by scrollbarWidth/2 while the logo
+ * and tab bar - which are outside it - do not move at all. Measured: a 10px
+ * scrollbar puts the header 4.99px right of the search bar; a forced 15px one
+ * puts it 7.49px right. That is the reported symptom exactly, at a smaller
+ * magnitude, and it needs a short viewport (it appears below ~380px of height
+ * with the clock line on) rather than being always present.
+ *
+ * The mechanism was introduced by 12a7fb4 (2026-08-09), which gave .tab-panel
+ * overflow-y:auto so Insights could scroll. Before that the panel could never
+ * have a scrollbar and the two could never diverge - the header has been
+ * centred on #content since cf883c9 (2026-03-10) and the tab bar joined that
+ * same reference in dbb9941 (2026-04-25). Nothing here has ever been
+ * misaligned by design.
+ *
+ * THE REFERENCE CHOSEN IS THE CONTENT AREA (#content), because that is the one
+ * all six elements already share; this rule only stops the panel's children
+ * from drifting off it. The alternative - centring everything on the viewport -
+ * was measured and rejected: it moves all six elements 28px, including 48
+ * tiles, to correct a divergence that at normal viewports is 0.01px.
+ *
+ * SCOPED TO HOME, and that scoping is the point. .tab-panel is shared with
+ * Tasks / Dashboard / Insights, where the scrollbar is load-bearing - Insights
+ * was 1421px of content in a 676px panel. Home is the one tab with its own
+ * designed inner scroller (#shortcut-grid-area, which already hides its own
+ * scrollbar the same way), so on Home the panel scrolling at all is the
+ * pathological case, and suppressing its bar costs nothing. The panel still
+ * scrolls by wheel and keyboard.
+ *
+ * REJECTED: `scrollbar-gutter: stable both-edges` on .tab-panel. It aligns the
+ * two correctly, but it reserves the gutter permanently, which narrows the grid
+ * at every width and CHANGES TODAY'S DEFAULT - measured at 1100px the grid
+ * drops from 9 columns to 8, and at 760px from 6 to 5. Decision 2 says a fresh
+ * profile is pixel-identical to today, so that disqualifies it. */
+#tab-home {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+#tab-home::-webkit-scrollbar { width: 0; height: 0; }
 
 /* Same thin/rounded/transparent-track treatment as .tasks-body — this scrollbar
    sits over the wallpaper too, so it takes the light thumb and the same

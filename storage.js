@@ -420,6 +420,34 @@ var Storage = (function () {
   // grid-template-columns back OUT of the computed style. So this round builds
   // on iconSize and textSize, which are live, and leaves the dead field alone
   // rather than reviving a setting nobody asked for.
+  // [1.10.4] ACCENTS. Same shape as LAYOUTS and the two size ramps: a closed
+  // list, a DEFAULT that is the unclassed base, and an unrecognised value is
+  // never written. "blue" is today's shipped #1a73e8 and stays the default, so
+  // a fresh profile is pixel-identical (decision 2).
+  //
+  // THE PALETTE IS CONSTRAINED BY THE LETTERED TILE, not by taste. That tile is
+  // `background: var(--accent); color: var(--accent-text)` and white on the
+  // shipped blue measures 4.51:1 - it clears AA by six thousandths. So every
+  // accent here has to be at least as dark as the blue, or white ink on it
+  // fails and the tile is the first surface to break. Each one is measured
+  // rather than eyeballed; the round reports the table.
+  var ACCENTS = ["blue", "green", "purple", "amber"];
+  var DEFAULT_ACCENT = "blue";
+
+  function getAccent(data) {
+    var v = data && data.settings && data.settings.accent;
+    return ACCENTS.indexOf(v) === -1 ? DEFAULT_ACCENT : v;
+  }
+
+  async function setAccent(data, val) {
+    if (!data || !data.settings) return false;
+    if (ACCENTS.indexOf(val) === -1) return false;
+    if (getAccent(data) === val && data.settings.accent === val) return false;
+    data.settings.accent = val;
+    await saveAll(data);
+    return true;
+  }
+
   var LAYOUTS = ["grid", "compact", "list"];
   var DEFAULT_LAYOUT = "grid";
 
@@ -7500,6 +7528,9 @@ var Storage = (function () {
     POMODORO_PHASE_LABELS: POMODORO_PHASE_LABELS,
     fmtDuration: fmtDuration,
     activeElapsedMs: activeElapsedMs,
+    ACCENTS: ACCENTS,
+    getAccent: getAccent,
+    setAccent: setAccent,
     LAYOUTS: LAYOUTS,
     getLayout: getLayout,
     setLayout: setLayout,

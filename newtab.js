@@ -10477,6 +10477,7 @@
     applyIconSize(data.settings.iconSize || "medium");
     applyTextSize(Storage.getTextSize(data));
     applyLayout(Storage.getLayout(data));
+    applyAccent(Storage.getAccent(data));
     applyFocusView(Storage.isFocusView(data));
     applyWallDim(Storage.getWallDim(data));
     applySearch();
@@ -11682,6 +11683,16 @@
     else if (layout === "list") html.classList.add("layout-list");
   }
 
+  // [1.10.4] Accent. The FOURTH use of the root-class mechanism, and the same
+  // shape as the other three: the default ("blue") is the unclassed base, so a
+  // profile that never opens Settings carries no accent class at all and
+  // resolves the shipped #1a73e8.
+  function applyAccent(accent) {
+    var html = document.documentElement;
+    html.classList.remove("accent-green", "accent-purple", "accent-amber");
+    if (accent && accent !== "blue") html.classList.add("accent-" + accent);
+  }
+
   // [1.10.3] Focus view. Same mechanism again; a SEPARATE class because it is
   // orthogonal to layout - you can be in Focus view from any of the three, and
   // leaving it must put you back in the layout you had.
@@ -12310,6 +12321,20 @@
       });
       seg._layoutBound = true;
     }
+    var acc = $("#settings-accent");
+    if (acc && !acc._accentBound) {
+      acc.addEventListener("click", async function (e) {
+        var btn = e.target.closest(".seg-btn");
+        if (!btn) return;
+        // Eager, so the whole page recolours on the click rather than after the
+        // write settles. The token is read by var() everywhere, so no re-render
+        // is needed - unlike layout, nothing changes SHAPE.
+        applyAccent(btn.dataset.value);
+        await Storage.setAccent(data, btn.dataset.value);
+        renderLayoutSettings();
+      });
+      acc._accentBound = true;
+    }
     var fv = $("#settings-focus-view");
     if (fv && !fv._focusBound) {
       fv.addEventListener("change", async function () {
@@ -12348,6 +12373,13 @@
       var layout = Storage.getLayout(data);
       $$(".seg-btn", seg).forEach(function (btn) {
         btn.classList.toggle("active", btn.dataset.value === layout);
+      });
+    }
+    var acc = $("#settings-accent");
+    if (acc) {
+      var accent = Storage.getAccent(data);
+      $$(".seg-btn", acc).forEach(function (btn) {
+        btn.classList.toggle("active", btn.dataset.value === accent);
       });
     }
     var fv = $("#settings-focus-view");
@@ -12949,6 +12981,7 @@
       applyIconSize(data.settings.iconSize || "medium");
       applyTextSize(Storage.getTextSize(data));
       applyLayout(Storage.getLayout(data));
+      applyAccent(Storage.getAccent(data));
       applyFocusView(Storage.isFocusView(data));
     applyWallDim(Storage.getWallDim(data));
       refreshOldFavicons();
@@ -16005,6 +16038,7 @@
     applyIconSize((data && data.settings && data.settings.iconSize) || "medium");
     applyTextSize(Storage.getTextSize(data));
     applyLayout(Storage.getLayout(data));
+    applyAccent(Storage.getAccent(data));
     applyFocusView(Storage.isFocusView(data));
     applyWallDim(Storage.getWallDim(data));
   }
