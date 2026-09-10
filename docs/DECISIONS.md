@@ -2450,3 +2450,49 @@ profile, asserting the TRANSITION rather than the endpoint (BUGS.md P22) — at 
 pre-fix and post-fix trees AGREE, since the icon is absent from disk and from the page in
 both. Only the state immediately after the click separates them: pre-fix `dom=emoji,
 disk=null, toast=false`; post-fix `dom=null, disk=null, toast="Chrome's storage is full…"`.
+
+---
+
+## 2026-09-10 — The content column moves with the docked active-task card, rather than the card overlaying a still column
+
+**Decision: keep the whole column moving.** When the active-task card is expanded, `#content`
+takes a 300px right reserve and the header and all four panels re-centre together in the
+space that remains. The alternative — hold the column still and let the card overlay it —
+was considered and rejected.
+
+**Context.** `[1.10.11]` moved that reserve from `.tab-panel` to `#content` to fix a real
+defect: the reserve narrowed the box that centres the clock, search bar and grid but not
+the box that centres the logo and tab bar, so Home's header sat 150px right of Home's
+content on every Pro profile with an active task. `[1.10.12]` then had to weigh whether the
+resulting 150px movement of the brand is itself the problem, since Samson reported the
+close as a lurch.
+
+**Why the movement stays.** There are only three arrangements and two of them reintroduce a
+defect:
+
+1. **Move the whole column** (chosen). Header and content agree in both states. Costs a
+   150px movement on open and close.
+2. **Move only the panel.** No header movement — and a permanent 150px misalignment between
+   header and content whenever the card is open. That is precisely the bug `[1.10.11]`
+   fixed, reported by Samson across four rounds.
+3. **Reserve nothing and let the card overlay.** Restores the original collision the reserve
+   exists for: a full shortcut grid, the Tasks body and the Dashboard and Insights columns
+   all run under the card.
+
+**And the evidence pointed at the timing, not the movement.** Samson's words were *"it does
+jar on closure not slide"* — he described an **asymmetry**, and did not object to the
+opening, which already slid. Frame sampling confirmed the two directions were not the same
+motion at all: 9 interpolated frames opening, 0 closing. Once both directions interpolate
+identically the complaint's stated cause is gone, so removing the movement would be
+answering a question nobody asked at the price of one of the two defects above.
+
+**On the duration.** 200ms for 150px is 750px/s. The sidebar push already runs 212px over
+300ms — 707px/s — so the reserve is moving at the speed this page already uses for its one
+other push animation. The duration was deliberately not changed; if it still reads fast
+once both directions match, that is a number to revisit with the frame data in hand rather
+than a knob to turn first.
+
+**Reduced motion.** `#content` is stilled entirely under `prefers-reduced-motion: reduce`.
+The reserve is a layout change that must still happen, so the result is kept and only the
+motion is withheld — and `transition: none` is symmetric by construction, which is the
+property the original declaration lacked.

@@ -97,6 +97,14 @@ The reserve now sits on `#content`, which contains the header *and* all four
 panels, so the whole column re-centres together in the space the card leaves.
 Clearance from the card is unchanged at 62px, measured at 1280, 1659 and 1920.
 
+`[1.10.12]` then fixed the movement itself, which had been half-broken since
+2.0.0: the transition was declared **inside** the `body.sat-card-open` rule, so
+it only existed while the class did. The column animated open and snapped shut -
+9 interpolated frames one way, zero the other. The declaration moved to
+`#content`'s base rule, where it survives the class going away, and both
+directions now run the same 200ms slide. It also gained the
+`prefers-reduced-motion` fallback it never had.
+
 If a user asks why this was never noticed: every test fixture read "No active
 task", so the class that applies the reserve was never set. It is worth a line
 in the notes only if the release is thin - the users who saw it are Pro users who

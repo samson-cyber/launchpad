@@ -1023,8 +1023,18 @@ await (async () => {
   }
   check("overlap: released in the stacked layout, where a right gutter is dead space",
     /@media \(max-width: 720px\) \{\s*body\.sat-card-open #content \{ padding-right: 0; \}/.test(SRC.css));
+  // [1.10.12] THE TRANSITION MUST BE ON THE BASE RULE, NOT IN THE STATE RULE.
+  // This check used to require the opposite, and so held a real defect in place:
+  // a transition declared inside `body.sat-card-open` is only in the computed
+  // style while the class is on, so the column slid open and SNAPPED shut.
+  // Measured: 9 intermediate frames opening, 0 closing. Asserting the base rule
+  // is asserting the thing that actually makes it symmetric.
   check("overlap: it slides rather than jumping, matching the card's minimize feel",
-    /body\.sat-card-open #content \{[^}]*transition: padding-right/.test(SRC.css));
+    /#content \{[^}]*transition:[^;]*padding-right 200ms/.test(SRC.css));
+  check("overlap: and the transition is NOT declared inside the state rule, which would animate in and jar out",
+    !/body\.sat-card-open #content \{[^}]*transition/.test(SRC.css));
+  check("overlap: the reserve is stilled under prefers-reduced-motion rather than left to play",
+    /@media \(prefers-reduced-motion: reduce\) \{\s*#content \{ transition: none; \}/.test(SRC.css));
   // The reserve's whole point is clearance, so assert the number as well as the
   // placement: 300 is the 280px card at right:14 plus breathing room, and a
   // reserve narrower than the card would put content back under it.
@@ -1940,6 +1950,11 @@ const SEEDS = [
   // back on .tab-panel and the panel decentres 150px against its own header.
   { name: "OVERLAP: the reserve slides back down to .tab-panel and decentres the panel against the header",
     file: "css", from: "body.sat-card-open #content {\n  padding-right: 300px;", to: "body.sat-card-open .tab-panel {\n  padding-right: 300px;" },
+  // [1.10.12] The transition slides back inside the state rule, which animates
+  // the column open and snaps it shut.
+  { name: "OVERLAP: the transition moves into the state rule and the close stops interpolating",
+    file: "css", from: "body.sat-card-open #content {\n  padding-right: 300px;\n}",
+    to: "body.sat-card-open #content {\n  padding-right: 300px;\n  transition: padding-right 200ms ease;\n}" },
   { name: "OVERLAP: the old header reserve comes back and compounds to 600px",
     file: "css", from: "body.sat-card-open #content {\n  padding-right: 300px;", to: "body.sat-card-open .tasks-header-right {\n  margin-right: 300px;\n}\nbody.sat-card-open #content {\n  padding-right: 300px;" },
   // INK

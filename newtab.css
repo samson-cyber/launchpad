@@ -170,8 +170,33 @@ body {
   /* [Tasks] Push-not-overlay: the margin animates so the content region tracks
      the sidebar's edge when it pushes on Pro tabs (see the :has rule below).
      Matches the sidebar's own 300ms width transition so the two edges move
-     together. Never animates on Home (the push rule doesn't apply there). */
-  transition: margin-left 300ms ease;
+     together. Never animates on Home (the push rule doesn't apply there).
+
+     [1.10.12] padding-right JOINS IT HERE, and the fact that it is HERE rather
+     than in the body.sat-card-open rule is the entire fix. See that rule below:
+     a transition declared inside a state rule only exists while the state does,
+     so it animates INTO the state and snaps out of it. Measured before the fix:
+     opening ramped 0 -> 300 over 186ms across 9 intermediate frames; closing
+     went 300 -> 0 in a single frame at 1ms. On the base rule the declaration
+     survives the class being removed, so both directions interpolate.
+     200ms for the 150px the column travels is 750px/s, which is the speed the
+     sidebar push already runs at (212px over 300ms = 707px/s). The duration was
+     never the problem and is deliberately unchanged. */
+  transition: margin-left 300ms ease, padding-right 200ms ease;
+}
+
+/* [1.10.12] #content carries the page's two push animations - the sidebar's
+   margin and the docked card's reserve - and neither had a reduced-motion
+   fallback, so both played under `reduce` exactly as without it. Stilled rather
+   than shortened: both are LAYOUT changes that must still HAPPEN (content would
+   otherwise sit under the sidebar or the card), so what is withheld is the
+   motion and not the result. `none` is also symmetric for free, which is the
+   property the reserve's original declaration failed to have.
+   Kept here, beside the transition it stills, rather than in the reserve's
+   neighbourhood 11,000 lines below: a still is only useful if the next person
+   editing the transition can see it. */
+@media (prefers-reduced-motion: reduce) {
+  #content { transition: none; }
 }
 
 /* [Tasks] Sidebar push-not-overlay on Pro tabs only. The bookmarks sidebar is a
@@ -11202,9 +11227,30 @@ html.has-bg.bg-light .pro-celebrate-btn:not(.is-primary):hover { background: rgb
    padding here cannot push the card it is making room for. Both boxes now
    narrow together, so the whole column re-centres in the space left over, which
    is what a docked right-hand panel is supposed to do. */
+/* [1.10.12] THE TRANSITION IS NOT DECLARED HERE, AND THAT IS DELIBERATE.
+   It used to be, and it made the column slide open and JAR shut - which is what
+   Samson reported after [1.10.11], in those words.
+   The mechanism is a cascade one, not a timing one. A transition declared
+   inside a state rule is only in the computed style WHILE that state applies.
+   Adding the class gives the element the new padding AND the transition in the
+   same recalculation, so it interpolates in. Removing the class takes the
+   transition away in the same recalculation that reverts the padding, so there
+   is nothing left to interpolate with and the value snaps. Animate in, jar out,
+   every time, in every browser.
+   THE MEASUREMENT, at 1659px, sampling every animation frame:
+     opening  0 -> 300px over 186ms, 9 intermediate values, search bar gliding
+              829.5 -> 785.4 -> 727.1 -> 696.7 -> 683.1 -> 679.5
+     closing  300 -> 0 in ONE frame at 1ms, 0 intermediate values, search bar
+              jumping 679.5 -> 829.5
+   Identical whether the class is toggled alone or through the real
+   renderActiveTaskWidget path, so the card's innerHTML rewrite is not involved.
+   This predates [1.10.11]: the rule had the same shape when the reserve lived
+   on .tab-panel. It only became noticeable when the header started moving too,
+   which tripled the mass of the thing snapping.
+   The declaration now lives on the base #content rule above, where it survives
+   the class going away. */
 body.sat-card-open #content {
   padding-right: 300px;
-  transition: padding-right 200ms ease;
 }
 
 @media (max-width: 720px) {

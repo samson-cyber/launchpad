@@ -279,14 +279,39 @@ ok("the menu tier still has no bg-light override (the premise for the above)",
   !/html\.bg-light\s*\{[^}]*--pro-frost-menu-bg/.test(CSSC));
 ok("coach-mark text and count declare colours",
   /\.pro-tour-text\s*\{[^}]*color/.test(CSSC) && /\.pro-tour-count\s*\{[^}]*color/.test(CSSC));
+// [1.10.12] THIS USED TO BE A POSITIONAL SCAN AND IT WAS A LANDMINE.
+// It took `lastIndexOf("@media (prefers-reduced-motion: reduce)", indexOf(".pro-tour-mark") + 20000)`
+// and sliced from there to the end of the file. That works only while no OTHER
+// reduce block exists in the span - so adding a perfectly correct reduce block
+// anywhere between the celebration's own and that arbitrary +20000 offset stole
+// the anchor and turned this row red for a change that had nothing to do with
+// the celebration. [1.10.12] added `#content { transition: none }` and hit it.
+// It now extracts every reduce block by matching braces and asks the question
+// the check actually means: is each of these three stilled in SOME reduce block.
+const REDUCE_BLOCKS = (() => {
+  const out = [];
+  const needle = "@media (prefers-reduced-motion: reduce)";
+  let at = CSSC.indexOf(needle);
+  while (at !== -1) {
+    const open = CSSC.indexOf("{", at);
+    if (open === -1) break;
+    let depth = 0, i = open;
+    for (; i < CSSC.length; i++) {
+      if (CSSC[i] === "{") depth++;
+      else if (CSSC[i] === "}") { depth--; if (depth === 0) break; }
+    }
+    out.push(CSSC.slice(open, i + 1));
+    at = CSSC.indexOf(needle, i);
+  }
+  return out;
+})();
+const stilledSomewhere = (re) => REDUCE_BLOCKS.some((b) => re.test(b));
 ok("reduced motion covers the card, glow and mark",
-  (() => {
-    const i = CSSC.indexOf("@media (prefers-reduced-motion: reduce)", CSSC.indexOf(".pro-celebrate"));
-    const blk = CSSC.slice(CSSC.lastIndexOf("@media (prefers-reduced-motion: reduce)", CSSC.indexOf(".pro-tour-mark") + 20000), CSSC.length);
-    return /\.pro-celebrate-card\s*\{[^}]*transition:\s*none/.test(blk) &&
-           /\.pro-celebrate-glow\s*\{[^}]*animation:\s*none/.test(blk) &&
-           /\.pro-tour-mark\s*\{[^}]*transition:\s*none/.test(blk);
-  })());
+  stilledSomewhere(/\.pro-celebrate-card\s*\{[^}]*transition:\s*none/) &&
+  stilledSomewhere(/\.pro-celebrate-glow\s*\{[^}]*animation:\s*none/) &&
+  stilledSomewhere(/\.pro-tour-mark\s*\{[^}]*transition:\s*none/));
+ok("the reduce-block scan found real blocks, so the row above is not vacuously true",
+  REDUCE_BLOCKS.length >= 5 && REDUCE_BLOCKS.every((b) => b.startsWith("{") && b.endsWith("}")));
 // Stacking: the card must sit above the badge splash it can collide with.
 const zCel = (CSSC.match(/\.pro-celebrate\s*\{[\s\S]*?z-index:\s*(\d+)/) || [])[1];
 const zMark = (CSSC.match(/\.pro-tour-mark\s*\{[\s\S]*?z-index:\s*(\d+)/) || [])[1];
