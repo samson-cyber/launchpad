@@ -146,7 +146,23 @@ body {
 }
 
 #content {
+  /* [1.10.9] THE RESERVATION IS SPLIT, so the centred column sits on the WINDOW's
+     centre rather than 28px right of it.
+     [1.10.4] measured every element in the header and the body sharing one
+     centre to 0.01px and concluded the reported misalignment was refuted. The
+     measurement was right and the conclusion was wrong: the spread it measured
+     is not the quantity a user reads. With 56px reserved on the left only, the
+     whole column - logo, tab bar, clock, search, grid - sat 28px right of the
+     window's centre, and the eye reads a centred page against the WINDOW.
+     Re-measured across every variable this round: clock line on, sidebar
+     collapsed / expanded / locked, six window widths, five zoom levels and
+     three device pixel ratios. The header-vs-content spread stayed 0.01px in
+     all of them. The window offset stayed 28px - and GREW with zoom, to 35px at
+     125% and 42px at 150%, because the reservation scales with the page.
+     The cost is 56px of usable width. Measured: the grid keeps 9 columns at
+     1920, 1600, 1440, 1366 and 1280, and drops 9 to 8 at 1100. */
   margin-left: 56px;
+  margin-right: 56px;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -982,10 +998,21 @@ html.has-bg .gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
   border-radius: 2px;
 }
 
+/* [1.10.9] THE LABEL CAP IS A FRACTION OF ITS TILE, not a number that has to be
+   kept in step with one. It was 96px here and 72 / 120px on the two icon-size
+   tiers - three literals that each had to match a grid column defined in a
+   different rule. Compact then redefined the column to minmax(76px) in [1.10.3]
+   and did NOT redefine the caps, so at Medium the label was allowed 96px inside
+   an 80.33px tile and at Large 120px: measured 39.67px of spill and adjacent
+   labels overlapping by up to 28px. Shortcut labels cannot wrap by design
+   ([1.10.6]), so spill goes sideways into the neighbour rather than down.
+   100% cannot drift, because there is no second number to disagree with. The
+   tile has no horizontal padding, so the cap IS the column width and the grid's
+   gap is what separates one label from the next. */
 .shortcut-name {
   font-size: var(--fs-13);
   line-height: 16px;
-  max-width: 96px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1044,6 +1071,10 @@ html.has-bg .gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
 .add-tile-label {
   font-size: var(--fs-13);
   line-height: 16px;
+  /* [1.10.9] Same ceiling as .shortcut-name. This one CAN wrap - that is the
+     two-line behaviour accepted in [1.10.3] - so it never spilled sideways, but
+     without a ceiling a long translation would. */
+  max-width: 100%;
   color: var(--text-primary);
 }
 
@@ -1623,7 +1654,16 @@ html.has-bg .nest-submenu-item:hover {
   gap: var(--space-2-5);
 }
 
+/* [1.10.9] The preview is now a .shortcut-icon host rendering through the shared
+   renderer, so it has to say how big the thing INSIDE it should be - exactly as
+   the launcher row, the sidebar tree and the nest picker do. Without this it
+   inherits the grid's 34px into a 32px box and the icon overflows its own
+   frame. */
 #modal-icon-preview {
+  --icon-inner: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 32px;
   height: 32px;
   border-radius:var(--radius-md);
@@ -1649,19 +1689,27 @@ html.has-bg .nest-submenu-item:hover {
   background: var(--bg-hover);
 }
 
-.modal-icon-reset {
-  color: var(--text-secondary);
-}
-
 html.has-bg #modal-icon-preview {
   border-color: rgba(255, 255, 255, 0.15);
   background: var(--surface-fill);
 }
 
-html.has-bg .modal-icon-btn {
-  color: rgba(255, 255, 255, 0.8);
-  border-color: rgba(255, 255, 255, 0.2);
-}
+/* [1.10.9] THE has-bg OVERRIDE THAT USED TO SIT HERE PUT WHITE INK ON A WHITE
+   MODAL, and it is removed rather than adjusted.
+   It read `color: rgba(255,255,255,0.8)` under html.has-bg - the treatment for
+   a control sitting ON the wallpaper. This button does not: #modal has
+   `background: var(--bg-card)` and NO has-bg override, so the modal stays white
+   whatever the wallpaper is. Any profile with a wallpaper therefore rendered
+   this row's buttons white-on-white. It predates this round - the Upload and
+   Reset controls it replaced were invisible the same way - and it surfaced only
+   because [1.10.9] put a button here that has to be found to be used.
+   This is the light-SURFACE versus light-WALLPAPER confusion that [1.10.4]
+   named while measuring light glass, in its smallest form: has-bg says
+   something about the page's backdrop and nothing about the surface a control
+   is painted on.
+   Deleting it lets the base rule apply - the accent on the card - which is what
+   every other control in this modal already does. Measured across four frames.
+   .modal-icon-reset went with it: that control no longer exists. */
 
 html.has-bg .modal-icon-btn:hover {
   background: var(--surface-fill);
@@ -7236,7 +7284,6 @@ html.bg-light .rc-panel-item-meta {
 .icon-size-small .shortcut-name,
 .icon-size-small .add-tile-label {
   font-size: var(--fs-11);
-  max-width: 72px;
 }
 
 .icon-size-large .shortcuts-grid {
@@ -7253,16 +7300,20 @@ html.bg-light .rc-panel-item-meta {
   --icon-inner: 40px;   /* 40/56 = 71% of the circle */
 }
 
+/* [1.10.9] The tier sets the label's SIZE and nothing else. Its max-width used
+   to live here too, which is what let it fall out of step with compact's column. */
 .icon-size-large .shortcut-name,
 .icon-size-large .add-tile-label {
   font-size: var(--fs-14);
-  max-width: 120px;
 }
 
 /* ===== Responsive: Mobile ===== */
 
 @media (max-width: 599px) {
   #content {
+    /* [1.10.9] Both sides, for the same reason as Focus view: the rail is not
+       reserved at this width, so reserving on one side would decentre it. */
+    margin-right: 0;
     margin-left: 0;
   }
 
@@ -11157,12 +11208,25 @@ body.sat-card-open .tab-panel {
   padding: var(--space-4) 18px;
 }
 
+/* [1.10.9] A SECTION HEADER THAT READ QUIETER THAN ITS OWN CONTENTS.
+   Measured: this was --fs-13 (14px at the default text size), weight 600, at
+   opacity 0.78. The goal titles beneath it are .tt-goal-name at --fs-15 (15px)
+   and weight 500 at full strength - so the header was SMALLER as well as
+   dimmer, and only one weight step heavier. That inverts the hierarchy.
+   The design guide's rule is that SIZE IS HIERARCHY AND COLOUR IS STATE, so the
+   fix is size and weight rather than a brighter ink for its own sake - though
+   the 0.78 goes too, because a header is not a state and dimming it was the
+   other half of the inversion. --fs-15 is the top of the ramp, which bounds how
+   large this can go; the remaining separation is carried by weight.
+   THIS CLASS IS SHARED BY FIVE HEADERS on the Tasks tab - Active Goals,
+   Standalone, Recurring, Completed and Deleted - so all five change together,
+   which is the consistent outcome rather than a special case for one. */
 .tt-section-title {
   margin: 0 0 var(--space-3);
-  font-size: var(--fs-13);
-  font-weight: 600;
+  font-size: var(--fs-15);
+  font-weight: 700;
   letter-spacing: normal;
-  opacity: 0.78;
+  opacity: 1;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -15784,7 +15848,10 @@ html.layout-list .add-tile-label { max-width: none; }
    rail outright and zeroes the margin that reserved space for it; sidebarLocked
    is never read or written. */
 html.focus-view #sidebar { display: none; }
-html.focus-view #content { margin-left: 0; }
+/* [1.10.9] BOTH margins, not just the left. Focus view hides the sidebar, so
+   neither side has anything to reserve - zeroing only the left would leave the
+   column 28px off centre in the other direction. */
+html.focus-view #content { margin-left: 0; margin-right: 0; }
 html.focus-view #shortcut-grid-area { display: none; }
 html.focus-view #tab-bar { display: none; }
 

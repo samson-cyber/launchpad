@@ -420,6 +420,66 @@ var Storage = (function () {
   // grid-template-columns back OUT of the computed style. So this round builds
   // on iconSize and textSize, which are live, and leaves the dead field alone
   // rather than reviving a setting nobody asked for.
+  // [1.10.9] ONE ICON MECHANISM. customIcon subsumes the legacy favicon field.
+  //
+  // THE PROBLEM: the Edit-shortcut modal wrote shortcut.favicon, a per-shortcut
+  // data-URL predating [1.10.2]'s customIcon, and getFaviconUrl returns a stored
+  // favicon as PRIORITY 1 - ahead of customIcon, which is read separately by the
+  // renderer. So a user who set an emoji from the tile menu and then uploaded an
+  // image in the modal had two stored icons and got whichever surface asked
+  // first. Two mechanisms for one job.
+  //
+  // WHAT IS MIGRATED, AND WHAT DELIBERATELY IS NOT. shortcut.favicon holds two
+  // different things that happen to share a field:
+  //   a DATA-URL  = the user's own upload, from the modal. A CHOICE.
+  //   an http URL = the add-time capture or a refresh, i.e. a CACHE of the
+  //                 site's favicon. Not a choice, and clearing it would throw
+  //                 away a capture and force a refetch.
+  // Only the first is migrated. The product already draws this exact line -
+  // refreshOldFavicons skips any favicon starting with "data:" precisely
+  // because that one is the user's - so this is an existing distinction being
+  // used, not a new guess about what the field means.
+  //
+  // WHERE A CONFLICT ALREADY EXISTS the customIcon wins and the legacy field is
+  // dropped: customIcon is the newer, richer mechanism (emoji and letters have
+  // no favicon representation at all), so collapsing the other way would lose
+  // kinds that cannot be expressed.
+  //
+  // IDEMPOTENT, the [1.10.8] contract: it reports changed only when it actually
+  // moved something, so it writes once and the next load finds nothing to do.
+  function migrateLegacyIcon(shortcut) {
+    if (!shortcut || typeof shortcut !== "object") return false;
+    var fav = shortcut.favicon;
+    if (typeof fav !== "string" || fav.indexOf("data:") !== 0) return false;
+    var existing = getShortcutIcon(shortcut);
+    if (!existing) {
+      shortcut.customIcon = { kind: "image", value: fav };
+    }
+    // Either way the legacy field goes: it has been converted, or it was
+    // shadowing a customIcon that already existed.
+    delete shortcut.favicon;
+    return true;
+  }
+
+  function migrateLegacyIcons(data) {
+    if (!data || !Array.isArray(data.workspaces)) return false;
+    var changed = false;
+    data.workspaces.forEach(function (ws) {
+      if (!ws || !Array.isArray(ws.groups)) return;
+      ws.groups.forEach(function (g) {
+        if (!g || !Array.isArray(g.shortcuts)) return;
+        g.shortcuts.forEach(function (sc) {
+          if (migrateLegacyIcon(sc)) changed = true;
+          // A VARIANT IS NOT A SHORTCUT and has no customIcon of its own
+          // ([1.10.6] recorded why), so its favicon field is left exactly as it
+          // is - including a data-URL one, which remains the only way a variant
+          // can carry a custom image.
+        });
+      });
+    });
+    return changed;
+  }
+
   // [1.10.8] THE ACCENT SETTING WAS REMOVED, and this is the sweep that keeps a
   // profile which already chose one from carrying a dangling preference.
   //
@@ -1899,6 +1959,7 @@ var Storage = (function () {
         var notesSeeded = ensureNotesArrays(existing);
         var sessionsSeeded = ensureNamedSessionsArrays(existing);
         var accentDropped = dropAccentSetting(existing);
+        var iconsMerged = migrateLegacyIcons(existing);
         // [1.4.7] Runs at most once per profile. The write is needed only on the
         // run that actually sweeps - the one that finds the marker absent and
         // has to persist it. Testing the marker AFTER the call would be true on
@@ -1907,7 +1968,7 @@ var Storage = (function () {
         var strandedUnswept = existing[STRANDED_SWEEP_MARKER] !== true;
         var strandedReleased = sweepStrandedTasks(existing);
         if (patched || trackingSeeded || focusSeeded || notesSeeded || sessionsSeeded ||
-            accentDropped || strandedUnswept) {
+            accentDropped || iconsMerged || strandedUnswept) {
           // [1.10.3] THE BACKFILL WRITE GETS ITS OWN try/catch, AND THIS IS A
           // CORRECTNESS FIX RATHER THAN TIDYING. It used to sit inside this
           // function's single try, so an over-quota backfill fell through to the

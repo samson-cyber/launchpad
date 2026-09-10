@@ -12172,7 +12172,18 @@
     return true;
   }
 
-  function openIconPicker(shortcutId) {
+  // [1.10.9] The modal's icon preview goes through the SAME renderer the grid,
+  // launcher, sidebar and nest picker use ([1.10.6]), so "what the modal shows"
+  // and "what the tile shows" cannot drift apart. It renders into a
+  // .shortcut-icon host, which gives it the circle and the --icon-inner sizing
+  // for free.
+  function renderModalIconPreview(shortcut) {
+    var host = $("#modal-icon-preview");
+    if (!host || !shortcut) return;
+    host.innerHTML = shortcutIconHTML(shortcut, getFaviconUrl(shortcut));
+  }
+
+  function openIconPicker(shortcutId, onApplied) {
     var ws = Storage.getActiveWorkspace(data);
     var sc = Storage.findShortcutById(ws, shortcutId);
     if (!sc) return;
@@ -12207,18 +12218,18 @@
       var act = btn.getAttribute("data-ip");
       if (act === "upload") { el.querySelector("#ip-file").click(); return; }
       if (act === "letter") {
-        if (await applyShortcutIcon(shortcutId, { kind: "letter", value: letter })) closeIconPicker();
+        if (await applyShortcutIcon(shortcutId, { kind: "letter", value: letter })) { closeIconPicker(); if (onApplied) onApplied(); }
         return;
       }
       if (act === "emoji") {
-        if (await applyShortcutIcon(shortcutId, { kind: "emoji", value: btn.getAttribute("data-emoji") })) closeIconPicker();
+        if (await applyShortcutIcon(shortcutId, { kind: "emoji", value: btn.getAttribute("data-emoji") })) { closeIconPicker(); if (onApplied) onApplied(); }
         return;
       }
       if (act === "clear") {
         // REMOVING RESTORES THE FAVICON, never a blank. setShortcutIcon deletes
         // the field, so the favicon chain resolves exactly as it did before an
         // icon was ever set.
-        if (await applyShortcutIcon(shortcutId, null)) closeIconPicker();
+        if (await applyShortcutIcon(shortcutId, null)) { closeIconPicker(); if (onApplied) onApplied(); }
       }
     });
     el.querySelector("#ip-file").addEventListener("change", async function () {
@@ -12226,7 +12237,7 @@
       if (!f) return;
       try {
         var enc = await downscaleIconFile(f);
-        if (await applyShortcutIcon(shortcutId, { kind: "image", value: enc.dataUrl, fit: enc.fit })) closeIconPicker();
+        if (await applyShortcutIcon(shortcutId, { kind: "image", value: enc.dataUrl, fit: enc.fit })) { closeIconPicker(); if (onApplied) onApplied(); }
       } catch (err) {
         console.error("[LaunchPad] Icon upload failed", err);
         showToast(t("icon_could_not_be_set"));
@@ -19451,37 +19462,26 @@
       closeModal();
       Bookmarks.showPicker();
     });
-    safeOn("#modal-icon-upload", "click", function () {
-      var fileInput = $("#modal-icon-file");
-      if (fileInput) fileInput.click();
-    });
-    safeOn("#modal-icon-file", "change", function () {
-      var file = this.files && this.files[0];
-      if (!file) return;
-      if (file.size > 102400) {
-        alert(t("bind_icon_file_must_be_under_100kb"));
-        this.value = "";
-        return;
-      }
-      var reader = new FileReader();
-      reader.onload = function (ev) {
-        modalState.customFavicon = ev.target.result;
-        var preview = $("#modal-icon-preview");
-        if (preview) preview.src = ev.target.result;
-        var resetBtn = $("#modal-icon-reset");
-        if (resetBtn) resetBtn.classList.remove("hidden");
-      };
-      reader.readAsDataURL(file);
-    });
-    safeOn("#modal-icon-reset", "click", function () {
-      modalState.customFavicon = "";
-      var preview = $("#modal-icon-preview");
-      if (preview && modalState.shortcut) {
-        preview.src = getFaviconUrl(modalState.shortcut);
-      }
-      this.classList.add("hidden");
-      var fileInput = $("#modal-icon-file");
-      if (fileInput) fileInput.value = "";
+    // [1.10.9] ONE MECHANISM. This used to be an upload + reset pair writing
+    // shortcut.favicon - a second icon system that could shadow a chosen
+    // customIcon, because getFaviconUrl returns a stored favicon ahead of it.
+    // The row now opens the SAME picker the tile's more-menu opens.
+    //
+    // THE PICKER APPLIES IMMEDIATELY, which is a deliberate difference from the
+    // modal's other fields: they wait for Save, this does not. That is the
+    // price of one mechanism rather than two, and it matches what the tile menu
+    // already does - so the two doorways behave identically, which is the point.
+    // Cancel therefore does not undo an icon change; nothing else in the modal
+    // behaves that way, and it is named in the round's report.
+    safeOn("#modal-icon-change", "click", function () {
+      if (!modalState.shortcut) return;
+      openIconPicker(modalState.shortcut.id, function () {
+        // Re-read from the saved blob so the preview shows what was stored
+        // rather than what was clicked.
+        var ws = Storage.getActiveWorkspace(data);
+        var fresh = Storage.findShortcutById(ws, modalState.shortcut.id);
+        if (fresh) { modalState.shortcut = fresh; renderModalIconPreview(fresh); }
+      });
     });
     safeOn("#modal-url", "input", function () {
       var nameEl = $("#modal-name");
@@ -19888,26 +19888,21 @@
   // ===== Modal =====
 
   function openModal(mode, groupId, shortcut) {
-    modalState = { mode: mode, groupId: groupId, shortcut: shortcut || null, customFavicon: null };
+    modalState = { mode: mode, groupId: groupId, shortcut: shortcut || null };
     $("#modal-title").textContent = mode === "edit" ? "Edit shortcut" : "Add shortcut";
     $("#modal-name").value = shortcut ? (shortcut.title || "") : "";
     $("#modal-url").value = shortcut ? (shortcut.url || "") : "";
     $("#modal-name").dataset.edited = mode === "edit" ? "true" : "false";
 
-    // Icon row — show in edit mode
+    // Icon row — show in edit mode. ADD mode has no shortcut id yet, and the
+    // picker is keyed on one, so the row stays hidden there exactly as before.
     var iconRow = $("#modal-icon-row");
-    var iconPreview = $("#modal-icon-preview");
-    var resetBtn = $("#modal-icon-reset");
     if (iconRow) {
       if (mode === "edit" && shortcut) {
         iconRow.classList.remove("hidden");
-        var currentFavicon = getFaviconUrl(shortcut);
-        iconPreview.src = currentFavicon;
-        resetBtn.classList.toggle("hidden", !(shortcut.favicon && shortcut.favicon.indexOf("data:") === 0));
+        renderModalIconPreview(shortcut);
       } else {
         iconRow.classList.add("hidden");
-        iconPreview.src = "assets/placeholder.svg";
-        resetBtn.classList.add("hidden");
       }
     }
 
@@ -19918,8 +19913,6 @@
   function closeModal() {
     $("#modal-overlay").classList.add("hidden");
     modalState = {};
-    var fileInput = $("#modal-icon-file");
-    if (fileInput) fileInput.value = "";
   }
 
   async function saveModal() {
@@ -19937,7 +19930,7 @@
           id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
           url: url,
           title: variantTitle,
-          favicon: modalState.customFavicon || getFaviconUrl(url),
+          favicon: getFaviconUrl(url),
           deletedAt: null
         });
         // [R3] Add-modal nest: a real URL the user typed, added (step 1) as a
@@ -19949,9 +19942,10 @@
         var newShortcut = {
           url: url,
           title: name || getDomain(url).replace(/^www\./, ""),
+          // The site's own favicon, cached at add time. A user's CHOSEN icon is
+          // customIcon and is set from the picker, never from here.
           favicon: getFaviconUrl(url)
         };
-        if (modalState.customFavicon) newShortcut.favicon = modalState.customFavicon;
         await Storage.addShortcut(modalState.groupId, newShortcut);
       }
     } else if (modalState.mode === "edit" && modalState.shortcut) {
@@ -19960,11 +19954,9 @@
       if (sc) {
         sc.url = url;
         sc.title = name || getDomain(url).replace(/^www\./, "");
-        if (modalState.customFavicon) {
-          sc.favicon = modalState.customFavicon;
-        } else if (modalState.customFavicon === "") {
-          sc.favicon = "";
-        }
+        // [1.10.9] The icon is NOT saved here any more. The picker writes
+        // customIcon the moment a choice is made, on both surfaces, so a second
+        // write from Save could only disagree with it.
         await Storage.saveAll(data);
       }
     }

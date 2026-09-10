@@ -709,14 +709,21 @@
         <input type="text" id="modal-name" autocomplete="off">
         <label data-i18n="shortcutmodal_url_label" for="modal-url">URL</label>
         <input data-i18n-placeholder="page_https" type="text" id="modal-url" placeholder="https://" autocomplete="off">
+        <!-- [1.10.9] ONE PICKER, TWO DOORWAYS. This row used to carry its own
+             upload + reset pair writing shortcut.favicon, a second icon
+             mechanism that could silently shadow a chosen customIcon. It now
+             opens the SAME picker the tile's more-menu opens, and the preview
+             renders through the same shared renderer, so both surfaces show one
+             current state and write one field.
+             The old Reset is not lost: "Remove custom icon" inside the picker
+             does exactly what it did, restoring the site's own favicon rather
+             than blanking the tile. -->
         <div id="modal-icon-row" class="hidden">
           <label data-i18n="page_icon">Icon</label>
           <div id="modal-icon-controls">
-            <img id="modal-icon-preview" src="assets/placeholder.svg" alt="" width="32" height="32">
-            <button data-i18n="page_upload_custom_icon" id="modal-icon-upload" type="button" class="modal-icon-btn">Upload custom icon</button>
-            <button data-i18n="page_reset" id="modal-icon-reset" type="button" class="modal-icon-btn modal-icon-reset hidden">Reset</button>
+            <span id="modal-icon-preview" class="shortcut-icon"></span>
+            <button data-i18n="icon_change_icon" id="modal-icon-change" type="button" class="modal-icon-btn">Change icon</button>
           </div>
-          <input type="file" id="modal-icon-file" accept=".png,.jpg,.jpeg,.ico,.svg" class="hidden">
         </div>
       </div>
       <div id="modal-divider"></div>

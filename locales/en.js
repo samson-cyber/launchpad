@@ -343,10 +343,6 @@ I18n.register("en", {
     "message": "or Import from Chrome Bookmarks",
     "description": "Text on the page surface."
   },
-  "page_reset": {
-    "message": "Reset",
-    "description": "Text on the page surface."
-  },
   "page_search_or_type_a_url": {
     "message": "Search or type a URL",
     "description": "placeholder attribute on the page surface."
@@ -357,10 +353,6 @@ I18n.register("en", {
   },
   "page_ungroup_all": {
     "message": "Ungroup all",
-    "description": "Text on the page surface."
-  },
-  "page_upload_custom_icon": {
-    "message": "Upload custom icon",
     "description": "Text on the page surface."
   },
   "prosettings_about_title": {
@@ -916,10 +908,6 @@ I18n.register("en", {
     "message": "Focus cycle count reset.",
     "description": "Text sink in bindProSettings(). Rendered with t()."
   },
-  "bind_icon_file_must_be_under_100kb": {
-    "message": "Icon file must be under 100KB.",
-    "description": "Text sink in bindEvents(). Rendered with t()."
-  },
   "create_workspace_created": {
     "message": "Workspace created",
     "description": "Text sink in createWorkspace(). Rendered with t()."
@@ -1326,6 +1314,10 @@ I18n.register("en", {
   "insights_wk_no_prior": {
     "message": "no last week yet",
     "description": "Shown in place of the comparison on the weekly review card when no previous week exists at all. Deliberately not a 100% drop - there is nothing to compare to, which is different from having done less. Rendered with th()."
+  },
+  "icon_change_icon": {
+    "message": "Change icon",
+    "description": "Button in the Edit shortcut modal's Icon row. Opens the same icon picker the tile's more-menu opens, so both surfaces drive one mechanism. Rendered by the data-i18n pass."
   },
   "icon_choose_an_icon": {
     "message": "Choose an icon",
