@@ -45,7 +45,16 @@
      ROW SURFACES OVERRIDE IT rather than hard-coding their own sizes, so the
      launcher, the sidebar tree and the nest picker render the same five kinds
      through the same rules at their own scale. */
-  --icon-inner: 24px;
+  /* [1.10.7] RAISED FROM 24px TO 34px. At 24 in a 48px circle a favicon covered
+     about a QUARTER of the circle's area and read as a small mark floating in a
+     large grey disc. 34/48 = 71%, which is the ratio the frames settled on: at
+     70% the round numbers land on 25.2 / 33.6 / 39.2 and paint on half pixels,
+     so each tier takes the nearest even integer instead and the ratio comes out
+     71 / 71 / 71 rather than a flat 70.
+     THE CIRCLE DOES NOT CHANGE at any tier - 36 / 48 / 56 are exactly what they
+     were. This is a token change, and the grid's columns, tile positions and row
+     heights are asserted identical before and after. */
+  --icon-inner: 34px;
   --search-bg: #f1f3f4;
   --search-bg-focus: #fff;
   --accent: #1a73e8;

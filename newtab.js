@@ -192,8 +192,15 @@
     try { domain = new URL(url).hostname; } catch (e) { return "assets/placeholder.svg"; }
     if (FAVICON_OVERRIDES[domain]) return FAVICON_OVERRIDES[domain];
 
-    // Priority 3: Google's favicon API
-    return "https://www.google.com/s2/favicons?domain=" + domain + "&sz=128";
+    // Priority 3: Google's favicon API.
+    // [1.10.7] sz RAISED 128 -> 256 because --icon-inner went 24 -> 34 and the
+    // Large tier now paints at 40. 128 was already comfortably above both, so
+    // this is headroom rather than a fix for visible blur - what it buys is a
+    // 2x source at Large on a HiDPI screen, where 128 was only just enough.
+    // IT CANNOT CREATE DETAIL A SITE DOES NOT PUBLISH: S2 upscales whatever it
+    // has, so a site that only ships a 16px or 32px icon returns a soft image at
+    // any sz. Measured for real sites in this round's report.
+    return "https://www.google.com/s2/favicons?domain=" + domain + "&sz=256";
   }
 
   function refreshOldFavicons() {

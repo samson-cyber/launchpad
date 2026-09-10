@@ -1019,6 +1019,20 @@ html.has-bg .gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
   background: var(--bg-hover);
 }
 
+/* [1.10.7] THE + FOLLOWS THE RAMP LIKE EVERY OTHER GLYPH IN A CIRCLE.
+   PLUS_SVG carries width="20" height="20" as attributes, which CSS overrides;
+   before this nothing did, so the + stayed 20px while the favicon beside it
+   scaled 20 / 26 / 40. Its top edge therefore sat lower than its neighbours' by
+   0px at Small, 2px at Medium and 4px at Large - the same class of miss
+   [1.10.6] fixed for the emoji and the lettered tile, in the one glyph that
+   round did not touch because it is not a custom icon.
+   The viewBox is 0 0 24 24, so the stroke scales with the box and the plus
+   keeps its proportions rather than thinning out. */
+.add-tile-icon svg {
+  width: var(--icon-inner);
+  height: var(--icon-inner);
+}
+
 .add-tile-icon {
   width: 48px;
   height: 48px;
@@ -7219,7 +7233,7 @@ html.bg-light .rc-panel-item-meta {
 }
 
 .icon-size-small {
-  --icon-inner: 20px;
+  --icon-inner: 26px;   /* 26/36 = 72% of the circle */
 }
 
 /* [1.10.6] The tier above sets --icon-inner and nothing else, because EVERY
@@ -7245,7 +7259,7 @@ html.bg-light .rc-panel-item-meta {
 }
 
 .icon-size-large {
-  --icon-inner: 28px;
+  --icon-inner: 40px;   /* 40/56 = 71% of the circle */
 }
 
 .icon-size-large .shortcut-name,
@@ -15553,6 +15567,21 @@ html.bg-light .launcher-row.is-active { outline-color: rgba(0, 0, 0, 0.3); }
    that lives inside an icon. 0.625 x the token reproduces 15px at the default -
    identical to --fs-14 at the default text size - so nothing moves for a
    profile that never opens Settings. */
+/* [1.10.7] THE EMOJI'S LINE BOX IS THE BOX, not the font size.
+   With line-height:1 the line box is the font-size (25.5px inside a 34px
+   element), and centring THAT is not the same as centring the glyph: measured
+   3.13px of gap above the ink and 5.75px below, so the emoji sat 1.40px high.
+   A RADIALLY SYMMETRIC CONTROL GLYPH SAT JUST AS HIGH, which is what ruled out
+   "the rocket's ink leans up-and-right" and pointed at the line box instead.
+   Setting the line box to the element's own height gives the glyph the full box
+   to sit in: gaps become 4.13 / 4.75 and the offset drops to 0.40px.
+   NOT APPLIED TO THE LETTERED TILE, deliberately - it is a system-font glyph and
+   already measures 0.06px off centre at every size, so there is nothing to fix
+   and changing it would be a change without a reason. */
+.shortcut-custom-emoji {
+  line-height: var(--icon-inner);
+}
+
 .shortcut-custom-letter {
   background: var(--accent);
   color: var(--accent-text);
@@ -15679,7 +15708,18 @@ html.layout-compact .shortcuts-grid {
   grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
   gap: var(--space-1) var(--space-2);
 }
-html.layout-compact .shortcut {
+/* [1.10.7] .add-tile JOINS THE SHORTCUT HERE, and its absence was the whole
+   defect in compact. [1.10.3] tightened the tile padding for compact by naming
+   .shortcut only, so a shortcut sat 6px below its tile's top edge while the add
+   tile kept the grid's 12px - putting the add icon exactly 6px lower than every
+   icon beside it. Measured identically with a one-line label and a two-line
+   one, which is what ruled out the wrapping explanation.
+   The tile's padding is what anchors its icon, so matching the padding is what
+   shares the baseline - and it does so for ANY label line count, because the
+   label sits BELOW the icon and grows downward. A two- or three-line label
+   makes its row taller and leaves every icon in that row level. */
+html.layout-compact .shortcut,
+html.layout-compact .add-tile {
   padding: var(--space-1-5) 0 var(--space-1);
 }
 html.layout-compact .group {
