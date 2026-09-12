@@ -2496,3 +2496,52 @@ than a knob to turn first.
 The reserve is a layout change that must still happen, so the result is kept and only the
 motion is withheld — and `transition: none` is symmetric by construction, which is the
 property the original declaration lacked.
+
+---
+
+## 2026-09-12 - REVERSED: the one free scratchpad note is cut, and B11 ships nothing
+
+**Reverses** the 2026-09-01 ruling *"One free scratchpad note, in its own slot"* in the
+expansion-roadmap entry above. That entry stays as written, per this file's own rule; it
+records what was decided on 2026-09-01 and is no longer what the product does.
+
+**Decision.** B11 is cut entirely. There is no free note on Home. Notes remain Pro in
+full, exactly as `RELEASE-NOTES-2.1.0.md` describes them. `data.homeNote` is swept on load.
+
+**Context.** The note was built as ruled in `[1.11.4]` - a dedicated top-level `homeNote`
+slot, never `ws.notes[0]`, with free and expired byte-identical - and it verified clean:
+28 assertions, four tier states driven, 13:1 on ink across four grounds. It was cut after
+Samson used it on a real profile for the first time. **The implementation was not the
+problem, which is why the reasoning is recorded rather than the defect.**
+
+**Reasoning.**
+
+1. **It is dead weight for every paying user.** A Pro user already has unlimited notes one
+   tab away. The scratchpad rendered *"Unlimited notes are in the Tasks tab"* permanently
+   on their Home - **the only element in the product that advertised a feature to a user
+   who had already bought it.** The hint line was added to orient Pro users and made the
+   problem worse rather than better.
+2. **It read as an unrelated box.** Sitting mid-wallpaper as a hard-edged card with no
+   relationship to the grid above it. Samson's words: *"looks jarring on the Home UI."*
+3. **B11 was never a user request.** It came from the 2026-09-01 expansion research as a
+   suggestion - *"Tabliss, Bonjourr and Infinity all give a free note"* - and that entry
+   itself flagged the tension: *"dilutes the Notes headline slightly. Your call."* The call
+   went the other way once it existed on screen.
+
+**Alternative considered and rejected: a free-and-expired-only note.** Coherent on its face
+- a taste of Notes for the people who do not have Notes, and the upsell line disappears for
+the users it insulted. It was rejected because it **costs the single cleanest property the
+implementation had**: the note contained no `isProAccessibleLevel` call anywhere in its
+render path, which is what made *expired is byte-identical to free* structurally true
+rather than something a test had to confirm each time. Adding a tier branch to preserve a
+feature nobody asked for trades a structural guarantee for a feature with no demand.
+
+**The sweep is a deliberate data deletion.** `dropHomeNote` removes the key on load, on the
+`[1.10.8]` accent and `[1.11.3c]` clock-key precedent, so it cannot ride inside backup
+envelopes forever naming a feature that does not exist. Anyone who typed in the note loses
+that text. Exactly one profile ever carried it and the build never left the tree, so
+nothing real was lost - but it is stated as a deletion rather than described as cleanup.
+
+**What this does NOT reverse.** The rest of the 2026-09-01 expansion rulings stand. The
+`[1.11.0]` arc's other four items - the live bookmarks panel, cross-tool imports, wallpaper
+rotation and per-workspace wallpaper - are unaffected and shipped.

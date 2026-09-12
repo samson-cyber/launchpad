@@ -111,14 +111,6 @@ goals, and a New Tag button.
 - **Notes are Pro.** They live in the Tasks tab, which is a Pro surface, so a free or
   expired user sees the demo notes in preview and cannot create one. The copy says
   "(Pro)" on the headline for exactly this reason.
-  - **CORRECT FOR 2.1.0, AND SUPERSEDED AFTER IT.** `[1.11.4]` adds **one free
-    scratchpad note on Home** - free and expired alike - with unlimited notes staying
-    Pro. That is **not in 2.1.0**, so this bullet is left standing rather than
-    rewritten: a submitted build's notes must describe the build that was submitted.
-    Support answering about a later build reads `RELEASE-NOTES-NEXT.md`, which carries
-    the replacement line. This pointer exists because the free-vs-Pro section is the
-    one place support looks, and a reader who finds only "Notes are Pro" here will give
-    the wrong answer the day the next build ships.
 - **Sessions are FREE, and their trash is free with them.** Saving, launching, renaming,
   updating, deleting, restoring and permanently deleting all work on a free profile and
   on an expired one. That is deliberate: the launcher is the free tier's identity, and

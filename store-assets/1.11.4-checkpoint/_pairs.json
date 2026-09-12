@@ -1,17 +1,5 @@
 [
   {
-    "name": "the free note x the greeting block",
-    "why": "the greeting is position:fixed-adjacent (absolute in a z-index:2 header) and spans the full width",
-    "verdict": "composes",
-    "detail": "greeting 64-126, note 806-892, overlap false, hit-test on the note: home-note"
-  },
-  {
-    "name": "the free note x Focus view",
-    "why": "Focus view hides the grid and the sidebar to leave search alone; the note is a new Home surface it knew nothing about",
-    "verdict": "composes",
-    "detail": "note display in focus view: none (grid: none), back to block on exit"
-  },
-  {
     "name": "per-workspace wallpaper x the greeting's ink",
     "why": "a bright wallpaper on ONE workspace flips html.bg-light, and the greeting keys all three of its ink frames on that class",
     "verdict": "composes",

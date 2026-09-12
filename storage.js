@@ -1968,7 +1968,7 @@ var Storage = (function () {
         var sessionsSeeded = ensureNamedSessionsArrays(existing);
         var accentDropped = dropAccentSetting(existing);
         var clockDropped = dropClockSettings(existing);
-        var homeNoteSeeded = ensureHomeNote(existing);
+        var homeNoteDropped = dropHomeNote(existing);
         var iconsMerged = migrateLegacyIcons(existing);
         // [1.4.7] Runs at most once per profile. The write is needed only on the
         // run that actually sweeps - the one that finds the marker absent and
@@ -1978,7 +1978,7 @@ var Storage = (function () {
         var strandedUnswept = existing[STRANDED_SWEEP_MARKER] !== true;
         var strandedReleased = sweepStrandedTasks(existing);
         if (patched || trackingSeeded || focusSeeded || notesSeeded || sessionsSeeded ||
-            accentDropped || clockDropped || homeNoteSeeded || iconsMerged || strandedUnswept) {
+            accentDropped || clockDropped || homeNoteDropped || iconsMerged || strandedUnswept) {
           // [1.10.3] THE BACKFILL WRITE GETS ITS OWN try/catch, AND THIS IS A
           // CORRECTNESS FIX RATHER THAN TIDYING. It used to sit inside this
           // function's single try, so an over-quota backfill fell through to the
@@ -5366,63 +5366,35 @@ var Storage = (function () {
   // a data migration. First entry is the default.
   var NOTE_COLORS = ["cream", "butter-yellow", "soft-pink", "mint", "sky-blue", "peach", "lavender"];
 
-  // ===== [1.11.4] THE ONE FREE SCRATCHPAD NOTE ==============================
+  // [1.11.4b] THE FREE SCRATCHPAD NOTE WAS CUT, and this is the sweep that
+  // takes its data with it.
   //
-  // ITS OWN SLOT, NOT ws.notes[0]. Decision 6, ruled 2026-09-01, and the reason
-  // is worth keeping next to the code: if the free note were the first element
-  // of the Pro array, a Pro user with thirty notes who lapsed would have their
-  // one surviving note chosen for them by ARRAY ORDER - and reordering,
-  // deleting or importing would change which note they keep. A dedicated field
-  // cannot drift. It is also why this is not a newNoteObject: a record with an
-  // id, a colour cycle and a tagIds array looks like a member of the Notes
-  // collection and would eventually be treated as one.
+  // WHY IT WENT, so it is not rebuilt: it was dead weight for every paying
+  // user. A Pro user already has unlimited notes one tab away, and the
+  // scratchpad rendered a line advertising them on that user's own Home - the
+  // only element in the product that upsold a feature to someone who had
+  // already bought it. It also read as an unrelated box mid-wallpaper, and B11
+  // came from expansion research as a suggestion rather than from any signal.
   //
-  // TOP-LEVEL, NOT PER-WORKSPACE. Workspaces are Pro. Hanging the free note off
-  // one would mean a free user's note lives in a structure they do not have,
-  // and a lapsing Pro user with three workspaces would have three of them and
-  // no rule for which survives. One field on `data` has exactly one answer in
-  // every tier.
+  // A FREE-AND-EXPIRED-ONLY VERSION WAS CONSIDERED AND REJECTED. It would have
+  // been coherent - a taste of Notes for people without Notes - but it costs
+  // the cleanest property [1.11.4] produced: the note had NO
+  // isProAccessibleLevel call anywhere in its render path, which is what made
+  // expired-identical-to-free structurally true rather than merely verified.
+  // Adding a tier branch to save a feature nobody asked for is the wrong trade.
   //
-  // IT IS NOT IN THE NOTES PANEL, AND THAT IS THE POINT. A Pro user has this
-  // note on Home and their unlimited notes in the Tasks tab, and the two never
-  // alias. Showing one record in two surfaces that edit differently is the
-  // defect this separation avoids - and it is what ws.notes[0] would have
-  // produced by construction.
-  function ensureHomeNote(data) {
+  // THIS IS A DELIBERATE DATA DELETION, not tidying. Anyone who typed in the
+  // note loses that text on their next load. Exactly one profile in the world
+  // ever carried this - the build never left the tree - so nothing real is
+  // lost, but the sweep is stated as what it is rather than described as
+  // cleanup. Without it, data.homeNote would ride inside every backup envelope
+  // forever, naming a feature that does not exist.
+  function dropHomeNote(data) {
     if (!data || typeof data !== "object") return false;
-    if (data.homeNote && typeof data.homeNote === "object" && !Array.isArray(data.homeNote)) return false;
-    data.homeNote = { content: "", updatedAt: 0 };
+    if (!Object.prototype.hasOwnProperty.call(data, "homeNote")) return false;
+    delete data.homeNote;
     return true;
   }
-
-  function getHomeNote(data) {
-    var n = data && data.homeNote;
-    if (!n || typeof n !== "object" || Array.isArray(n)) return { content: "", updatedAt: 0 };
-    return {
-      content: typeof n.content === "string" ? n.content : "",
-      updatedAt: typeof n.updatedAt === "number" ? n.updatedAt : 0
-    };
-  }
-
-  // A no-op write returns false and touches nothing, the same contract every
-  // other per-field setter here holds - so a blur with no edit is not a storage
-  // round trip, and a warm blob does not write forever.
-  async function setHomeNote(data, content) {
-    if (!data) return false;
-    ensureHomeNote(data);
-    var next = (content === undefined || content === null) ? "" : String(content);
-    if (next.length > HOME_NOTE_MAX) next = next.slice(0, HOME_NOTE_MAX);
-    if (data.homeNote.content === next) return false;
-    data.homeNote.content = next;
-    data.homeNote.updatedAt = Date.now();
-    await saveAll(data);
-    return true;
-  }
-
-  // A scratchpad, not a document. The cap exists so one note can never be the
-  // thing that puts a profile near the 10 MB ceiling [1.10.2] measured - 8 KB
-  // is roughly 1,500 words and 0.08% of the quota.
-  var HOME_NOTE_MAX = 8192;
 
   // Every note used to be born cream: newNoteObject fell back to NOTE_COLORS[0]
   // and nothing ever passed a colour, so the seven-colour palette was defined,
@@ -7867,9 +7839,6 @@ var Storage = (function () {
     // Notes ([1.1.0]) - pure mutations, caller pairs saveAll
     NOTE_COLORS: NOTE_COLORS,
     ensureNotesArray: ensureNotesArray,
-    getHomeNote: getHomeNote,
-    setHomeNote: setHomeNote,
-    HOME_NOTE_MAX: HOME_NOTE_MAX,
     createNote: createNote,
     updateNote: updateNote,
     deleteNote: deleteNote,

@@ -12869,68 +12869,6 @@
 
   // Delegated on the container, which survives every re-render - binding the
   // span itself would need rebinding on each one.
-  // ===== [1.11.4] THE ONE FREE SCRATCHPAD NOTE =============================
-  //
-  // FREE AND EXPIRED MUST BE BYTE-IDENTICAL HERE, and the way to guarantee that
-  // is to have no tier check at all on this surface. There is deliberately no
-  // isProAccessibleLevel call in the render path below: the note was never Pro,
-  // so the Pro lockout has nothing to act on. The ONLY thing the access level
-  // changes is a single hint line pointing Pro users at the panel where the
-  // rest of their notes live - and that line is ADDITIVE, so removing it leaves
-  // free and expired rendering the same markup from the same code.
-  //
-  // A tier check that returned the same answer for free and expired would still
-  // have been a place for them to diverge later. Not having one cannot.
-  function renderHomeNote() {
-    var host = $("#home-note-area");
-    if (!host) return;
-    var note = Storage.getHomeNote(data);
-    var pro = isProAccessibleLevel(currentAccessLevel());
-    host.innerHTML =
-      '<section class="home-note" aria-label="' + th("home_note_title") + '">' +
-        '<div class="home-note-title">' + th("home_note_title") + '</div>' +
-        '<textarea id="home-note-text" class="home-note-text" rows="3" spellcheck="true"' +
-          ' maxlength="' + Storage.HOME_NOTE_MAX + '"' +
-          ' placeholder="' + th("home_note_placeholder") + '"></textarea>' +
-        (pro ? '<div class="home-note-hint">' + th("home_note_pro_hint") + '</div>' : '') +
-      '</section>';
-    // The content goes in as a VALUE rather than into the markup: a note is the
-    // one place on this page where a user types arbitrary text, and building it
-    // into an HTML string is how that becomes an injection even with escaping
-    // in the way.
-    var ta = $("#home-note-text");
-    if (ta) ta.value = note.content;
-    bindHomeNote();
-  }
-
-  function bindHomeNote() {
-    var ta = $("#home-note-text");
-    if (!ta || ta._noteBound) return;
-    // SAVED ON BLUR AND ON A PAUSE, not on every keystroke. saveAll writes the
-    // whole data object, so a write per character would be a full serialise per
-    // character. The setter is a no-op when the text has not changed, so a blur
-    // with no edit costs nothing at all.
-    var timer = null;
-    var commit = function () {
-      window.clearTimeout(timer);
-      timer = null;
-      Storage.setHomeNote(data, ta.value);
-    };
-    ta.addEventListener("input", function () {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(commit, 700);
-    });
-    ta.addEventListener("blur", commit);
-    // The greeting above this cycles on click and blows up at twenty. Neither
-    // should be reachable by a keystroke meant for the note, and a textarea
-    // swallows its own keys - but Escape is swept page-wide, so it is stopped
-    // here rather than letting a note edit close something else.
-    ta.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") { e.stopPropagation(); ta.blur(); }
-    });
-    ta._noteBound = true;
-  }
-
   function bindGreetingCycle() {
     var el = $("#home-greeting");
     if (!el || el._cycleBound) return;
@@ -16811,7 +16749,6 @@
     initSortables();
     renderHomeGreeting();
     bindGreetingCycle();
-    renderHomeNote();
     bindLayoutSettings();
     renderLayoutSettings();
     renderSidebarGroups();
