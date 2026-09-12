@@ -2654,3 +2654,109 @@ with `#9aa0a6` in place, because neither walks the Home search field. That is
 recorded, not fixed - a gate for it belongs with whatever the rest of the
 `[1.12.x]` arc does to this bar, not bolted on at the end of a round that was
 not about gates.
+
+---
+
+## 2026-09-13 - The launcher list overlays rather than displaces, matching narrows to a prefix, and the focus ring goes two-tone
+
+**Context.** Four findings from Samson's own profile after `[1.12.1]` shipped. Three are
+defects; the fourth is a request deliberately deferred.
+
+**1. THE LIST WAS IN FLOW AND SHOVED THE WHOLE GRID.** `#launcher-results` was a plain
+sibling of `#shortcut-grid-area` with `position: relative`, so every row it drew pushed the
+entire grid down - up to **338px** (4px padding + 8 rows + 2px border + a 6px gap), applied
+and removed **on every keystroke**. Samson: *"the drop down jolts quite abrasively. and
+pushes all bookmarks down as well."*
+
+This is a vertical-stability defect rather than a polish item, and it undid what the last
+two arcs spent their effort protecting: `[1.11.3c]` cost 38px and was made to give it back,
+and `[1.12.1]` reported zero pixels as the point of the round. A list that reflows the grid
+on every keystroke is worse than either, on the surface this arc exists to make people use.
+
+It is now `position: absolute`, pinned to `#search-form` (which becomes the anchor with
+`position: relative`; no z-index, so **no new stacking context** and the list's own z-index
+still competes where it did). Measured: the grid's first row, `#groups`, and the panel's
+scrollTop are **identical with the list open and closed at 1388, 1080, 908 and 700px**, with
+the list driven to its full nine rows.
+
+**Its place in the stack did not change and did not need to** - still `z-index: 900`. Above
+`#content-header` (2) and `#sidebar` (200), so page furniture never hides it. Below
+`#shortcut-menu` (1000), `#nest-submenu` (1100), `#bookmarks-panel` (1200),
+`#active-task-pill` (1500) and its docked card (9000), the overlays (2000) and
+`#open-all-toast` (9999) - so nothing the user deliberately opened is ever covered by a list
+they are only typing past.
+
+**It opens rather than appears**: 140ms, `cubic-bezier(0.2, 0, 0.2, 1)`, opacity plus a 6px
+drop. An **animation** rather than a transition, because the element is toggled with the
+`hidden` attribute and a transition cannot run across `display: none`. That choice also
+gives the right behaviour for free - an animation restarts on each display change, so it
+plays once when the list opens and **not** on the keystrokes that follow. No scale: scaling
+a list of text resamples every glyph for the duration, which reads as blur rather than
+motion. `prefers-reduced-motion: reduce` removes it, asserted in both directions.
+
+**2. THE MATCHING NEVER NARROWED - it was ruled in the spec and never built.** `launcherScore`
+was `indexOf(...) !== -1` and had **not changed since `73be975`** created it in `[1.10.1]`.
+`[1.12.1]` did not touch it and was not asked to. So typing `"a"` returned eight rows.
+
+Now the query must **prefix** the name. The spec's own words are *"the query's FIRST WORD
+prefixes the shortcut's name"*; this implementation tests the **whole query**, and the two
+are identical for every case the spec reasons about - both give `"a"` to `"Asana board"`
+alone, and both drop `"launchpad"` against the two GitHub shortcuts. They differ only once a
+query has a **second word**, and there the spec's next sentence decides it: *"once the user
+types past what that shortcut could be, the suggestion disappears and the field goes
+quiet."* Under first-word-only, `"asana board meeting notes"` would show `"Asana board"`
+forever, because the first word still prefixes it. Testing the whole query is the only
+reading under which that sentence does anything. **If the literal first-word rule was meant,
+it is one line** - split on whitespace and test `parts[0]`.
+
+**Two costs, one of them new.** The spec's, accepted in advance: `"GitHub launchpad"` and
+`"GitHub website"` both miss on `"launchpad"`. And a second, smaller one that follows from
+*"only ... the name"*: the URL is no longer a second haystack, so `"github.com"` no longer
+finds a tile named `"Repos"`. The `title || getDomain(url)` fallback is kept and is not
+optional - a shortcut saved without a title is **labelled** by its domain, and matching
+`title` alone would make every untitled shortcut permanently unreachable from this field.
+
+**The web-search row still always appears when there is a query**, and that is deliberate:
+it is not a suggestion, it is `[1.10.1]`'s rendering of what plain Enter already does, added
+so the behaviour is visible rather than folklore. *"The field goes quiet"* is read as *the
+shortcut suggestions go*, not *the action row goes*. Flagged for Samson rather than decided
+silently.
+
+**3. THE RING WAS MEASURED ON THE WRONG GROUND.** `[1.12.1]` measured it against a dark
+wallpaper and shipped 2px at 0.42 alpha. Samson runs a photograph: *"the glow is not very
+visible either."* **P28**, exactly - present, correct, and invisible on the ground the user
+runs. Re-measured with the ring isolated (focused-with-ring against the same shadow minus
+the ring):
+
+| ring | dark | bright band | real photo |
+| --- | --- | --- | --- |
+| 2px blue 0.42 *(shipped)* | 98 | **49** | 71 |
+| 2px blue 0.70 | 216 | 61 | 175 |
+| 2px blue SOLID | 388 | 76 | 337 |
+| **2px blue 0.55 + 1px white 0.45** | **657** | **481** | **643** |
+
+**Raising the blue barely moves it on a bright ground** - 49 to 76 all the way to solid -
+because blue and a lit sky are not far apart in luminance. The white hairline reads against
+the bar's **own drop shadow** rather than against the wallpaper, and that shadow is there on
+every ground. So this is not a ground-aware value but a ground-**independent** one, which is
+better, because `bg-image` cannot tell a bright photograph from a dark one (1218312944568543,
+still open).
+
+**And it is more even, which matters more than being louder.** The shipped ring was twice as
+visible on dark as on bright (98 vs 49); this one is within 1.4x (657 vs 481). Louder options
+were measured and refused: solid blue with 0.75 white reaches 1005 on dark at a peak dL of
+0.559 - a hard white edge - and `[1.12.1]`'s constraint still binds, because the field is
+autofocused and this ring is on **every new tab, permanently**.
+
+**4. "SEARCH WITH AI" IN THE PLACEHOLDER IS DEFERRED TO `[1.12.3]`, AND THIS IS THAT ROUND'S
+COPY DECISION.** Samson asked for the placeholder to name AI search. It is not built here and
+must not be: the Gemini path lands in `[1.12.3]` and the tabs in `[1.12.2]`. **A placeholder
+promising AI search two rounds before it exists is a lie on the product's most-read surface.**
+
+The ruling for `[1.12.3]`: **the placeholder changes with the active tab**, which is a better
+answer than one line naming both. The Search tab keeps *"Search your shortcuts, or the web"*;
+the Gemini tab gets copy that names AI. That also keeps each line honest about what Enter
+will actually do, which is the same principle that made `[1.12.1]` replace Chrome's omnibox
+copy in the first place.
+
+**Cost.** Zero pixels, in every state. No storage key, no setting, no new string.

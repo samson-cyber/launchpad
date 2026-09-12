@@ -12354,26 +12354,45 @@
     return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
   }
 
-  // RANKING, and it is deliberately not a popularity contest.
+  // [1.12.1b] THE QUERY MUST PREFIX THE NAME. SUBSTRINGS NO LONGER MATCH.
   //
-  //   1. PREFIX MATCHES BEFORE SUBSTRING. In a launcher you type the beginning
-  //      of the thing you want; "git" should reach GitHub before it reaches
-  //      "Digital Ocean".
-  //   2. Then SHORTER NAME FIRST, so the most specific match of several that all
-  //      start the same way comes first ("Mail" before "Mailchimp Campaigns").
-  //   3. Then the PRODUCT'S OWN ORDER - groupOrder, then position within the
-  //      group - so the list is stable between keystrokes instead of shuffling.
+  // This used to be indexOf() !== -1 - a substring anywhere in the name, ranked
+  // 0 for a prefix and 1 for anything else - and it had not changed since it was
+  // written in 73be975. So typing "a" returned eight rows: Asana board, Measure,
+  // Cloudflare, Hacker News, Dodo Payments, mylaunchpad.me, GitHub website,
+  // Search Console. The spec's item 4 ruled against that and the rule was never
+  // built; [1.12.1] did not touch this function and was not asked to.
   //
-  // NO RECENCY AND NO FREQUENCY, and that is a scope decision rather than a
-  // preference: ranking by either needs a visit counter, B5 was declined, and
-  // adding one here would smuggle a rejected feature in as an implementation
-  // detail. Nothing in the data model records when a shortcut was last opened.
+  // Samson's reasoning, recorded in the spec: "the whole idea is a grid
+  // aesthetic that makes it easier to find the shortcut. The search bar
+  // shouldn't be the main way to find your shortcuts." The suggestion is a nice
+  // thing people discover, not the bar's purpose.
+  //
+  // THE COST IS RECORDED AND ACCEPTED: a user with "GitHub launchpad" and
+  // "GitHub website" who types "launchpad" now gets nothing.
+  //
+  // THE SPEC SAYS "THE QUERY'S FIRST WORD PREFIXES THE NAME"; THIS TESTS THE
+  // WHOLE QUERY, AND THE TWO ARE THE SAME FOR EVERY CASE THE SPEC REASONS
+  // ABOUT. Both give "a" -> "Asana board" alone, and both drop "launchpad"
+  // against the two GitHub shortcuts. They differ only once a query has a
+  // SECOND word, and there the spec's own next sentence decides it: "once the
+  // user types past what that shortcut could be, the suggestion disappears and
+  // the field goes quiet." Under first-word-only, "asana board meeting notes"
+  // would keep showing "Asana board" forever, because the first word still
+  // prefixes it - which is the opposite of going quiet. Testing the whole query
+  // is the only reading under which that sentence does anything. If the literal
+  // first-word rule was meant, it is one line: split on whitespace and test
+  // parts[0] instead of q.
+  //
+  // WHAT SURVIVES FROM THE OLD RANKING: shorter name first, so the most
+  // specific of several names that start alike comes first ("Mail" before
+  // "Mailchimp Campaigns"), then the product's own order so the list is stable
+  // between keystrokes. The prefix-before-substring tier is gone because there
+  // are no substring matches left to outrank. Still no recency and no
+  // frequency - B5 was declined and nothing records when a shortcut was opened.
   function launcherScore(haystack, needle) {
     if (!haystack) return -1;
-    var h = haystack.toLowerCase();
-    var i = h.indexOf(needle);
-    if (i === -1) return -1;
-    return i === 0 ? 0 : 1;              // 0 = prefix, 1 = substring
+    return haystack.toLowerCase().lastIndexOf(needle, 0) === 0 ? 0 : -1;
   }
 
   // Reads the SAME traversal render() uses - groupOrder, then groupMap, then each
@@ -12402,9 +12421,16 @@
                    rank: gs, len: (g.name || "").length, ord: gi * 1000 });
       }
       (g.shortcuts || []).forEach(function (sc, si) {
-        // Title first, then the URL, so "github.com" finds a tile named "Repos".
-        var best = launcherScore(sc.title, q);
-        if (best === -1) best = launcherScore(sc.url, q);
+        // [1.12.1b] THE NAME, AND ONLY THE NAME. The spec is "prefixes the
+        // shortcut's NAME", and the URL used to be a second haystack tested
+        // with a substring match, which is the widest thing in the old
+        // behaviour - every shortcut whose URL contained the query matched.
+        // A SECOND RECORDED COST, smaller than the spec's and the same kind:
+        // "github.com" no longer finds a tile named "Repos".
+        // The fallback is not optional - a shortcut saved with no title is
+        // LABELLED by its domain, so matching sc.title alone would make every
+        // untitled shortcut permanently unreachable from this field.
+        var best = launcherScore(sc.title || getDomain(sc.url), q);
         if (best === -1) return;
         out.push({ kind: "shortcut", id: sc.id, label: sc.title || getDomain(sc.url),
                    // [1.10.6] Carry the shortcut itself, so the row can render

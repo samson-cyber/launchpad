@@ -559,6 +559,12 @@ body {
   width: 100%;
   max-width: 584px;
   padding: 0 var(--space-5);
+  /* [1.12.1b] THE ANCHOR FOR THE RESULTS LIST, which is now out of flow. The
+     form's padding box is exactly the bar, so a list pinned to this element's
+     edges lines up with the bar without restating its width. position:relative
+     with z-index:auto creates NO stacking context, so the list's own z-index
+     still competes in the same context it did before - see its block. */
+  position: relative;
 }
 
 /* ===== [1.12.1] THE BAR AS AN OBJECT ========================================
@@ -2905,9 +2911,39 @@ html.has-bg:not(.bg-light) #search-bar {
               0 6px 20px rgba(0, 0, 0, 0.34);
 }
 
+/* [1.12.1b] THE RING IS TWO-TONE, AND THE WHITE HALF IS WHY IT SURVIVES A
+   BRIGHT SKY. [1.12.1] measured this ring on a DARK wallpaper and shipped
+   2px/0.42 on that evidence. Samson runs a photograph: "the glow is not very
+   visible either." P28 exactly.
+
+   Measured with the ring ISOLATED - focused-with-ring against focused with the
+   same shadow minus the ring - on three grounds:
+
+       ring                            dark    bright band   real photo
+       2px blue 0.42 (shipped)           98            49           71
+       2px blue 0.70                    216            61          175
+       2px blue SOLID                   388            76          337
+       2px blue 0.55 + 1px white 0.45   657           481          643
+
+   RAISING THE BLUE BARELY MOVES IT ON A BRIGHT GROUND - 49 to 76 all the way to
+   solid - because blue and a lit sky are not far apart in luminance, which is
+   the only thing a pixel diff can see and roughly what the eye uses at a 2px
+   width. The white hairline reads against the bar's OWN DROP SHADOW rather than
+   against the wallpaper, and the shadow is there on every ground. So this is
+   not a ground-aware value; it is a ground-INDEPENDENT one, which is better,
+   because `bg-image` cannot tell a bright photograph from a dark one (that is
+   1218312944568543, still open).
+
+   AND IT IS MORE EVEN, WHICH MATTERS MORE THAN BEING LOUDER. The shipped ring
+   was twice as visible on dark as on bright (98 vs 49); this one is within
+   1.4x (657 vs 481). The louder options were measured and refused: solid blue
+   with a 0.75 white reaches 1005 on dark at a peak dL of 0.559 - a hard white
+   edge - and [1.12.1]'s constraint still binds, because the field is
+   autofocused and this ring is on every new tab permanently. */
 html.has-bg:not(.bg-light) #search-bar:focus-within {
   background: #fff;
-  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.42),
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.55),
+              0 0 0 3px rgba(255, 255, 255, 0.45),
               0 8px 24px rgba(0, 0, 0, 0.40);
 }
 
@@ -16136,11 +16172,24 @@ html.has-bg.bg-light .notes-default-cycle {
    what that tier is for. It is anchored under the search bar rather than
    position:fixed, so it moves with the bar on resize instead of drifting away
    from it - the drift-close hazard the popover matrix records. */
+/* [1.12.1b] IT OVERLAYS THE GRID. IT DOES NOT DISPLACE IT.
+ *
+ * This was in flow - a plain sibling of #shortcut-grid-area - so every row it
+ * drew pushed the ENTIRE grid down, and it redrew on every keystroke. Up to
+ * 338px of shove (4px padding + 8 rows + 2px border + the 6px gap), applied and
+ * removed as the query changed. Samson: "the drop down jolts quite abrasively.
+ * and pushes all bookmarks down as well."
+ *
+ * THAT IS A VERTICAL-STABILITY DEFECT, not a polish item. [1.11.3c] paid 38px
+ * and was made to give it back; [1.12.1] reported zero pixels as the point of
+ * the round. A list that reflows the whole grid on every keystroke is worse
+ * than either, and it did it on the surface this arc exists to make people use.
+ *
+ * Out of flow it costs the page nothing at all, in any state.
+ */
 #launcher-results {
   list-style: none;
-  margin: 6px auto 0;
   padding: 4px;
-  max-width: 584px;
   max-height: 320px;
   overflow-y: auto;
   border-radius: var(--radius-md);
@@ -16149,8 +16198,41 @@ html.has-bg.bg-light .notes-default-cycle {
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.38);
   text-align: left;
-  position: relative;
+  /* Pinned to the form's padding box, which IS the bar. left/right rather than
+     a width, so it tracks the bar at every window size without a second
+     max-width to keep in step. The 6px gap moves into `top`. */
+  position: absolute;
+  top: calc(100% + 6px);
+  left: var(--space-5);
+  right: var(--space-5);
+  /* UNCHANGED AT 900, and the position change does not move it in the stack.
+     Above: #content-header (2) and #sidebar (200), so it is never hidden by the
+     page furniture it opens over. Below: #shortcut-menu (1000), #nest-submenu
+     (1100), #bookmarks-panel (1200), #active-task-pill (1500) and its docked
+     card (9000), the overlays (2000) and #open-all-toast (9999) - so nothing
+     the user deliberately opened is ever covered by a list they are only
+     typing past. */
   z-index: 900;
+  /* IT OPENS RATHER THAN APPEARS. An ANIMATION rather than a transition, on
+     purpose: the element is toggled with the `hidden` attribute, so it goes
+     display:none -> displayed, and a transition cannot run across that. An
+     animation restarts on each display change, which means it plays ONCE when
+     the list opens and NOT on the keystrokes that follow, because the element
+     stays displayed while the query changes. No JS knows about it. */
+  animation: launcher-open 140ms cubic-bezier(0.2, 0, 0.2, 1) both;
+  transform-origin: top center;
+}
+
+/* Opacity and a 6px drop, and deliberately NO scale: scaling a list of text
+   resamples every glyph for the length of the animation, which reads as a blur
+   rather than as a movement. */
+@keyframes launcher-open {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #launcher-results { animation: none; }
 }
 
 .launcher-row {
