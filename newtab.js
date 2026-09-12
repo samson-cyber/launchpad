@@ -13236,7 +13236,10 @@
   function applySearch() {
     var form = $("#search-form");
     var input = $("#search-input");
-    if (input) input.placeholder = t("apply_search_or_type_a_url");
+    // ONE KEY, and it is the one the markup binds. This line used to read a
+    // SECOND key holding the same sentence, so the field carried three copies
+    // of its own placeholder - the attribute, the data-i18n binding, and this.
+    if (input) input.placeholder = t("page_search_or_type_a_url");
     if (form && !form._searchHandlerAttached) {
       form.addEventListener("submit", function (e) {
         e.preventDefault();

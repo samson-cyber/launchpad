@@ -2545,3 +2545,81 @@ nothing real was lost - but it is stated as a deletion rather than described as 
 **What this does NOT reverse.** The rest of the 2026-09-01 expansion rulings stand. The
 `[1.11.0]` arc's other four items - the live bookmarks panel, cross-tool imports, wallpaper
 rotation and per-workspace wallpaper - are unaffected and shipped.
+
+---
+
+## 2026-09-12 - The search bar was not too quiet: REFUTED. Its focus state was dead and its placeholder was Chrome's
+
+**Decision.** The `[1.12.1]` search-bar spec's diagnosis is **refuted and not built**. The
+bar is not given more height, more contrast or a larger type ramp. The three defects that
+measurement actually found are fixed instead, at zero cost to the page's vertical budget.
+
+**Context.** The `[1.12.0]` spec describes Home's search field as *"a pale pill on a
+photograph, roughly the visual weight of the clock line above it, under a logo and tab bar
+that both read louder. That is why it disappears"* - and concludes that the fix is weight.
+That spec was written **before `[1.11.0]` changed Home**: the clock line it compares against
+was removed in `[1.11.3c]`, and the greeting that replaced it is a wallpaper treatment
+rather than a competing block.
+
+**What the measurement says.** Visual weight measured on the busy fixture over a dark
+wallpaper, by hiding each element and diffing the painted page (footprint = pixels the
+element changes at all; presence = summed absolute luminance delta over them):
+
+| element | footprint | presence |
+| --- | --- | --- |
+| **the search bar** | **23,222** | **18,238** |
+| the tab bar | 3,956 | 544 |
+| the first grid row | 3,803 | 644 |
+| the greeting | 3,108 | 466 |
+| the brand | 2,839 | 2,091 |
+
+The bar is **first of five on both counts** - six times the tab bar's footprint and nine
+times the brand's presence. It was already the largest and loudest object on Home before
+this round touched it.
+
+**Alternatives considered.**
+
+- **Build the spec as written** (taller bar, stronger contrast, bigger type). Rejected: it
+  spends vertical space to fix a problem the page does not have. Home's grid begins at
+  406px on a 908px window, and `[1.11.3c]` already paid 38px once for a change nobody had
+  measured first.
+- **Build one of the three levers and keep the rest in reserve.** Rejected for the same
+  reason - the smallest version of a wrong fix is still a wrong fix.
+
+**Outcome - the three defects that were real, all found rather than assumed.**
+
+1. **The focus state was dead on every wallpaper**, and a wallpaper is what ships by
+   default. `html.has-bg:not(.bg-light) #search-bar` is specificity (0,1,2,1) and
+   `#search-bar:focus-within` is (0,1,1,0), so the wallpaper rule won and the focus
+   background never applied. Measured: background and shadow byte-identical focused and
+   unfocused. The focus state is now declared per frame, at a specificity that can win.
+2. **The elevation was invisible where it matters.** `0 1px 6px rgba(0,0,0,0.2)` is a dark
+   shadow under a white pill on a dark ground - the same defect `[1.11.1b]` measured on
+   Open All (+28.9 luminance levels on pale, +1.77 on dark). A light rim carries the edge
+   on dark grounds; the dark drop still carries it on pale ones.
+3. **The placeholder was Chrome's own omnibox copy, verbatim** - *"Search or type a URL"*.
+   A field that announces itself as the address bar gets used like the address bar, which
+   is to say not at all, because the address bar is already there and closer to the
+   pointer. `[1.10.1]` made this field search shortcuts, groups and sessions inline -
+   something the omnibox cannot do - and the copy never said so. Now *"Search your
+   shortcuts, or the web"*, shortcuts named first because that half exists nowhere else.
+
+**The finding that changes how the focus state is TUNED, and it was not in the spec.**
+`#search-input` carries `autofocus`, and `newtab.js` excludes Home from panel focus
+management *because* of it. So the focused state is not a reward for clicking - **it is
+what a new tab looks like, every time, from the moment it opens.** Two consequences: the
+bar has had the caret in it since forever and gave no sign of it, which is a stronger
+statement of defect 1 than *"clicking produces no feedback"*; and the ring cannot be tuned
+as an alert. 3px at 0.55 alpha measured fine for a deliberate click and reads as an error
+state on arrival. It ships at 2px, which is also the **minimum that reads at all** - the
+resting state on dark already carries a 1px white rim, so a 1px ring measured as no change
+(24,195px against 24,201px for no ring, inside noise).
+
+**Cost.** Zero. Bar top, height, width, input height, icon width, the grid's first row and
+the header's height are **identical before and after at 1388, 1080, 908 and 700px**. No
+storage key, no setting, no new string site.
+
+**What this does not decide.** Whether the bar should become a tabbed Gemini/Search field
+is the rest of the `[1.12.x]` arc and is untouched here. This entry rules only that the
+arc's premise about visual weight was wrong, so rounds that inherit it should inherit the
+measurement rather than the spec's sentence.

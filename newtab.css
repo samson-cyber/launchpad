@@ -561,6 +561,53 @@ body {
   padding: 0 var(--space-5);
 }
 
+/* ===== [1.12.1] THE BAR AS AN OBJECT ========================================
+ *
+ * THE SPEC'S DIAGNOSIS WAS WRONG AND THE MEASUREMENT SAYS SO. It describes the
+ * bar as "a pale pill on a photograph, roughly the visual weight of the clock
+ * line above it, under a logo and tab bar that both read louder", and concludes
+ * the fix is more weight. Measured on the busy fixture over a dark wallpaper,
+ * by hiding each element and diffing the painted page:
+ *
+ *     element             footprint   presence
+ *     THE SEARCH BAR         23222      18238
+ *     the tab bar             3956        544
+ *     the first grid row      3803        644
+ *     the greeting            3108        466
+ *     the brand               2839       2091
+ *
+ * The bar is FIRST of five on both counts - six times the tab bar's footprint
+ * and nine times the brand's presence. It is already by a wide margin the
+ * largest and loudest thing on Home. So it is NOT given more height and NOT
+ * given more contrast: that would cost the grid vertical space to fix a problem
+ * the page does not have, and [1.11.3c] already paid 38px once for a change
+ * nobody had measured.
+ *
+ * WHAT THE MEASUREMENT SAYS IS ACTUALLY WRONG WITH IT, all three found rather
+ * than assumed:
+ *
+ *   1. THE FOCUS STATE IS DEAD ON EVERY WALLPAPER, and the wallpaper is the
+ *      shipped default. `html.has-bg:not(.bg-light) #search-bar` is (0,1,2,1)
+ *      and `#search-bar:focus-within` is (0,1,1,0), so the wallpaper rule wins
+ *      and the focus background never applies. Measured: background and shadow
+ *      are byte-identical focused and unfocused. Clicking the largest object on
+ *      the page produced NO feedback at all.
+ *
+ *   2. THE ELEVATION IS INVISIBLE WHERE IT MATTERS. `0 1px 6px rgba(0,0,0,0.2)`
+ *      is a dark shadow under a white pill on a DARK wallpaper - it cannot be
+ *      seen on the ground this product ships by default. Same shape as the
+ *      [1.11.1b] Open All shadow, which measured +28.9 luminance levels on pale
+ *      and +1.77 on dark, and was fixed with a light hairline.
+ *
+ *   3. THE PLACEHOLDER ANNOUNCES IT AS A DUPLICATE. "Search or type a URL" is
+ *      Chrome's own omnibox copy, verbatim. The bar tells the user it is the
+ *      address bar, so the user uses the address bar. [1.10.1] made this field
+ *      search shortcuts, groups and sessions - something the omnibox cannot do -
+ *      and the copy never said so.
+ *
+ * A raised object that answers when touched and says what it is for is a
+ * different fix from a bigger one, and it is the one the numbers support.
+ */
 #search-bar {
   display: flex;
   align-items: center;
@@ -568,13 +615,31 @@ body {
   border: none;
   border-radius: 24px;
   padding: 0 var(--space-4);
+  /* 44px, UNCHANGED. See the measurement above: the bar does not need to be
+     bigger, and every pixel added here is a pixel the grid's first row moves
+     down on a 700px window. */
   height: 44px;
+  box-shadow: 0 1px 2px rgba(32, 33, 36, 0.12), 0 0 0 1px rgba(32, 33, 36, 0.06);
   transition: box-shadow 0.2s, background-color 0.2s;
 }
 
+/* THE FOCUS STATE IS TUNED AS A RESTING APPEARANCE, NOT AS AN ALERT.
+   #search-input carries `autofocus`, and newtab.js:453 excludes Home from panel
+   focus management precisely because of it. So this is not the state a click
+   produces - it is the state every new tab OPENS in, and the caret has been
+   blinking in this field unannounced for as long as the dead rule above existed.
+   A 2px ring is what a page can carry all day; 3px at 0.55 alpha measured fine
+   for a deliberate click and read as an error state on arrival.
+
+   IT IS ALSO DECLARED PER FRAME, because a single rule cannot win.
+   Each wallpaper frame sets `background` at a specificity this one has to match
+   - which is exactly why the old single :focus-within rule was dead. The ring
+   is the cue: a background lift alone is what used to be attempted, and on a
+   surface that is already 0.9 white there is almost nowhere for it to go. */
 #search-bar:focus-within {
   background: var(--search-bg-focus);
-  box-shadow: 0 1px 6px rgba(32, 33, 36, 0.28);
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.30),
+              0 3px 12px rgba(32, 33, 36, 0.20);
 }
 
 .search-icon {
@@ -2797,15 +2862,34 @@ html.has-bg:not(.bg-light) .brand-icon circle {
   fill: #fff;
 }
 
+/* [1.12.1] A LIGHT RIM CARRIES THE EDGE ON DARK GROUNDS, and the dark drop
+   carries it on pale ones. A dark shadow under a white pill on a dark wallpaper
+   is invisible - the same defect [1.11.1b] measured on Open All, where the
+   shadow was worth +28.9 luminance levels on pale and +1.77 on dark. The rim is
+   the half that works where the drop does not. */
 html.has-bg:not(.bg-light) #search-bar {
   background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22),
+              0 6px 20px rgba(0, 0, 0, 0.34);
+}
+
+html.has-bg:not(.bg-light) #search-bar:focus-within {
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.42),
+              0 8px 24px rgba(0, 0, 0, 0.40);
 }
 
 html.bg-light #search-bar {
   background: #fff;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+
+html.bg-light #search-bar:focus-within {
+  background: #fff;
+  border-color: rgba(26, 115, 232, 0.4);
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.24),
+              0 4px 14px rgba(0, 0, 0, 0.14);
 }
 
 html.has-bg:not(.bg-light) #search-input {

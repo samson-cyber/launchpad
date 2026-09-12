@@ -469,8 +469,8 @@ I18n.register("en", {
     "description": "Text on the page surface."
   },
   "page_search_or_type_a_url": {
-    "message": "Search or type a URL",
-    "description": "placeholder attribute on the page surface."
+    "message": "Search your shortcuts, or the web",
+    "description": "Placeholder in the Home search field, bound in markup and re-applied by applySearch(). [1.12.1] changed it from \"Search or type a URL\", which was Chrome's own omnibox copy verbatim - a field that announces itself as the address bar gets used like the address bar, which is to say not at all. This field does something the omnibox CANNOT: [1.10.1] made it search shortcuts, groups and sessions inline. The shortcut half is named first because it is the half that is not available anywhere else."
   },
   "page_tip_right_click_any_webpage": {
     "message": "💡 Tip: Right-click any webpage and select ‘Add to LaunchPad’ to quickly save it to any group!",
@@ -1919,10 +1919,6 @@ I18n.register("en", {
   "active_active_task": {
     "message": "Active task",
     "description": "Text sink in renderActiveTaskWidget(). Rendered with t()."
-  },
-  "apply_search_or_type_a_url": {
-    "message": "Search or type a URL",
-    "description": "Text sink in applySearch(). Rendered with t()."
   },
   "auto_automatic_backup_is_off_because_the": {
     "message": "Automatic backup is off because the downloads permission was removed. Turn it on again to restore the schedule.",
