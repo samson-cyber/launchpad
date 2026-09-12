@@ -11636,17 +11636,17 @@
   // importing the same file twice is a thing people do, and the answer here is
   // that it imports again into new groups, having SAID SO first. Making it
   // visible is what turns an emergent outcome into a deliberate one.
+  // [1.11.5] SHARES THE PANEL'S KEY. This used to build its own set from RAW
+  // stored URLs and test CLEANED incoming ones against it, so a shortcut added
+  // by hand as `example.com` never matched an import of `https://example.com/`.
+  // Both sides now go through bmUrlKey, which is also what the bookmarks panel
+  // uses - one definition, so the preview's count and the panel's cue can never
+  // say different things about the same bookmark.
   function importCountExisting(parsed) {
-    var ws = Storage.getActiveWorkspace(data);
-    if (!ws) return 0;
-    var have = Object.create(null);
-    (ws.groups || []).forEach(function (g) {
-      if (g.deletedAt) return;
-      (g.shortcuts || []).forEach(function (sc) { if (sc.url) have[sc.url] = true; });
-    });
+    var have = bmShortcutUrlSet();
     var n = 0;
     parsed.groups.forEach(function (g) {
-      g.links.forEach(function (l) { if (have[l.url]) n++; });
+      g.links.forEach(function (l) { if (have[bmUrlKey(l.url)]) n++; });
     });
     return n;
   }
@@ -11795,6 +11795,67 @@
   var bmRefreshTimer = null;
   var bmSeededDefault = false;
 
+  // ===== [1.11.5] ONE DEFINITION OF "ALREADY HAVE THIS" ====================
+  //
+  // The bookmarks panel's + used to add unconditionally, so adding a bookmark
+  // already on the board gave you two of it. The importer already counted
+  // duplicates before writing. Samson's ruling: SKIP - the panel comes into
+  // line with the importer.
+  //
+  // BOTH PATHS NOW GO THROUGH THESE TWO FUNCTIONS. The alternative - a second
+  // duplicate test living in the panel - disagrees with the first the moment
+  // either one changes, and neither would be wrong on its own.
+  //
+  // WHAT THE TEST COMPARES, AND WHY IT IS DELIBERATELY CONSERVATIVE.
+  // Importers.cleanUrl serialises through the URL parser and returns `href`.
+  // That reconciles exactly one thing: a bare origin written without a trailing
+  // slash (`https://example.com`) against the same origin with one, because
+  // serialisation adds it to BOTH sides. It does not unify http with https, and
+  // it does not strip a query or a fragment.
+  //
+  // THAT NARROWNESS IS THE POINT, because skipping is a REFUSAL TO ACT. A
+  // too-generous match silently declines to add a bookmark the user genuinely
+  // wants and gives them no way to see why. `http://x` and `https://x` are
+  // different resources; `/docs#install` and `/docs#usage` are two shortcuts a
+  // user may legitimately want side by side. So the only normalisation is the
+  // one that cannot be wrong.
+  //
+  // THE PREVIOUS ASYMMETRY, now gone: importCountExisting compared CLEANED
+  // incoming URLs against RAW stored ones, because addShortcut stores whatever
+  // string it is handed. A shortcut added by hand as `example.com` never
+  // matched an import of `https://example.com/`. Both sides go through the same
+  // key now.
+  function bmUrlKey(url) {
+    if (typeof url !== "string" || !url) return null;
+    try {
+      var k = Importers && Importers.cleanUrl ? Importers.cleanUrl(url) : null;
+      return k || url;
+    } catch (e) { return url; }
+  }
+
+  // SCOPED TO THE ACTIVE WORKSPACE, matching what importCountExisting already
+  // did, and deliberately. Shortcuts are per-workspace: a bookmark that is a
+  // shortcut in Personal is not on the board the user is looking at, so
+  // refusing to add it to Work would be refusing an add for a reason they
+  // cannot see. "Already have this" means "already on this board".
+  //
+  // BUILT ONCE PER RENDER, not once per row. That is what keeps the cue O(1)
+  // per row on a three-thousand-bookmark tree.
+  function bmShortcutUrlSet() {
+    var ws = Storage.getActiveWorkspace(data);
+    var have = Object.create(null);
+    if (!ws) return have;
+    (ws.groups || []).forEach(function (g) {
+      if (g.deletedAt) return;
+      (g.shortcuts || []).forEach(function (sc) {
+        if (sc.deletedAt || !sc.url) return;
+        var k = bmUrlKey(sc.url);
+        if (k) have[k] = true;
+      });
+    });
+    return have;
+  }
+
   function bmLabel(node) {
     var title = (node.title || "").trim();
     return title || (node.url ? getDomain(node.url).replace(/^www\./, "") : t("bookmarks_untitled"));
@@ -11803,19 +11864,32 @@
   // Only EXPANDED folders render their children. This is what keeps the panel
   // O(visible rows) instead of O(tree): a collapsed folder costs one row no
   // matter how many thousands of bookmarks hang off it.
-  function bmNodeHtml(node, depth) {
+  function bmNodeHtml(node, depth, have) {
     var isFolder = !node.url;
     var label = esc(bmLabel(node));
     if (!isFolder) {
-      return '<div class="bm-row bm-bookmark" role="treeitem" style="--bm-depth:' + depth + '">' +
+      // THE + IS NOT OFFERED WHEN IT WOULD DO NOTHING, which is the whole
+      // reason a cue exists at all. A control that is present, clickable and
+      // inert reads as broken - the same class of lie [1.11.3f] fixed by making
+      // the greeting's hover true rather than by removing it. Here the honest
+      // move is the other one: there is nothing to make true, so the affordance
+      // goes and a statement takes its place.
+      var already = !!(have && have[bmUrlKey(node.url)]);
+      var tail = already
+        ? '<span class="bm-have" title="' + esc(t("bookmarks_already_added")) + '" aria-label="' +
+            esc(t("bookmarks_already_added")) + '">' +
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
+          '</span>'
+        : '<button class="bm-add" type="button" data-bm-url="' + esc(node.url) + '" data-bm-title="' + label +
+            '" title="' + esc(t("bookmarks_add_to_launchpad")) + '" aria-label="' + esc(t("bookmarks_add_to_launchpad")) + '">' +
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>' +
+          '</button>';
+      return '<div class="bm-row bm-bookmark' + (already ? " is-in-launchpad" : "") +
+          '" role="treeitem" style="--bm-depth:' + depth + '">' +
         '<a class="bm-open" href="' + esc(node.url) + '" title="' + esc(node.url) + '">' +
           '<img class="bm-favicon" src="' + esc(getFaviconUrl(node.url)) + '" alt="" loading="lazy" data-url="' + esc(node.url) + '">' +
           '<span class="bm-title">' + label + '</span>' +
-        '</a>' +
-        '<button class="bm-add" type="button" data-bm-url="' + esc(node.url) + '" data-bm-title="' + label +
-          '" title="' + esc(t("bookmarks_add_to_launchpad")) + '" aria-label="' + esc(t("bookmarks_add_to_launchpad")) + '">' +
-          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>' +
-        '</button>' +
+        '</a>' + tail +
       '</div>';
     }
     var kids = node.children || [];
@@ -11828,7 +11902,7 @@
       '</button>' +
     '</div>';
     if (open) {
-      for (var i = 0; i < kids.length; i++) html += bmNodeHtml(kids[i], depth + 1);
+      for (var i = 0; i < kids.length; i++) html += bmNodeHtml(kids[i], depth + 1, have);
     }
     return html;
   }
@@ -11868,7 +11942,12 @@
       return;
     }
     var html = "";
-    for (var k = 0; k < roots.length; k++) html += bmNodeHtml(roots[k], 0);
+    // ONE SET FOR THE WHOLE RENDER, threaded down rather than rebuilt per row.
+    // Building it inside bmNodeHtml would walk every group's shortcuts once per
+    // ROW, turning the 3,000-child expand [1.11.1] measured at 236ms into three
+    // thousand set builds.
+    var have = bmShortcutUrlSet();
+    for (var k = 0; k < roots.length; k++) html += bmNodeHtml(roots[k], 0, have);
     host.innerHTML = html;
   }
 
@@ -11914,6 +11993,15 @@
   // writer means tag inheritance, id assignment and addedAt all behave the same
   // whichever surface the shortcut came from.
   async function bmAddToLaunchPad(url, title) {
+    // GUARDED AT THE WRITER TOO, not only in the render. The panel live-updates
+    // and another tab can add the same shortcut between a row being drawn and
+    // its + being clicked, so the cue can be stale by the time it is acted on.
+    // This is the check that actually prevents the duplicate; the cue is what
+    // stops the user reaching for it.
+    if (bmShortcutUrlSet()[bmUrlKey(url)]) {
+      showToast(t("bookmarks_already_added"));
+      return;
+    }
     var ws = Storage.getActiveWorkspace(data);
     var groups = (ws && ws.groups) || [];
     var live = groups.filter(function (g) { return !g.deletedAt; });
@@ -11930,6 +12018,12 @@
     });
     data = await Storage.getAll();
     render();
+    // ...AND REDRAW THE TREE. render() rebuilds Home, and the bookmarks panel is
+    // not part of Home - so without this the row the user just clicked keeps its
+    // + for a bookmark that is now on the board, until some unrelated event
+    // happens to redraw the panel. The shortcut landed either way; the cue is
+    // what was stale. bmRenderTree is cheap and only expanded folders render.
+    if (!$("#bookmarks-panel").classList.contains("hidden")) await renderBookmarksTree();
     showToast(t("bookmarks_added_toast", { title: title || getDomain(url) }));
   }
 

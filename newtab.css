@@ -16583,6 +16583,29 @@ html.has-bg.bg-light .greeting-debris-glyph {
   display: none;
 }
 
+/* ----- [1.11.5] a bookmark already on the board -----------------------------
+   The + is REPLACED rather than disabled. A disabled control still invites the
+   click it will refuse; a tick states a fact. Same footprint as the button it
+   stands in for, so a row does not reflow when a shortcut is added and the
+   panel re-renders under the pointer.
+   INK ON BOTH FRAMES, the rule this panel already follows: it paints through
+   --ink-* and restates the dark values under html.bg-light, because the floater
+   surface goes white-tinted there. */
+.bm-have {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  color: var(--ink-meta);
+}
+
+.bm-row.is-in-launchpad .bm-title { color: var(--ink-meta); }
+
+html.bg-light .bm-have { color: var(--text-hint); }
+html.bg-light .bm-row.is-in-launchpad .bm-title { color: var(--text-secondary); }
+
 /* ----- the icon picker -----
    FLOATER tier: a transient surface over the page. Centred rather than anchored
    to the tile, because a tile near the viewport edge would push an anchored

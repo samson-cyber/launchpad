@@ -179,6 +179,10 @@ I18n.register("en", {
     "message": "Untitled",
     "description": "Fallback label for a bookmark or folder saved with no title."
   },
+  "bookmarks_already_added": {
+    "message": "Already in LaunchPad",
+    "description": "Marks a bookmark row whose URL is already a shortcut in the active workspace. Replaces the add button rather than sitting beside it - a + that cannot do anything reads as broken. Also the toast if a click gets through on a stale row."
+  },
   "bookmarks_add_to_launchpad": {
     "message": "Add to LaunchPad",
     "description": "Tooltip on the per-row button that copies a bookmark into the current workspace."
