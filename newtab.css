@@ -642,9 +642,40 @@ body {
               0 3px 12px rgba(32, 33, 36, 0.20);
 }
 
+/* ===== [1.12.1] THE BAR'S OWN INK =========================================
+ *
+ * MEASURED ON THE BAR, NOT ON THE PAGE - and this is the half of the spec's
+ * "more contrast" that was right. The bar does not need more contrast against
+ * the wallpaper; it is already the loudest object on Home. Its TEXT needed more
+ * contrast against the bar. Pixel-diffed on the real surface, five grounds:
+ *
+ *     the placeholder   #9aa0a6 on #fff   2.61:1     needs 4.5:1 (16px / 400)
+ *     the magnifier     #9aa0a6 on #fff   2.64:1     needs 3:1 (a graphic)
+ *
+ * BOTH ARE PRE-EXISTING AND NEITHER WAS CAUSED BY THIS ROUND. What changed is
+ * that the placeholder stopped being furniture. It used to read "Search or type
+ * a URL" - a sentence nobody needed to read, because it described the address
+ * bar. It now carries the ONLY statement on Home of what this field actually
+ * does, and the least legible text on the page is a poor place to put it.
+ *
+ * This is the same swap, for the same reason, as the [2.0 ink] pass on the Pro
+ * panel's idle line (see the note further down this file): "it used to be
+ * passive metadata and is now the primary outcome ... --text-secondary:
+ * 2.64 -> 6.05". Inheriting a known-accepted deficit is allowed by BUGS.md O1's
+ * companion rule; promoting a line to load-bearing and THEN inheriting it is
+ * not.
+ *
+ * --text-secondary (#5f6368) is a LIGHT-THEME token, which is the O3 mirror
+ * trap when it lands on a dark surface. It is correct here and only here: the
+ * bar's surface is white or 0.9-white in every one of its frames, and has no
+ * dark variant to fall through to.
+ */
 .search-icon {
   flex-shrink: 0;
   margin-right: var(--space-3);
+  /* Also set as a presentation attribute in newtab.html so the two agree; this
+     rule is what actually wins, because any CSS beats a presentation attribute. */
+  stroke: var(--text-secondary);
 }
 
 #search-input {
@@ -659,7 +690,8 @@ body {
 }
 
 #search-input::placeholder {
-  color: var(--text-hint);
+  /* Was --text-hint (#9aa0a6), 2.61:1 on this surface. See the block above. */
+  color: var(--text-secondary);
 }
 
 /* ===== Scrollable Grid Area ===== */
@@ -2896,12 +2928,16 @@ html.has-bg:not(.bg-light) #search-input {
   color: #202124;
 }
 
+/* [1.12.1] Same swap in the wallpaper frame, and it matters MORE here: this is
+   the frame the product ships by default, so 2.61:1 was what essentially every
+   real user was reading. The surface under it is rgba(255,255,255,0.9) at rest
+   and #fff focused, so the light-theme grey is right in both states. */
 html.has-bg:not(.bg-light) #search-input::placeholder {
-  color: #9aa0a6;
+  color: #5f6368;
 }
 
 html.has-bg:not(.bg-light) .search-icon {
-  stroke: #9aa0a6;
+  stroke: #5f6368;
 }
 
 html.has-bg:not(.bg-light) .group-name {

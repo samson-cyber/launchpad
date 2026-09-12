@@ -2623,3 +2623,34 @@ storage key, no setting, no new string site.
 is the rest of the `[1.12.x]` arc and is untouched here. This entry rules only that the
 arc's premise about visual weight was wrong, so rounds that inherit it should inherit the
 measurement rather than the spec's sentence.
+
+**CONTINUED, same round - and the spec's "more contrast" turned out to be half
+right, on a surface nobody had measured.** The verification pass measured ink
+*inside* the bar, and found the placeholder at **2.61:1** and the magnifier at
+**2.64:1** on the bar's own white surface, on all five grounds. Both are
+`#9aa0a6` (`--text-hint`), both are pre-existing, and neither was caused by this
+round. What this round changed is that **the placeholder stopped being
+furniture**: it used to say *"Search or type a URL"*, a sentence describing a
+different product's field, and it now carries the only statement on Home of what
+this field actually does. The least legible text on the page is a poor place to
+put it.
+
+Swapped to `--text-secondary` (`#5f6368`), which is the same swap, for the same
+stated reason, as the `[2.0 ink]` pass on the Pro panel's idle line: *"it used to
+be passive metadata and is now the primary outcome ... --text-secondary: 2.64 ->
+6.05."* Inheriting a known-accepted deficit is allowed under BUGS.md **O1**'s
+companion rule; **promoting a line to load-bearing and then inheriting it is
+not.** Measured after: placeholder **4.87 - 5.87:1** (floor 4.5 at 16px/400),
+magnifier **5.02 - 6.05:1** (floor 3), typed text **12.1 - 14.4:1**. Still zero
+pixels of layout.
+
+`--text-secondary` is a light-theme token and that is the **O3** mirror trap when
+it lands on a dark surface. It is right here and only here: the bar's surface is
+white or 0.9-white in every frame it has, and it has no dark variant to fall
+through to.
+
+**No gate covers this.** `check-panel-ink` and `check-chip-ink` were both green
+with `#9aa0a6` in place, because neither walks the Home search field. That is
+recorded, not fixed - a gate for it belongs with whatever the rest of the
+`[1.12.x]` arc does to this bar, not bolted on at the end of a round that was
+not about gates.
