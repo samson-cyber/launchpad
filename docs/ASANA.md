@@ -37,6 +37,35 @@ Everything else follows the reelabs pattern.
 | Bugs / Issues | `1214252324886231` | Open problems found during development |
 | Fixed Bugs / Issues | `1214252324886232` | Resolved bugs confirmed fixed |
 
+### Section discipline — a task moves to Completed when its WORK is done
+
+Not when the next arc starts, and not when attention moves on. The 2026-09-12 board
+cleanup closed ten tasks, **six of them finished work still sitting in open sections** —
+the oldest by a month. Among them was the `v2.0.0` release engineering task: 2.0.0
+**shipped on 2026-08-14** and its task was still open on 2026-09-12, while two later
+submissions were prepared around it. A board that carries finished work stops being
+readable as a picture of what is actually in flight, which is the only job it has.
+
+Three rules, each one a thing that cleanup found broken:
+
+- **Completed means the work is done.** Move it there when the work is done, not when the
+  next thing begins. Nothing is lost: a completed task keeps every comment and stays
+  searchable.
+- **Needs Review means AWAITING SOMETHING SPECIFIC**, and you should be able to name it in
+  a few words — a Chrome Web Store approval, a human check that has actually been asked
+  for. **It is not a parking space for work that is done.** If nothing specific is being
+  waited on, the task is finished; close it.
+- **A spec whose content has been written to `docs/SPECS/` is CLOSED.** Five April specs
+  sat open as duplicates of files already in the repo, in a section that reads as "pending
+  decisions" — so the board implied five undecided questions that had been settled and
+  committed months earlier. Once the spec is a file, the file is the spec.
+
+One judgement call from that cleanup, recorded because the same shape will recur: a task
+may be closed on **evidence** rather than on a confirmation that never came. `[1.6.0]`
+Design foundation had delivered its checkpoint frames and run live through nine subsequent
+arcs with nothing raised against it. That is stronger evidence than a missing tick, and it
+reopens if anything in that foundation later reads wrong.
+
 ---
 
 ## Work Areas
@@ -71,7 +100,7 @@ Bugs, specs, and standalone fixes remain unversioned — only work items take th
 ## Task Versioning
 
 Work items use a [X.Y.Z] prefix in the task name to indicate execution order. The format is:
-- X = major area or epoch (currently always 1)
+- X = major area or epoch (`1` for the arc series; `2` was used for the v2.0 launch workstreams)
 - Y = sub-area increment
 - Z = task increment within the sub-area
 
@@ -88,6 +117,12 @@ Versioning rules:
   - First preference: renumber downstream tasks to keep the sequence flat. Example: inserting between [1.0.4] and [1.0.5] means the new task becomes [1.0.5] and existing [1.0.5] through [1.0.18] all shift up by one.
   - Decimal sub-versioning (e.g. [1.0.4.1]) is acceptable when the queue is long and renumbering would touch many tasks.
 - Versions are not reused. If a task is deleted, its version retires with it.
+- **These prefixes are ARC NUMBERS, not product versions, and they are not renumbered when
+  the store version moves.** `[1.11.0]` is the eleventh arc; the store has shipped exactly
+  `1.0.5`, `2.0.0` and `2.1.0`. Two markers being open at once is two arcs in flight, not
+  two versions. The full explanation, and why renumbering is deliberately not done, is in
+  `CLAUDE.md` under Versioning & Release Tagging — that is the authoritative copy, and this
+  line exists so the board's own doc does not imply otherwise.
 
 ---
 
