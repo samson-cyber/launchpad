@@ -614,10 +614,26 @@ body {
  * A raised object that answers when touched and says what it is for is a
  * different fix from a bigger one, and it is the one the numbers support.
  */
+/* ===== [1.12.2] ONE SURFACE, NAMED ONCE ===================================
+ *
+ * The tabs and the field have to be the same colour in every frame and in both
+ * states, or the assembly splits in two the moment anything changes. Four
+ * frames x two states is eight chances for them to drift apart, which is
+ * [1.11.5]'s ruling - one definition, used by both surfaces - applied to a
+ * colour instead of to a URL key.
+ *
+ * The focused value hangs off #search-form:focus-within rather than the bar's
+ * own :focus-within, because a custom property has to be set on a COMMON
+ * ancestor for a sibling to see it. The form is that ancestor and already
+ * exists as the launcher list's anchor.
+ */
+:root { --search-surface: var(--search-bg); }
+#search-form:focus-within { --search-surface: var(--search-bg-focus); }
+
 #search-bar {
   display: flex;
   align-items: center;
-  background: var(--search-bg);
+  background: var(--search-surface);
   border: none;
   border-radius: 24px;
   padding: 0 var(--space-4);
@@ -625,8 +641,20 @@ body {
      bigger, and every pixel added here is a pixel the grid's first row moves
      down on a 700px window. */
   height: 44px;
-  box-shadow: 0 1px 2px rgba(32, 33, 36, 0.12), 0 0 0 1px rgba(32, 33, 36, 0.06);
-  transition: box-shadow 0.2s, background-color 0.2s;
+  /* THE BAR PAINTS ABOVE THE TABS, and this is a fix rather than a tidy-up.
+     .search-mode is position:relative (the flares need it), which puts the tabs
+     in the positioned layer and therefore ON TOP of this un-positioned bar. So
+     the active tab's 3px skirt was drawn OVER the bar instead of under it, and
+     on a wallpaper - where both surfaces are rgba(255,255,255,0.9) - the two
+     composited to 0.99 and drew a bright hairline right along the join. It was
+     invisible while focused, because the focused surface is opaque #fff and
+     1.0 over 1.0 is still 1.0; it appeared the moment the bar lost focus.
+     Positioning the bar puts it back on top, so the skirt is hidden by the
+     thing it is supposed to be tucked behind. */
+  position: relative;
+  z-index: 1;
+  /* The shadow lives on #search-assembly now. See its block. */
+  transition: background-color 0.2s;
 }
 
 /* THE FOCUS STATE IS TUNED AS A RESTING APPEARANCE, NOT AS AN ALERT.
@@ -642,11 +670,7 @@ body {
    - which is exactly why the old single :focus-within rule was dead. The ring
    is the cue: a background lift alone is what used to be attempted, and on a
    surface that is already 0.9 white there is almost nowhere for it to go. */
-#search-bar:focus-within {
-  background: var(--search-bg-focus);
-  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.30),
-              0 3px 12px rgba(32, 33, 36, 0.20);
-}
+
 
 /* ===== [1.12.1] THE BAR'S OWN INK =========================================
  *
@@ -2905,10 +2929,13 @@ html.has-bg:not(.bg-light) .brand-icon circle {
    is invisible - the same defect [1.11.1b] measured on Open All, where the
    shadow was worth +28.9 luminance levels on pale and +1.77 on dark. The rim is
    the half that works where the drop does not. */
-html.has-bg:not(.bg-light) #search-bar {
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22),
-              0 6px 20px rgba(0, 0, 0, 0.34);
+html.has-bg:not(.bg-light) { --search-surface: rgba(255, 255, 255, 0.9); }
+html.has-bg:not(.bg-light) #search-form:focus-within { --search-surface: #fff; }
+html.bg-light { --search-surface: #fff; }
+
+html.has-bg:not(.bg-light) #search-assembly {
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.55))
+          drop-shadow(0 5px 12px rgba(0, 0, 0, 0.42));
 }
 
 /* [1.12.1b] THE RING IS TWO-TONE, AND THE WHITE HALF IS WHY IT SURVIVES A
@@ -2940,24 +2967,23 @@ html.has-bg:not(.bg-light) #search-bar {
    with a 0.75 white reaches 1005 on dark at a peak dL of 0.559 - a hard white
    edge - and [1.12.1]'s constraint still binds, because the field is
    autofocused and this ring is on every new tab permanently. */
-html.has-bg:not(.bg-light) #search-bar:focus-within {
-  background: #fff;
-  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.55),
-              0 0 0 3px rgba(255, 255, 255, 0.45),
-              0 8px 24px rgba(0, 0, 0, 0.40);
+html.has-bg:not(.bg-light) #search-assembly:focus-within {
+  filter: drop-shadow(0 0 1.5px rgba(26, 115, 232, 1))
+          drop-shadow(0 0 2px rgba(255, 255, 255, 0.8))
+          drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45));
 }
 
-html.bg-light #search-bar {
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+/* The border goes with the shadows. A border is drawn INSIDE the bar's own
+   box, so on a pale wallpaper it drew a hairline straight across the join -
+   the same defect as the ring, from a different property. */
+html.bg-light #search-assembly {
+  filter: drop-shadow(0 0 0.5px rgba(0, 0, 0, 0.30))
+          drop-shadow(0 2px 7px rgba(0, 0, 0, 0.16));
 }
 
-html.bg-light #search-bar:focus-within {
-  background: #fff;
-  border-color: rgba(26, 115, 232, 0.4);
-  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.24),
-              0 4px 14px rgba(0, 0, 0, 0.14);
+html.bg-light #search-assembly:focus-within {
+  filter: drop-shadow(0 0 1.5px rgba(26, 115, 232, 0.9))
+          drop-shadow(0 3px 10px rgba(0, 0, 0, 0.18));
 }
 
 html.has-bg:not(.bg-light) #search-input {
@@ -16172,6 +16198,222 @@ html.has-bg.bg-light .notes-default-cycle {
    what that tier is for. It is anchored under the search bar rather than
    position:fixed, so it moves with the bar on resize instead of drifting away
    from it - the drift-close hazard the popover matrix records. */
+/* ===== [1.12.2] THE MODE STRIP, AND THE JOIN =============================
+ *
+ * THE JOIN IS THE WHOLE ROUND, and the decision it turns on is this:
+ *
+ *   THE BAR KEEPS ITS FULLY ROUNDED ENDS. Its top corners are NOT squared.
+ *   [1.12.1] established a 44px pill and measured it into first place on Home;
+ *   squaring its corners to accept a tab would change that object to solve a
+ *   problem that has a cheaper answer. THE TABS MOVE INSTEAD: they begin at
+ *   x=22px, which is exactly where the bar's top edge stops curving (the
+ *   border-radius is 24px, clamped by the 44px height to 22px). So a tab with a
+ *   square base meets a STRAIGHT edge, and there is no corner to reconcile.
+ *
+ * THAT ALONE IS NOT A JOIN, THOUGH - it is a box resting on a line. Three more
+ * things do the actual joining:
+ *
+ *   1. ONE SURFACE. The active tab is painted from --search-surface, the same
+ *      token the field uses, so they are the same colour in every frame and in
+ *      both states. See that block above.
+ *   2. THE BAR PAINTS OVER THE TAB'S BASE. The tab carries a 3px skirt under
+ *      the bar's top edge (margin-bottom:-3px) and the bar, being LATER in the
+ *      DOM, paints over it. Nothing doubles up: a semi-transparent tab over a
+ *      semi-transparent bar would composite brighter than either and read as a
+ *      bright seam, which is the artefact this arrangement avoids rather than
+ *      hides.
+ *   3. THE FLARES. Two masked squares sit at the active tab's base, left and
+ *      right, filled with the same surface and carved with a radial gradient so
+ *      the tab's side curves OUTWARD into the bar. This is the browser-tab
+ *      idiom and it is what stops the shape reading as a rectangle standing on
+ *      a rectangle. Without them the join is technically seamless and still
+ *      looks like two objects.
+ *
+ * WHAT IS NOT BORROWED, AND WHY. Samson named the page tab bar as the metaphor
+ * - "the active tab blending into the field the way the page tab bar blends
+ * into its page". IT DOES NOT DO THAT. #tab-bar is a detached frosted pill with
+ * its own radius, its own background and its own drop shadow, floating clear of
+ * the panel below it; its active tab blends into nothing. Borrowing its joining
+ * idiom is impossible because it has none, and borrowing its SHAPE would
+ * produce exactly the "separate little entity pill" he asked this not to be.
+ * What is borrowed is its type and its states - 14px/500, 0.2px tracking, the
+ * inactive-at-0.7-opacity idiom - so the two strips read as the same family.
+ */
+/* THE OUTLINE FOLLOWS THE SILHOUETTE, NOT A BOX. Every edge treatment the bar
+   had - the rim, the elevation, and [1.12.1b]'s two-tone focus ring - moves
+   here as filter: drop-shadow(), which is cast by the rendered ALPHA of the
+   whole subtree. The tab and the field touch, so their alpha is one shape, and
+   the outline runs up and over the tabs and back down into the pill. That is
+   the join: not a tab abutting a bar neatly, but one silhouette.
+
+   THE COST, STATED: drop-shadow has no spread, so a crisp 2px ring is not
+   expressible and these are blurred edges rather than hard ones. The numbers
+   [1.12.1b] tuned the ring to are held instead - measured with the same
+   isolated pixel-diff, on the same grounds, and reported in the round.
+
+   The text inside casts nothing, because a filter is cast by alpha and the
+   interior alpha is uniform; only the outer edge has a gradient. Asserted in
+   the crops rather than assumed - a blue glow around the placeholder would be
+   the obvious way for this to go wrong. */
+#search-assembly {
+  position: relative;
+  filter: drop-shadow(0 0 0.5px rgba(32, 33, 36, 0.32))
+          drop-shadow(0 1px 2px rgba(32, 33, 36, 0.16));
+}
+
+#search-assembly:focus-within {
+  filter: drop-shadow(0 0 1.5px rgba(26, 115, 232, 0.85))
+          drop-shadow(0 2px 8px rgba(32, 33, 36, 0.20));
+}
+
+#search-modes {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 30px;
+}
+
+/* The inset is a MARGIN ON THE FIRST TAB rather than padding on the strip, so
+   the strip's content box stays the bar's full width and the tabs' 15% is 15%
+   OF THE BAR, which is what the spec says. As padding it measured 77px against
+   the 80px the spec asks for.
+
+   32px = THE BAR'S CORNER RADIUS PLUS THE FLARE'S OWN WIDTH (22 + 10), and the
+   second term was found by looking rather than by reasoning. At 22px the TAB
+   cleared the corner but its left FLARE did not: with Gemini active the flare
+   landed on the bar's curve and the two merged into a lump instead of a curve.
+   The flare has to land on a straight edge for the same reason the tab does. */
+.search-mode:first-child { margin-left: 32px; }
+
+.search-mode {
+  position: relative;
+  /* The spec's "roughly 15% of the bar's width". The bar is 536px inside the
+     form's 24px padding, so 15% is 80px and the two tabs claim 162px of 536. */
+  flex: 0 0 15%;
+  height: 30px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--fs-12);
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  /* DECLARED, NEVER INHERITED. Twelve consecutive rounds that added a surface
+     found a white-on-white defect, always from a text rule with no colour. */
+  /* FULL-STRENGTH INK, and the measurement is why. Dimmed ink measured 3.19 to
+     3.84:1 on the five grounds - below the 4.5:1 that 14px/500 needs, on all of
+     them. THE SELECTED STATE IS CARRIED BY THE SURFACE, not by fading the
+     label: the active tab is the bar's own white with dark ink, the inactive
+     one a translucent chip, and those read as different at a glance without
+     either of them being hard to read. It is also the browser-tab idiom -
+     background tabs are dimmer SURFACES, not dimmer words. */
+  color: var(--text-primary);
+  transition: background-color 0.15s, color 0.15s;
+}
+
+/* THE INACTIVE TAB CARRIES A SURFACE, and that is a correctness fix as much as
+   a design one. With a transparent background its LABEL was the only opaque
+   thing in that part of the assembly, so the silhouette filter had a glyph to
+   cast from and the word "Gemini" picked up a blue halo on focus - visible in
+   the 3x crop and wrong in an obvious way. Given a surface, the tab is part of
+   the silhouette and the outline wraps the tab instead of its letters.
+
+   It is also the right idiom: a browser's background tabs are dimmer surfaces,
+   not bare labels, and a label with no surface beside a tab with one does not
+   read as two tabs. NO `opacity` - it would fade the surface as well as the
+   ink, which is what made the halo possible in the first place. */
+.search-mode {
+  background: rgba(32, 33, 36, 0.08);
+}
+
+.search-mode:hover { background: rgba(32, 33, 36, 0.14); }
+
+/* 0.10, NOT 0.16, AND THE REASON IS THE INK RATHER THAN THE LOOK. The chip
+   lightens the ground it sits on, which is the ground the white label is read
+   against - so a more visible chip is a LESS legible label. At 0.16 the
+   inactive label measured 4.39:1 on the shipped default grey and 4.50:1 on a
+   dark blue: one under the floor and one exactly on it, which is not a margin.
+   At 0.10 the chip is still plainly a chip - the assembly's outline wraps it -
+   and the label has room. */
+html.has-bg:not(.bg-light) .search-mode {
+  background: rgba(255, 255, 255, 0.10);
+  color: #fff;
+}
+
+html.has-bg:not(.bg-light) .search-mode:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.search-mode.is-active,
+html.has-bg:not(.bg-light) .search-mode.is-active,
+html.bg-light .search-mode.is-active {
+  background: var(--search-surface);
+  color: var(--text-primary);
+  /* THE SKIRT THE BAR PAINTS OVER, and the height grows by exactly as much as
+     the margin pulls down, so the active tab's TOP edge still lines up with the
+     inactive one's. Without the extra 3px the selected tab sat 3px lower than
+     the unselected one - the selected tab looking shorter than its neighbour is
+     backwards, and it was plainly visible in the 3x crop. */
+  height: 33px;
+  margin-bottom: -3px;
+}
+
+/* THE FLARES. Each is a square of the surface with its inner top corner carved
+   away by a radial gradient, so the tab's edge curves out into the bar instead
+   of stopping dead. bottom:3px puts their base on the bar's top edge rather
+   than on the bottom of the skirt. */
+.search-mode.is-active::before,
+.search-mode.is-active::after {
+  content: "";
+  position: absolute;
+  /* 2px, not 3px: the flare runs 1px INTO the bar so no sub-pixel gap can open
+     between them, and the bar (above, now) paints over that 1px. */
+  bottom: 2px;
+  width: 10px;
+  height: 10px;
+  background: var(--search-surface);
+  pointer-events: none;
+}
+
+.search-mode.is-active::before {
+  left: -10px;
+  -webkit-mask: radial-gradient(circle 10px at 0 0, transparent 99%, #000 100%);
+  mask: radial-gradient(circle 10px at 0 0, transparent 99%, #000 100%);
+}
+
+.search-mode.is-active::after {
+  right: -10px;
+  -webkit-mask: radial-gradient(circle 10px at 100% 0, transparent 99%, #000 100%);
+  mask: radial-gradient(circle 10px at 100% 0, transparent 99%, #000 100%);
+}
+
+/* LIGHT WALLPAPER. The inactive tabs sit on the wallpaper with no surface of
+   their own, so their ink has to flip with the ground or they go white-on-pale
+   - the defect the ink gate exists for, on a strip the ink gate cannot see. */
+html.bg-light .search-mode {
+  background: rgba(0, 0, 0, 0.07);
+  color: var(--text-primary);
+}
+
+html.bg-light .search-mode:hover {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* The switch is a colour fade rather than a movement, but it is still a
+   declared animation on a control the user operates, and this sheet already
+   honours the preference on the launcher list two blocks down. Zeroed rather
+   than shortened, so the state change is instant. */
+@media (prefers-reduced-motion: reduce) {
+  .search-mode { transition: none; }
+}
+
+.search-mode:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
 /* [1.12.1b] IT OVERLAYS THE GRID. IT DOES NOT DISPLACE IT.
  *
  * This was in flow - a plain sibling of #shortcut-grid-area - so every row it

@@ -2760,3 +2760,100 @@ will actually do, which is the same principle that made `[1.12.1]` replace Chrom
 copy in the first place.
 
 **Cost.** Zero pixels, in every state. No storage key, no setting, no new string.
+
+---
+
+## 2026-09-13 - The mode strip joins the search bar with one silhouette, and the page tab bar turned out not to be the metaphor it was named as
+
+**Decision.** `[1.12.2]` builds the two-tab assembly from spec items 1 and 2's tab half.
+The bar **keeps its fully rounded ends**; the tabs move to clear them. The outline that
+makes the two read as one object is a `filter: drop-shadow()` on a wrapper, not a
+`box-shadow` on either part.
+
+**THE NAMED METAPHOR DOES NOT DO WHAT IT WAS NAMED FOR, and this is reported rather than
+worked around.** The spec asks for *"the active tab blending into the field the way the page
+tab bar blends into its page"*. `#tab-bar` does not blend into anything: it is an
+`inline-flex` pill with `border-radius: var(--radius-pill)`, a frosted
+`rgba(30,30,30,0.5)` background, `blur(12px)` and its own drop shadow, floating clear of the
+panel below it with 25vh of header padding in between. Its active tab is a smaller pill
+inside a larger pill. **Borrowing its joining idiom is impossible because it has none**, and
+borrowing its shape would produce exactly the *"separate little entity pill"* Samson asked
+this not to be. What is borrowed is its type and its state idiom - 14px/500, 0.2px tracking,
+a filled active against dimmer inactives - so the two strips read as the same family.
+
+**THE JOIN, WHICH IS THE ROUND.** Four things do it, and only the first was obvious:
+
+1. **THE BAR KEEPS ITS PILL; THE TABS MOVE.** `border-radius: 24px` on a 44px bar clamps to
+   22px, so the top edge is straight from x=22 inward. The strip is inset **32px** - the
+   radius plus the flare's own 10px - so both the tab and its flare land on a straight edge.
+   The 10px term was found by looking: at 22px the tab cleared the corner and its left flare
+   did not, and with Gemini active the flare and the corner merged into a lump. **Squaring
+   the bar's top corners was the alternative and was rejected**: `[1.12.1]` measured that
+   object into first place on Home, and changing it to accept a tab is a large price for a
+   problem a 10px inset solves.
+2. **ONE SURFACE TOKEN.** `--search-surface` is defined per frame and switched on
+   `#search-form:focus-within`, so the tab and the field are the same colour in all four
+   frames and both states. Eight chances to drift, closed by one definition - `[1.11.5]`'s
+   ruling applied to a colour.
+3. **THE OUTLINE FOLLOWS THE SILHOUETTE.** A `box-shadow` traces a border box, so with the
+   rim and `[1.12.1b]`'s focus ring on `#search-bar` the ring ran **straight across the
+   join** - the tab stood on a blue line. Every edge treatment moved to
+   `filter: drop-shadow()` on `#search-assembly`, which is cast by the rendered alpha of the
+   whole subtree; the tab and the bar touch, so their alpha is one shape and the outline
+   runs up over the tabs and back down into the pill. The launcher list is deliberately left
+   **outside** that wrapper, because `filter` creates a stacking context and would trap its
+   z-index.
+4. **THE FLARES.** Two masked squares at the active tab's base curve outward into the bar,
+   the browser-tab idiom. Without them the join is seamless and still reads as a box on a
+   bar.
+
+**Measured, not looked at.** A 1px column straight through the active tab and into the bar,
+labels hidden, on six grounds: **the worst luminance step across the join is 0.000 on every
+one**, equal to a control column taken in blank bar, and no row in the join window is closer
+to the wallpaper than to the surface. There is no seam and no gap.
+
+**THREE DEFECTS THE BUILD FOUND, all of them only visible under measurement or a 3x crop.**
+
+- **A bright hairline along the join, but only when unfocused.** `.search-mode` is
+  `position: relative` for the flares, which puts the tabs in the positioned layer and
+  therefore **on top of** the un-positioned bar - so the active tab's 3px skirt painted over
+  the bar, and on a wallpaper two `rgba(255,255,255,0.9)` surfaces composited to 0.99. It
+  was invisible while focused, because the focused surface is opaque and 1.0 over 1.0 is
+  still 1.0. Fixed by positioning the bar above the tabs.
+- **The selected tab sat 3px lower than the unselected one**, because the skirt's negative
+  margin was not matched by height. The selected tab looking shorter than its neighbour is
+  backwards. Fixed by growing it by exactly the margin.
+- **The inactive tab's label failed 4.5:1 on every ground** - 3.19 to 3.84:1 dimmed. The ink
+  is now full strength and **the selected state is carried by the surface instead**, which
+  is the browser idiom anyway: background tabs are dimmer surfaces, not dimmer words. The
+  chip on dark grounds then had to come down from 0.16 to **0.10 alpha**, because the chip
+  lightens the ground the white label is read against - *a more visible chip is a less
+  legible label* - and 0.16 measured 4.39:1 on the shipped default grey and 4.50:1 on a dark
+  blue, one under the floor and one exactly on it.
+
+**VERTICAL COST: 30px, PAID IN FULL, AT EVERY HEIGHT.** The strip begins exactly where the
+bar used to begin (482 / 405 / 362 / 310) and the bar moves down by its height. The grid's
+first row goes 526 to 556, 449 to 479, 406 to 436, and **354 to 384 at 700px**.
+
+**It could have been 14px and deliberately was not.** `#tab-home #search-form` carries
+`padding-top: var(--space-4)`, and zeroing it would pull the assembly up 16px. That padding
+is not spare: it is half of the 32px that separates the page tab bar from the new mode
+strip, and **two tab strips 16px apart invite exactly the confusion a second strip on this
+page risks.** Trading that for 16px of grid is the wrong way round, but it is a one-line
+change if Samson disagrees.
+
+**WHAT DOES NOT HAPPEN YET.** Both tabs do what Search does today - no Gemini, no
+navigation change, no default flip, and the placeholder is untouched. The choice persists at
+`data.settings.searchMode` through the standard per-field updater. **The default is
+read-time only and is never written on load**, and that is load-bearing: the 2026-09-12
+amendment rules that Gemini becomes the default for everyone in `[1.12.3]`, and if this
+round stamped `"search"` onto every profile at boot, every profile would carry an explicit
+choice by then and that default could never reach anyone. An absent key means *has not
+chosen*; only a click writes.
+
+**ARIA: a group of two `aria-pressed` buttons, not a `role="tablist"`.** The page tab bar
+uses `tablist` correctly - each of its tabs has an `aria-controls` pointing at a real
+`role="tabpanel"`. These two control one field that is already a `role="combobox"`, so a
+tablist here would name a relationship that does not exist. **The keyboard behaviour is what
+the brief asked to match and it does**: both strips are plain `<button>`s with no
+`tabindex`, Tab-reachable, Enter and Space native, and neither has arrow-key roving.

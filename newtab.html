@@ -158,6 +158,32 @@
            navigated, which is what keeps this to ONE focus at a time. The active
            row is tracked virtually through aria-activedescendant. -->
       <form id="search-form" autocomplete="off">
+        <!-- [1.12.2] THE MODE STRIP. Two tabs, Gemini and Search, above the bar
+             and starting from the left, per spec item 1.
+
+             NOT role="tablist". The page tab bar uses it correctly - each of its
+             tabs has an aria-controls pointing at a real role="tabpanel". These
+             two control one field that is already a role="combobox", so a
+             tablist here would name a relationship that does not exist. A group
+             of two buttons with aria-pressed says exactly what is true: one of
+             them is on. THE KEYBOARD BEHAVIOUR IS WHAT MATTERS AND IT MATCHES -
+             plain <button>s, no tabindex, so they are Tab-reachable and take
+             Enter and Space natively, which is precisely what the page tabs do.
+             Neither strip has arrow-key roving; [1.10.4] settled that this
+             product does not add keyboard affordances one control at a time. -->
+        <!-- ONE ELEMENT FOR ONE OBJECT. The strip and the field are wrapped so
+             a single filter can draw one outline around both; see the CSS. The
+             launcher list stays OUTSIDE it, because filter creates a stacking
+             context and would trap the list's z-index inside the assembly. -->
+        <div id="search-assembly">
+        <div id="search-modes" role="group" data-i18n-aria-label="searchmode_group" aria-label="Search mode">
+          <button class="search-mode" type="button" data-mode="gemini" aria-pressed="false">
+            <span data-i18n="searchmode_gemini" class="search-mode-label">Gemini</span>
+          </button>
+          <button class="search-mode is-active" type="button" data-mode="search" aria-pressed="true">
+            <span data-i18n="searchmode_search" class="search-mode-label">Search</span>
+          </button>
+        </div>
         <div id="search-bar">
           <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5f6368" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -165,6 +191,7 @@
           <input data-i18n-placeholder="page_search_or_type_a_url" type="text" id="search-input" placeholder="Search your shortcuts, or the web" autofocus
                  role="combobox" aria-expanded="false" aria-controls="launcher-results"
                  aria-autocomplete="list" aria-haspopup="listbox">
+        </div>
         </div>
         <!-- Rendered empty and hidden. A placeholder row would flash a state the
              user is not in, the same reason companion-root ships empty. -->

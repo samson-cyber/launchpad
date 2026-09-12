@@ -13259,9 +13259,41 @@
     if (fv) fv.checked = Storage.isFocusView(data);
   }
 
+  // [1.12.2] THE MODE STRIP. Paints the stored choice and wires the two
+  // buttons. BOTH MODES DO WHAT SEARCH DOES TODAY - this round builds the
+  // assembly so the geometry can be judged before behaviour changes, and
+  // deliberately touches neither the submit handler nor the placeholder.
+  // [1.12.3] is where the value starts meaning something.
+  function renderSearchModes() {
+    var strip = $("#search-modes");
+    if (!strip) return;
+    var mode = Storage.getSearchMode(data);
+    $$(".search-mode", strip).forEach(function (btn) {
+      var on = btn.dataset.mode === mode;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    if (strip._modeHandlerAttached) return;
+    strip._modeHandlerAttached = true;
+    strip.addEventListener("click", function (e) {
+      var btn = e.target.closest(".search-mode");
+      if (!btn) return;
+      // THE FIELD IS AUTOFOCUSED AND MUST STAY THAT WAY. A button takes focus
+      // on click, which would move the caret out of the bar and drop the focus
+      // treatment [1.12.1] built - so the caret is put back deliberately
+      // rather than left wherever the click landed.
+      Storage.setSearchMode(data, btn.dataset.mode).then(function () {
+        renderSearchModes();
+        var input = $("#search-input");
+        if (input) input.focus();
+      });
+    });
+  }
+
   function applySearch() {
     var form = $("#search-form");
     var input = $("#search-input");
+    renderSearchModes();
     // ONE KEY, and it is the one the markup binds. This line used to read a
     // SECOND key holding the same sentence, so the field carried three copies
     // of its own placeholder - the attribute, the data-i18n binding, and this.

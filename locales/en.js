@@ -468,6 +468,18 @@ I18n.register("en", {
     "message": "or Import from Chrome Bookmarks",
     "description": "Text on the page surface."
   },
+  "searchmode_gemini": {
+    "message": "Gemini",
+    "description": "[1.12.2] Left tab of the Home search bar's mode strip. A product name - do not translate."
+  },
+  "searchmode_group": {
+    "message": "Search mode",
+    "description": "[1.12.2] aria-label on the Home search bar's two-button mode strip."
+  },
+  "searchmode_search": {
+    "message": "Search",
+    "description": "[1.12.2] Right tab of the Home search bar's mode strip. Means the user's DEFAULT search engine, which chrome.search.query decides - not Google specifically, so it must not be translated as a brand."
+  },
   "page_search_or_type_a_url": {
     "message": "Search your shortcuts, or the web",
     "description": "Placeholder in the Home search field, bound in markup and re-applied by applySearch(). [1.12.1] changed it from \"Search or type a URL\", which was Chrome's own omnibox copy verbatim - a field that announces itself as the address bar gets used like the address bar, which is to say not at all. This field does something the omnibox CANNOT: [1.10.1] made it search shortcuts, groups and sessions inline. The shortcut half is named first because it is the half that is not available anywhere else."

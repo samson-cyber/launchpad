@@ -530,6 +530,32 @@ var Storage = (function () {
   // that survives reloads and hides both the grid and the sidebar could strand a
   // user across every new tab they open. The exit is therefore a visible,
   // labelled control rendered INSIDE the view, plus Escape - see the page side.
+  // ===== [1.12.2] THE SEARCH MODE ==========================================
+  //
+  // Which of the two tabs is active. [1.12.2] wires BOTH to what Search does
+  // today, so this stores an intent that nothing acts on yet; [1.12.3] is the
+  // round where the value starts changing where Enter goes.
+  //
+  // THE DEFAULT IS READ-TIME ONLY AND IS NEVER WRITTEN ON LOAD, and that is
+  // load-bearing rather than tidy. The spec's 2026-09-12 amendment rules that
+  // GEMINI becomes the default for everyone in [1.12.3]. If this round stamped
+  // "search" onto every profile at boot, every profile would carry an explicit
+  // choice by then and that default could never apply to anyone. An absent key
+  // means "has not chosen"; only a click writes.
+  function getSearchMode(data) {
+    var m = data && data.settings && data.settings.searchMode;
+    return m === "gemini" ? "gemini" : "search";
+  }
+
+  async function setSearchMode(data, mode) {
+    if (!data || !data.settings) return false;
+    var next = mode === "gemini" ? "gemini" : "search";
+    if (data.settings.searchMode === next) return false;
+    data.settings.searchMode = next;
+    await saveAll(data);
+    return true;
+  }
+
   function isFocusView(data) {
     return !!(data && data.settings && data.settings.focusView === true);
   }
@@ -7792,6 +7818,8 @@ var Storage = (function () {
     LAYOUTS: LAYOUTS,
     getLayout: getLayout,
     setLayout: setLayout,
+    getSearchMode: getSearchMode,
+    setSearchMode: setSearchMode,
     isFocusView: isFocusView,
     setFocusView: setFocusView,
     dropClockSettings: dropClockSettings,
