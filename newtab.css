@@ -16486,15 +16486,74 @@ html.has-bg.bg-light #home-greeting.is-arriving { color: rgba(0, 0, 0, 0.95); }
    :hover on its ancestors, so the rule can live on the container. A click on
    the text lands on a span with no handler and nothing behind it - asserted
    with elementFromPoint, on the text and on the empty band either side. */
-#home-greeting .home-greeting-text,
-#home-greeting .home-greeting-date {
+/* [1.11.3f] THE HOVER NOW POINTS AT SOMETHING REAL, and it points at exactly
+   one thing. It used to lift the whole block - greeting AND date - while a
+   click did nothing at all, which promised an affordance the element did not
+   have. The greeting cycles on click, so it keeps the lift and gains a pointer
+   cursor; the date does not cycle, so it takes no pointer events and does not
+   light up. What brightens and what responds are now the same element. */
+.home-greeting-text {
   pointer-events: auto;
+  cursor: pointer;
+}
+
+.home-greeting-date {
+  pointer-events: none;
   cursor: default;
 }
 
-#home-greeting:hover { color: rgba(32, 33, 36, 1); }
-html.has-bg #home-greeting:hover { color: rgba(255, 255, 255, 1); }
-html.has-bg.bg-light #home-greeting:hover { color: rgba(0, 0, 0, 0.95); }
+.home-greeting-text:hover { color: rgba(32, 33, 36, 1); }
+html.has-bg .home-greeting-text:hover { color: rgba(255, 255, 255, 1); }
+html.has-bg.bg-light .home-greeting-text:hover { color: rgba(0, 0, 0, 0.95); }
+
+/* ----- [1.11.3f] the debris -------------------------------------------------
+   A fixed overlay so nothing in the page's flow is disturbed, and
+   pointer-events:none so a pile of letters cannot swallow a click on its way
+   out. The glyphs are moved by transform alone - never left/top - so the whole
+   flight is compositing rather than layout. */
+.greeting-debris {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 1;
+  transition: opacity 600ms ease;
+}
+
+.greeting-debris.is-fading { opacity: 0; }
+
+.greeting-debris-glyph {
+  position: absolute;
+  top: 0;
+  left: 0;
+  white-space: pre;
+  will-change: transform;
+  /* FULL STRENGTH, ON ALL THREE FRAMES. The resting line is translucent because
+     it is meant to sit in the wallpaper; the debris is the opposite - it is a
+     momentary event and it has to be seen. Keyed to the same three grounds the
+     greeting itself is keyed to, so the letters never arrive on a colour the
+     page would not otherwise use. */
+  color: rgba(32, 33, 36, 1);
+  text-shadow: none;
+}
+
+html.has-bg .greeting-debris-glyph {
+  color: #fff;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
+}
+
+html.has-bg.bg-light .greeting-debris-glyph {
+  color: rgba(0, 0, 0, 0.95);
+  text-shadow: none;
+}
+
+/* The explosion is motion for its own sake, so reduced motion removes it
+   outright - explodeGreeting returns before building anything. This block is
+   the belt to that braces: if a debris layer ever reaches the DOM under
+   reduce, it does not animate and does not linger. */
+@media (prefers-reduced-motion: reduce) {
+  .greeting-debris { display: none !important; }
+}
 
 /* REDUCED MOTION SUPPRESSES BOTH, ENTIRELY. The settled state renders
    immediately. !important because the steps() timing function is set inline per

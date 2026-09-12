@@ -1528,6 +1528,98 @@ I18n.register("en", {
     "message": "Good evening",
     "description": "Greeting on the Home greeting line, above the logo, from 18:00. Always shown - there is no setting. Rendered with t()."
   },
+  "greeting_v1_morning": {
+    "message": "Morning",
+    "description": "Greeting ladder rung 1, before noon. The same greeting clipped shorter."
+  },
+  "greeting_v1_afternoon": {
+    "message": "Afternoon",
+    "description": "Greeting ladder rung 1, noon to 18:00."
+  },
+  "greeting_v1_evening": {
+    "message": "Evening",
+    "description": "Greeting ladder rung 1, from 18:00."
+  },
+  "greeting_v2_morning": {
+    "message": "Another morning",
+    "description": "Greeting ladder rung 2, before noon. Observational rather than welcoming."
+  },
+  "greeting_v2_afternoon": {
+    "message": "Afternoon again",
+    "description": "Greeting ladder rung 2, noon to 18:00."
+  },
+  "greeting_v2_evening": {
+    "message": "Late one",
+    "description": "Greeting ladder rung 2, from 18:00. Samson's own line."
+  },
+  "greeting_v_back_again": {
+    "message": "Back again",
+    "description": "Greeting ladder rung 3, the first shared rung. Dry acknowledgement, not a welcome."
+  },
+  "greeting_v_still_here": {
+    "message": "Still here",
+    "description": "Greeting ladder rung 4. A statement, not a question - 'Still here?' would sound plaintive."
+  },
+  "greeting_v_hello_again": {
+    "message": "Hello again",
+    "description": "Greeting ladder rung 5. Flat politeness."
+  },
+  "greeting_v_done_this_one": {
+    "message": "We have done this one",
+    "description": "Greeting ladder rung 6. The line notices it is repeating itself."
+  },
+  "greeting_v_running_low": {
+    "message": "Running low",
+    "description": "Greeting ladder rung 7. Deadpan admission that the supply is finite."
+  },
+  "greeting_v_last_of_them": {
+    "message": "That was the last of them",
+    "description": "Greeting ladder rung 8. Stated as fact, with seven rungs still to come, which is the joke."
+  },
+  "greeting_v_just_clicking": {
+    "message": "Now we are just clicking",
+    "description": "Greeting ladder rung 9. Names what is happening without objecting to it."
+  },
+  "greeting_v_still_clicking": {
+    "message": "Still clicking",
+    "description": "Greeting ladder rung 10. Shorter than the rung before it - the voice is running down, not complaining."
+  },
+  "greeting_v_date_correct": {
+    "message": "The date is still correct",
+    "description": "Greeting ladder rung 11. Points at the useful half, which has not moved throughout."
+  },
+  "greeting_v_nothing_further": {
+    "message": "Nothing further",
+    "description": "Greeting ladder rung 12. The last thing the line has to say."
+  },
+  "greeting_v_cannot_end_well": {
+    "message": "This cannot end well",
+    "description": "Greeting ladder rung 13. The turn - the countdown begins after this."
+  },
+  "greeting_v_four": {
+    "message": "Four",
+    "description": "Greeting ladder rung 14. A bare countdown, deadpan by being unexplained."
+  },
+  "greeting_v_three": {
+    "message": "Three",
+    "description": "Greeting ladder rung 15, countdown."
+  },
+  "greeting_v_two": {
+    "message": "Two",
+    "description": "Greeting ladder rung 16, countdown."
+  },
+  "greeting_v_one": {
+    "message": "One",
+    "description": "Greeting ladder rung 17, countdown."
+  },
+  "greeting_v_nothing_happened": {
+    "message": "Nothing happened",
+    "description": "Greeting ladder rung 18. The countdown reaches zero and nothing occurs, which is the joke - the line reports it flatly rather than apologising for it."
+  },
+  "greeting_v_one_more": {
+    "message": "One more should do it",
+    "description": "Greeting ladder rung 19, the last line before the heading explodes. It is also the longest rung on purpose: the explosion blows up whatever is on screen, and a three-letter heading makes a thin bang."
+  },
   "settings_layout": {
     "message": "Layout",
     "description": "Appearance settings label for the grid / compact / list segmented control. Rendered by the data-i18n pass."

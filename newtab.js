@@ -12777,6 +12777,72 @@
     return t("clock_good_evening");
   }
 
+  // ===== [1.11.3f] THE LADDER ==============================================
+  //
+  // WHY THIS EXISTS: the line lifted to full opacity on hover and did nothing
+  // on click, which promised an affordance it did not have. Either the hover
+  // goes or the click becomes real. This makes it real.
+  //
+  // WHAT IT IS NOT, AND THE RULING IS RECORDED HERE BECAUSE IT IS EASY TO DRIFT
+  // BACK INTO: not motivational quotes. Nothing in this product exhorts - the
+  // focus ring sits neutral at 40%, the streak never scolds, the badge is
+  // absent when idle, the gate is a door rather than a wall. A greeting that
+  // instructed would be the first element to break that, in the first place a
+  // user looks. (Real quotes also carry a licensing question with no cheap
+  // answer.) So these are the SAME INFORMATION IN DIFFERENT VOICES.
+  //
+  // THE TONE IS DEADPAN, NOT NEEDY, which is a real constraint rather than a
+  // stylistic note. "Why are you clicking me?" is funny once and then it is a
+  // line begging for attention, which is the nagging doctrine coming back
+  // through the side door. Every rung below is a STATEMENT. None is a question,
+  // none asks for anything, and the voice gets shorter rather than louder as it
+  // goes - a narrator running out of material, not one pleading for company.
+  //
+  // ONLY THE FIRST THREE RUNGS ARE TIME-OF-DAY SPECIFIC, and that is a
+  // localisation decision as much as a writing one. A ladder of twenty rungs
+  // written per time of day is sixty strings for R5 to translate. Splitting it
+  // so that the shared rungs - which are about the CLICKING, not the hour -
+  // serve all three makes it 6 + 17 = 23. The clipped and observational
+  // variants are the ones that have to know the hour; "Running low" does not.
+  var GREETING_TIMED = [
+    ["greeting_v1_morning", "greeting_v1_afternoon", "greeting_v1_evening"],
+    ["greeting_v2_morning", "greeting_v2_afternoon", "greeting_v2_evening"]
+  ];
+  var GREETING_SHARED = [
+    "greeting_v_back_again", "greeting_v_still_here", "greeting_v_hello_again",
+    "greeting_v_done_this_one", "greeting_v_running_low", "greeting_v_last_of_them",
+    "greeting_v_just_clicking", "greeting_v_still_clicking", "greeting_v_date_correct",
+    "greeting_v_nothing_further", "greeting_v_cannot_end_well",
+    "greeting_v_four", "greeting_v_three", "greeting_v_two", "greeting_v_one",
+    "greeting_v_nothing_happened", "greeting_v_one_more"
+  ];
+  // Twenty clicks is the ceiling Samson set. Rungs 0-19 are the twenty states;
+  // the click that would reach 20 blows it up instead.
+  //
+  // THE LAST RUNG IS THE ONE THAT EXPLODES, and the first cut of this ladder
+  // forgot that. It ended the countdown on "One", so the twentieth click
+  // detonated a three-letter heading - measured, three glyphs. The countdown
+  // now lands on "Nothing happened", which is the better joke anyway, and the
+  // final rung is the longest line in the ladder so the bang has something to
+  // throw.
+  var GREETING_EXPLODE_AT = 20;
+
+  // NEITHER OF THESE IS PERSISTED, AND THAT IS THE FEATURE. A new tab starts at
+  // the original variant because the counter is a page-local variable that did
+  // not survive the last one. Nothing is written to storage, so nothing has to
+  // be swept later and nothing rides into a backup.
+  var greetingStep = 0;
+  var greetingExploded = false;
+
+  function greetingVariant(hour, step) {
+    if (!step) return greetingFor(hour);
+    var slot = hour < 12 ? 0 : hour < 18 ? 1 : 2;
+    if (step <= GREETING_TIMED.length) return t(GREETING_TIMED[step - 1][slot]);
+    var i = step - 1 - GREETING_TIMED.length;
+    if (i >= GREETING_SHARED.length) i = GREETING_SHARED.length - 1;
+    return t(GREETING_SHARED[i]);
+  }
+
   function renderHomeGreeting() {
     var el = $("#home-greeting");
     if (!el) return;
@@ -12784,12 +12850,39 @@
     var dateStr;
     try { dateStr = new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" }).format(now); }
     catch (e) { dateStr = now.toDateString(); }
-    var greetStr = greetingFor(now.getHours());
+    // [1.11.3f] ONCE IT HAS GONE IT STAYS GONE until a new tab, and render()
+    // runs on a great many state changes - so the guard lives here rather than
+    // at the call site. THE DATE SURVIVES: nothing useful is lost by playing.
+    if (greetingExploded) {
+      el.innerHTML = '<span class="home-greeting-date">' + esc(dateStr) + '</span>';
+      return;
+    }
+    var greetStr = greetingVariant(now.getHours(), greetingStep);
     // [1.11.3e] TWO LINES: the greeting is the line, the date is its subtitle.
     // The middot is gone with the single-line layout it existed to join.
     el.innerHTML = '<span class="home-greeting-text">' + esc(greetStr) + '</span>' +
       '<span class="home-greeting-date">' + esc(dateStr) + '</span>';
+    // The step survives a re-render deliberately: a render() triggered by
+    // something else mid-cycle must not silently reset the user's place.
     maybePlayGreetingArrival(el, greetStr, dateStr);
+  }
+
+  // Delegated on the container, which survives every re-render - binding the
+  // span itself would need rebinding on each one.
+  function bindGreetingCycle() {
+    var el = $("#home-greeting");
+    if (!el || el._cycleBound) return;
+    el.addEventListener("click", function (e) {
+      if (greetingExploded) return;
+      if (!e.target.closest(".home-greeting-text")) return;
+      greetingStep += 1;
+      if (greetingStep >= GREETING_EXPLODE_AT) { explodeGreeting(el); return; }
+      var span = el.querySelector(".home-greeting-text");
+      // Only the text node is replaced. Re-rendering the whole block would
+      // rebuild the date for no reason and re-enter the arrival check.
+      if (span) span.textContent = greetingVariant(new Date().getHours(), greetingStep);
+    });
+    el._cycleBound = true;
   }
 
   // [1.11.3e] THE ARRIVAL, ONCE A DAY.
@@ -12833,6 +12926,156 @@
       el.classList.remove("is-arriving");
       el.classList.add("has-settled");
     }, GREETING_ARRIVAL_MS);
+  }
+
+  // ===== [1.11.3f] THE EXPLOSION ===========================================
+  //
+  // Roughly twenty-five glyphs flying across the whole viewport is the most
+  // expensive thing this product does, so every choice here is about keeping it
+  // to COMPOSITING and away from layout.
+  //
+  //   - the letters live in a position:fixed overlay appended to <body>, so
+  //     nothing in the page's own flow is touched and no reflow can be caused
+  //     by anything that happens inside it;
+  //   - each letter is position:absolute at 0,0 and moved ONLY by
+  //     transform: translate3d(...) rotate(...) - never by left/top, which
+  //     would invalidate layout on every frame for every glyph;
+  //   - translate3d rather than translate so each glyph gets its own layer;
+  //   - will-change is set for the flight and dropped at the end, so the layers
+  //     do not outlive the animation.
+  //
+  // THE PHYSICS IS AS SMALL AS IT CAN BE. Gravity, a wall bounce that flips the
+  // sign of vx, a floor bounce that flips vy and loses energy. ROLLING WAS
+  // REJECTED and the reason is worth keeping: rolling needs friction-driven
+  // rotation, where spin has to match the contact surface or the letter reads
+  // as sliding - it looks broken rather than playful when it is slightly wrong.
+  //
+  // FREE TUMBLING HAS NO SUCH TRAP, which is why the letters spin. There is no
+  // contact model to get physically wrong: each glyph carries an angular
+  // velocity of its own and keeps it, and every wall or floor contact reverses
+  // and rescales it so a bounce visibly disturbs the tumble rather than only
+  // the trajectory. Upright letters read as rigid; this is the cheap fix.
+  //
+  // THE ANGULAR RANGE IS +/-760 deg/s at launch, clamped to +/-1400 after
+  // bounces amplify it. At 60fps that worst case is 23 degrees per frame, and
+  // aliasing - the wagon-wheel effect that makes a spin read as stationary or
+  // reversed - needs roughly 180 degrees per frame. So nothing here can strobe,
+  // with an order of magnitude to spare. Measured and stated rather than hoped.
+  function explodeGreeting(el) {
+    var span = el.querySelector(".home-greeting-text");
+    if (!span || greetingExploded) return;
+    greetingExploded = true;
+    // REDUCED MOTION: the heading goes, with no animation at all. The OUTCOME
+    // is the twentieth click's outcome either way - gone until a new tab - and
+    // a user who has asked for less motion has still asked for the thing they
+    // clicked to happen. Doing nothing would make the control silently dead for
+    // them, which is worse than a plain disappearance.
+    if (prefersReducedMotion()) { span.remove(); return; }
+
+    var text = span.textContent;
+    var node = span.firstChild;
+    // SNAPSHOT BEFORE DETACHING. getComputedStyle returns a LIVE declaration,
+    // not a copy, and the heading is removed a few lines below - so reading
+    // cs.fontSize after that removal hands back the DETACHED DEFAULTS. This
+    // shipped as 12px glyphs at weight 400 instead of 30px at weight 300, which
+    // is why the first explosion was a scatter of specks rather than the
+    // heading coming apart. Metrics only: the colour comes from the sheet,
+    // because this runs on a CLICK - the pointer is on the text and :hover is
+    // matching, so a copied colour would vary with how the click arrived.
+    var live = getComputedStyle(span);
+    var cs = {
+      fontFamily: live.fontFamily,
+      fontSize: live.fontSize,
+      fontWeight: live.fontWeight,
+      letterSpacing: live.letterSpacing,
+      lineHeight: live.lineHeight
+    };
+    var glyphs = [];
+    if (node && node.nodeType === 3) {
+      var range = document.createRange();
+      for (var i = 0; i < text.length; i++) {
+        if (text.charAt(i) === " ") continue;
+        range.setStart(node, i);
+        range.setEnd(node, i + 1);
+        var r = range.getBoundingClientRect();
+        if (r.width > 0) glyphs.push({ ch: text.charAt(i), x: r.left, y: r.top, w: r.width, h: r.height });
+      }
+      range.detach && range.detach();
+    }
+    span.remove();
+    if (!glyphs.length) return;
+
+    var layer = document.createElement("div");
+    layer.className = "greeting-debris";
+    var parts = glyphs.map(function (g) {
+      var d = document.createElement("span");
+      d.className = "greeting-debris-glyph";
+      d.textContent = g.ch;
+      // Longhands from the snapshot above rather than the `font` shorthand,
+      // which does not reliably round-trip through style.font either.
+      d.style.fontFamily = cs.fontFamily;
+      d.style.fontSize = cs.fontSize;
+      d.style.fontWeight = cs.fontWeight;
+      d.style.letterSpacing = cs.letterSpacing;
+      d.style.lineHeight = cs.lineHeight;
+      d.style.transform = "translate3d(" + g.x + "px," + g.y + "px,0)";
+      layer.appendChild(d);
+      return {
+        el: d, x: g.x, y: g.y, w: g.w, h: g.h,
+        vx: (Math.random() * 2 - 1) * 430,
+        vy: -(240 + Math.random() * 430),
+        a: 0,
+        av: (Math.random() * 2 - 1) * 760,
+        rest: false
+      };
+    });
+    document.body.appendChild(layer);
+
+    var W = window.innerWidth, H = window.innerHeight;
+    var GRAV = 1500, MAX_SPIN = 1400, MAX_MS = 4200;
+    var last = performance.now(), t0 = last;
+    function frame(now) {
+      // Clamped, so a backgrounded tab returning does not integrate one huge
+      // step and teleport every glyph through the floor.
+      var dt = Math.min(0.032, (now - last) / 1000);
+      last = now;
+      var moving = 0;
+      for (var k = 0; k < parts.length; k++) {
+        var p = parts[k];
+        if (p.rest) continue;
+        p.vy += GRAV * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.a += p.av * dt;
+        if (p.x < 0) { p.x = 0; p.vx = -p.vx * 0.72; p.av = Math.max(-MAX_SPIN, Math.min(MAX_SPIN, -p.av * 1.15)); }
+        else if (p.x + p.w > W) { p.x = W - p.w; p.vx = -p.vx * 0.72; p.av = Math.max(-MAX_SPIN, Math.min(MAX_SPIN, -p.av * 1.15)); }
+        var floor = H - p.h;
+        if (p.y >= floor) {
+          p.y = floor;
+          p.vy = -p.vy * 0.52;
+          p.vx *= 0.86;
+          p.av = -p.av * 0.7;
+          if (Math.abs(p.vy) < 70) {
+            p.vy = 0; p.vx *= 0.5; p.av *= 0.4;
+            // AT REST AT WHATEVER ANGLE IT FINISHED ON. Snapping to 0deg here
+            // would undo the tumble in its last frame.
+            if (Math.abs(p.vx) < 14 && Math.abs(p.av) < 40) { p.rest = true; p.vx = 0; p.av = 0; }
+          }
+        }
+        if (!p.rest) moving++;
+        p.el.style.transform = "translate3d(" + p.x.toFixed(1) + "px," + p.y.toFixed(1) + "px,0) rotate(" + p.a.toFixed(1) + "deg)";
+      }
+      if (moving > 0 && now - t0 < MAX_MS) { requestAnimationFrame(frame); return; }
+      // SETTLE, HOLD A BEAT, THEN FADE. A pile of letters at the bottom of the
+      // page would otherwise sit there until the next new tab, which is a long
+      // time to look at debris.
+      for (var j = 0; j < parts.length; j++) parts[j].el.style.willChange = "auto";
+      window.setTimeout(function () {
+        layer.classList.add("is-fading");
+        window.setTimeout(function () { if (layer.parentNode) layer.parentNode.removeChild(layer); }, 620);
+      }, 700);
+    }
+    requestAnimationFrame(frame);
   }
 
   function bindLayoutSettings() {
@@ -16505,6 +16748,7 @@
     ensureAllPlaceholders();
     initSortables();
     renderHomeGreeting();
+    bindGreetingCycle();
     bindLayoutSettings();
     renderLayoutSettings();
     renderSidebarGroups();
