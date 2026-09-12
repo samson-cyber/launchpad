@@ -401,6 +401,26 @@ await (async () => {
       // tiers, so a glyph that silently stopped scaling fails there.
       if (/^calc\(var\(--icon-inner\)\s*\*\s*[0-9.]+\)(\s*!important)?$/.test(v)) return false;
       if (/^0$/.test(v)) return false;
+      // [1.11.3d] A VIEWPORT-RELATIVE CLAMP JOINS ON THE SAME TERMS, and the
+      // terms are narrower than they look. The rule this assertion enforces is
+      // "nothing below the untouched floor escapes the setting" - a literal at
+      // or above 16px is allowed to stand because, as the ramp note says,
+      // headlines were never the readability problem. A clamp whose FIRST
+      // argument is at or above that floor can never render below it either:
+      // clamp()'s lower bound is its first argument, by definition. So it
+      // stands on exactly the same footing as the 42px brand literal beside it.
+      //
+      // WHAT THIS DOES NOT ADMIT, which is the point: every px term must clear
+      // the floor, so clamp(12px, 2vw, 40px) is still a defect and still fails.
+      // A clamp carrying a ramp token is refused outright rather than guessed
+      // at - mixing a tier token with a viewport unit is a thing that needs its
+      // own argument, not a hole in this one. Seeded both ways below.
+      const clampish = /^clamp\((.+)\)(\s*!important)?$/.exec(v);
+      if (clampish) {
+        const terms = [...v.matchAll(/([0-9.]+)px/g)].map((m) => parseFloat(m[1]));
+        const mixesRamp = /var\(--(fs|display)-/.test(v);
+        return !(terms.length > 0 && !mixesRamp && Math.min(...terms) >= UNTOUCHED_FLOOR);
+      }
       const px = v.match(/^([0-9.]+)px(\s*!important)?$/);
       return !(px && parseFloat(px[1]) >= UNTOUCHED_FLOOR);
     });
@@ -597,6 +617,17 @@ const SEEDS = [
     file: "css", from: ":root {\n  --fs-8: 9px;\n  --fs-9: 10px;", to: ":root {\n  --fs-8: 8px;\n  --fs-9: 9px;" },
   { name: "the ramp inverts — large pushes a 14px token past the untouched 16px tier",
     file: "css", from: "  --display-3: 27px;\n  --fs-8: 10px;", to: "  --display-3: 27px;\n  --fs-8: 18px;" },
+  // [1.11.3d] THE CLAMP EXEMPTION, SEEDED BOTH WAYS. The first proves the
+  // widening did not open a hole: drop the greeting's clamp floor under the
+  // untouched tier and the assertion must still fail. The second proves the
+  // exemption is real rather than accidental - a clamp that mixes a ramp token
+  // is refused, because that case needs its own argument.
+  { name: "[1.11.3d] the greeting's clamp floor drops below the untouched tier",
+    file: "css", from: "  font-size: clamp(26px, min(5.2vh, 4.2vw), 76px);",
+    to:            "  font-size: clamp(12px, min(5.2vh, 4.2vw), 76px);" },
+  { name: "[1.11.3d] a clamp smuggles a ramp token past the floor check",
+    file: "css", from: "  font-size: clamp(26px, min(5.2vh, 4.2vw), 76px);",
+    to:            "  font-size: clamp(var(--fs-13), min(5.2vh, 4.2vw), 76px);" },
   { name: "a hard literal creeps back into the sheet (a rule the setting no longer covers)",
     file: "css", from: ".pro-tour-text { font-size: var(--fs-13);", to: ".pro-tour-text { font-size: 13px;" },
   { name: "a token is referenced but never defined (the declaration silently drops)",

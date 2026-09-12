@@ -16272,33 +16272,100 @@ html.bg-light .launcher-row.is-active { outline-color: rgba(0, 0, 0, 0.3); }
    override carries the TWO-CLASS guard (html.has-bg.bg-light, never
    html.bg-light alone) per O1 so it cannot lose to source order. */
 #home-greeting {
-  margin: 0 auto var(--space-3);
+  /* OUT OF FLOW, which is what buys back [1.11.3c]'s 38px. The header keeps its
+     25vh padding, so the logo, the tab bar, the search bar and the grid's first
+     row all return to exactly where they sat at 3c0aeac. The line is painted
+     into space that was already empty rather than taking space from anything.
+     pointer-events:none because it spans the full width and must never
+     intercept a click meant for what is behind it. */
+  position: absolute;
+  top: clamp(36px, 7vh, 110px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  pointer-events: none;
   text-align: center;
-  font-size: 20px;
-  font-weight: 400;
-  line-height: 1.3;
-  letter-spacing: 0.2px;
-  color: var(--text-primary);
+
+  /* PROPORTIONAL, BECAUSE A FIXED BAND CANNOT WORK AT EVERY HEIGHT. Measured at
+     a6e8d33: pinning this to a fixed 90-230px band clears the logo by 155px on
+     a 1388px window, by 78px at 1080, is down to 35px at 908, and at 700 it
+     lands 17px INSIDE the logo. So both the offset and the size are tied to the
+     viewport, and the min() arm ties the size to the WIDTH as well - a tall
+     narrow window would otherwise render 76px text that does not fit across it.
+     7vh puts the line at 97px on Samson's window, which is the 90 he asked for. */
+  font-size: clamp(26px, min(5.2vh, 4.2vw), 76px);
+  font-weight: 300;
+  line-height: 1.12;
+  letter-spacing: -0.5px;
+  white-space: nowrap;
+
+  /* THE INK IS THE HARD PART, AND TRANSLUCENCY IS EXACTLY HOW CONTRAST IS LOST.
+     Three frames as before (base / has-bg / has-bg.bg-light), but the threshold
+     is not the one the last two rounds used: at this size the line is
+     unambiguously LARGE TEXT, so WCAG's bar is 3:1, not 4.5:1.
+
+     EVERY ALPHA HERE WAS SET BY MEASURING PAINTED PIXELS, not by arithmetic on
+     the declaration - the two disagree, and the declaration is the optimistic
+     one. This base alpha was 0.46 on the first pass, which the arithmetic said
+     was 3.44:1 and a two-shot pixel diff said was 2.84:1. The gap is weight 300
+     at a large size: thin strokes mean fewer pixels ever reach the full alpha,
+     so the glyph a reader sees is lighter than the colour that was declared.
+     Driven: 0.46 -> 2.84, 0.52 -> 3.40, 0.56 -> 3.80, 0.60 -> 4.30.
+     0.54 is the first value with real margin over the bar.
+
+     This frame is the pre-resolve white page, before loadBackground runs. It is
+     brief, but it is on every new tab, and the line is always on. */
+  color: rgba(32, 33, 36, 0.54);
   text-shadow: none;
 }
 
 html.has-bg #home-greeting {
-  color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  /* rgba on the COLOUR rather than `opacity` on the element, so the shadow keeps
+     its full strength underneath translucent glyphs. `opacity` would fade the
+     halo by the same factor as the text it exists to rescue, which is precisely
+     backwards on a bright photograph. Wide and soft rather than a hard 1px
+     drop: at 76px a tight shadow reads as a printing error.
+
+     0.46 CLEARS THE BAR ON A FLAT DARK GROUND (4.10:1 measured on the shipped
+     default) AND DOES NOT CLEAR IT ON MOST PHOTOGRAPHS. That is not an
+     oversight, it is the trade this treatment is: all twelve shipped wallpapers
+     were measured at this line's exact position, and nine of them land under
+     3:1, the worst at 1.82:1 (sunrise field, ground L=0.212).
+
+     A BIGGER HALO DOES NOT FIX IT, which was worth finding out before reaching
+     for one: deepening this shadow to 0.75 moved the worst photo from 1.84 to
+     1.77, and a double halo took it to 1.59. The halo darkens the glyph's own
+     pixels along with its surround, so it buys separation and loses luminance
+     contrast at the same time. Only raising the alpha works - 0.60 -> 2.27,
+     0.75 -> 2.80, 0.90 -> 3.41 - and 0.90 is no longer translucent.
+
+     So the value here is the LOOK that was asked for, the numbers are on the
+     round, and the choice between them is the owner's rather than this file's.
+     If it moves, it moves to 0.90 and stops being a wallpaper treatment. */
+  color: rgba(255, 255, 255, 0.46);
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
 }
 
 html.has-bg.bg-light #home-greeting {
-  color: rgba(0, 0, 0, 0.82);
+  color: rgba(0, 0, 0, 0.50);
   text-shadow: none;
 }
 
-.home-greeting-date { opacity: 0.78; }
-.clock-sep { margin: 0 8px; opacity: 0.55; }
+/* The date is a shade quieter than the greeting, but only a shade: at 0.78 of a
+   0.46 alpha it fell to 3.03:1 on the default ground, which is under the bar
+   once rounding is honest about it. 0.88 keeps the distinction and keeps the
+   date legible. */
+.home-greeting-date { opacity: 0.88; }
+.clock-sep { margin: 0 0.4em; opacity: 0.5; }
 
 /* The compact header belongs to Tasks / Dashboard / Insights, which are working
    surfaces. The line it replaced was Home-only (it lived in #tab-home), so
    greeting every tab would be a scope expansion nobody asked for - and the
-   Dashboard already has its own .dash-greeting. */
+   Dashboard already has its own .dash-greeting.
+   [1.11.3d] STILL LOAD-BEARING NOW THE LINE IS ABSOLUTE, and more so: an
+   out-of-flow element no longer collapses the header when it is hidden, so
+   nothing else would give it away. It would simply paint 76px of greeting over
+   the top of Insights. */
 #content-header.is-compact #home-greeting {
   display: none;
 }
