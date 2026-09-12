@@ -14537,6 +14537,122 @@ html.bg-light #tips-close:hover { color: #202124; background: rgba(0, 0, 0, 0.06
   color: rgba(255, 255, 255, 0.78);
 }
 
+/* ===== [1.11.2 B10] Paste, preview and undo ==============================
+   THE INK RULE ON THIS PANEL, which [1.11.1] flagged as a latent hazard and
+   this round is the first to test: #import-panel declares `color: #fff`, and
+   --pro-frost-floater-bg flips to rgba(255,255,255,0.92) under html.bg-light -
+   so a hard white on a descendant is white on a WHITE panel the moment a pale
+   wallpaper is set.
+   It is latent rather than live because the panel root is itself ground-aware
+   (`html.bg-light #import-panel { color: var(--text-primary) }`) and every
+   existing descendant that declares a hard white has a partner in the
+   html.bg-light block further down. So the discipline is a PAIR:
+     - declare NO colour and inherit the ground-aware root, which is safe; or
+     - declare one AND add its html.bg-light partner in the same commit.
+   Every node below does one or the other, and the four-frame ink run measures
+   the result rather than trusting this comment. */
+.import-paste-label {
+  display: block;
+  margin: var(--space-2) 0 var(--space-1);
+  font-size: var(--fs-11-5);
+  font-weight: 600;
+}
+
+.import-paste-text {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: inherit;
+  font-size: var(--fs-12);
+  line-height: 1.5;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+}
+
+.import-paste-text:focus {
+  outline: none;
+  border-color: var(--sat-accent, #8ab4f8);
+}
+
+.import-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.import-btn {
+  flex: 1;
+  padding: var(--space-2) var(--space-2-5);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font-family: inherit;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.import-btn:hover {
+  border-color: var(--sat-accent, #8ab4f8);
+  background: rgba(138, 180, 248, 0.14);
+}
+
+.import-btn-primary {
+  border-color: var(--sat-accent, #8ab4f8);
+  background: rgba(138, 180, 248, 0.18);
+}
+
+.import-preview-summary {
+  margin: var(--space-2) 0 var(--space-1);
+  font-size: var(--fs-12-5);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.import-preview-groups {
+  margin: 0 0 var(--space-2);
+  padding-left: var(--space-4);
+  font-size: var(--fs-11-5);
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.78);
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.import-preview-note,
+.import-undo-text {
+  margin: 0 0 var(--space-2);
+  font-size: var(--fs-11-5);
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.import-dest {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-2) 0;
+  font-size: var(--fs-12);
+}
+
+.import-dest-opt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+#import-undo-row {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
 /* ===== [1.0.19 D17] Tip rows ===== */
 /* One shared shape for all six. Actionable rows are buttons and get hover +
    pointer; static rows get neither, so the affordance reads honestly before
@@ -14790,8 +14906,33 @@ html.bg-light #tips-panel {
 }
 html.bg-light .import-intro,
 html.bg-light .import-option-desc,
+html.bg-light .import-preview-groups,
+html.bg-light .import-preview-note,
+html.bg-light .import-undo-text,
 html.bg-light .tips-restore-note,
 html.bg-light .tips-pro-seed { color: #3c4043; }
+
+/* [1.11.2] The partners for this round's surfaces. Every rule above that
+   declares a hard white gets one here in the same commit; the nodes that
+   declare no colour at all are absent from both lists on purpose, because they
+   inherit the panel root, which is already ground-aware. */
+html.bg-light .import-paste-text {
+  border-color: rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.04);
+}
+html.bg-light .import-btn {
+  border-color: rgba(0, 0, 0, 0.16);
+  background: rgba(0, 0, 0, 0.04);
+}
+html.bg-light .import-btn:hover {
+  border-color: #1a73e8;
+  background: rgba(26, 115, 232, 0.10);
+}
+html.bg-light .import-btn-primary {
+  border-color: #1a73e8;
+  background: rgba(26, 115, 232, 0.14);
+}
+html.bg-light #import-undo-row { border-top-color: rgba(0, 0, 0, 0.12); }
 html.bg-light .import-option {
   border-color: rgba(0, 0, 0, 0.12);
   background: rgba(0, 0, 0, 0.03);

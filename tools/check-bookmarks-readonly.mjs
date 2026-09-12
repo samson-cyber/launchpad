@@ -32,7 +32,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // silently pick up tools/ and .scratch/ and quietly start passing for the wrong
 // reason if the repo layout moved.
 const SHIPPED = [
-  "newtab.js", "bookmarks.js", "background.js", "storage.js",
+  "newtab.js", "bookmarks.js", "importers.js", "background.js", "storage.js",
   "i18n.js", "i18n-dom.js", "locales/en.js", "license.js",
   "pro-access.js", "tracking.js", "gate.js", "offscreen.js"
 ];

@@ -303,6 +303,51 @@
           <span data-i18n="import_chrome_bookmarks" class="import-option-title">Chrome bookmarks</span>
           <span data-i18n="import_pick_folders_to_import_as" class="import-option-desc">Pick folders to import as groups</span>
         </button>
+        <button id="import-paste" class="import-option" type="button">
+          <span data-i18n="import_paste_links_title" class="import-option-title">Paste links</span>
+          <span data-i18n="import_paste_links_desc" class="import-option-desc">A list of URLs, one per line</span>
+        </button>
+        <button id="import-file" class="import-option" type="button">
+          <span data-i18n="import_from_file_title" class="import-option-title">Import a file</span>
+          <span data-i18n="import_from_file_desc" class="import-option-desc">Bookmarks HTML, Toby, OneTab, Session Buddy, Speed Dial 2</span>
+        </button>
+        <input type="file" id="import-file-input" class="hidden" accept=".html,.htm,.json,.txt,text/html,application/json,text/plain">
+
+        <div id="import-paste-box" class="hidden">
+          <label data-i18n="import_paste_label" class="import-paste-label" for="import-paste-text">Paste your links</label>
+          <textarea id="import-paste-text" class="import-paste-text" rows="6" spellcheck="false"
+                    data-i18n-placeholder="import_paste_placeholder"
+                    placeholder="https://example.com&#10;https://another.example.com"></textarea>
+          <div class="import-actions">
+            <button data-i18n="import_preview_btn" id="import-paste-go" class="import-btn import-btn-primary" type="button">Preview</button>
+            <button data-i18n="common_cancel" id="import-paste-cancel" class="import-btn" type="button">Cancel</button>
+          </div>
+        </div>
+
+        <div id="import-preview" class="hidden">
+          <p id="import-preview-summary" class="import-preview-summary"></p>
+          <ul id="import-preview-groups" class="import-preview-groups"></ul>
+          <p id="import-preview-note" class="import-preview-note"></p>
+          <div class="import-dest">
+            <label class="import-dest-opt">
+              <input type="radio" name="import-dest" value="groups" checked>
+              <span data-i18n="import_dest_groups">As groups of shortcuts</span>
+            </label>
+            <label class="import-dest-opt">
+              <input type="radio" name="import-dest" value="sessions">
+              <span data-i18n="import_dest_sessions">As saved sessions</span>
+            </label>
+          </div>
+          <div class="import-actions">
+            <button data-i18n="import_confirm_btn" id="import-confirm" class="import-btn import-btn-primary" type="button">Import</button>
+            <button data-i18n="common_cancel" id="import-preview-cancel" class="import-btn" type="button">Cancel</button>
+          </div>
+        </div>
+
+        <div id="import-undo-row" class="hidden">
+          <p id="import-undo-text" class="import-undo-text"></p>
+          <button data-i18n="import_undo_btn" id="import-undo" class="import-btn" type="button">Undo that import</button>
+        </div>
       </div>
     </div>
   </div>
@@ -886,6 +931,7 @@
        second engine per tab. -->
   <script src="tracking.js"></script>
   <script src="bookmarks.js"></script>
+  <script src="importers.js"></script>
   <script src="lib/Sortable.min.js"></script>
   <script src="newtab.js"></script>
 </body>

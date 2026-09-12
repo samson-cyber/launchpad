@@ -304,6 +304,86 @@ I18n.register("en", {
     "message": "Chrome bookmarks",
     "description": "Text on the import surface."
   },
+  "import_paste_links_title": {
+    "message": "Paste links",
+    "description": "Import panel option: paste a list of URLs."
+  },
+  "import_paste_links_desc": {
+    "message": "A list of URLs, one per line",
+    "description": "Sub-label under the Paste links import option."
+  },
+  "import_from_file_title": {
+    "message": "Import a file",
+    "description": "Import panel option: choose an export file from another tool."
+  },
+  "import_from_file_desc": {
+    "message": "Bookmarks HTML, Toby, OneTab, Session Buddy, Speed Dial 2",
+    "description": "Sub-label naming the export formats the file importer reads."
+  },
+  "import_paste_label": {
+    "message": "Paste your links",
+    "description": "Label above the paste textarea."
+  },
+  "import_paste_placeholder": {
+    "message": "https://example.com",
+    "description": "Placeholder inside the paste textarea."
+  },
+  "import_preview_btn": {
+    "message": "Preview",
+    "description": "Button that parses the pasted text and shows what would be imported."
+  },
+  "import_confirm_btn": {
+    "message": "Import",
+    "description": "Button that performs the import shown in the preview."
+  },
+  "import_undo_btn": {
+    "message": "Undo that import",
+    "description": "Button that removes everything the last import created."
+  },
+  "import_preview_summary": {
+    "plural": {"one": "1 link from {source}", "other": "{count} links from {source}"},
+    "description": "Preview headline. {source} names the detected format, for example Bookmarks HTML."
+  },
+  "import_preview_into_groups": {
+    "plural": {"one": "into 1 new group", "other": "into {count} new groups"},
+    "description": "Second half of the preview headline when importing as groups."
+  },
+  "import_preview_skipped": {
+    "plural": {"=0": "", "one": "1 link was left out because it is not a web address.", "other": "{count} links were left out because they are not web addresses."},
+    "description": "Preview note about entries dropped by the http/https allowlist, such as bookmarklets."
+  },
+  "import_preview_already": {
+    "plural": {"=0": "", "one": "1 of these is already in LaunchPad. Importing adds it again.", "other": "{count} of these are already in LaunchPad. Importing adds them again."},
+    "description": "Preview note about links that already exist, so importing the same file twice is a visible choice rather than a surprise."
+  },
+  "import_nothing_found": {
+    "message": "No web links found in that file",
+    "description": "Shown when a chosen file or paste contains nothing importable."
+  },
+  "import_too_big": {
+    "message": "That import is too large for LaunchPad's storage. Nothing was imported. Try a smaller file, or remove some shortcuts first.",
+    "description": "Refusal shown BEFORE any write when an import would exceed the browser storage quota."
+  },
+  "import_done_toast": {
+    "plural": {"one": "Imported 1 link", "other": "Imported {count} links"},
+    "description": "Toast confirming a completed import."
+  },
+  "import_undone_toast": {
+    "message": "Import undone",
+    "description": "Toast confirming the last import was removed."
+  },
+  "import_undo_available": {
+    "plural": {"one": "Last import: 1 link from {source}", "other": "Last import: {count} links from {source}"},
+    "description": "Line above the undo button naming what the last import brought in."
+  },
+  "import_dest_groups": {
+    "message": "As groups of shortcuts",
+    "description": "Import destination choice: create shortcut groups."
+  },
+  "import_dest_sessions": {
+    "message": "As saved sessions",
+    "description": "Import destination choice: create named sessions instead of shortcut groups."
+  },
   "import_most_visited_sites": {
     "message": "Most visited sites",
     "description": "Text on the import surface."

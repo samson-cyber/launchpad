@@ -15,6 +15,18 @@ build.**
 ## PASTE THIS - "What's new" (draft, grows until the release is cut)
 
 ```
+Bring your links in from anywhere.
+
+• Paste a list of URLs, or import a file: Chrome/Edge bookmarks
+  HTML, Toby, OneTab, Session Buddy and Speed Dial 2 exports.
+  LaunchPad works out which one it is - you do not have to say.
+• Every import goes into NEW groups. Nothing you already have is
+  replaced, merged or deleted, and one click undoes the whole
+  import - even after a reload.
+• You see exactly what will arrive before it does, including how
+  many of the links you already have.
+• Imports can also become saved sessions.
+
 Browse your Chrome bookmarks without leaving the new tab.
 
 • A new Bookmarks entry in the sidebar opens your real bookmark
@@ -138,6 +150,34 @@ including through dynamic member access.
 Performance, measured rather than hoped: opening the panel took 65ms at 100
 bookmarks, 82ms at 1,000 and 73ms at 3,000, because only expanded folders render
 their children. Expanding one folder holding all 3,000 took 236ms.
+
+### Import: what was measured, and what is honestly unverified
+
+**Storage.** The fear going in was that a large import would reach the 10 MB
+`chrome.storage.local` ceiling. Measured on a realistic used profile, it does not
+come close: an imported shortcut costs **~236 bytes**, so a 400-bookmark Toby
+export is **0.9%** of the quota and a 1,000-line OneTab dump is **2.27%**. The
+headroom is roughly **44,000 shortcuts**. The thing that actually threatens that
+quota is base64 image data, which `[1.10.2]` measured at 200 icons for 89.6%.
+
+The refusal still exists, because a write that exceeds the quota throws *after*
+the caller has mutated its data and the value then reads back absent - an import
+that discovered that second would have silently dropped someone's bookmarks. It
+projects the serialised size and refuses before writing anything. It is a guard
+against pathological input, not against a normal export.
+
+**Formats.** Real export files could not be obtained for four of the six.
+Bookmarks HTML is a published standard and was exercised against a structurally
+faithful file; Toby, OneTab, Session Buddy and Speed Dial 2 were built from their
+documented shapes. **If a support question ever arrives about one of those four,
+ask for the file** - it is the thing that has never been seen. Underneath the
+brand-specific readers is a generic extractor that finds links in any JSON or
+text, so a format that has drifted still imports its links and only loses the
+grouping.
+
+**Safety.** Only `http` and `https` survive an import. Bookmark exports really do
+contain `javascript:` bookmarklets, and one of those in a tile would run in the
+extension's own page.
 
 ### Not in the notes, deliberately
 

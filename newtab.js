@@ -11510,10 +11510,264 @@
     var panel = $("#import-panel");
     if (panel && !panel.classList.contains("hidden")) { closeImportPanel(); return; }
     if (openSimplePanel("#import-panel")) {
+      importHidePreview();
+      importRenderUndo();
       bindSimplePanelOutside("#import-panel", "#sb-import", function () { closeImportPanel(); });
     }
   }
   function closeImportPanel(opts) { closeSimplePanel("#import-panel", opts); }
+
+  // ===== [1.11.2 B10] Bulk paste and cross-tool imports ===================
+  //
+  // Importers.parse does the reading (importers.js, DOM-free and pure). This
+  // half does the WRITING, and three decisions from the arc PLAN bind it.
+  //
+  // DECISION 2 - ADDITIVE AND REVERSIBLE. An import NEVER replaces, NEVER
+  // deletes and NEVER merges into an existing group. Every import creates NEW
+  // groups (or new sessions), so nothing a user already had can be touched by
+  // one. THE UNDO IS A PERSISTED RECEIPT, not a toast: ws.lastImport records
+  // the ids this import created, an Undo row appears in the panel whenever that
+  // receipt names things that still exist, and one click removes exactly them.
+  // It survives a reload because it is in storage, and it does not depend on
+  // anyone having noticed a toast - which is the half a toast-based undo gets
+  // wrong.
+  //
+  // DECISION 4 - THE QUOTA IS CHECKED BEFORE THE WRITE, NEVER AFTER. Measured
+  // this round: an imported shortcut costs ~236 bytes, so 400 Toby bookmarks is
+  // 0.9% of the 10 MB quota and 1,000 OneTab lines is 2.27% - a realistic
+  // import is nowhere near the ceiling, and the guard below is for pathological
+  // input rather than for a normal export. It still has to exist, because a
+  // write that exceeds the quota THROWS while the caller has already mutated
+  // `data`, and the value then reads back ABSENT (filed as 1218318875104770).
+  // An import that discovered that after writing would have silently dropped
+  // the user's bookmarks, which is the worst outcome available here. So the
+  // projected size is computed on the real object, before the write.
+  //
+  // WHY NOT Storage.addShortcut PER LINK. Those writers each call saveAll, so a
+  // 400-link import would be 400 sequential writes of the whole blob. The
+  // existing Chrome-bookmarks import already established the bulk shape -
+  // build the groups in memory, write once - and this reuses the same record
+  // shape so imported shortcuts are indistinguishable from its output.
+  var importPreview = null;
+
+  // The margin is deliberately generous. getBytesInUse is NOT the accounting
+  // Chrome charges the quota against - tools/check-storage-quota.mjs recorded a
+  // profile it called full accepting a 306-byte write, and one it called empty
+  // refusing 45 bytes - so this projects the SERIALISED payload, which is what
+  // actually gets stored, and refuses well short of the line.
+  var IMPORT_QUOTA_CEILING = 0.9;
+
+  function importQuotaBytes() {
+    try {
+      return (chrome.storage.local.QUOTA_BYTES) || 10485760;
+    } catch (e) { return 10485760; }
+  }
+
+  function importMakeId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  // Builds what the import WOULD produce, without writing it. Returns the
+  // projected byte size so the caller can refuse before touching storage.
+  function importProject(parsed, dest) {
+    var probe = JSON.parse(JSON.stringify(data));
+    var ws = Storage.getActiveWorkspace(probe);
+    if (!ws) return null;
+    importApply(probe, ws, parsed, dest, importMakeId());
+    return { bytes: JSON.stringify(probe).length, quota: importQuotaBytes() };
+  }
+
+  // The one place that turns a parse result into records. Used for the
+  // projection AND for the real write, so the thing measured is the thing
+  // stored rather than an estimate of it.
+  function importApply(target, ws, parsed, dest, importId) {
+    var receipt = { id: importId, at: Date.now(), label: parsed.label || parsed.format,
+                    count: parsed.total, groupIds: [], sessionIds: [] };
+    if (dest === "sessions") {
+      for (var i = parsed.groups.length - 1; i >= 0; i--) {
+        var g = parsed.groups[i];
+        // NO FAVICON FIELD, and that is decision 3 rather than an omission.
+        // sessionTabIcon falls back to assets/placeholder.svg for a tab with no
+        // favicon, and the only URL-to-favicon path is Google's S2 service - an
+        // imported session was never open, so there is nothing to capture and
+        // nothing may be derived. The tile self-heals on the first update from
+        // the current window.
+        var tabs = g.links.map(function (l) { return { url: l.url, title: l.title }; });
+        var created = Storage.createNamedSessionAtFront(target, { name: g.name, tabs: tabs });
+        if (created) receipt.sessionIds.push(created.id);
+      }
+    } else {
+      for (var k = 0; k < parsed.groups.length; k++) {
+        var grp = parsed.groups[k];
+        var id = "imp" + importId + "g" + k;
+        var shortcuts = grp.links.map(function (l, n) {
+          return {
+            id: "imp" + importId + "s" + k + "_" + n,
+            url: l.url,
+            title: l.title || getDomain(l.url).replace(/^www\./, ""),
+            // EMPTY, not a derived S2 URL. Measured this round: storing the
+            // derived string costs 28% more bytes and buys nothing, because
+            // getFaviconUrl derives the identical string at render time.
+            favicon: "",
+            addedAt: Date.now(),
+            deletedAt: null
+          };
+        });
+        target && ws.groups.push({ id: id, name: grp.name, shortcuts: shortcuts, deletedAt: null });
+        ws.groupOrder.push(id);
+        receipt.groupIds.push(id);
+      }
+    }
+    ws.lastImport = receipt;
+    return receipt;
+  }
+
+  function importDest() {
+    var picked = document.querySelector('input[name="import-dest"]:checked');
+    return picked ? picked.value : "groups";
+  }
+
+  // How many of these the workspace already has. NOT a refusal and NOT a merge:
+  // importing the same file twice is a thing people do, and the answer here is
+  // that it imports again into new groups, having SAID SO first. Making it
+  // visible is what turns an emergent outcome into a deliberate one.
+  function importCountExisting(parsed) {
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return 0;
+    var have = Object.create(null);
+    (ws.groups || []).forEach(function (g) {
+      if (g.deletedAt) return;
+      (g.shortcuts || []).forEach(function (sc) { if (sc.url) have[sc.url] = true; });
+    });
+    var n = 0;
+    parsed.groups.forEach(function (g) {
+      g.links.forEach(function (l) { if (have[l.url]) n++; });
+    });
+    return n;
+  }
+
+  function importShowPreview(parsed) {
+    importPreview = parsed;
+    var box = $("#import-preview");
+    if (!box) return;
+    if (!parsed || !parsed.total) {
+      showToast(t("import_nothing_found"));
+      return;
+    }
+    $("#import-paste-box").classList.add("hidden");
+    var already = importCountExisting(parsed);
+    $("#import-preview-summary").textContent =
+      t("import_preview_summary", { count: parsed.total, source: parsed.label || parsed.format }) +
+      " " + t("import_preview_into_groups", { count: parsed.groups.length });
+    var ul = $("#import-preview-groups");
+    ul.innerHTML = "";
+    parsed.groups.slice(0, 12).forEach(function (g) {
+      var li = document.createElement("li");
+      // textContent, not innerHTML: these names come out of an untrusted file.
+      li.textContent = g.name + "  (" + g.links.length + ")";
+      ul.appendChild(li);
+    });
+    if (parsed.groups.length > 12) {
+      var more = document.createElement("li");
+      more.textContent = "+" + (parsed.groups.length - 12) + " more";
+      ul.appendChild(more);
+    }
+    var notes = [];
+    if (parsed.skipped) notes.push(t("import_preview_skipped", { count: parsed.skipped }));
+    if (already) notes.push(t("import_preview_already", { count: already }));
+    $("#import-preview-note").textContent = notes.join(" ");
+    box.classList.remove("hidden");
+  }
+
+  function importHidePreview() {
+    importPreview = null;
+    var box = $("#import-preview");
+    if (box) box.classList.add("hidden");
+    var pasteBox = $("#import-paste-box");
+    if (pasteBox) pasteBox.classList.add("hidden");
+  }
+
+  async function importConfirm() {
+    var parsed = importPreview;
+    if (!parsed || !parsed.total) return;
+    var dest = importDest();
+
+    // REFUSE BEFORE THE WRITE. Nothing has been mutated at this point: the
+    // projection runs against a deep copy.
+    var projected = importProject(parsed, dest);
+    if (projected && projected.bytes > projected.quota * IMPORT_QUOTA_CEILING) {
+      console.warn("[LaunchPad] Import refused: projected " + projected.bytes +
+        " bytes against a " + projected.quota + " byte quota");
+      showToast(t("import_too_big"), 6000);
+      importHidePreview();
+      return;
+    }
+
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return;
+    importApply(data, ws, parsed, dest, importMakeId());
+    var ok = await Storage.saveAll(data);
+    if (ok === false) {
+      // The projection said it fits and the write still failed. Re-read rather
+      // than leave the page rendering something that is not on disk.
+      data = await Storage.getAll();
+      render();
+      importHidePreview();
+      return;
+    }
+    data = await Storage.getAll();
+    render();
+    renderSessionsList();
+    importHidePreview();
+    importRenderUndo();
+    showToast(t("import_done_toast", { count: parsed.total }));
+  }
+
+  // The receipt is only offered while the things it names still exist, so a
+  // user who has already deleted the groups by hand is not shown an undo that
+  // would do nothing.
+  function importReceipt() {
+    var ws = Storage.getActiveWorkspace(data);
+    var r = ws && ws.lastImport;
+    if (!r || !r.id) return null;
+    var groups = (ws.groups || []).filter(function (g) {
+      return r.groupIds.indexOf(g.id) !== -1 && !g.deletedAt;
+    });
+    var sessions = (Storage.getAllNamedSessions(ws) || []).filter(function (x) {
+      return r.sessionIds.indexOf(x.id) !== -1;
+    });
+    if (!groups.length && !sessions.length) return null;
+    return r;
+  }
+
+  function importRenderUndo() {
+    var row = $("#import-undo-row");
+    if (!row) return;
+    var r = importReceipt();
+    if (!r) { row.classList.add("hidden"); return; }
+    $("#import-undo-text").textContent =
+      t("import_undo_available", { count: r.count, source: r.label });
+    row.classList.remove("hidden");
+  }
+
+  async function importUndo() {
+    var r = importReceipt();
+    if (!r) return;
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return;
+    ws.groups = (ws.groups || []).filter(function (g) { return r.groupIds.indexOf(g.id) === -1; });
+    ws.groupOrder = (ws.groupOrder || []).filter(function (id) { return r.groupIds.indexOf(id) === -1; });
+    if (r.sessionIds.length && Array.isArray(ws.namedSessions)) {
+      ws.namedSessions = ws.namedSessions.filter(function (x) { return r.sessionIds.indexOf(x.id) === -1; });
+    }
+    ws.lastImport = null;
+    await Storage.saveAll(data);
+    data = await Storage.getAll();
+    render();
+    renderSessionsList();
+    importRenderUndo();
+    showToast(t("import_undone_toast"));
+  }
 
   // ===== [1.11.1 B9] Live Chrome bookmarks panel ==========================
   //
@@ -19272,6 +19526,32 @@
     });
 
     safeOn("#import-close", "click", function () { closeImportPanel(); });
+
+    safeOn("#import-paste", "click", function () {
+      importHidePreview();
+      var box = $("#import-paste-box");
+      if (box) { box.classList.remove("hidden"); var ta = $("#import-paste-text"); if (ta) { ta.value = ""; ta.focus(); } }
+    });
+    safeOn("#import-paste-cancel", "click", function () { importHidePreview(); });
+    safeOn("#import-paste-go", "click", function () {
+      var ta = $("#import-paste-text");
+      importShowPreview(Importers.parse(ta ? ta.value : ""));
+    });
+    safeOn("#import-file", "click", function () {
+      var input = $("#import-file-input");
+      if (input) { input.value = ""; input.click(); }
+    });
+    safeOn("#import-file-input", "change", function (e) {
+      var f = e.target.files && e.target.files[0];
+      if (!f) return;
+      var reader = new FileReader();
+      reader.onload = function () { importShowPreview(Importers.parse(String(reader.result || ""))); };
+      reader.onerror = function () { showToast(t("import_nothing_found")); };
+      reader.readAsText(f);
+    });
+    safeOn("#import-preview-cancel", "click", function () { importHidePreview(); });
+    safeOn("#import-confirm", "click", function () { importConfirm(); });
+    safeOn("#import-undo", "click", function () { importUndo(); });
     safeOn("#tips-close", "click", function () { closeTipsPanel(); });
     safeOn("#import-top-sites", "click", function () {
       closeImportPanel();
