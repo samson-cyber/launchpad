@@ -110,6 +110,12 @@
   <main id="content">
     <!-- FIXED HEADER -->
     <div id="content-header">
+      <!-- [1.11.3c] GREETING AND DATE, ONE LINE, ABOVE THE LOGO. This is a
+           HIERARCHY CHANGE, not a reposition: the first thing read on Home is
+           now the greeting rather than the brand. Unconditional - there is no
+           setting, because there is no decision worth asking for. Hidden on the
+           compact Pro tabs; see #content-header.is-compact in the sheet. -->
+      <div id="home-greeting"></div>
       <div id="brand-logo" draggable="false">
         <svg class="brand-icon" width="28" height="28" viewBox="0 0 24 24" fill="none">
           <circle cx="7" cy="7" r="3" fill="#4285F4"/><circle cx="17" cy="7" r="3" fill="#EA4335"/>
@@ -147,11 +153,6 @@
 
     <!-- TAB PANELS -->
     <div id="tab-home" class="tab-panel" role="tabpanel" tabindex="-1">
-      <!-- [1.10.2] THE CLOCK LINE. ONE line above the search bar and nothing
-           else (decision 1). Ships HIDDEN and EMPTY: with every toggle off it
-           has no content and no height, so a user who never opens Settings sees
-           a grid whose first row sits exactly where it does today. -->
-      <div id="clock-line" hidden></div>
       <!-- [1.10.1] THE SEARCH BAR IS THE LAUNCHER. The input is a combobox over
            #launcher-results; DOM focus never leaves it while the list is being
            navigated, which is what keeps this to ONE focus at a time. The active
@@ -415,25 +416,6 @@
           <label class="pro-toggle-row">
             <input type="checkbox" id="settings-focus-view">
             <span data-i18n="settings_hide_the_grid_and_sidebar">Hide the grid and sidebar, leaving search</span>
-          </label>
-        </div>
-        <!-- [1.10.2] THREE SEPARATE TOGGLES, all OFF by default. They are three
-             different kinds of thing - a live clock, a static date, a tone
-             choice - so bundling them would force a user who wants the time to
-             accept being greeted. -->
-        <div class="settings-row settings-row-stack">
-          <label data-i18n="settings_clock_line" class="settings-label">Clock line</label>
-          <label class="pro-toggle-row">
-            <input type="checkbox" id="settings-clock-time">
-            <span data-i18n="settings_show_the_time">Show the time</span>
-          </label>
-          <label class="pro-toggle-row">
-            <input type="checkbox" id="settings-clock-date">
-            <span data-i18n="settings_show_the_date">Show the date</span>
-          </label>
-          <label class="pro-toggle-row">
-            <input type="checkbox" id="settings-clock-greeting">
-            <span data-i18n="settings_show_a_greeting">Show a greeting</span>
           </label>
         </div>
         <div class="settings-row settings-wallpaper-row">

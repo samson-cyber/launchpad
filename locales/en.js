@@ -1518,15 +1518,15 @@ I18n.register("en", {
   },
   "clock_good_morning": {
     "message": "Good morning",
-    "description": "Greeting on the optional clock line, before noon. Off by default. Rendered with t()."
+    "description": "Greeting on the Home greeting line, above the logo, before noon. Always shown - there is no setting. The browser's own time zone decides which of the three applies. Rendered with t()."
   },
   "clock_good_afternoon": {
     "message": "Good afternoon",
-    "description": "Greeting on the optional clock line, noon to 18:00. Rendered with t()."
+    "description": "Greeting on the Home greeting line, above the logo, noon to 18:00. Always shown - there is no setting. Rendered with t()."
   },
   "clock_good_evening": {
     "message": "Good evening",
-    "description": "Greeting on the optional clock line, from 18:00. Rendered with t()."
+    "description": "Greeting on the Home greeting line, above the logo, from 18:00. Always shown - there is no setting. Rendered with t()."
   },
   "settings_layout": {
     "message": "Layout",
@@ -1555,22 +1555,6 @@ I18n.register("en", {
   "focus_leave_focus_view": {
     "message": "Leave Focus view",
     "description": "The exit control shown only in Focus view, pinned top-left outside the content region so nothing the view hides can hide it too. Escape does the same thing. Rendered by the data-i18n pass."
-  },
-  "settings_clock_line": {
-    "message": "Clock line",
-    "description": "Appearance settings label for the three clock-line toggles. Rendered by the data-i18n pass."
-  },
-  "settings_show_the_time": {
-    "message": "Show the time",
-    "description": "Clock-line toggle. Separate from the date and greeting because it is the only one that ticks. Off by default. Rendered by the data-i18n pass."
-  },
-  "settings_show_the_date": {
-    "message": "Show the date",
-    "description": "Clock-line toggle, independent of the time. Off by default. Rendered by the data-i18n pass."
-  },
-  "settings_show_a_greeting": {
-    "message": "Show a greeting",
-    "description": "Clock-line toggle. Separate because a greeting is a tone choice some people find warm and others find twee, and bundling it would force it on anyone who wanted the time. Off by default. Rendered by the data-i18n pass."
   },
   "launcher_search_the_web_for": {
     "message": "Search the web for",

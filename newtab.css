@@ -400,7 +400,7 @@ body {
 /* ===== [1.10.4] ONE CENTRING REFERENCE FOR HOME'S HEADER AND ITS CONTENT =====
  *
  * THE MEASURED DEFECT, which is not the one that was reported. Every element -
- * #brand-logo, #tab-bar, #clock-line, #search-bar, #shortcut-grid-area and
+ * #home-greeting, #brand-logo, #tab-bar, #search-bar, #shortcut-grid-area and
  * .shortcuts-grid - already shares ONE reference: #content, whose 56px
  * margin-left reserves the sidebar's rail. Measured spread between them is
  * 0.01px at every viewport width, in Focus view, and with the sidebar expanded
@@ -411,8 +411,11 @@ body {
  * THERE IS, HOWEVER, A REAL DIVERGENCE, and this rule is for it.
  * #content-header is a SIBLING of .tab-panel, not a child. When .tab-panel
  * gains a vertical scrollbar its content box narrows, so the elements INSIDE it
- * (clock line, search bar, grid) shift left by scrollbarWidth/2 while the logo
- * and tab bar - which are outside it - do not move at all. Measured: a 10px
+ * (search bar, grid) shift left by scrollbarWidth/2 while the greeting, the logo
+ * and the tab bar - which are outside it - do not move at all.
+ * ([1.11.3c] moved the greeting line from .tab-panel INTO #content-header, so it
+ * changed sides here: it used to drift with the search bar and now holds still
+ * with the logo it sits above.) Measured: a 10px
  * scrollbar puts the header 4.99px right of the search bar; a forced 15px one
  * puts it 7.49px right. That is the reported symptom exactly, at a smaller
  * magnitude, and it needs a short viewport (it appears below ~380px of height
@@ -16236,30 +16239,69 @@ html.bg-light .launcher-row.is-active { outline-color: rgba(0, 0, 0, 0.3); }
   font-weight: 600;
 }
 
-/* ----- the clock line -----
-   HIDDEN AND EMPTY BY DEFAULT. [hidden] already collapses it, and the margin
-   lives on the element rather than on a wrapper so an absent clock reserves no
-   space at all - the grid's first row must not move for a user who never opens
-   Settings. */
-#clock-line {
-  margin: 0 auto 10px;
+/* ----- [1.11.3c] the greeting line, above the logo -----
+   ONE LINE, ALWAYS ON, and the first thing read on Home. It replaces the
+   [1.10.2] clock line, whose three toggles are gone: the time was decoration
+   next to the OS clock every screen already has, and greeting-and-date need no
+   decision, so they need no controls.
+
+   THE SIZE IS ARGUED, NOT PICKED. 20px is exactly what .brand-text takes under
+   .is-compact, so it is already in this sheet's vocabulary rather than a new
+   number. Against the 42px hero logo it is 48% - comfortably under half, which
+   is the relationship aimed for: a line ABOVE a title, not a rival to it. A
+   greeting larger than the brand would be a different product. It is +5px over
+   the line it replaces (--fs-14 renders 15px at Medium), which is the "bigger"
+   that was asked for.
+
+   IT SITS ABOVE THE TYPE RAMP ON PURPOSE. The ramp tops out at --fs-15 and its
+   own doctrine says 16px+ headlines "stand at every tier - they were never the
+   readability problem". This line is a headline now, so it takes a fixed size
+   and does NOT move with Text size. Stated rather than hidden: a Large-text
+   user gets no growth here, and at 20px needs none.
+
+   INK ON THREE FRAMES, WHICH IS THE CLASS THAT KEEPS FAILING. This line sits
+   BARE ON THE WALLPAPER with no card behind it, so it takes the treatment
+   .dash-greeting documents, for the same reason: the BASE rule takes the PAGE's
+   own ink, because `html` carries neither has-bg nor bg-light until
+   loadBackground resolves and the page is --bg: #fff at that moment. The old
+   #clock-line put `color: #fff` in its base rule - white on white. That never
+   bit, because the element shipped hidden and off by default. THIS LINE IS
+   ALWAYS ON, so that frame is now reached on every new tab by every user before
+   the wallpaper paints. Inheriting the old rule would have shipped a flash of
+   invisible text. White is scoped to html.has-bg, and the bright-colour
+   override carries the TWO-CLASS guard (html.has-bg.bg-light, never
+   html.bg-light alone) per O1 so it cannot lose to source order. */
+#home-greeting {
+  margin: 0 auto var(--space-3);
   text-align: center;
-  font-size: var(--fs-14);
-  line-height: 1.35;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: 0.2px;
+  color: var(--text-primary);
+  text-shadow: none;
+}
+
+html.has-bg #home-greeting {
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
-#clock-line[hidden] { display: none; }
-.clock-time { font-weight: 600; color: #fff; }
-.clock-date { color: #e3e6ea; }
-.clock-greeting { color: #e3e6ea; }
-.clock-sep { color: #b9bfc7; margin: 0 8px; }
 
-html.bg-light #clock-line,
-html.bg-light .clock-time { color: var(--text-primary); text-shadow: none; }
-html.bg-light .clock-date,
-html.bg-light .clock-greeting { color: #3c4043; }
-html.bg-light .clock-sep { color: #80868b; }
+html.has-bg.bg-light #home-greeting {
+  color: rgba(0, 0, 0, 0.82);
+  text-shadow: none;
+}
+
+.home-greeting-date { opacity: 0.78; }
+.clock-sep { margin: 0 8px; opacity: 0.55; }
+
+/* The compact header belongs to Tasks / Dashboard / Insights, which are working
+   surfaces. The line it replaced was Home-only (it lived in #tab-home), so
+   greeting every tab would be a scope expansion nobody asked for - and the
+   Dashboard already has its own .dash-greeting. */
+#content-header.is-compact #home-greeting {
+  display: none;
+}
 
 /* ----- the icon picker -----
    FLOATER tier: a transient surface over the page. Centred rather than anchored

@@ -12245,7 +12245,6 @@
   var ICON_EMOJI = ["\u2B50", "\u2764\uFE0F", "\u{1F525}", "\u{1F4E7}", "\u{1F4C5}", "\u{1F4B0}",
                     "\u{1F3B5}", "\u{1F4F7}", "\u{1F4DA}", "\u{1F4BB}", "\u{1F6D2}", "\u2708\uFE0F"];
   var iconPickerState = null;
-  var clockTimer = null;
   var LAUNCHER_MAX = 8;
   var launcherState = { results: [], activeIndex: -1, lastTileId: null };
 
@@ -12752,61 +12751,38 @@
     iconPickerState = null;
   }
 
-  // ===== [1.10.2] THE CLOCK LINE ===========================================
+  // ===== [1.11.3c] THE GREETING LINE ========================================
   //
-  // ONE LINE ABOVE THE SEARCH BAR and nothing else, per decision 1. It renders
-  // into an element that is EMPTY AND HIDDEN when every toggle is off, so a user
-  // who never opens Settings gets no node with height, no reserved space, and a
-  // grid whose first row sits exactly where it sits today.
+  // GREETING AND DATE, ONE LINE, ABOVE THE LOGO. Unconditional: there are no
+  // toggles, because neither half is a decision worth asking a user to make.
   //
-  // ZERO NETWORK: Intl.DateTimeFormat with the browser's own locale and zone.
+  // THE TIME IS GONE, AND WITH IT THE ONLY TIMER ON THIS PAGE THAT EXISTED FOR
+  // A FIGURE NOBODY NEEDED. Every OS puts a clock in the corner of every screen;
+  // a second one on the new tab was decoration pretending to be information.
+  // The 15s setInterval that kept it honest is deleted outright - not disabled,
+  // not gated. Nothing here ticks now: a greeting changes at two boundaries a
+  // day and the date at one, and a page that is re-created on every new tab does
+  // not need a timer to notice either.
+  //
+  // THE DATE STAYS because people genuinely do not know it. ZERO NETWORK, as
+  // before: Intl.DateTimeFormat with the browser's own locale and zone.
   function greetingFor(hour) {
     if (hour < 12) return t("clock_good_morning");
     if (hour < 18) return t("clock_good_afternoon");
     return t("clock_good_evening");
   }
 
-  function renderClockLine() {
-    var el = $("#clock-line");
+  function renderHomeGreeting() {
+    var el = $("#home-greeting");
     if (!el) return;
-    var cfg = Storage.getClockSettings(data);
-    if (!cfg.time && !cfg.date && !cfg.greeting) {
-      el.innerHTML = "";
-      el.hidden = true;                 // no node with height - see above
-      stopClockTick();
-      return;
-    }
     var now = new Date();
-    var parts = [];
-    if (cfg.greeting) parts.push('<span class="clock-greeting">' + esc(greetingFor(now.getHours())) + '</span>');
-    if (cfg.time) {
-      var timeStr;
-      try { timeStr = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(now); }
-      catch (e) { timeStr = now.getHours() + ":" + String(now.getMinutes()).padStart(2, "0"); }
-      parts.push('<span class="clock-time">' + esc(timeStr) + '</span>');
-    }
-    if (cfg.date) {
-      var dateStr;
-      try { dateStr = new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" }).format(now); }
-      catch (e) { dateStr = now.toDateString(); }
-      parts.push('<span class="clock-date">' + esc(dateStr) + '</span>');
-    }
-    el.innerHTML = parts.join('<span class="clock-sep" aria-hidden="true">\u00B7</span>');
-    el.hidden = false;
-    if (cfg.time) startClockTick(); else stopClockTick();
+    var dateStr;
+    try { dateStr = new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" }).format(now); }
+    catch (e) { dateStr = now.toDateString(); }
+    el.innerHTML = '<span class="home-greeting-text">' + esc(greetingFor(now.getHours())) + '</span>' +
+      '<span class="clock-sep" aria-hidden="true">\u00B7</span>' +
+      '<span class="home-greeting-date">' + esc(dateStr) + '</span>';
   }
-
-  // Only a MOVING number earns a timer, the same rule the pill and the popup
-  // follow. Date-only and greeting-only lines tick nothing.
-  function startClockTick() {
-    stopClockTick();
-    clockTimer = setInterval(function () {
-      var cfg = Storage.getClockSettings(data);
-      if (!cfg.time) { stopClockTick(); return; }
-      renderClockLine();
-    }, 15000);
-  }
-  function stopClockTick() { if (clockTimer) { clearInterval(clockTimer); clockTimer = null; } }
 
   function bindLayoutSettings() {
     var seg = $("#settings-layout");
@@ -12867,26 +12843,6 @@
     }
     var fv = $("#settings-focus-view");
     if (fv) fv.checked = Storage.isFocusView(data);
-  }
-
-  function bindClockSettings() {
-    [["#settings-clock-time", "time"], ["#settings-clock-date", "date"],
-     ["#settings-clock-greeting", "greeting"]].forEach(function (pair) {
-      var box = $(pair[0]);
-      if (!box || box._clockBound) return;
-      box.addEventListener("change", async function () {
-        await Storage.setClockSetting(data, pair[1], box.checked);
-        renderClockLine();
-      });
-      box._clockBound = true;
-    });
-  }
-
-  function renderClockSettings() {
-    var cfg = Storage.getClockSettings(data);
-    var t1 = $("#settings-clock-time"); if (t1) t1.checked = cfg.time;
-    var t2 = $("#settings-clock-date"); if (t2) t2.checked = cfg.date;
-    var t3 = $("#settings-clock-greeting"); if (t3) t3.checked = cfg.greeting;
   }
 
   function applySearch() {
@@ -16497,9 +16453,7 @@
       .join("");
     ensureAllPlaceholders();
     initSortables();
-    renderClockLine();
-    bindClockSettings();
-    renderClockSettings();
+    renderHomeGreeting();
     bindLayoutSettings();
     renderLayoutSettings();
     renderSidebarGroups();

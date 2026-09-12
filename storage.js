@@ -559,25 +559,33 @@ var Storage = (function () {
   //
   // ZERO NETWORK. Intl.DateTimeFormat only - no timezone lookup, no geolocation,
   // no clock API. The browser already knows the user's locale and zone.
-  function getClockSettings(data) {
-    var s = (data && data.settings) || {};
-    return {
-      time: s.clockTime === true,
-      date: s.clockDate === true,
-      greeting: s.clockGreeting === true
-    };
-  }
+  // [1.11.3c] THE THREE CLOCK-LINE SETTINGS WERE REMOVED, and this is the sweep
+  // that keeps a profile which set them from carrying dangling preferences.
+  //
+  // Exactly the [1.10.8] accent case, for exactly the same reason: clockTime,
+  // clockDate and clockGreeting would otherwise sit in the blob forever and ride
+  // inside every backup envelope, where a later reader would find three keys
+  // naming controls that no longer exist. The greeting and date are now
+  // unconditional, so the profile already RENDERS correctly whatever these said
+  // - this is about the stored shape, not the pixels.
+  //
+  // IDEMPOTENT BY CONSTRUCTION, which the backfill caller requires: it reports
+  // changed only when at least one key is actually present, so the write happens
+  // once and the next load finds nothing to do. A sweep that returned true
+  // unconditionally would make a warm blob write on every single load, which is
+  // what the BG QUEUE gate's warm-fixture assertion exists to catch.
+  var CLOCK_SETTING_KEYS = ["clockTime", "clockDate", "clockGreeting"];
 
-  async function setClockSetting(data, which, on) {
-    if (!data || !data.settings) return false;
-    var key = which === "time" ? "clockTime" : which === "date" ? "clockDate"
-      : which === "greeting" ? "clockGreeting" : null;
-    if (!key) return false;
-    var next = !!on;
-    if (data.settings[key] === next) return false;   // no-op writes nothing
-    data.settings[key] = next;
-    await saveAll(data);
-    return true;
+  function dropClockSettings(data) {
+    if (!data || !data.settings || typeof data.settings !== "object") return false;
+    var changed = false;
+    for (var i = 0; i < CLOCK_SETTING_KEYS.length; i++) {
+      if (Object.prototype.hasOwnProperty.call(data.settings, CLOCK_SETTING_KEYS[i])) {
+        delete data.settings[CLOCK_SETTING_KEYS[i]];
+        changed = true;
+      }
+    }
+    return changed;
   }
 
   // ===== [1.10.2] CUSTOM SHORTCUT ICONS ====================================
@@ -1959,6 +1967,7 @@ var Storage = (function () {
         var notesSeeded = ensureNotesArrays(existing);
         var sessionsSeeded = ensureNamedSessionsArrays(existing);
         var accentDropped = dropAccentSetting(existing);
+        var clockDropped = dropClockSettings(existing);
         var iconsMerged = migrateLegacyIcons(existing);
         // [1.4.7] Runs at most once per profile. The write is needed only on the
         // run that actually sweeps - the one that finds the marker absent and
@@ -1968,7 +1977,7 @@ var Storage = (function () {
         var strandedUnswept = existing[STRANDED_SWEEP_MARKER] !== true;
         var strandedReleased = sweepStrandedTasks(existing);
         if (patched || trackingSeeded || focusSeeded || notesSeeded || sessionsSeeded ||
-            accentDropped || iconsMerged || strandedUnswept) {
+            accentDropped || clockDropped || iconsMerged || strandedUnswept) {
           // [1.10.3] THE BACKFILL WRITE GETS ITS OWN try/catch, AND THIS IS A
           // CORRECTNESS FIX RATHER THAN TIDYING. It used to sit inside this
           // function's single try, so an over-quota backfill fell through to the
@@ -7725,8 +7734,7 @@ var Storage = (function () {
     setLayout: setLayout,
     isFocusView: isFocusView,
     setFocusView: setFocusView,
-    getClockSettings: getClockSettings,
-    setClockSetting: setClockSetting,
+    dropClockSettings: dropClockSettings,
     getShortcutIcon: getShortcutIcon,
     setShortcutIcon: setShortcutIcon,
     findShortcutById: findShortcutById,
