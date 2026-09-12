@@ -1620,6 +1620,18 @@ I18n.register("en", {
     "message": "One more should do it",
     "description": "Greeting ladder rung 19, the last line before the heading explodes. It is also the longest rung on purpose: the explosion blows up whatever is on screen, and a three-letter heading makes a thin bang."
   },
+  "home_note_title": {
+    "message": "Scratchpad",
+    "description": "Heading above the one free note on Home. Not \"Notes\" - that is the Pro panel, and two surfaces with the same name is how a user comes to believe they are the same thing."
+  },
+  "home_note_placeholder": {
+    "message": "A note to yourself",
+    "description": "Placeholder in the empty free note on Home. Deliberately not an instruction - nothing in this product exhorts."
+  },
+  "home_note_pro_hint": {
+    "message": "Unlimited notes are in the Tasks tab",
+    "description": "Shown under the Home scratchpad to a user who HAS Pro, pointing at where the rest live. Free and expired users never see it - a free tier is not shown a line about a panel it cannot open."
+  },
   "settings_layout": {
     "message": "Layout",
     "description": "Appearance settings label for the grid / compact / list segmented control. Rendered by the data-i18n pass."

@@ -177,6 +177,18 @@
       <div id="shortcut-grid-area">
         <div id="groups"></div>
       </div>
+      <!-- [1.11.4] THE ONE FREE SCRATCHPAD NOTE. IN FLOW, AFTER THE GRID, and
+           the measurement is what put it there rather than in a corner. A
+           floating sticky pinned bottom-right is the obvious design and it does
+           not survive: measured on the busy fixture, the gutter between the
+           right-most tile and the content edge is 168px at 1500px wide but only
+           24px at 1100px, and at 1100px the grid already overflows the content
+           box - so a corner card would sit on top of shortcuts on any normal
+           laptop. elementFromPoint in that corner returns grid content today.
+           In flow after the grid collides with nothing at any width, moves
+           nothing above it, and does not cost the vertical space [1.11.3d]
+           worked to give back. -->
+      <div id="home-note-area"></div>
     </div>
     <div id="tab-tasks" class="tab-panel hidden" role="tabpanel" tabindex="-1"></div>
     <div id="tab-dashboard" class="tab-panel hidden" role="tabpanel" tabindex="-1"></div>

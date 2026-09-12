@@ -1,0 +1,44 @@
+[
+  {
+    "name": "the free note x the greeting block",
+    "why": "the greeting is position:fixed-adjacent (absolute in a z-index:2 header) and spans the full width",
+    "verdict": "composes",
+    "detail": "greeting 64-126, note 806-892, overlap false, hit-test on the note: home-note"
+  },
+  {
+    "name": "the free note x Focus view",
+    "why": "Focus view hides the grid and the sidebar to leave search alone; the note is a new Home surface it knew nothing about",
+    "verdict": "composes",
+    "detail": "note display in focus view: none (grid: none), back to block on exit"
+  },
+  {
+    "name": "per-workspace wallpaper x the greeting's ink",
+    "why": "a bright wallpaper on ONE workspace flips html.bg-light, and the greeting keys all three of its ink frames on that class",
+    "verdict": "composes",
+    "detail": "ws A has-bg bg-dark -> rgba(255, 255, 255, 0.46)   ws B has-bg bg-light -> rgba(0, 0, 0, 0.5)"
+  },
+  {
+    "name": "wallpaper rotation x the once-a-day type-out",
+    "why": "both fire on the FIRST open of a day - rotation swaps the ground under the line while the line is typing itself in",
+    "verdict": "composes",
+    "detail": "ground is image (has-bg bg-image), greeting rendered \"Good evening\", arrival observed this load: false"
+  },
+  {
+    "name": "the bookmarks panel x the import panel",
+    "why": "both create shortcuts, and only one of them was written with duplicate detection in mind",
+    "verdict": "one wins",
+    "detail": "both route through Storage.addShortcut; the IMPORT panel counts duplicates before it writes, the bookmarks panel's per-row + does NOT - it adds unconditionally. Neither corrupts the other; the asymmetry is real and is a product question, not a defect."
+  },
+  {
+    "name": "content arriving in workspace B while viewing workspace A",
+    "why": "an import targets a workspace, the wallpaper is keyed by workspace, and the page re-renders on any storage change - so a naive implementation repaints A with B's wallpaper or shows B's groups",
+    "verdict": "composes",
+    "detail": "B's groups 2 -> 3, still viewing A: true, B's wallpaper intact: true, root has-bg bg-dark -> has-bg bg-dark, B's new group visible from A: false"
+  },
+  {
+    "name": "the greeting explosion x a full Home re-render mid-flight",
+    "why": "switching tabs and back rebuilds Home entirely; if that happens during the explosion the heading could come back and the debris be orphaned",
+    "verdict": "composes",
+    "detail": "debris survived the re-render: true, heading stayed gone: true, date still present: true, note still present: true"
+  }
+]

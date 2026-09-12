@@ -56,6 +56,16 @@ Shortcut icons are bigger and easier to see.
   emoji and lettered icons now grow with the setting like every
   other icon does.
 
+One note, free, on your new tab.
+
+• A scratchpad sits under your shortcuts on Home. Write in it,
+  close the tab, come back - it is still there.
+• It is free, and it stays free. If you had Pro and stopped,
+  you keep this note.
+• Pro still has unlimited notes beside your tasks. This one is
+  separate from those and always has been - it is not the first
+  of them, so nothing you do in the Notes panel can change it.
+
 Group actions no longer hide until you hover.
 
 • "Open All" and the group menu are now always visible on every
@@ -64,6 +74,28 @@ Group actions no longer hide until you hover.
   Nothing moved to make room - those controls always occupied
   that space, they were simply invisible.
 ```
+
+---
+
+## What is free and what is Pro, so support answers match the copy
+
+**This section supersedes the one in `RELEASE-NOTES-2.1.0.md` from this build onward.**
+That file's version is correct for 2.1.0 and is deliberately not edited - 2.1.0 was
+submitted without the free note, and a submitted build's notes describe that build.
+
+- **ONE NOTE IS FREE. UNLIMITED NOTES ARE PRO.** The free one is the **scratchpad on
+  Home**, under the shortcut grid. Every tier has it: free, trialing, active, grace and
+  **expired**. The unlimited notes stay in the Tasks tab, which is a Pro surface, so a
+  free or expired user still sees the demo notes there in preview and still cannot
+  create one.
+- **The free note is NOT the first of the Pro notes**, and the distinction is the one
+  support will be asked about. It lives in its own `homeNote` slot, so a Pro user with
+  thirty notes who lapses keeps the scratchpad they were always writing in - not
+  whichever note happened to be first in the list. Reordering, deleting, importing or
+  restoring notes cannot change which note a downgrade leaves behind, because the
+  answer was never in that list.
+- **Nothing is lost on downgrade.** The Pro notes stay in storage and come back intact
+  on re-subscribe. The scratchpad is untouched by either transition.
 
 ---
 
