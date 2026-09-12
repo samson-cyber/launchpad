@@ -3913,6 +3913,35 @@ var Storage = (function () {
     return typeof v === "number" ? v : null;
   }
 
+  // [1.11.3e] THE GREETING'S TYPE-OUT PLAYS ONCE A DAY, and this is the day it
+  // last played. Forty tabs a day is thirty-nine too many.
+  //
+  // THE DAY KEY IS NOT COMPUTED HERE. It comes from localDayKey, which is
+  // achDayKey, which is the same function the achievement streaks and the day
+  // aggregates already use. A second implementation of "which day is it" drifts
+  // from the first the moment either moves - that is exactly the 04:00-floor
+  // error [1.7.0] paid a round for - so this stores whatever that helper says
+  // and compares strings.
+  //
+  // A STORED KEY IN THE FUTURE HEALS ITSELF, without a special case: the
+  // comparison is inequality, not ordering, so a clock that jumped forward and
+  // back leaves a key that simply does not match today, the animation plays,
+  // and today's key overwrites it. Ordering would have needed a rule about
+  // which direction is suspicious; inequality needs none.
+  function getGreetingSeenDay(data) {
+    var s = (data && data.settings) || {};
+    return typeof s.greetingSeenDay === "string" ? s.greetingSeenDay : "";
+  }
+
+  async function setGreetingSeenDay(data, key) {
+    if (!data || !data.settings) return false;
+    if (typeof key !== "string" || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(key)) return false;
+    if (data.settings.greetingSeenDay === key) return false;   // no-op writes nothing
+    data.settings.greetingSeenDay = key;
+    await saveAll(data);
+    return true;
+  }
+
   async function setLastBackupAt(data, ts) {
     if (!data || !data.settings) return false;
     if (typeof ts !== "number") return false;
@@ -7851,6 +7880,8 @@ var Storage = (function () {
     // [2.0] Today cockpit readers — all pure, all over data an existing writer
     // already maintains. See the section above for why they live here.
     localDayKey: localDayKey,
+    getGreetingSeenDay: getGreetingSeenDay,
+    setGreetingSeenDay: setGreetingSeenDay,
     focusBlockedOnDay: focusBlockedOnDay,
     tasksCompletedOnDay: tasksCompletedOnDay,
     goalProgressList: goalProgressList,

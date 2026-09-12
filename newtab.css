@@ -16293,11 +16293,22 @@ html.bg-light .launcher-row.is-active { outline-color: rgba(0, 0, 0, 0.3); }
      viewport, and the min() arm ties the size to the WIDTH as well - a tall
      narrow window would otherwise render 76px text that does not fit across it.
      7vh puts the line at 97px on Samson's window, which is the 90 he asked for. */
-  font-size: clamp(26px, min(5.2vh, 4.2vw), 76px);
+  /* [1.11.3e] SMALLER. 5.2vh rendered ~63px on Samson's ~1388px window and read
+     as intrusive. 3.3vh renders ~46px there - a 27% reduction, and still a good
+     deal larger than the 42px brand it sits above, so it stays a wallpaper
+     treatment rather than returning to [1.11.3c]'s 20px UI line. Every px term
+     clears the untouched 16px floor, which is what lets check-text-size accept
+     a clamp at all. */
+  font-size: clamp(22px, min(3.3vh, 3.0vw), 52px);
   font-weight: 300;
   line-height: 1.12;
   letter-spacing: -0.5px;
   white-space: nowrap;
+  /* The colour SETTLES by transition when .is-arriving comes off. Declared here,
+     on the element, and NOT inside the state rule - [1.10.12] shipped a
+     transition inside its own state rule and the column slid open and snapped
+     shut. A state rule can only animate the way in. */
+  transition: color 900ms ease;
 
   /* THE INK IS THE HARD PART, AND TRANSLUCENCY IS EXACTLY HOW CONTRAST IS LOST.
      Three frames as before (base / has-bg / has-bg.bg-light), but the threshold
@@ -16351,12 +16362,155 @@ html.has-bg.bg-light #home-greeting {
   text-shadow: none;
 }
 
-/* The date is a shade quieter than the greeting, but only a shade: at 0.78 of a
-   0.46 alpha it fell to 3.03:1 on the default ground, which is under the bar
-   once rounding is honest about it. 0.88 keeps the distinction and keeps the
-   date legible. */
-.home-greeting-date { opacity: 0.88; }
-.clock-sep { margin: 0 0.4em; opacity: 0.5; }
+/* [1.11.3e] THE DATE IS THE SUBTITLE, ON ITS OWN LINE.
+   SIZE RELATIONSHIP: the date is 1.75vh against the greeting's 3.3vh, so it
+   renders at 53% of it - about 24px under a 46px greeting on Samson's window.
+   Far enough down to read as a subtitle, far enough up to stay the useful half,
+   which is what it is: people know roughly what time of day it is and do not
+   reliably know the date.
+   It is its own clamp rather than an `em` of the parent, because the sheet
+   refuses relative font units outright - they would compound with the text-size
+   ramp and make its table a lie. Both px terms clear the 16px floor.
+   At the small end the two converge (23px over 18px, a 0.78 ratio) because both
+   hit their floors. That is the right failure: a subtitle that keeps shrinking
+   past legibility to preserve a ratio has the priority backwards.
+
+   AND THE CONTRAST BAR IS NOT THE SAME FOR THE TWO LINES, which is easy to miss
+   and this round did miss on its first pass. WCAG's 3:1 allowance is for LARGE
+   text - 24px and up at a regular weight. The greeting is above that at every
+   viewport this supports. The DATE is above it only on a taller window: it
+   renders 24px at 1388px of height and falls to its floor on shorter ones,
+   where the applicable bar becomes 4.5:1 for the date while staying 3:1 for the
+   line directly above it.
+   The floor is 18px rather than 16 and the opacity 0.95 rather than 0.88 -
+   the most that can be given here without abandoning the translucency that
+   [1.11.3d] settled on and Samson accepted. Where it still falls short, the
+   round says so with the number rather than quietly repainting it. */
+/* BLOCK, BUT ONLY AS WIDE AS ITS WORDS. The two lines have to be blocks to
+   stack, and they have to take pointer events for :hover to match - but a
+   display:block span is as wide as its container, so those two facts together
+   made the whole width a hover AND click target and undid the parent's
+   pointer-events:none. Caught by elementFromPoint 20px into the empty band,
+   which returned the text span. fit-content plus auto margins keeps the stack
+   and the centring while shrinking the pointer target to the glyphs. */
+.home-greeting-text,
+.home-greeting-date {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.home-greeting-date {
+  font-size: clamp(18px, min(1.75vh, 1.6vw), 28px);
+  line-height: 1.25;
+  letter-spacing: 0;
+  margin-top: 0.35em;
+  opacity: 0.95;
+}
+
+/* ----- [1.11.3e] THE ARRIVAL -------------------------------------------------
+   Types once a day, arrives at full opacity, settles to the resting
+   translucency. IT DOES NOT FADE TO NOTHING: the date is the useful half, and
+   text that erases itself withholds information.
+
+   THE REVEAL IS clip-path, NOT width. The classic typewriter animates width on
+   an overflow-hidden inline-block, which on CENTRED text drags the whole line
+   sideways as it grows. clip-path leaves every glyph exactly where it will
+   finish and uncovers them in place, so nothing moves. steps() comes from the
+   character count and is set inline per render. */
+@keyframes greet-type {
+  from { clip-path: inset(0 100% 0 0); }
+  to   { clip-path: inset(0 0 0 0); }
+}
+
+/* ONE SHOT, `forwards`, and it ends where the resting state already is. A
+   gradient that animates across text forever is the pulse conversation again;
+   this product carries one indefinite animation (the Pro CTA) on purpose. */
+@keyframes greet-shimmer {
+  from { background-position: 170% 0; }
+  to   { background-position: -70% 0; }
+}
+
+#home-greeting.is-arriving .home-greeting-text {
+  animation: greet-type 700ms both;
+}
+
+#home-greeting.is-arriving .home-greeting-date {
+  animation: greet-type 450ms 760ms both;
+}
+
+/* THE SHIMMER RIDES THE SETTLE, NOT THE ARRIVAL, AND THE FIRST ATTEMPT AT IT
+   WAS INVISIBLE. background-clip:text clips the gradient to the letter shapes
+   and the text colour paints ON TOP of it - so a gradient under FULLY OPAQUE
+   ink is completely covered. Running it during .is-arriving, which is the whole
+   point of arriving "at full opacity", meant the shimmer could not be seen at
+   all. Photographed at eleven offsets before that was obvious.
+   It therefore runs as the line SETTLES: .has-settled lands when the type-out
+   finishes, the colour is transitioning down to the resting translucency, and
+   the gradient shows through more of the glyph the fainter the ink gets. One
+   shot, `forwards`, ending exactly where the resting state already is.
+   WHAT IT COSTS, stated because it is not free: background-position is a PAINT
+   property, not a composited one, so each frame repaints the glyph run. One
+   line of text for 900ms, once per day. Measured against a still page in
+   [1.11.3e] rather than asserted - same median frame, no long frames, zero
+   forced layouts. */
+#home-greeting.has-settled .home-greeting-text {
+  background-image: linear-gradient(100deg,
+    rgba(255, 255, 255, 0) 40%,
+    rgba(255, 255, 255, 0.95) 50%,
+    rgba(255, 255, 255, 0) 60%);
+  background-size: 240% 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: greet-shimmer 900ms both;
+}
+
+/* ARRIVES AT FULL OPACITY. One alpha per frame, matching the three the resting
+   state already keys on, so the arrival cannot land on a colour the settled
+   line would never use. bg-light stops at 0.95 rather than 1: pure black at
+   46px on a pale wallpaper is a harder arrival than the others, and this is
+   meant to be noticed once, not flinched at. */
+#home-greeting.is-arriving { color: rgba(32, 33, 36, 1); }
+html.has-bg #home-greeting.is-arriving { color: rgba(255, 255, 255, 1); }
+html.has-bg.bg-light #home-greeting.is-arriving { color: rgba(0, 0, 0, 0.95); }
+
+/* HOVER LIFTS IT TO FULL, AND HOVER IS NEW HERE - [1.11.3d] shipped no hover
+   rule at all, and could not have: pointer-events:none means the element never
+   receives a pointer event, so :hover can never match it.
+   RESOLVED BY SCOPE. The container keeps pointer-events:none, so the full-width
+   band is click-through exactly as before; only the two text spans take pointer
+   events, and they cover just the glyph runs. Hovering a child still sets
+   :hover on its ancestors, so the rule can live on the container. A click on
+   the text lands on a span with no handler and nothing behind it - asserted
+   with elementFromPoint, on the text and on the empty band either side. */
+#home-greeting .home-greeting-text,
+#home-greeting .home-greeting-date {
+  pointer-events: auto;
+  cursor: default;
+}
+
+#home-greeting:hover { color: rgba(32, 33, 36, 1); }
+html.has-bg #home-greeting:hover { color: rgba(255, 255, 255, 1); }
+html.has-bg.bg-light #home-greeting:hover { color: rgba(0, 0, 0, 0.95); }
+
+/* REDUCED MOTION SUPPRESSES BOTH, ENTIRELY. The settled state renders
+   immediately. !important because the steps() timing function is set inline per
+   render, and inline loses only to an important declaration. The script also
+   checks matchMedia and never adds the class, so this block is the guarantee
+   rather than the mechanism. */
+@media (prefers-reduced-motion: reduce) {
+  #home-greeting,
+  #home-greeting .home-greeting-text,
+  #home-greeting .home-greeting-date {
+    animation: none !important;
+    transition: none !important;
+    background-image: none !important;
+    clip-path: none !important;
+  }
+}
 
 /* The compact header belongs to Tasks / Dashboard / Insights, which are working
    surfaces. The line it replaced was Home-only (it lived in #tab-home), so

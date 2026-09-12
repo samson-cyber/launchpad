@@ -12766,6 +12766,11 @@
   //
   // THE DATE STAYS because people genuinely do not know it. ZERO NETWORK, as
   // before: Intl.DateTimeFormat with the browser's own locale and zone.
+  // Type the greeting, then the date, then let the shimmer cross once. The
+  // settle begins when this elapses. Kept in one place so the sheet and the
+  // script cannot disagree about how long the arrival lasts.
+  var GREETING_ARRIVAL_MS = 1850;
+
   function greetingFor(hour) {
     if (hour < 12) return t("clock_good_morning");
     if (hour < 18) return t("clock_good_afternoon");
@@ -12779,9 +12784,55 @@
     var dateStr;
     try { dateStr = new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" }).format(now); }
     catch (e) { dateStr = now.toDateString(); }
-    el.innerHTML = '<span class="home-greeting-text">' + esc(greetingFor(now.getHours())) + '</span>' +
-      '<span class="clock-sep" aria-hidden="true">\u00B7</span>' +
+    var greetStr = greetingFor(now.getHours());
+    // [1.11.3e] TWO LINES: the greeting is the line, the date is its subtitle.
+    // The middot is gone with the single-line layout it existed to join.
+    el.innerHTML = '<span class="home-greeting-text">' + esc(greetStr) + '</span>' +
       '<span class="home-greeting-date">' + esc(dateStr) + '</span>';
+    maybePlayGreetingArrival(el, greetStr, dateStr);
+  }
+
+  // [1.11.3e] THE ARRIVAL, ONCE A DAY.
+  //
+  // EVERY OTHER OPEN RENDERS THE SETTLED STATE AND NOTHING ELSE - no class, no
+  // animation, no flash of full opacity, and no layout shift, because the class
+  // is never added rather than added and immediately removed. That distinction
+  // is the whole difference between "plays once a day" and "plays every time,
+  // briefly".
+  //
+  // REDUCED MOTION IS CHECKED HERE AS WELL AS IN THE SHEET. The sheet's
+  // @media block is the guarantee; this check means the class is not even
+  // applied, so there is nothing for a stylesheet to have to suppress.
+  function prefersReducedMotion() {
+    try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; }
+    catch (e) { return false; }
+  }
+
+  async function maybePlayGreetingArrival(el, greetStr, dateStr) {
+    if (!el || prefersReducedMotion()) return;
+    var todayKey = Storage.localDayKey();
+    if (Storage.getGreetingSeenDay(data) === todayKey) return;   // already played today
+    // Written BEFORE the animation rather than after it, so a tab closed
+    // mid-type does not hand the next one a second performance.
+    await Storage.setGreetingSeenDay(data, todayKey);
+    var textEl = el.querySelector(".home-greeting-text");
+    var dateEl = el.querySelector(".home-greeting-date");
+    if (!textEl || !dateEl) return;
+    // steps() comes from the character count, so the reveal lands on letter
+    // boundaries rather than sliding. Set inline because the count is per
+    // render; the sheet's reduced-motion block carries !important so it still
+    // wins over these.
+    textEl.style.animationTimingFunction = "steps(" + Math.max(1, greetStr.length) + ")";
+    dateEl.style.animationTimingFunction = "steps(" + Math.max(1, dateStr.length) + ")";
+    el.classList.add("is-arriving");
+    // The colour settles by TRANSITION, and the transition is declared on the
+    // element rather than inside the .is-arriving rule - [1.10.12]/P26: a
+    // transition declared inside a state rule animates in and snaps out.
+    // Removing the class is what starts the settle.
+    window.setTimeout(function () {
+      el.classList.remove("is-arriving");
+      el.classList.add("has-settled");
+    }, GREETING_ARRIVAL_MS);
   }
 
   function bindLayoutSettings() {
