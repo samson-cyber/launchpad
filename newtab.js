@@ -8913,6 +8913,11 @@
       Storage.recordChecklistStep(data, Storage.GS_STEPS.WORKSPACE);
       await Storage.saveAll(data);
       render();
+      // [1.11.3 B8] The wallpaper is now a property of the workspace as well as
+      // of the profile, so a switch has to re-resolve it. Without this the new
+      // workspace renders under the previous one's picture until a reload.
+      await loadBackground();
+      renderWallpaperSettings();
       refreshGettingStartedIfOpen();
       // A workspace switch is a same-tab write to `data`: Storage.saveAll tags
       // it and the write-provenance gate suppresses our OWN onChanged, so the
@@ -12046,6 +12051,7 @@
     });
     // [1.6.5] the dim control syncs from the COERCED reader too, so a value
     // outside 0..0.6 in a restored backup shows as what will actually apply.
+    renderWallpaperSettings();
     var wallDim = Storage.getWallDim(data);
     var dimEl = document.getElementById("settings-wall-dim");
     if (dimEl) dimEl.value = String(wallDim);
@@ -12094,6 +12100,46 @@
   //
   // Takes the coerced value from Storage.getTextSize, so an unrecognised stored
   // value can never reach classList as a class name.
+  // [1.11.3] Paints the rotation select, the per-workspace checkbox and the
+  // precedence note from what is actually stored. Called on settings open, on a
+  // workspace switch, and after any wallpaper write.
+  async function renderWallpaperSettings() {
+    var sel = document.getElementById("settings-wallpaper-rotate");
+    var perWs = document.getElementById("settings-wallpaper-per-ws");
+    var note = document.getElementById("settings-wallpaper-note");
+    if (!sel && !perWs && !note) return;
+    var cfg = await Storage.getBackgroundConfig();
+    var wsId = data && data.activeWorkspaceId;
+    var hasOwn = !!(wsId && cfg.ws && cfg.ws[wsId]);
+    var pro = isProAccessibleLevel(currentAccessLevel());
+
+    if (sel) sel.value = cfg.rotate.on ? cfg.rotate.every : "off";
+    if (perWs) {
+      perWs.checked = hasOwn;
+      perWs.disabled = !pro;
+    }
+    var row = document.getElementById("settings-wallpaper-per-ws-row");
+    if (row) row.classList.toggle("is-locked", !pro);
+
+    // THE PRECEDENCE SENTENCE, ON SCREEN RATHER THAN ONLY IN CODE. A user with
+    // rotation on AND a wallpaper pinned to this workspace sees a picture that
+    // never rotates, and with no explanation that reads as rotation being
+    // broken. So the panel says which one is winning, and why, in the one
+    // situation where it matters.
+    if (note) {
+      if (hasOwn && cfg.rotate.on) {
+        note.textContent = t("wallpaper_note_ws_overrides_rotation");
+        note.classList.remove("hidden");
+      } else if (cfg.rotate.on) {
+        note.textContent = t("wallpaper_note_rotating");
+        note.classList.remove("hidden");
+      } else {
+        note.textContent = "";
+        note.classList.add("hidden");
+      }
+    }
+  }
+
   // [1.6.5] Wallpaper dim. Writes the token on <html>; #wall-dim reads it as its
   // opacity. Mirrors applyTextSize's shape: a pure apply with no storage in it,
   // so it can be called from boot, from the handler and from a foreign-write
@@ -18924,13 +18970,66 @@
 
   // ===== Background =====
 
+  // ===== [1.11.3] Wallpaper rotation (B12) and per-workspace (B8) =========
+  //
+  // ROTATION HOLDS NO IMAGES. Storage keeps a mode; the picture is DERIVED from
+  // the clock against the bundled gallery. Measured in Part A: an uploaded
+  // wallpaper is ~1.08 MB stored (10.6% of the quota) and a gallery pick is 67
+  // bytes, because the gallery stores Unsplash URLs rather than pictures. Seven
+  // rotating uploads would be 74% of the quota and twelve would be 127%, so
+  // rotating over uploads is not a thing that can be afforded. Rotating over
+  // the gallery costs nothing and needs no stored index.
+  //
+  // WHICH MEANS ROTATION USES THE DISCLOSED NETWORK PATH, and that is the trade
+  // rather than an oversight: a gallery wallpaper is fetched from Unsplash on
+  // render, exactly as picking one from the gallery already does today. It adds
+  // no new destination and no new disclosure - it makes an existing one recur.
+  // A user who never turns rotation on never touches it, which is why it is off
+  // by default.
+  var GALLERY_URLS = GALLERY_IMAGES.map(function (g) { return g.url; });
+  var currentBgSource = "global";
+
   async function loadBackground() {
-    var bgData = await Storage.getBackground();
+    var cfg = await Storage.getBackgroundConfig();
+    var res = Storage.resolveBackground(cfg, data && data.activeWorkspaceId, GALLERY_URLS);
+    var bgData = res.bg;
     if (!bgData || bgData === "__none__") {
       bgData = DEFAULT_BG;
-      await Storage.saveBackground(bgData);
+      cfg.global = DEFAULT_BG;
+      await Storage.saveBackgroundConfig(cfg);
+      res = { bg: bgData, source: "global" };
     }
+    currentBgSource = res.source;
     applyBackground(bgData);
+  }
+
+  // Is the Change/Remove pair writing this workspace's own wallpaper, or the
+  // global one? A checkbox in Settings, Pro-gated, and it is read at write time
+  // rather than held in a variable so it cannot drift from what is on screen.
+  function bgScopeIsWorkspace() {
+    var el = document.getElementById("settings-wallpaper-per-ws");
+    return !!(el && el.checked && !el.disabled);
+  }
+
+  async function writeBackgroundChoice(bgData) {
+    var cfg = await Storage.getBackgroundConfig();
+    var wsId = data && data.activeWorkspaceId;
+    if (bgScopeIsWorkspace() && wsId) {
+      cfg.ws[wsId] = bgData;
+    } else {
+      cfg.global = bgData;
+    }
+    // REFUSE BEFORE THE WRITE. Four uploaded per-workspace wallpapers are 42% of
+    // the quota, and saveBackground is refused SILENTLY at the ceiling - Part A
+    // drove exactly that and the wallpaper did not land while nothing said so.
+    var fit = Storage.backgroundWouldFit(cfg, 0);
+    if (!fit.fits) {
+      showToast(t("wallpaper_too_large"), 6000);
+      return false;
+    }
+    var ok = await Storage.saveBackgroundConfig(cfg);
+    if (!ok) { showToast(t("wallpaper_write_failed"), 6000); return false; }
+    return true;
   }
 
   function applyBackground(bgData) {
@@ -18983,7 +19082,12 @@
 
   async function commitBgPreview() {
     if (currentBg !== previousBg) {
-      await Storage.saveBackground(currentBg);
+      if (!(await writeBackgroundChoice(currentBg))) {
+        // Refused. Put the page back on what is actually stored rather than
+        // leaving it showing a wallpaper that was never saved.
+        await loadBackground();
+        return;
+      }
       // [R3] Checklist step 6. The background lives in a SEPARATE storage key
       // (saveBackground bypasses saveAll), so the tick needs its own data write
       // — provenance-correct (same-tab onChanged suppressed).
@@ -19673,6 +19777,40 @@
     // await so the user sees the change on the click and not one storage round
     // trip later; setTextSize then validates and persists (and no-ops on a
     // re-click of the active tier).
+    safeOn("#settings-wallpaper-rotate", "change", async function (e) {
+      var v = e.target.value;
+      var cfg = await Storage.getBackgroundConfig();
+      cfg.rotate.on = (v !== "off");
+      if (v !== "off") cfg.rotate.every = v;
+      await Storage.saveBackgroundConfig(cfg);
+      await loadBackground();
+      renderWallpaperSettings();
+    });
+
+    safeOn("#settings-wallpaper-per-ws", "change", async function (e) {
+      var wsId = data && data.activeWorkspaceId;
+      if (!wsId) return;
+      var cfg = await Storage.getBackgroundConfig();
+      if (e.target.checked) {
+        // Turning it ON pins whatever is showing right now to this workspace,
+        // so the checkbox has a visible effect immediately rather than waiting
+        // for the next Change. Turning it OFF drops the entry and lets the
+        // precedence chain take over again.
+        cfg.ws[wsId] = currentBg || DEFAULT_BG;
+        var fit = Storage.backgroundWouldFit(cfg, 0);
+        if (!fit.fits) {
+          e.target.checked = false;
+          showToast(t("wallpaper_too_large"), 6000);
+          return;
+        }
+      } else {
+        delete cfg.ws[wsId];
+      }
+      await Storage.saveBackgroundConfig(cfg);
+      await loadBackground();
+      renderWallpaperSettings();
+    });
+
     safeOn("#settings-wall-dim", "input", async function (e) {
       var v = e.target.value;
       applyWallDim(v);                       // live, before the await
@@ -19723,8 +19861,22 @@
     // wallpaper is not "you set a background".
     safeOn("#settings-remove-wallpaper", "click", async function () {
       try {
-        applyBackground(DEFAULT_BG);
-        await Storage.saveBackground(DEFAULT_BG);
+        // Removing a PER-WORKSPACE wallpaper drops that entry rather than
+        // writing the default into it, so the workspace falls back through the
+        // precedence chain to rotation or the global pick. Writing DEFAULT_BG
+        // into the map would pin it to grey instead, which is a different and
+        // worse thing to mean by "remove".
+        var cfg = await Storage.getBackgroundConfig();
+        var wsId = data && data.activeWorkspaceId;
+        if (bgScopeIsWorkspace() && wsId) {
+          delete cfg.ws[wsId];
+          await Storage.saveBackgroundConfig(cfg);
+        } else {
+          cfg.global = DEFAULT_BG;
+          await Storage.saveBackgroundConfig(cfg);
+        }
+        await loadBackground();
+        renderWallpaperSettings();
       } catch (err) {
         console.error("[LaunchPad] Wallpaper remove failed:", err);
       }

@@ -805,6 +805,42 @@ I18n.register("en", {
     "message": "Dim wallpaper",
     "description": "Label for the Settings range control that darkens the wallpaper behind the page. Sentence case, like every other settings label. Rendered by the data-i18n DOM pass."
   },
+  "settings_rotate_wallpaper": {
+    "message": "Rotate wallpaper",
+    "description": "Settings row label for automatic wallpaper rotation."
+  },
+  "settings_rotate_off": {
+    "message": "Off",
+    "description": "Wallpaper rotation disabled. The default."
+  },
+  "settings_rotate_day": {
+    "message": "A new one each day",
+    "description": "Wallpaper rotation option: change the picture once a day."
+  },
+  "settings_rotate_hour": {
+    "message": "A new one each hour",
+    "description": "Wallpaper rotation option: change the picture every hour."
+  },
+  "settings_wallpaper_this_workspace": {
+    "message": "Just for this workspace",
+    "description": "Settings checkbox: give the current workspace its own wallpaper instead of using the global one. Pro."
+  },
+  "wallpaper_note_ws_overrides_rotation": {
+    "message": "This workspace has its own wallpaper, so rotation does not apply here. Other workspaces still rotate.",
+    "description": "Shown when a per-workspace wallpaper and rotation are both set, so the user is told which one wins rather than reading it as a bug."
+  },
+  "wallpaper_note_rotating": {
+    "message": "The wallpaper changes automatically. Picking one for a workspace stops it changing there.",
+    "description": "Shown when rotation is on and no per-workspace wallpaper is set."
+  },
+  "wallpaper_too_large": {
+    "message": "There is not enough browser storage for that wallpaper. Nothing was changed. Try a smaller image, or remove a wallpaper from another workspace.",
+    "description": "Refusal shown BEFORE any write when a wallpaper would push storage past its safe ceiling."
+  },
+  "wallpaper_write_failed": {
+    "message": "That wallpaper could not be saved. Nothing was changed.",
+    "description": "Shown when the wallpaper write was refused by the browser."
+  },
   "settings_wallpaper": {
     "message": "Wallpaper",
     "description": "Text on the settings surface."

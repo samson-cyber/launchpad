@@ -444,6 +444,21 @@
             <button data-i18n="common_remove" id="settings-remove-wallpaper" type="button" class="settings-btn settings-btn-danger">Remove</button>
           </div>
         </div>
+        <div class="settings-row settings-rotate-row">
+          <label data-i18n="settings_rotate_wallpaper" class="settings-label" for="settings-wallpaper-rotate">Rotate wallpaper</label>
+          <select id="settings-wallpaper-rotate" class="settings-select">
+            <option data-i18n="settings_rotate_off" value="off">Off</option>
+            <option data-i18n="settings_rotate_day" value="day">A new one each day</option>
+            <option data-i18n="settings_rotate_hour" value="hour">A new one each hour</option>
+          </select>
+        </div>
+        <div id="settings-wallpaper-per-ws-row" class="settings-perws-row">
+          <label class="pro-toggle-row">
+            <input type="checkbox" id="settings-wallpaper-per-ws">
+            <span data-i18n="settings_wallpaper_this_workspace">Just for this workspace</span>
+          </label>
+        </div>
+        <p id="settings-wallpaper-note" class="settings-wallpaper-note hidden"></p>
         <div class="settings-row settings-dim-row">
           <label data-i18n="settings_dim_wallpaper" class="settings-label" for="settings-wall-dim">Dim wallpaper</label>
           <div class="settings-dim-controls">

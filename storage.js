@@ -2169,6 +2169,13 @@ var Storage = (function () {
     }
   }
 
+  // [1.11.3] RETURNS A BOOLEAN NOW, and that is not cosmetic. Measured this
+  // round: with the store near its ceiling this write is REFUSED, the catch
+  // swallows it, and the wallpaper does not land - while the caller, which had
+  // nothing to inspect, carried on as though it had. That is the shape of
+  // 1218318875104770 on a second writer. Fixing saveAll is out of this round's
+  // scope; making THIS writer able to say "no" is what the per-workspace guard
+  // below needs in order to refuse honestly rather than hopefully.
   async function saveBackground(bgData) {
     try {
       if (bgData) {
@@ -2176,9 +2183,131 @@ var Storage = (function () {
       } else {
         await chrome.storage.local.remove("launchpad_background");
       }
+      return true;
     } catch (err) {
-      console.error("[LaunchPad] Background write failed:", err);
+      reportWriteFailure(err, "saveBackground");
+      return false;
     }
+  }
+
+  // ===== [1.11.3] Wallpaper: rotation (B12) and per-workspace (B8) ==========
+  //
+  // THE KEY DID NOT MOVE AND THE ENVELOPE DID NOT BUMP, and both of those are
+  // measured facts rather than conveniences.
+  // buildBackupEnvelope serialises `launchpad_background` VERBATIM - it never
+  // enumerates what is inside it - and the import validator checks the data
+  // store, the two tracking stores, and nothing else. So a richer value rides
+  // the existing v2 envelope untouched, exactly as [1.8.2] found for its own
+  // shape change. What compatibility actually needs is a READER that accepts
+  // the old value, which is normalizeBackground below, and that is proven by
+  // importing real v1 and v2 files rather than by reading the validator.
+  //
+  // THE VALUE IS NOW EITHER:
+  //   a legacy string            "color:#2a2a2a" or a data: URL or an https URL
+  //   or { v: 2, global, rotate: { on, every }, ws: { <workspaceId>: bgData } }
+  //
+  // ROTATION HOLDS NO IMAGES AT ALL, and the measurement is why. One uploaded
+  // wallpaper costs ~1.08 MB stored (10.6% of the quota); a gallery pick costs
+  // 67 bytes, because it stores the Unsplash URL rather than the picture.
+  // Rotating over uploads would cost 74% of the quota at seven images and 127%
+  // at twelve - it is simply not affordable. So rotation stores a MODE, and the
+  // page derives which gallery image is showing from the date. Zero bytes, no
+  // index to drift, and the same answer in every tab without syncing anything.
+  var BG_ROTATE_MODES = ["day", "hour"];
+
+  function normalizeBackground(raw) {
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      var rot = raw.rotate && typeof raw.rotate === "object" ? raw.rotate : {};
+      return {
+        v: 2,
+        global: typeof raw.global === "string" ? raw.global : null,
+        rotate: {
+          on: rot.on === true,
+          every: BG_ROTATE_MODES.indexOf(rot.every) !== -1 ? rot.every : "day"
+        },
+        ws: (raw.ws && typeof raw.ws === "object" && !Array.isArray(raw.ws)) ? raw.ws : {}
+      };
+    }
+    // THE LEGACY SHAPE, and every backup ever written carries it. A bare string
+    // is the global wallpaper, rotation off, no per-workspace entries.
+    return {
+      v: 2,
+      global: typeof raw === "string" ? raw : null,
+      rotate: { on: false, every: "day" },
+      ws: {}
+    };
+  }
+
+  async function getBackgroundConfig() {
+    try {
+      var r = await chrome.storage.local.get("launchpad_background");
+      return normalizeBackground(r.launchpad_background);
+    } catch (err) {
+      console.error("[LaunchPad] Background read failed:", err);
+      return normalizeBackground(null);
+    }
+  }
+
+  async function saveBackgroundConfig(cfg) {
+    try {
+      await chrome.storage.local.set({ launchpad_background: normalizeBackground(cfg) });
+      return true;
+    } catch (err) {
+      reportWriteFailure(err, "saveBackgroundConfig");
+      return false;
+    }
+  }
+
+  // PRECEDENCE, and it is stated here once so the UI copy and the code cannot
+  // drift apart: a PER-WORKSPACE wallpaper beats ROTATION, and rotation beats
+  // the plain global pick. Rotation is a property of the whole profile; a
+  // workspace that has been given its own wallpaper has been given an explicit
+  // instruction, and an explicit instruction outranks an automatic one.
+  function resolveBackground(cfg, workspaceId, galleryUrls, now) {
+    var c = normalizeBackground(cfg);
+    if (workspaceId && c.ws && typeof c.ws[workspaceId] === "string" && c.ws[workspaceId]) {
+      return { bg: c.ws[workspaceId], source: "workspace" };
+    }
+    if (c.rotate.on && Array.isArray(galleryUrls) && galleryUrls.length) {
+      return { bg: galleryUrls[rotationIndex(c.rotate.every, galleryUrls.length, now)], source: "rotation" };
+    }
+    return { bg: c.global, source: "global" };
+  }
+
+  // Derived from the clock, never stored. Two tabs open at the same moment
+  // agree because they compute the same number, not because they synchronised.
+  function rotationIndex(every, count, now) {
+    if (!count) return 0;
+    var t = (typeof now === "number") ? now : Date.now();
+    var d = new Date(t);
+    var unit;
+    if (every === "hour") {
+      unit = Math.floor(t / 3600000);
+    } else {
+      // Local calendar day rather than epoch/86400000, so the picture changes
+      // at the user's midnight rather than at UTC's.
+      unit = Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+    }
+    return ((unit % count) + count) % count;
+  }
+
+  // THE GUARD THE MEASUREMENT ASKED FOR. Four uploaded per-workspace wallpapers
+  // are 42% of the quota, and saveBackground is refused silently at the ceiling,
+  // so a per-workspace write projects its own size first. Conservative on
+  // purpose: getBytesInUse is not the accounting Chrome charges against
+  // (tools/check-storage-quota.mjs), so this measures the payload it is about
+  // to write and stops well short of the line.
+  var BG_QUOTA_CEILING = 0.85;
+
+  function projectBackgroundBytes(cfg) {
+    try { return JSON.stringify(normalizeBackground(cfg)).length; }
+    catch (e) { return 0; }
+  }
+
+  function backgroundWouldFit(cfg, otherBytes) {
+    var projected = projectBackgroundBytes(cfg) + (otherBytes || 0);
+    return { fits: projected <= QUOTA_BYTES * BG_QUOTA_CEILING,
+             projected: projected, quota: QUOTA_BYTES };
   }
 
   async function getProAccessLevel() {
@@ -7482,6 +7611,14 @@ var Storage = (function () {
     reorderGroups: reorderGroups,
     getBackground: getBackground,
     saveBackground: saveBackground,
+    normalizeBackground: normalizeBackground,
+    getBackgroundConfig: getBackgroundConfig,
+    saveBackgroundConfig: saveBackgroundConfig,
+    resolveBackground: resolveBackground,
+    rotationIndex: rotationIndex,
+    projectBackgroundBytes: projectBackgroundBytes,
+    backgroundWouldFit: backgroundWouldFit,
+    BG_ROTATE_MODES: BG_ROTATE_MODES,
     getProAccessLevel: getProAccessLevel,
     getOnboardingComplete: getOnboardingComplete,
     setOnboardingComplete: setOnboardingComplete,

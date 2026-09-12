@@ -15,6 +15,15 @@ build.**
 ## PASTE THIS - "What's new" (draft, grows until the release is cut)
 
 ```
+A wallpaper that changes, and one per workspace.
+
+• Turn on rotation and LaunchPad picks a different wallpaper
+  from its gallery each day, or each hour. Off by default.
+• Pro: give any workspace its own wallpaper. Work and Personal
+  can look completely different.
+• A workspace with its own wallpaper keeps it - rotation carries
+  on everywhere else. Settings says so on screen.
+
 Bring your links in from anywhere.
 
 • Paste a list of URLs, or import a file: Chrome/Edge bookmarks
@@ -178,6 +187,36 @@ grouping.
 **Safety.** Only `http` and `https` survive an import. Bookmark exports really do
 contain `javascript:` bookmarklets, and one of those in a tile would run in the
 extension's own page.
+
+### Wallpaper: why rotation uses the gallery, and what it costs
+
+Measured before it was built, on a realistic used profile:
+
+- **One uploaded wallpaper costs ~1.08 MB stored** - 10.6% of the 10 MB browser
+  quota. Uploads are already capped at 1920px wide and JPEG-encoded, and that is
+  what is left after the cap.
+- **One gallery pick costs 67 bytes**, because it stores the Unsplash URL rather
+  than the picture. That is over 16,000 times cheaper.
+- **Four per-workspace uploads would be 42% of the quota.** Seven rotating
+  uploads would be 74%, and twelve would be 127% - past the ceiling entirely.
+
+So **rotation stores no images at all.** It stores a mode, and the picture is
+derived from the date against the bundled gallery. Nothing accumulates, there is
+no index to drift, and every tab agrees without syncing.
+
+**That means rotation uses the disclosed Unsplash path** - the same one picking a
+gallery wallpaper already uses today. It adds no new destination and no new
+disclosure; it makes an existing one recur. Anyone who never turns rotation on
+never touches it, which is why it ships off.
+
+**Per-workspace wallpapers refuse before they write.** Four uploads is 42% of the
+quota and the wallpaper writer was found to fail *silently* at the ceiling, so a
+per-workspace write now projects its own size first and says no rather than
+losing the picture quietly.
+
+**No backup format changed.** The wallpaper key now holds a richer value, but the
+backup envelope carries that key verbatim and never looks inside it, so v1 and v2
+backups both still restore - proven by importing a real file of each.
 
 ### Not in the notes, deliberately
 
