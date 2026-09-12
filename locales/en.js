@@ -811,15 +811,15 @@ I18n.register("en", {
   },
   "settings_rotate_off": {
     "message": "Off",
-    "description": "Wallpaper rotation disabled. The default."
+    "description": "Wallpaper rotation disabled. The default, and the first segment of the three-way control."
   },
   "settings_rotate_day": {
-    "message": "A new one each day",
-    "description": "Wallpaper rotation option: change the picture once a day."
+    "message": "Daily",
+    "description": "Wallpaper rotation: change the picture once a day. One segment of a three-way control, so it is one word to match Small/Medium/Large and Grid/Compact/List beside it."
   },
   "settings_rotate_hour": {
-    "message": "A new one each hour",
-    "description": "Wallpaper rotation option: change the picture every hour."
+    "message": "Hourly",
+    "description": "Wallpaper rotation: change the picture every hour. One segment of a three-way control."
   },
   "settings_wallpaper_this_workspace": {
     "message": "Just for this workspace",

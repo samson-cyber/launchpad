@@ -12113,7 +12113,15 @@
     var hasOwn = !!(wsId && cfg.ws && cfg.ws[wsId]);
     var pro = isProAccessibleLevel(currentAccessLevel());
 
-    if (sel) sel.value = cfg.rotate.on ? cfg.rotate.every : "off";
+    // Same paint as Icon size and Text size: toggle .active on the segment whose
+    // data-value matches, so a junk stored value shows Off selected rather than
+    // nothing selected at all.
+    var mode = cfg.rotate.on ? cfg.rotate.every : "off";
+    if (sel) {
+      $$(".seg-btn", sel).forEach(function (b) {
+        b.classList.toggle("active", b.dataset.value === mode);
+      });
+    }
     if (perWs) {
       perWs.checked = hasOwn;
       perWs.disabled = !pro;
@@ -19777,8 +19785,16 @@
     // await so the user sees the change on the click and not one storage round
     // trip later; setTextSize then validates and persists (and no-ops on a
     // re-click of the active tier).
-    safeOn("#settings-wallpaper-rotate", "change", async function (e) {
-      var v = e.target.value;
+    // [1.11.3b] A CLICK ON A SEGMENT, which is what the three controls above it
+    // already do: delegated on the container, data-value off the button. No
+    // keyboard handler is added, because the existing segmented controls have
+    // none either - the segments are real <button>s, so focus and Enter/Space
+    // work natively, and inventing arrow-key roving here would make this the
+    // fourth control on the panel that behaves like nothing else on it.
+    safeOn("#settings-wallpaper-rotate", "click", async function (e) {
+      var btn = e.target.closest(".seg-btn");
+      if (!btn) return;
+      var v = btn.dataset.value;
       var cfg = await Storage.getBackgroundConfig();
       cfg.rotate.on = (v !== "off");
       if (v !== "off") cfg.rotate.every = v;

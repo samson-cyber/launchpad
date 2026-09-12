@@ -106,29 +106,33 @@ html {
    INK ON BOTH FRAMES, which is the rule the comment above this block already
    states for the dim control and [1.11.2] restated for the Import panel: a new
    text node with no colour inherits body's --text-primary and is invisible on
-   the dark frosted Settings panel. The select and the note each declare a
-   colour in the default frame AND under a wallpaper.
-   The Settings panel had no <select> at all before this, so this is the first
-   one and it carries its own treatment rather than borrowing a half-fitting
-   button style. */
-.settings-select {
-  min-width: 178px;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: var(--fs-12);
-  cursor: pointer;
-}
+   the dark frosted Settings panel. The note declares a colour in the default
+   frame AND under a wallpaper.
 
-html.has-bg:not(.bg-light) .settings-select {
-  border-color: rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.07);
-  color: var(--ink-primary);
-}
+   [1.11.3b] THE <select> THIS BLOCK ONCE STYLED IS GONE, and its rules went
+   with it rather than being left as dead CSS with no consumer.
 
+   WHAT WAS MEASURED, on a real select carrying these exact rules: the colour
+   the page set WAS inherited by the <option> - rgba(255,255,255,0.9) under
+   html.has-bg:not(.bg-light) - while the option's own background-color stayed
+   unset at rgba(0,0,0,0). So half of the contrast pair was the page's choice
+   and the other half was left to whatever paints the list. Near-white ink on a
+   pale list is the unreadable dropdown, and the one legible row was the one the
+   OS highlighted with its own colour pair.
+
+   WHAT COULD NOT BE MEASURED: the popup is not in the page's document, so it
+   cannot be screenshotted or inspected from here, and a CSS-only fix could
+   therefore not be VERIFIED rather than merely written. It would also be
+   platform-conditional - Chromium paints the list itself on Windows, where
+   `option { color/background }` lands, and defers to a fully native list
+   elsewhere, where it does not - so a stylesheet fix would read correct on the
+   machine it was written on and stay broken on others.
+
+   Which is why the control was replaced rather than recoloured: the
+   .settings-segmented this panel already uses three times needs no popup at
+   all, so there is no second half of the pair to lose control of. It removes
+   the element that carries the bug, and it ends the fourth choice-of-three
+   being the odd one out. */
 .settings-perws-row.is-locked {
   opacity: 0.55;
 }
