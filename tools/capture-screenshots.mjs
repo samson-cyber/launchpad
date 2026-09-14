@@ -247,6 +247,42 @@ async function shoot(s, name) {
   } catch { /* the gate page has neither */ }
   await sleep(400);
   await sleep(900);                       // let transitions finish
+
+  // ===== NOTHING FLOATS AT SHUTTER TIME ====================================
+  //
+  // Asserted HERE, after the settle and immediately before the shutter,
+  // rather than at setup. The failure mode this exists for is not a crash:
+  // it is a run that exits 0 having photographed a floating tooltip over
+  // the surface someone is about to judge. A frame is evidence in this
+  // project ([1.10.5] found a list-view defect that passed four true
+  // structural assertions; [1.11.4] found a 195px scratchpad the same way),
+  // and this is the thing that quietly makes one frame not evidence.
+  //
+  // It covers the WHOLE class rather than the one that prompted it. The six
+  // surfaces that can appear unbidden were enumerated in d0550cb; three of
+  // them are structurally unreachable here (the Pro tour needs a real
+  // entitlement and LP.devPro is only an override; the demo group is
+  // replaced by the fixture; the Tips panel opens on a click). The other
+  // three are timers, and a timer that is suppressed at setup can still
+  // arrive during the settle above.
+  const floating = await s.ev(`(() => {
+    const out = [];
+    const nest = document.getElementById('nesting-tooltip');
+    if (nest && nest.classList.contains('visible')) out.push('nesting-tooltip');
+    const rc = document.getElementById('rc-tip');
+    if (rc && !rc.classList.contains('hidden')) out.push('rc-tip');
+    for (const el of document.querySelectorAll('.promo-toast')) {
+      if (el.classList.contains('visible')) out.push('promo-toast');
+    }
+    const toast = document.getElementById('open-all-toast');
+    if (toast && toast.classList.contains('visible')) out.push('open-all-toast');
+    if (document.querySelector('.pro-tour-mark')) out.push('pro-tour');
+    if (document.querySelector('.demo-intro')) out.push('demo-intro');
+    return out.join(',');
+  })()`).catch(() => "");
+  chk(`${name}: nothing floating over the frame`, !floating,
+    floating ? "IN FRAME: " + floating : "clean");
+
   const r = await s.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
   const file = path.join(OUT_DIR, name);
   fs.writeFileSync(file, Buffer.from(r.data, "base64"));

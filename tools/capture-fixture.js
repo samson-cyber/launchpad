@@ -97,7 +97,50 @@ async function __seedCaptureFixture() {
         });
       }
     }
+
+    // ---------------------------------------------- the floating hints
+    //
+    // THROUGH THE PRODUCT'S OWN FLAG, NOT A CSS HIDE. The nesting tooltip
+    // fires from checkNestingTooltip() on EVERY render, 2000ms after any
+    // render that finds two shortcuts reducing to the same match key inside
+    // ONE group, and it floats over whatever is being photographed. It has
+    // corrupted a capture set twice ([1.9.4], [1.10.7]).
+    //
+    // Nothing suppressed it until now; what protected these frames was the
+    // group layout above happening to have no colliding pair, plus a 2000ms
+    // delay racing the ~1300ms settle in shoot(). Neither is a mechanism,
+    // and the layout is ONE shortcut-move from firing — Drive (Daily) and
+    // Docs (Admin) both reduce to google-docs and are one group apart.
+    //
+    // nestingTipDismissed is exactly what the tooltip's own "Don't show
+    // again" control persists, so this puts the profile in a state a real
+    // user can be in rather than hiding an element. That distinction is
+    // P27: harness boilerplate that HIDES a surface has cost three rounds,
+    // because the round that later asserts on that surface reads the
+    // harness's silence as the product's. A persisted flag hides nothing,
+    // and a round that wants the tooltip can simply not set it.
+    //
+    // Written through S.saveAll with everything else (I28): getAll runs ten
+    // idempotent sweeps and rewrites the blob if any fires, so a raw
+    // storage.local.set of a `data` field can be undone by the next read.
+    // No sweeper names this key — checked against all ten — but going
+    // through the writer costs nothing and does not depend on that staying
+    // true.
+    if (!data.settings) data.settings = {};
+    data.settings.nestingTipDismissed = true;
     await S.saveAll(data);
+
+    // THE RATE PROMPT, which is the same race with a different timer. It
+    // fires on the 3rd open (PROMO_FIRST_OPEN) and a capture run opens the
+    // page far more often than that. shoot() strips its `visible` class,
+    // but that is a hide AND it happens BEFORE the settle, so a toast that
+    // arrives during those ~1300ms is still in frame. promoState is a
+    // top-level key rather than part of `data` (no sweeper reaches it), and
+    // there is no "never again" control to drive: the product deliberately
+    // re-asks. So the honest equivalent is a profile that was asked
+    // recently — openCount and lastPromoOpen equal, which puts the next ask
+    // PROMO_REASK_OPENS (40) opens away.
+    await chrome.storage.local.set({ promoState: { openCount: 1, lastPromoOpen: 1 } });
 
     // ------------------------------------------------------------ tags
     data = await S.getAll();
