@@ -2930,3 +2930,121 @@ is **byte-identical in both modes**; nothing selected under Search reaches
 `chrome.search.query` with `CURRENT_TAB`; nothing selected under Gemini reaches
 `tabs.update` with the encoded Gemini URL. Ctrl/Cmd keeps its new-tab disposition in both.
 Empty and whitespace-only queries do nothing at all.
+
+---
+
+## 2026-09-14 - The resting pulse ships PROVISIONAL, and the [1.12.0] arc closes
+
+**Decision.** `[1.12.4]` builds spec item 7's pulse as ruled, and closes the arc. The pulse
+is **provisional and reversible by its own ruling** - it is four lines of CSS and no
+JavaScript, and this entry records the case for cutting it alongside the case for keeping
+it, because the spec asked for exactly that.
+
+**WHAT WAS ARGUED AGAINST IT AND OVERRULED**, restated so no future round reverses this on
+doctrine without knowing it was considered: motion is pre-attentive, so a quiet cue can be
+harder to ignore than a loud one; it becomes wallpaper within a week on a surface opened
+forty times a day; the only surviving indefinite animation in twelve arcs is the Pro CTA,
+allowed because it is the one place the product asks for something; and it competes with the
+active-task pill.
+
+**IT WAS BUILT LAST ON PURPOSE**, and that is the ruling that made this round a test rather
+than a requirement. Item 6 said solve the weight statically first. `[1.12.1]` to `[1.12.3]`
+did: the bar measures **first of five on Home** on both footprint and presence, clears 4.5:1
+on every ground, and now does something the address bar cannot do in one action.
+
+**WHAT IS ANIMATED, AND WHY NOT THE OBVIOUS THINGS.** The assembly's **edge**, never the
+assembly. A transform would move a 536px object full of text and resample every glyph for
+the length of the cycle - the reason `[1.12.2]`'s open animation refuses to scale. An opacity
+would fade the words. The drop-shadow's rim breathes instead: blur grows, alpha eases back,
+the halo blooms outward and settles. Nothing moves, nothing reflows, no glyph is touched.
+
+| | |
+| --- | --- |
+| property | the rim drop-shadow's blur and alpha, via a registered `--search-pulse` |
+| period | **4s** - slower than *both* other animations on the page, the pill's live dot at 1.8s and the Pro CTA at 2s, so it cannot read as related to either |
+| easing | `ease-in-out`; a breath has no hard stops |
+| cost | **zero layout, zero script.** 602 style recalculations over 6s against 0 suppressed |
+
+**The animation carries only the custom property, never `filter` itself.** Animating `filter`
+would override each frame's own filter declaration outright and every frame would need its
+own keyframes; animating the *number* they all reference leaves each frame's colours intact.
+`@property` is the **first use in this sheet**, so the round asserted that it actually
+interpolates before measuring anything - an unregistered custom property animates as a
+discrete token and the pulse would have been a blink. Measured: blur 2 / 2.39 / 3.5 / 4.61 /
+5px across the cycle, symmetric about the peak.
+
+**"SOLID ONCE TYPING BEGINS" IS READ AS *THE VALUE IS NON-EMPTY*, NOT AS FOCUS**, and that is
+the design decision. The field is **autofocused on every new tab** (`[1.12.1]`), so keying
+this off focus would mean it essentially never runs. `:placeholder-shown` is exactly "the
+value is empty" and needs no JS, no listener and no state. **So the pulse runs on every new
+tab until the first keystroke, which is the objection in its strongest form** - it is not a
+cue that answers an action, it is the page's arrival state.
+
+**THE AMPLITUDE WAS SET BY THE LOUDEST GROUND, AND TOOK TWO CUTS.** At one amplitude for all
+frames it measured **941-1101** presence on light grounds against **267-300** on dark - 3.5x.
+The cause is which half breathes: on a wallpaper the blue is held and the white rim moves,
+but on a pale or absent wallpaper there is no white rim, so the blue itself breathes, and
+blue blooming on near-white is far higher contrast than white on near-black. Halving got it
+to 2.3x; quartering got it level. Final: **267-325 presence on all six grounds**, against
+**657** for the focus ring it breathes on. **The pulse's constraint is a ceiling, not a
+floor** - unlike the ring, which must be findable everywhere, this must be *ignorable*
+everywhere.
+
+**RISK 3, THE PILL: it is not a real competition.** The pill's animation is a **6px dot** that
+runs only while tracking is live. On an idle Home with no active task it does not animate at
+all, and the running-animation list on Home is `["search-pulse"]` and nothing else. When both
+do run, one is a 6px dot in the top-right corner at 1.8s and the other a 536px halo in the
+centre at 4s.
+
+### THE ARC CHECKPOINT - seven pairs, all composing
+
+`[1.10.0]` and `[1.11.0]` each found defects at the seams that every gate missed. This arc
+changed the bar's surface, added a tab strip, narrowed matching, changed the placeholder,
+changed what Enter does and added a persisted mode. All seven pairs were driven:
+
+| pair | why it could break | result |
+| --- | --- | --- |
+| strip x launcher list | the list anchors to the form whose box the strip changed | **composes** - still 6px under the bar, grid unmoved |
+| strip x Focus view | focus view hides the grid and sidebar | **composes** - strip, both tabs and the pulse all survive |
+| strip x greeting explosion | 22 clicks mid-query with the list open | **composes** - tabs, mode, query and bar position untouched |
+| Gemini default x FREE profile | spec item 8 says both tabs are free | **composes** - no gate, no lock glyph, default still Gemini |
+| persisted mode x workspace switch | three workspaces, one settings bag | **composes** - the key is on `data.settings`, not per-workspace |
+| persisted mode x backup restore | a backup predating `[1.12.2]` has no key | **composes** - absent reads Gemini rather than crashing |
+| narrowed matching x imports | names from somebody else's export | **composes** - prefix hits, contains-only correctly misses |
+| placeholder swap x greeting arrival | both fire on the first open of the day | **composes** - greeting types in, placeholder already correct |
+
+### WHAT THE ARC CHANGED ABOUT THE QUESTION IT WAS WRITTEN AROUND
+
+Samson: *"I find myself never using the actual search bar. I type it into the URL bar."*
+
+**What changed.** The bar now does something the address bar cannot do in one action - a
+Gemini question, or a shortcut by name. **It says so**, where it used to carry Chrome's
+omnibox copy verbatim and therefore announced itself as a duplicate. Its focus state works,
+where it was dead on every wallpaper. It is legible on every ground. The list overlays rather
+than shoving the grid on every keystroke.
+
+**What the arc could not change: the reach.** Every reason *not* to use the bar has been
+removed; the habit of going to the address bar has not. Nothing in four rounds can install
+that, and a week of real use is the only instrument. **What to look for:** whether he types
+into it at all in the first few days; whether what he types is a question or a shortcut name;
+whether he ever switches to the Search tab; and whether the narrowed matching frustrates him
+before it helps him.
+
+### THE BRAND FINDING, RESTATED - and the arc has made the case stronger
+
+Held since `[1.12.1]`: the wordmark measures **2,091 presence against the greeting's 466** -
+four and a half times louder, and the only element above the bar that competes with it at
+all. A 46px name for a product the user has already chosen to open, in the most valuable
+vertical space on the page. `[1.11.4]` separately flagged that Home is carrying more than its
+share.
+
+**What this arc adds: a price.** `[1.12.2]` spent **30px** on the tab strip - the grid's first
+row went 406 to 436 at 908px, and 354 to 384 at 700px - and that was judged worth it because
+the strip is what makes the bar mean something. The wordmark sits directly above that
+assembly and costs about the same. So the arc has now paid real vertical budget to make the
+bar the hero of Home, while the single largest thing still standing between the greeting and
+that hero is a name the user already knows.
+
+**This is a recommendation, not a change.** Removing or shrinking the wordmark would give
+back roughly what the tab strip cost, and it is the strongest candidate this arc has produced
+for what Home should lose. It is Samson's call and it wants its own round.
