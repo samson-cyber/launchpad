@@ -271,7 +271,42 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 25vh;
+  /* 18vh, FROM 25vh. THE VERTICAL BUDGET WAS THE COST, NOT ANY ELEMENT.
+     Measured across the whole page (Asana 1218447695007334): at 25vh this
+     padding was 347 / 270 / 227 / 175px at the four heights, and at 908px that
+     was 227 of the 508px above the grid - 45% of everything above the first
+     shortcut was deliberate empty space, more than every element on Home put
+     together. 65% of a 700px viewport was spent before the first shortcut.
+
+     THREE FINDINGS HAD POINTED AT THE WORDMARK AND ALL THREE WERE WRONG. It is
+     fourth of six by presence and outranked by the mode strip [1.12.2] added;
+     removing it reclaims 67px and opens a ~130px VOID, because the greeting is
+     absolutely positioned and does not move up to fill it. Trimming this
+     padding to 18vh puts the grid's first row at 444 against the
+     wordmark-removed 441 - three pixels apart, and this way keeps the page's
+     only title.
+
+     18vh RATHER THAN 20vh, and the threshold is why. The fold QUANTISES: at
+     700px, 21vh still shows 18 shortcuts and 20vh shows 27, so 20vh is the
+     cheapest value that gains a row. 18vh clears it by 14px instead of sitting
+     on the boundary, which is what survives a user whose icon size or column
+     count differs from the fixture. Past 20vh the extra pixels buy no further
+     rows at 700px, which is why this stops here and not at 12vh.
+
+     NOT LOWER, AND THE LIMIT IS THE GREETING. #home-greeting is absolutely
+     positioned against THIS element's padding box at top:clamp(36px,7vh,110px),
+     so it does NOT move when this does - the logo rises toward it instead.
+     Measured, greeting bottom to wordmark top, 25vh -> 18vh:
+
+         1388px   161px -> 64px
+         1080px   124px -> 48px
+          908px   101px -> 37px
+          700px    71px -> 22px      <- the floor
+
+     22px at 700px is the constraint on this value, not the grid. Anything much
+     below 18vh puts the greeting into the wordmark at short heights, which is
+     exactly what a6e8d33 measured and what the 7vh offset exists to prevent. */
+  padding-top: 18vh;
   padding-bottom: var(--space-4);
   position: relative;
   z-index: 2;
@@ -534,7 +569,8 @@ body {
    declared on the elements above animate the hero <-> compact change in one shot
    on tab switch (~220ms). Presentation stays transparent — only the #tab-bar
    pill carries a background — consistent with the v3 fixed chrome. The reclaimed
-   height (25vh hero padding -> 14px) flows into the content region via the v3
+   height (18vh hero padding -> 14px; 25vh before 2026-09-14) flows into the
+   content region via the v3
    flex chain (.tab-panel flex:1 -> .tasks-body scroller). */
 #content-header.is-compact {
   padding-top: 14px;
@@ -16812,8 +16848,9 @@ html.bg-light .launcher-row.is-active { outline-color: rgba(0, 0, 0, 0.3); }
    html.bg-light alone) per O1 so it cannot lose to source order. */
 #home-greeting {
   /* OUT OF FLOW, which is what buys back [1.11.3c]'s 38px. The header keeps its
-     25vh padding, so the logo, the tab bar, the search bar and the grid's first
-     row all return to exactly where they sat at 3c0aeac. The line is painted
+     hero padding (25vh then, 18vh since 2026-09-14), so the logo, the tab bar,
+     the search bar and the grid's first row all returned to exactly where they
+     sat at 3c0aeac. The line is painted
      into space that was already empty rather than taking space from anything.
      pointer-events:none because it spans the full width and must never
      intercept a click meant for what is behind it. */

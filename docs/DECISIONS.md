@@ -3148,3 +3148,69 @@ its place**, and the case against it was a measurement of the wrong thing.
 measurement - 25vh centres the hero, and 18vh does not. The numbers say where the cost is;
 they do not say how the page should feel, and Samson has been right about this page three
 times when a measurement disagreed with him.
+
+---
+
+## 2026-09-14 - RULED: Home's header padding ships at 18vh
+
+**Decision.** `#content-header { padding-top: 18vh }`, from 25vh. **One declaration; nothing
+removed.** Samson tried the value live on his own profile, wallpaper and icon size - *"feels
+fine"* - which was the one instrument the analysis above correctly said it could not supply,
+and the only question it left open.
+
+**Every number the analysis predicted, verified rather than trusted** - before and after, same
+fixture, same wallpaper, no two frames byte-equal:
+
+| viewport | padding | grid row 1 | shortcuts above the fold |
+| --- | --- | --- | --- |
+| 1388 | 347 to 250 | 628 to 531 | 40 (5 rows), unchanged |
+| 1080 | 270 to 194 | 551 to 475 | 40 (5 rows), unchanged |
+| 908 | 227 to 163 | 508 to 444 | 36 (4 rows), unchanged |
+| **700** | **175 to 126** | **456 to 407** | **18 (2 rows) to 27 (3 rows)** |
+
+444 at 908 is the analysis's figure exactly, and it is the number that made the case: deleting
+the wordmark put it at 441. **Three pixels apart, and this way keeps the page's only title.**
+
+**TWO THINGS VERIFICATION TURNED UP THAT THE ANALYSIS HAD NOT.**
+
+**1. The compact transition gets CALMER, not jumpier - because the compact value is
+absolute.** `#content-header.is-compact` carries `padding-top: 14px`, a fixed pixel value, so
+it does not move with the hero and needs no proportional adjustment. What changes is the
+distance the 220ms transition travels: at 908px it was 227 to 14 (213px, ~970px/s) and is now
+163 to 14 (149px, ~680px/s). Driven Home to Tasks and back at all four heights and **sampled
+110ms in, mid-flight** - a jump and a transition share both endpoints and only the middle
+tells them apart. At 908 it reads 37px on the way out and 127px on the way back, between the
+ends in both directions, returning exactly to the Home value.
+
+**2. THE FLOOR ON THIS VALUE IS THE GREETING, NOT THE GRID.** `#home-greeting` is absolutely
+positioned against this element's padding box, so it does **not** move when the padding does -
+the wordmark rises toward it. Clearance from greeting bottom to wordmark top, 25vh to 18vh:
+**161 to 64px at 1388, 124 to 48 at 1080, 101 to 37 at 908, and 71 to 22px at 700.** 22px is
+the constraint on any further reduction, and it is recorded in the rule itself. `a6e8d33`
+measured what happens when that clearance goes negative; the greeting's `7vh` offset exists to
+prevent it.
+
+**THE OTHER THREE TABS ARE UNAFFECTED, measured rather than inferred.** Tasks, Dashboard and
+Insights all carry `.is-compact`, whose `padding-top: 14px` overrides this rule, so 18vh
+changes nothing on any of them. Header and content still share a centre to 0.00px on all four
+tabs - `[1.10.11]`'s defect, asserted because this page's centring has been wrong twice while
+measuring clean.
+
+**Gate counts unchanged**; `check-text-size` stays at 113 and is blind to this by design - it
+inspects font sizes, not padding, so a `vh` length here is invisible to it.
+
+### WHAT THE ROUND THAT PRECEDED THIS ESTABLISHED, AND WHICH OUTLIVES IT
+
+- **The vertical budget is the cost, not the element count.** 45% of everything above the grid
+  at 908px was empty padding - more than every element on Home combined.
+- **Visual busyness and vertical cost are separate complaints.** Removing the greeting
+  reclaims *zero* pixels because it is out of flow. `[1.11.4]`'s ranking may still be right
+  about busyness and is worth nothing against height.
+- **The fold quantises, so rows gained is the measure - not pixels reclaimed.** Four different
+  options all showed 27 shortcuts at 700px because each cleared the same boundary.
+- **Two corrections to the record:** there is **no drag handle** in the wordmark
+  (`draggable="false"`, zero JS references; the `::` mark is the logo), and the wordmark is
+  **42px, not the 46px** the `[1.12.4]` entry claims - 46px is the greeting's rendered size.
+- **All three findings that prompted this were tested and all three were wrong.** The wordmark
+  is fourth of six by presence, outranked by the mode strip `[1.12.2]` added, and removing it
+  opens a ~130px void rather than closing a gap. **Nobody should reopen them.**
