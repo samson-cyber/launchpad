@@ -90,12 +90,15 @@ var LicenseClient = (function () {
       };
     }
     if (httpResult.status >= 500) {
-      return { error: 'http_5xx', message: 'Dodo server error (' + httpResult.status + ').' };
+      return { error: 'http_5xx',
+               message: I18n.t('license_server_error', { status: httpResult.status }) };
     }
     if (httpResult.status >= 400) {
-      return { error: 'http_400', message: 'Dodo request rejected (' + httpResult.status + ').' };
+      return { error: 'http_400',
+               message: I18n.t('license_request_rejected', { status: httpResult.status }) };
     }
-    return { error: 'unknown', message: 'Unexpected response from Dodo (status ' + httpResult.status + ').' };
+    return { error: 'unknown',
+             message: I18n.t('license_unexpected_response', { status: httpResult.status }) };
   }
 
   // Which failures are TRANSIENT (no answer ever arrived) versus DEFINITIVE
@@ -170,7 +173,7 @@ var LicenseClient = (function () {
         ok: false,
         stage: 'precondition',
         error: 'invalid_args',
-        message: 'data and licenseKey are required.'
+        message: I18n.t('license_missing_arguments')
       };
     }
     if (!data.pro || typeof data.pro !== 'object') data.pro = {};

@@ -1401,10 +1401,10 @@ var Storage = (function () {
   // the {err, message} shape the tag CRUD already uses, so the UI can surface the
   // reason inline next to the input rather than as a toast.
   async function addBlockedDomain(data, raw) {
-    if (!data) return { ok: false, err: "invalid", message: "Enter a site to block." };
+    if (!data) return { ok: false, err: "invalid", message: I18n.t("block_enter_a_site") };
     var entry = normalizeBlockEntry(raw);
     if (!entry) {
-      return { ok: false, err: "invalid", message: "That doesn't look like a site. Try youtube.com" };
+      return { ok: false, err: "invalid", message: I18n.t("block_not_a_site") };
     }
     var list = ensureBlockList(data);
     if (list.indexOf(entry) !== -1) {
@@ -2420,21 +2420,21 @@ var Storage = (function () {
       id: "demo_daily",
       name: "✨ Daily examples",
       shortcuts: [
-        { title: "Google", url: "https://www.google.com" },
-        { title: "YouTube", url: "https://www.youtube.com" },
-        { title: "Gmail", url: "https://mail.google.com" },
-        { title: "Maps", url: "https://www.google.com/maps" },
-        { title: "Wikipedia", url: "https://www.wikipedia.org" }
+        { titleKey: "demoshortcut_google", url: "https://www.google.com" },
+        { titleKey: "demoshortcut_youtube", url: "https://www.youtube.com" },
+        { titleKey: "demoshortcut_gmail", url: "https://mail.google.com" },
+        { titleKey: "demoshortcut_maps", url: "https://www.google.com/maps" },
+        { titleKey: "demoshortcut_wikipedia", url: "https://www.wikipedia.org" }
       ]
     },
     {
       id: "demo_work",
       name: "✨ Work examples",
       shortcuts: [
-        { title: "Docs", url: "https://docs.google.com" },
-        { title: "Calendar", url: "https://calendar.google.com" },
-        { title: "GitHub", url: "https://github.com" },
-        { title: "LinkedIn", url: "https://www.linkedin.com" }
+        { titleKey: "demoshortcut_docs", url: "https://docs.google.com" },
+        { titleKey: "demoshortcut_calendar", url: "https://calendar.google.com" },
+        { titleKey: "demoshortcut_github", url: "https://github.com" },
+        { titleKey: "demoshortcut_linkedin", url: "https://www.linkedin.com" }
       ]
     }
   ];
@@ -2541,7 +2541,15 @@ var Storage = (function () {
         id: g.id,
         name: g.name,
         deletedAt: null,
-        shortcuts: g.shortcuts.map(function (s) { i++; return makeDemoShortcut(s, now, i); })
+        // The title is resolved HERE, at seed time, not where the array is
+        // declared: DEMO_SEED_GROUPS is module-level, so a t() in it would
+        // freeze at load. Seeding is also the honest moment - the name becomes
+        // the user's own data at that point and is renameable thereafter.
+        shortcuts: g.shortcuts.map(function (s) {
+          i++;
+          return makeDemoShortcut(
+            { title: I18n.t(s.titleKey), url: s.url }, now, i);
+        })
       };
     }));
 
@@ -5147,7 +5155,7 @@ var Storage = (function () {
   }
 
   function duplicateTagError(name) {
-    return { err: "duplicate", message: "A tag named '" + name + "' already exists in this workspace." };
+    return { err: "duplicate", message: I18n.t("tag_duplicate_name", { name: name }) };
   }
 
   // Lowercase, alphanumerics joined by single dash, leading/trailing dashes
@@ -5324,7 +5332,7 @@ var Storage = (function () {
     if (!tag) return null;              // unknown id
     if (!tag.deletedAt) return tag;     // already active — no-op, no write
     if (isDuplicateTagName(ws, tag.name, tagId)) {
-      return { err: "duplicate", message: "An active tag already has this name. Rename it first." };
+      return { err: "duplicate", message: I18n.t("tag_restore_name_taken") };
     }
     tag.deletedAt = null;
     await saveAll(data);
@@ -6181,17 +6189,17 @@ var Storage = (function () {
     }
     if (frequency === "weekly") {
       if (!Array.isArray(daysOfWeek) || daysOfWeek.length === 0) {
-        return { err: "weekly_requires_days", message: "Weekly templates require at least one day-of-week." };
+        return { err: "weekly_requires_days", message: I18n.t("recur_weekly_requires_days") };
       }
       for (var i = 0; i < daysOfWeek.length; i++) {
         var d = daysOfWeek[i];
         if (typeof d !== "number" || d < 0 || d > 6 || (d | 0) !== d) {
-          return { err: "invalid_day_of_week", message: "daysOfWeek values must be integers 0-6." };
+          return { err: "invalid_day_of_week", message: I18n.t("recur_invalid_day_of_week") };
         }
       }
     } else if (frequency === "monthly") {
       if (typeof dayOfMonth !== "number" || dayOfMonth < 1 || dayOfMonth > 31 || (dayOfMonth | 0) !== dayOfMonth) {
-        return { err: "invalid_day_of_month", message: "Monthly templates require dayOfMonth as an integer 1-31." };
+        return { err: "invalid_day_of_month", message: I18n.t("recur_invalid_day_of_month") };
       }
     }
     return null;

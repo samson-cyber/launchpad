@@ -1,6 +1,12 @@
 /* global chrome, importScripts, I18n, Storage, ProAccess, LicenseClient, Tracking */
 
 importScripts('i18n.js');
+// THE CATALOGUE, and it is not optional here. i18n.js is only the engine; the
+// messages live in locales/en.js, and without this line every t() in the worker
+// - and in storage.js and license.js, which also load here - returns the KEY
+// NAME rather than the sentence. The page loads both via <script> tags; the
+// worker had only the first.
+importScripts('locales/en.js');
 importScripts('storage.js');
 importScripts('pro-access.js');
 importScripts('license.js');
@@ -534,7 +540,7 @@ async function rebuildContextMenuNow() {
 
     chrome.contextMenus.create({
       id: "add-to-launchpad",
-      title: "Add to LaunchPad",
+      title: I18n.t("ctxmenu_add_to_launchpad"),
       contexts: ["page", "link"]
     });
 
@@ -557,7 +563,7 @@ async function rebuildContextMenuNow() {
     chrome.contextMenus.create({
       id: "add-to-group_new",
       parentId: "add-to-launchpad",
-      title: "+ New Group...",
+      title: I18n.t("ctxmenu_new_group"),
       contexts: ["page", "link"]
     });
 
@@ -863,11 +869,14 @@ async function firePomodoroNotification(kind, res) {
   var opts;
   if (kind === "advanced") {
     var mins = Math.round((res.fromDurationMs || 0) / 60000);
-    opts = { type: "basic", iconUrl: "icons/icon128.png", title: "Break time",
-             message: "Nice, " + mins + " min focused." };
+    opts = { type: "basic", iconUrl: "icons/icon128.png",
+             title: I18n.t("notif_break_time_title"),
+             message: I18n.t("notif_break_time_body", { count: mins }) };
   } else { // "completed"
-    opts = { type: "basic", iconUrl: "icons/icon128.png", title: "Session complete",
-             message: "Ready for another?", buttons: [{ title: "Start next session" }] };
+    opts = { type: "basic", iconUrl: "icons/icon128.png",
+             title: I18n.t("notif_session_complete_title"),
+             message: I18n.t("notif_session_complete_body"),
+             buttons: [{ title: I18n.t("notif_start_next_session") }] };
   }
   try {
     await clearPomodoroNotification();

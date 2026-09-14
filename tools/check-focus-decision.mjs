@@ -139,8 +139,12 @@ function boot(seeds = []) {
     fetch: async () => ({ ok: false, status: 0, json: async () => ({}) }),
     importScripts(...files) {
       for (const f of files) {
-        const name = String(f).replace(/^.*[\\/]/, "");
-        vm.runInContext(sources[name] !== undefined ? sources[name] : readSubject(name), ctx, { filename: name });
+        // The path AS WRITTEN for the disk read - imports are no longer all in
+        // the repo root - and the basename for the `sources` override, which is
+        // how a mutation seed substitutes a file.
+        const rel = String(f);
+        const name = rel.replace(/^.*[\\/]/, "");
+        vm.runInContext(sources[name] !== undefined ? sources[name] : readSubject(rel), ctx, { filename: rel });
       }
     },
   };

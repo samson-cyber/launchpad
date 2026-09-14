@@ -2078,7 +2078,10 @@
     streak: "6",
     weekSoFar: "9h40m",
     blocking: "On",
-    pickup: { title: "Ship the Q3 report", goal: "in Q3 reporting" },
+    // KEYS, not resolved strings. This object is built at module load, so a
+      // t() here would freeze at the locale that happened to be active then and
+      // never follow a switch. The renderer resolves them.
+      pickup: { titleKey: "tasks_preview_pickup_title", goalKey: "tasks_preview_pickup_goal" },
     three: [
       { name: "Draft the executive summary", prio: "tt-prio-high", overdue: false },
       { name: "Pull regional revenue numbers", prio: "tt-prio-urgent", overdue: true }
@@ -2134,8 +2137,8 @@
       '<div class="dash-hero-region dash-hero-centre">' +
         '<div class="dash-head" data-dash-variant="pickup">' +
           '<div class="pp-dash-card-title">' + th("dash_pick_up_where_you_left_off") + '</div>' +
-          '<div class="dash-headline">' + escapeHtml(D.pickup.title) + '</div>' +
-          '<div class="dash-sub">' + escapeHtml(D.pickup.goal) + '</div>' +
+          '<div class="dash-headline">' + th(D.pickup.titleKey) + '</div>' +
+          '<div class="dash-sub">' + th(D.pickup.goalKey) + '</div>' +
           '<button type="button" class="dash-cta" disabled>Continue</button>' +
         '</div>' +
       '</div>';
@@ -4144,8 +4147,7 @@
     if (!count) return;
     openTasksConfirmModal({
       title: t("empty_empty_the_notes_trash"),
-      message: (count === 1 ? "1 note" : count + " notes") +
-        " will be removed for good. This cannot be undone.",
+      message: t("notes_empty_trash_confirm", { count: count }),
       confirmLabel: t("empty_empty_trash"),
       dangerous: true,
       onConfirm: async function () {
@@ -5404,7 +5406,7 @@
     var n = completedBoxCount();
     if (!n) return;
     openTasksConfirmModal({
-      title: "Clear completed?",
+      title: t("clear_completed_title"),
       message: t("clear_completed_confirm", { count: n }),
       confirmLabel: t("clear_move_to_deleted"),
       onConfirm: async function () {
@@ -6495,7 +6497,7 @@
     var overlay = document.createElement("div");
     overlay.className = "tt-modal-overlay";
     var titleHtml = opts.title ? '<div class="tt-modal-title">' + escapeHtml(opts.title) + '</div>' : "";
-    var primaryLabel = opts.primaryLabel || "Save";
+    var primaryLabel = opts.primaryLabel || t("common_save");
     var primaryClass = "tt-modal-btn tt-modal-primary" + (opts.dangerous ? " tt-modal-btn-danger" : " tt-modal-btn-primary-fill");
     // [1.0.13.1] Backward-compatible extra footer buttons. When opts.extraButtons
     // is absent, footerCls and extraButtonsHtml are empty and the default
@@ -6608,7 +6610,7 @@
     return openTasksModal({
       title: opts.title,
       bodyHtml: '<p class="tt-modal-message">' + escapeHtml(opts.message || "") + '</p>',
-      primaryLabel: opts.confirmLabel || "Confirm",
+      primaryLabel: opts.confirmLabel || t("common_confirm"),
       dangerous: !!opts.dangerous,
       defaultFocus: "cancel",
       onPrimary: opts.onConfirm,
@@ -7517,10 +7519,8 @@
         }
         openTasksConfirmModal({
           title: t("goal_complete_this_goal"),
-          message: '"' + goal.name + '" still has ' + stranded.length +
-            (stranded.length === 1
-              ? " unfinished task. Completing the goal moves it to Standalone so it stays visible."
-              : " unfinished tasks. Completing the goal moves them to Standalone so they stay visible."),
+          message: t("goal_complete_strands_tasks",
+            { goalName: goal.name, count: stranded.length }),
           confirmLabel: t("goal_complete_goal"),
           onConfirm: finishGoal
         });
@@ -7528,9 +7528,9 @@
         var children = (workspace.tasks || []).filter(function (t) {
           return t.goalId === goalId && !t.deletedAt;
         });
-        var msg = 'Delete goal "' + goal.name + '"?';
+        var msg = t("goal_delete_confirm", { goalName: goal.name });
         if (children.length > 0) {
-          msg += ' This will also remove its ' + children.length + ' task' + (children.length === 1 ? "" : "s") + '.';
+          msg += " " + t("goal_delete_also_removes", { count: children.length });
         }
         openTasksConfirmModal({
           title: t("goal_delete_goal"),
@@ -18448,10 +18448,10 @@
     for (var i = 0; i < trashed.length; i++) {
       if (trashed[i] && trashed[i].id === sessionId) { s = trashed[i]; break; }
     }
-    var name = (s && s.name) ? s.name : "This session";
+    var name = (s && s.name) ? s.name : t("sessions_this_session_start");
     openTasksConfirmModal({
       title: t("purge_delete_permanently_5"),
-      message: name + " will be removed for good. This cannot be undone.",
+      message: t("sessions_purge_confirm", { sessionName: name }),
       confirmLabel: t("purge_delete_permanently_6"),
       dangerous: true,
       onConfirm: async function () {
@@ -18471,8 +18471,7 @@
     if (!count) return;
     openTasksConfirmModal({
       title: t("empty_empty_the_sessions_trash"),
-      message: (count === 1 ? "1 session" : count + " sessions") +
-        " will be removed for good. This cannot be undone.",
+      message: t("sessions_empty_trash_confirm", { count: count }),
       confirmLabel: t("empty_empty_trash_3"),
       dangerous: true,
       onConfirm: async function () {
@@ -18614,8 +18613,7 @@
   }
 
   function taskGoalCollisionText(name, suggested) {
-    return 'A task named "' + name + '" already exists in this goal. Rename to "' +
-      suggested + '" or cancel?';
+    return t("task_goal_collision_confirm", { name: name, suggested: suggested });
   }
 
   // The menu path. No DOM revert anywhere in here, unlike the drag path: nothing
@@ -18980,15 +18978,17 @@
     // the session leaves a task, and possibly another session is bumped off the
     // target. Either is a silent loss if it happens without saying so.
     if (from || (displacedBy && displacedBy.id !== sessionId)) {
+      var startName = session.name || t("sessions_this_session_start");
+      var midName = session.name || t("sessions_this_session");
       var msg = from
-        ? (session.name || "This session") + " is attached to " + from.name +
-          ". Move it to " + task.name + "?"
-        : task.name + " already has " + displacedBy.name +
-          " attached. Replace it with " + (session.name || "this session") + "?";
+        ? t("session_move_from_task",
+            { sessionName: startName, fromTask: from.name, toTask: task.name })
+        : t("session_replace_on_task",
+            { toTask: task.name, otherSession: displacedBy.name, sessionName: midName });
       if (from && displacedBy && displacedBy.id !== sessionId) {
-        msg = (session.name || "This session") + " is attached to " + from.name +
-          ", and " + task.name + " already has " + displacedBy.name +
-          ". Move it and replace that one?";
+        msg = t("session_move_and_replace",
+          { sessionName: startName, fromTask: from.name,
+            toTask: task.name, otherSession: displacedBy.name });
       }
       // The picker modal is single-instance, so the confirm would destroy it.
       // Deferred reopen on cancel, the idiom this file already uses.
@@ -19055,7 +19055,7 @@
       }
       var n = captured.tabs.length;
       openTasksConfirmModal({
-        title: "Update from current window",
+        title: t("sessions_update_from_window_title"),
         message: t("sessions_replace_from_window", {
           count: (s.tabs || []).length,
           sessionName: s.name || t("sessions_this_session"),

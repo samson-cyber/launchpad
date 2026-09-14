@@ -3556,3 +3556,242 @@ I18n.register("en", {
       }
     }
   });
+
+// =========================================================================
+// [1.5.0] R5.2 - MODAL AND CONFIRM COPY.
+//
+// 42 messages. TWO POPULATIONS, and the second is the finding:
+//
+//   29 the gate could see, which the `modal-copy` pattern had caught by its
+//      PROPERTY NAME (title / message / label) rather than because they were
+//      modals - context menus, OS notifications, inline validation errors,
+//      licence-client errors and nine example shortcut titles.
+//
+//   13 the gate CANNOT see, which are the actual confirm sentences. Eight of
+//      the product's fourteen confirm dialogs had a hardcoded half, and only
+//      TWO of those halves were in the gate's list. Two of the invisible ones
+//      say "This cannot be undone."
+//
+// A CONFIRM'S TITLE, SENTENCE AND BUTTON ARE ONE UNIT OF MEANING. Every
+// description here names its two siblings, so a translator changing one is
+// told what the other two say. "Delete" beside "This cannot be undone" is a
+// different dialog from "Delete" beside "You can restore this from Trash",
+// and a string list cannot show that on its own.
+// =========================================================================
+I18n.register("en", {
+    "block_enter_a_site": {
+      "description": "Inline error under the focus-blocking input when nothing was typed.",
+      "message": "Enter a site to block."
+    },
+    "block_not_a_site": {
+      "description": "Inline error when the typed value is not a recognisable domain. The example is deliberately a real, well-known site; it is an ILLUSTRATION and a translation may substitute one that reads as familiar locally.",
+      "message": "That doesn't look like a site. Try youtube.com"
+    },
+    "common_confirm": {
+    "message": "Confirm",
+    "sense": "action.generic",
+    "description": "Fallback label for a confirm dialog's affirmative button, used only when a caller supplies none. Every caller supplies one today, so it does not render; it exists so that a caller which forgets is still translated. Its partner is common_cancel."
+  },
+  "clear_completed_title": {
+      "description": "TITLE of the clear-completed confirm. Its sentence is clear_completed_confirm and its button is clear_move_to_deleted; the three are ONE dialog and the title must not drift from the sentence promising the items stay recoverable.",
+      "message": "Clear completed?",
+      "sense": "title.confirm"
+    },
+    "ctxmenu_add_to_launchpad": {
+      "description": "Top-level item in the browser's right-click menu. 'LaunchPad' is the product name and is NOT translated.",
+      "message": "Add to LaunchPad"
+    },
+    "ctxmenu_new_group": {
+      "description": "Right-click submenu item that creates a group for the page being saved. The leading plus and the ellipsis are part of the label.",
+      "message": "+ New Group..."
+    },
+    "demoshortcut_calendar": {
+      "description": "Title of an EXAMPLE shortcut seeded on first run - Google Calendar, as its tile is labelled. BRAND NAME: do not invent a translation. Use the name the service itself uses in this language, and leave it in English where it has none. These are copied into the user's own groups at seed time and are renameable, so a later locale change does not rewrite them.",
+      "message": "Calendar",
+      "sense": "brand.name"
+    },
+    "demoshortcut_docs": {
+      "description": "Title of an EXAMPLE shortcut seeded on first run - Google Docs, as its tile is labelled. BRAND NAME: do not invent a translation. Use the name the service itself uses in this language, and leave it in English where it has none. These are copied into the user's own groups at seed time and are renameable, so a later locale change does not rewrite them.",
+      "message": "Docs",
+      "sense": "brand.name"
+    },
+    "demoshortcut_github": {
+      "description": "Title of an EXAMPLE shortcut seeded on first run - the code host. BRAND NAME: do not invent a translation. Use the name the service itself uses in this language, and leave it in English where it has none. These are copied into the user's own groups at seed time and are renameable, so a later locale change does not rewrite them.",
+      "message": "GitHub",
+      "sense": "brand.name"
+    },
+    "demoshortcut_gmail": {
+      "description": "Title of an EXAMPLE shortcut seeded on first run - the mail service. BRAND NAME: do not invent a translation. Use the name the service itself uses in this language, and leave it in English where it has none. These are copied into the user's own groups at seed time and are renameable, so a later locale change does not rewrite them.",
+      "message": "Gmail",
+      "sense": "brand.name"
+    },
+    "demoshortcut_google": {
+      "description": "Title of an EXAMPLE shortcut seeded on first run - the search engine. BRAND NAME: do not invent a translation. Use the name the service itself uses in this language, and leave it in English where it has none. These are copied into the user's own groups at seed time and are renameable, so a later locale change does not rewrite them.",
+      "message": "Google",
+      "sense": "brand.name"
+    },
+    "demoshortcut_linkedin": {
+      "description": "Title of an EXAMPLE shortcut seeded on first run - the professional network. BRAND NAME: do not invent a translation. Use the name the service itself uses in this language, and leave it in English where it has none. These are copied into the user's own groups at seed time and are renameable, so a later locale change does not rewrite them.",
+      "message": "LinkedIn",
+      "sense": "brand.name"
+    },
+    "demoshortcut_maps": {
+      "description": "Title of an EXAMPLE shortcut seeded on first run - Google Maps, as its tile is labelled. BRAND NAME: do not invent a translation. Use the name the service itself uses in this language, and leave it in English where it has none. These are copied into the user's own groups at seed time and are renameable, so a later locale change does not rewrite them.",
+      "message": "Maps",
+      "sense": "brand.name"
+    },
+    "demoshortcut_wikipedia": {
+      "description": "Title of an EXAMPLE shortcut seeded on first run - the encyclopedia. BRAND NAME: do not invent a translation. Use the name the service itself uses in this language, and leave it in English where it has none. These are copied into the user's own groups at seed time and are renameable, so a later locale change does not rewrite them.",
+      "message": "Wikipedia",
+      "sense": "brand.name"
+    },
+    "demoshortcut_youtube": {
+      "description": "Title of an EXAMPLE shortcut seeded on first run - the video site. BRAND NAME: do not invent a translation. Use the name the service itself uses in this language, and leave it in English where it has none. These are copied into the user's own groups at seed time and are renameable, so a later locale change does not rewrite them.",
+      "message": "YouTube",
+      "sense": "brand.name"
+    },
+    "goal_complete_strands_tasks": {
+      "description": "SENTENCE of the complete-goal confirm when the goal still holds unfinished tasks. Title is goal_complete_this_goal, button is goal_complete_goal. NOT destructive - it says where the tasks go, which is the whole point of asking.",
+      "message": "",
+      "plural": {
+        "one": "\"{goalName}\" still has {count} unfinished task. Completing the goal moves it to Standalone so it stays visible.",
+        "other": "\"{goalName}\" still has {count} unfinished tasks. Completing the goal moves them to Standalone so they stay visible."
+      }
+    },
+    "goal_delete_also_removes": {
+      "description": "SECOND sentence of the delete-goal confirm, appended to goal_delete_confirm only when the goal holds live tasks. Separate because it is conditional: a goal with no tasks never shows it, and a translation must be able to punctuate the pair for itself.",
+      "message": "",
+      "plural": {
+        "one": "This will also remove its {count} task.",
+        "other": "This will also remove its {count} tasks."
+      }
+    },
+    "goal_delete_confirm": {
+      "description": "SENTENCE of the delete-goal confirm. Title is goal_delete_goal, button is common_delete. DESTRUCTIVE. When the goal still holds tasks, goal_delete_also_removes follows it as a second sentence.",
+      "message": "Delete goal \"{goalName}\"?"
+    },
+    "license_missing_arguments": {
+      "description": "Precondition failure inside the licence client. Reachable only from a programming error, never from a user action, but it can surface through the same status line as the three above, so it is migrated with them.",
+      "message": "data and licenseKey are required.",
+      "sense": "error.license"
+    },
+    "license_request_rejected": {
+      "description": "Shown when the licence host returns 4xx. Vendor name untranslated, as above.",
+      "message": "Dodo request rejected ({status}).",
+      "sense": "error.license"
+    },
+    "license_server_error": {
+      "description": "Shown when the licence host returns 5xx. 'Dodo' is the payment vendor's name and is NOT translated. The status number is the HTTP code.",
+      "message": "Dodo server error ({status}).",
+      "sense": "error.license"
+    },
+    "license_unexpected_response": {
+      "description": "Shown when the licence host answers with something unrecognised. Vendor name untranslated, as above.",
+      "message": "Unexpected response from Dodo (status {status}).",
+      "sense": "error.license"
+    },
+    "notes_empty_trash_confirm": {
+      "description": "SENTENCE of the empty-notes-trash confirm. Its title is empty_empty_the_notes_trash and its button is empty_empty_trash; the three are ONE dialog. DESTRUCTIVE AND IRREVERSIBLE - the sentence says so, and a translation that drops 'This cannot be undone' removes the only warning the user gets.",
+      "message": "",
+      "plural": {
+        "one": "1 note will be removed for good. This cannot be undone.",
+        "other": "{count} notes will be removed for good. This cannot be undone."
+      }
+    },
+    "notif_break_time_body": {
+      "description": "BODY of the break notification, naming how long was focused. VOCABULARY LAW: 'focused' is the engine's measured time and must not soften to 'worked' or 'spent'. Its title is notif_break_time_title.",
+      "message": "",
+      "plural": {
+        "one": "Nice, {count} min focused.",
+        "other": "Nice, {count} min focused."
+      }
+    },
+    "notif_break_time_title": {
+      "description": "TITLE of the OS notification fired when a focus interval ends and a break begins. Its body is notif_break_time_body; the two are ONE notification.",
+      "message": "Break time"
+    },
+    "notif_session_complete_body": {
+      "description": "BODY of the session-complete notification. Its button is notif_start_next_session and the pair is ONE notification: the question and the answer must stay consistent.",
+      "message": "Ready for another?"
+    },
+    "notif_session_complete_title": {
+      "description": "TITLE of the OS notification fired when a whole pomodoro cadence finishes. SENSE OF 'SESSION': a focus interval, not a saved set of tabs and not a browser session. Body is notif_session_complete_body, button is notif_start_next_session.",
+      "message": "Session complete",
+      "sense": "title.notification.session.focus-interval"
+    },
+    "notif_start_next_session": {
+      "description": "BUTTON on the session-complete notification. SENSE OF 'SESSION': a focus interval. It answers notif_session_complete_body.",
+      "message": "Start next session",
+      "sense": "action.notification.session.focus-interval"
+    },
+    "recur_invalid_day_of_month": {
+      "description": "Inline error when the monthly day-of-month is out of range. Same developer phrasing as recur_invalid_day_of_week and the same note applies.",
+      "message": "Monthly templates require dayOfMonth as an integer 1-31."
+    },
+    "recur_invalid_day_of_week": {
+      "description": "Inline error for a malformed day-of-week list. UNREACHABLE through the UI, which offers seven checkboxes - it can only appear from an import or a restore. The wording names a FIELD rather than a control and reads as developer text; that is preserved verbatim here because this round may not change what a user sees, and is worth rewriting on its own.",
+      "message": "daysOfWeek values must be integers 0-6."
+    },
+    "recur_weekly_requires_days": {
+      "description": "Inline error in the New Recurring modal when the weekly frequency is chosen and no day is ticked. The only one of the three pattern errors a user can reach through the UI.",
+      "message": "Weekly templates require at least one day-of-week."
+    },
+    "session_move_and_replace": {
+      "description": "Confirm sentence for the case where BOTH happen at once - the session leaves a task and displaces another. The third of three distinct sentences, because two things change and the user is told about both.",
+      "message": "{sessionName} is attached to {fromTask}, and {toTask} already has {otherSession}. Move it and replace that one?"
+    },
+    "session_move_from_task": {
+      "description": "Confirm sentence when a session is being moved OFF one task ONTO another and nothing is displaced. Title is session_move_this_session, button is session_move_it.",
+      "message": "{sessionName} is attached to {fromTask}. Move it to {toTask}?"
+    },
+    "session_replace_on_task": {
+      "description": "Confirm sentence when the destination task already holds a different session and nothing is being moved off. A separate sentence from session_move_from_task, not a variant of it.",
+      "message": "{toTask} already has {otherSession} attached. Replace it with {sessionName}?"
+    },
+    "sessions_empty_trash_confirm": {
+      "description": "SENTENCE of the empty-sessions-trash confirm. Title is empty_empty_the_sessions_trash, button is empty_empty_trash_3. DESTRUCTIVE AND IRREVERSIBLE. SENSE OF 'SESSION': a saved set of tabs.",
+      "message": "",
+      "plural": {
+        "one": "1 session will be removed for good. This cannot be undone.",
+        "other": "{count} sessions will be removed for good. This cannot be undone."
+      },
+      "sense": "confirm.session.saved-tabs"
+    },
+    "sessions_purge_confirm": {
+      "description": "SENTENCE of the confirm that permanently deletes ONE saved session. Title is purge_delete_permanently_5, button is purge_delete_permanently_6. DESTRUCTIVE AND IRREVERSIBLE. {sessionName} is the session's own name, or sessions_this_session_start when it has none.",
+      "message": "{sessionName} will be removed for good. This cannot be undone.",
+      "sense": "confirm.session.saved-tabs"
+    },
+    "sessions_this_session_start": {
+      "description": "SENTENCE-INITIAL form of sessions_this_session, used where an unnamed session begins the sentence. Two keys for one phrase because English capitalises here and mid-sentence does not; a language that does neither will make them identical, which is correct.",
+      "message": "This session",
+      "sense": "placeholder.name.sentence-initial"
+    },
+    "sessions_update_from_window_title": {
+      "description": "TITLE of the confirm that replaces a saved session's tabs with the open ones. Its sentence is sessions_replace_from_window and its button is session_replace_tabs; all three are ONE dialog.",
+      "message": "Update from current window",
+      "sense": "title.confirm"
+    },
+    "tag_duplicate_name": {
+      "description": "Inline error when a new or renamed tag collides with a live one. The name is quoted so the user can see exactly which one clashed.",
+      "message": "A tag named '{name}' already exists in this workspace."
+    },
+    "tag_restore_name_taken": {
+      "description": "Inline error when RESTORING a trashed tag whose name is now taken. Distinct from tag_duplicate_name: this one is about a restore and names the remedy.",
+      "message": "An active tag already has this name. Rename it first."
+    },
+    "task_goal_collision_confirm": {
+      "description": "SENTENCE of the name-collision confirm, shown from BOTH the drag path (refresh_name_conflict / refresh_rename_and_add) and the menu path (task_name_conflict / task_rename_and_move). ONE key for both, because it is one sentence - the two dialogs differ in title and button, not in what they explain.",
+      "message": "A task named \"{name}\" already exists in this goal. Rename to \"{suggested}\" or cancel?"
+    },
+    "tasks_preview_pickup_goal": {
+      "description": "Goal name under tasks_preview_pickup_title in the same preview fixture. The leading preposition is part of the phrase as rendered.",
+      "message": "in Q3 reporting",
+      "sense": "fixture.preview"
+    },
+    "tasks_preview_pickup_title": {
+      "description": "Task name in the FIXTURE board the free-tier Tasks preview shows. Not the user's data - the preview renders a fixed illustrative board, so this is copy the way a screenshot's contents are copy.",
+      "message": "Ship the Q3 report",
+      "sense": "fixture.preview"
+    }
+  });
