@@ -14431,39 +14431,6 @@ button.demo-tile-background:hover {
 .demo-clear:hover { background: #5590f6; }
 .demo-clear:active { background: #4584f2; }
 
-.demo-clear.is-gated {
-  background: #878d93;
-  color: #202124;
-  cursor: default;
-}
-.demo-clear.is-gated:hover,
-.demo-clear.is-gated:active { background: #878d93; }
-
-/* Tooltip explaining WHY the control is inert. Hidden until the gated button
-   is hovered or focused; it is the sibling of the button inside the wrap. */
-.demo-clear-tip {
-  position: absolute;
-  left: 0;
-  top: calc(100% + 6px);
-  z-index: 20;
-  width: max-content;
-  max-width: 240px;
-  padding: var(--space-1-5) var(--space-2-5);
-  border-radius:var(--radius-md);
-  font-size: var(--fs-11-5);
-  line-height: 1.4;
-  background: var(--pro-frost-menu-bg, rgba(30, 30, 30, 0.95));
-  backdrop-filter: var(--pro-frost-menu-blur, blur(12px));
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  color: #fff;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-}
-.demo-clear.is-gated:hover + .demo-clear-tip,
-.demo-clear.is-gated:focus-visible + .demo-clear-tip {
-  opacity: 1;
-}
 
 /* Light wallpapers: the frost flips white, so the ink and borders must too. */
 html.bg-light .demo-tile {

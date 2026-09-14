@@ -17232,27 +17232,33 @@
   // they are data (cleared in one write with everything else) rather than
   // hard-coded markup with a second source of truth for "are examples present".
   //
-  // D4: the Clear Examples control lives on the welcome tile and is GATED on
-  // owning a real shortcut. The gate is computed HERE, at render, from
-  // Storage.hasRealShortcut — never event-wired. That is what makes every add
-  // path (add tile, right-click, bookmark import, top sites, drag) flip it
-  // without being special-cased: no path has to remember to announce itself.
+  // D4 AS SHIPPED, AND WHY IT IS GONE (2026-09-14, Asana 1218420407417698).
+  // The Clear Examples control used to be GATED on owning a real shortcut:
+  // aria-disabled until you added a shortcut of your own, with a hover tooltip
+  // reading "Add your first shortcut" to explain why it would not work. The
+  // gate was computed here, at render, from a Storage.hasRealShortcut
+  // predicate, so every add path flipped it without being special-cased — a
+  // genuinely good mechanism for a rule that should not have existed. The
+  // predicate is gone too; it had no other consumer (7d55682 precedent).
   //
-  // aria-disabled + a handler guard, NOT the disabled attribute: a disabled
-  // button fires no pointer events, so its hover tooltip could never appear —
-  // and the tooltip is the whole explanation of why the control is inert.
+  // IT CONDITIONED ITS OWN REMOVAL ON COMPLIANCE, which is the one shape this
+  // product's doctrine forbids everywhere else: the focus ring stays neutral,
+  // the streak never scolds, the badge is absent when idle, the gate is a door.
+  // And it fell hardest on the user it was written for — a first-run profile has
+  // the most teaching surface on screen, the least idea what any of it means,
+  // and was the only state in which the dismiss did not work.
+  //
+  // The control is now available on sight. Clearing is REVERSIBLE — Tips >
+  // Restore examples re-seeds the same content, and that button carries its own
+  // gate on examples already being present, which is a correctness guard rather
+  // than a nag and stays.
   function demoIntroHTML() {
-    var canClear = Storage.hasRealShortcut(data);
     var clearBtn =
-      '<button type="button" class="demo-clear' + (canClear ? '' : ' is-gated') + '"' +
+      '<button type="button" class="demo-clear"' +
         ' data-demo-act="clear"' +
-        ' aria-disabled="' + (canClear ? 'false' : 'true') + '">' +
+        ' aria-disabled="false">' +
         th("demo_clear_examples") +
-      '</button>' +
-      (canClear ? '' :
-        '<span class="demo-clear-tip" role="tooltip">' +
-          th("demo_add_your_first_shortcut") +
-        '</span>');
+      '</button>';
 
     return (
       '<section class="group demo-intro" data-group-id="demo_intro">' +
@@ -17290,7 +17296,10 @@
   // are provenance-tagged, so the onChanged path deliberately will not repaint
   // this tab.
   async function clearDemoExamples() {
-    if (!Storage.hasRealShortcut(data)) return; // handler guard for aria-disabled
+    // The hasRealShortcut guard that stood here is gone with the gate above.
+    // It was the THIRD of three defending the same rule (render, click handler,
+    // and this one), and removing only the visible one would have shipped a
+    // button that looked live and did nothing — a worse failure than the gate.
     try {
       await Storage.clearDemoContent(data);
     } catch (err) {

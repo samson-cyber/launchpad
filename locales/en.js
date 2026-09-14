@@ -3332,10 +3332,6 @@ I18n.register("en", {
       "description": "End-of-day headline when more than one task remains open. The vaguer count is the point - the surface does not name a number here.",
       "message": "Still a few on the board."
     },
-    "demo_add_your_first_shortcut": {
-      "description": "Tooltip on the disabled Clear examples button, explaining why it is disabled.",
-      "message": "Add your first shortcut to LaunchPad to clear the examples."
-    },
     "demo_clear_examples": {
       "description": "Button that removes the example shortcuts once the user has added one of their own.",
       "message": "Clear examples"

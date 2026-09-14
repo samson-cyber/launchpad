@@ -2474,16 +2474,6 @@ var Storage = (function () {
    * Soft-deleted shortcuts do not count — a trashed shortcut is not content the
    * user still has.
    */
-  function hasRealShortcut(data) {
-    var ws = getActiveWorkspace(data);
-    if (!ws || !Array.isArray(ws.groups)) return false;
-    return ws.groups.some(function (g) {
-      return (g.shortcuts || []).some(function (s) {
-        return s && !s.demo && !s.deletedAt && !s.demoTile;
-      });
-    });
-  }
-
   function makeDemoShortcut(seed, now, i) {
     return {
       id: "demo_s_" + now.toString(36) + "_" + i.toString(36),
@@ -7713,7 +7703,6 @@ var Storage = (function () {
     seedDemoContent: seedDemoContent,
     clearDemoContent: clearDemoContent,
     hasDemoContent: hasDemoContent,
-    hasRealShortcut: hasRealShortcut,
     isDemoGroup: isDemoGroup,
     isDemoShortcut: isDemoShortcut,
     getActiveWorkspace: getActiveWorkspace,
