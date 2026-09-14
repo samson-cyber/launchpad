@@ -4419,6 +4419,72 @@
   //     also call renderTasksTab eagerly so the user sees the new state
   //     before the round-trip lands.
 
+  // -------------------------------------------------------------------------
+  // DAY AND MONTH NAMES COME FROM Intl, NOT FROM A LIST IN THIS FILE.
+  //
+  // [1.5.0] R5.0. Six hardcoded arrays carried 57 English strings that no
+  // catalogue could ever reach: three copies of the months, two of the
+  // Sunday-first days, and one Monday-first rotation. They were also invisible
+  // to every pattern the i18n site gate has, so nothing would have reported
+  // them missing.
+  //
+  // They are COMPUTABLE RATHER THAN AUTHORED. Intl already knows every
+  // locale's answer, and 57 hand-translated abbreviations would be 57 chances
+  // to be wrong in the one domain where nobody has to guess. ONE formatter,
+  // six callers, so a seventh date surface cannot invent a seventh list.
+  //
+  // THE LOCALE IS `undefined` ON PURPOSE, AND THIS IS THE ONE LINE TO CHANGE
+  // IF THAT IS EVER REVISITED. `undefined` means the browser's own locale,
+  // which is exactly what fmtShortDate, fmtShortDateUTC, the Insights heatmap
+  // day labels and every other date surface in this file already pass - so
+  // this change makes the six consistent with the ten rather than inventing a
+  // rule. Passing I18n.getLocale() instead would pin every date to "en",
+  // because negotiate() is exported but is not yet wired at boot; that would
+  // be a regression for anyone whose browser is not American, dressed up as
+  // localization.
+  //
+  // THE FALLBACK CONTAINS NO LIST EITHER. Date.prototype.toDateString is
+  // spec-fixed English ("Sun Feb 01 2026"), so slicing it reproduces the old
+  // arrays exactly without re-authoring them. If Intl is ever unavailable the
+  // product degrades to precisely the strings it shipped before this commit.
+  var SHORT_DAY_NAMES = null;
+  var SHORT_MONTH_NAMES = null;
+
+  // 2026-02-01 was a Sunday, so index 0..6 lands on the weekday whose
+  // getDay() is that index. A FIXED anchor, not today's date: building these
+  // off `new Date()` would make the list depend on when the page was opened.
+  function shortDayNames() {
+    if (SHORT_DAY_NAMES) return SHORT_DAY_NAMES;
+    var out = [];
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(2026, 1, 1 + i);
+      var name = "";
+      try {
+        name = d.toLocaleDateString(undefined, { weekday: "short" });
+      } catch (e) {}
+      out.push(name || d.toDateString().slice(0, 3));
+    }
+    SHORT_DAY_NAMES = out;
+    return out;
+  }
+
+  // The 15th of each month: far from either edge, so no timezone offset can
+  // roll the date into a neighbouring month and shift the whole list by one.
+  function shortMonthNames() {
+    if (SHORT_MONTH_NAMES) return SHORT_MONTH_NAMES;
+    var out = [];
+    for (var i = 0; i < 12; i++) {
+      var d = new Date(2026, i, 15);
+      var name = "";
+      try {
+        name = d.toLocaleDateString(undefined, { month: "short" });
+      } catch (e) {}
+      out.push(name || d.toDateString().slice(4, 7));
+    }
+    SHORT_MONTH_NAMES = out;
+    return out;
+  }
+
   // Short month/day formatter for goal deadlines and recurring "next" hints.
   // Locale-respecting via toLocaleDateString without relying on a heavier
   // formatter; the Tasks tab is a Pro surface and the user's browser locale
@@ -4945,7 +5011,7 @@
     // Pattern hint mirrors the spec's "Weekly review • every Monday" copy.
     // Daily prints just the time-of-day; weekly prints the day-of-week list;
     // monthly prints the day-of-month.
-    var DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    var DOW_LABELS = shortDayNames();
     var hint = "";
     if (template.frequency === "daily") {
       hint = "Daily at " + (template.timeOfDay || "09:00");
@@ -6634,11 +6700,10 @@
 
         // "20 Jul 2026" from a whole-day offset off today (UTC calendar day) —
         // the exact UTC-midnight date instantiation will set.
-        var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         function templateDeadlineLabel(offsetDays) {
           var now = new Date();
           var dt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) + offsetDays * 86400000);
-          return dt.getUTCDate() + " " + MONTHS[dt.getUTCMonth()] + " " + dt.getUTCFullYear() + " · set by this template";
+          return dt.getUTCDate() + " " + shortMonthNames()[dt.getUTCMonth()] + " " + dt.getUTCFullYear() + " · set by this template";
         }
         function showEditableDeadline() {
           deadlineComputed.classList.add("hidden");
@@ -6846,8 +6911,10 @@
   // already-generated instances are ordinary tasks and stay untouched.
   function openRecurringModal(existing) {
     var isEdit = !!existing;
-    var DOW_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    // Monday-first order. The labels are DERIVED from DOW_VALUES rather than
+    // written out beside it, so the two can never fall out of step.
     var DOW_VALUES = [1, 2, 3, 4, 5, 6, 0];
+    var DOW_LABELS = DOW_VALUES.map(function (v) { return shortDayNames()[v]; });
 
     function conditionalHtml(frequency) {
       if (frequency === "weekly") {
@@ -18038,9 +18105,8 @@
     if (dateKey === yesterday) return "Yesterday";
     var parts = dateKey.split("-");
     var d = new Date(+parts[0], +parts[1] - 1, +parts[2]);
-    var days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    return days[d.getDay()] + ", " + months[d.getMonth()] + " " + d.getDate();
+    return shortDayNames()[d.getDay()] + ", " +
+      shortMonthNames()[d.getMonth()] + " " + d.getDate();
   }
 
   function formatSavedTime(timestamp) {
@@ -19385,8 +19451,7 @@
   }
 
   function formatShortDate(d) {
-    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    return months[d.getMonth()] + " " + d.getDate();
+    return shortMonthNames()[d.getMonth()] + " " + d.getDate();
   }
 
   function toggleRcFilterMenu() {
