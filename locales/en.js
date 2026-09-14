@@ -3862,3 +3862,38 @@ I18n.register("en", {
       "sense": "a11y.label"
     }
   });
+
+// =========================================================================
+// [1.5.0] R5.4 - THE THREE DESTRUCTIVE STRINGS, MIGRATED BEFORE THE FLIP.
+//
+// None of the three was ever counted by the gate, and all three warn about
+// losing something. Two are NATIVE confirm() dialogs, which is why nothing
+// reached them: the gate's native-dlg pattern reads the call's first
+// argument as a literal, and both of these begin with a concatenation. The
+// third is an aria-label assembled by a ternary with no markup anywhere.
+//
+// THEY ARE MIGRATED FIRST, BEFORE ENFORCING GOES TRUE, because a flag that
+// turns green over three irreversible-loss warnings would be the exact
+// false all-clear this task's blocker was opened to prevent.
+// =========================================================================
+I18n.register("en", {
+    "license_remove_confirm": {
+      "description": "SENTENCE of the confirm shown before a Pro licence key is cleared. Names the consequence and its remedy in the same breath: access stops, and it comes back on re-entering a valid key. The loss is real but RECOVERABLE, which is why this one does not say 'cannot be undone' and must not be given that phrasing in translation. Native confirm(), so no sibling button keys.",
+      "message": "Remove this license? You'll lose Pro access until you re-enter a valid key.",
+      "sense": "confirm.destructive"
+    },
+    "notes_trash_count_label": {
+      "description": "ACCESSIBLE NAME and tooltip of the notes-trash bar. The VISIBLE label beside it is notes_trash plus a bare numeral, which needs no pluralisation; this is the sentence a screen reader announces and it does - 'one note in trash' rather than 'Trash 1'. Two keys for one control, deliberately, because a label and a sentence are different things.",
+      "message": "",
+      "plural": {
+        "one": "1 note in trash",
+        "other": "{count} notes in trash"
+      },
+      "sense": "a11y.label"
+    },
+    "workspace_delete_confirm": {
+      "description": "SENTENCE of the confirm shown before a workspace is deleted. DESTRUCTIVE AND IRREVERSIBLE - deleting a workspace takes its goals, tasks, notes and saved sessions with it, and the sentence says so. A translation that drops 'This cannot be undone' removes the only warning the user gets. Delivered through a NATIVE confirm(), which supplies its own OK and Cancel labels - so unlike the in-page dialogs there are no sibling keys to keep this in step with. Not pro_delete_workspace, which is the menu label that opens this.",
+      "message": "Delete workspace \"{name}\"? This cannot be undone.",
+      "sense": "confirm.destructive"
+    }
+  });

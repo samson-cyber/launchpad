@@ -3214,3 +3214,67 @@ inspects font sizes, not padding, so a `vh` length here is invisible to it.
 - **All three findings that prompted this were tested and all three were wrong.** The wordmark
   is fourth of six by presence, outranked by the mode strip `[1.12.2]` added, and removing it
   opens a ~130px void rather than closing a gap. **Nobody should reopen them.**
+## 2026-09-14 - The i18n gate ENFORCES, and what it still cannot see
+
+`ENFORCING` in `tools/check-i18n-sites.mjs` is **true** as of R5.4. A hardcoded
+user-visible string in any shape the gate's patterns reach now fails the build.
+Verified rather than assumed: the branch had never run in the gate's life, and
+one hardcoded string put back in each of four patterns - html-text, modal-copy,
+dom-assign, native-dlg - stops the build with exit 1 in all four.
+
+**THE GATE READS 0 AND THE MIGRATION IS NOT FINISHED.** That sentence is the
+reason this entry exists, and it should be quoted whenever the 0 is.
+
+- **At least 50 sites holding roughly 94 user-facing strings remain hardcoded.**
+  50 is the number to defend; 94 is an order of magnitude, not an exact figure.
+- They sit in **5 shapes the coverage probe reports as BLIND**, two of which were
+  only named in `ca998f7` - before that commit the probe's own list read as an
+  exhaustive account and was not one.
+- **The four shapes this task named in August 2026 are all still among them**:
+  "3 tabs", "1 unfinished task", "Trash / n" and "X and Y are different sites".
+  The last of those four was named before any gate existed, and no gate has ever
+  been able to see it.
+- **The demonstration, for anyone who finds a count unconvincing: put a hardcoded
+  sentence back into `gate.js` and the gate still reads 0.** Not a probe fixture
+  - a real product string, on the blocking gate page.
+
+The inventory was sized with a positive AND a negative control on every
+detector, so a zero means the shape is absent rather than the instrument silent.
+Four of the six previously-named shapes measured genuinely empty. Two cannot be
+sized without dataflow analysis - a parser, a cross-file call graph and constant
+propagation - which the gate round rejected as disproportionate for a
+zero-dependency repo, and that judgement stands.
+
+**WHAT ENFORCING BUYS, precisely.** It stops NEW hardcoded strings in the shapes
+the patterns reach. Every string added from today in a shape the gate can see
+fails the build the moment it is written, which is worth having on its own. It
+does not find what is already there in the shapes it cannot see, and it must
+never be described as the migration being complete.
+
+**THE SUMMARY LINE CARRIES BOTH NUMBERS**, because the count and the coverage
+used to be two outputs twenty lines apart and a reader could quote one without
+the other:
+
+    I18N SITE GATE: PASS - 0 strings await migration; 8 shapes UNCOVERED
+
+The shape count is derived from what the probe REPORTED on that run, never from
+what it expects, so a shape that stops being blind lowers the number on its own.
+`I18N_COVERAGE=1` lists the rows. **The site count is deliberately NOT in the
+summary**: sizing the blind shapes takes heuristics that would each need their
+own controls, and an unaudited number in the quotable line is the failure this
+whole arc kept finding. Worse, a sized shape reads as BOUNDED when two of the
+six are lower bounds.
+
+**What a future round would need**, if the remaining 50 are to be migrated: the
+sites are already located and listed in the R5.3 Asana comment, so the finding
+work is done. The cost is the verification, not the editing - every one of them
+is prose a user reads, and this arc's standard is a before/after DOM comparison
+per surface. Budget it as R5.1's shape (78 sites, one round) rather than R5.0's.
+A cheaper 80% on the two unsizeable shapes exists without a parser: follow
+single-assignment local variables and one-expression helpers within a file.
+That raises the floor; it does not close the shape.
+
+Choosing target languages and sourcing translations **was always a separate
+decision after this lands, and it has not been taken.** The catalogue holds 885
+English messages with a description on every one and a `sense` on 108 of them;
+nothing has been translated and no language has been chosen.

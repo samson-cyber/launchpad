@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ===========================================================================
-// [1.5.0] i18n construction-site gate — SKELETON, NOT YET ENFORCING.
+// [1.5.0] i18n construction-site gate — ENFORCING since R5.4 (2026-09-14).
 //
 // The rule this will enforce, once R2 and R3 have migrated the strings:
 // every user-visible string reaches the DOM through I18n.t / I18n.th, so any
@@ -9,7 +9,9 @@
 // It cannot enforce that TODAY, because nothing has migrated and it would fail
 // on all ~749 sites at once. So this round wires the enumeration, proves it can
 // see the sites, and hard-fails only when the GATE ITSELF is broken. Flip
-// ENFORCING to true at the end of R3.
+// ENFORCING to true at the end of R5.4, which is done. It gates the shapes the
+// patterns reach; the coverage probe reports the shapes they do not, and the
+// summary line carries both numbers so neither can be read without the other.
 //
 // P2 IS THE WHOLE POINT OF THE FLOORS BELOW. A gate whose inspection set
 // silently collapses to zero passes forever and reads exactly like a gate that
@@ -36,7 +38,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ENFORCING = false;              // flip at the end of R3
+// [1.5.0] R5.4, 2026-09-14. FLIPPED. A hardcoded user-visible string in any
+// shape this gate CAN SEE now fails the build.
+//
+// WHAT THIS DOES NOT MEAN. The count reached 0 and the migration is NOT
+// finished: at least 50 sites holding roughly 94 user-facing strings are still
+// hardcoded, in the shapes the coverage probe reports as BLIND. Run with
+// I18N_COVERAGE=1 to list them, and see DECISIONS.md (2026-09-14) for the
+// inventory and its caveats. The demonstration, if a number is not convincing:
+// put a hardcoded sentence back into gate.js and this gate still reads 0.
+//
+// What the flag buys is real and narrow - it stops NEW hardcoded strings in the
+// shapes the patterns reach. That is worth having and it is not the job done.
+const ENFORCING = true;
 const LITERAL_FLOOR = 6000;           // measured 7334 at [1.5.0]; see report
 // 749 at [1.5.0] R1, 605 after R4 stage 1, 565 after stage 1b - the last drop
 // because 40 array entries stopped being construction sites when they started
@@ -941,6 +955,8 @@ for (const fx of CONCAT_FIXTURE_SEEN) {
   }
 }
 const coverage = runCoverage();
+// Counted from what the probe REPORTED on this run, never from what it expects.
+const uncoveredShapes = coverage.filter((row) => !row.seen).length;
 for (const row of coverage) {
   // A shape the gate is supposed to SEE going blind is the gate breaking. The
   // reverse - a `blind` row starting to be seen - is an improvement, reported
@@ -1002,10 +1018,14 @@ if (process.env.I18N_DEBUG) {
   console.log("");
 }
 console.log("");
-console.log("  WHAT THIS GATE CAN AND CANNOT SEE (probed on this run, not asserted)");
-for (const row of coverage) {
-  const drift = row.expect === "blind" && row.seen ? "   <-- now SEEN; update expect" : "";
-  console.log("    " + (row.seen ? "sees " : "BLIND") + "  " + row.name + drift);
+if (process.env.I18N_COVERAGE) {
+  console.log("  WHAT THIS GATE CAN AND CANNOT SEE (probed on this run, not asserted)");
+  for (const row of coverage) {
+    const drift = row.expect === "blind" && row.seen ? "   <-- now SEEN; update expect" : "";
+    console.log("    " + (row.seen ? "sees " : "BLIND") + "  " + row.name + drift);
+  }
+} else {
+  console.log("  " + uncoveredShapes + " shape(s) UNCOVERED - I18N_COVERAGE=1 lists them");
 }
 console.log("");
 console.log("  string literals tokenized : " + literals + "  (floor " + LITERAL_FLOOR + ")");
@@ -1249,13 +1269,16 @@ if (catProblems.length) {
   process.exit(1);
 }
 if (ENFORCING && violations.length) {
-  console.log("\nI18N SITE GATE: FAIL — " + violations.length + " hardcoded user-visible string(s).");
+  console.log("\nI18N SITE GATE: FAIL — " + violations.length +
+              " hardcoded user-visible string(s); " + uncoveredShapes + " shapes UNCOVERED");
   for (const v of violations.slice(0, 40)) {
     console.log(`  ${v.file}:${v.line} [${v.pattern}] ${JSON.stringify(v.text).slice(0, 90)}`);
   }
   process.exit(1);
 }
-console.log("\nI18N SITE GATE: PASS — self-test green, " + sites.length +
-            " sites inspected, " + literals + " literals tokenized." +
-            (ENFORCING ? "" : " " + violations.length + " strings await migration (R2/R3)."));
+console.log("\nI18N SITE GATE: PASS — " + violations.length +
+            " strings await migration; " + uncoveredShapes + " shapes UNCOVERED");
+console.log("  self-test green, " + sites.length + " sites inspected, " +
+            literals + " literals tokenized.");
+console.log("  (run with I18N_COVERAGE=1 for the inventory)");
 process.exit(0);

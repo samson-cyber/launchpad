@@ -3765,7 +3765,7 @@
   // screen reader hears "1 note in trash" rather than "Trash 1".
   function notesTrashBarHtml(trashedCount) {
     if (!trashedCount) return "";
-    var label = trashedCount === 1 ? "1 note in trash" : trashedCount + " notes in trash";
+    var label = t("notes_trash_count_label", { count: trashedCount });
     return '<div class="notes-trash-bar">' +
         '<button type="button" class="notes-trash-btn" data-notes-trash' +
           ' aria-label="' + escapeHtml(label) + '" title="' + escapeHtml(label) + '">' +
@@ -9084,7 +9084,7 @@
       showToast(t("delete_you_need_at_least_one_workspace"));
       return;
     }
-    var ok = window.confirm("Delete workspace \"" + ws.name + "\"? This cannot be undone.");
+    var ok = window.confirm(t("workspace_delete_confirm", { name: ws.name }));
     if (!ok) return;
     data.workspaces = data.workspaces.filter(function (w) { return w.id !== id; });
     data.workspaceOrder = data.workspaceOrder.filter(function (wid) { return wid !== id; });
@@ -10477,7 +10477,7 @@
       showToast(t("license_no_license_to_clear"));
       return;
     }
-    var ok = window.confirm("Remove this license? You'll lose Pro access until you re-enter a valid key.");
+    var ok = window.confirm(t("license_remove_confirm"));
     if (!ok) return;
     ProAccess.clearLicense(data);
     await Storage.saveAll(data);
