@@ -1372,7 +1372,7 @@
 
       if (open > 0) {
         return '<div class="dash-head" data-dash-variant="evening-open">' +
-            '<div class="pp-dash-card-title">That’s the day</div>' +
+            '<div class="pp-dash-card-title">' + th("dash_that_s_the_day") + '</div>' +
             '<div class="dash-headline">' +
               (open === 1 ? th("dash_one_still_on_the_board")
                           : th("dash_still_a_few_on_the_board")) +
@@ -2116,7 +2116,7 @@
           '<div class="dash-hero-dial">' +
             '<div class="dash-hero-num">' + escapeHtml(D.focusedToday) + '</div>' +
           '</div>' +
-          '<div class="dash-hero-label">Focused today</div>' +
+          '<div class="dash-hero-label">' + th("common_focused_today") + '</div>' +
         '</div>' +
         '<div class="dash-hero-counts">' +
           '<div class="dash-hero-count">' +
@@ -2139,7 +2139,7 @@
           '<div class="pp-dash-card-title">' + th("dash_pick_up_where_you_left_off") + '</div>' +
           '<div class="dash-headline">' + th(D.pickup.titleKey) + '</div>' +
           '<div class="dash-sub">' + th(D.pickup.goalKey) + '</div>' +
-          '<button type="button" class="dash-cta" disabled>Continue</button>' +
+          '<button type="button" class="dash-cta" disabled>' + th("dash_continue") + '</button>' +
         '</div>' +
       '</div>';
 
@@ -2199,7 +2199,7 @@
       '</div>';
 
     return '<div class="dash-tab" data-period="day">' +
-        '<div class="dash-greeting">Good afternoon</div>' +
+        '<div class="dash-greeting">' + th("clock_good_afternoon") + '</div>' +
         '<div class="dash-hero">' + heroLeft + heroCentre + heroRight + '</div>' +
         '<div class="dash-row2">' + today + goals + '</div>' +
       '</div>';
@@ -16124,7 +16124,7 @@
   function satFocusPillDot() {
     if (!Storage.focusBlockingActive(data)) return "";
     return '<span class="sat-pill-focus" title="' + th("sat_focus_blocking_is_on") + '" ' +
-      'aria-label="' + th("sat_focus_blocking_is_on_2") + '">●</span>';
+      'aria-label="' + th("sat_focus_blocking_is_on") + '">●</span>';
   }
 
   function satPillFaceHtml(res, paused) {

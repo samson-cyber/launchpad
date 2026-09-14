@@ -48,7 +48,7 @@ var Bookmarks = (function () {
     var folders = await getTree();
 
     if (folders.length === 0) {
-      alert("No bookmark folders with bookmarks found.");
+      alert(I18n.t("bookmarks_no_folders_found"));
       return;
     }
 

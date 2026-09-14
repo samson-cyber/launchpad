@@ -2176,11 +2176,7 @@ I18n.register("en", {
   },
   "sat_focus_blocking_is_on": {
     "message": "Focus blocking is on",
-    "description": "Attribute label in satFocusPillDot(). Rendered with th()."
-  },
-  "sat_focus_blocking_is_on_2": {
-    "message": "Focus blocking is on",
-    "description": "Attribute label in satFocusPillDot(). Rendered with th()."
+    "description": "Manual focus blocking is armed. ONE key for three sinks: the focus pill's title AND aria-label - one element, one message, which is what the i18n-dom contract says - and the context line on the blocking gate page. Replaces sat_focus_blocking_is_on_2, an auto-suffixed duplicate that sat on the same span as this one."
   },
   "sat_minimize": {
     "message": "Minimize",
@@ -3793,5 +3789,76 @@ I18n.register("en", {
       "description": "Task name in the FIXTURE board the free-tier Tasks preview shows. Not the user's data - the preview renders a fixed illustrative board, so this is copy the way a screenshot's contents are copy.",
       "message": "Ship the Q3 report",
       "sense": "fixture.preview"
+    }
+  });
+
+// =========================================================================
+// [1.5.0] R5.3 - THE LAST GATE-VISIBLE STRINGS.
+//
+// 9 messages, and the small number is the point: FIVE of the nine sites
+// the gate still listed were sentences the catalogue ALREADY HELD.
+//   "That's the day"        -> dash_that_s_the_day, already used ten lines
+//                              below the literal, in the same function
+//   "Focused today"         -> common_focused_today  (preview shares the
+//   "Continue"              -> dash_continue          product's key, and
+//   "Good afternoon"        -> clock_good_afternoon   [1.6.5] is why)
+//   "Focus blocking is on"  -> sat_focus_blocking_is_on
+//
+// THE BLOCKING GATE PAGE IS THE ROUND'S FINDING IN MINIATURE. It carries
+// SEVEN user-facing strings and the gate could see TWO. "Turn off focus"
+// appears twice and only the first was counted; migrating that one alone
+// would have left a key and a literal holding one sentence. The whole block
+// is one if/else chain in one function, so it was taken together.
+//
+// A FORMATTED QUANTITY IS A VALUE, NOT A SENTENCE FRAGMENT. fmtMinutes now
+// returns a plural-resolved duration that feeds the {duration} placeholder
+// of gate_focused_on_task and gate_focused_so_far, exactly as R5.0's date
+// formatter feeds a {date}. That keeps rule 1 intact - nothing is
+// concatenated around a t() call - without inventing a new rule for it.
+// =========================================================================
+I18n.register("en", {
+    "bookmarks_no_folders_found": {
+      "description": "Shown when the bookmark importer finds no folder containing any bookmark. Delivered through a NATIVE alert(), which is why it carries no title and no second button - task 1217995910218382 owns replacing that dialog.",
+      "message": "No bookmark folders with bookmarks found."
+    },
+    "gate_blocking_domain": {
+      "description": "Footnote on the gate page naming the site that was intercepted. {domain} is the bare host the user typed into the block list.",
+      "message": "Blocking {domain} and its subdomains while focus is on."
+    },
+    "gate_end_focus_session": {
+      "description": "End-control label on the blocking gate page when a focus session IS running. SENSE OF 'SESSION': a focus interval, not a saved set of tabs. Counterpart of gate_turn_off_focus.",
+      "message": "End focus session",
+      "sense": "action.gate.session.focus-interval"
+    },
+    "gate_focused_on_task": {
+      "description": "Context line on the blocking gate page while a focus session runs on a named task. VOCABULARY LAW: 'focused' is the engine's measured time and must not soften to 'worked on' or 'spent'.",
+      "message": "{duration} focused on {taskName}"
+    },
+    "gate_focused_so_far": {
+      "description": "Context line on the gate page while a focus session runs with NO task attached. Same vocabulary law as gate_focused_on_task; a separate sentence because there is no task to name.",
+      "message": "{duration} focused so far"
+    },
+    "gate_less_than_a_minute": {
+      "description": "Duration shown on the gate page when under a minute has elapsed. Feeds the {duration} placeholder of gate_focused_on_task and gate_focused_so_far, so it reads mid-sentence and is lower case on purpose.",
+      "message": "less than a minute",
+      "sense": "duration.value"
+    },
+    "gate_minutes": {
+      "description": "Elapsed minutes on the gate page. A VALUE, not a sentence: it feeds the {duration} placeholder of gate_focused_on_task and gate_focused_so_far the way a formatted date feeds one.",
+      "message": "",
+      "plural": {
+        "one": "{count} minute",
+        "other": "{count} minutes"
+      }
+    },
+    "gate_turn_off_focus": {
+      "description": "End-control label on the blocking gate page when NO focus session is running - manual blocking is on and the click will switch it off. Its counterpart is gate_end_focus_session; C6 requires the label to name exactly what the click will do, so the two must not be merged.",
+      "message": "Turn off focus",
+      "sense": "action.gate"
+    },
+    "launcher_search_results": {
+      "description": "ACCESSIBLE NAME of the Home launcher's results list. Never rendered as visible text - it is the aria-label a screen reader announces when focus enters the list.",
+      "message": "Search results",
+      "sense": "a11y.label"
     }
   });

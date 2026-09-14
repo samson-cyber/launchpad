@@ -65,8 +65,8 @@
 
   function fmtMinutes(ms) {
     var mins = Math.floor(ms / 60000);
-    if (mins < 1) return "less than a minute";
-    return mins + (mins === 1 ? " minute" : " minutes");
+    if (mins < 1) return I18n.t("gate_less_than_a_minute");
+    return I18n.t("gate_minutes", { count: mins });
   }
 
   // ---- state round-trip: the context line and the end-control label ---------
@@ -77,22 +77,25 @@
 
   send({ type: "focus-gate-state" }).then(function (st) {
     if (!st || !st.ok) {
-      endBtn.textContent = "Turn off focus";
+      endBtn.textContent = I18n.t("gate_turn_off_focus");
       return;
     }
     endMode = st.phaseRunning ? "session" : (st.manualArmed ? "manual" : "none");
-    endBtn.textContent = st.phaseRunning ? "End focus session" : "Turn off focus";
+    endBtn.textContent = st.phaseRunning ? I18n.t("gate_end_focus_session")
+                                         : I18n.t("gate_turn_off_focus");
 
     if (st.phaseRunning && st.taskName) {
-      contextEl.textContent = fmtMinutes(st.elapsedMs) + " focused on " + st.taskName;
+      contextEl.textContent = I18n.t("gate_focused_on_task",
+        { duration: fmtMinutes(st.elapsedMs), taskName: st.taskName });
     } else if (st.phaseRunning) {
-      contextEl.textContent = fmtMinutes(st.elapsedMs) + " focused so far";
+      contextEl.textContent = I18n.t("gate_focused_so_far",
+        { duration: fmtMinutes(st.elapsedMs) });
     } else if (st.manualArmed) {
-      contextEl.textContent = "Focus blocking is on";
+      contextEl.textContent = I18n.t("sat_focus_blocking_is_on");
     }
 
     footnoteEl.textContent = entry
-      ? "Blocking " + entry + " and its subdomains while focus is on."
+      ? I18n.t("gate_blocking_domain", { domain: entry })
       : "";
   });
 

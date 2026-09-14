@@ -111,10 +111,21 @@ const HTML_FILES = ["newtab.html", "gate.html", "offscreen.html"];
 //
 //   offscreen.html - its only string is a <title> on a document that is never
 //     rendered (chrome.offscreen documents have no visible surface), so no user
-//     can see it. Scanned, but it contains nothing to find.
+//     can see it.
+//
+// [1.5.0] R5.3: THIS LIST NOW FILTERS THE SCAN. It used to be declared and
+// never read - documentation of a decision with no mechanism behind it, which
+// held only because privacy-policy.html was not in HTML_FILES anyway. The
+// offscreen <title> made the gap visible: the comment above claimed the file
+// "contains nothing to find" while the scan found one thing and counted it
+// toward the migration backlog. Either the decision is real and the scan should
+// honour it, or the decision should be reversed; this makes it real.
 const NOT_LOCALIZED = [
-  { file: "privacy-policy.html", why: "not localized by decision; revisit when a human translation is commissioned" }
+  { file: "privacy-policy.html", why: "not localized by decision; revisit when a human translation is commissioned" },
+  { file: "offscreen.html", why: "a <title> on a document with no visible surface; nobody can read it" }
 ];
+const NOT_LOCALIZED_FILES = NOT_LOCALIZED.map((x) => x.file);
+const isLocalized = (f) => NOT_LOCALIZED_FILES.indexOf(f) === -1;
 
 // --------------------------------------------------------------- exclusions
 //
@@ -446,6 +457,18 @@ const COVERAGE_PROBES = [
     src: `var i3 = ['Daily', 'Weekly', 'Monthly'];\nvar j3 = '<b>' + i3[0] + '</b>';` },
   { name: "textContent from a variable set elsewhere", expect: "blind",
     src: `var k3 = 'Nothing in the trash.';\nfunction z(el) { el.textContent = k3; }` },
+
+  // [1.5.0] R5.3. THE SHAPE NO ROW NAMED UNTIL NOW. Every pattern here keys off
+  // markup or off a sink NAME, and then reads the sink's FIRST argument as a
+  // literal. An argument that begins with an identifier - a ternary, a
+  // concatenation, a variable - never yields one, so the sentence is not merely
+  // missed, it is unreachable. This is what produces "3 tabs" and
+  // "1 unfinished task", and it is what R5.2 found behind eight of the ten
+  // hardcoded confirm halves.
+  { name: "assembled into a sink with no markup anywhere", expect: "blind",
+    src: `showToast(hostA + ' and ' + hostB + ' are different sites.');` },
+  { name: "a counted phrase with no markup, in a ternary", expect: "blind",
+    src: `el.textContent = n + (n === 1 ? ' tab' : ' tabs');` },
 ];
 
 function runCoverage() {
@@ -892,7 +915,7 @@ function scanHtml(src, file) {
 }
 
 const misplacedMarkers = [];
-for (const f of HTML_FILES) {
+for (const f of HTML_FILES.filter(isLocalized)) {
   const p = path.join(repoRoot, f);
   if (!fs.existsSync(p)) continue;
   let src = fs.readFileSync(p, "utf8")
@@ -1123,7 +1146,7 @@ function emDashViolations() {
     const p = path.join(repoRoot, f);
     if (fs.existsSync(p)) scan(fs.readFileSync(p, "utf8").replace(/\r\n/g, "\n"), f);
   }
-  for (const f of HTML_FILES) {
+  for (const f of HTML_FILES.filter(isLocalized)) {
     const p = path.join(repoRoot, f);
     if (!fs.existsSync(p)) continue;
     const src = fs.readFileSync(p, "utf8").replace(/\r\n/g, "\n").replace(/<!--[\s\S]*?-->/g, "");
