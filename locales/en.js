@@ -254,7 +254,8 @@ I18n.register("en", {
   },
   "gate_focus": {
     "message": "Focus",
-    "description": "Text on the gate surface."
+    "sense": "page.gate",
+    "description": "Heading on the BLOCKING GATE page. Not the pomodoro work-phase label with the same word (sat_pomo_phase_focus)."
   },
   "gate_is_blocked": {
     "message": "is blocked",
@@ -839,7 +840,8 @@ I18n.register("en", {
   },
   "settings_rotate_off": {
     "message": "Off",
-    "description": "Wallpaper rotation disabled. The default, and the first segment of the three-way control."
+    "sense": "state.rotation",
+    "description": "Wallpaper rotation disabled. The default, and the first segment of the three-way control. NOT the focus-blocking Off (dash_blocking_off), which is a different control on a different surface."
   },
   "settings_rotate_day": {
     "message": "Daily",
@@ -1008,6 +1010,7 @@ I18n.register("en", {
   },
   "tasks_status_completed": {
     "message": "Completed",
+    "sense": "option.filter",
     "description": "Task STATUS filter option on the Tasks tab."
   }
 });
@@ -1940,10 +1943,6 @@ I18n.register("en", {
 // [1.5.0] R3 stage C - dom-assign,set-attr
 // ====================================================================
 I18n.register("en", {
-  "active_active_task": {
-    "message": "Active task",
-    "description": "Text sink in renderActiveTaskWidget(). Rendered with t()."
-  },
   "auto_automatic_backup_is_off_because_the": {
     "message": "Automatic backup is off because the downloads permission was removed. Turn it on again to restore the schedule.",
     "description": "Text sink in renderAutoBackupSection(). Rendered with t()."
@@ -2690,16 +2689,8 @@ I18n.register("en", {
     "message": "Urgent",
     "description": "Markup label in openNewTaskModal(). Rendered with th()."
   },
-  "note_empty_note": {
-    "message": "Empty note",
-    "description": "Markup label in noteCardHtml(). Rendered with th()."
-  },
   "notes_delete_permanently": {
     "message": "Delete permanently",
-    "description": "Markup label in notesTrashRowHtml(). Rendered with th()."
-  },
-  "notes_empty_note": {
-    "message": "Empty note",
     "description": "Markup label in notesTrashRowHtml(). Rendered with th()."
   },
   "notes_notes": {
@@ -2824,23 +2815,16 @@ I18n.register("en", {
   },
   "recurring_paused": {
     "message": "Paused",
+    "sense": "state.template",
     "description": "Markup label in recurringRowHtml(). Rendered with th()."
   },
   "restore_add_to_launchpad": {
     "message": "Add to LaunchPad",
     "description": "Markup label in restoreDemoExamples(). Rendered with th()."
   },
-  "sat_active_task": {
-    "message": "Active task",
-    "description": "Markup label in satCardHtml(). Rendered with th()."
-  },
   "sat_focus_session": {
     "message": "▶ Focus session",
     "description": "Markup label in satCardHtml(). Rendered with th()."
-  },
-  "sat_focused_today": {
-    "message": "Focused today",
-    "description": "Markup label in satIdleHeadlineHtml(). Rendered with th()."
   },
   "sat_no_active_task": {
     "message": "No active task",
@@ -3020,6 +3004,7 @@ I18n.register("en", {
   },
   "upgrade_monthly": {
     "message": "Monthly",
+    "sense": "billing.period",
     "description": "Markup label in openUpgradePopover(). Rendered with th()."
   },
   "upgrade_or_upgrade_now": {
@@ -3255,3 +3240,319 @@ I18n.register("en", {
     "description": "Stands in for a session with no name, INSIDE sessions_replace_from_window. Its own key rather than an English literal spliced into the sentence."
   }
 });
+
+// =========================================================================
+// [1.5.0] R5.1 - THE CONCATENATED PROSE.
+//
+// 62 messages for the 78 construction sites the extended gate exposed in
+// 483aca1. Every one of these sentences was assembled across a `+` between
+// two markup fragments, which is the shape NO pattern could see before that
+// commit - so nobody had ever checked them, and a copy pass in [1.11.x]
+// rewrote four of them without moving the construction at all.
+//
+// THE TERNARY IS THE COMMON SHAPE HERE AND ITS BRANCHES STAY SEPARATE KEYS.
+// "One still on the board." and "Still a few on the board." are two
+// sentences, not one sentence with a number in it; in another language they
+// need not share a structure, and collapsing them into a single key with a
+// substitution would make the shorter one untranslatable.
+//
+// THREE SENTENCES WERE ALREADY IN THE CATALOGUE, ON THE PREVIEW SIDE ONLY -
+// tasks_no_standalone_tasks, tasks_no_recurring_tasks and tasks_recurring
+// were written for renderTasksPreview() while renderTasksTab() kept its own
+// literals. That is [1.6.5]'s bug exactly, and the product sites now share
+// the preview's keys rather than getting copies.
+// =========================================================================
+I18n.register("en", {
+    "common_active_task": {
+      "description": "The eyebrow naming the task focus is currently running on. ONE key for three sites that each had their own: the focus pill label (satPillFaceHtml), the card eyebrow (satCardHtml) and the widget's aria-label (renderActiveTaskWidget). Replaces sat_active_task and active_active_task.",
+      "message": "Active task",
+      "sense": "label.state.focus"
+    },
+    "common_empty_note": {
+      "description": "Stand-in name for a note with no content yet. ONE key for three sites: the note card, the notes trash row and the note context menu. Replaces note_empty_note and notes_empty_note.",
+      "message": "Empty note",
+      "sense": "placeholder.name"
+    },
+    "common_focused_today": {
+      "description": "The engine's own figure for time focused today. ONE key for three sites that each carried their own copy: the dashboard hero (dashHeroFocusHtml), the active-task headline (satHeadlineHtml) and the idle headline (satIdleHeadlineHtml). Replaces sat_focused_today, which named only the third. VOCABULARY LAW: 'focused' is engine-measured time and is never blended with worked or estimated time - a translation that softens it to 'worked on' or 'spent' breaks the distinction the whole tracking surface rests on.",
+      "message": "Focused today",
+      "sense": "label.metric.engine-time"
+    },
+    "dash_blocking_off": {
+      "description": "FOCUS BLOCKING state on the dashboard hero: blocking is not armed. Not the wallpaper-rotation Off (settings_rotate_off), which is a different control on a different surface.",
+      "message": "Off",
+      "sense": "state.blocking"
+    },
+    "dash_blocking_on": {
+      "description": "FOCUS BLOCKING armed by hand, the third segment of the three-way state.",
+      "message": "On",
+      "sense": "state.blocking"
+    },
+    "dash_blocking_on_auto": {
+      "description": "FOCUS BLOCKING armed automatically, as opposed to armed by hand. The parenthetical distinguishes it from the manual On beside it.",
+      "message": "On (auto)",
+      "sense": "state.blocking"
+    },
+    "dash_continue": {
+      "description": "Dashboard call to action when a focus session is running and the user is being invited back to it.",
+      "message": "Continue",
+      "sense": "action.focus"
+    },
+    "dash_focused_today_all_workspaces": {
+      "description": "Dashboard hero label when the scope is every workspace rather than the active one. The separate sentence, not common_focused_today with a suffix, because the qualifier may not trail the phrase in another language.",
+      "message": "Focused today · all workspaces",
+      "sense": "label.metric.engine-time"
+    },
+    "dash_lets_go": {
+      "description": "Dashboard call to action on a SUGGESTED task the user has not started. The apostrophe is the typographic one, matching the rest of the product's copy.",
+      "message": "Let’s go"
+    },
+    "dash_more_due_or_overdue_in_tasks": {
+      "description": "Dashboard overflow note under the due/overdue list. Separate from dash_more_in_tasks because it counts a different thing and reads as its own sentence. {tasks} is a link, as above.",
+      "message": "",
+      "plural": {
+        "one": "{count} more due or overdue in {tasks}.",
+        "other": "{count} more due or overdue in {tasks}."
+      }
+    },
+    "dash_more_in_tasks": {
+      "description": "Dashboard overflow note under a truncated goal list: how many more there are and where to see them. {tasks} is a button linking to the Tasks tab, so the whole sentence is one message and the link is a placeholder - a translation that needs the destination first can have it.",
+      "message": "",
+      "plural": {
+        "one": "{count} more in {tasks}.",
+        "other": "{count} more in {tasks}."
+      }
+    },
+    "dash_one_still_on_the_board": {
+      "description": "End-of-day headline when exactly ONE task remains open. Deliberately NOT the singular form of dash_still_a_few_on_the_board: the two are different sentences in English and need not share a structure in any other language.",
+      "message": "One still on the board."
+    },
+    "dash_resume": {
+      "description": "Dashboard call to action when the focus session is PAUSED. Its counterpart is dash_continue, and the two are separate sentences rather than one key with a substitution.",
+      "message": "Resume",
+      "sense": "action.focus"
+    },
+    "dash_still_a_few_on_the_board": {
+      "description": "End-of-day headline when more than one task remains open. The vaguer count is the point - the surface does not name a number here.",
+      "message": "Still a few on the board."
+    },
+    "demo_add_your_first_shortcut": {
+      "description": "Tooltip on the disabled Clear examples button, explaining why it is disabled.",
+      "message": "Add your first shortcut to LaunchPad to clear the examples."
+    },
+    "demo_clear_examples": {
+      "description": "Button that removes the example shortcuts once the user has added one of their own.",
+      "message": "Clear examples"
+    },
+    "demo_right_click_any_page": {
+      "description": "Body of the first-run teaching tile. {action} is the bold menu item (demo_add_to_launchpad), a placeholder rather than a fragment boundary so the emphasised term can move.",
+      "message": "Right-click any page → {action}. That is the whole habit."
+    },
+    "demo_your_new_tab_organised": {
+      "description": "Body of the first-run welcome tile. One message rather than three fragments - the three sentences are one paragraph and a translation may repunctuate them.",
+      "message": "Your new tab, organised your way. Everything below is an example: open it, drag it, rename it, then make this grid yours."
+    },
+    "freq_daily": {
+      "description": "Recurrence frequency option in the New Recurring modal.",
+      "message": "Daily",
+      "sense": "frequency.recurring"
+    },
+    "freq_monthly": {
+      "description": "Recurrence frequency option in the New Recurring modal. NOT the billing period with the same word (upgrade_monthly), which names a subscription term.",
+      "message": "Monthly",
+      "sense": "frequency.recurring"
+    },
+    "freq_weekly": {
+      "description": "Recurrence frequency option in the New Recurring modal.",
+      "message": "Weekly",
+      "sense": "frequency.recurring"
+    },
+    "goalconflict_due_after_deadline": {
+      "description": "Body of the modal shown when a task's due date falls after its goal's deadline. One sentence with three values rather than four fragments, so a translation can put the dates where its grammar needs them.",
+      "message": "This task’s due date ({taskDate}) is after {goalName} deadline ({goalDate}). Extend the goal deadline to match?"
+    },
+    "insights_deep_work_range": {
+      "description": "Insights hero card title. {range} is the selected window, e.g. 'last 7 days'.",
+      "message": "Deep Work · {range}"
+    },
+    "insights_history_starts": {
+      "description": "Note under the Insights range selector naming the first day with any recorded history. {date} is already formatted by the locale date formatter.",
+      "message": "History starts {date}"
+    },
+    "insights_no_focus_time_in_range": {
+      "description": "Empty state for the tag donut. VOCABULARY LAW: 'focus time' is the engine's measured figure, not self-reported effort.",
+      "message": "No focus time tracked in the {range} yet."
+    },
+    "insights_no_site_time_in_range": {
+      "description": "Empty state for the top-sites list. 'Site time' is time on a web domain, which is measured separately from task focus.",
+      "message": "No site time tracked in the {range} yet."
+    },
+    "insights_no_task_focus_in_range": {
+      "description": "Empty state for the top-tasks list. Distinct from insights_no_focus_time_in_range: this one is about time attributed to TASKS specifically, and a translation that flattens the two loses which chart is empty.",
+      "message": "No task focus tracked in the {range} yet."
+    },
+    "insights_time_by_site_range": {
+      "description": "Insights card title for the per-site list.",
+      "message": "Time by site · {range}"
+    },
+    "insights_time_by_tag_range": {
+      "description": "Insights card title for the tag donut.",
+      "message": "Time by tag · {range}"
+    },
+    "insights_top_tasks_range": {
+      "description": "Insights card title for the per-task list.",
+      "message": "Top tasks · {range}"
+    },
+    "picker_search_goals": {
+      "description": "Search placeholder in the goal picker modal.",
+      "message": "Search goals",
+      "sense": "placeholder.search"
+    },
+    "picker_search_sessions": {
+      "description": "Search placeholder in the session picker modal. SENSE OF 'SESSION': a saved set of tabs.",
+      "message": "Search sessions",
+      "sense": "placeholder.search"
+    },
+    "picker_search_tasks": {
+      "description": "Search placeholder in the session-attach picker modal. Distinct from dash_three_search and sat_search_tasks, which are the same words on two other pickers.",
+      "message": "Search tasks",
+      "sense": "placeholder.search"
+    },
+    "protour_next": {
+      "description": "Advances the Pro tour. The final step shows common_done instead.",
+      "message": "Next",
+      "sense": "action.generic"
+    },
+    "recurring_activate": {
+      "description": "Context-menu action that resumes a paused recurring template. Counterpart of recurring_pause and a separate sentence from it.",
+      "message": "Activate",
+      "sense": "action.template"
+    },
+    "recurring_pause": {
+      "description": "Context-menu action that stops a recurring template generating new instances. Not the tracking Pause in the toolbar popup (companion_pause), which pauses measurement.",
+      "message": "Pause",
+      "sense": "action.template"
+    },
+    "recurringdrop_instance_or_template": {
+      "description": "Body of the modal shown when a recurring INSTANCE is dragged onto a goal. One message, not three fragments: the question depends on the explanation before it and a translation may need to reorder them.",
+      "message": "This is an instance of a recurring task. Move the whole template into this goal (future instances will belong to it), or move just this occurrence?"
+    },
+    "sat_active": {
+      "description": "TRACKING is running. Not the task STATUS filter option with the same word (tasks_status_active) and not freq_active.",
+      "message": "Active",
+      "sense": "state.tracking"
+    },
+    "sat_complete": {
+      "description": "Focus-card button that finishes the running task. The tick is part of the label rather than a separate icon element.",
+      "message": "✓ Complete",
+      "sense": "action.task"
+    },
+    "sat_end_for_now": {
+      "description": "Focus-card button that stops tracking WITHOUT completing the task. The wording is deliberately not 'Cancel' or 'Stop': nothing is discarded.",
+      "message": "End for now",
+      "sense": "action.task"
+    },
+    "sat_goal_fallback": {
+      "description": "Stand-in heading in the task switcher for a group whose goal cannot be resolved. A rare fallback, not the ordinary word for a goal.",
+      "message": "Goal",
+      "sense": "placeholder.name"
+    },
+    "sat_no_open_tasks_yet": {
+      "description": "Task-switcher empty state when there is no query and nothing to show. A different sentence from sat_no_tasks_match, not its substitution.",
+      "message": "No open tasks yet"
+    },
+    "sat_no_tasks_match": {
+      "description": "Task-switcher empty state while a SEARCH QUERY is present.",
+      "message": "No tasks match"
+    },
+    "sat_paused": {
+      "description": "TRACKING is paused - the stopwatch is stopped. Not recurring_paused, which describes a recurring TEMPLATE that has been switched off, and not a paused task. Used by the headline, the idle headline and the focus pill.",
+      "message": "Paused",
+      "sense": "state.tracking"
+    },
+    "sat_pomo_duration_minutes": {
+      "description": "Focus-card button showing the current pomodoro length; the caret marks it as a menu. 'min' is the abbreviation for minutes.",
+      "message": "{minutes} min ▾"
+    },
+    "sat_pomo_phase_focus": {
+      "description": "Fallback name for the pomodoro WORK phase on the focus pill, used when the phase has no mapped label. Not gate_focus, which is the blocking gate page.",
+      "message": "Focus",
+      "sense": "phase.pomodoro"
+    },
+    "sat_pomo_session_done_cycle": {
+      "description": "Shown when a pomodoro interval finishes. SENSE OF 'SESSION': a focus interval, NOT a saved set of tabs and NOT a browser session.",
+      "message": "Session done · cycle {position} of {total}",
+      "sense": "label.session.focus-interval"
+    },
+    "sat_switch_to_workspace": {
+      "description": "Button beside sat_this_task_is_in_workspace that moves to that workspace.",
+      "message": "Switch to {workspace}"
+    },
+    "sat_this_task_is_in_workspace": {
+      "description": "Shown on the focus card when the running task belongs to a DIFFERENT workspace from the one on screen.",
+      "message": "This task is in {workspace}"
+    },
+    "sessions_on_task_name": {
+      "description": "Tail of the session row naming the task a session is attached to, after a separator glyph. Reads as '... 5 tabs · on Write the report'.",
+      "message": "on {name}"
+    },
+    "sessions_untitled_session": {
+      "description": "Stand-in name for a saved session the user never named. ONE key for three sites: the session row, the session trash row and the session picker. SENSE OF 'SESSION': a saved set of tabs.",
+      "message": "Untitled session",
+      "sense": "placeholder.name.session.saved-tabs"
+    },
+    "task_assign_session_to_this_task": {
+      "description": "Task context-menu action when NO session is attached yet. Same sense of 'session' as task_change_session - a saved set of tabs.",
+      "message": "Assign session to this task",
+      "sense": "action.session.saved-tabs"
+    },
+    "task_assign_to_a_goal": {
+      "description": "Task context-menu action when the task has no goal yet. A separate sentence from task_move_to_another_goal rather than one key with a substitution.",
+      "message": "Assign to a goal"
+    },
+    "task_change_session": {
+      "description": "Task context-menu action when a session is ALREADY attached. SENSE OF 'SESSION': a saved set of tabs, not a browser session and not a focus session.",
+      "message": "Change session",
+      "sense": "action.session.saved-tabs"
+    },
+    "task_move_to_another_goal": {
+      "description": "Task context-menu action when the task ALREADY belongs to a goal.",
+      "message": "Move to another goal"
+    },
+    "tasks_no_recurring_tasks_match_filter": {
+      "description": "Tasks tab empty state when a TAG FILTER has hidden every recurring template. Counterpart of tasks_no_recurring_tasks, which is the genuinely-empty case.",
+      "message": "No recurring tasks match the current filter."
+    },
+    "tasks_no_standalone_tasks_match_filter": {
+      "description": "Tasks tab empty state when a FILTER has hidden everything. Its counterpart tasks_no_standalone_tasks is the genuinely-empty case; the two are different sentences and must not be collapsed.",
+      "message": "No standalone tasks match the current filter."
+    },
+    "tasks_preview_active": {
+      "description": "Lower-case badge word on the free-tier Tasks PREVIEW, followed by a separator and the elapsed time. Lower case deliberately - it sits mid-phrase, not as a heading.",
+      "message": "active",
+      "sense": "state.task"
+    },
+    "tasks_preview_completed_zero": {
+      "description": "Section heading on the free-tier Tasks PREVIEW. The zero is BAKED IN because the preview shows a fixed illustrative board rather than the user's data; the real surface counts (tasks_section_completed).",
+      "message": "Completed (0)",
+      "sense": "heading.section"
+    },
+    "tasks_section_completed": {
+      "description": "SECTION HEADING on the real Tasks tab, followed by a count badge. Not the status FILTER option with the same word (tasks_status_completed), which is a dropdown choice.",
+      "message": "Completed",
+      "sense": "heading.section"
+    },
+    "tasks_section_deleted": {
+      "description": "SECTION HEADING for the Tasks tab trash, followed by a count badge.",
+      "message": "Deleted",
+      "sense": "heading.section"
+    },
+    "tasks_trash_days_left": {
+      "description": "Countdown on a trashed item: how long before it is purged. The singular is a separate form rather than an English '+ s'.",
+      "message": "",
+      "plural": {
+        "one": "{count} day left",
+        "other": "{count} days left"
+      }
+    }
+  });

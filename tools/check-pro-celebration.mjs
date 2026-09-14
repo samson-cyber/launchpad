@@ -228,7 +228,11 @@ ok("...and on scroll too", start.includes('addEventListener("scroll"'));
 ok("Escape exits the tour", /Escape[\s\S]{0,80}endProTour/.test(start));
 const render = body("renderProTourStep");
 ok("Skip on every step but the last", render.includes("data-pro-tour-skip"));
-ok("Done on the last step", /last \? "Done" : "Next"/.test(render));
+// [1.5.0] R5.1 moved both labels into the catalogue, so the assertion
+// follows them: the branch is the behaviour, the literals were only ever
+// where it happened to live.
+ok("Done on the last step",
+  /last \? th\("common_done"\) : th\("protour_next"\)/.test(render));
 ok("an off-screen anchor is skipped, not pointed at", render.includes("isTourAnchorVisible"));
 // offsetParent is null for EVERY position:fixed element, and #active-task-pill is
 // fixed — so an offsetParent-based visibility test silently drops the pill step

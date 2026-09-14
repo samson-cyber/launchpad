@@ -195,16 +195,38 @@ var I18n = (function () {
     }
     var str;
     if (e.plural) {
-      var count = params && params.count;
-      if (count == null) {
-        if (IS_UNPACKED) console.warn("[i18n] plural message needs params.count:", key);
-        count = 0;
+      // THE COUNT IS COERCED ONCE, HERE, AND THE SAME NUMBER BOTH CHOOSES THE
+      // FORM AND APPEARS IN THE SENTENCE.
+      //
+      // Before this the two came from different expressions: the category from
+      // Number(count) inside pluralCategory, the {count} substitution from the
+      // RAW value. They can disagree. A caller passing the string "3.0" got the
+      // plural form for 3 and the text "3.0"; one passing {} got the "other"
+      // form and the text "[object Object]". Neither is reachable now, because
+      // after this line there is only one number.
+      //
+      // This is the R5.1 convention made STRUCTURAL rather than documented. A
+      // caller cannot pass a count that selects one form and prints another,
+      // because it no longer has a way to.
+      var raw = params ? params.count : undefined;
+      var n = Number(raw);
+      if (raw == null || !isFinite(n)) {
+        if (IS_UNPACKED) {
+          console.warn("[i18n] plural message needs a numeric params.count:", key, raw);
+        }
+        n = 0;
       }
-      str = selectPluralForm(e, count, active);
+      str = selectPluralForm(e, n, active);
       if (str == null) {
         if (IS_UNPACKED) console.warn("[i18n] no usable plural form:", key);
         return key;
       }
+      var merged = {};
+      for (var p in params) {
+        if (Object.prototype.hasOwnProperty.call(params, p)) merged[p] = params[p];
+      }
+      merged.count = n;
+      params = merged;
     } else {
       str = e.message;
     }
@@ -212,6 +234,39 @@ var I18n = (function () {
   }
 
   function th(key, params) { return escapeHtml(t(key, params)); }
+
+  // A SENTENCE WITH MARKUP IN THE MIDDLE IS STILL ONE SENTENCE.
+  //
+  // "Right-click any page -> <strong>Add to LaunchPad</strong>. That is the
+  // whole habit." has to reach a translator WHOLE. Split into two catalogue
+  // fragments around the <strong> it becomes two half-sentences that cannot be
+  // reordered, and in a language that puts the emphasised term first there is
+  // no way to say it at all. Fragments are how a catalogue ends up unable to
+  // express the sentences it already contains.
+  //
+  // So markup is a NAMED PLACEHOLDER like any other value: the catalogue holds
+  // the whole sentence, th() escapes it exactly as it escapes everything else,
+  // and each html param is swapped in afterwards. The sentinel is U+0001,
+  // which cannot occur in catalogue text and cannot survive escapeHtml, so a
+  // swap can never land on real content.
+  function thHtml(key, params, htmlParams) {
+    var merged = {}, marks = {}, k, i = 0;
+    for (k in params) {
+      if (Object.prototype.hasOwnProperty.call(params, k)) merged[k] = params[k];
+    }
+    for (k in htmlParams) {
+      if (!Object.prototype.hasOwnProperty.call(htmlParams, k)) continue;
+      marks[k] = "\u0001" + (i++) + "\u0001";
+      merged[k] = marks[k];
+    }
+    var out = th(key, merged);
+    for (k in marks) {
+      if (Object.prototype.hasOwnProperty.call(marks, k)) {
+        out = out.split(marks[k]).join(htmlParams[k]);
+      }
+    }
+    return out;
+  }
 
   // ------------------------------------------------------------ negotiation
   //
@@ -297,6 +352,7 @@ var I18n = (function () {
     DEFAULT_LOCALE: DEFAULT_LOCALE,
     t: t,
     th: th,
+    thHtml: thHtml,
     escapeHtml: escapeHtml,
     register: register,
     has: has,

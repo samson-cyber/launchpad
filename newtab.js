@@ -1195,7 +1195,8 @@
         // CASE ONLY. Still HARDCODED English rather than catalogue values, so
         // they remain in the i18n backlog (the gate's "33 await migration").
         '<div class="dash-hero-label">' +
-          escapeHtml(scope.mode === "combined" ? "Focused today · all workspaces" : "Focused today") +
+          (scope.mode === "combined" ? th("dash_focused_today_all_workspaces")
+                                     : th("common_focused_today")) +
         '</div>' +
       '</div>';
   }
@@ -1224,7 +1225,8 @@
     var armState = Storage.focusArmState(d);
     return '<div class="dash-hero-stat">' +
         '<div class="dash-hero-stat-num">' +
-          escapeHtml(armState === "off" ? "Off" : (armState === "auto" ? "On (auto)" : "On")) +
+          (armState === "off" ? th("dash_blocking_off")
+            : (armState === "auto" ? th("dash_blocking_on_auto") : th("dash_blocking_on"))) +
         '</div>' +
         '<div class="dash-hero-stat-label">' + th("dash_focus_blocking") + '</div>' +
       '</div>';
@@ -1253,8 +1255,11 @@
           '<span class="insights-task-dur">' + e.done + ' of ' + e.total + '</span>' +
         '</div>';
     }).join("") + (overflow > 0
-      ? '<div class="dash-note">' + overflow + ' more in ' +
-          '<button type="button" class="dash-inline-link" data-dash-action="goto-tasks">' + th("dash_tasks") + '</button>.' +
+      ? '<div class="dash-note">' +
+          thHtml("dash_more_in_tasks", { count: overflow }, {
+            tasks: '<button type="button" class="dash-inline-link" data-dash-action="goto-tasks">' +
+                   th("dash_tasks") + '</button>'
+          }) +
         '</div>'
       : "");
   }
@@ -1369,7 +1374,8 @@
         return '<div class="dash-head" data-dash-variant="evening-open">' +
             '<div class="pp-dash-card-title">That’s the day</div>' +
             '<div class="dash-headline">' +
-              (open === 1 ? 'One still on the board.' : 'Still a few on the board.') +
+              (open === 1 ? th("dash_one_still_on_the_board")
+                          : th("dash_still_a_few_on_the_board")) +
             '</div>' +
             summary +
           '</div>';
@@ -1393,7 +1399,7 @@
           '<div class="dash-headline">' + escapeHtml(activeTask.name) + '</div>' +
           (goal ? '<div class="dash-sub">in ' + escapeHtml(goal.name) + '</div>' : '') +
           '<button type="button" class="dash-cta" data-dash-action="continue">' +
-            (paused ? "Resume" : "Continue") +
+            (paused ? th("dash_resume") : th("dash_continue")) +
           '</button>' +
         '</div>';
     }
@@ -1424,7 +1430,7 @@
         '<div class="dash-headline">' + escapeHtml(suggestion.name) + '</div>' +
         (metaBits.length ? '<div class="dash-meta">' + metaBits.join("") + '</div>' : '') +
         '<button type="button" class="dash-cta" data-dash-action="lets-go" data-task-id="' + escapeHtml(suggestion.id) + '">' +
-          'Let’s go' +
+          th("dash_lets_go") +
         '</button>' +
       '</div>';
   }
@@ -1460,8 +1466,11 @@
     }).join("") + (overflow > 0
       // Counted out loud, never silently cut — a list that stops at ten and says
       // nothing reads as "that is all of them".
-      ? '<div class="dash-note">' + overflow + ' more due or overdue in ' +
-          '<button type="button" class="dash-inline-link" data-dash-action="goto-tasks">' + th("dash_tasks_2") + '</button>.' +
+      ? '<div class="dash-note">' +
+          thHtml("dash_more_due_or_overdue_in_tasks", { count: overflow }, {
+            tasks: '<button type="button" class="dash-inline-link" data-dash-action="goto-tasks">' +
+                   th("dash_tasks_2") + '</button>'
+          }) +
         '</div>'
       : "");
   }
@@ -1982,7 +1991,8 @@
       var pct = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
       var tasksHtml = g.tasks.map(function (t) {
         var activeBadge = t.active
-          ? '<span class="pp-active-badge"><span class="pp-active-dot"></span>active &middot; ' + escapeHtml(t.elapsed || "") + '</span>'
+          ? '<span class="pp-active-badge"><span class="pp-active-dot"></span>' +
+            th("tasks_preview_active") + ' &middot; ' + escapeHtml(t.elapsed || "") + '</span>'
           : '';
         return '<div class="pp-task-row ' + priorityClass(t.priority) + '">' +
             '<input type="checkbox" class="pp-task-check" disabled>' +
@@ -2029,7 +2039,7 @@
       '<div class="pp-empty-state">' + th("tasks_no_recurring_tasks") + '</div>' +
       '<div class="pp-section-header pp-section-header-collapsible">' +
         '<span class="pp-collapse-chevron">' + CHEVRON_RIGHT_SVG + '</span>' +
-        'Completed (0)' +
+        th("tasks_preview_completed_zero") +
       '</div>' +
       '</div>' +
       notesPreviewPanelHtml() +
@@ -2587,8 +2597,8 @@
       // retention constant, so it also follows the system date on its own.
       // Rendered through the board's existing locale date formatter, the
       // same one the strip's best-day label uses.
-      '<p class="insights-range-note">History starts ' +
-        escapeHtml(fmtShortDate(insightsKeyToTs(hz.min))) + '</p>' +
+      '<p class="insights-range-note">' +
+        th("insights_history_starts", { date: fmtShortDate(insightsKeyToTs(hz.min)) }) + '</p>' +
       // [1.8.4] THE EXPORT CONTROL SITS ON THE RANGE ROW, and that is a
       // deliberate tension with design-guide 4.2, which says the selector is
       // "the only control on the board". The guide was written before export
@@ -2631,7 +2641,7 @@
         '</div>';
     }).join("");
     return '<div class="pp-insights-card">' +
-        '<div class="pp-dash-card-title">Achievements ' +
+        '<div class="pp-dash-card-title">' + th("insights_achievements") + ' ' +
           '<span class="insights-badge-count">' + earnedCount + ' of ' + INSIGHTS_BADGES.length + '</span>' +
         '</div>' +
         '<div class="pp-badge-grid">' + badgesHtml + '</div>' +
@@ -2669,21 +2679,21 @@
     var trackingShell = scope
       ? '<div class="ins-row-range">' + insightsRangeSelectorHtml(rangeDays) + '</div>' +
         '<div class="pp-insights-card ins-hero">' +
-          '<div class="pp-dash-card-title">Deep Work · ' + escapeHtml(rangeLabel) + '</div>' +
+          '<div class="pp-dash-card-title">' + th("insights_deep_work_range", { range: rangeLabel }) + '</div>' +
           '<div class="ins-hero-head" data-ins-strip></div>' +
           '<div class="ins-hero-chart" data-ins-deepwork></div>' +
         '</div>' +
         '<div class="ins-peers">' +
           '<div class="pp-insights-card ins-peer">' +
-            '<div class="pp-dash-card-title">Time by tag · ' + escapeHtml(rangeLabel) + '</div>' +
+            '<div class="pp-dash-card-title">' + th("insights_time_by_tag_range", { range: rangeLabel }) + '</div>' +
             '<div class="pp-donut-row" data-ins-donut></div>' +
           '</div>' +
           '<div class="pp-insights-card ins-peer">' +
-            '<div class="pp-dash-card-title">Time by site · ' + escapeHtml(rangeLabel) + '</div>' +
+            '<div class="pp-dash-card-title">' + th("insights_time_by_site_range", { range: rangeLabel }) + '</div>' +
             '<div class="insights-task-list insights-site-list" data-ins-topsites></div>' +
           '</div>' +
           '<div class="pp-insights-card ins-peer">' +
-            '<div class="pp-dash-card-title">Top tasks · ' + escapeHtml(rangeLabel) + '</div>' +
+            '<div class="pp-dash-card-title">' + th("insights_top_tasks_range", { range: rangeLabel }) + '</div>' +
             '<div class="insights-task-list" data-ins-toptasks></div>' +
           '</div>' +
         '</div>' +
@@ -3460,7 +3470,7 @@
     if (untaggedMs > 0) ordered.push({ color: INSIGHTS_UNTAGGED_COLOR, name: "Untagged", ms: untaggedMs });
 
     if (scopeTotalMs <= 0 || ordered.length === 0) {
-      return '<div class="insights-empty">No focus time tracked in the ' + escapeHtml(rangeLabel) + ' yet.</div>';
+      return '<div class="insights-empty">' + th("insights_no_focus_time_in_range", { range: rangeLabel }) + '</div>';
     }
 
     var drawnTotalMs = ordered.reduce(function (a, s) { return a + s.ms; }, 0);
@@ -3494,7 +3504,7 @@
     rows.sort(function (a, b) { return b.ms - a.ms; });
 
     if (rows.length === 0) {
-      return '<div class="insights-empty">No task focus tracked in the ' + escapeHtml(rangeLabel) + ' yet.</div>';
+      return '<div class="insights-empty">' + th("insights_no_task_focus_in_range", { range: rangeLabel }) + '</div>';
     }
 
     var maxMs = rows[0].ms || 1;
@@ -3543,7 +3553,7 @@
     rows.sort(function (a, b) { return b.ms - a.ms; });
 
     if (rows.length === 0) {
-      return '<div class="insights-empty">No site time tracked in the ' + escapeHtml(rangeLabel) + ' yet.</div>';
+      return '<div class="insights-empty">' + th("insights_no_site_time_in_range", { range: rangeLabel }) + '</div>';
     }
 
     var maxMs = rows[0].ms || 1;
@@ -3654,7 +3664,7 @@
     var rot = (typeof note.rotation === "number") ? note.rotation : 0;
     var body = note.content
       ? escapeHtml(note.content)
-      : '<span class="note-placeholder">' + th("note_empty_note") + '</span>';
+      : '<span class="note-placeholder">' + th("common_empty_note") + '</span>';
     return '<article class="note-card" data-note-id="' + escapeHtml(note.id) + '"' +
         (preview
           ? ' aria-hidden="true"'
@@ -4000,7 +4010,7 @@
     var preview = String(note.content || "").trim();
     var body = preview
       ? "<div class=\"notes-trash-preview\">" + escapeHtml(preview) + "</div>"
-      : "<div class=\"notes-trash-preview is-empty\">" + th('notes_empty_note') + "</div>";
+      : "<div class=\"notes-trash-preview is-empty\">" + th('common_empty_note') + "</div>";
     return "<li class=\"notes-trash-row\" data-trash-note-id=\"" + escapeHtml(note.id) + "\">" +
         "<div class=\"notes-trash-paper\" style=\"--note-paper: " + notesPaperVar(note.color) + ";\">" +
           body +
@@ -4238,7 +4248,7 @@
     var menu = document.createElement("div");
     menu.className = "tt-context-menu";
     menu.innerHTML =
-      ctxEntityHeaderHtml("Note", note.content ? note.content.slice(0, 40) : "Empty note") +
+      ctxEntityHeaderHtml("Note", note.content ? note.content.slice(0, 40) : t("common_empty_note")) +
       '<div class="note-swatches">' + swatches + '</div>' +
       '<button type="button" class="tt-ctx-item" data-note-action="promote-task">' + th("notes_promote_to_task") + '</button>' +
       '<button type="button" class="tt-ctx-item" data-note-action="promote-goal">' + th("notes_promote_to_goal") + '</button>' +
@@ -5101,7 +5111,7 @@
       : '';
     return '<section class="tt-section tt-box tt-completed-box" data-section="completed">' +
         '<div class="tt-box-header">' +
-          '<h2 class="tt-section-title">Completed' +
+          '<h2 class="tt-section-title">' + th("tasks_section_completed") +
             (count ? ' <span class="tt-section-count">' + count + '</span>' : '') +
           '</h2>' +
           actionsHtml +
@@ -5136,7 +5146,7 @@
             return '<li class="tt-deleted-row" data-kind="' + it.kind + '" data-id="' + escapeHtml(it.id) + '" title="' + escapeHtml(it.kind === "goal" ? "Goal" : "Task") + '">' +
                 '<span class="tt-deleted-kind" aria-hidden="true">' + (it.kind === "goal" ? "◎" : "▪") + '</span>' +
                 '<span class="tt-deleted-name">' + escapeHtml(it.name) + '</span>' +
-                '<span class="tt-trash-days ' + daysCls + '">' + days + (days === 1 ? " day left" : " days left") + '</span>' +
+                '<span class="tt-trash-days ' + daysCls + '">' + th("tasks_trash_days_left", { count: days }) + '</span>' +
                 '<span class="tt-deleted-actions">' +
                   '<button type="button" class="tt-deleted-btn tt-deleted-restore" data-action="restore-deleted">' + th("deleted_restore") + '</button>' +
                   '<button type="button" class="tt-deleted-btn tt-deleted-purge" data-action="purge-deleted">' + th("common_delete") + '</button>' +
@@ -5156,7 +5166,7 @@
       : '';
     return '<section class="tt-section tt-box tt-deleted-box" data-section="deleted">' +
         '<div class="tt-box-header">' +
-          '<h2 class="tt-section-title">Deleted' +
+          '<h2 class="tt-section-title">' + th("tasks_section_deleted") +
             (count ? ' <span class="tt-section-count">' + count + '</span>' : '') +
           '</h2>' +
           actionsHtml +
@@ -5519,7 +5529,9 @@
       // markup fragments, so they are invisible to the i18n site gate and were
       // never migrated. Catalogue migration belongs to R5 (Asana 1218050333264862).
       : '<div class="tt-empty-state">' +
-          (tasksFiltersNarrowing() && standaloneActive.length ? 'No standalone tasks match the current filter.' : 'No standalone tasks. New tasks land here unless you pick a goal.') +
+            (tasksFiltersNarrowing() && standaloneActive.length
+              ? th("tasks_no_standalone_tasks_match_filter")
+              : th("tasks_no_standalone_tasks")) +
         '</div>';
 
     // [1.0.12] Recurring: tag filter only (templates carry no priority/status);
@@ -5536,7 +5548,9 @@
       // "New Recurring" this names is the real button in this tab's own header,
       // so the instruction is actionable from here.
       : '<div class="tt-empty-state">' +
-          (taskFilterState.tagIds.length && recurringTemplates.length ? 'No recurring tasks match the current filter.' : 'No recurring tasks. Create one with New Recurring.') +
+            (taskFilterState.tagIds.length && recurringTemplates.length
+              ? th("tasks_no_recurring_tasks_match_filter")
+              : th("tasks_no_recurring_tasks")) +
         '</div>';
 
     // [1.0.12] Status drives ACTIVE-section visibility (locked interaction
@@ -5561,7 +5575,7 @@
       : '';
     var recurringSectionHtml = showActiveSections
       ? '<section class="tt-section" data-section="recurring">' +
-          '<h2 class="tt-section-title">Recurring' +
+          '<h2 class="tt-section-title">' + th("tasks_recurring") +
             (recurringVisible.length ? ' <span class="tt-section-count">' + recurringVisible.length + '</span>' : '') +
           '</h2>' +
           recurringHtml +
@@ -6426,9 +6440,8 @@
 
     openTasksModal({
       title: t("apply_move_recurring_task"),
-      bodyHtml: '<p class="tt-modal-message">This is an instance of a recurring task. ' +
-        'Move the whole template into this goal (future instances will belong to it), ' +
-        'or move just this occurrence?</p>',
+      bodyHtml: '<p class="tt-modal-message">' +
+        th("recurringdrop_instance_or_template") + '</p>',
       primaryLabel: t("apply_move_just_this_instance"),
       defaultFocus: "primary",
       onPrimary: async function () { await apply(false); },
@@ -6957,7 +6970,8 @@
         '<div class="tt-modal-row">' +
           '<label class="tt-modal-label" for="tt-recur-freq-select">' + th("freq_frequency") + '</label>' +
           '<select id="tt-recur-freq-select" class="tt-recur-freq-select">' +
-            freqOption("daily", "Daily") + freqOption("weekly", "Weekly") + freqOption("monthly", "Monthly") +
+            freqOption("daily", th("freq_daily")) + freqOption("weekly", th("freq_weekly")) +
+            freqOption("monthly", th("freq_monthly")) +
           '</select>' +
         '</div>' +
         '<div class="tt-recur-conditional"></div>' +
@@ -7377,7 +7391,8 @@
     menu.innerHTML =
       ctxEntityHeaderHtml("Recurring", tpl.name) +
       '<button type="button" class="tt-ctx-item" data-action="edit">' + th("recurring_edit") + '</button>' +
-      '<button type="button" class="tt-ctx-item" data-action="toggle-active">' + (tpl.isActive ? "Pause" : "Activate") + '</button>' +
+      '<button type="button" class="tt-ctx-item" data-action="toggle-active">' +
+        (tpl.isActive ? th("recurring_pause") : th("recurring_activate")) + '</button>' +
       '<div class="tt-ctx-separator"></div>' +
       '<button type="button" class="tt-ctx-item tt-ctx-danger" data-action="delete">' + th("common_delete") + '</button>';
     document.body.appendChild(menu);
@@ -7574,7 +7589,7 @@
     var ctxWsSession = workspace ? Storage.getNamedSessionForTask(workspace, task.id) : null;
     var sessionItemsHtml =
       '<button type="button" class="tt-ctx-item" data-action="attach-session">' +
-        (ctxWsSession ? "Change session" : "Assign session to this task") +
+        (ctxWsSession ? th("task_change_session") : th("task_assign_session_to_this_task")) +
       '</button>' +
       (ctxWsSession
         ? '<button type="button" class="tt-ctx-item" data-action="detach-session">' + th("task_detach_session") + '</button>'
@@ -7592,7 +7607,7 @@
       '<button type="button" class="tt-ctx-item" data-action="priority">' + th("task_priority") + '</button>' +
       '<button type="button" class="tt-ctx-item" data-action="duplicate">' + th("task_duplicate") + '</button>' +
       '<button type="button" class="tt-ctx-item" data-action="assign-goal">' +
-        (task.goalId ? "Move to another goal" : "Assign to a goal") +
+        (task.goalId ? th("task_move_to_another_goal") : th("task_assign_to_a_goal")) +
       '</button>' +
       sessionItemsHtml +
       '<button type="button" class="tt-ctx-item" data-action="toggle-complete">' + escapeHtml(completeLabel) + '</button>' +
@@ -7830,9 +7845,10 @@
     var goalName = conflict.goalName || "the goal";
     openTasksModal({
       title: t("task_due_date_after_goal_deadline"),
-      bodyHtml: '<p class="tt-modal-message">This task’s due date (' + escapeHtml(taskDateStr) +
-        ') is after ' + escapeHtml(goalName) + ' deadline (' + escapeHtml(goalDateStr) +
-        '). Extend the goal deadline to match?</p>',
+      bodyHtml: '<p class="tt-modal-message">' +
+        th("goalconflict_due_after_deadline", {
+          taskDate: taskDateStr, goalName: goalName, goalDate: goalDateStr
+        }) + '</p>',
       primaryLabel: t("goalconflict_extend_goal_to", { date: taskDateStr }),
       defaultFocus: "primary",
       onPrimary: async function () {
@@ -10479,6 +10495,7 @@
   // to a markup literal is a violation.
   function t(key, params) { return I18n.t(key, params); }
   function th(key, params) { return I18n.th(key, params); }
+  function thHtml(key, params, htmlParams) { return I18n.thHtml(key, params, htmlParams); }
 
   function escapeHtml(s) {
     if (s == null) return "";
@@ -11101,7 +11118,8 @@
         '<span class="pro-tour-count">' + (proTourState.index + 1) + ' of ' + PRO_TOUR_STEPS.length + '</span>' +
         '<span class="pro-tour-btns">' +
           (last ? '' : '<button type="button" class="pro-tour-btn is-quiet" data-pro-tour-skip>' + th("pro_skip") + '</button>') +
-          '<button type="button" class="pro-tour-btn is-primary" data-pro-tour-next>' + (last ? "Done" : "Next") + '</button>' +
+          '<button type="button" class="pro-tour-btn is-primary" data-pro-tour-next>' +
+            (last ? th("common_done") : th("protour_next")) + '</button>' +
         '</span>' +
       '</div>';
     target.classList.add("pro-tour-target");
@@ -15435,7 +15453,8 @@
   function satHeadlineHtml(paused) {
     return '<div class="sat-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</div>' +
       '<div class="sat-time-label">' +
-        '<span class="sat-time-label-text">' + (paused ? 'Paused' : 'Focused today') + '</span>' +
+        '<span class="sat-time-label-text">' +
+          (paused ? th("sat_paused") : th("common_focused_today")) + '</span>' +
         satTrackingIndicatorHtml(paused) +
       '</div>' +
       satSinceHtml() +
@@ -15481,7 +15500,7 @@
   function satIdleHeadlineHtml(paused) {
     return '<div class="sat-hero-time">' + escapeHtml(satStopwatchText()) + '</div>' +
       '<div class="sat-hero-label" title="' + escapeHtml(SAT_ACTIVE_TITLE) + '">' +
-        (paused ? 'Paused' : 'Active') +
+        (paused ? th("sat_paused") : th("sat_active")) +
       '</div>' +
       // The stamp alone: the count it used to lead with is the headline above.
       satSinceHtml(false) +
@@ -15501,7 +15520,7 @@
       '<div class="sat-today">' +
         '<span class="sat-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</span>' +
         '<span class="sat-time-label">' +
-          '<span class="sat-time-label-text">' + th("sat_focused_today") + '</span>' +
+          '<span class="sat-time-label-text">' + th("common_focused_today") + '</span>' +
           satTrackingIndicatorHtml(paused) +
         '</span>' +
       '</div>' +
@@ -16125,14 +16144,16 @@
       if (pomo) {
         inner = '<span class="sat-pill-glyph" aria-hidden="true">◷</span>' + satFocusPillDot() +
           '<span class="sat-pill-main">' +
-            '<span class="sat-pill-label">' + escapeHtml(SAT_POMO_PHASE_LABEL[pomo.phase] || 'Focus') + '</span>' +
+            '<span class="sat-pill-label">' +
+              escapeHtml(SAT_POMO_PHASE_LABEL[pomo.phase] || t("sat_pomo_phase_focus")) + '</span>' +
             '<span class="sat-pill-name">' + escapeHtml(res.task.name) + '</span>' +
           '</span>' +
           '<span class="sat-pill-time sat-pomo-time">' + escapeHtml(satFmtLong(satPomoRemainingMs(pomo))) + '</span>';
       } else {
         inner = '<span class="sat-pill-glyph" aria-hidden="true">' + (paused ? '⏸' : '▶') + '</span>' + satFocusPillDot() +
           '<span class="sat-pill-main">' +
-            '<span class="sat-pill-label">' + (paused ? 'Paused' : 'Active task') + '</span>' +
+            '<span class="sat-pill-label">' +
+              (paused ? th("sat_paused") : th("common_active_task")) + '</span>' +
             '<span class="sat-pill-name">' + escapeHtml(res.task.name) + '</span>' +
           '</span>' +
           // [1.2.3] Focused today, the same number the card leads with — not a
@@ -16210,9 +16231,9 @@
     var foreignHtml = "";
     if (res.isForeign) {
       foreignHtml = '<div class="sat-foreign">' +
-          'This task is in ' + escapeHtml(res.workspace.name) +
+          th("sat_this_task_is_in_workspace", { workspace: res.workspace.name }) +
           '<button type="button" class="sat-foreign-switch" data-sat-act="goto-workspace">' +
-            'Switch to ' + escapeHtml(res.workspace.name) +
+            th("sat_switch_to_workspace", { workspace: res.workspace.name }) +
           '</button>' +
         '</div>';
     }
@@ -16221,7 +16242,7 @@
     // both the normal card and the [1.0.18] pomodoro-running card.
     var head =
       '<div class="sat-card-head">' +
-        '<span class="sat-eyebrow">' + th("sat_active_task") + '</span>' +
+        '<span class="sat-eyebrow">' + th("common_active_task") + '</span>' +
         '<button type="button" class="sat-card-min" data-sat-act="minimize" ' +
           'title="' + th("sat_minimize") + '" aria-label="' + th("sat_minimize_active_task_card") + '">⌃</button>' +
       '</div>' +
@@ -16272,10 +16293,10 @@
         '<div class="sat-actions-primary">' +
           '<button type="button" class="sat-btn sat-btn-complete" data-sat-act="complete" ' +
             'title="' + th("sat_complete_the_task_it_moves_to") + '">' +
-            '✓ Complete</button>' +
+            th("sat_complete") + '</button>' +
           '<button type="button" class="sat-btn sat-btn-setdown" data-sat-act="cancel" ' +
             'title="' + th("sat_stop_tracking_for_now_the_task") + '">' +
-            'End for now</button>' +
+            th("sat_end_for_now") + '</button>' +
         '</div>' +
         '<div class="sat-actions-session">' +
           pauseBtn +
@@ -16364,7 +16385,8 @@
           // RUNNING phase keeps its countdown takeover untouched).
           satHeadlineHtml(paused) +
           '<div class="sat-pomo sat-pomo-done">' +
-            '<div class="sat-pomo-done-msg">Session done · cycle ' + cyclePos + ' of ' + cadence + '</div>' +
+            '<div class="sat-pomo-done-msg">' +
+              th("sat_pomo_session_done_cycle", { position: cyclePos, total: cadence }) + '</div>' +
             '<div class="sat-pomo-start-row">' +
               '<button type="button" class="sat-btn sat-btn-pomo-start" data-sat-act="pomo-start" ' +
                 'title="' + th("sat_start_the_next_focus_session") + '">' + th("sat_start_next_session") + '</button>' +
@@ -16387,7 +16409,7 @@
           '<button type="button" class="sat-btn sat-btn-pomo-start" data-sat-act="pomo-start" title="' + th("sat_start_a_focus_session") + '">' + th("sat_focus_session") + '</button>' +
           '<button type="button" class="sat-btn sat-btn-pomo-dur" data-sat-act="pomo-duration" ' +
             'title="' + th("sat_change_focus_length") + '" aria-expanded="' + (satPomoDurOpen ? 'true' : 'false') + '">' +
-            escapeHtml(String(workMin)) + ' min ▾</button>' +
+            th("sat_pomo_duration_minutes", { minutes: workMin }) + '</button>' +
         '</div>' +
         (satPomoDurOpen ? satPomoDurChipsHtml(workMin) : "") +
         satFocusRowHtml() +
@@ -16473,7 +16495,7 @@
     pill.setAttribute("title", res ? res.task.name : "Pick an active task");
     if (showCard) {
       pill.setAttribute("role", "region");
-      pill.setAttribute("aria-label", t("active_active_task"));
+      pill.setAttribute("aria-label", t("common_active_task"));
       pill.innerHTML = satCardHtml(res, paused);
     } else {
       pill.removeAttribute("role");
@@ -16837,7 +16859,8 @@
 
       Object.keys(byGoal).forEach(function (goalId) {
         var goal = Storage.getGoalById(ws, goalId);
-        html += '<div class="sat-goal-header">' + escapeHtml(goal ? goal.name : "Goal") + '</div>';
+        html += '<div class="sat-goal-header">' +
+          escapeHtml(goal ? goal.name : t("sat_goal_fallback")) + '</div>';
         html += byGoal[goalId].map(rowHtml).join("");
       });
       if (standalone.length) {
@@ -16847,7 +16870,8 @@
     });
 
     if (!matches) {
-      html = '<div class="sat-switch-empty">' + (q ? "No tasks match" : "No open tasks yet") + "</div>";
+      html = '<div class="sat-switch-empty">' +
+        (q ? th("sat_no_tasks_match") : th("sat_no_open_tasks_yet")) + "</div>";
     }
     return html;
   }
@@ -17223,11 +17247,11 @@
       '<button type="button" class="demo-clear' + (canClear ? '' : ' is-gated') + '"' +
         ' data-demo-act="clear"' +
         ' aria-disabled="' + (canClear ? 'false' : 'true') + '">' +
-        'Clear examples' +
+        th("demo_clear_examples") +
       '</button>' +
       (canClear ? '' :
         '<span class="demo-clear-tip" role="tooltip">' +
-          'Add your first shortcut to LaunchPad to clear the examples.' +
+          th("demo_add_your_first_shortcut") +
         '</span>');
 
     return (
@@ -17235,15 +17259,15 @@
         '<div class="demo-tiles">' +
           '<div class="demo-tile demo-tile-welcome">' +
             '<div class="demo-tile-title">' + th("demo_welcome_to_launchpad") + '</div>' +
-            '<p class="demo-tile-body">Your new tab, organised your way. ' +
-              'Everything below is an example: open it, drag it, rename it, ' +
-              'then make this grid yours.</p>' +
+            '<p class="demo-tile-body">' + th("demo_your_new_tab_organised") + '</p>' +
             '<div class="demo-clear-wrap">' + clearBtn + '</div>' +
           '</div>' +
           '<div class="demo-tile demo-tile-teach">' +
             '<div class="demo-tile-title">' + th("demo_save_any_page") + '</div>' +
-            '<p class="demo-tile-body">Right-click any page → ' +
-              '<strong>' + th("demo_add_to_launchpad") + '</strong>. That is the whole habit.</p>' +
+            '<p class="demo-tile-body">' +
+              thHtml("demo_right_click_any_page", {}, {
+                action: '<strong>' + th("demo_add_to_launchpad") + '</strong>'
+              }) + '</p>' +
           '</div>' +
           '<button type="button" class="demo-tile demo-tile-import" data-demo-act="import">' +
             '<span class="demo-tile-title">' + th("demo_already_have_bookmarks") + '</span>' +
@@ -18168,11 +18192,13 @@
     return '<div class="session-row" data-session-id="' + esc(s.id) + '" role="button" tabindex="0" ' +
              'aria-label="' + esc((s.name || "Untitled session") + ", " + count + (count === 1 ? " tab" : " tabs")) + '">' +
              '<div class="session-row-main">' +
-               '<span class="session-name">' + esc(s.name || "Untitled session") + '</span>' +
+               '<span class="session-name">' + esc(s.name || t("sessions_untitled_session")) + '</span>' +
                '<span class="session-meta">' + count + (count === 1 ? " tab" : " tabs") +
                  // [1.4.2] The relationship is legible from BOTH sides: the task row
                  // carries the session, and the session row names its task.
-                 (attachedName ? ' \u00B7 on ' + esc(attachedName) : "") + '</span>' +
+                 (attachedName
+                   ? ' \u00B7 ' + thHtml("sessions_on_task_name", {}, { name: esc(attachedName) })
+                   : "") + '</span>' +
              '</div>' +
              '<div class="session-favs">' + icons + more + '</div>' +
              '<button class="session-row-more" type="button" title="' + th("session_options") + '" aria-label="' + th("session_session_options") + '"' +
@@ -18363,7 +18389,7 @@
     var days = notesDaysRemaining(s.deletedAt);
     return '<li class="sessions-trash-row" data-trash-session-id="' + esc(s.id) + '">' +
         '<div class="sessions-trash-main">' +
-          '<span class="sessions-trash-name">' + esc(s.name || "Untitled session") + '</span>' +
+          '<span class="sessions-trash-name">' + esc(s.name || t("sessions_untitled_session")) + '</span>' +
           '<span class="sessions-trash-meta">' + count + (count === 1 ? " tab" : " tabs") +
             ' <span class="sessions-trash-dot" aria-hidden="true">\u00b7</span> ' +
             '<span class="sessions-trash-countdown ' + trashCountdownClass(days) + '">' +
@@ -18709,7 +18735,7 @@
       // click and the panel reads as a different feature than the one asked for.
       title: task.goalId ? ("Move " + task.name + " to another goal")
                          : ("Assign " + task.name + " to a goal"),
-      bodyHtml: pickerSearchHtml(total, "Search goals") +
+      bodyHtml: pickerSearchHtml(total, t("picker_search_goals")) +
         '<div class="session-picker" data-picker-list>' + taskGoalPickerRowsHtml(ws, task) + '</div>',
       primaryLabel: t("common_close"),
       hideCancel: true,
@@ -18841,7 +18867,7 @@
     if (!total) {
       return '<p class="tt-modal-message">' + th("attach_there_are_no_open_tasks_in") + '</p>';
     }
-    return pickerSearchHtml(total, "Search tasks") +
+    return pickerSearchHtml(total, t("picker_search_tasks")) +
       '<div class="session-picker" data-picker-list>' + attachPickerRowsHtml(ws, currentTaskId) + '</div>';
   }
 
@@ -18859,7 +18885,7 @@
       var note = isCurrent ? "attached to this task" : (owner ? "on " + owner.name : "");
       return '<button type="button" class="session-picker-row' + (isCurrent ? " is-current" : "") +
         '" data-picker-session="' + escapeHtml(s.id) + '">' +
-        '<span class="session-picker-name">' + escapeHtml(s.name || "Untitled session") + '</span>' +
+        '<span class="session-picker-name">' + escapeHtml(s.name || t("sessions_untitled_session")) + '</span>' +
         (note ? '<span class="session-picker-note">' + escapeHtml(note) + '</span>' : "") +
       '</button>';
     }).join("");
@@ -18875,7 +18901,7 @@
     openTasksModal({
       title: t("sessions_assign_to_task", { taskName: task.name }),
       bodyHtml: total
-        ? pickerSearchHtml(total, "Search sessions") +
+        ? pickerSearchHtml(total, t("picker_search_sessions")) +
           '<div class="session-picker" data-picker-list>' + taskSessionPickerRowsHtml(ws, taskId) + '</div>'
         : '<p class="tt-modal-message">' + th("task_there_are_no_saved_sessions_in") + '</p>',
       primaryLabel: t("common_close"),

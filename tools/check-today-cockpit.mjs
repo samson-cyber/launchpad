@@ -790,7 +790,9 @@ const hasClassToken = (src, name) => {
       /DASH_GOALS_MAX/.test(goalsBody) && /overflow/.test(goalsBody) && /goto-tasks/.test(goalsBody), goalsBody.slice(0, 80));
     const dueBody = extractFn(SRC.nt, "dashDueListHtml");
     check("render: the due list is capped and its overflow is counted out loud",
-      /DASH_DUE_MAX/.test(dueBody) && /more due or overdue/.test(dueBody) && /goto-tasks/.test(dueBody), dueBody.slice(0, 80));
+      // R5.1 moved the sentence into the catalogue; the key is what names it now.
+      /DASH_DUE_MAX/.test(dueBody) && /dash_more_due_or_overdue_in_tasks/.test(dueBody) &&
+      /goto-tasks/.test(dueBody), dueBody.slice(0, 80));
     check("render: the empty states say what they mean",
       /dash_nothing_due_today/.test(dueBody) && /dash_no_active_goals/.test(goalsBody));  // R4 split the sentence off the <button>; both halves are keys now
     // O2 in the markup, not just the cascade: any cockpit line that carries the
