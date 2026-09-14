@@ -102,7 +102,15 @@ const PATTERN_FLOORS = {
   // the shape of an accident, so it is recorded as deliberate.
   "modal-copy": 110,   // measured 149 after stage 1b (was 189)
   "toast":       40,   // measured  61
-  "native-dlg":   6,   // measured  10
+  // [1.12] 6 -> 1, and this is the floor doing its job rather than being
+  // lowered to get a run green. Ten of the eleven native dialogs were replaced
+  // by the product's own modal on 2026-09-15 (Asana 1217995910218382), so the
+  // pattern now finds exactly ONE site - bookmarks.js:51 - and its previous
+  // floor of 6 fired, refusing to pass. Set against what SHOULD survive: one,
+  // until that last alert can reach a modal from outside the newtab IIFE.
+  // If this ever reads 0, the last one has gone and the pattern itself should
+  // be retired rather than floored at zero.
+  "native-dlg":   1,   // measured   1 (was 10)
 };
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");

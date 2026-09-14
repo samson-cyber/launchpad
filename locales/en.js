@@ -3873,6 +3873,82 @@ I18n.register("en", {
 // false all-clear this task's blocker was opened to prevent.
 // =========================================================================
 I18n.register("en", {
+    "dialog_delete_workspace_title": {
+      "message": "Delete workspace?",
+      "description": "TITLE of the destructive confirm shown before a workspace is deleted. Sibling SENTENCE is workspace_delete_confirm; sibling ACTION is dialog_delete_workspace_action; sibling CANCEL is common_cancel. Was a native window.confirm with no title at all until 2026-09-15."
+    },
+    "dialog_delete_workspace_action": {
+      "message": "Delete workspace",
+      "description": "ACTION label on the destructive confirm before a workspace is deleted. Sibling TITLE is dialog_delete_workspace_title; sibling SENTENCE is workspace_delete_confirm. Names the act rather than saying OK, because the button is the last thing read before an irreversible delete."
+    },
+    "dialog_remove_license_title": {
+      "message": "Remove licence key?",
+      "description": "TITLE of the destructive confirm shown before a Pro licence key is cleared. Sibling SENTENCE is license_remove_confirm; sibling ACTION is dialog_remove_license_action; sibling CANCEL is common_cancel."
+    },
+    "dialog_remove_license_action": {
+      "message": "Remove key",
+      "description": "ACTION label on the confirm before a Pro licence key is cleared. Sibling TITLE is dialog_remove_license_title; sibling SENTENCE is license_remove_confirm."
+    },
+    "dialog_restore_backup_title": {
+      "message": "Restore this backup?",
+      "description": "TITLE of the destructive confirm shown before a backup file replaces the current data. Sibling SENTENCE is built by backupConfirmMessage (which composes several catalogue strings); sibling ACTION is dialog_restore_backup_action; sibling CANCEL is common_cancel."
+    },
+    "dialog_restore_backup_action": {
+      "message": "Replace my data",
+      "description": "ACTION label on the confirm before a backup is restored over the user's current data. Sibling TITLE is dialog_restore_backup_title. Says what it replaces rather than Restore, because Restore reads as additive and this is not."
+    },
+    "dialog_delete_variants_title": {
+      "message": "Delete shortcut and its variants?",
+      "description": "TITLE of the destructive confirm shown before a shortcut carrying variants is deleted. Sibling SENTENCE is shortcut_delete_variants_confirm, which carries the count; sibling ACTION is dialog_delete_variants_action; sibling CANCEL is common_cancel."
+    },
+    "dialog_delete_variants_action": {
+      "message": "Delete all",
+      "description": "ACTION label on the confirm before a shortcut and its variants are deleted. Sibling TITLE is dialog_delete_variants_title; sibling SENTENCE is shortcut_delete_variants_confirm."
+    },
+    "dialog_nest_existing_title": {
+      "message": "Nest under the existing shortcut?",
+      "description": "TITLE of the NON-destructive confirm offered when an added URL shares a domain with a shortcut already saved. Sibling SENTENCE is addshortcut_domain_exists_nest; sibling ACTION is dialog_nest_existing_action; sibling CANCEL is common_cancel. Cancelling adds it as a separate shortcut, which is why this one is not marked dangerous."
+    },
+    "dialog_nest_existing_action": {
+      "message": "Nest it",
+      "description": "ACTION label on the confirm offered when an added URL shares a domain with an existing shortcut. Sibling TITLE is dialog_nest_existing_title; sibling SENTENCE is addshortcut_domain_exists_nest."
+    },
+    "dialog_rename_variant_title": {
+      "message": "Rename variant",
+      "description": "TITLE of the text-input dialog that renames a shortcut variant. Sibling FIELD LABEL is dialog_variant_label_field; sibling ACTION is common_save. Replaces a native prompt() with the same question."
+    },
+    "dialog_variant_label_field": {
+      "message": "Label",
+      "description": "FIELD LABEL in the rename-variant dialog. Sibling TITLE is dialog_rename_variant_title. One word, because the dialog's title already asked the question."
+    },
+    "dialog_name_session_title": {
+      "message": "Name this session",
+      "description": "TITLE of the text-input dialog that names a set of saved tabs. Sibling FIELD LABEL is dialog_session_name_field; sibling ACTION is common_save. The SENTENCE that was the native prompt's question is now the title, so save_name_this_session is no longer rendered at this site."
+    },
+    "dialog_session_name_field": {
+      "message": "Session name",
+      "description": "FIELD LABEL in the name-this-session and rename-session dialogs. Sibling TITLES are dialog_name_session_title and dialog_rename_session_title."
+    },
+    "dialog_rename_session_title": {
+      "message": "Rename session",
+      "description": "TITLE of the text-input dialog that renames a saved session. Sibling FIELD LABEL is dialog_session_name_field; sibling ACTION is common_save."
+    },
+    "dialog_new_group_title": {
+      "message": "New group",
+      "description": "TITLE of the text-input dialog that creates a shortcut group. Sibling FIELD LABEL is dialog_group_name_field; sibling ACTION is dialog_create_group_action."
+    },
+    "dialog_group_name_field": {
+      "message": "Group name",
+      "description": "FIELD LABEL in the new-group and rename-group dialogs. Sibling TITLES are dialog_new_group_title and dialog_rename_group_title."
+    },
+    "dialog_create_group_action": {
+      "message": "Create group",
+      "description": "ACTION label on the new-group dialog. Sibling TITLE is dialog_new_group_title. Names the act rather than Save, because nothing is being saved over."
+    },
+    "dialog_rename_group_title": {
+      "message": "Rename group",
+      "description": "TITLE of the text-input dialog that renames a shortcut group. Sibling FIELD LABEL is dialog_group_name_field; sibling ACTION is common_save."
+    },
     "license_remove_confirm": {
       "description": "SENTENCE of the confirm shown before a Pro licence key is cleared. Names the consequence and its remedy in the same breath: access stops, and it comes back on re-entering a valid key. The loss is real but RECOVERABLE, which is why this one does not say 'cannot be undone' and must not be given that phrasing in translation. Native confirm(), so no sibling button keys.",
       "message": "Remove this license? You'll lose Pro access until you re-enter a valid key.",

@@ -6467,6 +6467,12 @@
 
   var tasksModalEl = null;
   var tasksModalEscapeHandler = null;
+  // [1.12] Added with the native-dialog replacement. A native confirm restores
+  // focus and traps the tab ring for free; a page modal does neither, and
+  // openTasksModal did neither before this round.
+  var tasksModalOpener = null;      // the control that opened it, to focus on close
+  var tasksModalTrapHandler = null; // Tab containment
+  var tasksModalOnDestroy = null;   // settles a pending decision if we are torn down
   var tasksContextMenuEl = null;
   var tasksContextMenuOutsideHandler = null;
   var tasksContextMenuEscapeHandler = null;
@@ -6476,10 +6482,34 @@
       document.removeEventListener("keydown", tasksModalEscapeHandler);
       tasksModalEscapeHandler = null;
     }
+    if (tasksModalTrapHandler) {
+      document.removeEventListener("keydown", tasksModalTrapHandler, true);
+      tasksModalTrapHandler = null;
+    }
+    // SETTLE ANY PENDING DECISION FIRST, and this is the one that would
+    // otherwise recreate P30 in a new costume. openTasksModal is
+    // single-instance: it closes the live modal on entry. So a confirm raised
+    // while another modal is open destroys its opener WITHOUT either callback
+    // firing - and an awaiting caller would then wait forever, with a live
+    // page and no error, which is exactly the twenty minutes of silence P30
+    // was written about. A destroyed dialog resolves as CANCEL.
+    var onDestroy = tasksModalOnDestroy;
+    tasksModalOnDestroy = null;
+    if (typeof onDestroy === "function") { try { onDestroy(); } catch (e) {} }
+
     if (tasksModalEl && tasksModalEl.parentNode) {
       tasksModalEl.parentNode.removeChild(tasksModalEl);
     }
     tasksModalEl = null;
+
+    // Focus returns to whatever opened it. Guarded: the opener can have been
+    // re-rendered away underneath the dialog (a context menu usually has), in
+    // which case focusing it would throw or focus a detached node.
+    var opener = tasksModalOpener;
+    tasksModalOpener = null;
+    if (opener && document.contains(opener) && typeof opener.focus === "function") {
+      try { opener.focus(); } catch (e2) {}
+    }
   }
 
   // Single open-at-a-time modal. opts:
@@ -6493,7 +6523,14 @@
   //                   (e.g., validation failure surfaces an inline error)
   //   onCancel()    — called on cancel / backdrop / Escape (optional)
   function openTasksModal(opts) {
+    // BEFORE closeTasksModal(), or a nested confirm records the previous
+    // modal's own button as the opener and returns focus into a dead node.
+    var opener = document.activeElement;
     closeTasksModal();
+    if (opener && opener !== document.body && document.contains(opener)) {
+      tasksModalOpener = opener;
+    }
+    tasksModalOnDestroy = (typeof opts.onDestroy === "function") ? opts.onDestroy : null;
     var overlay = document.createElement("div");
     overlay.className = "tt-modal-overlay";
     var titleHtml = opts.title ? '<div class="tt-modal-title">' + escapeHtml(opts.title) + '</div>' : "";
@@ -6579,6 +6616,29 @@
     };
     document.addEventListener("keydown", tasksModalEscapeHandler);
 
+    // FOCUS TRAP. A native dialog is modal to the whole window; this one is a
+    // div, so without this Tab walks straight out of it and into the page
+    // behind. Capture phase, so it wins over anything the body has bound.
+    tasksModalTrapHandler = function (e) {
+      if (e.key !== "Tab" || !tasksModalEl) return;
+      var f = tasksModalEl.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      var list = Array.prototype.filter.call(f, function (el) {
+        return !el.disabled && el.offsetParent !== null;
+      });
+      if (!list.length) return;
+      var first = list[0], last = list[list.length - 1];
+      if (!tasksModalEl.contains(document.activeElement)) {
+        e.preventDefault(); first.focus(); return;
+      }
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault(); last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault(); first.focus();
+      }
+    };
+    document.addEventListener("keydown", tasksModalTrapHandler, true);
+
     if (typeof opts.onMounted === "function") {
       opts.onMounted(overlay);
     }
@@ -6603,6 +6663,82 @@
     return overlay;
   }
 
+  // ===== [1.12] AWAITABLE DIALOGS - THE NATIVE-DIALOG REPLACEMENT =========
+  //
+  // A native confirm() RETURNS A VALUE SYNCHRONOUSLY. openTasksModal is
+  // callback-shaped and returns its overlay element, so a call site cannot
+  // simply swap one for the other - it has to be able to await a decision.
+  // These two wrap the existing modal rather than replacing it, so every one
+  // of the ~100 existing callback callers is untouched.
+  //
+  // BOTH ALWAYS SETTLE. Each passes onDestroy, so a dialog torn down by
+  // another modal opening resolves as cancel instead of stranding its caller
+  // (see closeTasksModal). `settled` guards double-resolution, which is
+  // harmless for a Promise but makes the intent explicit.
+
+  // Resolves TRUE only on the primary. Cancel, Escape, the X, an overlay
+  // click and a teardown all resolve FALSE - the safe answer for a
+  // destructive question.
+  function confirmModal(opts) {
+    return new Promise(function (resolve) {
+      var settled = false;
+      function done(v) { if (!settled) { settled = true; resolve(v); } }
+      openTasksConfirmModal({
+        title: opts.title,
+        message: opts.message,
+        confirmLabel: opts.confirmLabel,
+        dangerous: !!opts.dangerous,
+        onConfirm: function () { done(true); },
+        onCancel: function () { done(false); },
+        onDestroy: function () { done(false); }
+      });
+    });
+  }
+
+  // The prompt() substitution, and it is a DIFFERENT shape: a prompt returns a
+  // STRING or null, where a confirm returns a decision. Resolves with the
+  // trimmed value on the primary, or null on every dismissal path - matching
+  // native prompt(), which returns null on cancel and "" on an empty accept.
+  // Enter in the field submits, because native prompt does.
+  function promptModal(opts) {
+    return new Promise(function (resolve) {
+      var settled = false;
+      function done(v) { if (!settled) { settled = true; resolve(v); } }
+      openTasksModal({
+        title: opts.title,
+        bodyHtml:
+          '<div class="tt-modal-row">' +
+            (opts.label
+              ? '<label class="tt-modal-label" for="tt-prompt-input">' +
+                  escapeHtml(opts.label) + '</label>'
+              : "") +
+            '<input type="text" id="tt-prompt-input" class="tt-prompt-input"' +
+              ' value="' + escapeHtml(opts.value == null ? "" : String(opts.value)) + '"' +
+              (opts.maxLength ? ' maxlength="' + opts.maxLength + '"' : "") + '>' +
+          '</div>',
+        primaryLabel: opts.primaryLabel || t("common_save"),
+        // Left as the default so openTasksModal focuses the field and SELECTS
+        // its text, which is what a native prompt does with a default value.
+        onMounted: function (overlay) {
+          var input = overlay.querySelector(".tt-prompt-input");
+          if (!input) return;
+          input.addEventListener("keydown", function (e) {
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            var primary = overlay.querySelector(".tt-modal-primary");
+            if (primary) primary.click();
+          });
+        },
+        onPrimary: function (overlay) {
+          var input = overlay.querySelector(".tt-prompt-input");
+          done(input ? input.value.trim() : "");
+        },
+        onCancel: function () { done(null); },
+        onDestroy: function () { done(null); }
+      });
+    });
+  }
+
   // Confirmation modal. Default focus is on Cancel per PLAN D5 — Enter on
   // the focused Cancel button activates Cancel; Delete requires explicit
   // click or Tab+Enter. Prevents accidental deletes from Enter-spam.
@@ -6614,6 +6750,7 @@
       dangerous: !!opts.dangerous,
       defaultFocus: "cancel",
       onPrimary: opts.onConfirm,
+      onDestroy: opts.onDestroy,
       // [1.1.3] Forwarded so a caller can restore whatever this modal replaced.
       // openTasksModal is SINGLE-INSTANCE (it closes the live one on entry), so a
       // confirm raised from another modal destroys its opener; the notes trash
@@ -9084,7 +9221,12 @@
       showToast(t("delete_you_need_at_least_one_workspace"));
       return;
     }
-    var ok = window.confirm(t("workspace_delete_confirm", { name: ws.name }));
+    var ok = await confirmModal({
+      title: t("dialog_delete_workspace_title"),
+      message: t("workspace_delete_confirm", { name: ws.name }),
+      confirmLabel: t("dialog_delete_workspace_action"),
+      dangerous: true
+    });
     if (!ok) return;
     data.workspaces = data.workspaces.filter(function (w) { return w.id !== id; });
     data.workspaceOrder = data.workspaceOrder.filter(function (wid) { return wid !== id; });
@@ -10477,7 +10619,12 @@
       showToast(t("license_no_license_to_clear"));
       return;
     }
-    var ok = window.confirm(t("license_remove_confirm"));
+    var ok = await confirmModal({
+      title: t("dialog_remove_license_title"),
+      message: t("license_remove_confirm"),
+      confirmLabel: t("dialog_remove_license_action"),
+      dangerous: true
+    });
     if (!ok) return;
     ProAccess.clearLicense(data);
     await Storage.saveAll(data);
@@ -13977,7 +14124,13 @@
       if (envelope.exportedAt) {
         try { dateStr = new Date(envelope.exportedAt).toLocaleDateString(); } catch (e) {}
       }
-      if (!confirm(backupConfirmMessage(parsed, dateStr))) return;
+      var okRestore = await confirmModal({
+        title: t("dialog_restore_backup_title"),
+        message: backupConfirmMessage(parsed, dateStr),
+        confirmLabel: t("dialog_restore_backup_action"),
+        dangerous: true
+      });
+      if (!okRestore) return;
 
       // Recovery copy of EVERY store this import can touch, so the revert is as
       // complete as the restore.
@@ -14459,7 +14612,11 @@
     if (action === "rename") {
       // Prompt for new label
       var currentLabel = item.title || "";
-      var newLabel = prompt(t("variant_rename_variant"), currentLabel);
+      var newLabel = await promptModal({
+        title: t("dialog_rename_variant_title"),
+        label: t("dialog_variant_label_field"),
+        value: currentLabel
+      });
       if (newLabel !== null && newLabel.trim()) {
         var g = findGroup(groupId);
         if (!g) return;
@@ -17800,7 +17957,13 @@
     } else if (action === "delete") {
       var hasVariants = shortcut.variants && shortcut.variants.length > 0;
       if (hasVariants) {
-        if (!confirm(t("shortcut_delete_variants_confirm", { count: shortcut.variants.length }))) return;
+        var okVariants = await confirmModal({
+          title: t("dialog_delete_variants_title"),
+          message: t("shortcut_delete_variants_confirm", { count: shortcut.variants.length }),
+          confirmLabel: t("dialog_delete_variants_action"),
+          dangerous: true
+        });
+        if (!okVariants) return;
       }
       group.shortcuts = group.shortcuts.filter(function (s) { return s.id !== shortcutId; });
       await Storage.saveAll(data);
@@ -18337,7 +18500,11 @@
       return;
     }
     var suggested = "Session " + (sessionsForRender().length + 1);
-    var name = prompt(t("save_name_this_session"), suggested);
+    var name = await promptModal({
+      title: t("dialog_name_session_title"),
+      label: t("dialog_session_name_field"),
+      value: suggested
+    });
     if (name === null) return;
 
     var ws = Storage.getActiveWorkspace(data);
@@ -19047,7 +19214,11 @@
     if (!s) return;
 
     if (action === "rename") {
-      var next = prompt(t("session_rename_session"), s.name || "");
+      var next = await promptModal({
+        title: t("dialog_rename_session_title"),
+        label: t("dialog_session_name_field"),
+        value: s.name || ""
+      });
       if (next === null) return;
       Storage.updateNamedSession(data, id, { name: String(next).trim() });
       await Storage.saveAll(data);
@@ -21140,7 +21311,12 @@
     if (modalState.mode === "add") {
       // Check for domain match — offer to nest
       var existingMatch = findDomainMatchInGroup(modalState.groupId, url);
-      if (existingMatch && confirm(t("addshortcut_domain_exists_nest", { domain: getBaseDomain(url) || url, existingName: existingMatch.title || "" }))) {
+      var okNest = existingMatch && await confirmModal({
+        title: t("dialog_nest_existing_title"),
+        message: t("addshortcut_domain_exists_nest", { domain: getBaseDomain(url) || url, existingName: existingMatch.title || "" }),
+        confirmLabel: t("dialog_nest_existing_action")
+      });
+      if (okNest) {
         if (!existingMatch.variants) existingMatch.variants = [];
         var variantTitle = name || generateVariantLabel(existingMatch.url, url, name, existingMatch.title);
         existingMatch.variants.push({
@@ -21208,7 +21384,12 @@
       showToast(t("add_this_workspace_is_read_only"));
       return;
     }
-    var name = prompt(t("add_group_name"));
+    var name = await promptModal({
+      title: t("dialog_new_group_title"),
+      label: t("dialog_group_name_field"),
+      primaryLabel: t("dialog_create_group_action"),
+      value: ""
+    });
     if (!name || !name.trim()) return;
     await Storage.addGroup(name.trim());
     render();
@@ -21320,7 +21501,7 @@
     }
   }
 
-  function handleGroupMenuAction(action) {
+  async function handleGroupMenuAction(action) {
     var groupId = activeGroupMenu;
 
     // [1.0.9.2 round 3] Add-tag opens tag submenu as a sibling popover and
@@ -21357,7 +21538,11 @@
         // Fallback: prompt rename
         var group = findGroup(groupId);
         if (!group) return;
-        var newName = prompt(t("group_rename_group"), group.name);
+        var newName = await promptModal({
+          title: t("dialog_rename_group_title"),
+          label: t("dialog_group_name_field"),
+          value: group.name
+        });
         if (newName && newName.trim() && newName.trim() !== group.name) {
           group.name = newName.trim();
           Storage.saveAll(data).then(function () {
