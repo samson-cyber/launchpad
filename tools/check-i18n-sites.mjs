@@ -144,6 +144,13 @@ const EXCLUDE = [
   { name: "const-case",    re: /^[A-Z0-9_]+$/ },                // SCREAMING_CASE constants
   { name: "entity-only",   re: /^(&[a-z]+;|&#\d+;|\s)+$/i },
   { name: "format-spec",   re: /^[%\d\s.:+\-/]*$/ },
+  // A GLYPH SPELLED AS AN ESCAPE IS NOT PROSE. "\u22EE" is the three-dot menu
+  // icon; the tokenizer reads the six SOURCE characters, so "u22EE" scores as
+  // two consecutive letters and the string reads as a sentence. Same family as
+  // entity-only, and deliberately requires the WHOLE string to be escapes,
+  // punctuation or symbols - " \u00B7 on " keeps its "on", which is a real
+  // preposition joining a session to its task and is genuinely translatable.
+  { name: "escape-glyph",  re: /^(?:\\u[0-9A-Fa-f]{4}|\\x[0-9A-Fa-f]{2}|\\[nrt]|[\s\p{P}\p{S}])+$/u },
 ];
 const isExcluded = (s) => EXCLUDE.find((e) => e.re.test(s.trim()));
 
@@ -326,6 +333,279 @@ function markupMisuse(src, file) {
   }
   return out;
 }
+// ===========================================================================
+// CONCATENATED PROSE ([1.5.0] blocker, Asana 1218050333264862)
+//
+// THE BLIND SPOT. Every pattern above reads SOURCE TEXT. `html-text` needs a
+// `>` and a `<` inside ONE string literal, so a sentence assembled ACROSS a
+// concatenation is invisible to all of them. The decisive illustration was two
+// lines apart in one dashboard headline:
+//
+//   '<div class="pp-dash-card-title">That's the day</div>'      CAUGHT
+//   (open === 1 ? 'One still on the board.' : 'Still a few...')  INVISIBLE
+//
+// The second is a user-facing sentence that lands between two markup fragments.
+// No amount of care with `>` and `<` can see it, because neither character is
+// in the literal that holds the prose.
+//
+// WHY NOT A FOURTH REGEX. The task warned against it and the warning is right:
+// the shape crosses line breaks, parentheses and a ternary, and a regex that
+// spans those reliably is one that also matches things it should not. Three
+// patterns each with a blind spot plus a fourth bolted on is how P8's family
+// gets built, and this repo has already found one gate whose regex could
+// satisfy itself from a different rule than the one it named.
+//
+// WHY NOT AN AST. It is the most honest instrument and it was rejected on cost
+// rather than on merit: this repo has ZERO dependencies and no node_modules by
+// design, `build.sh` gates the shipped file list, and acorn/espree are not
+// available. Adding a parser to run one gate is a larger change than the gate.
+//
+// WHAT THIS IS INSTEAD: a CHAIN SCANNER over the literal token stream. The gate
+// already tokenizes string literals; what it never did was RELATE two adjacent
+// ones. This walks the literals in order and asks what separates each from the
+// next. If the glue is concatenation - and not an argument comma, a statement
+// break or an object brace - the literals belong to one expression, and that
+// expression can be judged as a whole.
+//
+// It reasons about the EXPRESSION rather than the characters, which is why it
+// crosses the line break, the parentheses and the ternary that defeated the
+// regexes. It is not an AST and does not pretend to be; its limits are listed
+// in the coverage report the gate prints, because a number without its
+// coverage statement is the thing this whole task exists to prevent.
+//
+// NO DOUBLE COUNTING WITH html-text, and the rule is exact rather than
+// approximate. html-text owns text bracketed by `>` and `<` INSIDE one literal.
+// This owns only the complement: the run BEFORE a literal's first `<` and the
+// run AFTER its last `>`. Those are precisely the runs that continue into the
+// concatenation, and precisely the ones html-text cannot see. R3's history is
+// the reason for the care - `el.title = "x"` matched two patterns at once and
+// inflated the totals by every such line for three rounds.
+// ===========================================================================
+
+// Glue that keeps two literals in the same expression. A comma separates
+// arguments or object entries, a semicolon ends a statement, and a brace opens
+// a different scope - any of those and the two literals are NOT one sentence
+// being built. Requiring one of + ? : keeps `foo('a') bar('b')` apart while
+// letting a ternary's two branches stay together, which is the exact shape of
+// the dashboard headline this was written for.
+const CHAIN_BREAK = /[,;{}]/;
+const CHAIN_JOIN = /[+?:]/;
+
+// A literal is part of MARKUP construction if any literal in its chain opens or
+// closes a tag. Without this a SQL string or a log message assembled from parts
+// would score as user-facing markup.
+const CONCAT_TAG = /<\s*\/?\s*[a-zA-Z][-\w]*|\/\s*>/;
+
+// ===========================================================================
+// COVERAGE PROBES — the statement that has to travel with the number.
+//
+// Three times in this arc a null result was read as "nothing" rather than
+// "nothing where I looked": the site gate read complete and a runtime probe
+// found 81 more; the probe read complete and a static scan found 350 more; the
+// static scan read complete and a whole CONSTRUCTION SHAPE was invisible. Each
+// instrument was believed because it reported a number and said nothing about
+// its own edges.
+//
+// So the edges are MECHANICAL here rather than prose. Every shape below is run
+// through the real scanner on every gate start and reported as seen or blind.
+// Nobody has to remember to update a comment: if someone later teaches the gate
+// template literals, that row flips by itself. A shape marked `blind` that
+// starts being seen is an improvement and is announced, not failed; a shape
+// marked `seen` that goes blind is a BROKEN gate.
+// ===========================================================================
+const COVERAGE_PROBES = [
+  { name: "prose across a concatenation", expect: "seen",
+    src: `var a = '<div class="h">' + 'One still on the board.' + '</div>';` },
+  { name: "prose in a ternary between fragments", expect: "seen",
+    src: `var b = '<div>' + (n === 1 ? 'One left.' : 'A few left.') + '</div>';` },
+  { name: "prose trailing an unclosed fragment", expect: "seen",
+    src: `var c = '<p class="m">This is an instance of a task. ' + x + '</p>';` },
+  { name: "prose inside one literal (html-text)", expect: "seen",
+    src: `var d = '<span class="x">Save current tabs</span>';` },
+
+  // ---- the edges, and each one is a real shape in this codebase ----
+  { name: "TEMPLATE LITERAL", expect: "blind",
+    src: "var e = `<div class=\"h\">${n} still on the board.</div>`;" },
+  // THIS ROW WAS WRITTEN AS `blind` AND THE PROBE SAID OTHERWISE on its first
+  // run. A callback that builds its whole fragment internally is one chain like
+  // any other - the braces sit OUTSIDE the glue, not in it. The round's
+  // assumption was wrong and the probe is why that is known rather than
+  // believed.
+  { name: "markup built wholly inside a .map() callback", expect: "seen",
+    src: `var f = items.map(function (i) { return '<li>' + 'Open in a new tab' + '</li>'; }).join("");` },
+  // The genuinely blind half of the same family: the tag is opened before the
+  // map and closed after it, so no single chain holds both the markup and the
+  // prose.
+  { name: "markup opened outside a .map(), closed after", expect: "blind",
+    src: `var f2 = '<ul>' + items.map(function (i) { return 'Nothing here yet.'; }).join("") + '</ul>';` },
+  { name: "assembled with += across statements", expect: "blind",
+    src: `var g = '<ul>'; g += 'Nothing here yet.'; g += '</ul>';` },
+  { name: "prose returned by a helper, markup built elsewhere", expect: "blind",
+    src: `function lbl() { return 'Nothing here yet.'; }\nvar h = '<div>' + lbl() + '</div>';` },
+  { name: "prose in an array consumed later", expect: "blind",
+    src: `var i3 = ['Daily', 'Weekly', 'Monthly'];\nvar j3 = '<b>' + i3[0] + '</b>';` },
+  { name: "textContent from a variable set elsewhere", expect: "blind",
+    src: `var k3 = 'Nothing in the trash.';\nfunction z(el) { el.textContent = k3; }` },
+];
+
+function runCoverage() {
+  const rows = [];
+  for (const probe of COVERAGE_PROBES) {
+    const prepared = blankConsole(stripComments(probe.src));
+    const hits = scan(prepared, "<probe>").filter((x) => x.verdict === "violation");
+    rows.push({ name: probe.name, expect: probe.expect, seen: hits.length > 0 });
+  }
+  return rows;
+}
+
+function literalTokens(src) {
+  const re = new RegExp(STR, "g");
+  const out = [];
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    out.push({ start: m.index, end: m.index + m[0].length, value: m[0].slice(1, -1) });
+  }
+  return out;
+}
+
+// WALKING THE CHAIN AS MARKUP, WITH PROVENANCE - and the first cut of this did
+// it per-literal, which was wrong in a way worth recording.
+//
+// Taking "everything before a literal's first `<`" as a text run assumes every
+// literal starts OUTSIDE a tag. Many do not: `'vector-effect="non-scaling-
+// stroke"></circle>'` opens inside a tag its predecessor left open, and
+// `'">&times;</button>'` opens inside an attribute value. Per-literal, both read
+// as prose and both were false positives on the first run.
+//
+// A chain is one markup document assembled from parts, so it is walked as one.
+// The literals are concatenated with a one-character SENTINEL standing for each
+// interpolated expression, a map records which segment every character came
+// from, and the combined string is walked tag by tag. A text run then belongs
+// to this detector when it touches MORE THAN ONE SEGMENT - which is exactly the
+// definition of "continues across the concatenation", and exactly what
+// html-text cannot see. A run inside a single literal is html-text's and is
+// left alone, so the two can never count the same sentence twice.
+const EXPR_SENTINEL = "\u0001";
+
+function chainProse(chain) {
+  const segs = [];
+  for (let k = 0; k < chain.length; k++) {
+    if (k > 0) segs.push({ lit: null, text: EXPR_SENTINEL });
+    segs.push({ lit: chain[k], text: chain[k].value });
+  }
+  let combined = "";
+  const owner = [];
+  for (const seg of segs) {
+    for (let q = 0; q < seg.text.length; q++) owner.push(seg);
+    combined += seg.text;
+  }
+
+  const found = [];
+  const takeRun = (from, to) => {
+    if (to <= from) return;
+    const touched = new Set(owner.slice(from, to));
+    // One segment means the run never leaves its literal: html-text's job.
+    if (touched.size <= 1) return;
+    for (const seg of touched) {
+      if (!seg.lit) continue;
+      // The portion of THIS literal that falls inside the run, reported on its
+      // own line so a ternary's two branches stay two separate sentences rather
+      // than one glued impossibility.
+      let piece = "";
+      for (let q = from; q < to; q++) if (owner[q] === seg) piece += combined[q];
+      // No attribute-glue trim here, deliberately. An earlier cut carried one;
+      // mutation testing showed it could be disabled without changing a single
+      // site, because this walk only ever hands out text from BETWEEN tags and
+      // glue lives inside them. If a future change lets a run start inside a
+      // tag, that trim comes back WITH a fixture that fails without it.
+      const text = piece.trim();
+      if (isProse(text)) found.push({ lit: seg.lit, text });
+    }
+  };
+
+  // A CHAIN CAN START INSIDE A TAG, and assuming otherwise was the last false
+  // positive. `' style="--note-paper: ' + v + ';"></button>'` is a chain whose
+  // `<button` lives in an earlier literal that a comma split away, so the walk
+  // begins mid-attribute and read `style="--note-paper:` as a sentence. A `>`
+  // appearing before any `<` is exactly the signature of that, and the fix is
+  // to skip to it: whatever precedes it was inside a tag.
+  let i = 0;
+  const firstGt = combined.indexOf(">"), firstLt = combined.indexOf("<");
+  if (firstGt !== -1 && (firstLt === -1 || firstGt < firstLt)) i = firstGt + 1;
+  while (i < combined.length) {
+    const lt = combined.indexOf("<", i);
+    if (lt === -1) { takeRun(i, combined.length); break; }
+    takeRun(i, lt);
+    const gt = combined.indexOf(">", lt);
+    if (gt === -1) break;                 // a tag this chain never closes
+    i = gt + 1;
+  }
+  return found;
+}
+
+function scanConcatProse(src, file) {
+  const toks = literalTokens(src);
+  const sites = [];
+  let i = 0;
+  while (i < toks.length) {
+    // Grow a chain while the glue keeps the literals in one expression.
+    let j = i;
+    while (j + 1 < toks.length) {
+      const glue = src.slice(toks[j].end, toks[j + 1].start);
+      if (CHAIN_BREAK.test(glue) || !CHAIN_JOIN.test(glue)) break;
+      j++;
+    }
+    const chain = toks.slice(i, j + 1);
+    if (chain.length > 1 && chain.some((t) => CONCAT_TAG.test(t.value))) {
+      for (const hit of chainProse(chain)) {
+        sites.push({ file, pattern: "concat-text", verdict: "violation", text: hit.text,
+                     line: src.slice(0, hit.lit.start).split("\n").length });
+      }
+    }
+    i = j + 1;
+  }
+  return sites;
+}
+
+// SELF-TEST, and it is the NEGATIVE MUTANT the task requires rather than a
+// decoration. A detector extended for a shape it still cannot see reports a
+// bigger number and reads as fixed, which is how the previous three instances
+// of this happened. So the gate refuses to run unless it can prove, on every
+// start, that it sees the exact shape it was extended for AND stays quiet on
+// the two things nearest to it.
+const CONCAT_FIXTURE_SEEN = [
+  // the dashboard headline, verbatim in shape: prose in a ternary between two
+  // markup fragments, across a line break
+  `var a = '<div class="h">' +\n  (n === 1 ? 'One still on the board.' : 'Still a few on the board.') +\n'</div>';`,
+  // prose trailing a markup fragment, with no closing tag in its own literal
+  `var b = '<p class="m">This is an instance of a recurring task. ' + x + '</p>';`,
+  // a bare label between two fragments
+  `var c = '<button type="button">' + 'Clear examples' + '</button>';`,
+];
+const CONCAT_FIXTURE_QUIET = [
+  // NOT markup: no tag anywhere in the chain, so nothing here reaches a user
+  // as HTML. Flagging it would make every assembled log line a violation.
+  `var d = 'SELECT * FROM ' + table + ' WHERE id = ' + id;`,
+  // attribute glue, which has letters and is in no EXCLUDE class - the nearest
+  // false positive to the real shape
+  `var e = '<button' + ' aria-disabled="' + flag + '">' + '</button>';`,
+  // ALREADY COMPLIANT and fully inside one literal: html-text's territory, and
+  // counting it here would double-count exactly as R3's title/dom-assign did
+  `var f = '<span>Save current tabs</span>' + '<i></i>';`,
+  // A literal that OPENS INSIDE A TAG its predecessor left open. The first cut
+  // of this detector read "vector-effect=..." as a sentence.
+  `var g = '<circle class="r" ' + 'vector-effect="non-scaling-stroke"></circle>' + '';`,
+  // A literal that OPENS INSIDE AN ATTRIBUTE VALUE. The first cut read
+  // '">&times;' as prose, entity and all.
+  `var h = '<button title="' + k + '">&times;</button>' + '';`,
+  // CSS inside a style attribute, which has letters and colons and is not a
+  // sentence. The first cut reported ';color:'.
+  `var i2 = '<span style="background:' + c1 + ';color:' + c2 + '">' + n + '</span>';`,
+  // A chain that BEGINS INSIDE A TAG, its opener split away by a comma in a
+  // neighbouring call. The second cut reported 'style="--note-paper:'.
+  `var k = ' style="--note-paper: ' + v + ';"></button>';`,
+];
+
 function literalOf(arg) {
   const m = String(arg).trim().match(new RegExp(`^${STR}`));
   if (!m) return null;
@@ -355,6 +635,10 @@ function scan(src, file) {
                    line: src.slice(0, m.index).split("\n").length });
     }
   }
+  // The chain scanner runs over the same prepared source the patterns do -
+  // comments stripped, consoles blanked - so it inherits every exclusion they
+  // already earned rather than re-deriving them.
+  for (const c of scanConcatProse(src, file)) sites.push(c);
   return sites;
 }
 
@@ -625,6 +909,28 @@ for (const p of PATTERNS) {
   p.re.lastIndex = 0;
   if (!p.re.test(FIXTURE)) selfMissed.push(p.id);
 }
+// The concat scanner is not a regex, so the PATTERNS self-test above cannot
+// exercise it. This is its equivalent, and it runs in BOTH directions.
+for (const fx of CONCAT_FIXTURE_SEEN) {
+  if (scanConcatProse(fx, "<fixture>").length === 0) {
+    selfMissed.push("concat-text (blind to the shape it exists for: " +
+      fx.split("\n")[0].slice(0, 46) + "...)");
+  }
+}
+const coverage = runCoverage();
+for (const row of coverage) {
+  // A shape the gate is supposed to SEE going blind is the gate breaking. The
+  // reverse - a `blind` row starting to be seen - is an improvement, reported
+  // in the coverage block rather than failed here.
+  if (row.expect === "seen" && !row.seen) selfMissed.push("coverage: blind to " + row.name);
+}
+for (const fx of CONCAT_FIXTURE_QUIET) {
+  const got = scanConcatProse(fx, "<fixture>");
+  if (got.length !== 0) {
+    selfMissed.push("concat-text (false positive on " +
+      fx.split("\n")[0].slice(0, 40) + "... -> " + JSON.stringify(got[0].text) + ")");
+  }
+}
 
 const byPattern = {};
 for (const s of sites) {
@@ -643,9 +949,9 @@ console.log("I18N SITE GATE — " + (ENFORCING ? "ENFORCING" : "SKELETON (not en
 console.log("");
 console.log("  pattern         sites   hardcoded   via t()/th()");
 console.log("  " + "-".repeat(52));
-for (const p of PATTERNS) {
-  const b = byPattern[p.id] || { total: 0, violation: 0, compliant: 0 };
-  console.log("  " + p.id.padEnd(14) + String(b.total).padStart(6) +
+for (const p of PATTERNS.map((x) => x.id).concat(["concat-text"])) {
+  const b = byPattern[p] || { total: 0, violation: 0, compliant: 0 };
+  console.log("  " + p.padEnd(14) + String(b.total).padStart(6) +
               String(b.violation).padStart(12) + String(b.compliant).padStart(15));
 }
 console.log("  " + "-".repeat(52));
@@ -672,6 +978,13 @@ if (process.env.I18N_DEBUG) {
   for (const k of Object.keys(per).sort()) console.log("   " + k.padEnd(36) + per[k]);
   console.log("");
 }
+console.log("");
+console.log("  WHAT THIS GATE CAN AND CANNOT SEE (probed on this run, not asserted)");
+for (const row of coverage) {
+  const drift = row.expect === "blind" && row.seen ? "   <-- now SEEN; update expect" : "";
+  console.log("    " + (row.seen ? "sees " : "BLIND") + "  " + row.name + drift);
+}
+console.log("");
 console.log("  string literals tokenized : " + literals + "  (floor " + LITERAL_FLOOR + ")");
 console.log("  construction sites found  : " + sites.length + "  (floor " + SITE_FLOOR + ")");
 
