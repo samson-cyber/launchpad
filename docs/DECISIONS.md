@@ -3227,8 +3227,12 @@ reason this entry exists, and it should be quoted whenever the 0 is.
 
 - **At least 50 sites holding roughly 94 user-facing strings remain hardcoded.**
   50 is the number to defend; 94 is an order of magnitude, not an exact figure.
-- They sit in **5 shapes the coverage probe reports as BLIND**, two of which were
-  only named in `ca998f7` - before that commit the probe's own list read as an
+- The probe reports **8 BLIND shapes**. Five of them measured genuinely EMPTY,
+  each with a positive and a negative control so the zero means the shape is
+  absent rather than the instrument silent. **The 50 sites sit in the other
+  three**: prose returned by a helper, a sentence assembled into a sink with no
+  markup anywhere, and a counted phrase in a ternary. The last two were only
+  named in `ca998f7` - before that commit the probe's own list read as an
   exhaustive account and was not one.
 - **The four shapes this task named in August 2026 are all still among them**:
   "3 tabs", "1 unfinished task", "Trash / n" and "X and Y are different sites".
