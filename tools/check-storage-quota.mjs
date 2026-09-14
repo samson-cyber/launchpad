@@ -25,8 +25,24 @@
 // profile it reported as having ZERO bytes free still accepted a ~306-byte
 // write, while a ~45-byte one had been refused with 21 bytes reportedly free.
 // A gate that only sometimes exercises its path is worse than one that never
-// claims to, so the refusal is injected here and the USER-VISIBLE half (toast,
-// revert) is verified live instead.
+// claims to, so the refusal is injected here.
+//
+// AND THE SECOND SUBJECT, ADDED 2026-09-14: THE PAGE-SIDE WIRING.
+// The line above used to end "...and the USER-VISIBLE half (toast, revert) is
+// verified live instead", and that was the whole hazard. A live pass is run
+// once, by hand, in the round that writes it; it is not a gate. Every property
+// below concerns storage.js, so DELETING newtab.js's one-line
+// `Storage.onWriteFail(...)` registration removed the entire user-facing half
+// of this feature and left all 15 rows GREEN - measured, by seeding exactly
+// that deletion. storage.js would still faithfully report a failure to a hook
+// nobody had registered.
+//
+// This is the I8 split the ledger already names: RUNTIME PROVES THE BEHAVIOUR,
+// A GATE PROVES THE WIRING. The behavioural half stays in the VM; the wiring
+// half is necessarily STATIC, because newtab.js is one ~22,000-line IIFE that
+// exports nothing and needs a DOM (BUGS.md I27) - there is no way to boot it
+// and ask. So it is read as text, and every wiring row carries its own
+// mutation seed so a row that stops meaning anything says so.
 //
 // Usage:
 //   node tools/check-storage-quota.mjs [repoRoot]            clean run (the gate)
@@ -276,6 +292,107 @@ const SEEDS = [
     replace: "    await saveAll(data);", expect: 2 },
 ];
 
+// ------------------------------------------------------- the wiring subjects
+// Read as text, for the reason given in the header: newtab.js cannot be booted.
+const PAGE = "newtab.js";
+const CATALOGUE = "locales/en.js";
+
+function readAux(name) {
+  return fs.readFileSync(path.join(repoRoot, name), "utf8").replace(/\r\n/g, "\n");
+}
+
+// The three strings the surface actually renders. Named once, because both the
+// wiring rows and the catalogue rows have to agree about them.
+const FAIL_KEYS = ["storage_full_change_not_saved", "storage_write_failed"];
+const WARN_KEY = "storage_nearly_full";
+
+function wiringSuite(page, catalogue) {
+  const rows = [];
+  const chk = (name, ok, extra = "") => rows.push({ name, ok: !!ok, extra });
+
+  // W1. THE REGISTRATION EXISTS. Without this single line every behavioural row
+  //     above still passes and the user is told nothing at all. It is the one
+  //     that caught nothing before today because nothing was looking.
+  const registers = /Storage\.onWriteFail\s*\(/.test(page);
+  chk("the PAGE registers a write-failure handler", registers);
+
+  // W2. ...AND IT REGISTERS A REAL HANDLER, not null. Storage.onWriteFail(null)
+  //     is the documented way to UNREGISTER, so a registration that passes W1
+  //     can still be a disconnection. This is the shape the live run used to
+  //     reproduce the pre-fix product, which is exactly why it is worth a row.
+  const realHandler = /Storage\.onWriteFail\s*\(\s*(function|\(|[A-Za-z_$])/.test(page) &&
+    !/Storage\.onWriteFail\s*\(\s*(null|undefined)\s*\)/.test(page);
+  chk("...and registers a function rather than unregistering", realHandler);
+
+  // W3. THE HANDLER TELLS THE USER. A hook that fires into a handler that does
+  //     nothing is the return-value trap wearing a different hat.
+  const toasts = FAIL_KEYS.every((k) => page.indexOf(k) !== -1);
+  chk("...and the handler renders one of the failure strings", toasts,
+    FAIL_KEYS.join(" + "));
+
+  // W4. THE HANDLER REVERTS. The toast alone is half honest - the user reads
+  //     "not saved" while looking straight at the change that was apparently
+  //     saved. Asserted as re-read AND re-render, because either alone leaves
+  //     the page showing something that is not on disk.
+  //     Counted rather than merely matched: `revertToPersistedState(` appears
+  //     in its own definition, so a page that DEFINES the revert and never
+  //     CALLS it satisfies a bare test() - the W5 lesson, one row earlier.
+  const revertCalls = page.split(/revertToPersistedState\s*\(/).length - 1;
+  const revertBody =
+    /async function revertToPersistedState[\s\S]{0,900}Storage\.getAll\s*\([\s\S]{0,400}render\s*\(/
+      .test(page);
+  chk("...and drops back to what is actually persisted", revertCalls >= 2 && revertBody,
+    revertCalls >= 2 ? (revertBody ? "called + re-reads + re-renders"
+      : "CALLED BUT DOES NOT RE-READ/RE-RENDER") : "DEFINED BUT NEVER CALLED");
+
+  // W5. THE PROACTIVE HALF IS CALLED, not merely defined. A warning function
+  //     nobody invokes is the same defect as a boolean nobody reads.
+  const defined = /function maybeWarnStoragePressure/.test(page);
+  const called = (page.split(/maybeWarnStoragePressure\s*\(/).length - 1) >= 2;
+  chk("the 80% pressure warning is CALLED, not just defined", defined && called,
+    defined ? (called ? "defined + called" : "defined but NEVER CALLED") : "not defined");
+
+  // W6. AND IT IS GATED ON THE THRESHOLD storage.js publishes, rather than on a
+  //     second copy of 0.8 that can drift away from it.
+  chk("...and reads its threshold from Storage.QUOTA_WARN_RATIO",
+    /Storage\.QUOTA_WARN_RATIO/.test(page));
+
+  // W7. THE STRINGS EXIST IN THE CATALOGUE. A t() call on a missing key renders
+  //     the key, so the surface would survive every row above and still show the
+  //     user "storage_full_change_not_saved".
+  const missing = FAIL_KEYS.concat([WARN_KEY])
+    .filter((k) => catalogue.indexOf('"' + k + '"') === -1);
+  chk("every storage string the page renders is in the catalogue",
+    missing.length === 0, missing.length ? "MISSING: " + missing.join(", ") : "3 of 3");
+
+  return rows;
+}
+
+// -------------------------------------------------- wiring mutation seeds
+// These mutate the PAGE, not the subject. Each is a way the user-facing half
+// could be lost without a single behavioural row noticing - which is precisely
+// what the pre-2026-09-14 gate allowed.
+const WIRING_SEEDS = [
+  { name: "the page stops registering the failure handler",
+    find: "  Storage.onWriteFail(function (info) { handleStorageWriteFailure(info); });",
+    replace: "" },
+  { name: "the page UNREGISTERS instead of registering",
+    find: "  Storage.onWriteFail(function (info) { handleStorageWriteFailure(info); });",
+    replace: "  Storage.onWriteFail(null);" },
+  { name: "the handler toasts but never calls the revert",
+    find: "    revertToPersistedState();",
+    replace: "    void 0;" },
+  { name: "the revert never re-reads what is actually on disk",
+    find: "      var persisted = await Storage.getAll();",
+    replace: "      var persisted = data;" },
+  { name: "the pressure warning is defined but never called",
+    find: "      maybeWarnStoragePressure().catch(function (err) {",
+    replace: "      Promise.resolve().catch(function (err) {" },
+  { name: "the warning threshold is hardcoded rather than read from storage.js",
+    find: "    if (usage.ratio < Storage.QUOTA_WARN_RATIO) return false;",
+    replace: "    if (usage.ratio < 0.8) return false;" },
+];
+
 // ---------------------------------------------------------------------- main
 const clean = readSubject();
 
@@ -295,8 +412,16 @@ if (args.includes("--boot-check")) {
 console.log("\nSTORAGE-QUOTA GATE — a refused write must never look like a successful one\n");
 
 let rows;
+let page, catalogue;
 try {
-  rows = await suite(clean);
+  page = readAux(PAGE);
+  catalogue = readAux(CATALOGUE);
+} catch (e) {
+  console.error("WIRING SUBJECT DID NOT LOAD — " + e.message);
+  process.exit(2);
+}
+try {
+  rows = (await suite(clean)).concat(wiringSuite(page, catalogue));
 } catch (e) {
   // P5/Q1: "the subject did not load" is never scored as a pass.
   console.error("SUBJECT DID NOT LOAD — " + e.message);
@@ -305,7 +430,7 @@ try {
 
 // ANTI-VACUITY (P2). A suite that silently stops producing rows passes forever
 // and reads exactly like one that checked everything and found nothing wrong.
-const ROW_FLOOR = 14;
+const ROW_FLOOR = 21;
 if (rows.length < ROW_FLOOR) {
   console.error(`GATE BROKEN — produced ${rows.length} rows, floor is ${ROW_FLOOR}.`);
   process.exit(2);
@@ -363,5 +488,28 @@ for (const s of SEEDS) {
     console.log(`           by: ${red.map((r) => r.name).slice(0, 2).join(" / ")}`);
   }
 }
-console.log(`\n  ${SEEDS.length - escaped - broken} killed, ${escaped} escaped, ${broken} broken`);
+
+// The wiring seeds mutate the PAGE and are scored against the WIRING rows
+// only, so a page mutant cannot be credited to a storage.js assertion.
+for (const s of WIRING_SEEDS) {
+  const want = s.expect === undefined ? 1 : s.expect;
+  const occurrences = page.split(s.find).length - 1;
+  if (occurrences !== want) {
+    broken++;
+    console.log(`  BROKEN SEED  ${s.name}`);
+    console.log(`               anchor matched ${occurrences} times, expected exactly ${want}`);
+    continue;
+  }
+  const red = wiringSuite(page.split(s.find).join(s.replace), catalogue).filter((r) => !r.ok);
+  if (red.length === 0) {
+    escaped++;
+    console.log(`  ESCAPED  ${s.name}`);
+  } else {
+    console.log(`  killed   ${s.name}`);
+    console.log(`           by: ${red.map((r) => r.name).slice(0, 2).join(" / ")}`);
+  }
+}
+
+const TOTAL_SEEDS = SEEDS.length + WIRING_SEEDS.length;
+console.log(`\n  ${TOTAL_SEEDS - escaped - broken} killed, ${escaped} escaped, ${broken} broken`);
 process.exit(escaped === 0 && broken === 0 ? 0 : 1);
