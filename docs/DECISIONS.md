@@ -3048,3 +3048,103 @@ that hero is a name the user already knows.
 **This is a recommendation, not a change.** Removing or shrinking the wordmark would give
 back roughly what the tab strip cost, and it is the strongest candidate this arc has produced
 for what Home should lose. It is Samson's call and it wants its own round.
+
+---
+
+## 2026-09-14 - Home's vertical cost is the header's 25vh padding, not the wordmark. Three findings tested and refuted.
+
+**Decision.** The wordmark **stays**, at its current size, and **nothing ships from this round**.
+Three independent findings had converged on removing or shrinking it; measured against
+alternatives, all three point at the wrong element. This entry exists so a future round does
+not execute the recommendation they were building toward.
+
+**THE THREE FINDINGS.** `[1.11.4]`'s closing assessment ranked the greeting as the first thing
+to go if Home ever felt busy. `[1.12.1]` measured the wordmark at 2,091 presence against the
+greeting's 466 and called it *"the only element above the search bar that competes with it at
+all"*. `[1.12.4]` attached a price: the arc had just spent 30px on the tab strip, and the
+wordmark costs about the same.
+
+**Three findings agreeing is not evidence that the conclusion is right - it is evidence that
+the same instrument was pointed at the same page three times.**
+
+### WHAT THE MEASUREMENT SAYS
+
+Every element above the grid, at 908px, by presence - `[1.12.1]`'s instrument, busy fixture
+plus one group of 40 shortcuts, dark wallpaper:
+
+| rank | element | top | height | presence |
+| --- | --- | --- | --- | --- |
+| 1 | the first grid row | 508 | 483 | 20,839 |
+| 2 | the search bar | 392 | 44 | 19,387 |
+| 3 | **the mode strip** | 362 | 30 | **2,234** |
+| 4 | the wordmark | 227 | 51 | 2,076 |
+| 5 | the page tab bar | 294 | 36 | 530 |
+| 6 | the greeting | 64 | 62 | 483 |
+
+**The wordmark is FOURTH, and the thing that outranks it is the mode strip this arc added.**
+`[1.12.1]`'s "only element that competes" was true of the page as it stood *before* the arc
+and is not true of the page the arc produced. The finding aged out from under itself.
+
+**THE REAL COST IS EMPTINESS, NOT AN ELEMENT.** `#content-header` carries
+`padding-top: 25vh` - 347 / 270 / 227 / 175px at the four heights. At 908px that is **227px
+of the 508px above the grid: 45% of everything above the first shortcut is deliberate empty
+space.** The share of the whole viewport spent before the first shortcut is **45.2% at
+1388px, 51% at 1080, 55.9% at 908 and 65.1% at 700**.
+
+| option | grid row 1 at 908 | reclaimed | shortcuts above the fold at 700px |
+| --- | --- | --- | --- |
+| as shipped | 508 | - | 18 (2 rows) |
+| wordmark 42px to 28px | 491 | 17px | 18 (2 rows) |
+| wordmark removed | 441 | 67px | 27 (3 rows) |
+| **greeting removed** | **508** | **0px** | **18 (2 rows)** |
+| wordmark + tabs on one line | 456 | 52px | 27 (3 rows) |
+| padding 25vh to 18vh | 444 | 64px | 27 (3 rows) |
+| padding 25vh to 12vh | 390 | 118px | 27 (3 rows) |
+
+**REMOVING THE GREETING RECLAIMS EXACTLY NOTHING.** It is absolutely positioned and out of
+flow - `[1.11.3d]` made it so deliberately, to buy back `[1.11.3c]`'s 38px. So `[1.11.4]`'s
+ranking, which put the greeting first to go, is right about *visual* busyness and worth zero
+against *vertical* cost. Those are two different complaints and they had been treated as one.
+
+**AND TRIMMING THE PADDING IS EQUIVALENT TO DELETING THE WORDMARK.** 18vh puts the grid's
+first row at 444; deleting the wordmark puts it at 441. **The same three pixels of outcome,
+except one of them keeps the wordmark.**
+
+**THE CHEAPEST CHANGE THAT GAINS A ROW IS 25vh TO 20vh - 35px, and it removes nothing.**
+Swept a percentage point at a time at 700px: 21vh still shows 18 shortcuts, 20vh shows 27.
+At 908px the shipped page shows 36 of 40 and 16vh shows all 40. At 1080 and 1388 all 40
+already fit, so there is nothing to gain.
+
+**THE FOLD QUANTISES, which is why "reclaimed pixels" is the wrong headline number.** Past
+the row boundary, further reclaim buys nothing at that height - removing the wordmark (67px)
+and halving the padding (118px) both show 27 shortcuts at 700px. The measure that matters is
+*rows gained*, and it is won or lost at a threshold.
+
+**REMOVING THE WORDMARK LEAVES A VOID, and only a frame showed it.** Because the greeting is
+absolutely positioned near the top and the 25vh padding still places the tab bar, deleting
+the wordmark does not close the gap - it opens one, roughly 130px of nothing between the
+greeting and the tab bar. The page reads as unfinished rather than as tightened.
+
+### TWO CORRECTIONS TO THE RECORD
+
+- **The wordmark is 42px, not 46px.** The 2026-09-14 `[1.12.4]` entry above says "a 46px
+  name"; `.brand-text` is `font-size: 42px; font-weight: 300`. 46px is the **greeting's**
+  rendered size at 908px - the two were conflated. Corrected here rather than in that entry,
+  per this file's rule that entries are not rewritten.
+- **There is no drag handle in the wordmark.** It was offered as an argument for keeping it.
+  `#brand-logo` carries `draggable="false"` and has **zero references in `newtab.js`**; every
+  `draggable` in that file is a SortableJS option for notes, goals, tasks or template rows.
+  The `::` mark is the product's logo - four circles in Google's brand colours - which
+  *resembles* a drag handle and is not one.
+
+### WHAT THE WORDMARK ACTUALLY EARNS
+
+It is the page's only title, and a page with no title reads as unfinished - which the
+wordmark-removed frame demonstrates rather than asserts. It costs **51px of the 508** above
+the grid at 908px, which is 10%. It is fourth of six by presence. **On the evidence it earns
+its place**, and the case against it was a measurement of the wrong thing.
+
+**WHAT SHIPS: nothing.** How much padding Home should carry is a composition judgement, not a
+measurement - 25vh centres the hero, and 18vh does not. The numbers say where the cost is;
+they do not say how the page should feel, and Samson has been right about this page three
+times when a measurement disagreed with him.
