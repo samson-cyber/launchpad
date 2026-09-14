@@ -9639,7 +9639,17 @@ html.bg-light .dash-ring-track { stroke: rgba(0, 0, 0, 0.12); }
 /* NOTHING NAGS WHEN THE TARGET IS MISSED. One stroke colour at every value: a
    ring at 40% is information, not a warning, so there is no red branch, no
    amber branch and no "behind" state to author. */
-.dash-ring-fill { stroke: var(--accent); }
+/* THE SAME DEFECT AS THE FILLS ABOVE, POINTING THE OTHER WAY. This used
+   var(--accent) directly - #1a73e8, which design-guide.md 3.3 tabulates as the
+   LIGHT-SOLID value - and applied it on every ground including dark ones, where
+   the guide's value is #8ab4f8. Measured by pixel diff at 2.34:1 on the default
+   dark wallpaper and 1.85:1 on a bright photograph, against a 3:1 floor, while
+   LIGHT solid was the one ground it passed (3.38). That is the reverse of how
+   1218138194255569 filed it, and it only became visible once the ring could be
+   rendered at all: it needs data.settings.focusTargetMin, which no fixture set.
+   --sat-accent is the guide's pair, and its sibling .sat-pomo-ring-fill has
+   used it all along. (2026-09-15, Asana 1218138194255569.) */
+.dash-ring-fill { stroke: var(--sat-accent); }
 
 /* ONE SWEEP, NEVER A LOOP. The class is added on the frame after paint and the
    offset moves once; there is no animation and no iteration count, so there is
@@ -10250,6 +10260,48 @@ html.has-bg.bg-light .dash-recap-value {
 
 .pp-bar-today {
   fill: #6fb1ff;
+}
+
+/* ===== GRAPHICAL FILLS ON LIGHT GROUNDS ==================================
+   NOT A NEW ACCENT, AND NOT A GUIDE AMENDMENT. design-guide.md 3.3 already
+   tabulates the accent as a PAIR keyed on exactly these two grounds:
+
+       | Name   | Dark frames | Light solid |
+       | Accent | #8ab4f8     | #1a73e8     |
+
+   --sat-accent is that pair in token form (#8ab4f8 under html.has-bg,
+   var(--accent) under html.has-bg.bg-light), and the surfaces that use it
+   switch correctly. The four fills below were built with HARDCODED members of
+   the #6fb1ff family instead - rgba(111,177,255,0.55), rgba(111,177,255,0.85)
+   and a #4a90e2 -> #6fb1ff gradient - so they use neither documented value and
+   they do not switch at all. They were already outside the rule; this puts
+   them inside it rather than bending it.
+
+   MEASURED, by pixel diff against a #f5f5f5 wallpaper - a SHIPPED preset, not
+   a contrived ground - with a 3:1 floor from WCAG 1.4.11:
+
+       Insights chart bar    2.06     task bar fill (Dash)  1.61
+       goal progress (Tasks) 2.29     focus ring (pill)     2.61
+
+   SCOPED TO html.has-bg.bg-light ON PURPOSE. Dark grounds keep their exact
+   shipped declarations, so a regression there is not merely unlikely, it is
+   unreachable - the selector cannot match. That was the cheaper half of the
+   brief's "assert nothing regressed" and it is worth having by construction
+   rather than by assertion.
+
+   THE TODAY BAR STAYS DISTINGUISHABLE. .pp-bar carries 0.55 alpha and
+   .pp-bar-today is opaque, and that difference is the chart's only way of
+   saying which bar is today. Flattening both to one colour would have cleared
+   the floor and destroyed the meaning, so the light values keep a ratio
+   between them with both above 3:1.
+   (2026-09-15, Asana 1218138194255569.) */
+
+html.has-bg.bg-light .pp-bar {
+  fill: color-mix(in srgb, var(--sat-accent) 88%, transparent);
+}
+
+html.has-bg.bg-light .pp-bar-today {
+  fill: var(--sat-accent);
 }
 
 .pp-axis {
@@ -11041,6 +11093,12 @@ html.has-bg.bg-light .ins-heat-cell { background: rgba(0, 0, 0, 0.07); }
   height: 100%;
   background: rgba(111, 177, 255, 0.85);
   border-radius:var(--radius-sm);
+}
+
+/* Light grounds: the documented light-solid accent. See the block beside
+   .pp-bar for why this is the guide's own pair rather than a new token. */
+html.has-bg.bg-light .insights-task-bar-fill {
+  background: var(--sat-accent);
 }
 .insights-task-dur {
   opacity: 0.85;
@@ -12007,6 +12065,15 @@ body.sat-card-open #content {
   transition: width 0.4s ease;
   overflow: hidden;
   position: relative;
+}
+
+/* Light grounds. FLAT rather than a gradient, and that is the guide agreeing
+   with itself: 3.3 says "No gradient washes on cards or backgrounds. The single
+   existing gradient (the CTA fill on the tab bar) stays; nothing new adopts
+   it." This bar is a second gradient that predates that line; the light branch
+   does not carry it forward. */
+html.has-bg.bg-light .tt-progress-fill {
+  background: var(--sat-accent);
 }
 
 /* Centered percentage, legible over BOTH the filled and unfilled halves via a
