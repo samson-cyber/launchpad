@@ -468,6 +468,18 @@ I18n.register("en", {
     "message": "or Import from Chrome Bookmarks",
     "description": "Text on the page surface."
   },
+  "launcher_ask_gemini_about": {
+    "message": "Ask Gemini about",
+    "description": "[1.12.3] Prefix of the launcher's last row when the Gemini tab is active; the query follows in quotes. The row exists so that what Enter does is visible rather than folklore, so this must name the real destination."
+  },
+  "launcher_go_to": {
+    "message": "Go to",
+    "description": "[1.12.3] Prefix of the launcher's last row when the query looks like a bare domain, in EITHER mode - Enter navigates there rather than searching. Before [1.12.3] this row said \"Search the web for ...\" while Enter jumped to the site."
+  },
+  "page_search_gemini": {
+    "message": "Search your shortcuts, or ask Gemini",
+    "description": "[1.12.3] Placeholder in the Home search field while the GEMINI tab is active. Mirrors page_search_or_type_a_url's shape deliberately: the shortcut half stays FIRST because the launcher matches shortcuts in both modes and that is the half the address bar cannot do ([1.12.1]'s finding). \"ask Gemini\" rather than anything about an assistant - this is a shortcut to gemini.google.com with the query appended, not an AI embedded in the page, and the copy must not claim otherwise."
+  },
   "searchmode_gemini": {
     "message": "Gemini",
     "description": "[1.12.2] Left tab of the Home search bar's mode strip. A product name - do not translate."

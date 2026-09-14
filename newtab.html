@@ -177,10 +177,10 @@
              context and would trap the list's z-index inside the assembly. -->
         <div id="search-assembly">
         <div id="search-modes" role="group" data-i18n-aria-label="searchmode_group" aria-label="Search mode">
-          <button class="search-mode" type="button" data-mode="gemini" aria-pressed="false">
+          <button class="search-mode is-active" type="button" data-mode="gemini" aria-pressed="true">
             <span data-i18n="searchmode_gemini" class="search-mode-label">Gemini</span>
           </button>
-          <button class="search-mode is-active" type="button" data-mode="search" aria-pressed="true">
+          <button class="search-mode" type="button" data-mode="search" aria-pressed="false">
             <span data-i18n="searchmode_search" class="search-mode-label">Search</span>
           </button>
         </div>
@@ -188,7 +188,7 @@
           <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5f6368" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
-          <input data-i18n-placeholder="page_search_or_type_a_url" type="text" id="search-input" placeholder="Search your shortcuts, or the web" autofocus
+          <input data-i18n-placeholder="page_search_gemini" type="text" id="search-input" placeholder="Search your shortcuts, or ask Gemini" autofocus
                  role="combobox" aria-expanded="false" aria-controls="launcher-results"
                  aria-autocomplete="list" aria-haspopup="listbox">
         </div>

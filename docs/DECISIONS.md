@@ -2857,3 +2857,76 @@ uses `tablist` correctly - each of its tabs has an `aria-controls` pointing at a
 tablist here would name a relationship that does not exist. **The keyboard behaviour is what
 the brief asked to match and it does**: both strips are plain `<button>`s with no
 `tabindex`, Tab-reachable, Enter and Space native, and neither has arrow-key roving.
+
+---
+
+## 2026-09-14 - The Gemini tab navigates, and is the default for everyone; a typed address still goes to the address
+
+**Decision.** `[1.12.3]` makes the `[1.12.2]` tab strip mean something. Enter with the
+Gemini tab lit opens `gemini.google.com/app?q=<query>`; Enter with Search lit still goes
+through `chrome.search.query`. **Gemini is the default on every profile**, per the
+2026-09-12 amendment. The placeholder changes with the tab.
+
+**IT IS A NAVIGATION, AND THAT IS THE WHOLE STORE-POLICY ARGUMENT.** No API, no key, no new
+permission, **no network call from the extension** - it is the same thing a Gemini shortcut
+in the grid would be with the query appended. The permission set was diffed against the
+packaged 2.1.0 build (`15797ad`) and is **identical in all four of `permissions`,
+`optional_permissions`, `host_permissions` and `content_scripts`**. The Search half still
+goes through `chrome.search.query`, which is precisely the API that respects the user's
+default engine - and is why this product has no engine picker and is not gaining one. The
+listing must describe this as *a shortcut to Gemini*, never as a search-engine option; that
+framing is written into `RELEASE-NOTES-NEXT.md` rather than left to whoever cuts the
+release.
+
+**THE DEFAULT REACHES EXISTING USERS BECAUSE `[1.12.2]` REFUSED TO WRITE ONE.** That round
+stored the choice at `data.settings.searchMode` and deliberately never stamped a value at
+boot, so an absent key means *has not chosen*. This round only had to **invert the test**:
+the exact string `"search"` selects Search, and everything else - absent, unrecognised -
+is Gemini. `searchMode` is still absent from `getDefaultData()` and nothing merges defaults
+into `settings`, so the property survives. Driven both ways: a profile with no key renders
+Gemini; a profile written to `"search"` through the real writer keeps Search across a
+reload.
+
+**A TYPED ADDRESS STILL GOES TO THE ADDRESS, IN BOTH MODES.** The tab chooses where a
+*search* goes; it does not stop this field being the place you type a URL. `"github.com"`
+navigates to github.com whichever tab is lit.
+
+**And that exposed a pre-existing lie the round had to fix anyway.** The action row at the
+bottom of the launcher list said *"Search the web for github.com"* while Enter jumped
+straight to the site - so the row that exists specifically so plain Enter is **not
+folklore** (`[1.10.1]`, confirmed wanted in `[1.12.1b]`) was naming a destination Enter did
+not use. The row now has three forms - *Go to github.com*, *Search the web for "..."*,
+*Ask Gemini about "..."* - and the URL test behind it is **one function** read by both the
+action and the label, because two copies of that test is how they came to disagree.
+
+**Switching tabs mid-query redraws the list.** The click handler re-renders the launcher as
+well as the strip; without it the row kept announcing the destination the *other* tab would
+have used. Same shape as `[1.11.5]`'s missing redraw - every piece correct, only the repaint
+absent.
+
+**NO LENGTH CAP ON THE QUERY.** `chrome.search.query` has none and passes whatever it is
+given, so the Gemini path matches it. Measured: a 3,999-character query produces a
+6,029-character URL and is passed whole. Capping would silently truncate the user's
+question, and **a question Gemini answers confidently from half a sentence is a worse
+outcome than Google's own error page**, which is visible and recoverable.
+
+**THE PLACEHOLDER: TWO KEYS, ONE PER SENTENCE, ONE WRITER.** Search keeps *"Search your
+shortcuts, or the web"*; Gemini gets *"Search your shortcuts, or ask Gemini"*. The shortcut
+half stays **first** in both, because the launcher matches shortcuts in both modes and that
+is the half the address bar cannot do - `[1.12.1]`'s finding, and the ground this round must
+not give back. *"ask Gemini"* rather than anything about an assistant: this is a shortcut to
+a website, and the copy must not claim a thing embedded in the page.
+
+`[1.12.1]` collapsed this placeholder from three copies of one sentence to one key, and that
+rule is intact: these are **two different sentences**, asserted by reading the catalogue file
+and confirming each sentence has exactly one key. `renderSearchModes` is now the placeholder's
+**only** writer - `applySearch` used to set it one line later and would have clobbered the
+swap on every render. The markup's hardcoded fallback carries the **default's** sentence, so
+nothing flashes the wrong copy before the i18n pass runs, which is the defect `[1.12.1]`
+found in the first place.
+
+**Enter's three outcomes, all driven in both modes:** a selected row opens that shortcut and
+is **byte-identical in both modes**; nothing selected under Search reaches
+`chrome.search.query` with `CURRENT_TAB`; nothing selected under Gemini reaches
+`tabs.update` with the encoded Gemini URL. Ctrl/Cmd keeps its new-tab disposition in both.
+Empty and whitespace-only queries do nothing at all.

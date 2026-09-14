@@ -63,11 +63,75 @@ Group actions no longer hide until you hover.
   you can find rather than something you have to discover.
   Nothing moved to make room - those controls always occupied
   that space, they were simply invisible.
+
+The search bar now defaults to Gemini, with a one-click toggle
+back to your default search engine.
+
+• Two tabs sit above the search bar: Gemini and Search. Gemini
+  is the one that starts selected.
+• Press Enter with Gemini selected and LaunchPad opens Gemini
+  with what you typed. It is a shortcut to gemini.google.com -
+  nothing is sent anywhere by LaunchPad itself.
+• Click Search and Enter goes to your normal search engine again,
+  exactly as before. LaunchPad never changes which engine that
+  is. Your choice is remembered.
+• Either way, the bar still finds your own shortcuts, groups and
+  sessions as you type - and typing an address still just goes
+  there.
 ```
 
 ---
 
 ## Context for whoever cuts the release
+
+### The Gemini default changes what Enter does for every existing user
+
+**This is the second entry on this page that ships to everyone with no opt-out,
+and it belongs in the notes for the same reason the icon change does.** Before
+`[1.12.3]`, Enter in the Home search bar ran `chrome.search.query` - the user's
+own default engine. It now opens `gemini.google.com/app?q=<query>` unless the
+user picks the Search tab.
+
+**One default, not two.** The 2026-09-12 amendment on the spec task reversed an
+earlier ruling that would have given new installs Gemini and left existing users
+on Search. The reasoning is recorded there and is worth repeating here: two
+defaults is a *permanent* tax - the product behaves differently for two
+populations forever, every future round touching the bar reasons about both, and
+every support question starts with "which did you install". Against that, the
+bar has near-zero usage (Samson uses LaunchPad daily and had never touched it),
+so the population whose habit breaks is close to empty. `[1.10.7]` set the
+precedent: a deliberate improvement ships for everyone and gets announced.
+
+**How the default reaches existing users at all** is worth knowing, because it
+was built one round earlier on purpose. `[1.12.2]` stored the tab choice at
+`data.settings.searchMode` and **deliberately never wrote a value at boot** - an
+absent key means *has not chosen*. So every profile that never touched the tabs
+still has no key, and `[1.12.3]` only had to invert the read: the exact string
+`"search"` selects Search, and everything else - including absent - is Gemini.
+A user who clicked Search in `[1.12.2]` keeps Search.
+
+### Describe it as a shortcut to Gemini, NOT as a search engine option
+
+**This listing has been rejected once over a search control visible in a
+screenshot, so the framing is not cosmetic.** The single-purpose policy targets
+extensions that HIJACK search - silently redirecting the omnibox, or changing
+the default engine without consent. This does neither:
+
+- It is **an ordinary navigation** to `gemini.google.com/app?q=`, exactly what a
+  Gemini shortcut in the grid would be with the query appended. No API, no key,
+  no new permission, and **no network call from the extension**. The permission
+  set is byte-identical to the packaged 2.1.0 build.
+- It **never touches the user's default search engine.** The Search tab still
+  goes through `chrome.search.query`, which is precisely the API that respects
+  that setting - and is why this product has no engine picker and is not
+  gaining one.
+- It is **user-initiated and visible**: two labelled tabs, one click apart, and
+  the row at the bottom of the suggestion list names the destination before the
+  user presses Enter.
+
+Wording for the listing should follow that: *a shortcut to Gemini from the
+search bar*, with the toggle back to your own search engine mentioned in the
+same breath. Do not write "choose your search engine".
 
 ### The icon change affects everyone, and there is no opt-out
 

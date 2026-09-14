@@ -12492,7 +12492,19 @@
     // the same thing plain Enter does, rendered so the behaviour is visible
     // rather than folklore.
     var rows = hits.slice();
-    if (q) rows.push({ kind: "web", label: t("launcher_search_the_web_for") + ' "' + q + '"', sub: "" });
+    if (q) {
+      // THE ROW NAMES WHERE ENTER ACTUALLY GOES. It exists because [1.10.1]
+      // decided plain Enter should not be folklore, and [1.12.1b] confirmed
+      // Samson wants it visible - so it cannot say "Search the web" while Enter
+      // opens Gemini. It also could not say it while Enter jumped to a typed
+      // domain, which it did in every round before this one.
+      var dest;
+      if (launcherIsUrlLike(q)) dest = t("launcher_go_to") + " " + q;
+      else if (Storage.getSearchMode(data) === "gemini")
+        dest = t("launcher_ask_gemini_about") + ' "' + q + '"';
+      else dest = t("launcher_search_the_web_for") + ' "' + q + '"';
+      rows.push({ kind: "web", label: dest, sub: "" });
+    }
 
     launcherState.results = rows;
     launcherState.activeIndex = -1;             // released: plain Enter = web search
@@ -12649,17 +12661,54 @@
   // TODAY'S BEHAVIOUR, LIFTED VERBATIM out of the submit handler so both the
   // plain-Enter path and the web row run the identical code. Decision 3: the web
   // half stays chrome.search.query and is not touched.
+  // ONE DEFINITION OF "THAT LOOKS LIKE A URL", because two surfaces read it:
+  // this action, and the label on the row that announces the action. They
+  // disagreed before [1.12.3] - see launcherRender - and a row that names a
+  // destination Enter does not go to is worse than no row at all.
+  function launcherIsUrlLike(query) {
+    return query.indexOf(".") !== -1 && query.indexOf(" ") === -1;
+  }
+
+  // [1.12.3] GEMINI IS AN ORDINARY NAVIGATION. gemini.google.com/app?q=<query>,
+  // exactly as a Gemini shortcut would be with the query appended. NO API, no
+  // key, no permission, no network call from the extension - the permission
+  // diff against the packaged 2.1.0 build is empty and is reported.
+  //
+  // A TYPED DOMAIN STILL GOES TO THE DOMAIN, IN BOTH MODES, and that is a
+  // decision rather than an oversight. The tab chooses where a SEARCH goes; it
+  // does not stop this field being the place you type an address. A user who
+  // types "github.com" wants github.com whichever tab is lit, and the row at
+  // the bottom of the list now says so.
+  //
+  // NO LENGTH CAP. chrome.search.query has none and passes whatever it is
+  // given, so this matches it. A cap would silently truncate the user's
+  // question, and a question Gemini answers confidently from half a sentence is
+  // a worse outcome than Google's own error page, which is visible and
+  // recoverable.
   function launcherRunWebSearch(query, newTab) {
     if (!query) return;
-    if (query.indexOf(".") !== -1 && query.indexOf(" ") === -1) {
+    if (launcherIsUrlLike(query)) {
       var url = query;
       if (!/^https?:\/\//i.test(url)) url = "https://" + url;
       if (newTab) chrome.tabs.create({ url: url });
       else chrome.tabs.update({ url: url });
-    } else {
-      // Chrome's built-in search — respects the user's default engine.
-      chrome.search.query({ text: query, disposition: newTab ? "NEW_TAB" : "CURRENT_TAB" });
+      return;
     }
+    if (Storage.getSearchMode(data) === "gemini") {
+      // Same disposition as the Search half below: plain Enter replaces this
+      // new tab, ctrl/cmd opens a new one. Matching rather than inheriting -
+      // the least surprising thing is that the tab strip changes the
+      // destination and nothing else.
+      var g = "https://gemini.google.com/app?q=" + encodeURIComponent(query);
+      if (newTab) chrome.tabs.create({ url: g });
+      else chrome.tabs.update({ url: g });
+      return;
+    }
+    // Chrome's built-in search — respects the user's default engine, and this
+    // round does not touch it. Never a default-engine change; the Gemini half
+    // above is a link, which is what keeps this a shortcut rather than a
+    // search-engine option.
+    chrome.search.query({ text: query, disposition: newTab ? "NEW_TAB" : "CURRENT_TAB" });
   }
 
   // ===== [1.10.2] THE ICON PICKER ==========================================
@@ -13273,6 +13322,14 @@
       btn.classList.toggle("is-active", on);
       btn.setAttribute("aria-pressed", on ? "true" : "false");
     });
+    // [1.12.3] THE PLACEHOLDER CHANGES WITH THE TAB, and this function is its
+    // ONLY writer. applySearch used to set it unconditionally one line later,
+    // which would have clobbered this on every render. Two catalogue keys
+    // because they are two different sentences - NOT two copies of one, which
+    // is the trap [1.12.1] found and collapsed.
+    var input = $("#search-input");
+    if (input) input.placeholder = t(mode === "gemini" ? "page_search_gemini"
+                                                      : "page_search_or_type_a_url");
     if (strip._modeHandlerAttached) return;
     strip._modeHandlerAttached = true;
     strip.addEventListener("click", function (e) {
@@ -13285,7 +13342,12 @@
       Storage.setSearchMode(data, btn.dataset.mode).then(function () {
         renderSearchModes();
         var input = $("#search-input");
-        if (input) input.focus();
+        // THE LIST IS REDRAWN TOO. Switching mode with a query already typed
+        // changes where Enter goes, so the action row at the bottom has to
+        // change with it - otherwise the row announces the destination the
+        // OTHER tab would have used. Same shape as [1.11.5]'s missing redraw:
+        // every piece was right and only the repaint was absent.
+        if (input) { launcherRender(input.value); input.focus(); }
       });
     });
   }
@@ -13293,11 +13355,11 @@
   function applySearch() {
     var form = $("#search-form");
     var input = $("#search-input");
+    // renderSearchModes owns the placeholder now - it is the only thing that
+    // knows which of the two sentences is true. [1.12.1]'s rule still holds and
+    // is what this line USED to be: one key per sentence, never two keys
+    // holding the same one.
     renderSearchModes();
-    // ONE KEY, and it is the one the markup binds. This line used to read a
-    // SECOND key holding the same sentence, so the field carried three copies
-    // of its own placeholder - the attribute, the data-i18n binding, and this.
-    if (input) input.placeholder = t("page_search_or_type_a_url");
     if (form && !form._searchHandlerAttached) {
       form.addEventListener("submit", function (e) {
         e.preventDefault();

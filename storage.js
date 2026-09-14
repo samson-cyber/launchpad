@@ -542,9 +542,21 @@ var Storage = (function () {
   // "search" onto every profile at boot, every profile would carry an explicit
   // choice by then and that default could never apply to anyone. An absent key
   // means "has not chosen"; only a click writes.
+  // [1.12.3] GEMINI IS THE DEFAULT, FOR EVERYONE, NEW AND EXISTING - per the
+  // 2026-09-12 amendment, which reversed an earlier split-by-install-date
+  // ruling on the grounds that two defaults is a permanent tax, the bar has
+  // near-zero usage so almost nobody's habit breaks, and [1.10.7] set the
+  // precedent that a deliberate improvement ships for everyone.
+  //
+  // THE TEST IS INVERTED RATHER THAN THE FALLBACK SWAPPED, and the difference
+  // matters: only the exact string "search" selects Search. An ABSENT key, and
+  // anything unrecognised, is Gemini. That is what makes [1.12.2]'s
+  // read-time-only property pay off - it deliberately never stamped a value at
+  // boot, so every profile that has not touched the tabs still has no key, and
+  // this default reaches all of them. A user who clicked Search keeps Search.
   function getSearchMode(data) {
     var m = data && data.settings && data.settings.searchMode;
-    return m === "gemini" ? "gemini" : "search";
+    return m === "search" ? "search" : "gemini";
   }
 
   async function setSearchMode(data, mode) {
