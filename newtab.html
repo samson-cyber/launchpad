@@ -13,6 +13,13 @@
   <!-- [1.6.5] Wallpaper dim. One full-page overlay between the wallpaper and
        everything else, driven by --wall-dim (default 0, so no existing user
        sees a change). pointer-events:none so it cannot intercept a click. -->
+  <!-- [1.12.1] The outgoing wallpaper, fading out. See newtab.css "#wall-fade"
+       and newtab.js crossFadeFrom. BEFORE #wall-dim deliberately: the two share
+       z-index 1, so DOM order decides, and the dim has to paint OVER the fading
+       wallpaper - it applies to whatever is on screen, including what is on its
+       way out. With the order reversed, a user running "Dim wallpaper" above 0
+       watched their dim drop out for the length of every change. -->
+  <div id="wall-fade" aria-hidden="true"></div>
   <div id="wall-dim" aria-hidden="true"></div>
   <aside id="sidebar">
     <div id="sidebar-top">
@@ -887,8 +894,10 @@
         <div class="bg-footer-actions">
           <button data-i18n="bgmodal_remove_background" id="bg-remove" type="button">Remove background</button>
           <div class="bg-footer-actions-right">
-            <button data-i18n="common_cancel" id="bg-cancel" type="button">Cancel</button>
-            <button data-i18n="common_save" id="bg-save" type="button" class="bg-btn-primary">Save</button>
+            <!-- [1.12.1] Save and Cancel are gone: a click APPLIES and PERSISTS.
+                 Done only closes, and exists because this modal has no other
+                 close affordance. -->
+            <button data-i18n="common_done" id="bg-done" type="button" class="bg-btn-primary">Done</button>
           </div>
         </div>
       </div>

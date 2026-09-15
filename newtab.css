@@ -185,6 +185,34 @@ html.has-bg.bg-light .settings-dim-value {
   z-index: 1;
 }
 
+/* [1.12.1] THE OUTGOING WALLPAPER, FADING OUT.
+   The new wallpaper lands on `body` instantly; this layer holds what was on
+   screen a moment ago and drops to zero over --wall-fade. Fading the OUTGOING
+   one rather than the incoming one is what makes every change look the same:
+   colour to colour, colour to photo, photo to photo and photo to colour are
+   one mechanism instead of one that interpolates and three that snap.
+
+   z-index 1 — the same layer as #wall-dim, and ABOVE the bg-image scrim at 0.
+   That is deliberate: when the outgoing wallpaper was a photograph, crossFadeFrom
+   bakes the same rgba(0,0,0,0.35) into this layer as a gradient, so what fades
+   out is what was actually on screen, dim and all. Putting it below the scrim
+   instead would need a negative z-index, which risks dropping behind body's own
+   background.
+
+   It is inert whenever it is not mid-fade: opacity 0 and no background, so it
+   paints nothing and pointer-events:none keeps it out of every hit test. */
+#wall-fade {
+  position: fixed;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: opacity var(--wall-fade) ease;
+}
+
 body {
   height: 100%;
   margin: 0;
@@ -192,7 +220,16 @@ body {
   background: var(--bg);
   color: var(--text-primary);
   font-family: "Google Sans", Roboto, Arial, sans-serif;
-  transition: background-color 0.2s, color 0.2s;
+  /* [1.12.1] background-color IS NO LONGER TRANSITIONED HERE, and dropping it
+     is the fix rather than a side effect. It only ever reached colour-to-colour
+     — background-image does not interpolate, so a photo change snapped no
+     matter what duration this carried. Measured before the change: 11 states
+     over 214ms for colour to colour, and ONE or TWO frames for each of colour
+     to photo, photo to photo and photo to colour. #wall-fade now cross-fades
+     all four the same way, and leaving a second transition here as well would
+     composite two fades on top of each other for the one case it does reach.
+     `color` stays: it is the ink, not the ground. */
+  transition: color 0.2s;
 }
 
 /* [1.11.4] THE BOOT FADE, SUPPRESSED FOR THE FIRST PAINTED FRAME ONLY.

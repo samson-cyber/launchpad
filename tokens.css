@@ -196,6 +196,12 @@
      reads it. 0 means "no dim", so if anything ever reads it before that
      round lands, the current appearance is what it gets. */
   --wall-dim: 0;
+  /* [1.12.1] How long one wallpaper takes to become the next. The 0.2s
+     that body's background-color used to carry was judged abrupt, and it
+     only ever reached colour-to-colour anyway — background-image does
+     not interpolate, so a photo change snapped. #wall-fade now owns every
+     wallpaper change and this is its duration. */
+  --wall-fade: 450ms;
 }
 
 /* MEDIUM — the default tier, and the product change: an install that has never

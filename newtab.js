@@ -147,7 +147,6 @@
     { value: "color:#3d2818", labelKey: "safe_soft_warm_dark" }
   ];
   var currentBg = null;
-  var previousBg = null;
 
   function isColorBg(bgData) {
     return typeof bgData === "string" && bgData.indexOf("color:") === 0;
@@ -19796,9 +19795,9 @@
   // paint it is scheduled against, so removing the class there hands the
   // transition back in time to animate the very frame being suppressed.
   //
-  // Self-healing if applyBackground never runs at boot: previewBg calls it too,
-  // so the first wallpaper preview lifts the class rather than leaving the
-  // modal's fade dead forever.
+  // Self-healing if applyBackground never runs at boot: applyAndPersistBg
+  // calls it too, so the first wallpaper a user picks lifts the class rather
+  // than leaving every later change un-faded forever.
   var bootFadeLifted = false;
   function liftBootFade() {
     if (bootFadeLifted) return;
@@ -19810,8 +19809,46 @@
     });
   }
 
+  // [1.12.1] A WALLPAPER CHANGE CROSS-FADES, AND THE REASON IT NEEDS A LAYER
+  // AT ALL IS THAT background-image DOES NOT INTERPOLATE. Measured across the
+  // four kinds of change before this existed: colour to colour ran 11 states
+  // over 214ms on body's own transition, and colour to photo, photo to photo
+  // and photo to colour each snapped in one or two frames. A longer duration
+  // on background-color would have reached the first and none of the rest —
+  // and photo to photo is precisely the rotation case.
+  //
+  // So the OUTGOING wallpaper is copied into #wall-fade at full opacity and
+  // dropped to zero, while the new one lands on body underneath it. One
+  // mechanism, identical for all four.
+  //
+  // THE SCRIM IS BAKED IN when the outgoing wallpaper was an image, because
+  // html.bg-image body::before paints rgba(0,0,0,0.35) over it and what fades
+  // out has to be what was actually on screen. A photograph that brightened by
+  // 35% and then faded would read as a flash, not a fade.
+  function crossFadeFrom(prevBg) {
+    var el = document.getElementById("wall-fade");
+    if (!el || !prevBg) return;
+    if (isColorBg(prevBg)) {
+      el.style.backgroundImage = "";
+      el.style.backgroundColor = prevBg.slice(6);
+    } else {
+      el.style.backgroundColor = "";
+      el.style.backgroundImage =
+        "linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), url('" + prevBg + "')";
+    }
+    // Paint it opaque with NO transition, force the style to commit, then let
+    // the transition take it down. Without the reflow both writes land in one
+    // recalculation and there is nothing to interpolate from.
+    el.style.transition = "none";
+    el.style.opacity = "1";
+    void el.offsetHeight;
+    el.style.transition = "";
+    el.style.opacity = "0";
+  }
+
   function applyBackground(bgData) {
     var html = document.documentElement;
+    var prevBg = currentBg;
     html.classList.remove("bg-image", "bg-light", "bg-dark");
     if (isColorBg(bgData)) {
       var hex = bgData.slice(6);
@@ -19832,12 +19869,19 @@
       document.body.style.backgroundColor = "";
       html.classList.add("has-bg", "bg-image");
     }
+    // [1.12.1] The cross-fade needs what was on screen BEFORE this call, and
+    // it is skipped during the boot window: there is no outgoing wallpaper to
+    // fade from, and 9b3c6c1's html.bg-booting exists so the first application
+    // is silent. Guarded three ways over — prev is null at boot anyway, and
+    // html.bg-booting * carries `transition: none !important` regardless.
+    if (prevBg && prevBg !== bgData && !html.classList.contains("bg-booting")) {
+      crossFadeFrom(prevBg);
+    }
     currentBg = bgData;
     liftBootFade();
   }
 
   function openBgModal() {
-    previousBg = currentBg;
     $("#bg-overlay").classList.remove("hidden");
     $("#bg-url-input").value = "";
     hideBgError();
@@ -19852,21 +19896,38 @@
     updateWallpaperThumb();
   }
 
-  function previewBg(bg) {
-    if (previousBg === null) return;
-    applyBackground(bg);
+  // [1.12.1] CLICKING A WALLPAPER APPLIES IT AND KEEPS IT. There is no Save and
+  // no Cancel, and removing them is a DEFECT FIX rather than a simplification:
+  // the preview looked exactly like the wallpaper had been applied, so a user
+  // who clicked one and then clicked away had their choice silently discarded.
+  // A control that appears to have worked and then reverts is worse than one
+  // that plainly does nothing.
+  //
+  // SAVE WAS CARRYING FOUR THINGS and all four move here: the write itself, the
+  // quota REFUSAL (writeBackgroundChoice toasts wallpaper_too_large and returns
+  // false), the failed-write toast, and the Getting-Started checklist tick.
+  // Dropping Save without carrying the refusal would have re-created the same
+  // defect in a new place — a wallpaper on screen that is not in storage.
+  //
+  // ON REFUSAL THE PAGE GOES BACK, which is the one case where reverting is
+  // right: the user has been told why, in a toast, so the revert is explained
+  // rather than silent.
+  //
+  // countsAsChoice is false for Remove. Settings' own Remove already documents
+  // the rule — "removing a wallpaper is not you set a background" — and the
+  // modal's Remove used to tick the step anyway, because Save ticked it for
+  // everything. The two agree now.
+  async function applyAndPersistBg(bgData, countsAsChoice) {
+    applyBackground(bgData);
     renderBgColors();
     renderBgGallery();
-  }
-
-  async function commitBgPreview() {
-    if (currentBg !== previousBg) {
-      if (!(await writeBackgroundChoice(currentBg))) {
-        // Refused. Put the page back on what is actually stored rather than
-        // leaving it showing a wallpaper that was never saved.
-        await loadBackground();
-        return;
-      }
+    if (!(await writeBackgroundChoice(bgData))) {
+      await loadBackground();
+      renderBgColors();
+      renderBgGallery();
+      return false;
+    }
+    if (countsAsChoice !== false) {
       // [R3] Checklist step 6. The background lives in a SEPARATE storage key
       // (saveBackground bypasses saveAll), so the tick needs its own data write
       // — provenance-correct (same-tab onChanged suppressed).
@@ -19875,16 +19936,8 @@
         refreshGettingStartedIfOpen();
       }
     }
-    previousBg = null;
-    closeBgModal();
-  }
-
-  function cancelBgPreview() {
-    if (previousBg !== null) {
-      if (previousBg !== currentBg) applyBackground(previousBg);
-      previousBg = null;
-    }
-    closeBgModal();
+    updateWallpaperThumb();
+    return true;
   }
 
   function renderBgColors() {
@@ -19922,7 +19975,7 @@
 
   function handleBgGalleryClick(thumbEl) {
     var bg = thumbEl.dataset.bg;
-    if (bg) previewBg(bg);
+    if (bg) applyAndPersistBg(bg);
   }
 
   function showBgError(msg) {
@@ -19968,7 +20021,10 @@
           if (dataUrl.length > 5 * 1024 * 1024) {
             console.warn("[LaunchPad] Background image is large (" + Math.round(dataUrl.length / 1024 / 1024) + "MB)");
           }
-          previewBg(dataUrl);
+          // A file upload is already a deliberate choose-then-confirm: the
+          // file picker IS the commit step, so there is nothing left to
+          // confirm and it applies like a swatch.
+          applyAndPersistBg(dataUrl);
         });
       };
       img.src = reader.result;
@@ -19991,7 +20047,8 @@
     img.crossOrigin = "anonymous";
     img.onload = function () {
       resizeImage(img, function (dataUrl) {
-        previewBg(dataUrl);
+        // The URL tab keeps its own Apply button, which is its commit step.
+        applyAndPersistBg(dataUrl);
       });
     };
     img.onerror = function () {
@@ -20001,7 +20058,9 @@
   }
 
   function handleBgRemove() {
-    previewBg(DEFAULT_BG);
+    // countsAsChoice false: removing a wallpaper is not "you set a
+    // background", which is the rule Settings' own Remove already states.
+    applyAndPersistBg(DEFAULT_BG, false);
   }
 
   // ===== Events =====
@@ -20642,10 +20701,19 @@
     // it (cf883c9, 2026-03-10). Shipped broken in v1.0.4 and v1.0.5.
     //
     // The fix persists directly, so this button converges on exactly what the
-    // modal's Remove + Save does: paint DEFAULT_BG (applyBackground also updates
+    // modal's Remove does: paint DEFAULT_BG (applyBackground also updates
     // currentBg) and write it through. Deliberately does NOT tick the
-    // Getting-Started background step the way commitBgPreview does — removing a
-    // wallpaper is not "you set a background".
+    // Getting-Started background step — removing a wallpaper is not "you set a
+    // background".
+    //
+    // [1.12.1] THE PREVIEW MACHINERY THIS ENTRY DESCRIBES IS GONE. previewBg,
+    // commitBgPreview, cancelBgPreview and previousBg were removed when
+    // clicking a wallpaper started applying it; the history above is kept
+    // because the SHAPE of the bug recurs — a shared helper made modal-only
+    // without updating its second caller — but none of those symbols exist
+    // now. The modal's Remove and this button both route through
+    // applyAndPersistBg, and both skip the checklist tick, so the rule this
+    // entry states is finally true on both sides.
     safeOn("#settings-remove-wallpaper", "click", async function () {
       try {
         // Removing a PER-WORKSPACE wallpaper drops that entry rather than
@@ -21055,10 +21123,10 @@
 
     // Background modal
     safeOn("#bg-overlay", "click", function (e) {
-      if (e.target === e.currentTarget) cancelBgPreview();
+      // Nothing to cancel any more — a click already applied and persisted.
+      if (e.target === e.currentTarget) closeBgModal();
     });
-    safeOn("#bg-cancel", "click", cancelBgPreview);
-    safeOn("#bg-save", "click", commitBgPreview);
+    safeOn("#bg-done", "click", closeBgModal);
     safeOn("#bg-upload-btn", "click", function () {
       var fi = $("#bg-file-input");
       if (fi) fi.click();
@@ -21153,7 +21221,7 @@
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") {
         closeModal(); hideMenu(); hideGroupMenu(); hideDeleteDialog();
-        cancelBgPreview(); closeRcFilterMenu(); closeDomainPanel(); closeSettingsPanel();
+        closeBgModal(); closeRcFilterMenu(); closeDomainPanel(); closeSettingsPanel();
         closeProSettingsPanel();
         closeHistoryOverlay(); closeRestoreDropdown();
         // [1.4.1] The twin joins its pair. ONE PRESS CLOSES BOTH the row menu and
