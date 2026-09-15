@@ -318,6 +318,24 @@ if ! node tools/check-button-specificity.mjs; then
   exit 1
 fi
 
+# THE DOCS GATE, and it is the eighteenth. Nothing in tools/ read docs/ until
+# now, so the 2026-08-31 sync repaired months of drift by hand and every
+# instance was found by a premise audit tripping over a contradiction.
+#
+# It checks exactly two things - BUGS.md ledger ids (no duplicates, no gaps)
+# and CLAUDE.md release-state claims against the ANNOTATED TAGS, which that
+# file itself names as the authority. The second half is the one with a
+# documented failure behind it: on 2026-08-30 the block asserted v2.0.0 was
+# never submitted while an annotated v2.0.0 tag sat in the repo, and the error
+# propagated into ROADMAP.md before two independent pieces of evidence caught
+# it. The gate header records what it deliberately does NOT check and why.
+#
+# Pure file and tag reads, no browser, no subject to boot: ~0.1s.
+if ! node tools/check-docs.mjs; then
+  echo 'ERROR: docs gate failed - a ledger id or a release-state claim has drifted.' >&2
+  exit 1
+fi
+
 # NOTE — the mutation passes (`--mutate` on either suite above) are development
 # verification, not release gates: they re-boot the subject once per seed and the
 # queue one takes ~16s. Run them when the code under test changes; the gates here
