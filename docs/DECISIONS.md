@@ -3282,3 +3282,65 @@ Choosing target languages and sourcing translations **was always a separate
 decision after this lands, and it has not been taken.** The catalogue holds 885
 English messages with a description on every one and a `sense` on 108 of them;
 nothing has been translated and no language has been chosen.
+
+---
+
+## 2026-09-15 — The resting pulse is CUT. The provisional ruling resolves against it
+
+**Decision.** `[1.12.4]`'s search-assembly pulse is removed. The 2026-09-14 entry above
+shipped it **provisional and reversible by its own ruling**, and this is the decision it
+was provisional for. Samson has ruled. Both Claude Code and Claude Chat leaned cut after
+building it, and he agreed.
+
+**This entry does not overturn that one.** The pulse was built as a *test of whether it was
+needed*, and the test returned an answer. The entry above stays exactly as written — it is
+the record of the case for it, the amplitude work, and the arc checkpoint, all of which
+remain true. What changed is the verdict, not the evidence.
+
+**WHAT ANSWERED THE QUESTION.** The round that built it named its own strongest objection
+plainly rather than burying it: `:placeholder-shown` means the pulse **runs on every new tab
+until the first keystroke**, so it is not a cue that answers an action — it is the page's
+arrival state. The arguments recorded above as overruled are the ones that held on seeing it
+run: motion is pre-attentive, so a quiet cue can be harder to ignore than a loud one; it
+becomes wallpaper within a week on a surface opened forty times a day; and the only surviving
+indefinite animation in twelve arcs is the Pro CTA, allowed because it is the one place the
+product asks the user for something. The search bar does not ask for anything — it is already
+first of five on Home.
+
+**AND ITEM 6 HAD ALREADY DONE THE WORK.** The pulse was built last on purpose, after
+`[1.12.1]`–`[1.12.3]` solved the bar's weight statically: first of five on Home on both
+footprint and presence, 4.5:1 on every ground, and doing something the address bar cannot do
+in one action. With the static case carried, the motion was additive rather than load-bearing
+— which is precisely the condition under which a permanent animation should not ship.
+
+**WHAT THE REMOVAL TOUCHED, AND A CORRECTION TO THE ENTRY ABOVE.** That entry, and the commit
+message beside it, described the pulse as *"four lines of CSS and one keyframe block"*. **That
+undercounts it**, and the number is recorded here because it is the kind of claim a future
+reversal would rely on. The mechanism was:
+
+| | |
+| --- | --- |
+| the `@property --search-pulse` registration | the first `@property` in this sheet; gone with it |
+| the `search-pulse` keyframes | one block |
+| the `:has(#search-input:placeholder-shown)` animation rule | one rule |
+| the `prefers-reduced-motion` suppression | one rule |
+| **six `filter` declarations rewritten in place** | on `#search-assembly` and `:focus-within`, across the base, `html.has-bg:not(.bg-light)` and `html.bg-light` frames |
+
+The six rewritten declarations are the part the "four lines" framing missed. Each had its
+static blur and alpha replaced by a `calc()` on `--search-pulse`, so removing the animation
+alone would have left six declarations computing their resting values through a registered
+property that no longer had a reason to exist.
+
+**THE RESTING VALUES ARE RESTORED EXACTLY, AND THAT WAS MEASURED, NOT ASSUMED.** The removal
+was verified to be the **byte-identical inverse** of `b5a2a3c`'s `newtab.css` changes: a
+reverse-apply of that commit's diff onto current master produces the same file as the hand
+removal, byte for byte. So the bar's resting ring and surface are exactly what `[1.12.1b]`
+shipped, on all three frames — nothing else moved, and no amplitude was re-derived.
+
+**No gate asserted the pulse**, so the gate count is unchanged; the running-animation list on
+an idle Home is now empty where it read `["search-pulse"]`.
+
+**WHAT THIS DOES NOT DECIDE.** The brand finding from the entry above stands untouched and is
+still the arc's strongest open recommendation: the wordmark measures 2,091 presence against
+the greeting's 466, and `[1.12.2]` spent 30px of vertical budget on the tab strip to make the
+bar the hero of Home. Cutting the pulse does not answer that, and does not weaken it.
