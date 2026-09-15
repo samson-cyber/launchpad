@@ -195,6 +195,49 @@ body {
   transition: background-color 0.2s, color 0.2s;
 }
 
+/* [1.11.4] THE BOOT FADE, SUPPRESSED FOR THE FIRST PAINTED FRAME ONLY.
+   The transition above exists so the wallpaper modal's preview animates, and
+   it ALSO fires on the first application - applyBackground writes the ground
+   from JS, so body interpolates from --bg's #fff up to the wallpaper over
+   200ms while every html.has-bg ink rule is ALREADY live. Measured at 085df09:
+   eleven distinct ground colours over 216ms, the greeting at 1.32:1 against
+   4.16 settled, on every new tab for every user. BUGS.md O7.
+
+   THE SUPPRESSION IS A TIME WINDOW, NOT A COUNT. html.bg-booting ships in the
+   STATIC markup of newtab.html, so it is in force before the first ground is
+   applied rather than a script-execution later, and newtab.js lifts it a
+   PAINTED FRAME after the ground lands - see liftBootFade for why a "first
+   call only" flag would not hold.
+
+   IT SUPPRESSES THE TRANSITION, NOT THE COLOUR. Nothing about the resting
+   appearance changes; the ground simply arrives at its value instead of
+   travelling to it.
+
+   AND IT COVERS EVERYTHING, NOT JUST body, BECAUSE THE NARROW VERSION MADE
+   THINGS WORSE. Suppressing body's transition alone was measured first and
+   traded one mismatch for a longer one: with the ground snapping dark at 93ms,
+   #home-greeting's own `transition: color 900ms ease` crawled its ink from
+   rgba(32, 33, 36, 0.54) to rgba(255, 255, 255, 0.46) over ~850ms — dark ink
+   on a dark ground, where the old pale ground had at least kept dark ink
+   legible. SEVENTEEN selectors transition their colour AND take a colour from
+   a ground rule, several painted on Home at boot (.group-open-all-btn,
+   .search-mode, .group-more-btn), so this is a class rather than one element.
+
+   ANIMATIONS ARE UNTOUCHED, which is the reason this can be blunt: greet-type
+   and greet-shimmer are `animation`, not `transition`, so the greeting still
+   types out and still shimmers. Nothing in this window is responding to a user
+   — there has not been one yet — so there is nothing here that wants to
+   travel rather than arrive.
+
+   !important is load-bearing: `html.bg-booting *` is (0,1,0) and loses to
+   `#home-greeting` at (1,0,0) without it. */
+html.bg-booting,
+html.bg-booting *,
+html.bg-booting *::before,
+html.bg-booting *::after {
+  transition: none !important;
+}
+
 #content {
   /* [1.10.9] THE RESERVATION IS SPLIT, so the centred column sits on the WINDOW's
      centre rather than 28px right of it.
@@ -2936,6 +2979,29 @@ html.bg-image body::before {
   background: rgba(0, 0, 0, 0.35);
   pointer-events: none;
   z-index: 0;
+}
+
+/* [1.11.4] THE GROUND THE SCRIM COMPOSITES AGAINST WHILE THE IMAGE IS PENDING.
+   applyBackground's image branch CLEARS body's inline background-color, so
+   until the picture decodes body falls back to `background: var(--bg)` = #fff
+   and the scrim above lands on WHITE: 255 × 0.65 = 165.75, which is exactly
+   the rgb(166, 166, 166) every sample returned at 085df09. White ink on
+   #a6a6a6 with has-bg already on - 17 of 29 visible text elements under 3:1,
+   worst 1.43:1 on the greeting. For a GALLERY or ROTATION wallpaper that frame
+   lasts the whole network fetch, and offline it never ends at all.
+
+   #2a2a2a IS DEFAULT_BG'S COLOUR (newtab.js), not a new one - the ground a
+   fresh install already stands on, and the value the dark frost tiers are
+   authored alongside. The scrim then composites to #1b1b1b instead of #a6a6a6.
+
+   THIS IS THE GROUND-SIDE ANSWER, and the class-side one was considered:
+   withholding bg-image until the image decodes would leave the page in its
+   light BASE sheet for the whole fetch, and forever offline - trading a dark
+   ground nobody minds for a white page that later snaps to a photograph.
+   `cover` means the picture hides this completely the moment it arrives, so it
+   is only ever seen when there is nothing else to see. BUGS.md O7. */
+html.bg-image body {
+  background-color: #2a2a2a;
 }
 
 /* [1.0.19 fix] This rule lost its partner when #first-run-toast was deleted.

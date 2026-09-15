@@ -631,6 +631,20 @@ Run when the task added or changed any text, badge, or control that renders insi
 
   **CSP, because the obvious fix is illegal.** An INLINE `<script>` in `<head>` cannot run: `extension_pages` is `script-src 'self'`, and MV3 accepts neither `'unsafe-inline'` nor a hash there. Tested in a modified COPY of the extension — the inline script was refused with a logged violation while an EXTERNAL `<head>` script ran at 40.3ms, well before that page's 232ms first paint. So any before-paint fix is an external head file, and **A6 stays true**.
 
+  **TWO OF THE THREE ARE CLOSED (2026-09-15).** `html.bg-booting` ships in newtab.html's static markup and suppresses every transition until a PAINTED FRAME after the ground lands; `html.bg-image body` takes `#2a2a2a` so the scrim has something to composite against while an image is in flight.
+
+  | frame | before | after |
+  | --- | --- | --- |
+  | **mid-transition** | 11 ground colours over 216ms, greeting 1.32:1 | **the state cannot be constructed** — the ink scan's own control "mid-transition ground is NOT yet the wallpaper" now FAILS, which is the proof |
+  | **image pending** | `#a6a6a6`, 17 of 29 elements under 3:1, worst 1.43 | `#1b1b1b` (42 × 0.65 = 27.3, measured), **1 of 29** under 3:1 — and that one is the Pro CTA at 2.70, which reads 2.70 settled too |
+  | **pre-resolve** | 2.32:1 `.tab-label`, slow hardware only | UNCHANGED and deliberately so — the frame is byte-identical, and (a) flipping `--bg` is deferred |
+
+  **THE NARROW FIX MADE IT WORSE, WHICH IS THE PART TO CARRY FORWARD.** Suppressing only `body`'s transition was measured first and traded a 200ms mismatch for an 850ms one: with the ground snapping dark at 93ms, `#home-greeting`'s own `transition: color 900ms ease` crawled its ink from `rgba(32, 33, 36, 0.54)` to `rgba(255, 255, 255, 0.46)` — dark ink on a dark ground, where the old pale ground had at least kept dark ink legible. **Once the ground stops travelling, everything keyed to the ground must stop travelling too.** SEVENTEEN selectors transition their colour AND take a colour from a ground rule, several painted on Home at boot, so the suppression covers `html.bg-booting *` rather than a list of elements. Measured after widening: 44 distinct ground/ink states during boot → **3**, with ground and ink arriving in the same frame.
+
+  **THE WINDOW IS A TIME WINDOW, NOT A COUNT**, and that is what makes it undefeatable. A "suppress the first call" flag loses to a second `applyBackground` landing before first paint — a `storage.onChanged` from another tab, a rotation tick, a per-workspace wallpaper — each of which would then fade from one boot ground to another. The class is lifted by a DOUBLE rAF scheduled at the first apply, so every apply inside that window is silent and every apply after it animates. Driven both ways: rotation-on and per-workspace boots each show ONE ground step, and the wallpaper modal's preview still ramps through 11 computed values.
+
+  **`bg-dark` IS WRITE-ONLY AND IS KEPT.** Nothing reads it — 0 CSS selectors against 382 for `has-bg` and 439 for `bg-light`, and no JS reads it either; it is added at newtab.js:19792 and removed at :19782 and that is all. It is KEPT because it is the only POSITIVE signal that the ground is a dark SOLID: `has-bg` alone does not distinguish a colour from a photograph, and the `:not(.bg-light)` idiom the sheet uses matches dark solids AND images alike, since the image branch adds no luminance class. Removing it would cost nothing today and would silently kill any future `html.bg-dark` rule written in the reasonable belief that the class means what it says.
+
 ### Section P: Gate and Harness Integrity
 
 Run when the task adds, extends, or relies on any automated gate, harness, or generator — including the ones in `tools/` and any verification suite written for a Section I gate. Every entry below is a defect found **inside a check**, not in the code the check was guarding.

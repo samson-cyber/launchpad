@@ -19777,6 +19777,39 @@
     return true;
   }
 
+  // [1.11.4] THE BOOT FADE IS LIFTED A PAINTED FRAME AFTER THE GROUND LANDS,
+  // AND NOT AFTER THE FIRST CALL - which is the design rather than a detail.
+  // body carries `transition: background-color 0.2s` so the wallpaper modal's
+  // preview animates; it also fires on the FIRST application, which is the
+  // ~200ms white-to-wallpaper ramp measured at 085df09 (BUGS.md O7).
+  //
+  // A COUNTER WOULD NOT HOLD, and that is why this is a window. applyBackground
+  // is reachable more than once before first paint: storage.onChanged from a
+  // second tab re-runs loadBackground, and a rotation tick or a per-workspace
+  // wallpaper resolves to a DIFFERENT picture through the same path. "Suppress
+  // the first call" would let the second one fade from one boot ground to
+  // another - the same defect, one call later. A window that closes on the
+  // first PAINTED FRAME suppresses every apply inside it and nothing after it,
+  // however many there are.
+  //
+  // DOUBLE rAF, because one is not enough: a single callback runs BEFORE the
+  // paint it is scheduled against, so removing the class there hands the
+  // transition back in time to animate the very frame being suppressed.
+  //
+  // Self-healing if applyBackground never runs at boot: previewBg calls it too,
+  // so the first wallpaper preview lifts the class rather than leaving the
+  // modal's fade dead forever.
+  var bootFadeLifted = false;
+  function liftBootFade() {
+    if (bootFadeLifted) return;
+    bootFadeLifted = true;
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        document.documentElement.classList.remove("bg-booting");
+      });
+    });
+  }
+
   function applyBackground(bgData) {
     var html = document.documentElement;
     html.classList.remove("bg-image", "bg-light", "bg-dark");
@@ -19800,6 +19833,7 @@
       html.classList.add("has-bg", "bg-image");
     }
     currentBg = bgData;
+    liftBootFade();
   }
 
   function openBgModal() {
