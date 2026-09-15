@@ -18442,9 +18442,22 @@
 
   function sessionRowHtml(s, attachedName) {
     var count = (s.tabs || []).length;
+    // THE FALLBACK IS DELEGATED, NOT INLINE, AND THAT IS THE FIX.
+    //
+    // This carried onerror="this.src=&quot;assets/placeholder.svg&quot;" until
+    // 2026-09-15. IT HAD NEVER ONCE RUN. The manifest CSP is
+    // `script-src 'self'` with no 'unsafe-inline', so an event-handler
+    // ATTRIBUTE is never compiled - the attribute sits in the DOM looking like
+    // a working fallback while a broken favicon renders as a broken image.
+    // Driven before removal: naturalWidth 0, src still the unreachable URL,
+    // attribute present and inert.
+    //
+    // [1.10.6] unified icon rendering across four surfaces and [1.10.2] built
+    // the delegated error listener every one of them uses. The session row was
+    // the surface neither reached, which is why this was the last inline
+    // handler in the tree.
     var icons = (s.tabs || []).slice(0, 4).map(function (t) {
-      return '<img class="session-fav" src="' + esc(sessionTabIcon(t)) + '" alt="" width="16" height="16" ' +
-             'onerror="this.src=&quot;assets/placeholder.svg&quot;">';
+      return '<img class="session-fav" src="' + esc(sessionTabIcon(t)) + '" alt="" width="16" height="16">';
     }).join("");
     var more = count > 4 ? '<span class="session-fav-more">+' + (count - 4) + '</span>' : "";
     return '<div class="session-row" data-session-id="' + esc(s.id) + '" role="button" tabindex="0" ' +
@@ -20881,6 +20894,25 @@
       // A broken custom icon shows the browser's own broken-image state, which
       // is honest: the user chose that file and can choose another.
       if (img.classList.contains("shortcut-custom-img")) return;
+
+      // A SESSION FAVICON FALLS BACK TO THE PLACEHOLDER AND NEVER TO GOOGLE,
+      // which is why .session-fav could not simply be added to the selector
+      // list below. sessionTabIcon states the rule outright: the icon is the
+      // one the tab carried AT CAPTURE TIME or the bundled placeholder, NEVER a
+      // lookup, because a lookup would hand a third party every domain of every
+      // saved session on every render. Routing these through the Google branch
+      // would have done exactly that, silently, on the error path only - the
+      // kind of privacy regression nothing on screen would show.
+      //
+      // The src equality check is the loop guard: if the placeholder itself
+      // ever failed to load, re-assigning it would fire this handler forever.
+      if (img.classList.contains("session-fav")) {
+        if (img.getAttribute("src") !== "assets/placeholder.svg") {
+          img.src = "assets/placeholder.svg";
+        }
+        return;
+      }
+
       if (!img.closest(".shortcut-icon, .rc-icon, .ob-popular-icon, .ob-preview-favicon, .restore-tab-item, .rc-panel-item")) return;
 
       var url = img.dataset.url || (img.closest("a[href]") && img.closest("a[href]").href) || "";
