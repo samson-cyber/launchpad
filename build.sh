@@ -308,6 +308,16 @@ if ! node tools/check-i18n-sites.mjs; then
   exit 1
 fi
 
+# [1.12] BUTTON SPECIFICITY - a ground rule must not outrank a state modifier.
+# NOT ENFORCING: it reports its count and fails only if the count GOES UP, the
+# same shape check-i18n-sites used while its backlog was being worked down.
+# Three rounds fixed one instance each of this defect before anything counted
+# them; the count is what makes the next one visible when it is written.
+if ! node tools/check-button-specificity.mjs; then
+  echo 'ERROR: button specificity regressed - a new state modifier is outranked by a ground rule.' >&2
+  exit 1
+fi
+
 # NOTE — the mutation passes (`--mutate` on either suite above) are development
 # verification, not release gates: they re-boot the subject once per seed and the
 # queue one takes ~16s. Run them when the code under test changes; the gates here

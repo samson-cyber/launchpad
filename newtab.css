@@ -14049,6 +14049,60 @@ html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-danger:hover {
   background: rgba(208, 2, 27, 0.18);
 }
 
+/* ===== THE AFFIRMATIVE BUTTON KEEPS ITS FILL ON A LIGHT WALLPAPER =========
+   THE SECOND INSTANCE OF THE SAME CAUSE, and measured rather than reasoned
+   about. On a light ground .tt-modal-btn-primary-fill rendered
+
+       color rgb(31,31,31)  background rgba(0,0,0,0.04)  background-image NONE
+
+   which is BYTE-IDENTICAL to .tt-modal-cancel beside it. Not a contrast nudge
+   - the 3.57:1 that aeaf99d reported was the symptom, and the cause is that
+   the gradient was gone entirely. html.has-bg.bg-light .tt-modal-btn is
+   (0,3,1) and .tt-modal-btn-primary-fill is (0,1,0), and the ground rule uses
+   the `background` SHORTHAND, which resets background-image to none.
+
+   Every modal in the product ends in Cancel + a primary; on a light wallpaper
+   the two were the same button. */
+html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-primary-fill {
+  background: linear-gradient(135deg, #1a73e8 0%, #1667d4 100%);
+  border-color: transparent;
+  color: #fff;
+}
+
+html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-primary-fill:hover {
+  background: linear-gradient(135deg, #1667d4 0%, #125bbb 100%);
+}
+
+/* ===== AND THE ACTIVE POMODORO CHIP, the other one the table found =========
+   .sat-pomo-chip.is-active on a light ground rendered
+
+       color rgb(32,33,36)  background rgba(0,0,0,0.04)
+
+   which is BYTE-IDENTICAL to an INACTIVE chip. html.bg-light .sat-pomo-chip is
+   (0,2,1); .sat-pomo-chip.is-active is (0,2,0). A tie on classes, and the
+   ground rule wins on the element - so "which phase am I in" had no answer on
+   a light wallpaper. The active value is the guide's light-solid accent, the
+   same one --sat-accent already resolves to on this branch. */
+html.bg-light .sat-pomo-chip.is-active {
+  background: color-mix(in srgb, var(--sat-accent) 14%, transparent);
+  border-color: var(--sat-accent);
+  /* The LABEL takes --sat-accent-ink rather than --sat-accent. The accent
+     itself measured 3.61:1 as text on its own light tint; --sat-accent-ink
+     (#15539b on this branch) is the deeper variant the product already defines
+     for exactly this - accent-coloured TEXT on a light ground. The border and
+     tint keep the full accent, so only the glyph goes deeper.
+
+     MEASURED 3.30 -> 4.24, which is a real improvement that STILL SITS
+     MARGINALLY UNDER the 4.5 text floor, and the reason is worth recording:
+     --sat-accent-ink is the deepest accent the product defines, and on a
+     near-white frosted card it tops out here. Lightening the tint to 9% was
+     tried and measured 4.24 as well - within noise - so the tint is not the
+     lever. Clearing 4.5 needs a deeper accent-ink token or a different
+     treatment for the chip, and both are guide decisions rather than something
+     to settle inside a specificity fix. */
+  color: var(--sat-accent-ink);
+}
+
 html.has-bg.bg-light .tt-modal-error {
   color: #b00020;
   background: rgba(208, 2, 27, 0.08);
