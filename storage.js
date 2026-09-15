@@ -2790,6 +2790,16 @@ var Storage = (function () {
       description: description,
       deadlineAt: deadlineAt,
       status: "active",
+      // [1.9.6] WHO CLOSED THIS GOAL. `status` and `completedAt` are written
+      // identically by completeGoal (the user ticked it) and by completeTask's
+      // last-child branch (the product closed it), so nothing downstream could
+      // tell a deliberate completion from an automatic one — and the two want
+      // OPPOSITE treatment when a child arrives afterwards. See
+      // admitActiveChildToGoal. Absent on every goal written before this field
+      // existed, and `undefined` is falsy, which reads as "manual" — the
+      // conservative default: a legacy goal is never silently re-opened. That
+      // is why this is a plain boolean and needs no backfill sweep (I28).
+      autoCompleted: false,
       autoTagId: autoTagId,
       isCollapsed: false,
       createdAt: now,
@@ -3037,12 +3047,70 @@ var Storage = (function () {
     return released;
   }
 
+  /**
+   * [1.9.6] THE INVERSE OF `releaseUnfinishedTasksFromGoal`, ON THE WAY IN.
+   *
+   * THE INVARIANT [1.4.7] ESTABLISHED: no reader may observe a completed goal
+   * that still holds an unfinished task. Both completion paths call the release
+   * above to guarantee it on the way OUT. Nothing guaranteed it on the way IN,
+   * so every writer that attached an active child to a completed goal broke it
+   * silently — the goal kept saying it was done while open work sat inside it.
+   *
+   * WHICH REPAIR IS CORRECT DEPENDS ON WHO CLOSED THE GOAL, and those two cases
+   * want opposite answers:
+   *
+   *   AUTO-COMPLETED (the product closed it because the last child finished) —
+   *     RE-OPEN. The closure was an inference from "no open children left", and
+   *     that inference has just stopped being true. reactivateTask has done
+   *     exactly this since [1.4.x] and its docblock already calls it "symmetric
+   *     inverse of auto-completion"; this is that same inverse reached by the
+   *     other door.
+   *
+   *   MANUALLY COMPLETED (the user ticked it) — DO NOT RE-OPEN, and do not
+   *     attach either. The user's judgement that the goal is finished is not
+   *     invalidated by a new task existing, so silently re-opening it is the
+   *     mirror of the reported bug rather than a fix for it. But leaving the
+   *     child attached would break the [1.4.7] invariant just as badly, so the
+   *     child lands STANDALONE. That is already this product's idiom for "this
+   *     parent will not take you": restoreTask re-homes to standalone rather
+   *     than dangle, and the recurring binder nulls the goal rather than spawn
+   *     under a dead one (D6).
+   *
+   * Callers pass the goalId they intend to attach and USE THE RETURN VALUE as
+   * the goalId they actually write. Returns null when the child must go
+   * standalone. Mutates the goal in the re-open case; the caller's own saveAll
+   * persists it, exactly as the release helper relies on.
+   *
+   * It is a shared helper for the reason [1.4.7] gave for calling the release
+   * from both paths: this belongs to "an active child met a completed goal",
+   * not to one caller's reasoning, so a future fifth writer inherits it instead
+   * of being the line somebody forgets.
+   *
+   * @returns {string|null} the goalId to store on the child
+   */
+  function admitActiveChildToGoal(workspace, goalId) {
+    if (goalId == null) return null;
+    var goal = findLiveGoal(workspace, goalId);
+    // Not live is not this helper's business — each caller already validates
+    // that, and they disagree about whether it is a warning or a throw.
+    if (!goal || goal.status !== "completed") return goalId;
+    if (!goal.autoCompleted) return null;
+    goal.status = "active";
+    goal.completedAt = null;
+    goal.autoCompleted = false;
+    return goalId;
+  }
+
   async function completeGoal(data, goalId, workspaceId) {
     var ws = resolveWorkspaceFromData(data, workspaceId);
     var goal = findLiveGoal(ws, goalId);
     if (!goal) return null;
     if (goal.status === "completed") return goal;
     goal.status = "completed";
+    // [1.9.6] DELIBERATE. Written explicitly rather than left to whatever a
+    // previous auto-completion put here: a goal that auto-completed, re-opened
+    // and was then ticked by hand must not keep the old `true`.
+    goal.autoCompleted = false;
     var goalNow = Date.now();
     goal.completedAt = goalNow;
     // [1.4.7] PATH 1 of 2. Before the saveAll below, so no reader can observe a
@@ -3065,6 +3133,10 @@ var Storage = (function () {
     if (goal.status === "active") return goal;
     goal.status = "active";
     goal.completedAt = null;
+    // [1.9.6] The flag describes a CLOSURE, so it dies with the closure it
+    // described. Leaving it set would make the next manual completion look
+    // automatic and re-open on the following child.
+    goal.autoCompleted = false;
     await saveAll(data);
     return goal;
   }
@@ -3396,6 +3468,10 @@ var Storage = (function () {
         console.warn("[LaunchPad] createTask: goalId does not reference a live goal:", goalId);
         return null;
       }
+      // [1.9.6] newTaskObject hardcodes completed:false, so a task from here is
+      // always an ACTIVE child. Before the tag-inheritance block below, because
+      // a child sent standalone must not inherit the goal's auto-tag either.
+      goalId = admitActiveChildToGoal(ws, goalId);
     }
 
     var dueAt = (f.dueAt === undefined) ? null : f.dueAt;
@@ -3559,6 +3635,10 @@ var Storage = (function () {
         if (allComplete) {
           goal.status = "completed";
           goal.completedAt = now;
+          // [1.9.6] THE PRODUCT CLOSED THIS, NOT THE USER — the one place this
+          // is true. admitActiveChildToGoal reads it to decide whether a child
+          // arriving later re-opens the goal or lands standalone instead.
+          goal.autoCompleted = true;
           // [1.4.7] PATH 2 of 2. This branch fires only when every live sibling
           // is already complete, so today it releases nothing by construction -
           // and it is called anyway, deliberately. The release belongs to "a
@@ -3608,6 +3688,15 @@ var Storage = (function () {
       if (goal && goal.status === "completed") {
         goal.status = "active";
         goal.completedAt = null;
+        // [1.9.6] Cleared for the same reason as reactivateGoal. NOTE THE
+        // DELIBERATE ASYMMETRY WITH admitActiveChildToGoal BELOW: this path
+        // re-opens a MANUALLY completed goal too, and that is left exactly as
+        // it was. Un-ticking a child that the user themselves ticked is an
+        // undo of the event that closed the goal, so re-opening is the right
+        // answer whoever closed it; attaching a NEW child is not an undo of
+        // anything. Changing this would alter documented, working, unreported
+        // behaviour, so it stays out of scope.
+        goal.autoCompleted = false;
         goalAutoReactivated = true;
         autoReactivatedGoal = goal;
       }
@@ -3687,6 +3776,12 @@ var Storage = (function () {
     // Re-home to standalone if the parent goal is no longer live.
     if (task.goalId != null && !findLiveGoal(ws, task.goalId)) {
       task.goalId = null;
+    } else if (task.goalId != null && !task.completed) {
+      // [1.9.6] A live parent can still be a CLOSED one. Restoring an
+      // unfinished task under a completed goal breaks the same invariant as
+      // creating one there, and the re-home above is the precedent this
+      // extends: "not live" and "not accepting children" get the same answer.
+      task.goalId = admitActiveChildToGoal(ws, task.goalId);
     }
     await saveAll(data);
     return task;
@@ -4124,6 +4219,10 @@ var Storage = (function () {
         console.warn("[LaunchPad] moveTaskToGoal: target goal not found or soft-deleted:", target);
         return null;
       }
+      // [1.9.6] Only an UNFINISHED task can break the [1.4.7] invariant, so a
+      // completed one moves into a completed goal untouched — it is exactly the
+      // company that goal is supposed to keep.
+      if (!task.completed) target = admitActiveChildToGoal(ws, target);
     }
     if (task.goalId === target) return task;
     task.goalId = target;
@@ -4239,6 +4338,10 @@ var Storage = (function () {
       if (!findLiveGoal(ws, newGoalId)) {
         throw new Error("reassignTaskToGoal: target goal not found or soft-deleted: " + newGoalId);
       }
+      // [1.9.6] Same rule as moveTaskToGoal, and it must land BEFORE
+      // getGoalAutoTagId(data, newGoalId) below: a task sent standalone takes
+      // the target's auto-tag with it otherwise.
+      if (!task.completed) newGoalId = admitActiveChildToGoal(ws, newGoalId);
     }
     if (options.newName !== undefined) {
       if (typeof options.newName !== "string" || options.newName.trim().length === 0) {
@@ -6583,6 +6686,14 @@ var Storage = (function () {
         // live; otherwise the instance is standalone (D6 — never dangle under a
         // dead goal).
         var goalId = (tpl.goalId != null && findLiveGoal(ws, tpl.goalId)) ? tpl.goalId : null;
+        // [1.9.6] THE ONE ROUTE THAT NEEDS NO USER ACTION, and therefore the
+        // one that made this worth fixing rather than recording. A template
+        // bound to a goal ([1.0.14] drag-template-into-goal) whose last task is
+        // ticked leaves that goal auto-completed with the binding intact; the
+        // next cadence then spawns an ACTIVE instance straight into it. Every
+        // instance below is completed:false by newTaskObject, so one admission
+        // covers the whole batch.
+        goalId = admitActiveChildToGoal(ws, goalId);
         var lastId = null;
         toCreate.forEach(function (dayEpoch) {
           var inst = newTaskObject(ws, {
@@ -6859,6 +6970,13 @@ var Storage = (function () {
       description: tpl.description || "",
       deadlineAt: deadlineAt,
       status: "active",
+      // [1.9.6] THE SECOND GOAL CONSTRUCTOR, registered in the same commit as
+      // the first (BUGS.md E7: a new field on an entity belongs in every
+      // literal that builds it, or the two shapes drift and nothing announces
+      // it). Behaviourally this line is a no-op today — undefined and false are
+      // both falsy, and the auto-complete branch sets the flag explicitly when
+      // it fires — which is exactly why it would have been easy to omit.
+      autoCompleted: false,
       autoTagId: null,
       isCollapsed: false,
       createdAt: now,
@@ -7907,6 +8025,7 @@ var Storage = (function () {
     // [1.4.7] Goal completion releases unfinished children.
     getUnfinishedTasksInGoal: getUnfinishedTasksInGoal,
     releaseUnfinishedTasksFromGoal: releaseUnfinishedTasksFromGoal,
+    admitActiveChildToGoal: admitActiveChildToGoal,
     sweepStrandedTasks: sweepStrandedTasks,
     // [1.4.2] Attachment. Per-field updaters; both halves of the one-to-one
     // invariant are enforced in attachNamedSessionToTask, not in the UI.
