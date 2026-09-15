@@ -3420,3 +3420,55 @@ them is not a new finding.**
 **The revert is byte-identical to the pre-round state** — the reverted `newtab.css` has the
 same git blob hash as the commit before the surface landed, `ad53cbf`, so the four rules are
 exactly what shipped rather than a reconstruction of them.
+
+---
+
+## 2026-09-15 — Multi-tag attribution and its clamp are DELIBERATE, and two surfaces now say so
+
+**Decision.** The tracking engine credits a session's **full duration to every tag it carries**, so tag
+totals can exceed the period total; untagged time is derived as `total − tag sum` and **clamped at
+zero**, so on a heavily multi-tagged profile the Untagged slice disappears entirely. **Both are
+intended. Neither is to be "fixed".** `575d221` adds the explanation the surfaces were missing; the
+arithmetic is unchanged and stays unchanged.
+
+**THIS RATIFIES AND EXTENDS AN EXISTING DECISION RATHER THAN MAKING A NEW ONE.** The 2026-07-21
+`[2.0]` Insights entry already recorded the mechanism under **Donut-cannot-lie**: because `byTag`
+credits a multi-tag session's minutes to *each* of its tags (`attributeSession` unions bookmark and
+task tags), the tag buckets can exceed the scope total, Untagged clamps to 0, and the ring's centre
+reflects the real drawn total rather than understating it. **That is still the decision.** What was
+missing was any statement of it on a surface a user sees.
+
+**WHY THE ATTRIBUTION IS RIGHT, stated so a later round does not read the overflow as a bug.** A
+session tagged *design* and *deep work* really was both things. Splitting its minutes between the two
+would assert that half of it was design, which is a claim the product cannot support and did not
+measure. Changing the attribution now would also make every historical figure wrong and cannot be
+recomputed for sessions whose raw records have pruned at 30 days. The overflow is the honest
+consequence of an honest attribution.
+
+**THE CLAMP IS ALSO RIGHT, AND IS THE PART THAT NEEDED EXPLAINING.** A negative Untagged figure is
+meaningless, so the clamp is the only sane floor — but its effect is to DELETE the slice rather than
+show it at zero, and a missing legend row is invisible. That the parts exceed the whole is at least
+discoverable by adding the legend up; that untagged time exists and is not drawn is not discoverable
+at all. **The second fact is the one the explanations carry.**
+
+**THE TWO EXPLANATIONS, and they agree by construction rather than by coincidence:**
+
+| surface | what it says | when |
+| --- | --- | --- |
+| the Insights donut | `insights_tag_overlap_note`, one line beneath the legend | only when `tagTotalMs > scopeTotalMs` — the clamp's own trigger |
+| the CSV export | the `tag_note` meta row | always, since `[1.8.4]` |
+
+**THE DONUT'S NOTE IS CONDITIONAL AND THE FILE'S IS NOT, which is deliberate.** A permanent caveat on
+a donut most profiles never trip is clutter; a line that appears when the numbers genuinely overlap is
+information at the moment it is needed. A file, by contrast, is read away from the product by someone
+who cannot ask — often a client or an accountant — so its caveat is unconditional.
+
+**WHAT THIS CLOSES.** Until `575d221` the downloadable artefact was more honest than the screen it
+came from: `[1.8.4]`'s `tag_note` stated the caveat outright while the board said nothing, so a user
+learned from the file something the live surface had withheld. That inversion is what the task was
+filed for and it is now closed.
+
+**Scope, measured rather than assumed.** The `Math.max(0, total − tagTotal)` derivation exists in
+**exactly two places** — the donut and the export. The weekly card's tag row and the Dashboard's Top
+tag are TOP-OF readers with no derived untagged figure and no clamp, and the free preview renders no
+donut at all. So there was one silent surface, not a family of them, and nothing else needs the note.
