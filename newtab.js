@@ -9667,9 +9667,16 @@
     });
 
     // [1.0.18 B-2] Boundary chime. Two delegated handlers on one container:
-    //   change -> persist the selection (whitelist-coerced in the setter)
-    //   click on ▶ -> PREVIEW ONLY, writes nothing. Auditioning a chime must not
-    //     change what fires at your next boundary; you pick with the radio.
+    // [WM.4 follow-up] SELECTING PLAYS IT. The separate play button is gone.
+    //
+    // It stood beside each chime because auditioning was framed as a different
+    // act from choosing - "hear it without committing". In use that is backwards:
+    // nobody auditions a chime they are not considering, and a picker whose
+    // choice is silent until the next phase boundary is a control you cannot
+    // tell worked. One radio, one sound, and the selection IS the audition.
+    //
+    // Writing first and playing second, so a play that is blocked still leaves
+    // the setting saved.
     safeOn("#pomo-sound-options", "change", async function (e) {
       var el = e.target;
       if (!el || el.name !== "pomo-sound") return;
@@ -9679,11 +9686,7 @@
         console.error("[LaunchPad] Focus session: save sound failed", err);
       }
       renderProPomodoroSettings();
-    });
-    safeOn("#pomo-sound-options", "click", function (e) {
-      var btn = e.target.closest(".pomo-sound-preview");
-      if (!btn) return;
-      satPlayPomodoroSound(btn.dataset.sound);
+      satPlayPomodoroSound(el.value);        // 'none' returns immediately
     });
 
     bindProTagsControls();
@@ -9729,6 +9732,10 @@
   function closeProSettingsPanel(opts) {
     var panel = $("#pro-settings-panel");
     if (!panel || panel.classList.contains("hidden")) return;
+    // [WM.4 follow-up] A preview belongs to the panel that started it. Leaving
+    // one running behind a closed panel is a noise with no visible source, and
+    // no control anywhere to stop it.
+    if (typeof FocusNoise !== "undefined") FocusNoise.stop();
     panel.classList.add("hidden");
 
     closeTagPalettePopover();
@@ -10506,6 +10513,25 @@
     if (idle) idle.value = String(Storage.getIdleThresholdSec(data));
   }
 
+  // [WM.4 follow-up] The preview, and the one case where there is not one.
+  //
+  // IF A SESSION IS ALREADY PLAYING, THE SESSION IS THE PREVIEW. Writing the
+  // setting is enough: the worker's reconciler hears the `data` change and
+  // switches the running texture. Previewing here as well would play two
+  // textures at once out of two different audio contexts - the page's and the
+  // offscreen document's - which is not a preview, it is a mess.
+  var FOCUS_PREVIEW_MS = 4000;
+  function previewFocusTexture(texture) {
+    if (typeof FocusNoise === "undefined") return;
+    if (texture === "off") { FocusNoise.stop(); return; }
+    if (Storage.focusSoundShouldPlay(data)) return;   // the session has it
+    try {
+      FocusNoise.start(texture, Storage.getFocusSoundVolume(data), FOCUS_PREVIEW_MS);
+    } catch (err) {
+      console.error("[LaunchPad] Focus sounds: preview failed", err);
+    }
+  }
+
   // [WM.4] Bound once, at panel wiring. Each writes through Storage, which owns
   // the clamping - the control's own min/max is a convenience for the mouse, not
   // the guard.
@@ -10514,12 +10540,30 @@
       try { await Storage.setCommitmentArmed(data, this.checked); }
       catch (err) { console.error("[LaunchPad] Focus: commitment toggle failed", err); }
     });
+    // [WM.4 follow-up] SELECTING A TEXTURE PLAYS IT, and this is the defect
+    // Samson reported: the picker only wrote the setting, and the worker plays a
+    // texture only while a Work session runs - so choosing Rain did nothing at
+    // all, and you found out what you had chosen twenty minutes later. A control
+    // that visibly does nothing is the shape the accent picker was cut for.
+    //
+    // FOUR SECONDS. Long enough to know what it is - rain needs about two before
+    // the droplets read as droplets rather than as noise - and short enough that
+    // changing your mind three times is twelve seconds rather than a minute.
     Array.prototype.forEach.call(document.querySelectorAll('input[name="focus-sound"]'), function (r) {
       r.addEventListener("change", async function () {
         if (!r.checked) return;
         try { await Storage.setFocusSoundTexture(data, r.value); }
         catch (err) { console.error("[LaunchPad] Focus sounds: set failed", err); }
+        previewFocusTexture(r.value);
       });
+    });
+    // LIVE, NOT ON COMMIT. "input" rather than "change" so dragging the slider
+    // moves what you are hearing while you drag; the WRITE is still debounced
+    // onto change, because a slider fires input per pixel and every one of those
+    // would be a storage write.
+    safeOn("#focus-sound-volume", "input", function () {
+      var v = (parseInt(this.value, 10) || 0) / 100;
+      if (typeof FocusNoise !== "undefined") FocusNoise.setVolume(v);
     });
     safeOn("#focus-sound-volume", "change", async function () {
       try { await Storage.setFocusSoundVolume(data, (parseInt(this.value, 10) || 0) / 100); }

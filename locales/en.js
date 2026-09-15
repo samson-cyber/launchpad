@@ -109,11 +109,6 @@ I18n.register("en", {
     "description": "Generic action label, shared across surfaces.",
     "sense": "action.generic"
   },
-  "common_preview": {
-    "message": "Preview",
-    "description": "Generic action label, shared across surfaces. Shared by 3 sinks: newtab.html:469 attr:title, newtab.html:473 attr:title, newtab.html:477 attr:title.",
-    "sense": "action.generic"
-  },
   "common_remove": {
     "message": "Remove",
     "description": "Generic action label, shared across surfaces. Shared by 2 sinks: newtab.html:314 text, newtab.html:547 text.",
@@ -616,18 +611,6 @@ I18n.register("en", {
   "prosettings_paper_colour_for_new_notes": {
     "message": "Paper colour for new notes. Leave unset to cycle the palette.",
     "description": "Text on the prosettings surface."
-  },
-  "prosettings_preview_chime_1": {
-    "message": "Preview Chime 1",
-    "description": "aria-label attribute on the prosettings surface."
-  },
-  "prosettings_preview_chime_2": {
-    "message": "Preview Chime 2",
-    "description": "aria-label attribute on the prosettings surface."
-  },
-  "prosettings_preview_chime_3": {
-    "message": "Preview Chime 3",
-    "description": "aria-label attribute on the prosettings surface."
   },
   "prosettings_privacy_policy": {
     "message": "Privacy policy",

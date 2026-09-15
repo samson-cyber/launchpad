@@ -1066,12 +1066,16 @@ function reconcileFocusSound() {
         return;
       }
       if (!(await ensureSoundOffscreen())) return;
-      // Told on every pass rather than only on a change: the volume can move
-      // without the texture doing so, and re-starting the same texture is
-      // cheap and idempotent inside the document.
+      // [WM.4 follow-up] A VOLUME CHANGE NO LONGER RESTARTS THE TEXTURE. It used
+      // to re-send "start" on every pass, which is idempotent but audible: the
+      // loop begins again and the 120 ms ramp runs, so nudging the slider mid
+      // session made the sound blip. Only a texture change restarts.
+      var same = (_noisePlaying && _noiseTexture === want);
       _noisePlaying = true;
       _noiseTexture = want;
-      await sendOffscreen({ type: "lp-offscreen-noise", action: "start", texture: want, volume: vol });
+      await sendOffscreen(same
+        ? { type: "lp-offscreen-noise", action: "volume", volume: vol }
+        : { type: "lp-offscreen-noise", action: "start", texture: want, volume: vol });
     } catch (e) {
       console.error("[LaunchPad] Focus sounds: reconcile failed", e);
     } finally {

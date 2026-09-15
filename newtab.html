@@ -686,15 +686,12 @@
             </div>
             <div class="pomo-sound-row">
               <label class="pomo-sound-label"><input type="radio" name="pomo-sound" value="chime1"><span data-i18n="prosettings_chime_1_soft_bell">Chime 1, soft bell</span></label>
-              <button data-i18n-aria-label="prosettings_preview_chime_1" data-i18n-title="common_preview" type="button" class="pomo-sound-preview" data-sound="chime1" title="Preview" aria-label="Preview Chime 1">&#9654;</button>
             </div>
             <div class="pomo-sound-row">
               <label class="pomo-sound-label"><input type="radio" name="pomo-sound" value="chime2"><span data-i18n="prosettings_chime_2_rising_triad">Chime 2, rising triad</span></label>
-              <button data-i18n-aria-label="prosettings_preview_chime_2" data-i18n-title="common_preview" type="button" class="pomo-sound-preview" data-sound="chime2" title="Preview" aria-label="Preview Chime 2">&#9654;</button>
             </div>
             <div class="pomo-sound-row">
               <label class="pomo-sound-label"><input type="radio" name="pomo-sound" value="chime3"><span data-i18n="prosettings_chime_3_warm_tone">Chime 3, warm tone</span></label>
-              <button data-i18n-aria-label="prosettings_preview_chime_3" data-i18n-title="common_preview" type="button" class="pomo-sound-preview" data-sound="chime3" title="Preview" aria-label="Preview Chime 3">&#9654;</button>
             </div>
           </div>
         </div>
@@ -1044,6 +1041,9 @@
   <script src="tracking.js"></script>
   <script src="bookmarks.js"></script>
   <script src="importers.js"></script>
+  <!-- [WM.4 follow-up] The focus-texture generator, shared with the offscreen
+       document so a preview in Settings is the SAME sound a session plays. -->
+  <script src="focus-noise.js"></script>
   <script src="lib/Sortable.min.js"></script>
   <script src="newtab.js"></script>
 </body>

@@ -7237,25 +7237,6 @@ html.has-bg .pomo-sound-row { color: var(--ink-secondary); }
 html.bg-light .pomo-sound-title,
 html.bg-light .pomo-sound-row { color: var(--text-secondary); }
 .pomo-sound-label input { cursor: pointer; }
-.pomo-sound-preview {
-  flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border-radius:var(--radius-md);
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.06);
-  color: inherit;
-  font-size: var(--fs-9);
-  line-height: 1;
-  cursor: pointer;
-}
-.pomo-sound-preview:hover { background: rgba(255, 255, 255, 0.12); }
-html.has-bg .pomo-sound-preview { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.14); color: #fff; }
-html.bg-light .pomo-sound-preview { background: rgba(0, 0, 0, 0.04); border-color: rgba(0, 0, 0, 0.14); color: var(--text-primary); }
 
 #pro-settings-privacy-link {
   color: var(--accent);
