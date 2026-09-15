@@ -4283,11 +4283,6 @@ I18n.register("en", {
       "message": "Focus rules on in this workspace.",
       "sense": "tooltip.explanation"
     },
-    "wsmode_pending_note": {
-      "description": "TEMPORARY, AND WM.5 DELETES IT. Shown under the mode control while mode governs nothing yet, so a user who flips to Work and sees nothing change knows it is not broken. Gated on the WS_MODE_PENDING constant in newtab.js; that constant and this message are removed together when the rules land.",
-      "message": "Nothing is enforced yet. The rules Work mode runs arrive in later updates.",
-      "sense": "note.explanation"
-    },
     "wsmode_pill_work_title": {
       "description": "Tooltip and accessible name of the WORK chip on the active-task pill. ONE key for one element, per the i18n-dom contract. There is no Casual equivalent: the chip is absent in Casual.",
       "message": "This workspace is in Work mode.",

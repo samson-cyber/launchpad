@@ -9195,19 +9195,20 @@
           '" data-ws-mode="' + value + '" aria-pressed="' + (on ? "true" : "false") +
           '" title="' + th(hintKey) + '">' + th(labelKey) + '</button>';
       };
-      // THE SWITCH SWITCHES NOTHING YET, AND IT SAYS SO.
+      // [WM.3] THE "SWITCHES NOTHING YET" NOTE IS GONE, FOUR ROUNDS EARLY,
+      // BECAUSE THE CONDITION IT DESCRIBED ENDED HERE RATHER THAN AT WM.5.
       //
-      // WM.1 ships the model, the control and the stamp; WM.2 through WM.5 ship
-      // the rules mode governs. A user who flips to Work, sees the chip appear
-      // and sees nothing else change would reasonably conclude the control is
-      // broken - so this note is the difference between "not yet" and "not
-      // working".
+      // WM.1 wrote it behind one constant and assigned its removal to WM.5, on
+      // the reasoning that copy saying "not yet" becomes FALSE the moment the
+      // arc lands and that shipped copy which has quietly become a lie is worse
+      // than no copy at all. This round makes Work mode govern scheduled
+      // blocking - so "Nothing is enforced yet" stopped being true at this
+      // commit, and the sentence had to go with it. Caught in the packaged
+      // smoke, where the note rendered under a build that had just gated a
+      // navigation on a schedule.
       //
-      // ONE FLAG, ONE STRING, AND WM.5 OWNS DELETING BOTH. This is the
-      // TRIAL_CTA_ENABLED shape - a single grep-able constant rather than a
-      // sentence scattered through a render - because copy that says "not yet"
-      // becomes FALSE the moment the arc lands, and shipped copy that has
-      // quietly become a lie is worse than no copy at all.
+      // The flag, the string and the CSS rule went together, which is what WM.1
+      // specified; only the round doing it changed.
       modeSection.innerHTML =
         '<div class="ws-dd-mode-label">' + th("wsmode_label") + '</div>' +
         '<div class="ws-dd-mode-seg" role="group" aria-label="' +
@@ -9215,7 +9216,7 @@
           modeOptHtml("casual", "wsmode_casual", "wsmode_casual_hint") +
           modeOptHtml("work", "wsmode_work", "wsmode_work_hint") +
         '</div>' +
-        (WS_MODE_PENDING ? '<p class="ws-dd-mode-note">' + th("wsmode_pending_note") + '</p>' : "");
+        "";
       Array.prototype.forEach.call(modeSection.querySelectorAll("[data-ws-mode]"), function (btn) {
         btn.addEventListener("click", function () {
           setWorkspaceModeFromSwitcher(modeWs.id, btn.dataset.wsMode);
@@ -9318,10 +9319,6 @@
       }
     }
   }
-
-  // [WM.1] True while mode governs nothing. WM.5 sets it false and deletes
-  // wsmode_pending_note from the catalogue in the same commit.
-  var WS_MODE_PENDING = true;
 
   // [WM.1] Flip the active workspace's mode. setWorkspaceMode returns false
   // when the value is unchanged, so clicking the segment you are already on

@@ -8239,14 +8239,6 @@ html.has-bg #nesting-tooltip {
   font-weight: 600;
 }
 
-/* TEMPORARY - WM.5 removes this rule with WS_MODE_PENDING and its string. */
-.ws-dd-mode-note {
-  margin: var(--space-1-5) 0 0;
-  font-size: var(--fs-9);
-  line-height: 1.45;
-  color: var(--ink-meta);
-}
-
 .ws-dd-add-glyph {
   display: inline-flex;
   align-items: center;
@@ -8892,8 +8884,7 @@ html.has-bg.bg-light .ws-dd-mode-opt:hover {
   background: rgba(0, 0, 0, 0.06);
 }
 
-html.has-bg.bg-light .ws-dd-mode-label,
-html.has-bg.bg-light .ws-dd-mode-note {
+html.has-bg.bg-light .ws-dd-mode-label {
   color: rgba(0, 0, 0, 0.62);
 }
 
