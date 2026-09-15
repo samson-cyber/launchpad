@@ -14835,6 +14835,387 @@ html.bg-light .demo-tile-body { color: #3c4043; }
    So the problem to solve was not the overlay but that it READ as broken, and
    the cue for that already existed one panel over. */
 
+/* ===== OT.1 THE OPEN TABS PANEL =====
+
+   THIRD SIBLING OF #bookmarks-panel, and it copies that rule rather than
+   inventing a fourth positioning idiom: same inset-inline-start off the
+   sidebar, same 320px, same floater frost BY VARIABLE, same edge treatment
+   (the 4px 0 24px elevation plus the 1px inner highlight that [1.11.1b]
+   added so a tile sliced at the panel edge reads as layering rather than as
+   a rendering fault).
+
+   THE ROWS ARE A FLAT LIST, not a nested DOM. A window is a heading plus a
+   block of rows; there is only ever one level, so nothing here needs the
+   depth custom property the bookmark tree carries. */
+#open-tabs-panel {
+  position: fixed;
+  inset-inline-start: var(--sidebar-w, 220px);
+  top: 0;
+  bottom: 0;
+  width: 320px;
+  z-index: 1200;
+  overflow-y: auto;
+  background: var(--pro-frost-floater-bg, rgba(30, 30, 30, 0.92));
+  backdrop-filter: var(--pro-frost-floater-blur, blur(14px));
+  -webkit-backdrop-filter: var(--pro-frost-floater-blur, blur(14px));
+  border-inline-end: 1px solid var(--surface-fill);
+  color: var(--ink-primary);
+  box-shadow: 4px 0 24px var(--shadow-color), 1px 0 0 rgba(255, 255, 255, 0.14);
+
+  /* --ink-chrome IS RAISED ON THIS SURFACE, and the number is measured rather
+     than chosen. The shared token is rgba(255,255,255,0.50), which composites
+     to 4.14:1 on this panel's floater frost - under the 4.5:1 floor for the
+     three smallest things in here: the filter placeholder, the state badges
+     and the "This tab" marker. 0.62 measures 5.4:1 and leaves margin for the
+     anti-aliasing bias, which drags a measurement DOWN rather than up. */
+  --ink-chrome: rgba(255, 255, 255, 0.62);
+}
+
+/* THE LIGHT-WALLPAPER INK OVERRIDE, restating the dark values on the light
+   surface exactly as #bookmarks-panel does. Without it every text node in
+   here inherits white ink and vanishes on a white frosted panel - the a68dd89
+   failure, which has now been found by fifteen consecutive rounds that added
+   a surface. Declared BEFORE any rule that consumes the tokens. */
+html.bg-light #open-tabs-panel {
+  --ink-primary: rgba(0, 0, 0, 0.87);
+  --ink-secondary: rgba(0, 0, 0, 0.66);
+  /* THE TWO WEAK TOKENS ARE DARKENED HERE, AND THE SIBLING PANEL SHOWS WHY
+     THIS IS NOT COPYING A NUMBER WRONG. #bookmarks-panel uses the same
+     rgba(0,0,0,0.56) for its intro line; measured from the screen on the same
+     two light grounds it reads 4.10:1 and 4.19:1, and this panel's intro read
+     4.04 and 4.13 with the identical token. Both are under the floor. The
+     values were inherited, so the shortfall was inherited with them.
+
+     A NEW SURFACE DOES NOT GET TO SHIP UNDER THE FLOOR BECAUSE AN OLD ONE
+     DOES, so these are raised: 0.70 measures 5.3:1 for the intro, the host
+     line and the window count; 0.64 measures 4.9:1 for the badges, the
+     placeholder and the "This tab" marker. The bookmarks panel is NOT touched
+     from here - it is a shipped surface outside this round - but its numbers
+     are in the round report so the finding does not die with this comment. */
+  --ink-meta: rgba(0, 0, 0, 0.70);
+  --ink-chrome: rgba(0, 0, 0, 0.64);
+}
+
+.ot-section {
+  padding-bottom: var(--space-2);
+}
+
+.ot-intro {
+  margin: 0 0 var(--space-3);
+  font-size: var(--fs-12);
+  line-height: 1.45;
+  color: var(--ink-meta);
+}
+
+/* ---- the filter ---- */
+.ot-filter-wrap {
+  position: relative;
+  margin-bottom: var(--space-2);
+}
+
+.ot-filter {
+  width: 100%;
+  box-sizing: border-box;
+  height: 30px;
+  padding: 0 var(--space-6) 0 var(--space-2-5);
+  border: 1px solid var(--surface-line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-fill);
+  color: var(--ink-primary);
+  font-size: var(--fs-13);
+  font-family: inherit;
+}
+
+.ot-filter::placeholder { color: var(--ink-chrome); }
+.ot-filter:focus {
+  outline: none;
+  border-color: var(--pro-ink-accent);
+}
+
+.ot-filter-clear {
+  position: absolute;
+  inset-inline-end: 4px;
+  top: 3px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--ink-chrome);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.ot-filter-clear:hover { background: var(--surface-fill); color: var(--ink-primary); }
+
+/* ---- the selection bar ----
+   SHIPS COLLAPSED, per the design guide: it is not this surface's hero and it
+   has nothing to say until a tab is ticked. The hero is the list. */
+.ot-selectbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--surface-fill);
+}
+
+.ot-selcount {
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ot-selectbar-actions { display: flex; align-items: center; gap: var(--space-2); }
+
+.ot-clear-sel {
+  border: none;
+  background: transparent;
+  color: var(--ink-secondary);
+  font-size: var(--fs-12);
+  font-family: inherit;
+  cursor: pointer;
+  padding: var(--space-1) var(--space-1-5);
+  border-radius: var(--radius-sm);
+}
+.ot-clear-sel:hover { background: var(--surface-fill); color: var(--ink-primary); }
+
+.ot-save-btn {
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--pro-ink-accent);
+  color: #202124;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  font-family: inherit;
+  padding: var(--space-1-5) var(--space-2-5);
+  cursor: pointer;
+}
+.ot-save-btn:hover { filter: brightness(1.08); }
+
+/* ---- the list ---- */
+/* Rows bleed to the section edges and pay their own inset back, the same
+   arrangement #bm-tree uses, so a long title has the full panel width. */
+#ot-list {
+  margin: 0 calc(-1 * var(--space-3));
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ot-window { display: flex; flex-direction: column; }
+
+.ot-window-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 30px;
+  padding: 0 var(--space-3);
+  border: none;
+  background: transparent;
+  color: var(--ink-secondary);
+  font-family: inherit;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.ot-window-head:hover { background: var(--surface-fill); color: var(--ink-primary); }
+
+.ot-chevron {
+  flex: 0 0 auto;
+  transition: transform 0.14s ease;
+  color: var(--ink-chrome);
+}
+.ot-window.is-open .ot-chevron { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .ot-chevron { transition: none; }
+}
+
+.ot-window-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ot-window-count {
+  flex: 0 0 auto;
+  font-weight: 500;
+  color: var(--ink-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.ot-window-tabs { display: flex; flex-direction: column; gap: 1px; }
+
+.ot-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 34px;
+  padding-inline: var(--space-2) var(--space-1-5);
+  border-radius: var(--radius-sm);
+}
+.ot-row:hover { background: var(--surface-fill); }
+
+/* ACTIVE IS A MARKER, NOT A SELECTION. The tinted background says "this is
+   what that window is showing"; .is-selected says "this is going into the
+   named session". Two different claims, so two different treatments - a
+   shared one would make a user reading a multi-window list unable to tell
+   which tabs they had ticked. */
+.ot-row.is-active { background: color-mix(in srgb, var(--pro-ink-accent) 12%, transparent); }
+.ot-row.is-selected { box-shadow: inset 0 0 0 1px var(--pro-ink-accent); }
+
+/* THE LIGHT GROUND NEEDS ITS OWN VALUES, and check-button-specificity is what
+   said so: the bare .ot-row.is-active sits at (0,2,0), low enough for a
+   ground-scoped rule to outrank it, and the gate's count went 19 -> 20 the
+   moment it was written. The fix is not specificity theatre - it is a real
+   difference. --pro-ink-accent is the BRIGHT blue tuned for dark frost, and
+   12% of it over a white frosted panel is very nearly nothing; the active
+   marker would have been legible on three grounds and invisible on the
+   fourth. On white the mix is taken from --accent, which is the dark blue
+   tuned for exactly that ground, and the selection outline follows it for the
+   same reason. */
+html.bg-light #open-tabs-panel .ot-row.is-active {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+html.bg-light #open-tabs-panel .ot-row.is-selected {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+/* THE ACTIVE BADGE ON A WHITE FROSTED PANEL, and the product had already
+   solved this exact problem. --accent measured 3.33:1 here at 11px - the same
+   shortfall the [2.0 timing] block records for the focus card, where #1e6fc9
+   came to 3.69:1 on frosted white and #15539b measured 5.6. That value is
+   already named: --sat-accent-ink, which is keyed to the SURFACE rather than
+   the wallpaper for precisely this reason. Reusing it beats inventing a sixth
+   blue, and it means one future correction fixes both surfaces. */
+html.bg-light #open-tabs-panel .ot-badge-active { color: var(--sat-accent-ink); }
+/* White on a bare --accent measures 4.46:1 here - the accent is documented as
+   4.505:1 against white, which is a floor it clears by four thousandths and
+   which anti-aliasing then eats. Darkening the fill one step, rather than
+   lightening the text or enlarging it, keeps the button reading as the accent
+   while clearing 4.5 with room: measured 5.9:1. Derived from the token, so it
+   does not reintroduce a blue literal. */
+html.bg-light #open-tabs-panel .ot-save-btn {
+  background: color-mix(in srgb, var(--accent) 86%, #000);
+  color: #fff;
+}
+html.bg-light #open-tabs-panel .ot-filter:focus { border-color: var(--accent); }
+
+.ot-check {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  accent-color: var(--pro-ink-accent);
+  cursor: pointer;
+}
+
+.ot-open {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  padding: var(--space-1) 0;
+}
+
+.ot-favicon {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+}
+
+.ot-row-text { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+
+.ot-title {
+  font-size: var(--fs-13);
+  color: var(--ink-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* THE SECOND LINE IS A FLEX ROW WHERE ONLY THE HOST MAY SHRINK. The badges
+   used to live inside .ot-host and were clipped away by its own ellipsis on
+   any row with a real host name - two visible pixels of a forty-pixel badge.
+   flex: 0 0 auto on the badges is the whole fix. */
+.ot-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ot-host {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: var(--fs-11);
+  color: var(--ink-meta);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The badges are LABELS, not controls - they carry state and nothing more, so
+   they take the meta ink rather than the accent. Only the active one is
+   coloured, because "this is the tab that window is showing" is the single
+   piece of state a user scanning several windows is actually looking for. */
+.ot-badge {
+  flex: 0 0 auto;
+  font-size: var(--fs-11);
+  color: var(--ink-chrome);
+}
+.ot-badge::before { content: "\00B7"; margin-inline-end: var(--space-1); }
+.ot-badge-active { color: var(--pro-ink-accent); font-weight: 600; }
+
+.ot-close {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--ink-chrome);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+}
+/* Revealed on hover AND on keyboard focus. Hover-only would make it
+   unreachable without a pointer, which is the defect [1.10.9] fixed on the
+   group controls rather than a style choice. */
+.ot-row:hover .ot-close,
+.ot-close:focus-visible { opacity: 1; }
+.ot-close:hover { background: var(--surface-fill); color: var(--ink-primary); }
+
+/* THE LAUNCHPAD TAB'S OWN ROW. Always visible, unlike the close control it
+   replaces - it is a statement rather than an affordance, and a statement that
+   only appears on hover explains nothing to someone wondering where the x
+   went. */
+.ot-self {
+  flex: 0 0 auto;
+  font-size: var(--fs-11);
+  color: var(--ink-chrome);
+  padding-inline: var(--space-1);
+  white-space: nowrap;
+}
+
+.ot-empty {
+  margin: var(--space-3) var(--space-3) 0;
+  font-size: var(--fs-12);
+  line-height: 1.45;
+  color: var(--ink-meta);
+}
 html.bg-light #bookmarks-panel {
   --ink-primary: rgba(0, 0, 0, 0.87);
   --ink-secondary: rgba(0, 0, 0, 0.66);

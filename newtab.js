@@ -11728,6 +11728,10 @@
     // modal with its own backdrop, deliberately outside this chain, and copying
     // it would have been the third pattern this file warns against above.
     { name: "bookmarks",        selector: "#bookmarks-panel",    open: function () { openBookmarksPanel(); },   close: function (opts) { closeBookmarksPanel(opts); } },
+    // OT.1 The open tabs panel joins the chain for the same reason bookmarks
+    // did: it locks the sidebar, so it must be mutually exclusive with every
+    // other surface that does. Nothing about it is new except its contents.
+    { name: "open-tabs",        selector: "#open-tabs-panel",    open: function () { openOpenTabsPanel(); },    close: function (opts) { closeOpenTabsPanel(opts); } },
     { name: "import",           selector: "#import-panel",       open: function () { openImportPanel(); },      close: function (opts) { closeImportPanel(opts); } },
     { name: "tips",             selector: "#tips-panel",         open: function () { openTipsPanel(); },        close: function (opts) { closeTipsPanel(opts); } }
   ];
@@ -12408,6 +12412,463 @@
     // what was stale. bmRenderTree is cheap and only expanded folders render.
     if (!$("#bookmarks-panel").classList.contains("hidden")) await renderBookmarksTree();
     showToast(t("bookmarks_added_toast", { title: title || getDomain(url) }));
+  }
+
+  // =======================================================================
+  // OT.1 - THE OPEN TABS PANEL.
+  //
+  // Every window and every tab, searchable, with switch-to, close and
+  // save-selection-as-named-session. Third sibling of #bookmarks-panel: same
+  // skeleton, same chain, same edge treatment. What is genuinely new is the
+  // filter, the selection, and the event subscription.
+  //
+  // ZERO NEW PERMISSIONS. `tabs` is already held and is what populates title,
+  // url and favIconUrl; windowId, active, pinned and audible come back on the
+  // Tab object without it. chrome.windows needs no permission at all.
+  // Measured on a two-window profile rather than assumed: every field this
+  // panel renders was populated for 5/5 tabs, favIconUrl for the 1 of 5 that
+  // had one.
+  // =======================================================================
+
+  // Selection and filter live OUTSIDE the rendered DOM, because the panel
+  // re-renders whenever a tab is created, closed or moved. A selection stored
+  // in the checkboxes would be silently emptied by someone else opening a tab
+  // in another window - which is exactly the case this panel exists to show.
+  var otSelected = Object.create(null);   // tabId -> true
+  var otCollapsed = Object.create(null);  // windowId -> true
+  var otFilter = "";
+  var otSelfTabId = null;                 // the LaunchPad tab this panel is in
+  var otRefreshTimer = null;
+  var otListenersBound = false;
+  var otLastRows = [];                    // what the current DOM is showing
+
+  function otIsOpen() {
+    var p = $("#open-tabs-panel");
+    return !!(p && !p.classList.contains("hidden"));
+  }
+
+  async function openOpenTabsPanel() {
+    var panel = $("#open-tabs-panel");
+    if (panel && !panel.classList.contains("hidden")) { closeOpenTabsPanel(); return; }
+    if (openSimplePanel("#open-tabs-panel")) {
+      // A fresh open starts with no selection and no filter. Carrying either
+      // across a close would mean a panel that opens mid-task with three tabs
+      // ticked and no indication why.
+      otSelected = Object.create(null);
+      otFilter = "";
+      var f = $("#ot-filter");
+      if (f) f.value = "";
+      var clear = $("#ot-filter-clear");
+      if (clear) clear.classList.add("hidden");
+      await otRenderList();
+      otBindListeners();
+      bindSimplePanelOutside("#open-tabs-panel", "#sb-open-tabs", function () { closeOpenTabsPanel(); });
+    }
+  }
+
+  function closeOpenTabsPanel(opts) {
+    otUnbindListeners();
+    closeSimplePanel("#open-tabs-panel", opts);
+  }
+
+  // ---- the read --------------------------------------------------------
+
+  // THIS WINDOW FIRST, then the rest in window order. "This window" is the
+  // window the LAUNCHPAD TAB is in, resolved from the tab itself rather than
+  // from chrome.windows.getCurrent(): a page context and a service worker
+  // disagree about "current", and [1.9.3] lost a round to that. getCurrent()
+  // on a TAB is unambiguous - it is this tab, in this window, always.
+  async function otReadWindows() {
+    var me = null;
+    try { me = await chrome.tabs.getCurrent(); } catch (e) { me = null; }
+    otSelfTabId = me ? me.id : null;
+    var selfWindowId = me ? me.windowId : null;
+
+    var tabs = [];
+    try { tabs = await chrome.tabs.query({}); } catch (e) { tabs = []; }
+
+    var byWindow = Object.create(null);
+    var order = [];
+    tabs.forEach(function (t) {
+      if (!byWindow[t.windowId]) { byWindow[t.windowId] = []; order.push(t.windowId); }
+      byWindow[t.windowId].push(t);
+    });
+    order.forEach(function (id) {
+      byWindow[id].sort(function (a, b) { return (a.index || 0) - (b.index || 0); });
+    });
+    // This window to the front. Its id is a number and the keys are strings,
+    // so the comparison is deliberately loose-free: compare Numbers.
+    order.sort(function (a, b) {
+      if (Number(a) === selfWindowId) return -1;
+      if (Number(b) === selfWindowId) return 1;
+      return 0;
+    });
+    return order.map(function (id, i) {
+      return {
+        id: Number(id),
+        isSelf: Number(id) === selfWindowId,
+        // POSITION IN THIS LIST, counted from 1 - never the chrome window id,
+        // which is a large arbitrary number that means nothing to a user.
+        position: i + 1,
+        tabs: byWindow[id]
+      };
+    });
+  }
+
+  // ---- the filter ------------------------------------------------------
+
+  // A FILTER, NOT THE LAUNCHER'S SEARCH, AND THE DIFFERENCE IS DELIBERATE.
+  //
+  // The launcher matches on a FIRST-WORD / prefix rule because it is ranking
+  // suggestions under a query the user is still typing, where a substring hit
+  // in the middle of a URL is usually noise. This is the opposite situation:
+  // the list is already on screen, the user can see what they are narrowing,
+  // and they type a fragment they have just READ - "mail", "github", part of a
+  // path. A prefix rule would hide the row they are looking straight at.
+  //
+  // SO IT IS A CASE-INSENSITIVE SUBSTRING MATCH OVER TITLE AND URL, and it
+  // should NOT be "aligned" with the launcher later. They answer different
+  // questions. If one of them changes, it is because its own question changed.
+  function otMatches(tab, needle) {
+    if (!needle) return true;
+    var hay = ((tab.title || "") + " " + (tab.url || "")).toLowerCase();
+    return hay.indexOf(needle) !== -1;
+  }
+
+  // ---- the render ------------------------------------------------------
+
+  // THE HOST LINE, and the LaunchPad tab is a special case worth spending a
+  // line on. Its url is chrome-extension://<id>/newtab.html, so the host IS
+  // the extension id - thirty-two random letters, on the one row that exists
+  // in every profile on every open. The frames made that obvious in a way the
+  // assertions never would have: three of the four showed
+  // "oipegdjfoghpoagojgcdmfcp..." under "New Tab". It says the product's name
+  // instead.
+  function otHost(url, isSelf) {
+    if (isSelf) return t("page_launchpad");
+    try { return new URL(url).host.replace(/^www\./, ""); } catch (e) { return ""; }
+  }
+
+  // The favicon a ROW shows. Chrome's own favIconUrl when it has one, and the
+  // bundled placeholder otherwise - NEVER a lookup. Deriving one from the url
+  // would route every open tab's domain through Google's S2 service on every
+  // render, which is the thing [1.2.1] refused for this category of data and
+  // the same reason named sessions store a captured icon or null.
+  function otFaviconSrc(tab) {
+    var f = tab.favIconUrl;
+    if (typeof f === "string" && f && f.indexOf("chrome://") !== 0) return f;
+    return "assets/placeholder.svg";
+  }
+
+  function otBadgesHtml(tab) {
+    var out = "";
+    if (tab.active) out += '<span class="ot-badge ot-badge-active">' + th("opentabs_active_here") + '</span>';
+    if (tab.pinned) out += '<span class="ot-badge">' + th("opentabs_pinned") + '</span>';
+    if (tab.audible) out += '<span class="ot-badge">' + th("opentabs_audible") + '</span>';
+    return out;
+  }
+
+  function otRowHtml(tab) {
+    var isSelf = tab.id === otSelfTabId;
+    var checked = !!otSelected[tab.id];
+    var title = esc(tab.title || otHost(tab.url, isSelf) || tab.url || "");
+    // THE LAUNCHPAD TAB GETS NO CLOSE CONTROL, AND SAYS SO.
+    //
+    // Three options were live: refuse, confirm, or allow. ALLOW is out - the
+    // panel lives in this tab, so closing it destroys the panel and any
+    // selection in progress, and a control whose effect is "this surface
+    // vanishes" is not a row action. CONFIRM is out too: a confirm that can
+    // only ever be answered one sensible way is a speed bump, and decision 8
+    // of the arc plan keeps dialogs for consequences that are worth one.
+    //
+    // So it is REFUSED - but refused by ABSENCE PLUS A STATEMENT, never by a
+    // dead button. A control that is present, clickable and inert reads as
+    // broken rather than as unavailable; that is the [1.1.4] preview-ghost
+    // rule, and bmNodeHtml answers the same shape the same way by swapping its
+    // + for a .bm-have marker. The row still switches and still selects.
+    var tail = isSelf
+      ? '<span class="ot-self" title="' + esc(t("opentabs_this_tab_explain")) + '">' +
+          th("opentabs_this_tab") + '</span>'
+      : '<button class="ot-close" type="button" data-ot-tab="' + tab.id +
+          '" title="' + esc(t("opentabs_close_tab")) + '" aria-label="' + esc(t("opentabs_close_tab")) + '">' +
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+        '</button>';
+    return '<div class="ot-row' + (tab.active ? " is-active" : "") + (isSelf ? " is-self" : "") +
+        (checked ? " is-selected" : "") + '" role="treeitem" data-ot-row="' + tab.id + '">' +
+      '<input class="ot-check" type="checkbox" data-ot-tab="' + tab.id + '"' + (checked ? " checked" : "") +
+        ' aria-label="' + esc(t("opentabs_select_tab")) + '">' +
+      '<button class="ot-open" type="button" data-ot-tab="' + tab.id + '" data-ot-window="' + tab.windowId +
+        '" title="' + esc(tab.url || "") + '" aria-label="' + esc(t("opentabs_switch_to")) + '">' +
+        '<img class="ot-favicon" src="' + esc(otFaviconSrc(tab)) + '" alt="" loading="lazy">' +
+        '<span class="ot-row-text">' +
+          '<span class="ot-title">' + title + '</span>' +
+          // THE BADGES ARE A SIBLING OF THE HOST, NOT INSIDE IT, AND THAT IS
+          // A BUG FIX RATHER THAN A TIDY-UP. They started inside .ot-host,
+          // which ellipses - so on a row with any real host name the badges
+          // were pushed past the clip edge and vanished. Measured on a live
+          // row: the Active badge ran 472..513 while the host's visible edge
+          // was 474, leaving TWO PIXELS of a 40px badge on screen. The single
+          // most important marker in the panel was invisible on almost every
+          // row, and it looked fine because the layout box was still the
+          // right size. Now the HOST shrinks and ellipses; the badges never do.
+          '<span class="ot-meta">' +
+            '<span class="ot-host">' + esc(otHost(tab.url, isSelf)) + '</span>' +
+            otBadgesHtml(tab) +
+          '</span>' +
+        '</span>' +
+      '</button>' + tail +
+    '</div>';
+  }
+
+  function otWindowHtml(win, needle) {
+    var shown = win.tabs.filter(function (t) { return otMatches(t, needle); });
+    if (needle && !shown.length) return "";
+    // A FILTER OPENS WHAT IT MATCHES. Collapsing is a choice about a list the
+    // user is browsing; while they are narrowing it, hiding matches behind a
+    // collapsed heading would answer their question with nothing.
+    var open = needle ? true : !otCollapsed[win.id];
+    var name = win.isSelf ? th("opentabs_this_window") : th("opentabs_window_numbered", { n: win.position });
+    var html = '<div class="ot-window' + (open ? " is-open" : "") + '" data-ot-win="' + win.id + '">' +
+      '<button class="ot-window-head" type="button" data-ot-window="' + win.id + '" aria-expanded="' + (open ? "true" : "false") + '">' +
+        '<svg class="ot-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>' +
+        '<span class="ot-window-name">' + name + '</span>' +
+        '<span class="ot-window-count">' + th("opentabs_window_tab_count", { count: shown.length }) + '</span>' +
+      '</button>';
+    if (open) {
+      html += '<div class="ot-window-tabs">';
+      for (var i = 0; i < shown.length; i++) html += otRowHtml(shown[i]);
+      html += '</div>';
+    }
+    return html + '</div>';
+  }
+
+  async function otRenderList() {
+    var host = $("#ot-list");
+    if (!host) return;
+    var wins = await otReadWindows();
+    otLastRows = wins;
+    var needle = otFilter.trim().toLowerCase();
+    var total = 0;
+    wins.forEach(function (w) { total += w.tabs.length; });
+
+    var html = "";
+    for (var i = 0; i < wins.length; i++) html += otWindowHtml(wins[i], needle);
+    if (!html) {
+      // TWO DIFFERENT EMPTIES. "nothing here" and "nothing matches" are not
+      // the same statement, and showing the first when the second is true
+      // reads as a broken panel rather than as a narrow filter.
+      html = '<p class="ot-empty">' + (total ? th("opentabs_no_matches") : th("opentabs_empty")) + '</p>';
+    }
+    // Scroll survives a re-render. A tab opening in another window must not
+    // jump a user who is halfway down a long list.
+    var scroll = host.scrollTop;
+    host.innerHTML = html;
+    host.scrollTop = scroll;
+    otRenderSelectBar();
+  }
+
+  function otRenderSelectBar() {
+    var bar = $("#ot-selectbar");
+    var count = Object.keys(otSelected).length;
+    if (bar) bar.classList.toggle("hidden", count === 0);
+    var label = $("#ot-selcount");
+    if (label) label.textContent = t("opentabs_selected_count", { count: count });
+  }
+
+  function otToggleWindow(id) {
+    if (!id) return;
+    var key = Number(id);
+    if (otCollapsed[key]) delete otCollapsed[key]; else otCollapsed[key] = true;
+    otRenderList();
+  }
+
+  // ---- the three row actions -------------------------------------------
+
+  // SWITCH-TO IS TWO CALLS, NOT ONE, and the second is the one that matters.
+  // chrome.tabs.update({active:true}) selects the tab WITHIN its window; a tab
+  // in another window then becomes that window's active tab while the user
+  // carries on looking at this one. chrome.windows.update({focused:true})
+  // raises the window. Both, always, in that order.
+  //
+  // ASSERTED IN A REAL TWO-WINDOW PROFILE, not reasoned about: the harness
+  // creates the decoy window and checks the browser AGREES it is last-focused
+  // before the assertion runs (BUGS I23). Under headless there is no window
+  // manager, windows.update succeeds and moves nothing, and the test passes
+  // while proving nothing - so this one is driven headed.
+  async function otSwitchTo(tabId, windowId) {
+    if (!tabId) return;
+    try {
+      await chrome.tabs.update(tabId, { active: true });
+      if (windowId) await chrome.windows.update(windowId, { focused: true });
+    } catch (e) { /* the tab closed between render and click */ }
+  }
+
+  async function otCloseTab(tabId) {
+    if (!tabId) return;
+    // Guarded HERE as well as in the render. The panel live-updates and the
+    // LaunchPad tab could in principle be re-identified between a row being
+    // drawn and its x being clicked; the render decides what to SHOW, this
+    // decides what may HAPPEN, and only the second one is a guarantee.
+    if (tabId === otSelfTabId) return;
+    try { await chrome.tabs.remove(tabId); } catch (e) { /* already gone */ }
+    delete otSelected[tabId];
+    // onRemoved will fire and schedule a refresh; this keeps the row from
+    // lingering for the debounce interval after a deliberate click.
+    await otRenderList();
+  }
+
+  // SAVE GOES THROUGH THE namedSessions WRITER (decision 3). Nothing here
+  // builds a session object: Storage.createNamedSessionAtFront owns the id,
+  // the timestamps, the field shape and the newest-leads ordering, and
+  // Storage.isCapturableSessionUrl owns the http/https/file allowlist. A
+  // second copy of either in this file is the shape of the badge defect.
+  //
+  // THIS IS THE ONE PLACE A SESSION GETS REAL FAVICONS. A saved session
+  // normally stores null and renders the placeholder, because deriving an icon
+  // from a url means a third-party lookup. Here the tabs are OPEN, so Chrome
+  // has already fetched their icons and favIconUrl is the page's own - local,
+  // free, and exactly what the writer's favicon field was added for.
+  async function otSaveSelectionAsNamedSession() {
+    var ids = Object.keys(otSelected).map(Number);
+    if (!ids.length) return;
+
+    var all = [];
+    try { all = await chrome.tabs.query({}); } catch (e) { all = []; }
+    var byId = Object.create(null);
+    all.forEach(function (t) { byId[t.id] = t; });
+
+    var eligible = [];
+    var declined = 0;
+    // Stored in the order the user sees them, which is window order then tab
+    // index - not the order the checkboxes happened to be clicked in.
+    otLastRows.forEach(function (win) {
+      win.tabs.forEach(function (t) {
+        if (!otSelected[t.id]) return;
+        var live = byId[t.id] || t;
+        if (!Storage.isCapturableSessionUrl(live.url)) { declined++; return; }
+        var fav = (live.favIconUrl && live.favIconUrl.indexOf("chrome://") !== 0) ? live.favIconUrl : null;
+        eligible.push({ url: live.url, title: live.title || "", favicon: fav });
+      });
+    });
+
+    if (!eligible.length) { showToast(t("opentabs_save_none_eligible")); return; }
+
+    var suggested = "Session " + (sessionsForRender().length + 1);
+    var name = await promptModal({
+      title: t("dialog_name_session_title"),
+      label: t("dialog_session_name_field"),
+      value: suggested
+    });
+    if (name === null) return;
+
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return;
+    var created = Storage.createNamedSessionAtFront(data, { name: String(name).trim(), tabs: eligible });
+    if (!created) return;
+    await Storage.saveAll(data);
+    data = await Storage.getAll();
+    renderSessionsList();
+
+    otSelected = Object.create(null);
+    await otRenderList();
+    showToast(t("opentabs_saved_toast", { count: eligible.length }) +
+              (declined ? " " + t("opentabs_save_left_out", { count: declined }) : ""));
+  }
+
+  // ---- live update -----------------------------------------------------
+  //
+  // WHAT THIS SUBSCRIBES TO, AND WHY IT IS NOT ALL OF THEM.
+  //
+  // STRUCTURAL EVENTS get a debounced full re-render, at the same 150ms the
+  // bookmarks panel uses for sync bursts: onCreated, onRemoved, onMoved,
+  // onAttached, onDetached, onActivated, plus windows.onCreated/onRemoved.
+  // These change WHICH rows exist or which is marked active, they are rare
+  // (a human opening or closing a tab), and they arrive in bursts when a
+  // window is closed or a session restored - which is exactly what a debounce
+  // is for.
+  //
+  // onUpdated IS THE NOISY ONE AND IT IS HANDLED DIFFERENTLY. Measured rather
+  // than assumed: one ordinary page load fires it three times, as
+  // {status,url}, then {title}, then {status}. A site with a live title - a
+  // counter, an unread badge, a player clock - fires {title} indefinitely,
+  // and a debounced FULL re-render would rebuild every row in the panel every
+  // 150ms for as long as that tab is open, throwing away focus and the
+  // filter's selection range with it.
+  //
+  // So onUpdated is FIELD-GATED, and then split:
+  //   - a change to title or favIconUrl PATCHES THAT ONE ROW in place. No
+  //     re-render, no scroll jump, no lost focus, cost independent of tab
+  //     count. This is the case that fires constantly, and it is the case
+  //     that now costs nearly nothing.
+  //   - a change to url, pinned or audible schedules the debounced re-render,
+  //     because those move a row between filter results or change its badges.
+  //   - anything else (status, discarded, favicon-less loads) is IGNORED.
+  //
+  // AND NOTHING IS BOUND WHILE THE PANEL IS CLOSED. A user with 200 tabs who
+  // never opens this panel pays nothing at all.
+  var OT_TAB_EVENTS = ["onCreated", "onRemoved", "onMoved", "onAttached", "onDetached", "onActivated"];
+  var OT_WINDOW_EVENTS = ["onCreated", "onRemoved"];
+  // The fields that move a row rather than just relabelling it.
+  var OT_STRUCTURAL_FIELDS = ["url", "pinned", "audible"];
+
+  function otScheduleRefresh() {
+    if (otRefreshTimer) clearTimeout(otRefreshTimer);
+    otRefreshTimer = setTimeout(function () {
+      otRefreshTimer = null;
+      if (otIsOpen()) otRenderList();
+    }, 150);
+  }
+
+  function otOnUpdated(tabId, changeInfo) {
+    if (!otIsOpen()) return;
+    for (var i = 0; i < OT_STRUCTURAL_FIELDS.length; i++) {
+      if (changeInfo[OT_STRUCTURAL_FIELDS[i]] !== undefined) { otScheduleRefresh(); return; }
+    }
+    if (changeInfo.title === undefined && changeInfo.favIconUrl === undefined) return;
+    var row = $('.ot-row[data-ot-row="' + tabId + '"]');
+    if (!row) return;
+    if (changeInfo.title !== undefined) {
+      var el = row.querySelector(".ot-title");
+      // textContent, not innerHTML: a page title is attacker-controlled text.
+      if (el) el.textContent = changeInfo.title || "";
+    }
+    if (changeInfo.favIconUrl !== undefined) {
+      var img = row.querySelector(".ot-favicon");
+      if (img) img.src = otFaviconSrc({ favIconUrl: changeInfo.favIconUrl });
+    }
+  }
+
+  function otBindListeners() {
+    if (otListenersBound) return;
+    for (var i = 0; i < OT_TAB_EVENTS.length; i++) {
+      try { chrome.tabs[OT_TAB_EVENTS[i]].addListener(otScheduleRefresh); } catch (e) {}
+    }
+    for (var j = 0; j < OT_WINDOW_EVENTS.length; j++) {
+      try { chrome.windows[OT_WINDOW_EVENTS[j]].addListener(otScheduleRefresh); } catch (e) {}
+    }
+    try { chrome.tabs.onUpdated.addListener(otOnUpdated); } catch (e) {}
+    otListenersBound = true;
+  }
+
+  function otUnbindListeners() {
+    if (!otListenersBound) return;
+    for (var i = 0; i < OT_TAB_EVENTS.length; i++) {
+      try { chrome.tabs[OT_TAB_EVENTS[i]].removeListener(otScheduleRefresh); } catch (e) {}
+    }
+    for (var j = 0; j < OT_WINDOW_EVENTS.length; j++) {
+      try { chrome.windows[OT_WINDOW_EVENTS[j]].removeListener(otScheduleRefresh); } catch (e) {}
+    }
+    try { chrome.tabs.onUpdated.removeListener(otOnUpdated); } catch (e) {}
+    otListenersBound = false;
+    if (otRefreshTimer) { clearTimeout(otRefreshTimer); otRefreshTimer = null; }
+  }
+
+  // Exposed for the round's own harness ONLY, and read-only. I27: the page's
+  // internals are otherwise unreachable, and a perf number measured against a
+  // re-implementation of the render is a number about the harness.
+  if (typeof window !== "undefined") {
+    window.LP = window.LP || {};
+    window.LP.__otRenderList = function () { return otRenderList(); };
   }
 
   async function openBookmarksPanel() {
@@ -20647,6 +21108,47 @@
     safeOn("#sb-import", "click", function (e) { e.stopPropagation(); openPanel("import"); });
     safeOn("#sb-tips", "click", function (e) { e.stopPropagation(); openPanel("tips"); });
     safeOn("#sb-bookmarks", "click", function (e) { e.stopPropagation(); openPanel("bookmarks"); });
+    // OT.1
+    safeOn("#sb-open-tabs", "click", function (e) { e.stopPropagation(); openPanel("open-tabs"); });
+    safeOn("#open-tabs-close", "click", function () { closeOpenTabsPanel(); });
+    // Delegated ONCE on the static hosts, so a re-render never leaves a stale
+    // handler behind - the same reason #bm-tree is bound this way.
+    safeOn("#ot-list", "click", function (e) {
+      var head = e.target.closest(".ot-window-head");
+      if (head) { otToggleWindow(head.dataset.otWindow); return; }
+      var close = e.target.closest(".ot-close");
+      if (close) { e.stopPropagation(); otCloseTab(Number(close.dataset.otTab)); return; }
+      var row = e.target.closest(".ot-open");
+      if (row) { otSwitchTo(Number(row.dataset.otTab), Number(row.dataset.otWindow)); return; }
+    });
+    safeOn("#ot-list", "change", function (e) {
+      var box = e.target.closest(".ot-check");
+      if (!box) return;
+      var id = Number(box.dataset.otTab);
+      if (box.checked) otSelected[id] = true; else delete otSelected[id];
+      otRenderSelectBar();
+      var row = box.closest(".ot-row");
+      if (row) row.classList.toggle("is-selected", !!box.checked);
+    });
+    safeOn("#ot-filter", "input", function (e) {
+      otFilter = String(e.target.value || "");
+      var clear = $("#ot-filter-clear");
+      if (clear) clear.classList.toggle("hidden", !otFilter);
+      otRenderList();
+    });
+    safeOn("#ot-filter-clear", "click", function () {
+      var f = $("#ot-filter");
+      otFilter = "";
+      if (f) { f.value = ""; f.focus(); }
+      var clear = $("#ot-filter-clear");
+      if (clear) clear.classList.add("hidden");
+      otRenderList();
+    });
+    safeOn("#ot-clear-sel", "click", function () {
+      otSelected = Object.create(null);
+      otRenderList();
+    });
+    safeOn("#ot-save-selected", "click", function () { otSaveSelectionAsNamedSession(); });
     safeOn("#bookmarks-close", "click", function () { closeBookmarksPanel(); });
     // Delegated once on the static host, so re-rendering the tree never leaves
     // a stale handler behind.

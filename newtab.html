@@ -40,6 +40,12 @@
         </svg>
         <span data-i18n="feature_bookmarks_name" class="sb-label">Bookmarks</span>
       </button>
+      <button data-i18n-title="feature_open_tabs_name" id="sb-open-tabs" class="sb-item" type="button" title="Open tabs">
+        <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="7" width="13" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/>
+        </svg>
+        <span data-i18n="feature_open_tabs_name" class="sb-label">Open tabs</span>
+      </button>
       <button data-i18n-title="feature_restore_session_name" id="sb-restore" class="sb-item" type="button" title="Restore Session">
         <svg class="sb-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
@@ -322,6 +328,33 @@
       <div class="settings-section bm-section">
         <p data-i18n="bookmarks_panel_intro" class="bm-intro">Your Chrome bookmarks, live. Click to open, or add one to LaunchPad.</p>
         <div id="bm-tree" role="tree" data-i18n-aria-label="feature_bookmarks_name" aria-label="Bookmarks"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OT.1 THE OPEN TABS PANEL. Third sibling in the #bookmarks-panel family:
+       same skeleton, same header, same edge treatment, joins SIDEBAR_PANEL_CHAIN.
+       The filter, the selection bar and the list are the only things new here. -->
+  <div id="open-tabs-panel" class="hidden">
+    <div class="settings-header">
+      <span data-i18n="opentabs_panel_heading">Open tabs</span>
+      <button data-i18n-title="common_close" id="open-tabs-close" type="button" title="Close">&times;</button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-section ot-section">
+        <p data-i18n="opentabs_panel_intro" class="ot-intro">Every window and tab you have open. Click a tab to switch to it.</p>
+        <div class="ot-filter-wrap">
+          <input data-i18n-placeholder="opentabs_filter_placeholder" data-i18n-aria-label="opentabs_filter_placeholder" id="ot-filter" class="ot-filter" type="text" placeholder="Filter by title or address" aria-label="Filter by title or address" autocomplete="off" spellcheck="false">
+          <button data-i18n-title="opentabs_filter_clear" data-i18n-aria-label="opentabs_filter_clear" id="ot-filter-clear" class="ot-filter-clear hidden" type="button" title="Clear filter" aria-label="Clear filter">&times;</button>
+        </div>
+        <div id="ot-selectbar" class="ot-selectbar hidden">
+          <span id="ot-selcount" class="ot-selcount"></span>
+          <div class="ot-selectbar-actions">
+            <button data-i18n="opentabs_clear_selection" id="ot-clear-sel" class="ot-clear-sel" type="button">Clear</button>
+            <button data-i18n="opentabs_save_selected" id="ot-save-selected" class="ot-save-btn" type="button">Save as named session</button>
+          </div>
+        </div>
+        <div data-i18n-aria-label="feature_open_tabs_name" id="ot-list" role="tree" aria-label="Open tabs"></div>
       </div>
     </div>
   </div>

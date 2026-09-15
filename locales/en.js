@@ -3982,3 +3982,137 @@ I18n.register("en", {
       "sense": "confirm.destructive"
     }
   });
+
+// =========================================================================
+// OT.1 - THE OPEN TABS PANEL.
+//
+// DECISION 4 OF THE ARC PLAN: every string here that means a SAVED TAB SET
+// says "named session", never "session" alone. The word already carries four
+// meanings in this product - the tracking engine's focus records, the
+// 5-minute auto-restore's savedSessions, the Pomodoro focus session, and the
+// browser-restart anchor - and this panel sits next to two of them in the
+// sidebar. Each description below says which sense it means so a translator
+// is not choosing between four words with no way to tell them apart.
+//
+// THE PANEL IS "Open tabs", lower-case t, matching "Recently closed" rather
+// than the Title Case of the older sidebar entries. Sentence case is the
+// design guide's rule (Section 6); the older labels predate it.
+// =========================================================================
+I18n.register("en", {
+    "feature_open_tabs_name": {
+      "description": "Sidebar entry and its tooltip for the panel listing every open window and tab. Sits between Bookmarks and Restore Session - the LIVE side of tabs, immediately above the two saved-side entries. Not a saved set: this is what is open right now.",
+      "message": "Open tabs",
+      "sense": "label.nav.live-tabs"
+    },
+    "opentabs_panel_heading": {
+      "description": "Heading of the Open tabs panel. Matches feature_open_tabs_name exactly; kept as its own key because the sidebar label is width-constrained and a translation may need to shorten one without the other.",
+      "message": "Open tabs",
+      "sense": "heading.panel"
+    },
+    "opentabs_panel_intro": {
+      "description": "One-line explanation under the Open tabs heading. Says what the list is and what clicking does, because the row click has no visible control of its own.",
+      "message": "Every window and tab you have open. Click a tab to switch to it.",
+      "sense": "intro.panel"
+    },
+    "opentabs_filter_placeholder": {
+      "description": "Placeholder in the Open tabs filter field. FILTER, not search: it narrows a list already on screen rather than suggesting results for a query. 'address' rather than 'URL' per the copy voice.",
+      "message": "Filter by title or address",
+      "sense": "placeholder.input.filter"
+    },
+    "opentabs_filter_clear": {
+      "description": "Tooltip and accessible name of the x that empties the Open tabs filter field.",
+      "message": "Clear filter",
+      "sense": "a11y.label.action"
+    },
+    "opentabs_this_window": {
+      "description": "Group heading for the window the LaunchPad tab is in. It is listed FIRST, so this label is what the user reads before any numbered window.",
+      "message": "This window",
+      "sense": "heading.group.window"
+    },
+    "opentabs_window_numbered": {
+      "description": "Group heading for any window other than the one LaunchPad is in. {n} is a POSITION IN THIS LIST, counted from 1 - not Chrome's internal window id, which is a large arbitrary number and means nothing to a user.",
+      "message": "Window {n}",
+      "sense": "heading.group.window"
+    },
+    "opentabs_switch_to": {
+      "description": "Accessible name of the row control that switches to a tab. The whole row is the target; this is what a screen reader announces for it.",
+      "message": "Switch to this tab",
+      "sense": "a11y.label.action"
+    },
+    "opentabs_close_tab": {
+      "description": "Tooltip and accessible name of the x that closes one tab from the Open tabs panel. Closes the BROWSER TAB, not the panel.",
+      "message": "Close tab",
+      "sense": "a11y.label.action.destructive"
+    },
+    "opentabs_this_tab": {
+      "description": "Marker shown INSTEAD OF a close control on the row for the LaunchPad tab the panel is open in. A control that cannot act reads as broken, so the row states why there is none.",
+      "message": "This tab",
+      "sense": "label.state.self"
+    },
+    "opentabs_this_tab_explain": {
+      "description": "Tooltip on opentabs_this_tab. Explains that the panel will not close the tab it is running in, and names where it can be closed instead.",
+      "message": "This is the tab the panel is open in. Close it from the browser's tab strip.",
+      "sense": "tooltip.explain"
+    },
+    "opentabs_active_here": {
+      "description": "Marker on the ACTIVE tab of each window - the one that window is showing. One per window, so a user scanning several windows can see where each was left.",
+      "message": "Active",
+      "sense": "label.state.tab"
+    },
+    "opentabs_pinned": {
+      "description": "Marker on a pinned browser tab. Chrome's own term; do not translate to a word that means 'favourite'.",
+      "message": "Pinned",
+      "sense": "label.state.tab"
+    },
+    "opentabs_audible": {
+      "description": "Marker on a tab that is currently playing sound. Chrome reports this per tab; it says nothing about whether the tab is muted.",
+      "message": "Playing audio",
+      "sense": "label.state.tab"
+    },
+    "opentabs_select_tab": {
+      "description": "Accessible name of the checkbox that adds one tab to the save selection. The selection is what opentabs_save_selected writes.",
+      "message": "Select this tab",
+      "sense": "a11y.label.control"
+    },
+    "opentabs_save_selected": {
+      "description": "Button that writes the checked tabs as a NAMED SESSION - a user-named saved set of tabs, the namedSessions entity, NOT the 5-minute auto-restore and NOT a focus session. Consequence-labelled per the copy voice: it says what it makes.",
+      "message": "Save as named session",
+      "sense": "action.button.create.named-session"
+    },
+    "opentabs_clear_selection": {
+      "description": "Button that unchecks every selected tab in the Open tabs panel. Clears the SELECTION only; closes nothing and saves nothing.",
+      "message": "Clear",
+      "sense": "action.button"
+    },
+    "opentabs_empty": {
+      "description": "Shown when the panel can find no tabs at all to list. Rare - the LaunchPad tab itself is normally one - so it reads as a statement rather than an invitation.",
+      "message": "No open tabs to show.",
+      "sense": "empty.panel"
+    },
+    "opentabs_no_matches": {
+      "description": "Shown when a filter is typed and nothing matches. Distinct from opentabs_empty: there ARE tabs, none match. Naming the filter is what tells the user the list is not broken.",
+      "message": "No tabs match that filter.",
+      "sense": "empty.filtered"
+    },
+    "opentabs_save_none_eligible": {
+      "description": "Toast when every selected tab is a page a named session cannot reopen - chrome:// and extension pages. Uses the same http/https/file rule as every other capture surface.",
+      "message": "None of those tabs can be saved to a named session.",
+      "sense": "toast.refusal"
+    },
+    "opentabs_selected_count": {
+      "plural": {"one": "{count} tab selected", "other": "{count} tabs selected"},
+      "description": "Running count above the save button while a selection is in progress. Counts CHECKED tabs, including any that will be left out at save - the refusal message names those separately rather than silently lowering this number."
+    },
+    "opentabs_saved_toast": {
+      "plural": {"one": "Saved a named session with 1 tab.", "other": "Saved a named session with {count} tabs."},
+      "description": "Toast after the selection is written. NAMED SESSION, the saved-tab-set sense. The one-form spells '1' rather than taking {count}, matching sessions_saved_tabs_toast."
+    },
+    "opentabs_save_left_out": {
+      "plural": {"one": "{count} tab was left out.", "other": "{count} tabs were left out."},
+      "description": "Follows opentabs_saved_toast when some selected tabs were not capturable. The VERB inflects with the count, which is why this is a plural and not an interpolation - the same shape as sessions_pages_left_out."
+    },
+    "opentabs_window_tab_count": {
+      "plural": {"one": "{count} tab", "other": "{count} tabs"},
+      "description": "Tab count on a window group heading in the Open tabs panel. When a filter is active this counts MATCHING tabs, not all of them, so the heading agrees with the rows under it."
+    }
+  });
