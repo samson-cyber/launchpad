@@ -3472,3 +3472,69 @@ filed for and it is now closed.
 **exactly two places** — the donut and the export. The weekly card's tag row and the Dashboard's Top
 tag are TOP-OF readers with no derived untagged figure and no clamp, and the free preview renders no
 donut at all. So there was one silent surface, not a family of them, and nothing else needs the note.
+
+---
+
+## 2026-09-15 — The AI tab points at Google AI Mode, because Gemini accepts no URL query
+
+**Decision.** The Home search bar's left tab is renamed **"AI Search"** and Enter under it now
+opens `www.google.com/search?udm=50&q=<query>` — Google AI Mode — instead of
+`gemini.google.com/app?q=<query>`. Samson ruled **option 3** of the three the investigation put up.
+
+**THE FINDING THAT FORCED IT.** `[1.12.3]` shipped the Gemini tab and **Gemini's web app accepts no
+URL prefill at all**. Measured four ways on 2026-09-15, signed in and signed out: `?q=` ignored,
+`?prompt=` ignored, `?text=` ignored, `#fragment` ignored — the prompt box came up EMPTY in every
+case, and the page never contained the query. The feature as shipped opened Gemini with an empty
+box. Corroborated by the Chrome extensions that exist to do this: they inject a content script and
+simulate native input precisely because the URL cannot carry a prompt.
+
+**HOW IT GOT PAST A GREEN ROUND, and this is the part worth carrying.** `[1.12.3]` asserted, in its
+own words, that *"nothing selected under Gemini reaches `tabs.update` with the encoded Gemini URL"*.
+That was TRUE, and it remained true the entire time the feature was broken — **it is a claim about
+our half only.** Nothing in that round ever loaded gemini.google.com. Recorded as the second worked
+example under **BUGS.md P25**, because it is the cleanest instance the project has: the product side
+was correct in isolation and the whole defect lived in an unexamined assumption about a third
+party's page.
+
+### Why option 3, and not 1 or 2
+
+| option | what it was | why not |
+| --- | --- | --- |
+| 1 | copy the query to the clipboard, open Gemini, say so in a toast | The user still pastes. It moves one keystroke, it does not remove a step, and the tab would have to stop promising to ask anything. **A workaround shipped as a feature.** |
+| 2 | remove the AI tab | Honest and cheapest to maintain, and it gives back the ground `[1.12.1]`–`[1.12.3]` took: the two-tab strip loses its second tab and the strip probably goes with it. Undoes the default-for-everyone ruling as well. |
+| **3** | **point the tab at Google AI Mode and rename it** | **The only one where the query actually arrives.** Verified in Samson's signed-in Chrome: the query landed and an AI answer came back. |
+
+**THE COST OF OPTION 3 IS THE NAME, AND IT IS PAID IN FULL.** It is Gemini-powered Google Search,
+not the Gemini app, so calling the tab "Gemini" would have been a second promise the product cannot
+keep — the same class of error as the one being fixed. Every string moved together: the tab label,
+the placeholder, the launcher's action row, all three catalogue KEY names, and the release notes. A
+key named `*_gemini` holding AI Search copy is the placeholder-in-three-places drift `[1.12.1]`
+cleaned up, so the keys were renamed rather than refilled.
+
+**`udm=50` IS AN OBSERVED PARAMETER, NOT A CONTRACT**, and the code says so at the site. Google
+documents nothing about it. **If Google drops it the URL degrades to an ordinary Google search with
+the query intact**, because an unknown `udm` is ignored while `q=` is not — a soft landing, and the
+reason **nothing detects the parameter or probes for it.** A detector would need a network call this
+feature does not make, would have to decide what to do on a timeout, and would turn a working search
+into a broken one on a false negative. Do not add one.
+
+**THE STORED TOKEN MOVES TO `"ai"` AND NEEDS NO SWEEP, because the inverted test is the migration.**
+`getSearchMode` returns Search only for the exact string `"search"`; everything else, including a
+legacy `"gemini"` and including an absent key, resolves to the AI tab. A boot sweep was considered
+and **refused**: stamping a normalised value at load is exactly what `[1.12.2]` deliberately never
+did, and that read-time-only property is the only reason `[1.12.3]`'s default could reach existing
+users at all. Correcting a token that already reads correctly is not worth spending it. The residue
+is stated in the code so it is not a trap for the next reader: a stored `"gemini"` may exist, it is
+compared against nothing, and it means the AI tab.
+
+**No permission change.** This is still an ordinary navigation to a `google.com` URL — no API, no
+key, no network call from the extension — so the diff against the packaged 2.1.0 build stays empty,
+and the single-purpose framing in the release notes is unchanged in substance and only in its
+destination.
+
+**The tab width did not have to move.** `[1.12.2]` fixed the tabs at 15% of the bar, ~80px, on the
+grounds that "Gemini" and "Search" fit. "AI Search" was measured before anything was touched, at
+three text-size tiers and four viewport widths: worst case is the Large tier at **61.2px of text in
+80.4px, 19.2px of headroom**. So both tabs keep their width, the strip stays symmetric, and
+`[1.12.2]`'s drop-shadow silhouette — the thing that makes the strip and the bar read as one object
+— is untouched.

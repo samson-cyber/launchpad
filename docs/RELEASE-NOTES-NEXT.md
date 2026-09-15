@@ -64,14 +64,15 @@ Group actions no longer hide until you hover.
   Nothing moved to make room - those controls always occupied
   that space, they were simply invisible.
 
-The search bar now defaults to Gemini, with a one-click toggle
+The search bar now defaults to AI Search, with a one-click toggle
 back to your default search engine.
 
-• Two tabs sit above the search bar: Gemini and Search. Gemini
-  is the one that starts selected.
-• Press Enter with Gemini selected and LaunchPad opens Gemini
-  with what you typed. It is a shortcut to gemini.google.com -
-  nothing is sent anywhere by LaunchPad itself.
+• Two tabs sit above the search bar: AI Search and Search.
+  AI Search is the one that starts selected.
+• Press Enter with AI Search selected and LaunchPad opens
+  Google's AI Mode with what you typed already in the box. It is
+  a shortcut to google.com - nothing is sent anywhere by
+  LaunchPad itself.
 • Click Search and Enter goes to your normal search engine again,
   exactly as before. LaunchPad never changes which engine that
   is. Your choice is remembered.
@@ -84,13 +85,28 @@ back to your default search engine.
 
 ## Context for whoever cuts the release
 
-### The Gemini default changes what Enter does for every existing user
+### The AI Search default changes what Enter does for every existing user
 
 **This is the second entry on this page that ships to everyone with no opt-out,
 and it belongs in the notes for the same reason the icon change does.** Before
 `[1.12.3]`, Enter in the Home search bar ran `chrome.search.query` - the user's
-own default engine. It now opens `gemini.google.com/app?q=<query>` unless the
-user picks the Search tab.
+own default engine. It now opens `www.google.com/search?udm=50&q=<query>` -
+Google's AI Mode - unless the user picks the Search tab.
+
+**IT POINTED AT THE GEMINI APP UNTIL 2026-09-15, AND THAT DID NOT WORK.**
+`[1.12.3]` shipped `gemini.google.com/app?q=<query>`, and **Gemini accepts no
+URL prefill of any kind** - `?q=`, `?prompt=`, `?text=` and a `#fragment` were
+each driven, signed in and signed out, and the prompt box came up EMPTY every
+time. Pressing Enter opened Gemini with nothing in it. The round that built it
+asserted that LaunchPad's own navigation carried the encoded query and never
+loaded the page that was supposed to consume it (BUGS.md **P25**).
+
+**Google AI Mode does accept it**, verified in a real signed-in browser: the
+query lands in the box and an AI answer comes back. So the destination moved
+and the tab was renamed to match. **If this ships before 2.2.0 goes out, the
+Gemini behaviour never reached a single user** and the note above is the only
+version anyone needs; if 2.1.0 shipped with it, say plainly that the AI tab
+opened an empty Gemini and now does not.
 
 **One default, not two.** The 2026-09-12 amendment on the spec task reversed an
 earlier ruling that would have given new installs Gemini and left existing users
@@ -107,20 +123,23 @@ was built one round earlier on purpose. `[1.12.2]` stored the tab choice at
 `data.settings.searchMode` and **deliberately never wrote a value at boot** - an
 absent key means *has not chosen*. So every profile that never touched the tabs
 still has no key, and `[1.12.3]` only had to invert the read: the exact string
-`"search"` selects Search, and everything else - including absent - is Gemini.
-A user who clicked Search in `[1.12.2]` keeps Search.
+`"search"` selects Search, and everything else - including absent - is the AI
+tab. A user who clicked Search in `[1.12.2]` keeps Search. **The same inverted
+test carried the 2026-09-15 rename for free**: a profile storing the old
+`"gemini"` token is not the exact string `"search"`, so it resolves to the AI
+tab with nothing written and no migration to run.
 
-### Describe it as a shortcut to Gemini, NOT as a search engine option
+### Describe it as a shortcut to Google AI Mode, NOT as a search engine option
 
 **This listing has been rejected once over a search control visible in a
 screenshot, so the framing is not cosmetic.** The single-purpose policy targets
 extensions that HIJACK search - silently redirecting the omnibox, or changing
 the default engine without consent. This does neither:
 
-- It is **an ordinary navigation** to `gemini.google.com/app?q=`, exactly what a
-  Gemini shortcut in the grid would be with the query appended. No API, no key,
-  no new permission, and **no network call from the extension**. The permission
-  set is byte-identical to the packaged 2.1.0 build.
+- It is **an ordinary navigation** to `www.google.com/search?udm=50&q=`, exactly
+  what a Google shortcut in the grid would be with the query appended. No API,
+  no key, no new permission, and **no network call from the extension**. The
+  permission set is byte-identical to the packaged 2.1.0 build.
 - It **never touches the user's default search engine.** The Search tab still
   goes through `chrome.search.query`, which is precisely the API that respects
   that setting - and is why this product has no engine picker and is not
@@ -129,9 +148,11 @@ the default engine without consent. This does neither:
   the row at the bottom of the suggestion list names the destination before the
   user presses Enter.
 
-Wording for the listing should follow that: *a shortcut to Gemini from the
-search bar*, with the toggle back to your own search engine mentioned in the
-same breath. Do not write "choose your search engine".
+Wording for the listing should follow that: *a shortcut to Google's AI search
+from the search bar*, with the toggle back to your own search engine mentioned
+in the same breath. Do not write "choose your search engine", and do not write
+"Gemini" - the destination is Google AI Mode and naming the wrong product in a
+store listing is the kind of discrepancy a reviewer can check.
 
 ### The icon change affects everyone, and there is no opt-out
 

@@ -469,21 +469,21 @@ I18n.register("en", {
     "message": "or Import from Chrome Bookmarks",
     "description": "Text on the page surface."
   },
-  "launcher_ask_gemini_about": {
-    "message": "Ask Gemini about",
-    "description": "[1.12.3] Prefix of the launcher's last row when the Gemini tab is active; the query follows in quotes. The row exists so that what Enter does is visible rather than folklore, so this must name the real destination."
+  "launcher_ask_ai_about": {
+    "message": "Ask Google AI about",
+    "description": "[1.12.5] Prefix of the launcher's last row when the AI Search tab is active; the query follows in quotes. The row exists so that what Enter does is visible rather than folklore, so this must name the REAL destination - which is Google AI Mode (www.google.com/search?udm=50), not the Gemini app. It said \"Ask Gemini about\" until 2026-09-15, when Gemini was measured to accept no URL query at all and the tab was repointed."
   },
   "launcher_go_to": {
     "message": "Go to",
     "description": "[1.12.3] Prefix of the launcher's last row when the query looks like a bare domain, in EITHER mode - Enter navigates there rather than searching. Before [1.12.3] this row said \"Search the web for ...\" while Enter jumped to the site."
   },
-  "page_search_gemini": {
-    "message": "Search your shortcuts, or ask Gemini",
-    "description": "[1.12.3] Placeholder in the Home search field while the GEMINI tab is active. Mirrors page_search_or_type_a_url's shape deliberately: the shortcut half stays FIRST because the launcher matches shortcuts in both modes and that is the half the address bar cannot do ([1.12.1]'s finding). \"ask Gemini\" rather than anything about an assistant - this is a shortcut to gemini.google.com with the query appended, not an AI embedded in the page, and the copy must not claim otherwise."
+  "page_search_ai": {
+    "message": "Search your shortcuts, or ask Google AI",
+    "description": "[1.12.5] Placeholder in the Home search field while the AI SEARCH tab is active. Mirrors page_search_or_type_a_url's shape deliberately: the shortcut half stays FIRST because the launcher matches shortcuts in both modes and that is the half the address bar cannot do ([1.12.1]'s finding, re-ruled in [1.12.3]). \"ask Google AI\" rather than anything about an assistant - this is a shortcut to Google AI Mode with the query appended, not an AI embedded in the page, and the copy must not claim otherwise. It named Gemini until 2026-09-15."
   },
-  "searchmode_gemini": {
-    "message": "Gemini",
-    "description": "[1.12.2] Left tab of the Home search bar's mode strip. A product name - do not translate."
+  "searchmode_ai": {
+    "message": "AI Search",
+    "description": "[1.12.5] Left tab of the Home search bar's mode strip. Means Google AI Mode, which is where Enter goes while it is lit. NOT a product name - translate it as the ordinary words for an AI-answered search. It read \"Gemini\" until 2026-09-15; the tab was repointed because the Gemini app accepts no URL query. Measured to fit the 80px tab with 19px to spare at the Large text tier."
   },
   "searchmode_group": {
     "message": "Search mode",

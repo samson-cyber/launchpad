@@ -12814,12 +12814,12 @@
       // THE ROW NAMES WHERE ENTER ACTUALLY GOES. It exists because [1.10.1]
       // decided plain Enter should not be folklore, and [1.12.1b] confirmed
       // Samson wants it visible - so it cannot say "Search the web" while Enter
-      // opens Gemini. It also could not say it while Enter jumped to a typed
+      // opens Google AI Mode. It also could not say it while Enter jumped to a typed
       // domain, which it did in every round before this one.
       var dest;
       if (launcherIsUrlLike(q)) dest = t("launcher_go_to") + " " + q;
-      else if (Storage.getSearchMode(data) === "gemini")
-        dest = t("launcher_ask_gemini_about") + ' "' + q + '"';
+      else if (Storage.getSearchMode(data) === "ai")
+        dest = t("launcher_ask_ai_about") + ' "' + q + '"';
       else dest = t("launcher_search_the_web_for") + ' "' + q + '"';
       rows.push({ kind: "web", label: dest, sub: "" });
     }
@@ -12987,10 +12987,19 @@
     return query.indexOf(".") !== -1 && query.indexOf(" ") === -1;
   }
 
-  // [1.12.3] GEMINI IS AN ORDINARY NAVIGATION. gemini.google.com/app?q=<query>,
-  // exactly as a Gemini shortcut would be with the query appended. NO API, no
-  // key, no permission, no network call from the extension - the permission
-  // diff against the packaged 2.1.0 build is empty and is reported.
+  // [1.12.5] THE AI TAB IS AN ORDINARY NAVIGATION to Google AI Mode,
+  // www.google.com/search?udm=50&q=<query>, exactly as a Google shortcut would
+  // be with the query appended. NO API, no key, no permission, no network call
+  // from the extension - the permission diff against the packaged 2.1.0 build
+  // is empty and is reported.
+  //
+  // IT POINTED AT GEMINI UNTIL 2026-09-15, AND GEMINI NEVER ACCEPTED THE QUERY.
+  // gemini.google.com/app takes no URL prefill of any kind - ?q=, ?prompt=,
+  // ?text= and a #fragment were each driven, signed in and signed out, and the
+  // prompt box came up EMPTY every time. [1.12.3] asserted that our own
+  // navigation carried the encoded query and never loaded the destination that
+  // was supposed to consume it, so the feature shipped opening Gemini with an
+  // empty box. BUGS.md P25.
   //
   // A TYPED DOMAIN STILL GOES TO THE DOMAIN, IN BOTH MODES, and that is a
   // decision rather than an oversight. The tab chooses where a SEARCH goes; it
@@ -13000,8 +13009,8 @@
   //
   // NO LENGTH CAP. chrome.search.query has none and passes whatever it is
   // given, so this matches it. A cap would silently truncate the user's
-  // question, and a question Gemini answers confidently from half a sentence is
-  // a worse outcome than Google's own error page, which is visible and
+  // question, and a question the model answers confidently from half a sentence
+  // is a worse outcome than Google's own error page, which is visible and
   // recoverable.
   function launcherRunWebSearch(query, newTab) {
     if (!query) return;
@@ -13012,18 +13021,31 @@
       else chrome.tabs.update({ url: url });
       return;
     }
-    if (Storage.getSearchMode(data) === "gemini") {
+    if (Storage.getSearchMode(data) === "ai") {
       // Same disposition as the Search half below: plain Enter replaces this
       // new tab, ctrl/cmd opens a new one. Matching rather than inheriting -
       // the least surprising thing is that the tab strip changes the
       // destination and nothing else.
-      var g = "https://gemini.google.com/app?q=" + encodeURIComponent(query);
+      //
+      // udm=50 IS AN OBSERVED GOOGLE PARAMETER, NOT A CONTRACT. It selects AI
+      // Mode on the results page and is documented nowhere Google commits to;
+      // it was verified working in a real signed-in browser rather than taken
+      // from a reference.
+      //
+      // IF GOOGLE DROPS IT THE URL DEGRADES TO AN ORDINARY GOOGLE SEARCH WITH
+      // THE QUERY INTACT, because an unknown udm is ignored and q= is not.
+      // That is a soft landing, and it is the reason NOTHING HERE DETECTS THE
+      // PARAMETER OR PROBES FOR IT. A detector would need a network call this
+      // feature does not make, would have to decide what to do on a timeout,
+      // and would turn a working search into a broken one on a false negative.
+      // Do not add one.
+      var g = "https://www.google.com/search?udm=50&q=" + encodeURIComponent(query);
       if (newTab) chrome.tabs.create({ url: g });
       else chrome.tabs.update({ url: g });
       return;
     }
     // Chrome's built-in search — respects the user's default engine, and this
-    // round does not touch it. Never a default-engine change; the Gemini half
+    // round does not touch it. Never a default-engine change; the AI half
     // above is a link, which is what keeps this a shortcut rather than a
     // search-engine option.
     chrome.search.query({ text: query, disposition: newTab ? "NEW_TAB" : "CURRENT_TAB" });
@@ -13646,7 +13668,7 @@
     // because they are two different sentences - NOT two copies of one, which
     // is the trap [1.12.1] found and collapsed.
     var input = $("#search-input");
-    if (input) input.placeholder = t(mode === "gemini" ? "page_search_gemini"
+    if (input) input.placeholder = t(mode === "ai" ? "page_search_ai"
                                                       : "page_search_or_type_a_url");
     if (strip._modeHandlerAttached) return;
     strip._modeHandlerAttached = true;

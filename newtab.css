@@ -16583,7 +16583,7 @@ html.has-bg.bg-light .notes-default-cycle {
 
    32px = THE BAR'S CORNER RADIUS PLUS THE FLARE'S OWN WIDTH (22 + 10), and the
    second term was found by looking rather than by reasoning. At 22px the TAB
-   cleared the corner but its left FLARE did not: with Gemini active the flare
+   cleared the corner but its left FLARE did not: with the AI tab active the flare
    landed on the bar's curve and the two merged into a lump instead of a curve.
    The flare has to land on a straight edge for the same reason the tab does. */
 .search-mode:first-child { margin-left: 32px; }
@@ -16618,7 +16618,7 @@ html.has-bg.bg-light .notes-default-cycle {
 /* THE INACTIVE TAB CARRIES A SURFACE, and that is a correctness fix as much as
    a design one. With a transparent background its LABEL was the only opaque
    thing in that part of the assembly, so the silhouette filter had a glyph to
-   cast from and the word "Gemini" picked up a blue halo on focus - visible in
+   cast from and the tab's label picked up a blue halo on focus - visible in
    the 3x crop and wrong in an obvious way. Given a surface, the tab is part of
    the silhouette and the outline wraps the tab instead of its letters.
 

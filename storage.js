@@ -538,11 +538,11 @@ var Storage = (function () {
   //
   // THE DEFAULT IS READ-TIME ONLY AND IS NEVER WRITTEN ON LOAD, and that is
   // load-bearing rather than tidy. The spec's 2026-09-12 amendment rules that
-  // GEMINI becomes the default for everyone in [1.12.3]. If this round stamped
+  // the AI tab becomes the default for everyone in [1.12.3]. If this round stamped
   // "search" onto every profile at boot, every profile would carry an explicit
   // choice by then and that default could never apply to anyone. An absent key
   // means "has not chosen"; only a click writes.
-  // [1.12.3] GEMINI IS THE DEFAULT, FOR EVERYONE, NEW AND EXISTING - per the
+  // [1.12.3] THE AI TAB IS THE DEFAULT, FOR EVERYONE, NEW AND EXISTING - per the
   // 2026-09-12 amendment, which reversed an earlier split-by-install-date
   // ruling on the grounds that two defaults is a permanent tax, the bar has
   // near-zero usage so almost nobody's habit breaks, and [1.10.7] set the
@@ -550,18 +550,33 @@ var Storage = (function () {
   //
   // THE TEST IS INVERTED RATHER THAN THE FALLBACK SWAPPED, and the difference
   // matters: only the exact string "search" selects Search. An ABSENT key, and
-  // anything unrecognised, is Gemini. That is what makes [1.12.2]'s
+  // anything unrecognised, is the AI tab. That is what makes [1.12.2]'s
   // read-time-only property pay off - it deliberately never stamped a value at
   // boot, so every profile that has not touched the tabs still has no key, and
   // this default reaches all of them. A user who clicked Search keeps Search.
+  //
+  // [1.12.5] THE TOKEN IS "ai", AND THE LEGACY "gemini" NEEDS NO SWEEP -
+  // THE INVERTED TEST IS THE MIGRATION. A profile that clicked the AI tab
+  // before the rename carries the literal string "gemini"; it is not the exact
+  // string "search", so it resolves to "ai" and behaves correctly with nothing
+  // written and nothing to go wrong. The next click on either tab rewrites it.
+  //
+  // A BOOT SWEEP WAS CONSIDERED AND REFUSED, and the reason is the paragraph
+  // above this one: stamping a normalised value at load is exactly the thing
+  // [1.12.2] deliberately never did, and doing it now would give every profile
+  // an explicit key - the property that let the [1.12.3] default reach existing
+  // users at all. Correcting a token that already reads correctly is not worth
+  // spending that. THE RESIDUE IS SAID OUT LOUD SO IT IS NOT A TRAP: a stored
+  // "gemini" may exist, it is never compared against anywhere, and it means the
+  // AI tab.
   function getSearchMode(data) {
     var m = data && data.settings && data.settings.searchMode;
-    return m === "search" ? "search" : "gemini";
+    return m === "search" ? "search" : "ai";
   }
 
   async function setSearchMode(data, mode) {
     if (!data || !data.settings) return false;
-    var next = mode === "gemini" ? "gemini" : "search";
+    var next = mode === "search" ? "search" : "ai";
     if (data.settings.searchMode === next) return false;
     data.settings.searchMode = next;
     await saveAll(data);
