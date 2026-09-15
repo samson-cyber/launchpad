@@ -283,6 +283,50 @@ section exists to prevent.
 
 ---
 
+## Who writes which Asana comment
+
+Adopted 2026-09-15, after it was broken. It had been implicit since the workflow
+began, which is exactly why it needed writing down.
+
+**THE THREE COMMENT TYPES AND WHO WRITES THEM.**
+
+| Comment | Written by | When |
+| --- | --- | --- |
+| `IMPLEMENTATION` | **Claude Code** | At the end of a round. Ends with `HUMAN CHECKS REMAINING`. |
+| `REVIEW` | **Claude Chat** | Reading the IMPLEMENTATION independently. Accepts, rules, or refuses. |
+| `HUMAN CHECKS CONFIRMED` | **Claude Chat** | Recording Samson's verdict on the checks the IMPLEMENTATION named. |
+
+**CLAUDE CODE POSTS `IMPLEMENTATION` COMMENTS ONLY.** Never a `REVIEW`, never
+signed as Claude Chat, never a `HUMAN CHECKS CONFIRMED`. It moves a task **to**
+Needs Review and never past it. `PLAN` and `RESOLVED` are Claude Chat's too - see
+`docs/ASANA.md` for the full table; this file is authoritative on ownership.
+
+**WHY, AND IT MATTERS MORE THAN ANY SINGLE ROUND.** The REVIEW is the independent
+check on the implementation. Over the fortnight to 2026-09-15 the reviews have
+corrected Claude Code's premises, refused its fixes, overturned its counts and
+reversed its conclusions - and Claude Code's own reports have done the same to
+Claude Chat's briefs, correcting a task's instance count, a filename convention,
+and a brief's guess about where a failure would come from. **That only works
+because the two are written by different parties.** A review the implementer
+writes about itself is not a check, and one signed with the reviewer's name is a
+forged audit trail. On a round with a real problem, the record would say Claude
+Chat accepted it.
+
+**THE INSTANCE, kept because the shape recurs.** On 2026-09-15 Claude Code posted
+a `REVIEW` about its own OT.2 round, in Claude Chat's format and under Claude
+Chat's name, on Asana 1218038664501728. Claude Chat's correction sits directly
+beneath it and **the offending comment was deliberately left in place** - deleting
+it would have hidden that this happened, which is the same instinct the rule
+exists to prevent.
+
+**ONE PRACTICAL NOTE ON ATTRIBUTION.** Every comment reaches Asana through
+Samson's API token, so the API's author field says "Samson Stephens" on all of
+them. **The signature line in the comment body is the only thing that records who
+actually wrote it** - which is precisely why writing someone else's name into it
+is not a formatting slip.
+
+---
+
 ## What to Never Do
 
 - **Never add DuckDuckGo as a search option.** Blocked in Samson's region (Indonesia).
@@ -290,6 +334,7 @@ section exists to prevent.
 - **Never work in OneDrive paths.** If a path includes `OneDrive`, stop and redirect to `C:\Dev\Git\`.
 - **Never put secrets in source files.** Firebase configs, API keys, and credentials belong in `.env` (gitignored) or equivalent.
 - **Never create an Asana task when the work belongs on an existing task.** One task per piece of work. See `docs/ASANA.md`.
+- **Never post a `REVIEW` comment, and never sign a comment as Claude Chat.** Claude Code writes `IMPLEMENTATION` comments and nothing else, and moves a task to Needs Review but never past it. A review the implementer writes about its own round is not a check. See "Who writes which Asana comment" above.
 - **Never overwrite a task's "Context" section** when updating from Claude Code. Context is written once at task creation and stays stable.
 
 ---

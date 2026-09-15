@@ -147,7 +147,21 @@ Comments are the timeline within a task. All communication between Claude Chat, 
 | Claude Code | `IMPLEMENTATION —` | Summarizes what was built, files changed, issues found, what to review |
 | Claude Chat | `REVIEW —` | Reviews Claude Code's work against the plan, confirms or flags issues |
 | Claude Chat | `RESOLVED —` | Resolution summary when moving bugs to Fixed Bugs / Issues |
+| Claude Chat | `HUMAN CHECKS CONFIRMED` | Records Samson's verdict on the checks the IMPLEMENTATION named |
 | Human | *(no prefix)* | Ad hoc notes, context, corrections |
+
+**WHO WRITES WHICH IS A RULE, NOT A CONVENTION, AND `CLAUDE.md` IS AUTHORITATIVE
+ON IT** (see "Who writes which Asana comment" there). Three lines of it:
+
+- `IMPLEMENTATION` is **Claude Code**, at the end of a round, ending with `HUMAN CHECKS REMAINING`.
+- `REVIEW` is **Claude Chat**, reading that IMPLEMENTATION independently - accepting, ruling, or refusing.
+- `HUMAN CHECKS CONFIRMED` is **Claude Chat**, recording Samson's verdict.
+
+**Claude Code posts `IMPLEMENTATION` comments only** - never a `REVIEW`, never
+signed as Claude Chat, never a `HUMAN CHECKS CONFIRMED` - and moves a task **to**
+Needs Review, never past it. The REVIEW is the independent check; a review the
+implementer writes about itself is not one, and one under the reviewer's name is a
+forged audit trail. Broken once, on 2026-09-15; the reasoning is in `CLAUDE.md`.
 
 ### How Comments Work
 
