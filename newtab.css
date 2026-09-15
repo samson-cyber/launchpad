@@ -3145,8 +3145,50 @@ html.has-bg:not(.bg-light) .group-name {
   color: var(--ink-primary);
 }
 
+/* ===== BARE TEXT ON A PHOTOGRAPH GETS A SURFACE (Samson, 2026-09-15) ======
+ *
+ * 4551bdf measured every element on five grounds and found exactly two still
+ * failing: this heading at 2.08:1 and the shortcut label at 2.36:1, both on a
+ * BRIGHT PHOTOGRAPH. Re-measured this round at 2.13 and 2.45 on a calibrated
+ * ground, which is the same number inside noise.
+ *
+ * WHY A SURFACE AND NOT A LUMINANCE CLASS. The obvious fix - classify a
+ * photograph light or dark and route the bright ones into html.bg-light - is
+ * refuted by that same table: the LIGHT SOLID column fails for four other
+ * elements, so bg-light is not a working destination. It would move this text
+ * into a branch that is itself failing. A surface is the option the numbers
+ * support.
+ *
+ * SCOPED TO html.bg-image, WHICH IS AS NARROW AS THE DEFECT. Every solid
+ * ground passes for both elements - 11.08 / 13.17 with no wallpaper, 9.01 /
+ * 10.64 on the navy preset, 11.59 / 10.43 on the pale one after 4551bdf gave
+ * the heading its light-branch ink. So a colour wallpaper, including the
+ * shipped default #2a2a2a, keeps bare text and Home is unchanged for it. Only
+ * a photograph gets glass, because only a photograph is the hazard.
+ *
+ * CARD TIER, WHICH IS THE LIGHTEST OF THE THREE, AND NO NEW VALUE. The tokens
+ * are the ones Insights row one already uses for exactly this - text with no
+ * card behind it, over a wallpaper - so this is that precedent applied rather
+ * than a fourth surface invented. 0.85 is far more than the floor needs (a
+ * ~0.35 tint already clears 4.5:1 here), and a lighter literal was measured
+ * and refused: it would be a new value outside the tier system for a 3x margin
+ * nobody can see, and CLAUDE.md requires the variables.
+ *
+ * A TIER, NOT A CARD. No border, no shadow, no generous padding, no large
+ * radius. The heading reuses the padding and radius its own :hover state has
+ * carried since forever, so this adds ZERO layout: the glass appears in the
+ * box that was already there.
+ *
+ * THE TEXT SHADOW GOES, per [1.8.6]. The guide's rule is a shadow for text
+ * sitting DIRECTLY on wallpaper, and after this rule none of this text does.
+ * Keeping both would be belt and braces with no evidence behind the braces -
+ * and the dark halo is precisely what would make a chip read as heavy on a
+ * DARK photograph, where nothing was broken and the surface has to stay
+ * almost invisible. Measured with it gone on all five grounds. */
 html.bg-image .group-name {
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  background: var(--pro-frost-card-bg);
+  backdrop-filter: var(--pro-frost-card-blur);
+  -webkit-backdrop-filter: var(--pro-frost-card-blur);
 }
 
 html.has-bg:not(.bg-light) .group-name:hover {
@@ -3154,17 +3196,56 @@ html.has-bg:not(.bg-light) .group-name:hover {
   text-decoration-color: rgba(255, 255, 255, 0.4);
 }
 
+/* HOVER MUST NOT TAKE THE GLASS AWAY. The rule above sets `background`
+   outright, so on a photograph hovering the heading would replace the tier
+   with a 0.10 white fill and put the contrast straight back where it was.
+   Two backgrounds in one declaration: the fill paints over the tier rather
+   than instead of it.
+
+   `:not(.bg-light)` IS REDUNDANT AND IS LOAD-BEARING ANYWAY. A photograph
+   never carries a luminance class, so it can never match .bg-light and the
+   clause excludes nothing. It is here for SPECIFICITY: without it this
+   selector is (0,3,1) against the rule above at (0,4,1), so the fill kept
+   winning and hover measured 2.15:1 with the glass gone entirely - the
+   exact defect this rule was written to prevent, shipped by the rule meant
+   to prevent it. Matched at (0,4,1) it wins on document order instead.
+   Caught by forcing :hover and re-measuring; nothing at rest would show it. */
+html.bg-image:not(.bg-light) .group-name:hover {
+  background: linear-gradient(var(--surface-fill), var(--surface-fill)),
+              var(--pro-frost-card-bg);
+}
+
 html.has-bg:not(.bg-light) .group-open-all-btn {
   color: var(--ink-meta);
 }
 
+/* OPEN ALL GETS THE SAME GLASS, AND IT IS THE WORST NUMBER ON THE PAGE.
+   4551bdf's table did not carry this control, so nothing had measured it on a
+   photograph: it reads 1.56:1 on the bright ground, worse than either element
+   this round was called for. Leaving it bare while the heading beside it gets
+   a surface would repeat, in one commit, the exact error 4551bdf records -
+   "its two siblings were already given explicit light ink; the name was
+   missed".
+
+   Like the heading, it already carries padding and a radius of its own, so
+   this adds no layout either. */
 html.bg-image .group-open-all-btn {
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  background: var(--pro-frost-card-bg);
+  backdrop-filter: var(--pro-frost-card-blur);
+  -webkit-backdrop-filter: var(--pro-frost-card-blur);
 }
 
 html.has-bg:not(.bg-light) .group-open-all-btn:hover {
   color: var(--ink-primary);
   background: var(--surface-fill);
+}
+
+/* Same reason as the heading's hover, including the specificity clause:
+   the rule above replaces `background` outright and is (0,4,1), so this has
+   to match it to win on order. Measured at 2.13:1 before the clause. */
+html.bg-image:not(.bg-light) .group-open-all-btn:hover {
+  background: linear-gradient(var(--surface-fill), var(--surface-fill)),
+              var(--pro-frost-card-bg);
 }
 
 html.has-bg:not(.bg-light) .group-more-btn {
@@ -3238,8 +3319,26 @@ html.has-bg:not(.bg-light) .shortcut-name {
   color: #fff;
 }
 
+/* THE SHORTCUT LABEL, same tier and the same reasoning as the heading above.
+   It is a flex item in a centred column, so the glass HUGS THE LABEL rather
+   than spanning the column - a chip under each icon, not a bar under each
+   tile. A bar would turn the grid into rows of plaques, which is the
+   cards-on-a-photograph reading this round is trying to spend as little of as
+   possible.
+
+   PADDING IS HORIZONTAL ONLY, AND THAT IS A LAYOUT DECISION. Vertical padding
+   would grow every tile and move the whole grid down; with none, the chip is
+   exactly the 16px line box the label already occupied. MEASURED against the
+   unchanged tree on the same ground: group, header, tile and grid boxes and
+   document height all identical, and every tile's y and height unchanged. The
+   label's OWN box is 12px wider - its two 6px paddings - and since it is a
+   centred flex item it grows symmetrically and stays centred under the icon. */
 html.bg-image .shortcut-name {
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  background: var(--pro-frost-card-bg);
+  backdrop-filter: var(--pro-frost-card-blur);
+  -webkit-backdrop-filter: var(--pro-frost-card-blur);
+  padding: 0 var(--space-1-5);
+  border-radius: var(--radius-sm);
 }
 
 html.has-bg:not(.bg-light) .shortcut-icon,
@@ -3264,8 +3363,22 @@ html.has-bg:not(.bg-light) .add-tile-label {
   color: #fff;
 }
 
+/* THE ADD-SHORTCUT LABEL IS .shortcut-name'S TWIN AND SITS IN THE SAME GRID
+   ROW - same size, same line-height, same #fff on a wallpaper - and it
+   measures 2.39:1 on the bright ground against the label's 2.37:1. Chipping
+   one and not the other would leave a bare label sitting between two chipped
+   ones, which reads as a bug rather than as a choice, and would leave the same
+   text unreadable on the same photograph.
+
+   It CAN wrap to two lines where .shortcut-name cannot ([1.10.3]), so the
+   glass follows each line box rather than boxing the pair. That is the
+   behaviour wanted: the chip hugs the text either way. */
 html.bg-image .add-tile-label {
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  background: var(--pro-frost-card-bg);
+  backdrop-filter: var(--pro-frost-card-blur);
+  -webkit-backdrop-filter: var(--pro-frost-card-blur);
+  padding: 0 var(--space-1-5);
+  border-radius: var(--radius-sm);
 }
 
 html.has-bg:not(.bg-light) .add-tile-icon {
