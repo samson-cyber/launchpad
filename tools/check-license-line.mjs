@@ -340,8 +340,18 @@ structural("...and again on a light wallpaper",
   const tr = fs.readFileSync(path.join(repoRoot, "tracking.js"), "utf8");
   structural("background.js runAutoBackup gates through ProAccess",
     /if \(!ProAccess\.hasProAccess\(data\)\) return \{ skipped: "not-pro" \}/.test(bg));
-  structural("background.js focusProActive delegates",
-    /function focusProActive\(data\) \{\s*\n\s*return ProAccess\.hasProAccess\(data\);/.test(bg));
+  // [WM.2] RE-ANCHORED, and this is a MOVE not a rewrite - the same precedent
+  // the focus-decision runner already records for its own seed 7. The blocking
+  // path's Pro check left background.js for Storage.blockingProActive, because
+  // PLAN decision H makes it the READER's job: expired must return null for
+  // every host on every surface, not just decline to act in the intercept.
+  // What this assertion has always been for - that the check DELEGATES rather
+  // than hand-writing the level set - is unchanged; only the file moved.
+  const ST = fs.readFileSync(path.join(repoRoot, "storage.js"), "utf8").replace(/\r\n/g, "\n");
+  structural("storage.js blockingProActive delegates",
+    /return !!ProAccess\.hasProAccess\(data\);/.test(ST));
+  structural("background.js no longer carries its own blocking Pro copy",
+    !/function focusProActive\(/.test(bg));
   structural("tracking.js gates capture through ProAccess",
     /if \(!ProAccess\.isProAccessibleLevel\(level\)\)/.test(tr));
   structural("tracking.js no longer carries a CAPTURING_LEVELS array",

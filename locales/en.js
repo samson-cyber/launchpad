@@ -4309,3 +4309,83 @@ I18n.register("en", {
       "sense": "toast.error"
     }
   });
+
+// =========================================================================
+// [WM.2] THE GATE REASON LINE, AND THE MODE LABELS
+//
+// The gate page has always described the SESSION and left the reason to be
+// inferred. It now NAMES why the page is blocked, in the same line, in the
+// same position, because a door that does not say why it is shut is a door
+// the user argues with.
+//
+// ALL THREE REASONS ARE CATALOGUED THOUGH ONLY ONE CAN FIRE. WM.3 builds
+// schedules and budgets; writing their copy now means that round adds a
+// branch to one reader function and no gate copy at all - and it means the
+// three sentences were written together, in one voice, rather than two of
+// them bolted on later beside a first that had set a different tone.
+//
+// THE VOICE IS THE GATE'S OWN: F3=b is GENTLE. No red, no alarm, no scolding.
+// Each sentence states a fact the user themselves set up.
+// =========================================================================
+I18n.register("en", {
+    "gate_reason_session_task": {
+      "description": "Reason line on the blocking gate while a focus session runs on a named task. A COLON, NOT A FULL STOP AND NOT A DASH. The duration is a sentence FRAGMENT - 'less than a minute' - so a full stop in front of it starts a sentence in lower case - caught in the rendered frame, not in review. An em dash reads better and tools/check-i18n-sites.mjs refuses one in user-facing copy, correctly. A colon is the joiner that is both correct and allowed. VOCABULARY LAW, inherited from gate_focused_on_task: 'focused' is the engine's measured time and must not soften to 'worked on' or 'spent'.",
+      "message": "Blocked during your focus session: {duration} focused on {taskName}.",
+      "sense": "explanation.reason"
+    },
+    "gate_reason_session": {
+      "description": "Reason line while a focus session runs with NO task attached. Same vocabulary law; a separate sentence because there is no task to name.",
+      "message": "Blocked during your focus session: {duration} focused so far.",
+      "sense": "explanation.reason"
+    },
+    "gate_reason_session_armed": {
+      "description": "Reason line when blocking is on because the user armed it BY HAND rather than because a session is running. Names the user's own action, since that is the thing they would undo.",
+      "message": "Blocked because you turned focus blocking on.",
+      "sense": "explanation.reason"
+    },
+    "gate_reason_budget": {
+      "description": "Reason line for a daily-budget rule. WM.3 builds budgets; the copy is written now so that round writes no gate copy. States the limit as spent, not as a failure.",
+      "message": "Blocked because you have used today's time on {domain}.",
+      "sense": "explanation.reason"
+    },
+    "gate_reason_schedule": {
+      "description": "Reason line for a scheduled rule. WM.3 builds schedules. Present tense and time-bounded - the block is a property of right now, not of the site.",
+      "message": "Blocked because {domain} is on your schedule right now.",
+      "sense": "explanation.reason"
+    },
+    "gate_reason_none": {
+      "description": "Reason line when the reader finds NO reason - an inert gate. Reachable when Pro lapsed while the tab sat here (decision H) or the page was opened directly. Says plainly that nothing is holding the user, rather than leaving a blocked-looking page with no explanation.",
+      "message": "Focus blocking is not on right now.",
+      "sense": "explanation.reason"
+    },
+    "gate_this_site": {
+      "description": "Stands in for the domain in a reason line when the gate was reached without one. Matches the headline's existing fallback wording.",
+      "message": "this site",
+      "sense": "noun.fallback"
+    },
+    "gate_end_focus": {
+      "description": "End control when a manual arm AND a running work phase are BOTH holding the user. One click clears both, so the label names neither: ending only one of them would return the user to this page still blocked, which is the defect this round fixed.",
+      "message": "End focus",
+      "sense": "action.button"
+    },
+    "gate_is_not_blocked": {
+      "description": "Replaces the headline's \"is blocked\" tail on an INERT gate. The page was reached with nothing actually blocking - Pro lapsed, or it was opened directly - and a headline still asserting a block would contradict the line directly beneath it. Renders after the domain chip, exactly as gate_is_blocked does.",
+      "message": "is not blocked",
+      "sense": "heading.state"
+    },
+    "gate_continue": {
+      "description": "The only control on an INERT gate. Nothing is blocking, so there is nothing to snooze and nothing to end; this just goes to the site the user asked for.",
+      "message": "Continue",
+      "sense": "action.button"
+    },
+    "focusblock_mode_schedule": {
+      "description": "Row label in Pro Settings for a blocked site governed by a SCHEDULE rather than by focus sessions. Rendered only for non-default modes - a label on every row would repeat the section heading.",
+      "message": "On a schedule",
+      "sense": "label.state"
+    },
+    "focusblock_mode_budget": {
+      "description": "Row label in Pro Settings for a blocked site governed by a DAILY BUDGET. Same rendering rule as focusblock_mode_schedule.",
+      "message": "Daily budget",
+      "sense": "label.state"
+    }
+  });

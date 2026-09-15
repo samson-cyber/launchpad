@@ -2057,9 +2057,16 @@ var FOCUS_NEVER_HOSTS = ["mylaunchpad.me", "live.dodopayments.com"];
 //
 // pro-access.js is importScripts'd at the top of this file, before any function
 // body here can run, so ProAccess is defined at every call site below.
-function focusProActive(data) {
-  return ProAccess.hasProAccess(data);
-}
+//
+// [WM.2] AND THE DELEGATE HAS NOW MOVED AGAIN, one layer further in. The Pro
+// check lives in Storage.blockingReasonFor, because PLAN decision H says the
+// READER returns null for every host on an expired profile - not "the
+// intercept declines to act on what the reader said". Keeping a second copy
+// here would leave the pill and the gate page free to disagree with the
+// intercept about whether a lapsed user is blocked, which is the exact class
+// this round exists to close. tools/check-license-line.mjs follows it there,
+// and tools/check-focus-decision.mjs re-anchored its "pro gate removed" seed
+// to the same line, so both still refuse a hand-written copy.
 
 // SCHEME ALLOWLIST, not a blocklist. Only http(s) is ever intercepted, which
 // covers every entry the audit enumerated — chrome-extension:// (any id,
@@ -2082,17 +2089,32 @@ function focusInterceptCandidateHost(rawUrl) {
 }
 
 // PURE decision over one snapshot. Exposed on self for the harness; the
-// listener below is only wiring. Returns the matched block-list entry when the
-// navigation should be gated, or null.
-function focusInterceptDecision(data, host) {
+// listener below is only wiring.
+//
+// [WM.2] THIS FUNCTION NO LONGER DECIDES ANYTHING. It used to run the chain
+// itself - Pro, then armed, then the list, then the snooze - and that chain is
+// now Storage.blockingMatchFor, which is the ONE decider every surface calls.
+// The C-numbered guards are not gone; they moved, together, to the one place
+// that can keep them in step (PLAN decision D).
+//
+// THE NEVER-BLOCK LIST IS DELIBERATELY NOT PART OF THAT MOVE, and that is a
+// reading worth stating rather than leaving to inference. FOCUS_NEVER_HOSTS is
+// a rule about which navigations we are willing to INTERCEPT AT ALL - a
+// transport rule, enforced in focusInterceptCandidateHost above, before any
+// policy question is asked. It therefore still wins over every entry mode by
+// construction rather than by a check the reader has to remember, and it stays
+// exactly where it is, unchanged, with its two mutation seeds untouched.
+function focusInterceptMatch(data, host) {
   if (!data || !host) return null;
-  if (!focusProActive(data)) return null;                                     // C10
-  if (!Storage.focusBlockingActive(data)) return null;                        // C2
-  var entry = Storage.matchesBlockedDomain(host, Storage.getBlockList(data)); // C3
-  if (!entry) return null;
-  if (Storage.getActiveFocusSnooze(data, entry)) return null;                 // C7
-  return entry;
+  return Storage.blockingMatchFor(data, host);
 }
+
+// The entry-only shape the transport and the harness have always used.
+function focusInterceptDecision(data, host) {
+  var match = focusInterceptMatch(data, host);
+  return match ? match.entry : null;
+}
+self.focusInterceptMatch = focusInterceptMatch;
 self.focusInterceptDecision = focusInterceptDecision;
 self.focusInterceptCandidateHost = focusInterceptCandidateHost;
 
@@ -2130,8 +2152,9 @@ function focusHandleNavigation(tabId, url) {
 
   chrome.storage.local.get("data").then(function (got) {
     var data = got && got.data;
-    var entry = focusInterceptDecision(data, host);
-    if (!entry) return;
+    var match = focusInterceptMatch(data, host);
+    if (!match) return;
+    var entry = match.entry;
 
     // STATELESS AGAINST STORAGE. That is what keeps the same-document cases
     // correct: each route change re-runs this same decision, and a live snooze
@@ -2146,9 +2169,14 @@ function focusHandleNavigation(tabId, url) {
     // an SW-context `data` writer) and deliberately not awaited — the user is
     // already on their way to the gate and a counter must never sit in front of
     // the navigation.
+    // [WM.2] TAGGED WITH THE REASON THIS DECISION ACTUALLY USED, captured here
+    // rather than re-derived inside the queued job: by the time the job runs,
+    // the phase may have ended or a budget rolled over, and re-deciding would
+    // file the block under a reason that was not why it happened.
+    var blockedReason = match.reason;
     enqueueBgData("focus-blocked-count", async function () {
       var fresh = await Storage.getAll();
-      await Storage.incrementFocusStat(fresh, "blocked");
+      await Storage.incrementFocusStat(fresh, "blocked", undefined, blockedReason);
     });
   }).catch(function (err) {
     console.error("[LaunchPad] Focus blocking: intercept failed", err);
@@ -2202,7 +2230,20 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg.type === "focus-gate-state") {
     // Read-only: everything the gate needs to render, computed where storage.js
     // already lives so the gate page does not have to load it.
+    //
+    // [WM.2] THE REASON COMES FROM THE READER AND THE GATE NEVER DERIVES ITS
+    // OWN. This handler used to hand the page phaseRunning and manualArmed and
+    // let it work out what was holding the user - a second derivation, parallel
+    // to Storage.focusBlockingActive and not sharing it, which is how the gate
+    // came to label a control for one cause while a second cause was what
+    // actually kept the user there.
+    //
+    // THE REASON IS NOT TAKEN FROM THE QUERY STRING. gate.html is reachable
+    // with an arbitrary ?entry=, so the page sends what it was given and the
+    // WORKER decides; a page that could assert its own reason could assert one
+    // that is not true.
     Storage.getAll().then(function (data) {
+      var reason = Storage.blockingReasonFor(data, String(msg.entry || ""));
       var active = Storage.getActiveTask(data);
       var ps = active ? Storage.hydratePomodoroState(active.pomodoroState) : null;
       var running = !!(ps && ps.phase === "work" && !Storage.isTrackingPaused(data));
@@ -2213,10 +2254,30 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
       var task = null;
       var resolved = Storage.resolveActiveTask(data);
       if (resolved && !resolved.stale && resolved.task) task = resolved.task.name;
+      // THE END CONTROL IS DERIVED HERE, not on the page, and it is ABSENT
+      // whenever there is nothing it could end: for a budget or a schedule
+      // reason (PLAN decision H and the task both say so - neither is a thing
+      // you "end") and for no reason at all. A control that cannot do anything
+      // reads as broken rather than as locked, which is the [1.1.4]
+      // preview-ghost rule; so it is not rendered disabled, it is not rendered.
+      //
+      // "both" EXISTS BECAUSE THE DEAD END WAS REAL. A manual arm and a running
+      // work phase can hold a user at once; the old handler ended whichever it
+      // tested first and left the other armed, so "End focus session" cost the
+      // user their session and returned them to this page still blocked.
+      var armed = Storage.isFocusManuallyArmed(data);
+      var endMode = "none";
+      if (reason === "session") {
+        if (running && armed) endMode = "both";
+        else if (running) endMode = "session";
+        else if (armed) endMode = "manual";
+      }
       sendResponse({
         ok: true,
+        reason: reason,
+        endMode: endMode,
         phaseRunning: running,
-        manualArmed: Storage.isFocusManuallyArmed(data),
+        manualArmed: armed,
         elapsedMs: elapsedMs,
         taskName: task
       });
@@ -2231,8 +2292,11 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
       // trailing write persists both. Two storage writes rather than one is the
       // price of reusing the setters; hand-rolling a single write here would
       // duplicate their guards, which is the worse trade. Not on the hot path.
+      // [WM.2] The reason is re-read here rather than sent by the page, for the
+      // same reason the gate state is: the page must not be able to assert it.
+      var snoozeReason = Storage.blockingReasonFor(data, String(msg.entry || ""));
       await Storage.setFocusSnooze(data, msg.entry, Date.now() + Storage.FOCUS_SNOOZE_MS);
-      await Storage.incrementFocusStat(data, "snoozed");
+      await Storage.incrementFocusStat(data, "snoozed", undefined, snoozeReason || "session");
     }).then(function () { sendResponse({ ok: true }); });
     return true;
   }
@@ -2243,11 +2307,23 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
       // C6: decided from FRESH state, not from what the page rendered. Another
       // tab may have ended the session since the gate loaded; then there is
       // nothing to end and navigating back is already correct.
+      //
+      // [WM.2] EVERY SESSION-REASON CAUSE, NOT THE FIRST ONE FOUND. The `if /
+      // return` chain that stood here ended the running phase and returned,
+      // leaving a manual arm untouched - so a user with both, who clicked the
+      // control to stop being blocked, lost their focus session AND arrived
+      // straight back at this page. Driven and reproduced before it was
+      // changed; the run is in this round's report.
+      //
+      // Both setters mutate the SAME in-job snapshot and each owns its saveAll,
+      // exactly as focus-gate-snooze above does, so the trailing write persists
+      // both.
+      var ended = [];
       var active = Storage.getActiveTask(data);
       var ps = active ? Storage.hydratePomodoroState(active.pomodoroState) : null;
-      if (ps && ps.phase) { await Storage.stopPomodoro(data); return "session"; }
-      if (Storage.isFocusManuallyArmed(data)) { await Storage.setFocusArmed(data, false); return "manual"; }
-      return "none";
+      if (ps && ps.phase) { await Storage.stopPomodoro(data); ended.push("session"); }
+      if (Storage.isFocusManuallyArmed(data)) { await Storage.setFocusArmed(data, false); ended.push("manual"); }
+      return ended.length ? ended.join("+") : "none";
     }).then(function (what) { sendResponse({ ok: true, ended: what }); });
     return true;
   }

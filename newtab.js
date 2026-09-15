@@ -10237,9 +10237,13 @@
     var listHost = $("#focus-block-list");
     if (!listHost) return;
 
-    var entries = Storage.getBlockList(data);
+    // [WM.2] READS THE SAME getBlockEntries THE DECIDER READS, so the list a
+    // user manages and the list the reader consults cannot disagree about what
+    // is on it or in what mode.
+    var entries = Storage.getBlockEntries(data);
     listHost.textContent = "";
-    entries.forEach(function (entry) {
+    entries.forEach(function (rec) {
+      var entry = rec.host;
       var li = document.createElement("li");
       li.className = "focus-block-row";
 
@@ -10247,6 +10251,26 @@
       name.className = "focus-block-domain";
       name.textContent = entry;
       name.title = entry + " (subdomains included)";
+
+      // A MODE LABEL ONLY WHEN THE MODE IS NOT THE DEFAULT. Every entry is
+      // session mode today, and a row that said "During focus sessions" on
+      // every line would be furniture repeating what the section heading
+      // already says. When WM.3 produces scheduled and budgeted entries this
+      // renders them without a further change here - which is the point of
+      // building the shape now: WM.3 adds branches, not surfaces.
+      //
+      // AND THERE IS DELIBERATELY NO MODE PICKER THIS ROUND. A control offering
+      // "on a schedule" while schedules do nothing is the [1.1.4] preview-ghost
+      // again. Storage.setBlockedDomainMode exists and is harnessed; WM.3 gives
+      // it its control.
+      var modeEl = null;
+      if (rec.mode !== "session") {
+        modeEl = document.createElement("span");
+        modeEl.className = "focus-block-mode";
+        modeEl.textContent = (rec.mode === "budget")
+          ? t("focusblock_mode_budget")
+          : t("focusblock_mode_schedule");
+      }
 
       var remove = document.createElement("button");
       remove.type = "button";
@@ -10266,6 +10290,7 @@
       });
 
       li.appendChild(name);
+      if (modeEl) li.appendChild(modeEl);
       li.appendChild(remove);
       listHost.appendChild(li);
     });

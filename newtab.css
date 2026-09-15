@@ -16064,6 +16064,44 @@ html.bg-light .import-option {
 html.has-bg .focus-block-domain { color: var(--ink-primary); }
 html.has-bg.bg-light .focus-block-domain { color: var(--text-primary); }
 
+/* [WM.2] The per-entry mode label. Present only on rows whose mode is not the
+   default - see renderFocusBlockingSection - so it is never furniture.
+
+   THREE RULES, WHICH IS WHAT EVERY OTHER .focus-block-* ELEMENT IN THIS
+   SECTION ALREADY HAS, and the first draft of this rule had two. It declared
+   --ink-meta as its BASE colour - but --ink-meta is the WALLPAPERED token, and
+   with no wallpaper this panel is LIGHT. The label rendered white-on-white:
+   measured at ZERO changed pixels, completely invisible, while
+   .focus-block-domain beside it read 12.26:1 because it follows the pattern
+   below. An html.bg-light partner is not enough on its own; the ground with NO
+   classes at all is a fourth case and it is the one a fresh install is in.
+
+       base            no wallpaper   -> a light panel, so --text-* ink
+       html.has-bg     a wallpaper    -> dark frost,     so --ink-* ink
+       html.has-bg.bg-light           -> light frost,    so --text-* ink again
+*/
+.focus-block-mode {
+  flex: 0 0 auto;
+  margin-inline-start: var(--space-1-5);
+  padding: 1px var(--space-1-5);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius:var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--fs-9);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+html.has-bg .focus-block-mode {
+  color: var(--ink-meta);
+  border-color: var(--surface-line);
+}
+
+html.has-bg.bg-light .focus-block-mode {
+  color: var(--text-secondary);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
 .focus-block-remove {
   flex: 0 0 auto;
   background: none;

@@ -200,11 +200,17 @@ function buildData(ctx, opts = {}) {
   };
   if (opts.devPro) data.__devProOverride = true;
   if (opts.phase) {
+    // [WM.2] `sessionMode` is WM.1's stamp. Left ABSENT unless a fixture asks
+    // for it, so every pre-existing fixture keeps describing a session with no
+    // stamp - which is exactly the legacy case, and it must still gate.
+    const ps = { phase: opts.phase, phaseEndsAt: Date.now() + 600000, phaseDurationMs: 900000, cycleCount: 1, sessionComplete: false };
+    if (opts.sessionMode !== undefined) ps.mode = opts.sessionMode;
     data.activeTask = {
       taskId: "t1", workspaceId: "main", startedAt: Date.now(),
-      pomodoroState: { phase: opts.phase, phaseEndsAt: Date.now() + 600000, phaseDurationMs: 900000, cycleCount: 1, sessionComplete: false },
+      pomodoroState: ps,
     };
   }
+  if (opts.workspaceMode) data.workspaces[0].mode = opts.workspaceMode;
   // Fixture self-verification (Q7).
   const wantLevel = opts.expectLevel || null;
   if (wantLevel) {
@@ -336,6 +342,82 @@ function runSuite(ctx) {
   check("a null host does not gate", decide(buildData(ctx, { armed: true, blockList: LIST }), null) === null);
   check("an empty host does not gate", decide(buildData(ctx, { armed: true, blockList: LIST }), "") === null);
 
+  // ===== LAYER 5 [WM.2]: ONE READER, ENTRY MODES, AND THE SESSION STAMP =====
+  //
+  // Every check above still runs through focusInterceptDecision, which is now
+  // a thin wrapper over Storage.blockingMatchFor - so the 54 rows that were
+  // green before this round staying green IS the evidence that the move
+  // preserved the chain. These rows test what the move made possible.
+  const reason = (data, h) => ctx.Storage.blockingReasonFor(data, h);
+
+  check("the reader NAMES the reason, not just the fact",
+    reason(buildData(ctx, { blockList: ["youtube.com"], armed: true }), "youtube.com") === "session");
+  check("an unblocked host has NO reason",
+    reason(buildData(ctx, { blockList: ["youtube.com"], armed: true }), "example.com") === null);
+  check("EXPIRED gets null from the READER itself, not merely from the intercept",
+    reason(buildData(ctx, { blockList: ["youtube.com"], armed: true, pro: "expired", expectLevel: "expired" }), "youtube.com") === null);
+  check("FREE gets null from the reader",
+    reason(buildData(ctx, { blockList: ["youtube.com"], armed: true, pro: "free", expectLevel: "free" }), "youtube.com") === null);
+  check("GRACE is a paying customer and still gets a reason",
+    reason(buildData(ctx, { blockList: ["youtube.com"], armed: true, pro: "grace", expectLevel: "grace" }), "youtube.com") === "session");
+
+  // Liveness per reason, asserted directly. WM.3 flips these two to true and
+  // these rows are the first thing that should change.
+  const live = (data, m) => ctx.Storage.blockingReasonActive(data, m);
+  check("the SESSION reason is live while blocking is armed",
+    live(buildData(ctx, { armed: true }), "session") === true);
+  check("the SESSION reason is not live when nothing arms it",
+    live(buildData(ctx, {}), "session") === false);
+  check("the SCHEDULE reason is refused - WM.3 has not built it",
+    live(buildData(ctx, { armed: true }), "schedule") === false);
+  check("the BUDGET reason is refused - WM.3 has not built it",
+    live(buildData(ctx, { armed: true }), "budget") === false);
+  check("an invented reason is refused",
+    live(buildData(ctx, { armed: true }), "vibes") === false);
+
+  // The entry mode. Session is the only live reason this round, so an entry
+  // parked on a schedule or a budget must not gate - and must not throw.
+  check("a string entry is session mode and gates",
+    decide(buildData(ctx, { blockList: ["youtube.com"], armed: true }), "youtube.com") === "youtube.com");
+  check("an OBJECT entry in session mode gates identically",
+    decide(buildData(ctx, { blockList: [{ host: "youtube.com", mode: "session" }], armed: true }), "youtube.com") === "youtube.com");
+  check("a SCHEDULE-mode entry does not gate during a session",
+    decide(buildData(ctx, { blockList: [{ host: "youtube.com", mode: "schedule" }], armed: true }), "youtube.com") === null);
+  check("a BUDGET-mode entry does not gate during a session",
+    decide(buildData(ctx, { blockList: [{ host: "youtube.com", mode: "budget" }], armed: true }), "youtube.com") === null);
+  check("an entry with a GARBAGE mode falls back to session and gates",
+    decide(buildData(ctx, { blockList: [{ host: "youtube.com", mode: "whenever" }], armed: true }), "youtube.com") === "youtube.com");
+  check("a malformed entry is dropped without taking the list with it",
+    decide(buildData(ctx, { blockList: [null, 7, {}, "youtube.com"], armed: true }), "youtube.com") === "youtube.com");
+
+  // SESSION BLOCKING IS NOT MODE-GOVERNED, and these six rows are the guard on
+  // that. The round tried the other rule and withdrew it: every workspace
+  // defaults to Casual, so governing auto-arm by mode would have turned a
+  // shipped default off for every existing user in silence. Mode governs what
+  // it brings - schedules, friction, sounds, presets - not what it found.
+  check("a session stamped WORK gates",
+    decide(buildData(ctx, { blockList: ["youtube.com"], phase: "work", sessionMode: "work" }), "youtube.com") === "youtube.com");
+  check("a session stamped CASUAL STILL GATES - session blocking is not mode-governed",
+    decide(buildData(ctx, { blockList: ["youtube.com"], phase: "work", sessionMode: "casual" }), "youtube.com") === "youtube.com");
+  check("a session with NO stamp (pre-WM.1) gates, unchanged",
+    decide(buildData(ctx, { blockList: ["youtube.com"], phase: "work" }), "youtube.com") === "youtube.com");
+  check("a MANUAL arm gates inside a casual session",
+    decide(buildData(ctx, { blockList: ["youtube.com"], phase: "work", sessionMode: "casual", armed: true }), "youtube.com") === "youtube.com");
+  check("a CASUAL workspace does not suppress session blocking",
+    decide(buildData(ctx, { blockList: ["youtube.com"], phase: "work", workspaceMode: "casual" }), "youtube.com") === "youtube.com");
+  check("a break in a WORK workspace still does not gate - the phase rule is untouched",
+    decide(buildData(ctx, { blockList: ["youtube.com"], phase: "shortBreak", sessionMode: "work", workspaceMode: "work" }), "youtube.com") === null);
+
+  // THE NEVER-BLOCK LIST WINS OVER EVERY ENTRY MODE. It is a transport rule and
+  // it runs before the reader is ever consulted, so the assertion is that the
+  // URL never becomes a candidate even when it is listed in each mode in turn.
+  ["session", "schedule", "budget"].forEach(function (m) {
+    check("never-block wins over a " + m + "-mode entry that lists it",
+      host("https://mylaunchpad.me/account") === null);
+    check("never-block wins over a " + m + "-mode SUBDOMAIN entry",
+      host("https://app.mylaunchpad.me/account") === null);
+  });
+
   return rows;
 }
 
@@ -347,18 +429,23 @@ function runSuite(ctx) {
 const SEEDS = [
   {
     name: "pro gate removed (C10)",
-    note: "recorded R2 seed 1",
-    seeds: [{ file: "background.js", find: "  if (!focusProActive(data)) return null;                                     // C10\n", replace: "" }],
+    // [WM.2] RE-ANCHORED. Same subject - the Pro guard on the blocking path -
+    // moved from background.js into the one reader, per PLAN decision H.
+    note: "recorded R2 seed 1, re-anchored to the reader in WM.2",
+    seeds: [{ file: "storage.js", find: "    if (!blockingProActive(data)) return null;\n", replace: "" }],
   },
   {
     name: "armed check removed (C2)",
-    note: "recorded R2 seed 2",
-    seeds: [{ file: "background.js", find: "  if (!Storage.focusBlockingActive(data)) return null;                        // C2\n", replace: "" }],
+    // [WM.2] RE-ANCHORED into blockingReasonActive, where the session reason now
+    // decides whether it is live at all.
+    note: "recorded R2 seed 2, re-anchored to the reader in WM.2",
+    seeds: [{ file: "storage.js", find: '    if (mode === "session") return focusBlockingActive(data);', replace: '    if (mode === "session") return true;' }],
   },
   {
     name: "snooze check removed (C7)",
-    note: "recorded R2 seed 3",
-    seeds: [{ file: "background.js", find: "  if (Storage.getActiveFocusSnooze(data, entry)) return null;                 // C7\n", replace: "" }],
+    // [WM.2] RE-ANCHORED into the reader's loop.
+    note: "recorded R2 seed 3, re-anchored to the reader in WM.2",
+    seeds: [{ file: "storage.js", find: "      if (getActiveFocusSnooze(data, entry, nowMs)) continue;\n", replace: "" }],
   },
   {
     name: "scheme allowlist removed",
@@ -402,6 +489,10 @@ const SEEDS = [
     note: "the [1.2.0] R3 label bug in derivation form: 'a phase is running, so block'",
     seeds: [{
       file: "storage.js",
+      // [WM.2] BACK ON ITS ORIGINAL ANCHOR. It moved when the session stamp
+      // briefly split this derivation across two lines, and moved back when that
+      // rule was withdrawn - recorded rather than tidied away, because a seed
+      // that has wandered is the kind that quietly stops protecting anything.
       find: 'return hydratePomodoroState(active.pomodoroState).phase === "work";',
       replace: "return hydratePomodoroState(active.pomodoroState).phase !== null;",
     }],
@@ -429,6 +520,58 @@ const SEEDS = [
     name: "tracking-paused term dropped from the arm derivation",
     note: "a paused work phase would keep blocking",
     seeds: [{ file: "storage.js", find: "    if (isTrackingPaused(data)) return false;\n    var active = getActiveTask(data);", replace: "    var active = getActiveTask(data);" }],
+  },
+  {
+    // [WM.2] THE SEED THAT STOOD HERE GUARDED A RULE THAT WAS WITHDRAWN.
+    // It protected "auto-arm only when the session stamp reads work" - a rule
+    // this round tried and removed, because it would have silently disabled a
+    // shipped default for every user whose workspace had never been set to
+    // Work. What replaces it guards the rule that actually holds: session
+    // blocking must keep arming from the phase alone.
+    name: "[WM.2] session blocking made mode-governed",
+    note: "the withdrawn rule, seeded so it cannot come back unnoticed",
+    seeds: [{
+      file: "storage.js",
+      find: '    return hydratePomodoroState(active.pomodoroState).phase === "work";',
+      replace: '    return hydratePomodoroState(active.pomodoroState).phase === "work" && hydratePomodoroState(active.pomodoroState).mode === "work";',
+    }],
+  },
+  {
+    name: "[WM.2] entry mode filter dropped",
+    note: "every entry would answer to every reason - a budget rule blocking during a session",
+    seeds: [{
+      file: "storage.js",
+      find: "      if (entries[i].mode === want) out.push(entries[i].host);",
+      replace: "      out.push(entries[i].host);",
+    }],
+  },
+  {
+    name: "[WM.2] an unbuilt reason goes live",
+    // THE SEED THIS REPLACED COULD NOT BE CAUGHT, and dropping it is the honest
+    // move rather than a gap. It hardcoded the returned reason to "session" -
+    // and session is the ONLY live reason this round, so every correct answer
+    // already IS "session" and the mutation is behaviourally invisible. A seed
+    // that cannot fail earns no coverage. WM.3 makes it meaningful; WM.3 can
+    // add it back when it does.
+    //
+    // What IS worth proving now is the other half: that schedule and budget are
+    // REFUSED rather than merely unreachable. Turn the schedule branch live and
+    // a schedule-mode entry starts gating, which the suite already watches.
+    note: "schedule blocking fires before WM.3 has built it",
+    seeds: [{
+      file: "storage.js",
+      find: '    if (mode === "schedule") return false;',
+      replace: '    if (mode === "schedule") return true;',
+    }],
+  },
+  {
+    name: "[WM.2] budget blocking goes live",
+    note: "same shape as the schedule seed, for the reason that sits OUTSIDE mode",
+    seeds: [{
+      file: "storage.js",
+      find: '    if (mode === "budget") return false;',
+      replace: '    if (mode === "budget") return true;',
+    }],
   },
 ];
 

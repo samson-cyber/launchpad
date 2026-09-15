@@ -1386,6 +1386,29 @@ var Storage = (function () {
     if (isTrackingPaused(data)) return false;
     var active = getActiveTask(data);
     if (!active) return false;
+    // [WM.2] THIS DERIVATION IS DELIBERATELY UNCHANGED, and the reasoning is
+    // worth keeping because the obvious move was the wrong one.
+    //
+    // SESSION BLOCKING IS NOT MODE-GOVERNED. The first draft of this round made
+    // it so - auto-arm only when the running session's WM.1 stamp reads "work"
+    // - and the first real navigation of the verification run refused to gate.
+    // Every workspace defaults to Casual, so every session is stamped casual,
+    // so a feature that has been ON BY DEFAULT since [1.2.0] would have stopped
+    // working for every existing user the moment this shipped, without a word.
+    // A user with a populated block list, auto-arm on and a session running
+    // would have watched blocking simply not happen.
+    //
+    // AND THE TASK NEVER ASKED FOR IT. Its Context enumerates what mode
+    // governs: session durations and cycles, SCHEDULED blocking (E2), friction
+    // (E3), reminders (G2), sounds (E6). Scheduled blocking - not the session
+    // auto-arm, which predates mode, carries its own autoArmDuringWork
+    // preference and its own switch on the pill. Mode governs what it brings;
+    // it does not reach back and revoke consent a user already gave.
+    //
+    // Where mode DOES bind is blockingReasonActive below, on the schedule
+    // reason, which is the one the task names. The session stamp WM.1 writes is
+    // still read, by WM.4's friction and WM.5's presets - features that will be
+    // born mode-governed rather than retrofitted into it.
     return hydratePomodoroState(active.pomodoroState).phase === "work";
   }
 
@@ -1406,6 +1429,94 @@ var Storage = (function () {
   function focusArmState(data) {
     if (isFocusManuallyArmed(data)) return "manual";
     return focusBlockingActive(data) ? "auto" : "off";
+  }
+
+  // ===== [WM.2] ONE READER (PLAN decision D) =====
+  //
+  // blockingReasonFor(data, host) answers "is this host blocked, and why" and
+  // it is the ONLY place that answers it. The alternative - each surface
+  // deciding for itself - is the hardcoded-enumeration class, and three
+  // surfaces that each decide will disagree within a release. The gate page is
+  // the worked example already in this file's history: it derived its own
+  // answer from phaseRunning and manualArmed and could label a control for one
+  // cause while a second cause was what actually held the user there.
+  //
+  // STATELESS-BY-ARGUMENT (BUGS J5), so it takes `data` like everything else
+  // here; the PLAN's blockingReasonFor(host) shorthand is spelled with the
+  // snapshot because Storage never reaches for storage itself.
+  //
+  // THREE REASONS, AND TWO OF THEM CANNOT FIRE YET. WM.3 builds schedules and
+  // budgets; until then blockingReasonActive returns false for both. The SHAPE
+  // is complete on purpose - WM.3 adds a branch to one function and touches no
+  // surface, because every surface already renders all three.
+  var BLOCKING_REASON_ORDER = ["session", "budget", "schedule"];
+
+  // FAILS CLOSED, and closed here means NOT BLOCKED. If pro-access.js has not
+  // loaded there is no way to tell a subscriber from a lapsed trial, and the
+  // safe answer to "should I stop this person browsing" is always no.
+  //
+  // PLAN decision H lives here: expired renders the gate INERT. A lapsed Pro
+  // user on a Work workspace with a full block list is blocked from nothing,
+  // and because this is the only decider, that is true on every surface at
+  // once rather than on the three that remembered to check.
+  function blockingProActive(data) {
+    if (typeof ProAccess === "undefined" || typeof ProAccess.hasProAccess !== "function") return false;
+    return !!ProAccess.hasProAccess(data);
+  }
+
+  /** Is this REASON live at all, independent of any host? */
+  function blockingReasonActive(data, mode, nowMs) {
+    if (!data) return false;
+    // SESSION - not mode-governed. It predates mode and carries its own
+    // preference and its own switch; see focusBlockingActive for why mode does
+    // not reach back over it.
+    if (mode === "session") return focusBlockingActive(data);
+
+    // ===== THE MODE RULING WM.3 INHERITS, WRITTEN DOWN BEFORE IT IS BUILT ====
+    //
+    // SCHEDULE IS MODE-GOVERNED, and it follows the CURRENT workspace rather
+    // than any session's stamp. 2026-09-01: "scheduled blocking follows the
+    // current workspace, because a schedule is about now rather than about what
+    // was running." So WM.3's branch here reads
+    //     getWorkspaceMode(getActiveWorkspace(data)) === "work" && <in window>
+    // and nothing else decides it.
+    //
+    // BUDGET SITS OUTSIDE MODE ENTIRELY. 2026-09-01 again, explicitly: a budget
+    // is a limit the user set for themselves, and a mode switch must not
+    // silently spend or restore it - so the doomscroll case still works in a
+    // Casual workspace. WM.3's branch here must NOT consult the workspace.
+    //
+    // Both return false until WM.3 builds them. Writing the rulings here rather
+    // than in a plan is the point of building the shape a round early: WM.3
+    // adds a condition to each line below and re-decides neither.
+    if (mode === "schedule") return false;
+    if (mode === "budget") return false;
+    return false;
+  }
+
+  /** The decision, with the matched entry. Returns {reason, entry} or null. */
+  function blockingMatchFor(data, host, nowMs) {
+    if (!data || typeof host !== "string" || !host) return null;
+    if (!blockingProActive(data)) return null;
+    for (var i = 0; i < BLOCKING_REASON_ORDER.length; i++) {
+      var mode = BLOCKING_REASON_ORDER[i];
+      if (!blockingReasonActive(data, mode, nowMs)) continue;
+      var entry = matchesBlockedDomain(host, blockHostsForMode(data, mode));
+      if (!entry) continue;
+      // The snooze is keyed by ENTRY and therefore spans reasons: five more
+      // minutes on youtube.com is five more minutes on youtube.com, whichever
+      // rule stopped you. `continue` rather than `return null` so a host listed
+      // twice under two reasons can still be held by the un-snoozed one.
+      if (getActiveFocusSnooze(data, entry, nowMs)) continue;
+      return { reason: mode, entry: entry };
+    }
+    return null;
+  }
+
+  /** "session" | "budget" | "schedule" | null. The PLAN decision D contract. */
+  function blockingReasonFor(data, host, nowMs) {
+    var m = blockingMatchFor(data, host, nowMs);
+    return m ? m.reason : null;
   }
 
   // C3 — normalize a user-typed entry to a bare lowercase host. Returns null for
@@ -1482,8 +1593,107 @@ var Storage = (function () {
 
   // Defaulting reader. Returns a COPY so a caller cannot mutate stored state by
   // accident (the list is small; the intercept's cost is the storage read, not this).
+  // ===== [WM.2] PER-ENTRY MODE =====
+  //
+  // Until this round every blockList element was a BARE STRING and every rule
+  // meant the same thing: block this host during focus sessions. An entry may
+  // now also be an object {host, mode}, where mode is "session", "schedule" or
+  // "budget".
+  //
+  // BOTH SHAPES ARE VALID FOREVER, and that is the migration story: a string
+  // reads as session mode, which is exactly what it has always meant, so every
+  // record written before this round decodes to precisely the behaviour it had.
+  // No sweep, no version bump, no rewrite pass - WM.1's precedent, for the same
+  // reason: a defaulting reader costs nothing and a migration costs a write on
+  // the first load after update, plus a second shape to get wrong.
+  //
+  // AND THE WRITER ONLY UPGRADES AN ENTRY WHEN IT HAS TO (see
+  // setBlockedDomainMode): setting an entry back to "session" stores the bare
+  // string again. A profile that never uses a schedule or a budget therefore
+  // keeps a blockList of plain strings for its whole life, and an export from
+  // it is byte-identical to one taken before this round.
+  var BLOCK_ENTRY_MODES = ["session", "schedule", "budget"];
+  var BLOCK_ENTRY_MODE_DEFAULT = "session";
+
+  // Asymmetric on purpose, the WM.1 shape inverted to point the same way:
+  // anything unrecognised falls back to SESSION, the mode every existing entry
+  // already has, so a corrupt value can never silently move a rule onto a
+  // schedule or a budget the user never set.
+  function coerceBlockEntryMode(val) {
+    return (val === "schedule" || val === "budget") ? val : BLOCK_ENTRY_MODE_DEFAULT;
+  }
+
+  function blockEntryHost(e) {
+    if (typeof e === "string") return e || null;
+    if (e && typeof e === "object" && typeof e.host === "string" && e.host) return e.host;
+    return null;
+  }
+
+  function blockEntryMode(e) {
+    if (typeof e === "string") return BLOCK_ENTRY_MODE_DEFAULT;
+    return coerceBlockEntryMode(e && e.mode);
+  }
+
+  /** Normalised view of the list: [{host, mode}], malformed elements dropped. */
+  function getBlockEntries(data) {
+    var raw = (data && Array.isArray(data.blockList)) ? data.blockList : [];
+    var out = [];
+    for (var i = 0; i < raw.length; i++) {
+      var host = blockEntryHost(raw[i]);
+      if (host) out.push({ host: host, mode: blockEntryMode(raw[i]) });
+    }
+    return out;
+  }
+
+  // UNCHANGED CONTRACT: bare hosts, a copy, in list order. Every existing
+  // caller - the settings list, the pill's emptiness test, matchesBlockedDomain
+  // - asked for hosts and still gets hosts, so none of them had to learn about
+  // modes to keep working.
   function getBlockList(data) {
-    return (data && Array.isArray(data.blockList)) ? data.blockList.slice() : [];
+    return getBlockEntries(data).map(function (e) { return e.host; });
+  }
+
+  /** Hosts carrying one mode. The reader's input; not exported on its own. */
+  function blockHostsForMode(data, mode) {
+    var want = coerceBlockEntryMode(mode);
+    var out = [];
+    var entries = getBlockEntries(data);
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].mode === want) out.push(entries[i].host);
+    }
+    return out;
+  }
+
+  function findBlockEntryIndex(data, host) {
+    var raw = (data && Array.isArray(data.blockList)) ? data.blockList : [];
+    for (var i = 0; i < raw.length; i++) {
+      if (blockEntryHost(raw[i]) === host) return i;
+    }
+    return -1;
+  }
+
+  /** Per-field updater for one entry's mode. Follows this section's own
+   *  convention rather than J5 - addBlockedDomain and removeBlockedDomain both
+   *  own their saveAll, and a third writer here that did not would be the odd
+   *  one out. No-op guarded, so re-setting the mode an entry already has writes
+   *  nothing.
+   *
+   *  STORES A BARE STRING FOR SESSION MODE. See the note above: the shape only
+   *  grows when it carries information, so setting an entry back to session
+   *  returns the record to exactly what it was. */
+  async function setBlockedDomainMode(data, raw, mode) {
+    if (!data) return false;
+    var host = normalizeBlockEntry(raw);
+    if (!host) host = (typeof raw === "string") ? raw : null;
+    if (!host) return false;
+    var list = ensureBlockList(data);
+    var i = findBlockEntryIndex(data, host);
+    if (i === -1) return false;
+    var next = coerceBlockEntryMode(mode);
+    if (blockEntryMode(list[i]) === next) return false;
+    list[i] = (next === BLOCK_ENTRY_MODE_DEFAULT) ? host : { host: host, mode: next };
+    await saveAll(data);
+    return true;
   }
 
   // Normalize-then-guard. Returns {ok:true, entry} or {ok:false, err, message} —
@@ -1496,7 +1706,10 @@ var Storage = (function () {
       return { ok: false, err: "invalid", message: I18n.t("block_not_a_site") };
     }
     var list = ensureBlockList(data);
-    if (list.indexOf(entry) !== -1) {
+    // [WM.2] BY HOST, not by identity: an element may be a bare string or a
+    // {host, mode} object, and indexOf would miss the object form entirely -
+    // which would let the same host be added twice with two different modes.
+    if (findBlockEntryIndex(data, entry) !== -1) {
       return { ok: false, err: "duplicate", message: entry + " is already on the list" };
     }
     list.push(entry);
@@ -1510,8 +1723,11 @@ var Storage = (function () {
     if (!data) return false;
     var list = ensureBlockList(data);
     var entry = normalizeBlockEntry(raw);
-    var i = entry !== null ? list.indexOf(entry) : -1;
-    if (i === -1 && typeof raw === "string") i = list.indexOf(raw);   // defensive
+    // [WM.2] BY HOST, for the same reason as addBlockedDomain above: indexOf
+    // cannot find an entry stored in the object form, so removing a scheduled
+    // or budgeted rule would silently do nothing.
+    var i = entry !== null ? findBlockEntryIndex(data, entry) : -1;
+    if (i === -1 && typeof raw === "string") i = findBlockEntryIndex(data, raw);   // defensive
     if (i === -1) return false;
     list.splice(i, 1);
     await saveAll(data);
@@ -1599,6 +1815,35 @@ var Storage = (function () {
     return { version: FOCUS_STATS_VERSION, byDay: {} };
   }
 
+  // [WM.2] A day bucket keeps its `blocked` and `snoozed` TOTALS and gains a
+  // per-reason breakdown beside them. The totals stay authoritative so
+  // focusBlockedOnDay and the Dashboard count never had to change, and the
+  // breakdown always sums to the total.
+  //
+  // EXISTING COUNTS READ AS SESSION, which is not a guess: until this round
+  // session was the only reason a block could happen, so attributing a legacy
+  // bucket's whole count to it is the true reading rather than a default.
+  function emptyReasonCounts(total) {
+    var n = (typeof total === "number" && isFinite(total) && total > 0) ? Math.floor(total) : 0;
+    return { session: n, budget: 0, schedule: 0 };
+  }
+
+  function normalizeReasonCounts(raw, total) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return emptyReasonCounts(total);
+    var out = { session: 0, budget: 0, schedule: 0 };
+    var seen = 0;
+    ["session", "budget", "schedule"].forEach(function (k) {
+      var v = raw[k];
+      out[k] = (typeof v === "number" && isFinite(v) && v >= 0) ? Math.floor(v) : 0;
+      seen += out[k];
+    });
+    // A breakdown that has lost track of the total is repaired TOWARDS the
+    // total, not away from it: the total is what the user is shown.
+    var want = (typeof total === "number" && isFinite(total) && total > 0) ? Math.floor(total) : 0;
+    if (seen < want) out.session += (want - seen);
+    return out;
+  }
+
   function ensureFocusStats(data) {
     if (!data) return emptyFocusStats();
     if (!data.focusStats || typeof data.focusStats !== "object" || Array.isArray(data.focusStats)) {
@@ -1610,9 +1855,16 @@ var Storage = (function () {
     if (!f.byDay || typeof f.byDay !== "object" || Array.isArray(f.byDay)) f.byDay = {};
     Object.keys(f.byDay).forEach(function (k) {
       var b = f.byDay[k];
-      if (!b || typeof b !== "object" || Array.isArray(b)) { f.byDay[k] = { blocked: 0, snoozed: 0 }; return; }
+      if (!b || typeof b !== "object" || Array.isArray(b)) {
+        f.byDay[k] = { blocked: 0, snoozed: 0, blockedBy: emptyReasonCounts(0), snoozedBy: emptyReasonCounts(0) };
+        return;
+      }
       b.blocked = (typeof b.blocked === "number" && isFinite(b.blocked) && b.blocked >= 0) ? Math.floor(b.blocked) : 0;
       b.snoozed = (typeof b.snoozed === "number" && isFinite(b.snoozed) && b.snoozed >= 0) ? Math.floor(b.snoozed) : 0;
+      // [WM.2] Absent on every bucket written before this round; rebuilt from
+      // the total, all of it session, which is what those blocks actually were.
+      b.blockedBy = normalizeReasonCounts(b.blockedBy, b.blocked);
+      b.snoozedBy = normalizeReasonCounts(b.snoozedBy, b.snoozed);
     });
     return f;
   }
@@ -1629,12 +1881,21 @@ var Storage = (function () {
 
   // R2 calls this from the SW, inside enqueueBgData (BUGS.md L1) — which is why
   // R0 is a prerequisite for R2, not for this round.
-  async function incrementFocusStat(data, kind, nowMs) {
+  // [WM.2] `reason` is optional and defaults to session - the mode every
+  // pre-WM.2 call site meant, so an un-updated caller records the truth rather
+  // than an "unknown" bucket nothing would ever read.
+  async function incrementFocusStat(data, kind, nowMs, reason) {
     if (!data) return false;
     if (kind !== "blocked" && kind !== "snoozed") return false;
     var stats = ensureFocusStats(data);
     var key = achDayKey(nowMs);
-    if (!stats.byDay[key]) stats.byDay[key] = { blocked: 0, snoozed: 0 };
+    if (!stats.byDay[key]) {
+      stats.byDay[key] = { blocked: 0, snoozed: 0, blockedBy: emptyReasonCounts(0), snoozedBy: emptyReasonCounts(0) };
+    }
+    var bucket = stats.byDay[key];
+    var by = (kind === "blocked") ? "blockedBy" : "snoozedBy";
+    bucket[by] = normalizeReasonCounts(bucket[by], 0);
+    bucket[by][coerceBlockEntryMode(reason)] += 1;
     stats.byDay[key][kind] += 1;
     pruneFocusStatDays(stats);
     await saveAll(data);
@@ -7754,6 +8015,18 @@ var Storage = (function () {
     return (bucket && typeof bucket.blocked === "number") ? bucket.blocked : 0;
   }
 
+  // [WM.2] The same day, split by reason. Returns a COPY for the same reason
+  // focusBlockedOnDay returns a number: render-path callers must not be able to
+  // mutate stored state by holding the object they were handed.
+  function focusBlockedOnDayByReason(data, dayKey) {
+    if (!data || typeof dayKey !== "string") return emptyReasonCounts(0);
+    var stats = ensureFocusStats(data);
+    var bucket = stats.byDay[dayKey];
+    if (!bucket) return emptyReasonCounts(0);
+    var by = normalizeReasonCounts(bucket.blockedBy, bucket.blocked);
+    return { session: by.session, budget: by.budget, schedule: by.schedule };
+  }
+
   // Tasks completed on a given local day, in one workspace.
   //
   // Three filters, each load-bearing:
@@ -8256,6 +8529,13 @@ var Storage = (function () {
     getFocusSettings: getFocusSettings,
     setFocusAutoArm: setFocusAutoArm,
     focusBlockingActive: focusBlockingActive,
+    BLOCK_ENTRY_MODES: BLOCK_ENTRY_MODES,
+    BLOCKING_REASON_ORDER: BLOCKING_REASON_ORDER,
+    getBlockEntries: getBlockEntries,
+    setBlockedDomainMode: setBlockedDomainMode,
+    blockingReasonActive: blockingReasonActive,
+    blockingMatchFor: blockingMatchFor,
+    blockingReasonFor: blockingReasonFor,
     focusArmState: focusArmState,
     normalizeBlockEntry: normalizeBlockEntry,
     matchesBlockedDomain: matchesBlockedDomain,
@@ -8275,6 +8555,7 @@ var Storage = (function () {
     getGreetingSeenDay: getGreetingSeenDay,
     setGreetingSeenDay: setGreetingSeenDay,
     focusBlockedOnDay: focusBlockedOnDay,
+    focusBlockedOnDayByReason: focusBlockedOnDayByReason,
     tasksCompletedOnDay: tasksCompletedOnDay,
     goalProgressList: goalProgressList,
     tasksDueByDay: tasksDueByDay,

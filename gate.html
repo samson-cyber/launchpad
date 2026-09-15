@@ -13,11 +13,21 @@
   <main class="gate">
     <p data-i18n="gate_focus" class="gate-eyebrow">Focus</p>
     <h1 data-i18n="gate_is_blocked" class="gate-headline"><span id="gate-domain" class="gate-domain"></span> is blocked</h1>
-    <p class="gate-context" id="gate-context"></p>
+    <!-- [WM.2] THE REASON LINE. Same element, same position, same reserved
+         height as the context line it replaces - a user who has seen this page
+         before finds the sentence where it has always been. What changed is
+         that it now NAMES why the page is blocked instead of describing the
+         session and leaving the reason to be inferred. -->
+    <p class="gate-context gate-reason" id="gate-context"></p>
 
+    <!-- Both conditional controls start ABSENT and are removed outright rather
+         than disabled when they do not apply (the [1.1.4] preview-ghost rule:
+         a control that cannot do anything reads as broken, not as locked).
+         gate.js removes whichever the worker's answer does not call for. -->
     <div class="gate-actions">
       <button data-i18n="gate_5_more_minutes" type="button" id="gate-snooze" class="gate-btn">5 more minutes</button>
       <button type="button" id="gate-end" class="gate-btn gate-btn-quiet"></button>
+      <button data-i18n="gate_continue" type="button" id="gate-continue" class="gate-btn">Continue</button>
     </div>
 
     <p class="gate-footnote" id="gate-footnote"></p>
