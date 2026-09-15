@@ -1057,8 +1057,20 @@ const SEEDS = [
     file: "nt", from: "      var open = (dueOpen || []).length;", to: "      var open = 1;" },
   { name: "header: the gate counts ALL tasks, not the open due set (done work keeps the day open)",
     file: "nt", from: "      var open = (dueOpen || []).length;", to: "      var open = ((ws && ws.tasks) || []).length;" },
+  // [1218051541171836] REPOINTED, same method and same reason as the two above.
+  // THE PROPERTY IS UNCHANGED - the boundary is still `open === 1` choosing the
+  // singular over the plural, and the seed still slips it by one. What drifted is
+  // only the text it was anchored on: the [1.5.0] R3 i18n migration moved the
+  // literal "One still on the board." into the catalogue, so the render now reads
+  // th("dash_one_still_on_the_board") and the old anchor matched nowhere.
+  //
+  // THE SEED WAS NOT DELETED AND ITS MEANING WAS NOT WEAKENED. An anchor-miss is
+  // the Q2 machinery working - it reported a seed that had stopped biting rather
+  // than scoring it as coverage - and the repair is to re-point it at where the
+  // property lives now.
   { name: "header: the plural boundary slips by one (a single item reads as 'a few')",
-    file: "nt", from: "(open === 1 ? 'One still on the board.'", to: "(open === 2 ? 'One still on the board.'" },
+    file: "nt", from: '(open === 1 ? th("dash_one_still_on_the_board")',
+    to: '(open === 2 ? th("dash_one_still_on_the_board")' },
   // The declaration line matches the same call text, so the anchor carries the
   // render's indentation and trailing `+` — reported as an anchor-miss on the
   // first run of this seed, which is the Q2 failure mode working.
