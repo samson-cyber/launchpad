@@ -5750,6 +5750,87 @@ var Storage = (function () {
     return SESSION_ALLOWED_SCHEMES.indexOf(scheme) !== -1;
   }
 
+  // ===== [OT.3] RECENTLY CLOSED =====
+  //
+  // The last 25 tabs the user closed, so an accidental close is recoverable
+  // without leaving LaunchPad. TOP-LEVEL, not workspace-scoped: closing a tab
+  // is a browser action, not a workspace one, and a user who switches
+  // workspace has not stopped wanting the tab they just lost.
+  //
+  // IT SHARES THE NAMED-SESSION ALLOWLIST DELIBERATELY. isCapturableSessionUrl
+  // is http/https/file, so chrome:// pages, the extension's own pages and
+  // anything else that cannot be reopened from a page context never enter the
+  // list. A row the user cannot act on is worse than an absent one, and here
+  // the same rule that decides what a session may HOLD decides what this may
+  // SHOW - one rule, two entities, which is why they sit together in this file.
+  //
+  // WHY chrome.sessions IS NOT USED, since it is the obvious API for this and
+  // the answer has to survive the next person who notices: combined with the
+  // `history` permission this extension already holds, it changes the install
+  // warning text and would force every existing user through re-consent.
+  // Recorded as the task's own correction of 2026-09-01. The cost of building
+  // it from onRemoved instead is the mirror in the service worker, below.
+  var RECENTLY_CLOSED_MAX = 25;
+
+  // NOT registered as a getAll() sweep, and that is deliberate (I28). A sweep
+  // that adds an empty array would make getAll() write the whole blob back on
+  // the first read for every existing profile, which is a write nobody asked
+  // for. The field materialises on the first close instead, and every reader
+  // here tolerates its absence.
+  function ensureRecentlyClosedArray(data) {
+    if (!data || typeof data !== "object") return null;
+    if (!Array.isArray(data.recentlyClosed)) data.recentlyClosed = [];
+    return data.recentlyClosed;
+  }
+
+  function getRecentlyClosed(data) {
+    if (!data || !Array.isArray(data.recentlyClosed)) return [];
+    return data.recentlyClosed;
+  }
+
+  /**
+   * Record a closed tab. Pure mutation: the caller pairs it with saveAll.
+   * Returns the stored record, or null when the tab is not one this list may
+   * hold. Newest leads, and the list is capped at 25 by TRUNCATION rather than
+   * by refusing new entries - the newest close is always the most likely one
+   * the user wants back.
+   */
+  function pushRecentlyClosed(data, entry) {
+    var list = ensureRecentlyClosedArray(data);
+    if (!list) return null;
+    if (!entry || typeof entry.url !== "string" || !entry.url) return null;
+    if (!isCapturableSessionUrl(entry.url)) return null;
+    // A fresh object per record, so unknown fields are DROPPED rather than
+    // filtered - the same construction normalizeNamedSessionTabs uses.
+    var rec = {
+      url: entry.url,
+      title: (typeof entry.title === "string") ? entry.title : "",
+      favicon: (typeof entry.favicon === "string" && entry.favicon) ? entry.favicon : null,
+      closedAt: (typeof entry.closedAt === "number") ? entry.closedAt : Date.now()
+    };
+    list.unshift(rec);
+    if (list.length > RECENTLY_CLOSED_MAX) list.length = RECENTLY_CLOSED_MAX;
+    return rec;
+  }
+
+  // Reopening REMOVES the entry. The list's job is to get back something lost;
+  // once it is back the row has served its purpose, and leaving it invites a
+  // second click that opens a duplicate. Closing the reopened tab re-enters it
+  // at the top, so nothing is unreachable.
+  function removeRecentlyClosedAt(data, index) {
+    var list = getRecentlyClosed(data);
+    if (!list.length) return null;
+    var i = Number(index);
+    if (!(i >= 0) || i >= list.length) return null;
+    return list.splice(i, 1)[0] || null;
+  }
+
+  function clearRecentlyClosed(data) {
+    if (!data || !Array.isArray(data.recentlyClosed) || !data.recentlyClosed.length) return false;
+    data.recentlyClosed = [];
+    return true;
+  }
+
   // [1.9.3] Create a named session and move it to the FRONT. Newest leads, and
   // that ordering is the product's, not a caller's preference - the new tab did
   // it inline with a splice/unshift and the keyboard command would otherwise
@@ -8058,6 +8139,12 @@ var Storage = (function () {
     deleteNamedSessionPermanent: deleteNamedSessionPermanent,
     emptyNamedSessionsTrash: emptyNamedSessionsTrash,
     getNamedSessionById: getNamedSessionById,
+    // [OT.3] recently closed
+    RECENTLY_CLOSED_MAX: RECENTLY_CLOSED_MAX,
+    getRecentlyClosed: getRecentlyClosed,
+    pushRecentlyClosed: pushRecentlyClosed,
+    removeRecentlyClosedAt: removeRecentlyClosedAt,
+    clearRecentlyClosed: clearRecentlyClosed,
     reorderNamedSessions: reorderNamedSessions,
     // [1.4.7] Goal completion releases unfinished children.
     getUnfinishedTasksInGoal: getUnfinishedTasksInGoal,

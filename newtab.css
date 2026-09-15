@@ -15249,6 +15249,23 @@ html.bg-light #open-tabs-panel .ot-filter:focus { border-color: var(--accent); }
   white-space: nowrap;
 }
 
+/* [OT.3] The Recently closed section reuses the window-group shape exactly -
+   same bar, same chevron, same count - because it IS the same kind of thing:
+   a heading over a list of tab rows. A second visual idiom for the second
+   half of one panel would read as two panels. Only the separation above it
+   is new. */
+#ot-recent {
+  margin: var(--space-2) calc(-1 * var(--space-3)) 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--surface-line);
+}
+
+/* The clear control borrows .ot-park's shape - a low-emphasis outlined button
+   on a heading bar - because it sits in the same slot and does the same KIND
+   of thing. It is not dangerous: it clears a record, closes nothing, reopens
+   nothing, so it takes no danger treatment. */
+.ot-recent-clear { font-weight: 500; }
+
 .ot-empty {
   margin: var(--space-3) var(--space-3) 0;
   font-size: var(--fs-12);

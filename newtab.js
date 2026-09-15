@@ -12441,6 +12441,7 @@
   var otRefreshTimer = null;
   var otListenersBound = false;
   var otLastRows = [];                    // what the current DOM is showing
+  var otRecentCollapsed = false;          // [OT.3] the Recently closed section
 
   function otIsOpen() {
     var p = $("#open-tabs-panel");
@@ -12683,6 +12684,95 @@
     host.innerHTML = html;
     host.scrollTop = scroll;
     otRenderSelectBar();
+    otRenderRecent();
+  }
+
+  // ---- recently closed --------------------------------------------------
+  //
+  // READ-ONLY HERE. The list is written by the SERVICE WORKER, because a tab
+  // can close when no LaunchPad page is open at all - which is most closes.
+  // This surface reads `data` and reopens; it never records.
+  //
+  // NO VISIBLE TIME ON A ROW. The list is newest-first, which is the ordering
+  // a reader takes from it anyway, and a clock would put a fourth
+  // locale-formatted surface into a panel whose rows are already two lines.
+  // The exact time is in the tooltip, through the same localeClockTime the
+  // session and history surfaces use.
+  function otRecentRowHtml(rec, index) {
+    var title = esc(rec.title || otHost(rec.url) || rec.url || "");
+    var when = localeClockTime(rec.closedAt);
+    var tip = esc(rec.url || "") + (when ? "\n" + esc(t("opentabs_recent_closed_at", { time: when })) : "");
+    return '<div class="ot-row ot-recent-row" role="treeitem">' +
+      '<button class="ot-open" type="button" data-ot-recent="' + index +
+        '" title="' + tip + '" aria-label="' + esc(t("opentabs_recent_reopen")) + '">' +
+        '<img class="ot-favicon" src="' + esc(rec.favicon || "assets/placeholder.svg") + '" alt="" loading="lazy">' +
+        '<span class="ot-row-text">' +
+          '<span class="ot-title">' + title + '</span>' +
+          '<span class="ot-meta"><span class="ot-host">' + esc(otHost(rec.url)) + '</span></span>' +
+        '</span>' +
+      '</button>' +
+    '</div>';
+  }
+
+  function otRenderRecent() {
+    var host = $("#ot-recent");
+    if (!host) return;
+    var list = Storage.getRecentlyClosed(data) || [];
+    // THE FILTER APPLIES HERE TOO. A user narrowing the panel to "mail" means
+    // the whole panel, not just the half of it that is still open.
+    var needle = otFilter.trim().toLowerCase();
+    var shown = [];
+    for (var i = 0; i < list.length; i++) {
+      if (otMatches({ title: list[i].title, url: list[i].url }, needle)) shown.push({ rec: list[i], index: i });
+    }
+    var open = !otRecentCollapsed;
+    var html = '<div class="ot-window ot-recent-section' + (open ? " is-open" : "") + '">' +
+      '<div class="ot-window-bar">' +
+        '<button class="ot-window-head" type="button" data-ot-recent-toggle="1" aria-expanded="' + (open ? "true" : "false") + '">' +
+          '<svg class="ot-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>' +
+          '<span class="ot-window-name">' + th("opentabs_recent_heading") + '</span>' +
+          '<span class="ot-window-count">' + th("opentabs_recent_count", { count: shown.length }) + '</span>' +
+        '</button>' +
+        (list.length
+          ? '<button class="ot-park ot-recent-clear" type="button" data-ot-recent-clear="1">' +
+              th("opentabs_recent_clear") + '</button>'
+          : "") +
+      '</div>';
+    if (open) {
+      html += '<div class="ot-window-tabs">';
+      if (!shown.length) html += '<p class="ot-empty">' + th("opentabs_recent_empty") + '</p>';
+      for (var k = 0; k < shown.length; k++) html += otRecentRowHtml(shown[k].rec, shown[k].index);
+      html += '</div>';
+    }
+    host.innerHTML = html + '</div>';
+  }
+
+  function otToggleRecent() {
+    otRecentCollapsed = !otRecentCollapsed;
+    otRenderRecent();
+  }
+
+  // REOPEN REMOVES THE ENTRY. The row exists to get something back; once it is
+  // back the row has done its job, and leaving it invites a second click that
+  // opens a duplicate. Closing the reopened tab re-enters it at the top, so
+  // nothing becomes unreachable.
+  async function otReopenRecent(index) {
+    var list = Storage.getRecentlyClosed(data) || [];
+    var rec = list[Number(index)];
+    if (!rec) return;
+    try { await chrome.tabs.create({ url: rec.url, active: false }); } catch (e) { return; }
+    Storage.removeRecentlyClosedAt(data, Number(index));
+    await Storage.saveAll(data);
+    data = await Storage.getAll();
+    await otRenderList();
+  }
+
+  async function otClearRecent() {
+    if (!Storage.clearRecentlyClosed(data)) return;
+    await Storage.saveAll(data);
+    data = await Storage.getAll();
+    await otRenderList();
+    showToast(t("opentabs_recent_cleared"));
   }
 
   function otRenderSelectBar() {
@@ -12916,6 +13006,24 @@
     // an arbitrary suffix of the window whenever one tab had gone away between
     // the query and the close, which a live tab list makes entirely ordinary.
     // One call per tab, each guarded, so one casualty costs one tab.
+    // [OT.3] PARKED TABS MUST NOT ALSO ENTER RECENTLY CLOSED. They are already
+    // in a named session; recording them again would double-record a deliberate
+    // action and flood a 25-row list with tabs the user chose to keep
+    // elsewhere. The worker reads this session-scoped mark on onRemoved.
+    //
+    // WRITTEN BEFORE THE FIRST CLOSE, not per tab, because onRemoved can be
+    // handled before the next await here resolves. It EXPIRES, so a park that
+    // dies midway does not silence those tabs for the rest of the browser
+    // session.
+    try {
+      var marks = {};
+      var until = Date.now() + 15000;
+      parkable.forEach(function (tab) { marks[tab.id] = until; });
+      var existing = await chrome.storage.session.get("lpCloseSuppress");
+      var merged = Object.assign({}, (existing && existing.lpCloseSuppress) || {}, marks);
+      await chrome.storage.session.set({ lpCloseSuppress: merged });
+    } catch (e) { /* recently closed gains a few rows it did not need */ }
+
     var stayed = 0;
     for (var i = 0; i < parkable.length; i++) {
       try { await chrome.tabs.remove(parkable[i].id); } catch (e) { stayed++; }
@@ -12963,11 +13071,23 @@
   // The fields that move a row rather than just relabelling it.
   var OT_STRUCTURAL_FIELDS = ["url", "pinned", "audible"];
 
+  // THE WORKER WRITES `data` WHEN A TAB CLOSES, and this panel is the only
+  // surface showing it. onRemoved already schedules a refresh here for the
+  // OPEN half of the list, but the refresh reads `data` from memory - which
+  // is stale by exactly the write the worker just made. So the refresh
+  // re-reads storage first. That is the panel's live update and recently
+  // closed's write meeting, and it is the pair most likely to go wrong:
+  // without the re-read the row appears only on the NEXT close.
+  async function otRefreshFromStorage() {
+    try { data = await Storage.getAll(); } catch (e) { /* keep what we have */ }
+    await otRenderList();
+  }
+
   function otScheduleRefresh() {
     if (otRefreshTimer) clearTimeout(otRefreshTimer);
     otRefreshTimer = setTimeout(function () {
       otRefreshTimer = null;
-      if (otIsOpen()) otRenderList();
+      if (otIsOpen()) otRefreshFromStorage();
     }, 150);
   }
 
@@ -21285,6 +21405,14 @@
     safeOn("#open-tabs-close", "click", function () { closeOpenTabsPanel(); });
     // Delegated ONCE on the static hosts, so a re-render never leaves a stale
     // handler behind - the same reason #bm-tree is bound this way.
+    // [OT.3] Recently closed is its own static host, so it gets its own
+    // delegated listener rather than widening #ot-list's.
+    safeOn("#ot-recent", "click", function (e) {
+      if (e.target.closest("[data-ot-recent-clear]")) { e.stopPropagation(); otClearRecent(); return; }
+      if (e.target.closest("[data-ot-recent-toggle]")) { otToggleRecent(); return; }
+      var row = e.target.closest("[data-ot-recent]");
+      if (row) { otReopenRecent(row.dataset.otRecent); return; }
+    });
     safeOn("#ot-list", "click", function (e) {
       var park = e.target.closest(".ot-park");
       if (park) { e.stopPropagation(); otParkWindow(Number(park.dataset.otPark)); return; }

@@ -103,8 +103,25 @@ function boot(seeds = []) {
     async getBytesInUse() { return 0; },
   };
 
+  // [OT.3] chrome.storage.session, a REAL store rather than a no-op. The
+  // recently-closed tab mirror round-trips through it on every create, update
+  // and close, and a stub that swallowed writes would let a mirror that never
+  // persists anything pass the gate.
+  const sessionStore = {};
+  const session = {
+    async get(k) {
+      if (k == null) return clone(sessionStore);
+      if (typeof k === "string") return sessionStore[k] === undefined ? {} : { [k]: clone(sessionStore[k]) };
+      const out = {};
+      for (const key of [].concat(k)) if (sessionStore[key] !== undefined) out[key] = clone(sessionStore[key]);
+      return out;
+    },
+    async set(o) { for (const [k, v] of Object.entries(o)) sessionStore[k] = clone(v); },
+    async remove(k) { for (const key of [].concat(k)) delete sessionStore[key]; },
+  };
+
   const chrome = {
-    storage: { local, onChanged: cap("storage.onChanged") },
+    storage: { local, session, onChanged: cap("storage.onChanged") },
     runtime: {
       lastError: null, id: "harness-extension-id",
       getManifest: () => ({ version: "0.0.0", permissions: [] }),
@@ -117,6 +134,9 @@ function boot(seeds = []) {
       remove: async (id) => { stats.tabsRemoved.push(id); }, create: async () => ({}), sendMessage: async () => ({}),
       onUpdated: cap("tabs.onUpdated"), onRemoved: cap("tabs.onRemoved"),
       onActivated: cap("tabs.onActivated"), onCreated: cap("tabs.onCreated"),
+      // [OT.3] a prerendered page swapping in keeps the URL and changes the id,
+      // so the tab mirror re-notes it.
+      onReplaced: cap("tabs.onReplaced"),
     },
     windows: {
       getLastFocused: async () => ({ id: 1, focused: true }), getAll: async () => [],

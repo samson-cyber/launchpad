@@ -4189,3 +4189,53 @@ I18n.register("en", {
       "description": "Follows opentabs_park_done when some tabs survived the close. MEASURED, not hypothetical: chrome.tabs.remove is not atomic - given a set containing one stale id it throws and leaves later tabs open - so park closes them one at a time and reports any that refused. The session is already written either way, so nothing is lost; the user just has tabs they did not expect."
     }
   });
+
+// =========================================================================
+// OT.3 - RECENTLY CLOSED.
+//
+// A section at the FOOT of the Open tabs panel rather than a fourth sidebar
+// entry: "tabs I have" and "tabs I had" are one subject, and a whole sidebar
+// row for a 25-item list is furniture.
+//
+// NO VISIBLE TIME ON A ROW, deliberately. The list is newest-first, which is
+// the ordering a user reads anyway, and a visible clock would add a fourth
+// locale-formatted surface to a panel whose rows are already title-over-host.
+// The exact time is in the row tooltip, where someone who wants it can find it
+// and nobody else pays for it.
+// =========================================================================
+I18n.register("en", {
+    "opentabs_recent_heading": {
+      "description": "Heading of the Recently closed section at the foot of the Open tabs panel. Tabs the user has CLOSED, not saved - distinct from a named session, which is a deliberate save. Chrome uses the same phrase in its own menu, which is the point: it is what a user already calls this.",
+      "message": "Recently closed",
+      "sense": "heading.section"
+    },
+    "opentabs_recent_empty": {
+      "description": "Shown in the Recently closed section when nothing has been closed yet. A statement, not an invitation - there is no action that fills this list except ordinary use.",
+      "message": "Nothing closed yet.",
+      "sense": "empty.section"
+    },
+    "opentabs_recent_reopen": {
+      "description": "Accessible name of a Recently closed row. Clicking it opens that tab again and REMOVES the row, because once the tab is back the entry has done its job.",
+      "message": "Reopen this tab",
+      "sense": "a11y.label.action"
+    },
+    "opentabs_recent_clear": {
+      "description": "Button that empties the Recently closed list. Clears the RECORD only - it closes nothing and reopens nothing.",
+      "message": "Clear",
+      "sense": "action.button"
+    },
+    "opentabs_recent_cleared": {
+      "description": "Toast after the Recently closed list is emptied. Names what went, since the list simply vanishing could read as a fault.",
+      "message": "Recently closed list cleared.",
+      "sense": "toast.confirmation"
+    },
+    "opentabs_recent_closed_at": {
+      "description": "Row tooltip in Recently closed, below the URL. {time} is ALREADY FORMATTED by the browser locale clock - a translation must not re-order the digits or add its own AM/PM, only move the words around the placeholder.",
+      "message": "Closed at {time}",
+      "sense": "tooltip.timestamp"
+    },
+    "opentabs_recent_count": {
+      "plural": {"one": "{count} tab", "other": "{count} tabs"},
+      "description": "Count on the Recently closed section heading, matching opentabs_window_tab_count's shape so the two headings in this panel read alike. Capped at 25 by the writer, so this never exceeds it."
+    }
+  });

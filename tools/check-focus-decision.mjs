@@ -63,6 +63,15 @@ function fakeChrome() {
         async remove() {},
         async getBytesInUse() { return 0; },
       },
+      // [OT.3] The recently-closed tab mirror lives in session storage (it
+      // must survive a worker suspend and die with the browser). This gate
+      // does not assert on the mirror, so a minimal store is enough - but it
+      // has to EXIST or background.js does not load at all.
+      session: {
+        async get() { return {}; },
+        async set() {},
+        async remove() {},
+      },
       onChanged: cap("storage.onChanged"),
     },
     runtime: {
@@ -82,6 +91,7 @@ function fakeChrome() {
       create: async () => ({}), sendMessage: async () => ({}),
       onUpdated: cap("tabs.onUpdated"), onRemoved: cap("tabs.onRemoved"),
       onActivated: cap("tabs.onActivated"), onCreated: cap("tabs.onCreated"),
+      onReplaced: cap("tabs.onReplaced"),   // [OT.3] the tab mirror re-notes a swap
     },
     windows: {
       getLastFocused: async () => ({ id: 1, focused: true }), getAll: async () => [],

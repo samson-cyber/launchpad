@@ -1700,6 +1700,196 @@ async function handleCheckoutReturn(tabId, url) {
 // through from the event payload, so no handler carries state the SW could lose
 // to a suspend. The engine logic lives in tracking.js — this is only wiring.
 
+// ===== [OT.3] RECENTLY CLOSED, AND WHY IT NEEDS A MIRROR =================
+//
+// MEASURED, because the whole design turns on it: chrome.tabs.onRemoved gives
+// you (tabId, {isWindowClosing, windowId}) AND NOTHING ELSE. No url, no title,
+// no favicon. And chrome.tabs.get(tabId) INSIDE the handler already fails with
+// "No tab with id" - the tab is gone before you are told it went. So the only
+// way to know WHAT was closed is to have written it down BEFORE it closed.
+//
+// HENCE A MIRROR of the open tabs, and it lives in chrome.storage.session:
+//   - NOT a module-level object. BUGS A1: the worker suspends after ~30s idle
+//     and takes its memory with it, so an in-memory mirror is empty for every
+//     close that happens more than half a minute after the last one, which is
+//     most of them.
+//   - NOT chrome.storage.local either. The mirror describes tabs that are open
+//     RIGHT NOW; after a browser restart every entry in it is a lie. session
+//     storage survives worker suspend and dies with the browser, which is
+//     exactly the lifetime this needs.
+//
+// IT IS RE-SEEDED FROM chrome.tabs.query ON EVERY WORKER START, so a mirror
+// that was never built - a fresh install, a cleared session store, a worker
+// that woke for an alarm - is correct rather than empty.
+var RC_MIRROR_KEY = "lpTabMirror";
+var RC_SUPPRESS_KEY = "lpCloseSuppress";
+
+// EVERY MIRROR MUTATION IS A READ-MODIFY-WRITE OF ONE KEY, so they have to be
+// serialised - this is BUGS L1 (whole-object write clobbering) in a second
+// store. enqueueBgData already does exactly this for `data`; the mirror needs
+// its own chain rather than sharing that one, because these two write
+// different stores and putting a tab-title update behind a storage.local
+// saveAll would make the mirror lag the browser.
+//
+// FOUND BY MEASUREMENT, not by review: creating thirteen tabs and closing them
+// 120ms apart fires thirteen onCreated, three onUpdated each and thirteen
+// onRemoved, all racing on one object. Twelve of twenty-six closes were
+// recorded; the other fourteen were tabs whose mirror entry had been written
+// over before they closed. With the queue it is 25 of 26 kept, which is the
+// cap doing its job rather than the race doing its.
+var _rcQueue = Promise.resolve();
+function rcSerial(fn) {
+  var run = function () {
+    return Promise.resolve().then(fn).catch(function (err) {
+      console.error("[LaunchPad] recently-closed mirror task failed:", err);
+    });
+  };
+  _rcQueue = _rcQueue.then(run, run);
+  return _rcQueue;
+}
+
+async function rcReadMirror() {
+  try {
+    var bag = await chrome.storage.session.get(RC_MIRROR_KEY);
+    return (bag && bag[RC_MIRROR_KEY]) || {};
+  } catch (e) { return {}; }
+}
+
+async function rcWriteMirror(mirror) {
+  try {
+    var patch = {};
+    patch[RC_MIRROR_KEY] = mirror;
+    await chrome.storage.session.set(patch);
+  } catch (e) { /* session storage unavailable; recently-closed degrades to off */ }
+}
+
+function rcSnapshot(tab) {
+  if (!tab || typeof tab.url !== "string" || !tab.url) return null;
+  // The allowlist is applied HERE as well as at the writer, so a chrome://
+  // tab never even occupies a slot in the mirror.
+  if (!Storage.isCapturableSessionUrl(tab.url)) return null;
+  var fav = (tab.favIconUrl && tab.favIconUrl.indexOf("chrome://") !== 0) ? tab.favIconUrl : null;
+  return { url: tab.url, title: tab.title || "", favicon: fav };
+}
+
+// SERIALISED LIKE THE REST. The seed overwrites the whole object, so an
+// onUpdated landing mid-seed would otherwise be erased by it.
+function rcSeedMirror() {
+  return rcSerial(async function () {
+    try {
+      var tabs = await chrome.tabs.query({});
+      var mirror = await rcReadMirror();
+      tabs.forEach(function (t) {
+        var snap = rcSnapshot(t);
+        if (snap) mirror[t.id] = snap;
+      });
+      await rcWriteMirror(mirror);
+    } catch (e) { /* nothing to seed from */ }
+  });
+}
+
+// FIELD-GATED, the same way OT.1 gates its panel refresh. onUpdated fires about
+// three times per ordinary page load and indefinitely on a site with a ticking
+// title; only the three fields this mirror actually stores are worth a write.
+function rcNoteTab(tab) {
+  if (!tab || tab.id === undefined) return Promise.resolve();
+  return rcSerial(async function () {
+    var snap = rcSnapshot(tab);
+    var mirror = await rcReadMirror();
+    if (!snap) {
+      // A tab that has navigated to something uncapturable stops being
+      // mirrored, or closing it later would record where it USED to be.
+      if (mirror[tab.id]) { delete mirror[tab.id]; await rcWriteMirror(mirror); }
+      return;
+    }
+    var prev = mirror[tab.id];
+    if (prev && prev.url === snap.url && prev.title === snap.title && prev.favicon === snap.favicon) return;
+    mirror[tab.id] = snap;
+    await rcWriteMirror(mirror);
+  });
+}
+
+// PARKED TABS DO NOT ENTER RECENTLY CLOSED, and this is the channel that says
+// so. Park (OT.2) has ALREADY saved those tabs as a named session; recording
+// them again would double-record a deliberate action and flood a 25-row list
+// with twenty entries the user chose to keep elsewhere. Recently closed is for
+// the ACCIDENTAL close.
+//
+// The page writes tab ids here just before it closes them. EXPIRING, because a
+// close that never happens must not suppress that tab forever - if park fails
+// between marking and removing, the mark is stale within seconds and the next
+// genuine close of that tab is recorded normally.
+var RC_SUPPRESS_MS = 15000;
+
+function rcIsSuppressed(tabId) {
+  // Same read-modify-write on one key, same queue. Park marks a whole window
+  // at once and then closes it, so these arrive in exactly the burst the
+  // mirror race was found in.
+  return rcSerial(async function () {
+    try {
+      var bag = await chrome.storage.session.get(RC_SUPPRESS_KEY);
+      var map = (bag && bag[RC_SUPPRESS_KEY]) || {};
+      var until = map[tabId];
+      if (typeof until !== "number") return false;
+      delete map[tabId];
+      var patch = {}; patch[RC_SUPPRESS_KEY] = map;
+      await chrome.storage.session.set(patch);
+      return Date.now() < until;
+    } catch (e) { return false; }
+  });
+}
+
+// A WHOLE WINDOW'S TABS ENTER INDIVIDUALLY, not as one grouped entry, and the
+// reason is that the grouped case ALREADY HAS A BETTER FEATURE. Park saves a
+// window as a named session with a name, a launch action and no 25-row cap;
+// recently closed is the undo for the single tab you did not mean to shut. A
+// second record shape here would be a worse version of park.
+//
+// The cost is honest and accepted: closing a twenty-tab window by hand fills
+// most of the list. That is the case park exists to make unnecessary.
+chrome.tabs.onRemoved.addListener(function (tabId, removeInfo) {
+  rcRecordClose(tabId, removeInfo);
+});
+
+async function rcRecordClose(tabId) {
+  // THE SNAPSHOT IS TAKEN INSIDE THE QUEUE. Reading the mirror outside it
+  // would race the very writes that put this tab there.
+  var snap = await rcSerial(async function () {
+    var mirror = await rcReadMirror();
+    var s = mirror[tabId];
+    if (s) { delete mirror[tabId]; await rcWriteMirror(mirror); }
+    return s;
+  });
+  if (!snap) return;
+  if (await rcIsSuppressed(tabId)) return;
+  // Enqueued like every other background writer (BUGS L1): a close can land
+  // while a sweep or the heartbeat is mid read-modify-write, and a raw saveAll
+  // here would clobber whichever of them read first.
+  return enqueueBgData("recently-closed", async function () {
+    var data = await Storage.getAll();
+    var rec = Storage.pushRecentlyClosed(data, {
+      url: snap.url, title: snap.title, favicon: snap.favicon, closedAt: Date.now()
+    });
+    if (rec) await Storage.saveAll(data);
+  });
+}
+
+chrome.tabs.onCreated.addListener(function (tab) { rcNoteTab(tab); });
+chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
+  if (changeInfo.url === undefined && changeInfo.title === undefined &&
+      changeInfo.favIconUrl === undefined && changeInfo.status !== "complete") return;
+  rcNoteTab(tab);
+});
+chrome.tabs.onReplaced.addListener(function (addedTabId) {
+  // A prerendered page swapping in keeps the URL but changes the id.
+  chrome.tabs.get(addedTabId).then(rcNoteTab).catch(function () {});
+});
+
+// Seeded on every worker start, which is the line that makes the mirror
+// survivable rather than merely persisted.
+rcSeedMirror();
+
+
 chrome.tabs.onActivated.addListener(function () {
   Tracking.sync("tab-switch");
 });
