@@ -3344,3 +3344,79 @@ an idle Home is now empty where it read `["search-pulse"]`.
 still the arc's strongest open recommendation: the wordmark measures 2,091 presence against
 the greeting's 466, and `[1.12.2]` spent 30px of vertical budget on the tab strip to make the
 bar the hero of Home. Cutting the pulse does not answer that, and does not weaken it.
+
+---
+
+## 2026-09-15 — Bare text on Home STAYS BARE, and the 4.5:1 reading is recorded as a known limit
+
+**Decision.** `81fb511`'s frost surface behind Home's group headings, shortcut labels,
+Add-shortcut label and Open All is **reverted**. Bare text on Home stays bare. Asana
+`1218312944568543` is **closed as DECIDED, not as fixed** — the defect it describes is real,
+measured and reproducible, and the product is keeping it.
+
+**HOW THIS WAS DECIDED, AND IT IS NOT WHAT THE MEASUREMENT RECOMMENDED.** The surface was
+built to the brief, measured to pass on every ground including a worst-case near-white frame,
+checked for layout shift, and shown to Samson on a real bright photograph. He rejected it on
+sight: *"it looks like it's been weirdly awkwardly highlighted and looks quite messy."* That
+is the right call on the evidence, because **his before-frame — the same beach photograph,
+the one measured at 2.08:1 — is legible.** The measurement said fail; the eye said fine.
+
+**THIS IS THE THIRD TIME ON THIS EXACT QUESTION, AND THE READ HAS BEEN RIGHT EVERY TIME.**
+Bare text over a photograph:
+
+| round | element | measured | the read |
+| --- | --- | --- | --- |
+| `[1.11.3d]` | the greeting | **1.84:1** | legible |
+| `9b3c6c1` | the pending-ground column | below floor | legible |
+| this round | group headings and shortcut labels | **2.08:1** / 2.36:1 | legible |
+
+Three independent rounds, three disagreements, and the number lost each time. At that point
+the number is not measuring what it is being asked to measure.
+
+**WHY THE RATIO MISREADS THIS CASE.** WCAG's 4.5:1 body-text floor is calibrated for **small
+type on a flat ground** — the ratio is a single number because it assumes one background
+colour behind the whole glyph. Home's labels are neither of those things. They sit on a
+**photograph**, where the backdrop varies pixel to pixel behind every stroke, and they carry a
+**text-shadow** that the pixel instrument deliberately excludes from the backdrop sample. What
+the composited-contrast method reports is the mean ink against the mean backdrop; what the eye
+gets is a white glyph with a dark halo against a backdrop that is lighter in some places and
+darker in others, which is a legibility mechanism the single ratio has no term for.
+
+**THE TEXT-SHADOW IS THEREFORE LOAD-BEARING AND STAYS.** `81fb511` removed it from all four
+elements on `[1.8.6]`'s reasoning — a shadow is for text sitting directly on wallpaper, and
+after a surface none of it did. The revert restores it, and the reasoning now runs the other
+way: this text *does* sit directly on wallpaper, permanently, and the shadow is the whole
+mitigation. **Nothing should remove these four shadows without reopening this entry.**
+
+**WHAT IS BEING ACCEPTED, STATED IN FULL SO NO LATER ROUND REDISCOVERS IT AS NEW.** On a
+bright photograph these readings stand and are known:
+
+| element | bright photo | near-white worst case |
+| --- | --- | --- |
+| group heading | 2.24:1 | 2.05:1 |
+| shortcut label | 2.37:1 | 2.28:1 |
+| Add-shortcut label | 2.36:1 | 2.28:1 |
+| Open All | 1.58:1 | 1.44:1 |
+
+The last two were found by that round and had never been measured; they are accepted on the
+same reasoning as the two the round was called for. **A future pass that re-measures Home over
+a photograph will find these numbers again. They are a known limit, not a defect, and finding
+them is not a new finding.**
+
+**WHAT THIS DOES NOT DECIDE, AND THE DISTINCTION MATTERS.**
+
+- **It does not reopen a luminance classifier.** Refuted in `4551bdf` on its own evidence: the
+  light-solid column fails for four other elements, so `bg-light` is not a working destination
+  and classifying bright photographs into it would move text into a failing branch.
+- **It does not reopen a light theme.** Closed 2026-09-12.
+- **IT DOES NOT COVER THE GROUP HEADER'S TWO ICON CONTROLS**, and this is the one thing a
+  later reader must not over-apply this entry to. The chevron measures **2.39:1 on the shipped
+  `#f5f5f5` solid preset** — that is a flat ground, with no photograph and no shadow, which is
+  precisely the case the WCAG floor *is* calibrated for, and none of the reasoning above
+  applies to it. The three-dot is at 3.01:1 on the same ground. Both are non-text controls
+  against a 3:1 floor and both remain open under the non-text floor question
+  (`1218138194255569`).
+
+**The revert is byte-identical to the pre-round state** — the reverted `newtab.css` has the
+same git blob hash as the commit before the surface landed, `ad53cbf`, so the four rules are
+exactly what shipped rather than a reconstruction of them.
