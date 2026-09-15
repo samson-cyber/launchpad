@@ -211,6 +211,10 @@ function buildData(ctx, opts = {}) {
     };
   }
   if (opts.workspaceMode) data.workspaces[0].mode = opts.workspaceMode;
+  // [WM.3] Tracking is ON by default everywhere (emptyTrackingState), so a
+  // fixture only says so when it wants it OFF - which is the budget case that
+  // can never fire.
+  if (opts.tracking === false) data.workspaces[0].tracking = { enabled: false };
   // Fixture self-verification (Q7).
   const wantLevel = opts.expectLevel || null;
   if (wantLevel) {
@@ -368,10 +372,19 @@ function runSuite(ctx) {
     live(buildData(ctx, { armed: true }), "session") === true);
   check("the SESSION reason is not live when nothing arms it",
     live(buildData(ctx, {}), "session") === false);
-  check("the SCHEDULE reason is refused - WM.3 has not built it",
-    live(buildData(ctx, { armed: true }), "schedule") === false);
-  check("the BUDGET reason is refused - WM.3 has not built it",
-    live(buildData(ctx, { armed: true }), "budget") === false);
+  // [WM.3] THESE TWO ROWS ARE WHERE THE ROUND LANDS. They read "refused, WM.3
+  // has not built it" until this commit; now each asks the ruling WM.2 wrote at
+  // the branch site, and the ruling is the assertion.
+  check("SCHEDULE is mode-governed: live on a WORK workspace",
+    live(buildData(ctx, { workspaceMode: "work" }), "schedule") === true);
+  check("SCHEDULE is mode-governed: NOT live on a Casual workspace",
+    live(buildData(ctx, { workspaceMode: "casual" }), "schedule") === false);
+  check("BUDGET is outside mode: live on a CASUAL workspace",
+    live(buildData(ctx, { workspaceMode: "casual" }), "budget") === true);
+  check("BUDGET is outside mode: live on a WORK workspace too",
+    live(buildData(ctx, { workspaceMode: "work" }), "budget") === true);
+  check("BUDGET is refused when the workspace is not TRACKED - it could never be spent",
+    live(buildData(ctx, { tracking: false }), "budget") === false);
   check("an invented reason is refused",
     live(buildData(ctx, { armed: true }), "vibes") === false);
 
@@ -407,6 +420,117 @@ function runSuite(ctx) {
     decide(buildData(ctx, { blockList: ["youtube.com"], phase: "work", workspaceMode: "casual" }), "youtube.com") === "youtube.com");
   check("a break in a WORK workspace still does not gate - the phase rule is untouched",
     decide(buildData(ctx, { blockList: ["youtube.com"], phase: "shortBreak", sessionMode: "work", workspaceMode: "work" }), "youtube.com") === null);
+
+  // ===== LAYER 6 [WM.3]: SCHEDULES AND BUDGETS =====
+  const S = ctx.Storage;
+  // A fixed instant to reason about, so no row depends on when the suite runs:
+  // Wednesday 2026-09-16, 10:30 local. new Date(y,m,d,h,mm) is local by
+  // construction, which is the same calendar localDayKey is cut from.
+  const WED_1030 = new Date(2026, 8, 16, 10, 30).getTime();
+  const WED_2330 = new Date(2026, 8, 16, 23, 30).getTime();
+  const THU_0100 = new Date(2026, 8, 17, 1, 0).getTime();
+  const THU_1030 = new Date(2026, 8, 17, 10, 30).getTime();
+  const SUN_0100 = new Date(2026, 8, 20, 1, 0).getTime();
+  check("fixture: the instants are the weekdays they claim",
+    new Date(WED_1030).getDay() === 3 && new Date(THU_0100).getDay() === 4 && new Date(SUN_0100).getDay() === 0);
+
+  const sched = (windows) => ({ host: "youtube.com", mode: "schedule", windows: windows });
+  const WORKDAYS = [1, 2, 3, 4, 5];
+  const decideAt = (data, h, now, c) => {
+    const m = S.blockingMatchFor(data, h, now, c);
+    return m ? m.reason : null;
+  };
+
+  // --- the window ---
+  check("INSIDE the window, on a listed day, gates",
+    decideAt(buildData(ctx, { workspaceMode: "work", blockList: [sched([{ days: WORKDAYS, start: "09:00", end: "17:00" }])] }),
+      "youtube.com", WED_1030) === "schedule");
+  check("OUTSIDE the window does not gate",
+    decideAt(buildData(ctx, { workspaceMode: "work", blockList: [sched([{ days: WORKDAYS, start: "09:00", end: "17:00" }])] }),
+      "youtube.com", WED_2330) === null);
+  check("a day NOT in the set does not gate, even at the right hour",
+    decideAt(buildData(ctx, { workspaceMode: "work", blockList: [sched([{ days: [0], start: "09:00", end: "17:00" }])] }),
+      "youtube.com", WED_1030) === null);
+  check("the window is half-open: the END minute is already outside",
+    decideAt(buildData(ctx, { workspaceMode: "work", blockList: [sched([{ days: WORKDAYS, start: "09:00", end: "10:30" }])] }),
+      "youtube.com", WED_1030) === null);
+  check("and the START minute is inside",
+    decideAt(buildData(ctx, { workspaceMode: "work", blockList: [sched([{ days: WORKDAYS, start: "10:30", end: "17:00" }])] }),
+      "youtube.com", WED_1030) === "schedule");
+
+  // --- overnight ---
+  const NIGHT = [{ days: [3], start: "22:00", end: "02:00" }];   // Wednesday night
+  check("OVERNIGHT: late on the listed day gates",
+    decideAt(buildData(ctx, { workspaceMode: "work", blockList: [sched(NIGHT)] }), "youtube.com", WED_2330) === "schedule");
+  check("OVERNIGHT: early on the day AFTER the listed day gates - the window belongs to the night it opened",
+    decideAt(buildData(ctx, { workspaceMode: "work", blockList: [sched(NIGHT)] }), "youtube.com", THU_0100) === "schedule");
+  check("OVERNIGHT: mid-morning after it closed does not gate",
+    decideAt(buildData(ctx, { workspaceMode: "work", blockList: [sched(NIGHT)] }), "youtube.com", THU_1030) === null);
+  check("OVERNIGHT: early on a day whose PREVIOUS day is not listed does not gate",
+    decideAt(buildData(ctx, { workspaceMode: "work", blockList: [sched(NIGHT)] }), "youtube.com", SUN_0100) === null);
+
+  // --- mode, and malformed windows ---
+  check("a CASUAL workspace does not gate on a schedule, inside the window",
+    decideAt(buildData(ctx, { workspaceMode: "casual", blockList: [sched([{ days: WORKDAYS, start: "09:00", end: "17:00" }])] }),
+      "youtube.com", WED_1030) === null);
+  check("two windows on one entry: the SECOND one gates",
+    decideAt(buildData(ctx, { workspaceMode: "work", blockList: [sched([
+      { days: WORKDAYS, start: "06:00", end: "07:00" }, { days: WORKDAYS, start: "09:00", end: "17:00" }])] }),
+      "youtube.com", WED_1030) === "schedule");
+  check("a schedule entry with NO windows gates nothing",
+    decideAt(buildData(ctx, { workspaceMode: "work", blockList: [sched([])] }), "youtube.com", WED_1030) === null);
+  check("a malformed window is dropped rather than throwing",
+    decideAt(buildData(ctx, { workspaceMode: "work", blockList: [sched([{ days: [3], start: "nope", end: "17:00" }])] }),
+      "youtube.com", WED_1030) === null);
+  check("a zero-length window is not a window",
+    S.normalizeScheduleWindow({ days: [3], start: "09:00", end: "09:00" }) === null);
+
+  // --- the budget ---
+  const budget = (min) => ({ host: "youtube.com", mode: "budget", limitMin: min });
+  const today = S.localDayKey(WED_1030);
+  const used = (ms) => ({ budgetToday: { day: today, byWorkspace: { main: { "youtube.com": ms } } } });
+  check("budget MET gates",
+    decideAt(buildData(ctx, { blockList: [budget(30)] }), "youtube.com", WED_1030, used(30 * 60000)) === "budget");
+  check("budget EXCEEDED gates",
+    decideAt(buildData(ctx, { blockList: [budget(30)] }), "youtube.com", WED_1030, used(45 * 60000)) === "budget");
+  check("budget UNDER does not gate, to the minute",
+    decideAt(buildData(ctx, { blockList: [budget(30)] }), "youtube.com", WED_1030, used(30 * 60000 - 1)) === null);
+  check("a budget gates on a CASUAL workspace - it sits outside mode",
+    decideAt(buildData(ctx, { workspaceMode: "casual", blockList: [budget(30)] }), "youtube.com", WED_1030, used(60 * 60000)) === "budget");
+  check("a budget on an UNTRACKED workspace never gates",
+    decideAt(buildData(ctx, { tracking: false, blockList: [budget(30)] }), "youtube.com", WED_1030, used(60 * 60000)) === null);
+  check("figures from ANOTHER DAY read as zero - the budget reset with the day",
+    decideAt(buildData(ctx, { blockList: [budget(30)] }), "youtube.com", WED_1030,
+      { budgetToday: { day: "2020-01-01", byWorkspace: { main: { "youtube.com": 99 * 60000 } } } }) === null);
+  check("NO figures supplied is not the same as zero: the budget cannot answer, so it does not gate",
+    decideAt(buildData(ctx, { blockList: [budget(30)] }), "youtube.com", WED_1030) === null);
+  // AND THE DISTINCTION ITSELF, asserted on the reader rather than through the
+  // decision - through the decision it is invisible, because "not told" and
+  // "zero used" both fail the comparison. It is still a real contract: a
+  // surface reporting usage must be able to tell "none yet" from "I do not
+  // know", and only this row can fail if that collapses.
+  check("budgetUsedMs reports NOT TOLD as null, distinctly from zero",
+    S.budgetUsedMs(undefined, "main", "youtube.com", WED_1030) === null &&
+    S.budgetUsedMs({ budgetToday: { day: today, byWorkspace: {} } }, "main", "youtube.com", WED_1030) === 0);
+  check("figures for ANOTHER workspace do not spend this one's budget",
+    decideAt(buildData(ctx, { blockList: [budget(30)] }), "youtube.com", WED_1030,
+      { budgetToday: { day: today, byWorkspace: { other: { "youtube.com": 99 * 60000 } } } }) === null);
+  check("a budget with no limit is inert rather than instant",
+    decideAt(buildData(ctx, { blockList: [{ host: "youtube.com", mode: "budget" }] }), "youtube.com", WED_1030, used(99 * 60000)) === null);
+  check("a SUBDOMAIN is gated by the entry's budget once the entry is spent",
+    decideAt(buildData(ctx, { blockList: [budget(30)] }), "m.youtube.com", WED_1030, used(45 * 60000)) === "budget");
+
+  // The worker's summing half: a subdomain's tracked minutes SPEND the entry.
+  check("the worker sums every tracked domain that matches the entry",
+    ctx.focusBudgetSumFor({ "m.youtube.com": 10 * 60000, "www.youtube.com": 5 * 60000, "vimeo.com": 99 * 60000 }, "youtube.com")
+      === 15 * 60000);
+  check("and nothing that does not match it",
+    ctx.focusBudgetSumFor({ "notyoutube.com": 99 * 60000 }, "youtube.com") === 0);
+
+  // --- precedence, with two reasons live at once ---
+  check("session wins over budget when both would hold - the order is session, budget, schedule",
+    decideAt(buildData(ctx, { armed: true, workspaceMode: "work", blockList: ["youtube.com", { host: "vimeo.com", mode: "budget", limitMin: 1 }] }),
+      "youtube.com", WED_1030, used(99 * 60000)) === "session");
 
   // THE NEVER-BLOCK LIST WINS OVER EVERY ENTRY MODE. It is a transport rule and
   // it runs before the reader is ever consulted, so the assertion is that the
@@ -445,7 +569,7 @@ const SEEDS = [
     name: "snooze check removed (C7)",
     // [WM.2] RE-ANCHORED into the reader's loop.
     note: "recorded R2 seed 3, re-anchored to the reader in WM.2",
-    seeds: [{ file: "storage.js", find: "      if (getActiveFocusSnooze(data, entry, nowMs)) continue;\n", replace: "" }],
+    seeds: [{ file: "storage.js", find: "        if (getActiveFocusSnooze(data, entry, now)) continue;\n", replace: "" }],
   },
   {
     name: "scheme allowlist removed",
@@ -537,40 +661,73 @@ const SEEDS = [
     }],
   },
   {
-    name: "[WM.2] entry mode filter dropped",
+    // [WM.3] RE-ANCHORED, because the thing it guarded MOVED. WM.2's matcher
+    // collected every host in a mode and tested them together, so the mode
+    // filter lived in blockHostsForMode; the matcher now walks the entries, so
+    // the filter is the `continue` below and blockHostsForMode is gone. Same
+    // guard, same defect - a budget rule answering during a session.
+    name: "entry mode filter dropped",
     note: "every entry would answer to every reason - a budget rule blocking during a session",
     seeds: [{
       file: "storage.js",
-      find: "      if (entries[i].mode === want) out.push(entries[i].host);",
-      replace: "      out.push(entries[i].host);",
+      find: "        if (entries[j].mode !== mode) continue;",
+      replace: "        if (false) continue;",
     }],
   },
   {
-    name: "[WM.2] an unbuilt reason goes live",
-    // THE SEED THIS REPLACED COULD NOT BE CAUGHT, and dropping it is the honest
-    // move rather than a gap. It hardcoded the returned reason to "session" -
-    // and session is the ONLY live reason this round, so every correct answer
-    // already IS "session" and the mutation is behaviourally invisible. A seed
-    // that cannot fail earns no coverage. WM.3 makes it meaningful; WM.3 can
-    // add it back when it does.
-    //
-    // What IS worth proving now is the other half: that schedule and budget are
-    // REFUSED rather than merely unreachable. Turn the schedule branch live and
-    // a schedule-mode entry starts gating, which the suite already watches.
-    note: "schedule blocking fires before WM.3 has built it",
+    name: "[WM.3] the schedule mode gate removed",
+    note: "a Casual workspace would run scheduled blocking",
+    seeds: [{ file: "storage.js", find: '      return getWorkspaceMode(getActiveWorkspace(data)) === "work";', replace: "      return true;" }],
+  },
+  {
+    name: "[WM.3] the schedule WINDOW ignored",
+    note: "a scheduled entry would block around the clock",
+    seeds: [{ file: "storage.js", find: '    if (entry.mode === "schedule") return entryScheduleHolds(entry, nowMs);', replace: '    if (entry.mode === "schedule") return true;' }],
+  },
+  {
+    name: "[WM.3] the overnight wrap dropped",
+    note: "22:00-02:00 would never hold, because start > end fails a plain range test",
     seeds: [{
       file: "storage.js",
-      find: '    if (mode === "schedule") return false;',
-      replace: '    if (mode === "schedule") return true;',
+      find: "    if (start < end) {\n      return win.days.indexOf(today) !== -1 && mins >= start && mins < end;\n    }",
+      replace: "    {\n      return win.days.indexOf(today) !== -1 && mins >= start && mins < end;\n    }",
     }],
   },
   {
-    name: "[WM.2] budget blocking goes live",
-    note: "same shape as the schedule seed, for the reason that sits OUTSIDE mode",
+    name: "[WM.3] the budget tracking gate removed",
+    note: "a budget on an untracked workspace would look armed and never fire",
+    seeds: [{ file: "storage.js", find: "      return isTrackingEnabled(getActiveWorkspace(data));", replace: "      return true;" }],
+  },
+  {
+    name: "[WM.3] the budget comparison always true",
+    note: "every budgeted host would block from the first navigation of the day",
+    seeds: [{ file: "storage.js", find: "      return used >= limit * 60000;", replace: "      return true;" }],
+  },
+  {
+    name: "[WM.3] the budget day check removed",
+    note: "yesterday's minutes would keep a budget spent forever",
+    seeds: [{ file: "storage.js", find: "    if (rec.day !== localDayKey(nowMs)) return 0;", replace: "" }],
+  },
+  {
+    name: "[WM.3] not-told read as zero",
+    note: "a caller with no figures would report every budget as unspent",
+    seeds: [{ file: "storage.js", find: '    if (!rec || typeof rec !== "object") return null;', replace: '    if (!rec || typeof rec !== "object") return 0;' }],
+  },
+  {
+    // [WM.3] WM.2's TWO SEEDS RETIRE HERE, AND THIS IS THEM DOING THEIR JOB
+    // RATHER THAN BEING DELETED. They guarded "schedule and budget are REFUSED,
+    // not merely unreachable" by forcing each branch live before it was built -
+    // and both anchors were the `return false` lines this round replaced with
+    // real conditions, so they can no longer land. What they were protecting is
+    // now protected by the seven seeds above, each of which forces a REAL
+    // condition wrong. The rulings they were holding open - schedule is
+    // mode-governed, budget is not - are the first two rows of layer 6.
+    name: "[WM.3] the reason ORDER collapsed",
+    note: "WM.2 could not seed this - session was the only live reason, so hardcoding it was invisible. With three live it is not.",
     seeds: [{
       file: "storage.js",
-      find: '    if (mode === "budget") return false;',
-      replace: '    if (mode === "budget") return true;',
+      find: "        return { reason: mode, entry: entry };",
+      replace: '        return { reason: "session", entry: entry };',
     }],
   },
 ];
@@ -607,7 +764,7 @@ function runMutations() {
   // the runner can tell "the seeded defect was found" from "nothing loaded".
   let control;
   try {
-    boot([{ file: "background.js", find: "function focusInterceptDecision(data, host) {", replace: "function focusInterceptDecision(data, host) { syntax error here" }]);
+    boot([{ file: "background.js", find: "function focusInterceptDecision(data, host, ctx) {", replace: "function focusInterceptDecision(data, host, ctx) { syntax error here" }]);
     control = "NOT DETECTED — the runner failed to notice an unloadable subject";
   } catch (err) {
     control = err.anchor ? `NOT DETECTED — control seed did not apply (${err.message})` : "detected as SUBJECT-BROKEN";

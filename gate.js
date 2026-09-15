@@ -32,14 +32,25 @@
   var continueBtn = $("gate-continue");
   var headlineEl = document.querySelector(".gate-headline");
 
+  var actionsEl = document.querySelector(".gate-actions");
+  // The headline's trailing text node, captured before anything rewrites it, so
+  // a re-render back to the blocked state can put it back.
+  var HEADLINE_BLOCKED = (headlineEl && headlineEl.lastChild && headlineEl.lastChild.nodeType === 3)
+    ? headlineEl.lastChild.nodeValue : " is blocked";
+
   // ABSENT, NOT DISABLED. Removed from the DOM, so there is nothing to tab to
   // and nothing greyed out implying a state the user could reach.
   function dropControl(el) {
     if (el && el.parentNode) el.parentNode.removeChild(el);
   }
-  // The actions row settles once, after the worker answers. Until then both
-  // conditional controls are out of the flow - the page is not flash-critical
-  // and a button that appears and then vanishes is worse than one that arrives.
+  // [WM.3] THE ACTIONS ROW IS REBUILT EACH RENDER, not patched. WM.2 removed
+  // whichever control did not apply, which is correct exactly once - and this
+  // page now re-renders when blocking changes underneath it, so a control that
+  // was removed has to be able to come back. Emptying and re-appending from
+  // three held references is the only version of that with no order to get
+  // wrong.
+  dropControl(snoozeBtn);
+  dropControl(endBtn);
   dropControl(continueBtn);
 
   // TEXT NODES ONLY for anything derived from the query string. `entry` is
@@ -120,30 +131,35 @@
     return I18n.t("gate_reason_none");
   }
 
-  send({ type: "focus-gate-state", entry: entry }).then(function (st) {
+  function setHeadlineTail(text) {
+    // The headline keeps its domain chip and only its TRAILING TEXT NODE
+    // changes, which is the same node i18n-dom writes into and the reason the
+    // chip survives.
+    if (headlineEl && headlineEl.lastChild && headlineEl.lastChild.nodeType === 3) {
+      headlineEl.lastChild.nodeValue = text;
+    }
+  }
+
+  function show(btn) {
+    btn.disabled = false;
+    actionsEl.appendChild(btn);
+  }
+
+  function render(st) {
+    actionsEl.textContent = "";
     if (!st || !st.ok) {
       // The worker did not answer. Leave both real controls in place with the
       // generic label: failing to reach the worker is not evidence that the
       // user is unblocked, and removing their way out would be the worse error.
+      setHeadlineTail(HEADLINE_BLOCKED);
       endBtn.textContent = I18n.t("gate_turn_off_focus");
+      show(snoozeBtn);
+      show(endBtn);
       return;
     }
 
     contextEl.textContent = reasonText(st);
-
     endMode = st.endMode || "none";
-    if (endMode === "none") {
-      // Nothing to end: a budget and a schedule are not things you "end", and
-      // an inert gate has nothing armed at all.
-      dropControl(endBtn);
-    } else if (endMode === "both") {
-      // A manual arm AND a running phase. One label for one click that clears
-      // both, because ending only one of them leaves the user here.
-      endBtn.textContent = I18n.t("gate_end_focus");
-    } else {
-      endBtn.textContent = (endMode === "session") ? I18n.t("gate_end_focus_session")
-                                                   : I18n.t("gate_turn_off_focus");
-    }
 
     if (!st.reason) {
       // AN INERT GATE MUST NOT CONTRADICT ITSELF, and the first version did.
@@ -151,25 +167,72 @@
       // still read "<domain> is blocked" and the footnote below still described
       // the rule as live - three statements, two of them false, on one page.
       // Caught by looking at the rendered frame rather than at the code.
-      //
-      // The headline keeps its domain chip and only its TRAILING TEXT NODE
-      // changes, which is the same element i18n-dom writes into and the reason
-      // the chip survives.
-      if (headlineEl && headlineEl.lastChild && headlineEl.lastChild.nodeType === 3) {
-        headlineEl.lastChild.nodeValue = " " + I18n.t("gate_is_not_blocked");
-      }
+      setHeadlineTail(" " + I18n.t("gate_is_not_blocked"));
       // Snoozing something that is not blocking you is meaningless, so the
       // whole blocked-page vocabulary goes and one plain way onward remains.
-      dropControl(snoozeBtn);
-      document.querySelector(".gate-actions").appendChild(continueBtn);
+      show(continueBtn);
       footnoteEl.textContent = "";
       return;
     }
 
+    setHeadlineTail(HEADLINE_BLOCKED);
+    show(snoozeBtn);
+    // Nothing to end: a budget and a schedule are not things you "end", so the
+    // control is ABSENT for those two reasons and for an inert gate.
+    if (endMode !== "none") {
+      endBtn.textContent = (endMode === "both") ? I18n.t("gate_end_focus")
+        : (endMode === "session") ? I18n.t("gate_end_focus_session")
+        : I18n.t("gate_turn_off_focus");
+      show(endBtn);
+    }
     footnoteEl.textContent = entry
       ? I18n.t("gate_blocking_domain", { domain: entry })
       : "";
-  });
+  }
+
+  function refresh() {
+    return send({ type: "focus-gate-state", entry: entry }).then(render);
+  }
+  refresh();
+
+  // ---- [WM.3] the page keeps up ---------------------------------------------
+  //
+  // WM.2's follow-up found this page renders from a snapshot taken at load: a
+  // user who turned blocking off in another tab came back to a page still
+  // claiming to block them, and the only way forward was a reload. Now the
+  // reasons the decision depends on are watched, and the page re-asks.
+  //
+  //   data                 the arm, the phase, the entries, the workspace mode
+  //   focus_budget_today   the minutes a budget is spent against
+  //
+  // tracking_days is deliberately NOT watched: it changes on every tab switch
+  // and it is not what the decision reads - the worker derives the budget
+  // figures from it, and THAT derived key is the one that matters here.
+  //
+  // THE PAGE ASKS THE WORKER; IT NEVER READS OR WRITES STORAGE ITSELF. That was
+  // already true and it is now load-bearing (I28): an answer that wrote would be
+  // a change, and a change is another ask. The worker's side reads raw `data`
+  // rather than getAll for the same reason.
+  //
+  // DEBOUNCED, because a single user action lands as several writes - ending a
+  // session writes the phase and the arm - and one settled answer is worth more
+  // than three racing ones.
+  var refreshTimer = null;
+  function scheduleRefresh() {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(function () { refreshTimer = null; refresh(); }, 120);
+  }
+  if (chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener(function (changes, areaName) {
+      if (areaName && areaName !== "local") return;
+      if (!changes.data && !changes.focus_budget_today) return;
+      scheduleRefresh();
+    });
+  }
+  // A schedule window closes at a wall-clock minute, with no storage write to
+  // announce it. One coarse tick covers it; it costs a message a minute on a
+  // page the user is looking at, and nothing at all otherwise.
+  setInterval(function () { refresh(); }, 60000);
 
   // ---- Continue, on an inert gate --------------------------------------
   //

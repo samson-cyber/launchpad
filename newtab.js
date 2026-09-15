@@ -10233,6 +10233,162 @@
     el.classList.remove("is-quiet");
   }
 
+  // ===== [WM.3] WHAT A RULE SAYS, IN ONE LINE =====
+  //
+  // Reads Storage's own normalisers rather than the raw record, so a row can
+  // never describe a window the decider would drop.
+  function focusWindowSummary(win) {
+    var names = shortDayNames();
+    var days = (win.days || []).map(function (n) { return names[n]; }).join(" ");
+    return days + " " + win.start + "\u2013" + win.end;
+  }
+
+  function focusRuleSummary(rec) {
+    if (rec.mode === "schedule") {
+      var wins = Storage.getEntryWindows(rec);
+      if (!wins.length) return t("focusblock_schedule_none");
+      return wins.map(focusWindowSummary).join("  ");
+    }
+    if (rec.mode === "budget") {
+      var lim = Storage.getEntryBudgetMin(rec);
+      if (lim === null) return t("focusblock_budget_none");
+      return t("focusblock_summary_budget", { minutes: lim });
+    }
+    return t("focusblock_mode_session");
+  }
+
+  // ===== [WM.3] THE RULE EDITOR =====
+  //
+  // IT REUSES THE RECURRING-TASK EDITOR'S CONTROL FAMILY RATHER THAN INVENTING
+  // ONE: openTasksModal for the shell, .tt-modal-dow-row / .tt-modal-dow-toggle
+  // for the days, <input type="time"> for the hours, .tt-modal-error for the
+  // refusal. Those are the controls this product already uses to ask "which days
+  // and at what time", and a second family for the same question would be two
+  // answers to one design decision.
+  //
+  // DOW_VALUES IS MONDAY-FIRST, matching that editor exactly - the values are
+  // Date.getDay numbers and the ORDER is the reading order, and the two are
+  // written out together so they cannot fall out of step.
+  function openFocusRuleModal(rec) {
+    var DOW_VALUES = [1, 2, 3, 4, 5, 6, 0];
+    var names = shortDayNames();
+    var wins = Storage.getEntryWindows(rec);
+    var win0 = wins[0] || Storage.SCHEDULE_DEFAULT_WINDOW;
+    var limit = Storage.getEntryBudgetMin(rec);
+    var tracked = Storage.isTrackingEnabled(Storage.getActiveWorkspace(data));
+
+    function modeOption(v, label) {
+      return '<option value="' + v + '"' + (rec.mode === v ? " selected" : "") + '>' + escapeHtml(label) + '</option>';
+    }
+    function dowHtml() {
+      return DOW_VALUES.map(function (v) {
+        var chk = (win0.days || []).indexOf(v) !== -1 ? " checked" : "";
+        return '<label class="tt-modal-dow-toggle">' +
+          '<input type="checkbox" class="fb-dow" value="' + v + '"' + chk + '>' +
+          '<span>' + escapeHtml(names[v]) + '</span>' +
+        '</label>';
+      }).join("");
+    }
+    function conditionalHtml(mode) {
+      if (mode === "schedule") {
+        return '<div class="tt-modal-row">' +
+            '<label class="tt-modal-label">' + th("focusblock_days") + '</label>' +
+            '<div class="tt-modal-dow-row">' + dowHtml() + '</div>' +
+          '</div>' +
+          '<div class="tt-modal-row fb-times-row">' +
+            '<label class="tt-modal-label" for="fb-start">' + th("focusblock_from") + '</label>' +
+            '<input type="time" id="fb-start" class="fb-start tt-recur-time-input" value="' + escapeHtml(win0.start) + '">' +
+            '<label class="tt-modal-label" for="fb-end">' + th("focusblock_to") + '</label>' +
+            '<input type="time" id="fb-end" class="fb-end tt-recur-time-input" value="' + escapeHtml(win0.end) + '">' +
+          '</div>' +
+          '<p class="fb-note fb-overnight hidden">' + th("focusblock_overnight_note") + '</p>';
+      }
+      if (mode === "budget") {
+        // E1'S COPY LIVES WHERE THE USER SETS ONE, which is here, and it is
+        // stated as a requirement rather than a warning - "needs tracking on"
+        // tells them what to do; "tracking is off" alone would only tell them
+        // something is wrong.
+        return '<div class="tt-modal-row">' +
+            '<label class="tt-modal-label" for="fb-limit">' + th("focusblock_limit") + '</label>' +
+            '<input type="number" id="fb-limit" class="fb-limit" min="1" max="' + Storage.BUDGET_MAX_MIN + '" step="1" value="' +
+              (limit === null ? Storage.BUDGET_DEFAULT_MIN : limit) + '">' +
+          '</div>' +
+          '<p class="fb-note">' + th("focusblock_budget_needs_tracking") + '</p>' +
+          (tracked ? "" : '<p class="fb-note fb-note-warn">' + th("focusblock_budget_inert") + '</p>');
+      }
+      return "";
+    }
+
+    openTasksModal({
+      title: t("focusblock_rules_for_site", { site: rec.host }),
+      primaryLabel: t("common_save"),
+      bodyHtml:
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="fb-mode">' + th("focusblock_mode_label") + '</label>' +
+          '<select id="fb-mode" class="fb-mode tt-recur-freq-select">' +
+            modeOption("session", t("focusblock_mode_session")) +
+            modeOption("schedule", t("focusblock_mode_schedule")) +
+            modeOption("budget", t("focusblock_mode_budget")) +
+          '</select>' +
+        '</div>' +
+        '<div class="fb-conditional"></div>' +
+        '<div class="tt-modal-error hidden" role="alert"></div>',
+      onMounted: function (overlay) {
+        var sel = overlay.querySelector(".fb-mode");
+        var cond = overlay.querySelector(".fb-conditional");
+        function paint() {
+          cond.innerHTML = conditionalHtml(sel.value);
+          var s = cond.querySelector(".fb-start"), e = cond.querySelector(".fb-end");
+          var note = cond.querySelector(".fb-overnight");
+          if (s && e && note) {
+            // The one thing about a window a user cannot see from two time
+            // fields: that it crosses midnight. Said only when it does.
+            var upd = function () {
+              var a = Storage.parseClockMinutes(s.value), b = Storage.parseClockMinutes(e.value);
+              note.classList.toggle("hidden", !(a !== null && b !== null && a > b));
+            };
+            s.addEventListener("change", upd);
+            e.addEventListener("change", upd);
+            upd();
+          }
+        }
+        sel.addEventListener("change", paint);
+        paint();
+      },
+      onPrimary: async function (overlay) {
+        var sel = overlay.querySelector(".fb-mode");
+        var errorEl = overlay.querySelector(".tt-modal-error");
+        var mode = sel.value;
+        try {
+          if (mode === "schedule") {
+            var days = Array.prototype.slice.call(overlay.querySelectorAll(".fb-dow:checked"))
+              .map(function (cb) { return parseInt(cb.value, 10); });
+            if (!days.length) { showModalError(errorEl, t("focusblock_schedule_needs_days")); return false; }
+            var start = overlay.querySelector(".fb-start").value;
+            var end = overlay.querySelector(".fb-end").value;
+            var win = Storage.normalizeScheduleWindow({ days: days, start: start, end: end });
+            if (!win) { showModalError(errorEl, t("focusblock_schedule_bad_time")); return false; }
+            await Storage.setBlockedDomainSchedule(data, rec.host, [win]);
+          } else if (mode === "budget") {
+            var raw = parseInt(overlay.querySelector(".fb-limit").value, 10);
+            if (!(raw >= 1 && raw <= Storage.BUDGET_MAX_MIN)) {
+              showModalError(errorEl, t("focusblock_budget_bad_limit")); return false;
+            }
+            await Storage.setBlockedDomainBudget(data, rec.host, raw);
+          } else {
+            await Storage.setBlockedDomainMode(data, rec.host, "session");
+          }
+        } catch (err) {
+          console.error("[LaunchPad] Focus blocking: rule save failed", err);
+          showModalError(errorEl, t("focusblock_rule_save_failed"));
+          return false;
+        }
+        renderFocusBlockingSection();
+        return true;
+      }
+    });
+  }
+
   function renderFocusBlockingSection() {
     var listHost = $("#focus-block-list");
     if (!listHost) return;
@@ -10252,25 +10408,42 @@
       name.textContent = entry;
       name.title = entry + " (subdomains included)";
 
-      // A MODE LABEL ONLY WHEN THE MODE IS NOT THE DEFAULT. Every entry is
-      // session mode today, and a row that said "During focus sessions" on
-      // every line would be furniture repeating what the section heading
-      // already says. When WM.3 produces scheduled and budgeted entries this
-      // renders them without a further change here - which is the point of
-      // building the shape now: WM.3 adds branches, not surfaces.
+      // A MODE LABEL ONLY WHEN THE MODE IS NOT THE DEFAULT. A row that said
+      // "During focus sessions" on every line would be furniture repeating what
+      // the section heading already says.
       //
-      // AND THERE IS DELIBERATELY NO MODE PICKER THIS ROUND. A control offering
-      // "on a schedule" while schedules do nothing is the [1.1.4] preview-ghost
-      // again. Storage.setBlockedDomainMode exists and is harnessed; WM.3 gives
-      // it its control.
+      // [WM.3] AND IT NOW CARRIES THE RULE, not just its kind - the hours a
+      // schedule runs, the minutes a budget allows. A label reading only "On a
+      // schedule" would make the user open the editor to find out which
+      // schedule, which is a row that knows the answer and will not say it.
       var modeEl = null;
       if (rec.mode !== "session") {
         modeEl = document.createElement("span");
         modeEl.className = "focus-block-mode";
-        modeEl.textContent = (rec.mode === "budget")
-          ? t("focusblock_mode_budget")
-          : t("focusblock_mode_schedule");
+        modeEl.textContent = focusRuleSummary(rec);
+        modeEl.title = focusRuleSummary(rec);
       }
+
+      // [WM.3] THE INERT NOTICE. A budget on a workspace with tracking off is
+      // spent in minutes nothing is measuring, so it can never be reached. The
+      // reader already refuses it; this is the row saying so, because an entry
+      // that looks armed and cannot fire is the [1.1.4] preview-ghost as a data
+      // state - and the user is the only one who can fix it.
+      var inertEl = null;
+      if (rec.mode === "budget" && !Storage.isTrackingEnabled(Storage.getActiveWorkspace(data))) {
+        inertEl = document.createElement("span");
+        inertEl.className = "focus-block-inert";
+        inertEl.textContent = t("focusblock_budget_inert");
+        inertEl.title = t("focusblock_budget_needs_tracking");
+      }
+
+      var rules = document.createElement("button");
+      rules.type = "button";
+      rules.className = "focus-block-rules";
+      rules.textContent = t("focusblock_rules");
+      rules.title = t("focusblock_rules_for_site", { site: entry });
+      rules.setAttribute("aria-label", t("focusblock_rules_for_site", { site: entry }));
+      rules.addEventListener("click", function () { openFocusRuleModal(rec); });
 
       var remove = document.createElement("button");
       remove.type = "button";
@@ -10289,9 +10462,25 @@
         }
       });
 
+      // THE RULE GETS ITS OWN LINE, AND THE FRAME IS WHY. With the summary and
+      // the notice inline, the row ran out of width and .focus-block-domain -
+      // which is flex:1 with an ellipsis - was the thing that gave: the host
+      // rendered as "a.ex...", and on the budget row it was pushed off
+      // altogether. The HOST IS THE RULE'S IDENTITY and it was the first thing
+      // sacrificed to describing it.
+      //
+      // A SESSION ROW IS UNCHANGED. The second line exists only when there is a
+      // rule to put on it, so the default entry looks exactly as it did.
       li.appendChild(name);
-      if (modeEl) li.appendChild(modeEl);
+      li.appendChild(rules);
       li.appendChild(remove);
+      if (modeEl || inertEl) {
+        var ruleLine = document.createElement("div");
+        ruleLine.className = "focus-block-ruleline";
+        if (modeEl) ruleLine.appendChild(modeEl);
+        if (inertEl) ruleLine.appendChild(inertEl);
+        li.appendChild(ruleLine);
+      }
       listHost.appendChild(li);
     });
 

@@ -3831,8 +3831,8 @@ I18n.register("en", {
       "message": "No bookmark folders with bookmarks found."
     },
     "gate_blocking_domain": {
-      "description": "Footnote on the gate page naming the site that was intercepted. {domain} is the bare host the user typed into the block list.",
-      "message": "Blocking {domain} and its subdomains while focus is on."
+      "description": "Footnote on the gate page naming the site that was intercepted and the fact that the rule covers its subdomains. {domain} is the bare host the user typed into the block list. [WM.3] It read 'while focus is on', which became false the moment a schedule or a budget could be the reason - seen on a budget gate frame, directly under a line that had just said the budget was spent. The REASON LINE says when; this says what the rule covers, which is the part it alone knows.",
+      "message": "Blocking {domain} and its subdomains."
     },
     "gate_end_focus_session": {
       "description": "End-control label on the blocking gate page when a focus session IS running. SENSE OF 'SESSION': a focus interval, not a saved set of tabs. Counterpart of gate_turn_off_focus.",
@@ -4387,5 +4387,111 @@ I18n.register("en", {
       "description": "Row label in Pro Settings for a blocked site governed by a DAILY BUDGET. Same rendering rule as focusblock_mode_schedule.",
       "message": "Daily budget",
       "sense": "label.state"
+    }
+  });
+
+// =========================================================================
+// [WM.3] SCHEDULES AND BUDGETS
+//
+// THE TWO RULES ARE NAMED BY WHAT THEY DO TO THE USER'S DAY, not by their
+// mechanism: "On a schedule" and "Daily budget", never "time window" or
+// "quota". A person setting one is deciding when they want to be stopped and
+// how long they are willing to spend, and the words are theirs.
+//
+// E1'S REQUIREMENT LIVES HERE TOO. A budget is spent in measured minutes, so
+// it needs tracking on for that workspace - and the copy says it where the
+// user SETS one, as a requirement rather than as an error, because at that
+// moment it is something they can still act on.
+// =========================================================================
+I18n.register("en", {
+    "focusblock_rules": {
+      "description": "Per-row button in Pro Settings that opens the blocking rules for that site. One word, because the row is already narrow and the site name beside it supplies the subject.",
+      "message": "Rules",
+      "sense": "action.button"
+    },
+    "focusblock_rules_for_site": {
+      "description": "Accessible name and title of the Rules button, and the title of the dialog it opens. {site} is the normalised host.",
+      "message": "Blocking rules for {site}",
+      "sense": "a11y.label.action"
+    },
+    "focusblock_mode_label": {
+      "description": "Label on the mode picker in the rules dialog. Asks WHEN, which is the actual question - all three modes block the same site.",
+      "message": "When to block",
+      "sense": "label.field"
+    },
+    "focusblock_mode_session": {
+      "description": "The default mode: block this site while a focus session runs or blocking is armed by hand. Named in the rules dialog and never on a row, where it would repeat the section heading.",
+      "message": "During focus sessions",
+      "sense": "action.toggle"
+    },
+    "focusblock_days": {
+      "description": "Label over the day-of-week toggles in the rules dialog. Reuses the recurring-task editor's control family.",
+      "message": "Days",
+      "sense": "label.field"
+    },
+    "focusblock_from": {
+      "description": "Label on the window start time in the rules dialog.",
+      "message": "From",
+      "sense": "label.field"
+    },
+    "focusblock_to": {
+      "description": "Label on the window end time in the rules dialog.",
+      "message": "To",
+      "sense": "label.field"
+    },
+    "focusblock_limit": {
+      "description": "Label on the daily budget input, in whole minutes.",
+      "message": "Minutes per day",
+      "sense": "label.field"
+    },
+    "focusblock_overnight_note": {
+      "description": "Shown under the time fields ONLY when the end time is earlier than the start - the one thing about a window a user cannot see from two time fields. Explains rather than warns: an overnight window is a normal thing to want.",
+      "message": "Ends before it starts, so this window runs overnight.",
+      "sense": "note.explanation"
+    },
+    "focusblock_budget_needs_tracking": {
+      "description": "E1's requirement, shown where the user sets a budget. Stated as what the budget needs rather than as what is wrong, because at this moment it is still something they can act on.",
+      "message": "A daily budget is spent in measured minutes, so it needs tracking on for this workspace.",
+      "sense": "note.explanation"
+    },
+    "focusblock_budget_inert": {
+      "description": "Shown on a budget ROW, and again in the dialog, when tracking is off for the current workspace. The entry can never be reached, and an entry that looks armed and cannot fire is the preview-ghost as a data state - so the row says so rather than looking live.",
+      "message": "Tracking is off here, so this never fires.",
+      "sense": "note.warning"
+    },
+    "focusblock_summary_budget": {
+      "description": "A budget row's summary. {minutes} is the whole-minute limit. Compact because it sits inline on a row beside the site name.",
+      "message": "{minutes} min/day",
+      "sense": "label.state"
+    },
+    "focusblock_schedule_none": {
+      "description": "Summary for a schedule entry that carries no usable window. Not reachable through the editor, which refuses to save one; it exists for a record edited elsewhere.",
+      "message": "No hours set",
+      "sense": "label.state"
+    },
+    "focusblock_budget_none": {
+      "description": "Summary for a budget entry with no usable limit. Same reachability as focusblock_schedule_none.",
+      "message": "No limit set",
+      "sense": "label.state"
+    },
+    "focusblock_schedule_needs_days": {
+      "description": "Refusal in the rules dialog when no day is ticked. A window on no days is not a window.",
+      "message": "Pick at least one day.",
+      "sense": "error.validation"
+    },
+    "focusblock_schedule_bad_time": {
+      "description": "Refusal when the start and end times are the same, or one is unreadable. Equal times are rejected rather than silently meaning all day or nothing.",
+      "message": "Start and end must be different times.",
+      "sense": "error.validation"
+    },
+    "focusblock_budget_bad_limit": {
+      "description": "Refusal when the daily limit is outside 1 to 1440 minutes. 1440 is a whole day, past which a budget can never be reached.",
+      "message": "Minutes must be between 1 and 1440.",
+      "sense": "error.validation"
+    },
+    "focusblock_rule_save_failed": {
+      "description": "Shown in the rules dialog when the write itself failed, so the dialog stays open with the user's input intact rather than closing on a change that did not land.",
+      "message": "Could not save the rule.",
+      "sense": "error.write"
     }
   });

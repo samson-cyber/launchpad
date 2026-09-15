@@ -16041,6 +16041,9 @@ html.bg-light .import-option {
 
 .focus-block-row {
   display: flex;
+  /* [WM.3] WRAPPING IS WHAT LETS THE RULE LINE LAND. Without it the second
+     line stays on the first and the host name is squeezed again. */
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-1-5);
@@ -16064,6 +16067,112 @@ html.bg-light .import-option {
 html.has-bg .focus-block-domain { color: var(--ink-primary); }
 html.has-bg.bg-light .focus-block-domain { color: var(--text-primary); }
 
+/* [WM.3] The second line. It carries what the rule IS, so it gets the row's
+   full width rather than competing with the host name for it - and it exists
+   only on rows that have a rule, so a session entry is byte-identical to what
+   it was. */
+.focus-block-ruleline {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1-5);
+  flex-wrap: wrap;
+  margin-block-start: 2px;
+}
+
+.focus-block-ruleline .focus-block-mode,
+.focus-block-ruleline .focus-block-inert {
+  margin-inline-start: 0;
+}
+
+/* [WM.3] The per-row Rules button and the inert notice.
+ *
+ * THREE RULES EACH, which is WM.2's lesson paid forward: the base colour is a
+ * --text-* token because with no wallpaper this panel is LIGHT, html.has-bg
+ * takes the --ink-* token for dark frost, and html.has-bg.bg-light comes back
+ * to --text-*. WM.2 shipped this label with two rules and it rendered white on
+ * white - zero changed pixels - on the one ground a fresh install is in. */
+.focus-block-rules {
+  flex: 0 0 auto;
+  margin-inline-start: var(--space-1-5);
+  padding: 1px var(--space-1-5);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius:var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: var(--fs-10);
+  line-height: 1.6;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+html.has-bg .focus-block-rules {
+  color: var(--ink-secondary);
+  border-color: var(--surface-line);
+}
+
+html.has-bg.bg-light .focus-block-rules {
+  color: var(--text-secondary);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.focus-block-rules:hover { border-color: var(--pro-ink-accent); }
+html.has-bg.bg-light .focus-block-rules:hover { border-color: #1e6fc9; }
+
+/* The inert notice. AMBER RATHER THAN RED: nothing is broken and nothing was
+   lost - a setting simply cannot take effect, and the user can fix it. */
+.focus-block-inert {
+  flex: 0 0 auto;
+  margin-inline-start: var(--space-1-5);
+  font-size: var(--fs-9);
+  line-height: 1.5;
+  color: #8a6100;
+  white-space: nowrap;
+}
+
+html.has-bg .focus-block-inert { color: var(--sat-amber, #f1c40f); }
+html.has-bg.bg-light .focus-block-inert { color: #8a6100; }
+
+/* Notes inside the rules dialog. The dialog is the floater tier, dark frost,
+   with a white-tinted variant on a light wallpaper - so these follow
+   .tt-modal-label's chain rather than the panel's. */
+.fb-note {
+  margin: var(--space-1-5) 0 0;
+  font-size: var(--fs-10);
+  line-height: 1.5;
+  color: var(--ink-meta);
+}
+
+.fb-note-warn { color: var(--sat-amber, #f1c40f); }
+
+html.has-bg.bg-light .fb-note { color: rgba(0, 0, 0, 0.62); }
+/* MEASURED AT 4.39:1 AT #8a6100 - under the floor, and only on this ground,
+   because the light-wallpaper floater is white-tinted rather than white and an
+   amber that clears 4.5 on paper does not clear it here. Darkened until it
+   measured, which is the only way to know. */
+html.has-bg.bg-light .fb-note-warn { color: #6b4a00; }
+
+/* FLEX-DIRECTION MUST BE SAID. .tt-modal-row is a COLUMN, so re-declaring only
+   display:flex changed nothing and the align-items:center beside it centred the
+   labels horizontally instead of aligning them to their inputs - From and To
+   stacked down the middle of the dialog looking like a mistake, which in the
+   frame is exactly what it looked like. */
+.fb-times-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.fb-times-row .tt-modal-label { flex: 0 0 auto; }
+.fb-times-row input[type="time"] { flex: 0 1 auto; }
+
+.fb-limit {
+  width: 7em;
+}
+
 /* [WM.2] The per-entry mode label. Present only on rows whose mode is not the
    default - see renderFocusBlockingSection - so it is never furniture.
 
@@ -16081,7 +16190,10 @@ html.has-bg.bg-light .focus-block-domain { color: var(--text-primary); }
        html.has-bg.bg-light           -> light frost,    so --text-* ink again
 */
 .focus-block-mode {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin-inline-start: var(--space-1-5);
   padding: 1px var(--space-1-5);
   border: 1px solid rgba(0, 0, 0, 0.15);

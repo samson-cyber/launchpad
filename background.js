@@ -2042,6 +2042,112 @@ var FOCUS_GATE_PAGE = "gate.html";
 // billing origin. Subdomains included.
 var FOCUS_NEVER_HOSTS = ["mylaunchpad.me", "live.dodopayments.com"];
 
+// ===== [WM.3] TODAY'S BUDGET FIGURES, AND WHY THEY ARE CACHED =====
+//
+// A budget entry blocks once a domain's focused time today reaches its limit.
+// That time lives in `tracking_days`; the intercept reads `data`. MEASURED in
+// this worker against a 60-day, 2-workspace, 40-domain store (148 KB, 40 warmed
+// runs): get("data") is 0.30 ms median and get(["data","tracking_days"]) is
+// 3.70 ms - twelve times the whole existing read, on EVERY http navigation
+// rather than only blocked ones, and it grows with history. So the figures are
+// derived once per rollup into a small key instead of re-read per navigation.
+//
+// SMALL BY CONSTRUCTION: budget hosts only, today only. A profile with no
+// budget entry stores an empty record and pays nothing.
+//
+// THE DAY IS PART OF THE RECORD, not a timer. A record from yesterday reads as
+// zero for every host (Storage.budgetUsedMs), so a budget resets when the local
+// day does and no alarm is needed to reset it.
+//
+// STALENESS IS BOUNDED AND POINTS THE PERMISSIVE WAY. The rollup runs on every
+// tab switch, domain change, window focus change and idle transition, and the
+// refresh rides its write - so the figures are at most one rollup behind, and
+// while they are behind they UNDER-report. A budget therefore fires a moment
+// late rather than a moment early, which is the right direction to be wrong
+// about stopping someone browsing.
+var FOCUS_BUDGET_KEY = "focus_budget_today";
+
+// Sum every tracked domain that MATCHES the entry, not just the exact host: the
+// block list matches subdomains, so m.youtube.com spends youtube.com's budget.
+// The same matcher the decision uses, so the two cannot disagree about what
+// counts.
+function focusBudgetSumFor(byDomain, host) {
+  var total = 0;
+  Object.keys(byDomain || {}).forEach(function (dom) {
+    if (Storage.matchesBlockedDomain(dom, [host])) total += byDomain[dom] || 0;
+  });
+  return total;
+}
+
+var _budgetRefreshing = null;
+var _budgetDirty = false;
+function refreshBudgetToday() {
+  // Coalesced: the rollup can write several times in a burst and one refresh
+  // covers them. Never awaited by the navigation path.
+  //
+  // AND A CHANGE THAT ARRIVES MID-FLIGHT IS REMEMBERED, NOT SWALLOWED. The
+  // first version just returned the in-flight promise, which is right only if
+  // the running pass will see the later write - and it will not, because it
+  // already took its snapshot. Found in a frame run: setting a budget and then
+  // writing the day aggregate in the same tick left the figures empty and the
+  // page did not gate. One more pass costs a read; dropping a change costs a
+  // rule that silently does not fire.
+  if (_budgetRefreshing) { _budgetDirty = true; return _budgetRefreshing; }
+  _budgetRefreshing = (async function () {
+    try {
+      var got = await chrome.storage.local.get(["data", "tracking_days"]);
+      var data = got && got.data;
+      if (!data) return;
+      var hosts = Storage.budgetHosts(data);
+      var dayKey = Storage.localDayKey();
+      var rec = { day: dayKey, byWorkspace: {} };
+      if (hosts.length) {
+        var days = got.tracking_days || {};
+        (data.workspaces || []).forEach(function (ws) {
+          var agg = days[ws.id + ":" + dayKey];
+          if (!agg || !agg.byDomain) return;
+          var bucket = {};
+          var any = false;
+          hosts.forEach(function (h) {
+            var ms = focusBudgetSumFor(agg.byDomain, h);
+            if (ms > 0) { bucket[h] = ms; any = true; }
+          });
+          if (any) rec.byWorkspace[ws.id] = bucket;
+        });
+      }
+      var prev = (await chrome.storage.local.get(FOCUS_BUDGET_KEY))[FOCUS_BUDGET_KEY];
+      // No-op guard: an unchanged record must not write, or the onChanged that
+      // triggered this could be answered by one that triggers it again.
+      if (prev && JSON.stringify(prev) === JSON.stringify(rec)) return;
+      var patch = {};
+      patch[FOCUS_BUDGET_KEY] = rec;
+      await chrome.storage.local.set(patch);
+    } catch (e) {
+      console.error("[LaunchPad] budget figures: refresh failed", e);
+    } finally {
+      _budgetRefreshing = null;
+      if (_budgetDirty) { _budgetDirty = false; refreshBudgetToday(); }
+    }
+  })();
+  return _budgetRefreshing;
+}
+
+// ONE HOOK, ON THE SOURCE, so it cannot be forgotten. tracking_days is written
+// by the rollup and `data` carries the entries and their limits; a change to
+// either can change an answer. Writing FOCUS_BUDGET_KEY changes neither, so
+// this cannot re-trigger itself.
+chrome.storage.onChanged.addListener(function (changes, areaName) {
+  if (areaName && areaName !== "local") return;
+  if (!changes.tracking_days && !changes.data) return;
+  refreshBudgetToday();
+});
+refreshBudgetToday();
+
+async function focusReadContext() {
+  var got = await chrome.storage.local.get(FOCUS_BUDGET_KEY);
+  return { budgetToday: got && got[FOCUS_BUDGET_KEY] };
+}
+
 // [2026-09-09] DELEGATES, and the comment that stood here is worth keeping in
 // mind rather than deleting. It read: "Duplicated deliberately: that helper
 // lives in the page and is not exported from pro-access.js, and a one-line
@@ -2104,14 +2210,14 @@ function focusInterceptCandidateHost(rawUrl) {
 // policy question is asked. It therefore still wins over every entry mode by
 // construction rather than by a check the reader has to remember, and it stays
 // exactly where it is, unchanged, with its two mutation seeds untouched.
-function focusInterceptMatch(data, host) {
+function focusInterceptMatch(data, host, ctx) {
   if (!data || !host) return null;
-  return Storage.blockingMatchFor(data, host);
+  return Storage.blockingMatchFor(data, host, undefined, ctx);
 }
 
 // The entry-only shape the transport and the harness have always used.
-function focusInterceptDecision(data, host) {
-  var match = focusInterceptMatch(data, host);
+function focusInterceptDecision(data, host, ctx) {
+  var match = focusInterceptMatch(data, host, ctx);
   return match ? match.entry : null;
 }
 self.focusInterceptMatch = focusInterceptMatch;
@@ -2150,9 +2256,14 @@ function focusHandleNavigation(tabId, url) {
   var host = focusInterceptCandidateHost(url);
   if (!host) return;
 
-  chrome.storage.local.get("data").then(function (got) {
+  // [WM.3] TWO KEYS, ONE CALL, AND THE SECOND ONE IS TINY. The budget figures
+  // are the derived record, not tracking_days - see refreshBudgetToday for the
+  // measurement that decided it. Reading them here keeps the decision in one
+  // place and keeps this path at one storage round trip, as it has always been.
+  chrome.storage.local.get(["data", FOCUS_BUDGET_KEY]).then(function (got) {
     var data = got && got.data;
-    var match = focusInterceptMatch(data, host);
+    var ctx = { budgetToday: got && got[FOCUS_BUDGET_KEY] };
+    var match = focusInterceptMatch(data, host, ctx);
     if (!match) return;
     var entry = match.entry;
 
@@ -2242,8 +2353,15 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     // with an arbitrary ?entry=, so the page sends what it was given and the
     // WORKER decides; a page that could assert its own reason could assert one
     // that is not true.
-    Storage.getAll().then(function (data) {
-      var reason = Storage.blockingReasonFor(data, String(msg.entry || ""));
+    // [WM.3] RAW `data`, NOT Storage.getAll() - see I28. getAll runs the ensure*
+    // sweeps and writes back when one seeds a field; the gate page now re-asks
+    // this on every storage change, so an answer that can write is an answer
+    // that can ask itself again. The intercept has always read raw for this
+    // decision and this now matches it.
+    chrome.storage.local.get(["data", FOCUS_BUDGET_KEY]).then(function (got) {
+      var data = (got && got.data) || {};
+      var reason = Storage.blockingReasonFor(data, String(msg.entry || ""), undefined,
+        { budgetToday: got && got[FOCUS_BUDGET_KEY] });
       var active = Storage.getActiveTask(data);
       var ps = active ? Storage.hydratePomodoroState(active.pomodoroState) : null;
       var running = !!(ps && ps.phase === "work" && !Storage.isTrackingPaused(data));
@@ -2294,7 +2412,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
       // duplicate their guards, which is the worse trade. Not on the hot path.
       // [WM.2] The reason is re-read here rather than sent by the page, for the
       // same reason the gate state is: the page must not be able to assert it.
-      var snoozeReason = Storage.blockingReasonFor(data, String(msg.entry || ""));
+      var snoozeReason = Storage.blockingReasonFor(data, String(msg.entry || ""), undefined, await focusReadContext());
       await Storage.setFocusSnooze(data, msg.entry, Date.now() + Storage.FOCUS_SNOOZE_MS);
       await Storage.incrementFocusStat(data, "snoozed", undefined, snoozeReason || "session");
     }).then(function () { sendResponse({ ok: true }); });

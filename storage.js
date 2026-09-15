@@ -1486,37 +1486,94 @@ var Storage = (function () {
     // silently spend or restore it - so the doomscroll case still works in a
     // Casual workspace. WM.3's branch here must NOT consult the workspace.
     //
-    // Both return false until WM.3 builds them. Writing the rulings here rather
-    // than in a plan is the point of building the shape a round early: WM.3
-    // adds a condition to each line below and re-decides neither.
-    if (mode === "schedule") return false;
-    if (mode === "budget") return false;
+    // [WM.3] FILLED, AND NEITHER RULING RE-DECIDED.
+    //
+    // SCHEDULE is mode-governed and follows the CURRENT workspace. This is the
+    // whole of the mode question for schedules; WHICH hosts and WHEN is per
+    // entry, below in blockingEntryHolds. A Casual workspace runs none of it.
+    if (mode === "schedule") {
+      return getWorkspaceMode(getActiveWorkspace(data)) === "work";
+    }
+
+    // BUDGET sits OUTSIDE mode, so this branch does not consult the workspace's
+    // mode at all and that absence is the ruling being kept - the doomscroll
+    // case in a Casual workspace still works.
+    //
+    // IT DOES CONSULT WHETHER THE WORKSPACE IS TRACKED, which is a different
+    // question and is E1's: a budget is spent in measured minutes, and a
+    // workspace with tracking off measures none, so the limit can never be
+    // reached. Returning true here would leave an entry that looks armed and can
+    // never fire - the [1.1.4] preview-ghost as a data state. Settings shows
+    // such an entry as inert and says why.
+    if (mode === "budget") {
+      return isTrackingEnabled(getActiveWorkspace(data));
+    }
     return false;
   }
 
-  /** The decision, with the matched entry. Returns {reason, entry} or null. */
-  function blockingMatchFor(data, host, nowMs) {
+  // [WM.3] THE PER-ENTRY HALF. blockingReasonActive answers "is this REASON live
+  // at all", which for session is the whole question and for the other two is
+  // only the mode gate - a schedule holds inside ITS window and a budget holds
+  // once ITS limit is met. WM.2 could not see this split because both branches
+  // returned false, and the shape it left assumed liveness was host-independent.
+  function blockingEntryHolds(data, entry, ctx, nowMs) {
+    if (!entry) return false;
+    if (entry.mode === "session") return true;
+    if (entry.mode === "schedule") return entryScheduleHolds(entry, nowMs);
+    if (entry.mode === "budget") {
+      var limit = getEntryBudgetMin(entry);
+      if (limit === null) return false;
+      var used = budgetUsedMs(ctx, (data && data.activeWorkspaceId) || null, entry.host, nowMs);
+      if (used === null) return false;      // not told; see budgetUsedMs
+      return used >= limit * 60000;
+    }
+    return false;
+  }
+
+  /** The decision, with the matched entry. Returns {reason, entry} or null.
+   *  `ctx` carries anything the decision needs that is not in `data` - today
+   *  only {budgetToday}. See budgetUsedMs for why it is an argument. */
+  function blockingMatchFor(data, host, nowMs, ctx) {
     if (!data || typeof host !== "string" || !host) return null;
     if (!blockingProActive(data)) return null;
+    var now = (typeof nowMs === "number" && isFinite(nowMs)) ? nowMs : Date.now();
+    var entries = getBlockEntries(data);
     for (var i = 0; i < BLOCKING_REASON_ORDER.length; i++) {
       var mode = BLOCKING_REASON_ORDER[i];
-      if (!blockingReasonActive(data, mode, nowMs)) continue;
-      var entry = matchesBlockedDomain(host, blockHostsForMode(data, mode));
-      if (!entry) continue;
-      // The snooze is keyed by ENTRY and therefore spans reasons: five more
-      // minutes on youtube.com is five more minutes on youtube.com, whichever
-      // rule stopped you. `continue` rather than `return null` so a host listed
-      // twice under two reasons can still be held by the un-snoozed one.
-      if (getActiveFocusSnooze(data, entry, nowMs)) continue;
-      return { reason: mode, entry: entry };
+      if (!blockingReasonActive(data, mode, now)) continue;
+      // [WM.3] PER ENTRY, not per mode. WM.2 matched the host against every
+      // host in the mode and then asked one question about the mode; a schedule
+      // and a budget are decided by the ENTRY's own window and the ENTRY's own
+      // limit, so the match and the test have to happen together.
+      for (var j = 0; j < entries.length; j++) {
+        if (entries[j].mode !== mode) continue;
+        var entry = matchesBlockedDomain(host, [entries[j].host]);
+        if (!entry) continue;
+        if (!blockingEntryHolds(data, entries[j], ctx, now)) continue;
+        // The snooze is keyed by ENTRY and therefore spans reasons: five more
+        // minutes on youtube.com is five more minutes on youtube.com, whichever
+        // rule stopped you. `continue` rather than `return null` so a host listed
+        // twice under two reasons can still be held by the un-snoozed one.
+        if (getActiveFocusSnooze(data, entry, now)) continue;
+        return { reason: mode, entry: entry };
+      }
     }
     return null;
   }
 
   /** "session" | "budget" | "schedule" | null. The PLAN decision D contract. */
-  function blockingReasonFor(data, host, nowMs) {
-    var m = blockingMatchFor(data, host, nowMs);
+  function blockingReasonFor(data, host, nowMs, ctx) {
+    var m = blockingMatchFor(data, host, nowMs, ctx);
     return m ? m.reason : null;
+  }
+
+  // [WM.3] The budget hosts the worker has to keep figures for, and the window
+  // summary Settings renders. Both here so the cache builder and the surface
+  // read the list the decider reads.
+  function budgetHosts(data) {
+    return getBlockEntries(data)
+      .filter(function (e) { return e.mode === "budget" && getEntryBudgetMin(e) !== null; })
+      .map(function (e) { return e.host; });
   }
 
   // C3 — normalize a user-typed entry to a bare lowercase host. Returns null for
@@ -1593,6 +1650,41 @@ var Storage = (function () {
 
   // Defaulting reader. Returns a COPY so a caller cannot mutate stored state by
   // accident (the list is small; the intercept's cost is the storage read, not this).
+  // [WM.3] Both writers go through the same index-by-host lookup the mode writer
+  // uses, and both SET THE MODE TOO - a schedule entry without mode "schedule"
+  // would be a window nothing reads. One call, one consistent record.
+  async function setBlockedDomainSchedule(data, raw, windows) {
+    if (!data) return false;
+    var host = normalizeBlockEntry(raw) || (typeof raw === "string" ? raw : null);
+    if (!host) return false;
+    var list = ensureBlockList(data);
+    var i = findBlockEntryIndex(data, host);
+    if (i === -1) return false;
+    var clean = [];
+    (Array.isArray(windows) ? windows : []).forEach(function (w) {
+      var n = normalizeScheduleWindow(w);
+      if (n) clean.push(n);
+    });
+    if (!clean.length) return false;          // nothing valid: leave the entry alone
+    list[i] = { host: host, mode: "schedule", windows: clean };
+    await saveAll(data);
+    return true;
+  }
+
+  async function setBlockedDomainBudget(data, raw, limitMin) {
+    if (!data) return false;
+    var host = normalizeBlockEntry(raw) || (typeof raw === "string" ? raw : null);
+    if (!host) return false;
+    var list = ensureBlockList(data);
+    var i = findBlockEntryIndex(data, host);
+    if (i === -1) return false;
+    var lim = getEntryBudgetMin({ limitMin: limitMin });
+    if (lim === null) return false;
+    list[i] = { host: host, mode: "budget", limitMin: lim };
+    await saveAll(data);
+    return true;
+  }
+
   // ===== [WM.2] PER-ENTRY MODE =====
   //
   // Until this round every blockList element was a BARE STRING and every rule
@@ -1635,12 +1727,27 @@ var Storage = (function () {
   }
 
   /** Normalised view of the list: [{host, mode}], malformed elements dropped. */
+  // [WM.3] IT CARRIES THE MODE'S OWN FIELDS THROUGH. WM.2 emitted {host, mode}
+  // and nothing else, which was complete while every entry meant the same thing
+  // - and silently wrong the moment an entry carried a window or a limit,
+  // because the decider reads THIS and would have seen a schedule with no hours
+  // and a budget with no limit. Nine rows of the suite went red on it, all of
+  // them a should-gate case, which is the signature of an input never arriving
+  // rather than of a condition being wrong.
+  //
+  // Each field is normalised HERE rather than trusted, so the decider never has
+  // to validate and a malformed window is already gone by the time it is asked.
   function getBlockEntries(data) {
     var raw = (data && Array.isArray(data.blockList)) ? data.blockList : [];
     var out = [];
     for (var i = 0; i < raw.length; i++) {
       var host = blockEntryHost(raw[i]);
-      if (host) out.push({ host: host, mode: blockEntryMode(raw[i]) });
+      if (!host) continue;
+      var mode = blockEntryMode(raw[i]);
+      var rec = { host: host, mode: mode };
+      if (mode === "schedule") rec.windows = getEntryWindows(raw[i]);
+      if (mode === "budget") rec.limitMin = getEntryBudgetMin(raw[i]);
+      out.push(rec);
     }
     return out;
   }
@@ -1653,23 +1760,168 @@ var Storage = (function () {
     return getBlockEntries(data).map(function (e) { return e.host; });
   }
 
-  /** Hosts carrying one mode. The reader's input; not exported on its own. */
-  function blockHostsForMode(data, mode) {
-    var want = coerceBlockEntryMode(mode);
-    var out = [];
-    var entries = getBlockEntries(data);
-    for (var i = 0; i < entries.length; i++) {
-      if (entries[i].mode === want) out.push(entries[i].host);
-    }
-    return out;
-  }
-
   function findBlockEntryIndex(data, host) {
     var raw = (data && Array.isArray(data.blockList)) ? data.blockList : [];
     for (var i = 0; i < raw.length; i++) {
       if (blockEntryHost(raw[i]) === host) return i;
     }
     return -1;
+  }
+
+  // ===== [WM.3] WHAT A SCHEDULE AND A BUDGET ARE =====
+  //
+  // SCHEDULE: `windows`, an ARRAY of {days, start, end}. The editor ships ONE
+  // row and the reader handles N, which is deliberate - a second window is then
+  // an editor change and never a data migration. An entry is one host and the
+  // list dedupes by host, so without the array a user wanting 09:00-12:00 and
+  // 14:00-17:00 on one site could never express it and the fix would have been
+  // a stored-shape change in a later round.
+  //
+  // BUDGET: `limitMin`, whole minutes per day.
+  //
+  // Both live on the same {host, mode, ...} record, so an entry carries exactly
+  // the fields its mode uses and nothing else.
+  var SCHEDULE_DEFAULT_WINDOW = { days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00" };
+  var BUDGET_DEFAULT_MIN = 30;
+  var BUDGET_MAX_MIN = 24 * 60;
+
+  // ===== [WM.3] THE DAY, AND WHY IT IS NOT THE RECURRING SWEEP'S =====
+  //
+  // I28 says a second implementation of the day drifts, so this reuses one - but
+  // the codebase has TWO and they are not interchangeable, so which one is a
+  // decision rather than a lookup.
+  //
+  //   THE RECURRING SWEEP does date-only arithmetic at UTC midnight and reads
+  //   its weekday with getUTCDay (nextRecurrenceUTC). That is right for "which
+  //   calendar date does this recur on" and WRONG here: a schedule window is a
+  //   local wall-clock question, and a user at UTC+8 would be on the previous
+  //   weekday for the first eight hours of every day.
+  //
+  //   THE ENGINE'S DAY is localDayKey -> achDayKey, built on getFullYear /
+  //   getMonth / getDate, and tools/check-today-cockpit.mjs already asserts it
+  //   is byte-identical to Tracking._localDayKey rather than assuming it. That
+  //   is the boundary the day aggregates a budget reads are keyed by, so a
+  //   budget that reset on any other boundary would disagree with its own data.
+  //
+  // So BOTH use the engine's day: the budget through localDayKey directly, the
+  // schedule through localWeekDay below, which is the same local calendar the
+  // day key is cut from.
+  function localWeekDay(ts) {
+    return new Date(ts == null ? Date.now() : ts).getDay();   // 0 = Sunday
+  }
+
+  function localMinuteOfDay(ts) {
+    var dt = new Date(ts == null ? Date.now() : ts);
+    return dt.getHours() * 60 + dt.getMinutes();
+  }
+
+  /** "HH:MM" -> minutes past local midnight, or null. */
+  function parseClockMinutes(s) {
+    if (typeof s !== "string") return null;
+    var m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(s.trim());
+    if (!m) return null;
+    return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+  }
+
+  function clockFromMinutes(mins) {
+    var m = ((mins % 1440) + 1440) % 1440;
+    return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+  }
+
+  /** A window normalises or it is dropped. Never throws, never half-valid. */
+  function normalizeScheduleWindow(w) {
+    if (!w || typeof w !== "object") return null;
+    var start = parseClockMinutes(w.start);
+    var end = parseClockMinutes(w.end);
+    if (start === null || end === null) return null;
+    if (start === end) return null;          // zero-length, or a full 24h written as 00:00-00:00
+    var days = [];
+    var seen = {};
+    (Array.isArray(w.days) ? w.days : []).forEach(function (v) {
+      var n = (typeof v === "number" && isFinite(v)) ? Math.floor(v) : -1;
+      if (n >= 0 && n <= 6 && !seen[n]) { seen[n] = true; days.push(n); }
+    });
+    if (!days.length) return null;           // a window on no day is not a window
+    days.sort();
+    return { days: days, start: clockFromMinutes(start), end: clockFromMinutes(end) };
+  }
+
+  function getEntryWindows(entry) {
+    var raw = (entry && Array.isArray(entry.windows)) ? entry.windows : [];
+    var out = [];
+    for (var i = 0; i < raw.length; i++) {
+      var w = normalizeScheduleWindow(raw[i]);
+      if (w) out.push(w);
+    }
+    return out;
+  }
+
+  // OVERNIGHT IS start > end, AND THE DAY SET IS THE DAY THE WINDOW OPENS.
+  // "Mon 22:00-02:00" covers Monday 22:00 through Tuesday 02:00, which is how a
+  // person reads it - they are describing Monday night, not Tuesday morning. So
+  // the wrapped half is tested against YESTERDAY's weekday, never today's.
+  function scheduleWindowHolds(win, nowMs) {
+    if (!win) return false;
+    var start = parseClockMinutes(win.start);
+    var end = parseClockMinutes(win.end);
+    if (start === null || end === null) return false;
+    var mins = localMinuteOfDay(nowMs);
+    var today = localWeekDay(nowMs);
+    if (start < end) {
+      return win.days.indexOf(today) !== -1 && mins >= start && mins < end;
+    }
+    // Wrapped. Either it is late on a listed day, or early on the day after one.
+    var yesterday = (today + 6) % 7;
+    if (win.days.indexOf(today) !== -1 && mins >= start) return true;
+    if (win.days.indexOf(yesterday) !== -1 && mins < end) return true;
+    return false;
+  }
+
+  function entryScheduleHolds(entry, nowMs) {
+    var wins = getEntryWindows(entry);
+    for (var i = 0; i < wins.length; i++) {
+      if (scheduleWindowHolds(wins[i], nowMs)) return true;
+    }
+    return false;
+  }
+
+  function getEntryBudgetMin(entry) {
+    var v = entry && entry.limitMin;
+    if (typeof v !== "number" || !isFinite(v) || v <= 0) return null;
+    return Math.min(BUDGET_MAX_MIN, Math.floor(v));
+  }
+
+  // ===== [WM.3] TODAY'S FIGURES, AND WHY THEY ARRIVE AS AN ARGUMENT =====
+  //
+  // A budget compares a domain's focused time today against a limit. That figure
+  // lives in `tracking_days`, a different top-level key from `data`, and this
+  // reader is synchronous and pure over `data` because every surface calls it.
+  //
+  // MEASURED, ON THE NAVIGATION PATH, IN THE WORKER (60 days x 2 workspaces x 40
+  // domains, 148 KB, 40 warmed runs): the intercept's existing get("data") runs
+  // at 0.30 ms median. Adding tracking_days to that same call costs 3.70 ms -
+  // TWELVE TIMES the whole existing read, on EVERY http navigation rather than
+  // only blocked ones, and it grows with history. Tracking.byDomainForScope, the
+  // windowed aggregating reader, costs the same 3.5 ms and does far more work
+  // than "one domain, one workspace, today".
+  //
+  // So the worker keeps a small derived record - budget hosts only, today only -
+  // and the reader takes it as `ctx.budgetToday`. See background.js.
+  //
+  // A CALLER THAT DOES NOT SUPPLY IT CANNOT GET A BUDGET ANSWER, and must not
+  // pretend to: budgetUsedMs returns null for "I was not told", which the branch
+  // below treats as "does not hold" rather than as zero. Zero would be a lie in
+  // the dangerous direction - it would report a budget as unspent.
+  function budgetUsedMs(ctx, workspaceId, host, nowMs) {
+    var rec = ctx && ctx.budgetToday;
+    if (!rec || typeof rec !== "object") return null;
+    // A record from another day is not stale data to be repaired, it is a day
+    // that has ENDED: every budget is back to zero. The reset needs no alarm.
+    if (rec.day !== localDayKey(nowMs)) return 0;
+    var byWs = rec.byWorkspace && rec.byWorkspace[workspaceId];
+    if (!byWs) return 0;
+    var v = byWs[host];
+    return (typeof v === "number" && isFinite(v) && v > 0) ? v : 0;
   }
 
   /** Per-field updater for one entry's mode. Follows this section's own
@@ -8534,6 +8786,21 @@ var Storage = (function () {
     getBlockEntries: getBlockEntries,
     setBlockedDomainMode: setBlockedDomainMode,
     blockingReasonActive: blockingReasonActive,
+    blockingEntryHolds: blockingEntryHolds,
+    budgetHosts: budgetHosts,
+    budgetUsedMs: budgetUsedMs,
+    localWeekDay: localWeekDay,
+    parseClockMinutes: parseClockMinutes,
+    normalizeScheduleWindow: normalizeScheduleWindow,
+    getEntryWindows: getEntryWindows,
+    scheduleWindowHolds: scheduleWindowHolds,
+    entryScheduleHolds: entryScheduleHolds,
+    getEntryBudgetMin: getEntryBudgetMin,
+    setBlockedDomainSchedule: setBlockedDomainSchedule,
+    setBlockedDomainBudget: setBlockedDomainBudget,
+    SCHEDULE_DEFAULT_WINDOW: SCHEDULE_DEFAULT_WINDOW,
+    BUDGET_DEFAULT_MIN: BUDGET_DEFAULT_MIN,
+    BUDGET_MAX_MIN: BUDGET_MAX_MIN,
     blockingMatchFor: blockingMatchFor,
     blockingReasonFor: blockingReasonFor,
     focusArmState: focusArmState,
