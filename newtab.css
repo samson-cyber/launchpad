@@ -13665,7 +13665,9 @@ html.has-bg.bg-light .tt-task-handle:hover {
 .tt-modal-btn-danger {
   background: rgba(208, 2, 27, 0.22);
   border-color: rgba(208, 2, 27, 0.6);
-  color: #ff8a8a;
+  /* #ff8a8a measured 3.91:1 on this fill over a dark card - below the 4.5
+     floor that applies to 13px/600 text. Lifted, hue unchanged. */
+  color: #ffb4ab;
 }
 
 .tt-modal-btn-danger:hover {
@@ -14013,6 +14015,38 @@ html.has-bg.bg-light .tt-modal-btn {
 
 html.has-bg.bg-light .tt-modal-btn:hover {
   background: rgba(0, 0, 0, 0.08);
+}
+
+/* ===== THE DESTRUCTIVE BUTTON KEEPS ITS RED ON A LIGHT WALLPAPER ==========
+   CAUGHT BY LOOKING, NOT BY THE RATIO. The pixel measurement said 3.88:1 for
+   this label, which reads as a contrast nudge worth a note. The FRAME showed
+   the actual defect: on a light ground the red was gone ENTIRELY and the
+   "Delete workspace" button rendered identical to "Cancel".
+
+   Pure specificity. `html.has-bg.bg-light .tt-modal-btn` is (0,3,1) and
+   `.tt-modal-btn-danger` is (0,1,0), so the light-branch rule overrode the
+   danger rule completely - colour, background and border. EVERY destructive
+   confirm in the product has been losing its danger affordance on a light
+   wallpaper, not just the two this round added.
+
+   That is why this is a fix rather than a note. Asana 1217995910218382 says a
+   substitution that makes a destructive confirm easier to get wrong is worse
+   than the native dialog it replaced, and a delete button that looks like a
+   cancel button is exactly that.
+
+   The primary-fill button has the same specificity problem and a milder form of
+   the same symptom (3.57:1 on light). It is REPORTED rather than changed: it is
+   not a destructive control, and restyling the product's main affirmative
+   button across ~100 modals belongs to whoever owns the button system.
+   (2026-09-15, Asana 1217995910218382.) */
+html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-danger {
+  background: rgba(208, 2, 27, 0.10);
+  border-color: rgba(208, 2, 27, 0.55);
+  color: #6b1411;   /* #8c1d18 measured 4.21:1, still under the floor */
+}
+
+html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-danger:hover {
+  background: rgba(208, 2, 27, 0.18);
 }
 
 html.has-bg.bg-light .tt-modal-error {

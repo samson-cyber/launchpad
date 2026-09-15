@@ -47,13 +47,42 @@ var Bookmarks = (function () {
   async function showPicker() {
     var folders = await getTree();
 
-    if (folders.length === 0) {
-      alert(I18n.t("bookmarks_no_folders_found"));
-      return;
-    }
-
     var overlay = $("#bookmark-overlay");
     var list = $("#bookmark-folder-list");
+
+    // [1.12] WAS A NATIVE alert(), AND IT SHOULD NEVER HAVE BEEN A DIALOG.
+    // "No bookmark folders with bookmarks found" is an EMPTY STATE, not a
+    // decision - there is nothing to confirm or cancel. It is rendered in the
+    // picker the user just opened, in the same shape the bookmarks PANEL
+    // already uses for its own empty state (.bm-empty / -title / -hint in
+    // newtab.js), rather than handed across the IIFE boundary to newtab.js's
+    // modal: that boundary is a fact about the product's seams (BUGS I27), and
+    // a new cross-file dialog API for one message is not worth inventing.
+    //
+    // The two action buttons are hidden because neither can do anything with
+    // nothing; Cancel stays, because closing is the only move left and a
+    // surface with no way out is worse than the alert was.
+    if (folders.length === 0) {
+      list.innerHTML =
+        '<div class="bm-empty">' +
+          '<p class="bm-empty-title"></p>' +
+          '<p class="bm-empty-hint"></p>' +
+        '</div>';
+      list.querySelector(".bm-empty-title").textContent =
+        I18n.t("bookmarks_no_folders_found");
+      list.querySelector(".bm-empty-hint").textContent =
+        I18n.t("bookmarks_empty_hint");
+      var selectAll = $("#bookmark-select-all");
+      var importBtn = $("#bookmark-import-btn");
+      if (selectAll) selectAll.hidden = true;
+      if (importBtn) importBtn.hidden = true;
+      overlay.classList.remove("hidden");
+      return;
+    }
+    var selectAllBtn = $("#bookmark-select-all");
+    var importBtnEl = $("#bookmark-import-btn");
+    if (selectAllBtn) selectAllBtn.hidden = false;
+    if (importBtnEl) importBtnEl.hidden = false;
 
     list.innerHTML = folders.map(function (f) {
       return (

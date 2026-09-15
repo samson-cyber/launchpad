@@ -3814,7 +3814,7 @@ I18n.register("en", {
 // =========================================================================
 I18n.register("en", {
     "bookmarks_no_folders_found": {
-      "description": "Shown when the bookmark importer finds no folder containing any bookmark. Delivered through a NATIVE alert(), which is why it carries no title and no second button - task 1217995910218382 owns replacing that dialog.",
+      "description": "TITLE of the empty state shown in the bookmark import picker when no folder contains any bookmark. Sibling HINT is bookmarks_empty_hint, shared with the bookmarks panel's own empty state. Was delivered through a NATIVE alert() until 2026-09-15 (Asana 1217995910218382); it is an empty state rather than a decision, so it is rendered in the picker that raised it. Historic note kept because the wording still reads as a dialog sentence: which is why it carries no title and no second button - task 1217995910218382 owns replacing that dialog.",
       "message": "No bookmark folders with bookmarks found."
     },
     "gate_blocking_domain": {

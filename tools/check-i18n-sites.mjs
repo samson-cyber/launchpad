@@ -102,15 +102,17 @@ const PATTERN_FLOORS = {
   // the shape of an accident, so it is recorded as deliberate.
   "modal-copy": 110,   // measured 149 after stage 1b (was 189)
   "toast":       40,   // measured  61
-  // [1.12] 6 -> 1, and this is the floor doing its job rather than being
-  // lowered to get a run green. Ten of the eleven native dialogs were replaced
-  // by the product's own modal on 2026-09-15 (Asana 1217995910218382), so the
-  // pattern now finds exactly ONE site - bookmarks.js:51 - and its previous
-  // floor of 6 fired, refusing to pass. Set against what SHOULD survive: one,
-  // until that last alert can reach a modal from outside the newtab IIFE.
-  // If this ever reads 0, the last one has gone and the pattern itself should
-  // be retired rather than floored at zero.
-  "native-dlg":   1,   // measured   1 (was 10)
+  // "native-dlg" IS GONE, and this is the note cbc799c left for this moment:
+  // "if this ever reads 0, the last one has gone and the pattern itself should
+  // be retired rather than floored at zero." It reads 0. Every native
+  // alert/confirm/prompt in the product was replaced - ten by the product's own
+  // modal, and the eleventh by an empty state, because it was never a decision
+  // (Asana 1217995910218382, 2026-09-15).
+  //
+  // A pattern floored at zero is worse than no pattern: it passes forever, it
+  // asserts nothing, and it reads to the next person as coverage. The SHAPE it
+  // guarded now has a better guard - there are no native dialogs to find, and a
+  // new one would be a deliberate act rather than an oversight.
 };
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -277,10 +279,6 @@ const PATTERNS = [
   { id: "set-attr",    argGroup: 1, re: new RegExp(`setAttribute\\s*\\(\\s*["'](?:title|aria-label|placeholder|alt)["']\\s*,\\s*([^)\\n]{1,160})`, "g") },
   { id: "modal-copy",  argGroup: 2, re: new RegExp(`\\b(title|message|primaryLabel|confirmLabel|cancelLabel|label|emptyText)\\s*:\\s*([^,\\n}]{1,180})`, "g") },
   { id: "toast",       argGroup: 1, re: new RegExp(`\\b(?:showToast|showUndoToast)\\s*\\(\\s*([^,;\\n]{1,180})`, "g") },
-  // `window.` is spelled out rather than left to the lookbehind: the codebase
-  // uses window.confirm and window.prompt three times, and a bare "not preceded
-  // by a dot" rule excluded exactly those. The self-test caught it.
-  { id: "native-dlg",  argGroup: 1, re: new RegExp(`(?:window\\s*\\.\\s*)?(?<![.\\w])(?:alert|confirm|prompt)\\s*\\(\\s*([^,;\\n]{1,180})`, "g") },
 ];
 
 // Self-test fixture: one genuine instance of every pattern. If a pattern stops
@@ -292,8 +290,6 @@ const FIXTURE = [
   `el.setAttribute("title", "Drag to reorder");`,
   `openTasksModal({ title: "Delete permanently?", message: "This cannot be undone." });`,
   `showToast("Session restored.");`,
-  `window.confirm("Are you sure?");`,
-  `prompt("Name this session:");`,
 ].join("\n");
 
 function isCompliantArg(arg) {
