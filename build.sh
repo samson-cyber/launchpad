@@ -377,6 +377,18 @@ powershell.exe -NoProfile -Command "
     'companion-popup.js',
     'background.js',
     'bookmarks.js',
+    # [2.2.0] importers.js WAS MISSING AND THE PACKAGE GATE CAUGHT IT ON THE
+    # FIRST BUILD AFTER 132 COMMITS. It arrived in the bulk-paste/cross-tool
+    # import round and nothing added it here, so the zip would have shipped a
+    # newtab.html with <script src="importers.js"> pointing at a file that is
+    # not in the archive - every import path dead, and the release notes lead
+    # with imports as a headline feature.
+    #
+    # EXACTLY THE CLASS THE [1.9.4] COMMENT ABOVE RECORDS, twelve lines up, and
+    # it happened again anyway. That is the argument for the gate rather than
+    # for the comment: every round since 2.1.0 drove the working TREE, where
+    # importers.js is present, and only a packaged build reads this list.
+    'importers.js',
     'license.js',
     'pro-access.js',
     'storage.js',

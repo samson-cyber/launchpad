@@ -1,20 +1,77 @@
-# Release notes - NEXT (unnumbered)
+# Release notes - 2.2.0
 
-**This file is deliberately not numbered.** The manifest version is bumped
-manually, only at a Chrome Web Store submission, and the annotated tag follows
-the artifact — so a `RELEASE-NOTES-2.2.0.md` sitting here before a submission
-would be asserting a version that does not exist yet. Rename this file to
-`RELEASE-NOTES-<version>.md` at the moment the submission is cut, the same way
-the three numbered files beside it were written.
+**Cut 2026-09-15 from `796c3fa`, 132 commits after `v2.1.0` (`15797ad`).** The file
+was renamed from `RELEASE-NOTES-NEXT.md` at the moment the build was cut, per its own
+instruction and matching the three numbered files beside it.
 
 Same rule as those three: **nothing here describes a feature that is not in the
 build.**
 
+**THE "What's new" BLOCK WAS SUBSTANTIALLY INCOMPLETE WHEN THE RELEASE WAS CUT, and
+that is worth knowing about this file rather than hiding.** It was written
+incrementally across five arcs and covered six topics; the release contains far more
+than six. Everything added at cut time was verified against `15797ad` the same way —
+a feature is only "new" if a 2.1.0 user did not have it — which is also how two
+features were ruled OUT of the notes entirely (see the last section).
+
 ---
 
-## PASTE THIS - "What's new" (draft, grows until the release is cut)
+## PASTE THIS - "What's new" for 2.2.0
+
+Trim to fit the listing. **The first two blocks are the ones every existing user
+notices without asking for anything, so they lead.** Everything below them is
+additive and can be cut for length.
 
 ```
+Shortcut icons are bigger and easier to see.
+
+• Every icon now fills much more of its circle, so logos read
+  clearly at a glance instead of floating small in the middle.
+  Nothing moved: the circles, the spacing and the grid are
+  exactly where they were.
+• Small, Medium and Large icon sizes all scale together, and
+  emoji and lettered icons now grow with the setting like every
+  other icon does.
+
+The search bar now defaults to AI Search, with a one-click toggle
+back to your default search engine.
+
+• Two tabs sit above the search bar: AI Search and Search.
+  AI Search is the one that starts selected.
+• Press Enter with AI Search selected and LaunchPad opens
+  Google's AI Mode with what you typed already in the box. It is
+  a shortcut to google.com - nothing is sent anywhere by
+  LaunchPad itself.
+• Click Search and Enter goes to your normal search engine again,
+  exactly as before. LaunchPad never changes which engine that
+  is. Your choice is remembered.
+
+The search bar is also a launcher now.
+
+• Start typing and your own shortcuts, groups and sessions appear
+  beneath it. Arrow keys move, Enter opens - no mouse needed.
+• Typing an address still just goes there, whichever tab is lit.
+• The last row always names where Enter will take you, so nothing
+  is guesswork.
+
+A greeting at the top of Home.
+
+• Home opens with the time of day and the date, typed in once a
+  day rather than every time you open a tab.
+• Click the greeting to cycle through variants. Keep clicking and
+  something happens.
+
+LaunchPad in your toolbar, without opening a tab.
+
+• Click the LaunchPad icon for a compact popup: your shortcuts,
+  and your focus session with a pause control.
+• Keyboard shortcuts for the things you do most - open LaunchPad,
+  add the current page, save this window as a session, and pause
+  or resume a focus session. Set your own keys in Chrome at
+  chrome://extensions/shortcuts.
+• Pro: while a focus session runs, the toolbar icon shows the
+  minutes left.
+
 A wallpaper that changes, and one per workspace.
 
 • Turn on rotation and LaunchPad picks a different wallpaper
@@ -46,15 +103,12 @@ Browse your Chrome bookmarks without leaving the new tab.
 • LaunchPad only ever READS your bookmarks. It never creates,
   moves, renames or deletes anything in them.
 
-Shortcut icons are bigger and easier to see.
+Make the grid yours.
 
-• Every icon now fills much more of its circle, so logos read
-  clearly at a glance instead of floating small in the middle.
-  Nothing moved: the circles, the spacing and the grid are
-  exactly where they were.
-• Small, Medium and Large icon sizes all scale together, and
-  emoji and lettered icons now grow with the setting like every
-  other icon does.
+• Give any shortcut its own icon - upload one, pick an emoji, or
+  use a letter.
+• A list view as well as the grid, and a Focus view that clears
+  everything except what you are working on.
 
 Group actions no longer hide until you hover.
 
@@ -64,21 +118,12 @@ Group actions no longer hide until you hover.
   Nothing moved to make room - those controls always occupied
   that space, they were simply invisible.
 
-The search bar now defaults to AI Search, with a one-click toggle
-back to your default search engine.
+Pro: the Dashboard and Insights got a lot more useful.
 
-• Two tabs sit above the search bar: AI Search and Search.
-  AI Search is the one that starts selected.
-• Press Enter with AI Search selected and LaunchPad opens
-  Google's AI Mode with what you typed already in the box. It is
-  a shortcut to google.com - nothing is sent anywhere by
-  LaunchPad itself.
-• Click Search and Enter goes to your normal search engine again,
-  exactly as before. LaunchPad never changes which engine that
-  is. Your choice is remembered.
-• Either way, the bar still finds your own shortcuts, groups and
-  sessions as you type - and typing an address still just goes
-  there.
+• Set a daily focus target and watch a ring fill toward it.
+• Pick three things for today, and see this week against last.
+• A heatmap of the hours you actually focus best.
+• Export any date range to CSV, per task and per tag.
 ```
 
 ---
@@ -303,8 +348,49 @@ losing the picture quietly.
 backup envelope carries that key verbatim and never looks inside it, so v1 and v2
 backups both still restore - proven by importing a real file of each.
 
+### Free versus Pro: nothing moved across the line in this release
+
+**Notes are Pro, and they stayed Pro.** `[1.11.4]` built ONE FREE SCRATCHPAD NOTE on
+Home and `b3efbf0` cut it before any release carried it, so the free/Pro boundary is
+exactly where 2.1.0 left it. Nothing in this release moves a feature from Pro to free
+or back, and the notes above must not imply otherwise.
+
+What is Pro in the list above, and it is marked as such in the copy: **per-workspace
+wallpaper**, **the toolbar badge** (it counts a focus session, which is tracking), and
+**the Dashboard and Insights block**. Everything else in the list is free — the
+launcher, the greeting, the popup itself, wallpaper rotation, imports, the bookmarks
+panel, custom icons, list and Focus views, and the group controls.
+
+### A running focus session keeps the service worker awake, and that is by design
+
+`[1.9.2]` measured this rather than reading it from the docs, and it is worth knowing
+before anyone answers a question about battery or memory. **While a focus session is
+counting down, the 30-second badge alarm wakes the service worker, so it does not
+sleep.** Proven alive across 60s of no other activity with the badge ticking on wall
+clock.
+
+**It is bounded, and the bound is the point.** The alarm is CLEARED whenever the badge
+is not counting down, so a paused session and an absent session wake nothing. A free
+profile never paints the badge at all, so it never holds the worker open.
+
+The same measurement found the other half: with the alarm cleared by hand Chrome
+suspends the worker after ~30s and **retains the painted badge text**, so a badge
+cannot self-clear. That is why the repaint is wired to `onStartup` — a browser killed
+mid-session leaves a stale number that the next launch corrects.
+
 ### Not in the notes, deliberately
 
+- **The clock line.** `[1.10.2]` added an optional clock, date and greeting line
+  with three separate toggles; `[1.11.3c]` removed all three and `[1.11.x]` replaced
+  the idea with the greeting that now leads Home. Both the addition and the removal
+  land INSIDE this release window, so **no shipped build ever carried the clock
+  line** and there is nothing for a user to be told about its removal. The greeting
+  that replaced it IS in the notes above, because that part is visible.
+- **The search-bar resting pulse.** `[1.12.4]` built it and `f066338` cut it four
+  commits later, on the same round's own measurements. Never shipped.
+- **The frosted surface behind Home's bare text.** `81fb511` built it, Samson saw it
+  on a real photograph and rejected it, and `980420c` reverted it byte-for-byte the
+  same day. Never shipped.
 - **The accent picker.** `[1.10.4]` added a Settings > Appearance > Accent row
   with four colours; `[1.10.8]` removed it. It landed after the `v2.1.0`
   submission and **no release ever carried it**, so there is nothing for a user

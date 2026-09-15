@@ -284,6 +284,16 @@ function expandAllowlist(entries, repoRoot) {
 // ---------------------------------------------------------------------------
 const EXPECTED_UNREFERENCED = [
   {
+    p: "assets/placeholder.svg",
+    reason: "The favicon fallback, referenced ONLY from JavaScript - seven sites in " +
+            "newtab.js, including sessionTabIcon and the delegated error listener that " +
+            "replaced the CSP-inert inline onerror. This extractor parses HTML src/href " +
+            "attributes, so a path built or assigned in JS is invisible to it BY DESIGN: " +
+            "widening it to string literals in JS would match every URL the product ever " +
+            "mentions. Ships deliberately; deleting it would show broken images wherever " +
+            "a favicon fails to load."
+  },
+  {
     p: "privacy-policy.html",
     reason: "Ships for the Chrome Web Store listing and is served from GitHub Pages. " +
             "Settings links the HOSTED absolute URL, so no local reference to this file " +
