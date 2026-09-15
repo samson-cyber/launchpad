@@ -171,9 +171,32 @@
       : "";
   });
 
+  // ---- Continue, on an inert gate --------------------------------------
+  //
+  // IT GOES TO LAUNCHPAD, NOT TO THE DESTINATION, and that is Samson's ruling
+  // rather than a technical constraint - ?to= is present and reliable on this
+  // state, so either would build. What decided it is what the two do when they
+  // are wrong.
+  //
+  // THE BUTTON WAS NEVER INERT. It called goBackToSite() and that navigated in
+  // all four branches, measured. What made it READ as a dead button is where it
+  // landed: this page renders from a snapshot taken when it loaded, and if
+  // blocking is live again by the time the click happens - the user re-armed it,
+  // or started a focus session, or auto-arm fired at a work phase - then the
+  // navigation is intercepted and the tab comes straight back to gate.html. Same
+  // URL, same page. Reproduced both ways in this round's report.
+  //
+  // newtab.html CANNOT BE INTERCEPTED. focusInterceptCandidateHost only ever
+  // considers http(s), so an extension page is refused in one comparison before
+  // any policy question is asked. Continue-to-LaunchPad therefore always lands
+  // somewhere; Continue-to-destination can always bounce.
+  //
+  // location.replace, not assign: the inert gate should not sit in history
+  // between the user and where they end up, for the same reason goBackToSite
+  // replaces rather than assigns.
   continueBtn.addEventListener("click", function () {
     continueBtn.disabled = true;
-    goBackToSite();
+    location.replace(chrome.runtime.getURL("newtab.html"));
   });
 
   // ---- [5 more minutes] — C7 ------------------------------------------------

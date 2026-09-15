@@ -4374,8 +4374,8 @@ I18n.register("en", {
       "sense": "heading.state"
     },
     "gate_continue": {
-      "description": "The only control on an INERT gate. Nothing is blocking, so there is nothing to snooze and nothing to end; this just goes to the site the user asked for.",
-      "message": "Continue",
+      "description": "The only control on an INERT gate. Nothing is blocking, so there is nothing to snooze and nothing to end. NAMES ITS DESTINATION, which is LaunchPad and not the site the user was heading for: C6 governs this page and requires the label to say exactly what the click will do. It read Continue while it went to the destination; when the destination changed, the word had to.",
+      "message": "Go to LaunchPad",
       "sense": "action.button"
     },
     "focusblock_mode_schedule": {
