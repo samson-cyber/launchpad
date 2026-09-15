@@ -456,9 +456,9 @@ for (const cls of ["tt-tag-pill", "pp-tag-pill", "tag-pill", "sb-ws-chip", "pws-
 // static ink and no ink can clear both halves of the bar — which is exactly the
 // regression this section exists to fail.
 {
-  const grad = SRC.css.match(/\.tt-progress-fill \{[^}]*background: linear-gradient\(90deg,\s*(#[0-9a-fA-F]{6})[^,]*,\s*(#[0-9a-fA-F]{6})/);
+  const grad = SRC.css.match(/[\n}]\s*\.tt-progress-fill \{[^}]*background: linear-gradient\(90deg,\s*(#[0-9a-fA-F]{6})[^,]*,\s*(#[0-9a-fA-F]{6})/);
   check("progress: the fill is still a two-stop gradient", !!grad, grad ? grad.slice(1, 3).join(" -> ") : "not found");
-  const baseInk = SRC.css.match(/\.tt-progress-pct-base \{[^}]*color:\s*(rgba?\([^)]*\))/);
+  const baseInk = SRC.css.match(/[\n}]\s*\.tt-progress-pct-base \{[^}]*color:\s*(rgba?\([^)]*\))/);
   const fillInk = SRC.css.match(/\.tt-progress-pct-fill \{[^}]*color:\s*(rgba?\([^)]*\))/);
   check("progress: BOTH copies exist and declare their own ink", !!baseInk && !!fillInk,
     `${baseInk && baseInk[1]} / ${fillInk && fillInk[1]}`);
@@ -484,7 +484,7 @@ for (const cls of ["tt-tag-pill", "pp-tag-pill", "tag-pill", "sb-ws-chip", "pws-
   check("progress: the markup still emits both copies",
     /tt-progress-pct-base/.test(SRC.nt) && /tt-progress-pct-fill/.test(SRC.nt));
   check("progress: the fill still CLIPS its copy (the reveal mechanism)",
-    /\.tt-progress-fill \{[^}]*overflow: hidden;/.test(SRC.css));
+    /[\n}]\s*\.tt-progress-fill \{[^}]*overflow: hidden;/.test(SRC.css));
 }
 
 // ---- the due-date icon must stay ink-reachable ----------------------------

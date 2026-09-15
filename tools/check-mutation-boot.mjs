@@ -124,6 +124,67 @@ for (const r of runners) {
 }
 
 const verdict = dead || unsound ? "FAIL" : "PASS";
-console.log(`\nMUTATION BOOT: ${verdict} — ${booted} runner(s) boot, ${dead} dead, ` +
-  `${unsound} unsound, ${inProcess} in-process (of ${runners.length} with --mutate, ${files.length} gates scanned)\n`);
-process.exit(dead || unsound ? 1 : 0);
+// ===== UNANCHORED CSS ASSERTIONS ==========================================
+//
+// A gate regex that opens on ".foo {" is not anchored to the rule it names.
+// [^}]* cannot cross a brace, but a FAILED match on the base rule simply
+// advances the engine to the next place that substring occurs - and
+// "html.has-bg.bg-light .foo {" contains it. So the assertion silently
+// re-targets the light-wallpaper override and reports the base rule as present
+// when it is gone.
+//
+// DEMONSTRATED rather than reasoned about (Asana 1218048949825387): deleting
+// .tt-progress-pct-base's colour and leaving its override in place produced
+// CHIP INK: PASS - 79 passed, 0 failed. The gate was green about a declaration
+// that did not exist.
+//
+// This runs here because this file is already the gate-about-gates. It
+// ENFORCES from zero: the 14 instances were anchored in the same commit, so
+// there is no backlog and no reason for a report-only mode.
+//
+// The anchor is [\n}]\s* before the selector. A top-level rule is preceded by
+// a newline or the close brace above it; a descendant selector has a SPACE
+// before the class, which is neither. Assertions that are DELIBERATELY scoped
+// (/html\.has-bg\.bg-light \.dash-greeting \{/) and those already anchored
+// with ^ or \n are untouched - an earlier pass anchored all 33 occurrences
+// rather than these 14 and turned 16 assertions red, which is how the
+// distinction was learned.
+let unanchored = 0;
+try {
+  const cssPath = path.join(repoRoot, "newtab.css");
+  const css = fs.readFileSync(cssPath, "utf8").replace(/\r\n/g, "\n");
+  const LITERAL = /\/((?:[^/\\\n]|\\.)+)\/[gimsuy]*/g;
+  const UNANCHORED = /^\\\.([A-Za-z][\w-]*)(?:[^{]*?)\\\{/;
+  for (const f of files) {
+    if (f === "check-mutation-boot.mjs") continue;
+    const src = fs.readFileSync(path.join(toolsDir, f), "utf8");
+    let m;
+    LITERAL.lastIndex = 0;
+    while ((m = LITERAL.exec(src))) {
+      const body = m[1];
+      if (!body.includes("\\{")) continue;
+      const u = UNANCHORED.exec(body);
+      if (!u) continue;
+      // does the class it names have a LONGER selector twin in the sheet?
+      const twin = new RegExp("^[^\\n{]*\\." + u[1] + "\\s*\\{", "m");
+      const all = css.match(new RegExp("^[^\\n{]*\\." + u[1] + "\\s*\\{", "gm")) || [];
+      const longer = all.filter((s) => s.trim() !== "." + u[1] + " {" &&
+                                       s.trim() !== "." + u[1] + "{");
+      if (!longer.length) continue;
+      unanchored++;
+      console.log(`  UNANCHORED  ${f}`);
+      console.log(`              /${body.slice(0, 58)}.../`);
+      console.log(`              can drift to  ${longer[0].trim()}`);
+    }
+  }
+  if (!unanchored) console.log("  OK   no gate assertion can drift to a scoped rule");
+} catch (e) {
+  console.log("  UNSOUND  the unanchored-assertion scan did not run: " + e.message);
+  unsound++;
+}
+
+const finalVerdict = (dead || unsound || unanchored) ? "FAIL" : verdict;
+console.log(`\nMUTATION BOOT: ${finalVerdict} \u2014 ${booted} runner(s) boot, ${dead} dead, ` +
+  `${unsound} unsound, ${inProcess} in-process (of ${runners.length} with --mutate, ${files.length} gates scanned), ` +
+  `${unanchored} unanchored CSS assertion(s)\n`);
+process.exit(dead || unsound || unanchored ? 1 : 0);

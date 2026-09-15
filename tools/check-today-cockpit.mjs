@@ -663,7 +663,7 @@ await (async () => {
       check("header: ...and the evening-open line rides .dash-headline like every other head",
         /data-dash-variant="evening-open"[\s\S]{0,300}class="dash-headline"/.test(headBody));
       check("header: ...so the ink rules already in the sheet cover it",
-        /\.dash-head \{/.test(SRC.css) && /\.dash-headline \{/.test(SRC.css) &&
+        /[\n}]\s*\.dash-head \{/.test(SRC.css) && /\.dash-headline \{/.test(SRC.css) &&
         !/\.dash-head\[data-dash-variant/.test(SRC.css));
     }
   }
@@ -743,7 +743,7 @@ await (async () => {
   // point, which is the failure the band exists to prevent.
   check("layout: --display-1 is used exactly ONCE in the stylesheet (the hero numeral)",
     (SRC.css.match(/var\(--display-1\)/g) || []).length === 1 &&
-    /\.dash-hero-num\s*\{[^}]*font-size:\s*var\(--display-1\)/.test(SRC.css));
+    /[\n}]\s*\.dash-hero-num\s*\{[^}]*font-size:\s*var\(--display-1\)/.test(SRC.css));
   check("render: quick-add sits at the due-today module's foot", render.indexOf("dashDueListHtml") < render.indexOf("dashQuickAddHtml"));
 // PROHIBITED-CLASS TEST BY EXACT TOKEN (2026-09-01, Asana 1218045515360272).
 //
@@ -905,7 +905,7 @@ const hasClassToken = (src, name) => {
   check("ink: ...with a light-wallpaper override using the TWO-CLASS guard (O1)",
     cssHas(/html\.has-bg\.bg-light \.dash-greeting \{/) && !cssHas(/\nhtml\.bg-light \.dash-greeting/));
   check("ink: the inline tab-switch link declares colour on BOTH frames (O3)",
-    /\.dash-inline-link \{[^}]*color: #/.test(SRC.css) && cssHas(/html\.has-bg\.bg-light \.dash-inline-link \{/));
+    /[\n}]\s*\.dash-inline-link \{[^}]*color: #/.test(SRC.css) && cssHas(/html\.has-bg\.bg-light \.dash-inline-link \{/));
   check("ink: the head's separator rule has a light-wallpaper override",
     cssHas(/html\.has-bg\.bg-light \.dash-head \{/));
   // THE DEFAULT FRAME. With no wallpaper, html carries neither class and --bg is
@@ -920,8 +920,8 @@ const hasClassToken = (src, name) => {
     /^html\.has-bg \.dash-greeting \{[^}]*color: #fff;/m.test(SRC.css) &&
     !/^\.dash-greeting \{[^}]*color: #fff;/m.test(SRC.css));
   check("ink: .dash-note de-emphasises with colour ALPHA, never container opacity (O2)",
-    /\.dash-note \{[^}]*color: rgba\(255, 255, 255, 0\.\d+\);/.test(SRC.css) &&
-    !/\.dash-note \{[^}]*opacity:/.test(SRC.css) &&
+    /[\n}]\s*\.dash-note \{[^}]*color: rgba\(255, 255, 255, 0\.\d+\);/.test(SRC.css) &&
+    !/[\n}]\s*\.dash-note \{[^}]*opacity:/.test(SRC.css) &&
     cssHas(/html\.has-bg\.bg-light \.dash-note \{/));
   check("ink: no cockpit rule dims a container that holds a control (O2)",
     !/\.dash-(due-row|cockpit|col|head|quickadd|streak|note|inline-link) \{[^}]*opacity:/.test(SRC.css));

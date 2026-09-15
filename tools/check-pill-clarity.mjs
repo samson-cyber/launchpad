@@ -826,7 +826,7 @@ await (async () => {
         check("hero: its ink is declared on the dark frame and overridden on the light one",
           /\.sat-hero-time \{[^}]*color: #fff;/.test(SRC.css) &&
           /html\.bg-light \.sat-hero-time,[^{}]*\{ color: var\(--text-primary\)/.test(SRC.css) &&
-          /\.sat-hero-label \{[^}]*color: rgba\(255, 255, 255/.test(SRC.css) &&
+          /[\n}]\s*\.sat-hero-label \{[^}]*color: rgba\(255, 255, 255/.test(SRC.css) &&
           /html\.bg-light \.sat-hero-label,[^{}]*\{ color: var\(--text-secondary\)/.test(SRC.css));
         ctx.satTaskWindow = { taskId: null, ms: 0 };
       }
@@ -939,7 +939,7 @@ await (async () => {
     check("focus row: it wraps, so the hint takes a second line instead of being cut",
       /\.sat-focus-row \{[^}]*flex-wrap: wrap;/.test(SRC.css));
     check("focus row: ...and the hint cannot be squeezed into an ellipsis instead of wrapping",
-      /\.sat-focus-hint \{[^}]*flex: 0 0 auto;/.test(SRC.css));
+      /[\n}]\s*\.sat-focus-hint \{[^}]*flex: 0 0 auto;/.test(SRC.css));
     check("focus row: both strings are kept whole — neither the state nor the hint was shortened away",
       /Focus blocking: on \(auto\)/.test(SRC.nt) && /no sites listed/.test(SRC.nt));
     // The highlight, and the three-way collision it had to avoid.
@@ -1054,7 +1054,7 @@ await (async () => {
       new RegExp(`html\\.(has-bg\\.)?bg-light [^{]*${sel}[^{]*\\{`).test(SRC.css), label);
   }
   check("ink: the armed dot's fill is declared on both frames",
-    /\.sat-live-dot \{[^}]*background: /.test(SRC.css) && /html\.bg-light \.sat-live-dot \{[^}]*background: /.test(SRC.css));
+    /[\n}]\s*\.sat-live-dot \{[^}]*background: /.test(SRC.css) && /html\.bg-light \.sat-live-dot \{[^}]*background: /.test(SRC.css));
   check("ink: no new cockpit/pill rule dims a container that holds a control (O2)",
     !/\.sat-(live|window|actions|actions-primary|actions-session) \{[^}]*opacity:/.test(SRC.css));
   check("ink: the new frosted surfaces added no literal rgba(30,30,30) or blur()",

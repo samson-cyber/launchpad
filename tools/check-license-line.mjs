@@ -257,7 +257,7 @@ for (const t of ["ok", "bad", "warn"]) {
   structural(`tone '${t}' has a light-wallpaper colour`, new RegExp(`html\\.has-bg\\.bg-light\\s+[^{]*pro-license-check-${t}\\s*\\{[^}]*color`).test(CSS));
 }
 structural("the idle/base line declares a colour (never inherits body ink)",
-  /\.pro-license-check-status\s*\{[^}]*color/.test(CSS));
+  /[\n}]\s*\.pro-license-check-status\s*\{[^}]*color/.test(CSS));
 structural("...and overrides it on a dark wallpaper",
   /html\.has-bg\s+\.pro-license-check-status\s*\{[^}]*color/.test(CSS));
 structural("...and again on a light wallpaper",

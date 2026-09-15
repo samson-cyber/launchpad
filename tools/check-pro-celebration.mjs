@@ -269,7 +269,7 @@ for (const cls of ["pro-celebrate-title", "pro-celebrate-desc", "pro-celebrate-e
   ok(`${cls} has a light-wallpaper correction`,
     new RegExp(`html\\.has-bg\\.bg-light[^{]*\\.${cls}\\s*\\{[^}]*color`).test(CSSC));
 }
-ok("the card declares base ink", /\.pro-celebrate-card\s*\{[^}]*color:\s*#fff/.test(CSSC));
+ok("the card declares base ink", /[\n}]\s*\.pro-celebrate-card\s*\{[^}]*color:\s*#fff/.test(CSSC));
 ok("...and corrects it on a light wallpaper", /html\.has-bg\.bg-light\s+\.pro-celebrate-card\s*\{[^}]*color/.test(CSSC));
 // The coach mark deliberately does NOT flip: it uses the MENU tier, which has no
 // bg-light override, so it stays dark on every wallpaper and its white ink is
@@ -311,7 +311,7 @@ const REDUCE_BLOCKS = (() => {
 })();
 const stilledSomewhere = (re) => REDUCE_BLOCKS.some((b) => re.test(b));
 ok("reduced motion covers the card, glow and mark",
-  stilledSomewhere(/\.pro-celebrate-card\s*\{[^}]*transition:\s*none/) &&
+  stilledSomewhere(/[\n}]\s*\.pro-celebrate-card\s*\{[^}]*transition:\s*none/) &&
   stilledSomewhere(/\.pro-celebrate-glow\s*\{[^}]*animation:\s*none/) &&
   stilledSomewhere(/\.pro-tour-mark\s*\{[^}]*transition:\s*none/));
 ok("the reduce-block scan found real blocks, so the row above is not vacuously true",
