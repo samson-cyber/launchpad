@@ -669,6 +669,64 @@
   // counter would make each invalidate the other's guard mid-paint).
   var dashRecapToken = 0;
 
+  // [2.2.0] THE UNIT LETTERS NOW COME FROM ICU, NOT FROM ENGLISH.
+  //
+  // fmtDurationHM assembled "1h30m" by concatenating the English letters h, m
+  // and s onto a number, with no catalogue key behind them. TWENTY-SIX call
+  // sites render through it — the Insights hero, the donut legend and its
+  // centre, the summary strip, the weekly card, every task and tooltip row and
+  // the CSV's hms column — so a fully translated UI still read English units in
+  // every one of them. It is the largest single item the localization
+  // reconnaissance missed, because it is a NUMBER surface and the round that
+  // looked was looking at strings.
+  //
+  // THREE SHORT CATALOGUE KEYS WERE THE OBVIOUS FIX AND ARE THE WRONG ONE.
+  // R5.1's convention is that a sentence varying by count is ONE key with a
+  // plural object; "h" is not a sentence and that convention does not reach it.
+  // More to the point, a key needs a translator, and ICU already knows the
+  // answer for every locale it ships: Intl.NumberFormat with style "unit" and
+  // unitDisplay "narrow" localises WITHOUT one.
+  //
+  // MEASURED IN A BROWSER, NOT IN NODE, per R5.0 — and the measurement earned
+  // its keep. Node resolves the undefined locale to en-AU on this machine while
+  // navigator.language reads en-US, so a Node answer is a confident answer about
+  // a different locale. In the browser, narrow en units are EXACTLY h, m and s:
+  // old and new agree on every value below 1000 hours.
+  //
+  // THE ONE DELIBERATE DIVERGENCE IS GROUPING, at and above 1000h, where
+  // "1000h" becomes "1,000h". That is the number half of this task landing
+  // rather than a regression; it is REACHABLE (a year at three hours a day is
+  // 1095h, and taskWorkedMs has no window bound at all); and every CSV cell is
+  // quoted by Storage.csvField, so the separator cannot split a column.
+  //
+  // UNDEFINED LOCALE, NEVER I18n.getLocale(). The catalogue locale and the
+  // formatting locale are different things. getLocale() returns a hard "en"
+  // until a second catalogue is registered, so routing this through it "for
+  // consistency" would pin every figure to English on a machine whose browser
+  // is not English — a regression dressed as a cleanup. Same reason the ten
+  // date sites pass undefined.
+  //
+  // THE FORMATTERS ARE CACHED because several call sites run inside loops (the
+  // donut legend, the task rows, the CSV) and constructing an Intl formatter
+  // per row is the expensive part. The catch keeps TODAY's letters, so a
+  // runtime without the "unit" style degrades to the old output instead of
+  // throwing on a surface that would otherwise just be a number.
+  var DUR_UNIT_FMT = {};
+  var DUR_UNIT_LETTER = { hour: "h", minute: "m", second: "s" };
+  function durUnitFmt(unit) {
+    if (DUR_UNIT_FMT[unit]) return DUR_UNIT_FMT[unit];
+    var f;
+    try {
+      f = new Intl.NumberFormat(undefined, {
+        style: "unit", unit: unit, unitDisplay: "narrow"
+      });
+    } catch (e) {
+      f = { format: function (n) { return n + DUR_UNIT_LETTER[unit]; } };
+    }
+    DUR_UNIT_FMT[unit] = f;
+    return f;
+  }
+
   // [2.0] THE shared duration formatter — Samson's locked rule (task
   // 1216757107669726). ms -> ">=1h: XhYm" (1h23m), "whole hours: Xh" (12h,
   // never 12h0m), "<1h: Xm" (23m, never 0h23m). Every user-facing duration
@@ -691,10 +749,17 @@
     var totalMin = Math.floor(safe / 60000);
     var h = Math.floor(totalMin / 60);
     var m = totalMin % 60;
-    if (h > 0) return m > 0 ? (h + "h" + m + "m") : (h + "h");
-    if (m > 0) return m + "m";
+    if (h > 0) {
+      return m > 0
+        ? (durUnitFmt("hour").format(h) + durUnitFmt("minute").format(m))
+        : durUnitFmt("hour").format(h);
+    }
+    if (m > 0) return durUnitFmt("minute").format(m);
     var sec = Math.floor(safe / 1000);
-    return sec > 0 ? (sec + "s") : "0m";
+    // The zero branch goes through the MINUTE formatter rather than a literal
+    // "0m", or the one string in this function that is not localised would be
+    // the one a brand-new profile sees first.
+    return sec > 0 ? durUnitFmt("second").format(sec) : durUnitFmt("minute").format(0);
   }
 
   // Whether the line renders at all, and in which scope. Suppression is a
@@ -18413,14 +18478,33 @@
       shortMonthNames()[d.getMonth()] + " " + d.getDate();
   }
 
+  // [2.2.0] LOCALE CLOCK TIME, shared by the two sites that hardcoded 12-hour
+  // AM/PM. The product had already ANSWERED the "12 or 24 hour" question by
+  // precedent: satActiveSinceText follows the locale through toLocaleTimeString,
+  // so a German user read 24-hour there and a permanent "3:40 PM" here, on one
+  // page. This makes the other two agree with that precedent rather than
+  // re-opening the debate or inventing a user setting nobody asked for.
+  //
+  // RETURNS "" RATHER THAN A FALLBACK CLOCK on a bad timestamp, because both
+  // callers want to render nothing rather than render a wrong time, and so does
+  // satActiveSinceText's own catch.
+  function localeClockTime(ts) {
+    if (!ts) return "";
+    var d = new Date(ts);
+    if (isNaN(d.getTime())) return "";
+    try {
+      return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    } catch (e) {
+      return "";
+    }
+  }
+
   function formatSavedTime(timestamp) {
-    if (!timestamp) return "";
-    var d = new Date(timestamp);
-    var h = d.getHours();
-    var m = d.getMinutes();
-    var ampm = h >= 12 ? "PM" : "AM";
-    var h12 = h % 12 || 12;
-    return "Saved at " + h12 + ":" + (m < 10 ? "0" : "") + m + " " + ampm;
+    var time = localeClockTime(timestamp);
+    // The "Saved at" prefix was an untokenized English string sharing a line
+    // with an unlocalized time; both halves move together or the line stays
+    // half-English.
+    return time ? t("sessions_saved_at", { time: time }) : "";
   }
 
   function countSessionTabs(session) {
@@ -19757,13 +19841,10 @@
     if (panel) panel.classList.add("hidden");
   }
 
+  // [2.2.0] The recently-closed panel's row time, through the shared locale
+  // clock. Was the second of the two hardcoded 12-hour sites.
   function formatTime(ts) {
-    var d = new Date(ts);
-    var h = d.getHours();
-    var m = d.getMinutes();
-    var ampm = h >= 12 ? "PM" : "AM";
-    h = h % 12 || 12;
-    return h + ":" + (m < 10 ? "0" : "") + m + " " + ampm;
+    return localeClockTime(ts);
   }
 
   function updateRcFilterLabel() {

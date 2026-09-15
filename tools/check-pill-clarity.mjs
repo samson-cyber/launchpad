@@ -272,6 +272,16 @@ function boot(src) {
       extractDecl(src.nt, "SAT_ACTIVE_TITLE"),
       extractDecl(src.nt, "SAT_ALL_WORKSPACES"),
       extractFn(src.nt, "escapeHtml"),
+      // [2.2.0] fmtDurationHM NOW HAS A DEPENDENCY, and these three lines are
+      // it. The unit letters moved to Intl.NumberFormat behind a cached
+      // durUnitFmt(), so extracting the function alone throws ReferenceError
+      // the first time a duration renders. Anything that gives an extracted
+      // function a new callee has to be added here in the same commit, or the
+      // gate fails for a reason that is not a violation. BOTH vm contexts need
+      // their own copy - this file extracts fmtDurationHM twice.
+      extractDecl(src.nt, "DUR_UNIT_FMT"),
+      extractDecl(src.nt, "DUR_UNIT_LETTER"),
+      extractFn(src.nt, "durUnitFmt"),
       extractFn(src.nt, "fmtDurationHM"),
       extractFn(src.nt, "satWindowDays"),
       extractFn(src.nt, "satTrackingIndicatorHtml"),
@@ -303,6 +313,9 @@ function boot(src) {
       // [2.0] The worked clock's builders, executed rather than pattern-matched:
       // the whole question is WHICH number they print and what they call it.
       extractDecl(src.nt, "SAT_WORKED_TITLE"),
+      extractDecl(src.nt, "DUR_UNIT_FMT"),
+      extractDecl(src.nt, "DUR_UNIT_LETTER"),
+      extractFn(src.nt, "durUnitFmt"),
       extractFn(src.nt, "fmtDurationHM"),
       extractFn(src.nt, "satWorkedText"),
       extractFn(src.nt, "satWorkedChipHtml"),
@@ -1595,9 +1608,32 @@ await (async () => {
   }
 
   // --- sub-minute honesty ---
-  eq("SUB-MINUTE: 45s renders as seconds, not 0m", ctx.fmtDurationHM(45000), "45s");
-  eq("SUB-MINUTE: 1s renders", ctx.fmtDurationHM(1000), "1s");
-  eq("SUB-MINUTE: 59s renders", ctx.fmtDurationHM(59999), "59s");
+  // [2.2.0] THE UNIT GLYPH BELONGS TO CLDR NOW, AND THESE THREE ROWS ARE THE
+  // ONLY ONES IN THIS GATE THAT NOTICED. fmtDurationHM gets its letters from
+  // Intl.NumberFormat, and NARROW-SECOND is the one unit whose rendering is
+  // not stable across ICU builds: en-AU renders 45 seconds as "45s." WITH A
+  // FULL STOP under node ICU 75.1, while the BROWSER resolves the same en-AU
+  // to "45s". Both are correct Australian English; neither is the product's
+  // business. A literal "45s" here asserts Unicode data rather than a rule,
+  // and goes red on whichever of the two runtimes this machine happens to be.
+  //
+  // THE RULE IS THE BRANCH, NOT THE GLYPH. SUB-MINUTE HONESTY says a value
+  // between 1s and 59s renders in SECONDS instead of being floored to "0m".
+  // Building the expectation from the same formatter pins the branch and the
+  // NUMBER exactly, and leaves only the glyph to the locale - so the row still
+  // fails if the seconds branch is removed, which is the regression it is for.
+  // The explicit inequality below is the guard against that turning tautological.
+  //
+  // THE MINUTE AND HOUR ROWS STAY LITERAL DELIBERATELY: those glyphs are stable
+  // across every en locale, they are what the Insights and Dashboard surfaces
+  // actually read, and a literal that CAN be a literal should be one. They are
+  // the evidence that this change did not move the labels.
+  const narrowSec = (n) => ctx.durUnitFmt("second").format(n);
+  eq("SUB-MINUTE: 45s renders as seconds, not 0m", ctx.fmtDurationHM(45000), narrowSec(45));
+  eq("SUB-MINUTE: 1s renders", ctx.fmtDurationHM(1000), narrowSec(1));
+  eq("SUB-MINUTE: 59s renders", ctx.fmtDurationHM(59999), narrowSec(59));
+  check("SUB-MINUTE: the seconds branch is NOT the zero branch",
+    ctx.fmtDurationHM(45000) !== ctx.fmtDurationHM(0));
   eq("SUB-MINUTE: 60s crosses to minutes", ctx.fmtDurationHM(60000), "1m");
   eq("SUB-MINUTE: ZERO STAYS ZERO", ctx.fmtDurationHM(0), "0m");
   eq("SUB-MINUTE: sub-second is zero, not '0s'", ctx.fmtDurationHM(999), "0m");

@@ -3496,6 +3496,11 @@ I18n.register("en", {
       "description": "Tail of the session row naming the task a session is attached to, after a separator glyph. Reads as '... 5 tabs · on Write the report'.",
       "message": "on {name}"
     },
+    "sessions_saved_at": {
+      "description": "Timestamp line on a saved session row, reading 'Saved at 2:07 pm'. {time} is ALREADY FORMATTED by the browser's locale clock - a translation must not re-order the digits or add its own AM/PM, only move the words around the placeholder. Languages that put the time first can do so; the placeholder is the whole time, not the hour.",
+      "message": "Saved at {time}",
+      "sense": "label.timestamp.session.saved-tabs"
+    },
     "sessions_untitled_session": {
       "description": "Stand-in name for a saved session the user never named. ONE key for three sites: the session row, the session trash row and the session picker. SENSE OF 'SESSION': a saved set of tabs.",
       "message": "Untitled session",
