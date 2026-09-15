@@ -4239,3 +4239,73 @@ I18n.register("en", {
       "description": "Count on the Recently closed section heading, matching opentabs_window_tab_count's shape so the two headings in this panel read alike. Capped at 25 by the writer, so this never exceeds it."
     }
   });
+
+// =========================================================================
+// [WM.1] WORKSPACE MODE
+//
+// Two modes and no more: Work is the disciplined environment, Casual is the
+// absence of it. The words are the user's own - nobody calls it "discipline
+// mode" - and neither is scolding: Casual is a legitimate way to use the
+// product, not a failure to focus, so its copy states what the mode does
+// rather than what the user is not doing.
+//
+// THE READOUT SAYS "WORK" AND NEVER "CASUAL", so there is deliberately no
+// casual counterpart to wsmode_pill_work_title. See satWorkModeChipHtml.
+// =========================================================================
+I18n.register("en", {
+    "wsmode_label": {
+      "description": "Label over the mode control in the workspace switcher dropdown. One word, because the control below it names both values.",
+      "message": "Mode",
+      "sense": "label.field"
+    },
+    "wsmode_group_label": {
+      "description": "Accessible name of the two-option mode control. Names the workspace, because the control sits inside a menu listing several. {workspaceName} is user-supplied and falls back to the workspace id.",
+      "message": "Mode for {workspaceName}",
+      "sense": "a11y.label.group"
+    },
+    "wsmode_casual": {
+      "description": "The mode that runs no focus rules. The default for every workspace, including every one created before mode existed.",
+      "message": "Casual",
+      "sense": "action.toggle"
+    },
+    "wsmode_work": {
+      "description": "The disciplined mode. Also the text of the pill chip, which CSS uppercases - the message stays sentence case here because the casing is presentation.",
+      "message": "Work",
+      "sense": "action.toggle"
+    },
+    "wsmode_casual_hint": {
+      "description": "Tooltip on the Casual option. States what the mode does, not what the user is failing to do.",
+      "message": "No focus rules in this workspace.",
+      "sense": "tooltip.explanation"
+    },
+    "wsmode_work_hint": {
+      "description": "Tooltip on the Work option. Present tense, because the mode is a state of the workspace rather than an action performed on it.",
+      "message": "Focus rules on in this workspace.",
+      "sense": "tooltip.explanation"
+    },
+    "wsmode_pending_note": {
+      "description": "TEMPORARY, AND WM.5 DELETES IT. Shown under the mode control while mode governs nothing yet, so a user who flips to Work and sees nothing change knows it is not broken. Gated on the WS_MODE_PENDING constant in newtab.js; that constant and this message are removed together when the rules land.",
+      "message": "Nothing is enforced yet. The rules Work mode runs arrive in later updates.",
+      "sense": "note.explanation"
+    },
+    "wsmode_pill_work_title": {
+      "description": "Tooltip and accessible name of the WORK chip on the active-task pill. ONE key for one element, per the i18n-dom contract. There is no Casual equivalent: the chip is absent in Casual.",
+      "message": "This workspace is in Work mode.",
+      "sense": "tooltip.state"
+    },
+    "wsmode_now_work": {
+      "description": "Toast after flipping a workspace to Work. Names the workspace, because the flip is per workspace and a user may hold several.",
+      "message": "{workspaceName} is in Work mode.",
+      "sense": "toast.confirmation"
+    },
+    "wsmode_now_casual": {
+      "description": "Toast after flipping a workspace back to Casual. Deliberately symmetric with wsmode_now_work - returning to Casual is not an undo and is not phrased as one.",
+      "message": "{workspaceName} is in Casual mode.",
+      "sense": "toast.confirmation"
+    },
+    "wsmode_write_failed": {
+      "description": "Toast when the mode flip could not be saved. The in-memory flip is rolled back by re-reading storage before this shows, so the control the user sees again is the truth.",
+      "message": "Could not save the mode change.",
+      "sense": "toast.error"
+    }
+  });

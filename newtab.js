@@ -9161,6 +9161,69 @@
       frag.appendChild(row);
     });
 
+    // [WM.1] THE MODE CONTROL, for the ACTIVE workspace only.
+    //
+    // IN THE SWITCHER BECAUSE MODE IS A PROPERTY OF THE WORKSPACE, and this is
+    // the one surface where a user is already thinking about which workspace
+    // they are in. A Settings row would put it a tab away from the thing it
+    // describes, and would have to name a workspace that is named right here.
+    //
+    // ONE CLICK, NO CONFIRM. Flipping mode destroys nothing and is instantly
+    // reversible by the other half of the same control, so a confirm would be
+    // friction with nothing to protect.
+    //
+    // PRO GATING IS BY INHERITANCE, AND THE CONTROL IS ABSENT RATHER THAN
+    // DISABLED: applyWorkspaceSwitcherState hides #sb-workspace-switcher
+    // outright for anyone isProAccessibleLevel refuses, and closes this
+    // dropdown when it does, so free and expired never reach this code. That is
+    // the shape the anchor requires - a control that cannot do anything reads
+    // as broken rather than as locked - and it needs no second gate here, which
+    // would only be a second place for the two to disagree.
+    var modeWs = Storage.getActiveWorkspace(data);
+    if (modeWs) {
+      var modeDivider = document.createElement("div");
+      modeDivider.className = "ws-dd-divider";
+      frag.appendChild(modeDivider);
+
+      var modeSection = document.createElement("div");
+      modeSection.className = "ws-dd-mode";
+      var currentMode = Storage.getWorkspaceMode(modeWs);
+      var modeName = modeWs.name || modeWs.id;
+      var modeOptHtml = function (value, labelKey, hintKey) {
+        var on = (currentMode === value);
+        return '<button type="button" class="ws-dd-mode-opt' + (on ? " is-on" : "") +
+          '" data-ws-mode="' + value + '" aria-pressed="' + (on ? "true" : "false") +
+          '" title="' + th(hintKey) + '">' + th(labelKey) + '</button>';
+      };
+      // THE SWITCH SWITCHES NOTHING YET, AND IT SAYS SO.
+      //
+      // WM.1 ships the model, the control and the stamp; WM.2 through WM.5 ship
+      // the rules mode governs. A user who flips to Work, sees the chip appear
+      // and sees nothing else change would reasonably conclude the control is
+      // broken - so this note is the difference between "not yet" and "not
+      // working".
+      //
+      // ONE FLAG, ONE STRING, AND WM.5 OWNS DELETING BOTH. This is the
+      // TRIAL_CTA_ENABLED shape - a single grep-able constant rather than a
+      // sentence scattered through a render - because copy that says "not yet"
+      // becomes FALSE the moment the arc lands, and shipped copy that has
+      // quietly become a lie is worse than no copy at all.
+      modeSection.innerHTML =
+        '<div class="ws-dd-mode-label">' + th("wsmode_label") + '</div>' +
+        '<div class="ws-dd-mode-seg" role="group" aria-label="' +
+          th("wsmode_group_label", { workspaceName: modeName }) + '">' +
+          modeOptHtml("casual", "wsmode_casual", "wsmode_casual_hint") +
+          modeOptHtml("work", "wsmode_work", "wsmode_work_hint") +
+        '</div>' +
+        (WS_MODE_PENDING ? '<p class="ws-dd-mode-note">' + th("wsmode_pending_note") + '</p>' : "");
+      Array.prototype.forEach.call(modeSection.querySelectorAll("[data-ws-mode]"), function (btn) {
+        btn.addEventListener("click", function () {
+          setWorkspaceModeFromSwitcher(modeWs.id, btn.dataset.wsMode);
+        });
+      });
+      frag.appendChild(modeSection);
+    }
+
     var divider = document.createElement("div");
     divider.className = "ws-dd-divider";
     frag.appendChild(divider);
@@ -9254,6 +9317,42 @@
         hideSidebarPanel();
       }
     }
+  }
+
+  // [WM.1] True while mode governs nothing. WM.5 sets it false and deletes
+  // wsmode_pending_note from the catalogue in the same commit.
+  var WS_MODE_PENDING = true;
+
+  // [WM.1] Flip the active workspace's mode. setWorkspaceMode returns false
+  // when the value is unchanged, so clicking the segment you are already on
+  // emits no write, no re-render and no toast.
+  //
+  // THE CATCH RE-READS `data`, and that is not defensive noise. setWorkspaceMode
+  // is a PURE MUTATION on the in-memory object (the J5 convention - Storage is
+  // stateless-by-argument and the caller owns the save), so returning on a
+  // failed saveAll would leave a flipped workspace sitting in memory for the
+  // NEXT successful save to commit silently. Same defect OT.2 found in
+  // createNamedSessionAtFront, same fix.
+  async function setWorkspaceModeFromSwitcher(workspaceId, mode) {
+    if (!Storage.setWorkspaceMode(data, workspaceId, mode)) return;
+    try {
+      await Storage.saveAll(data);
+    } catch (e) {
+      console.error("[LaunchPad] workspace mode write failed:", e);
+      try { data = await Storage.getAll(); } catch (e2) { /* nothing better to do */ }
+      refreshWorkspaceDropdown(false);
+      showToast(t("wsmode_write_failed"));
+      return;
+    }
+    var ws = (data.workspaces || []).find(function (w) { return w.id === workspaceId; });
+    var name = ws ? (ws.name || ws.id) : workspaceId;
+    // The dropdown stays OPEN. A one-click toggle should show its own result,
+    // and closing on flip would mean a user checking what they just did has to
+    // reopen the menu to see it.
+    refreshWorkspaceDropdown(false);
+    // The pill carries the readout, so it repaints from the same write.
+    renderActiveTaskWidget();
+    showToast(t(mode === "work" ? "wsmode_now_work" : "wsmode_now_casual", { workspaceName: name }));
   }
 
   async function switchWorkspace(workspaceId) {
@@ -17184,6 +17283,27 @@
   // changes every second. Colour is var(--sat-accent), the ring's own variable,
   // so it inherits the already-solved three-branch treatment over wallpapers
   // rather than inventing a second accent.
+  // [WM.1] THE MODE READOUT, and it renders in WORK ONLY.
+  //
+  // Casual is the default and it is the ABSENCE of the rules, so it is the
+  // state with nothing to say - and a surface with nothing to say says
+  // nothing. That is the rule satFocusPillDot below already follows, the rule
+  // the toolbar badge follows ("otherwise ABSENT - not zero, not a dot, not a
+  // colour with empty text"), and the rule the focus ring follows with no
+  // target set. A CASUAL chip on every pill for every default user would be
+  // permanent furniture whose entire content is that nothing is happening.
+  //
+  // ON THE PILL, NOT ON THE BADGE. The toolbar badge means exactly one thing -
+  // minutes, or amber for paused, or absent - and background.js already
+  // records why a fourth meaning on eight pixels is refused. The toolbar popup
+  // is left mode-blind too, for a different reason: it never names a workspace
+  // at all, so a mode chip there would be an adjective with no noun.
+  function satWorkModeChipHtml() {
+    if (Storage.getWorkspaceMode(Storage.getActiveWorkspace(data)) !== "work") return "";
+    return '<span class="sat-mode-chip" title="' + th("wsmode_pill_work_title") + '" ' +
+      'aria-label="' + th("wsmode_pill_work_title") + '">' + th("wsmode_work") + '</span>';
+  }
+
   function satFocusPillDot() {
     if (!Storage.focusBlockingActive(data)) return "";
     return '<span class="sat-pill-focus" title="' + th("sat_focus_blocking_is_on") + '" ' +
@@ -17196,7 +17316,7 @@
       inner = (paused ? '<span class="sat-pill-glyph sat-pill-resume" data-sat-act="resume" ' +
           'role="button" title="' + th("sat_resume_tracking") + '" aria-label="' + th("sat_resume_tracking") + '">⏸</span>' : '') +
         '<span class="sat-pill-empty">' + th("sat_no_active_task") + '</span>' +
-        satFocusPillDot() +
+        satFocusPillDot() + satWorkModeChipHtml() +
         '<span class="sat-pill-plus" aria-hidden="true">+</span>';
     } else {
       // [1.0.18] Minimized pill during a running phase: the countdown + phase
@@ -17205,7 +17325,7 @@
       // card on click (act = "restore" below).
       var pomo = satRunningPomo();
       if (pomo) {
-        inner = '<span class="sat-pill-glyph" aria-hidden="true">◷</span>' + satFocusPillDot() +
+        inner = '<span class="sat-pill-glyph" aria-hidden="true">◷</span>' + satFocusPillDot() + satWorkModeChipHtml() +
           '<span class="sat-pill-main">' +
             '<span class="sat-pill-label">' +
               escapeHtml(SAT_POMO_PHASE_LABEL[pomo.phase] || t("sat_pomo_phase_focus")) + '</span>' +
@@ -17213,7 +17333,7 @@
           '</span>' +
           '<span class="sat-pill-time sat-pomo-time">' + escapeHtml(satFmtLong(satPomoRemainingMs(pomo))) + '</span>';
       } else {
-        inner = '<span class="sat-pill-glyph" aria-hidden="true">' + (paused ? '⏸' : '▶') + '</span>' + satFocusPillDot() +
+        inner = '<span class="sat-pill-glyph" aria-hidden="true">' + (paused ? '⏸' : '▶') + '</span>' + satFocusPillDot() + satWorkModeChipHtml() +
           '<span class="sat-pill-main">' +
             '<span class="sat-pill-label">' +
               (paused ? th("sat_paused") : th("common_active_task")) + '</span>' +
@@ -17306,6 +17426,7 @@
     var head =
       '<div class="sat-card-head">' +
         '<span class="sat-eyebrow">' + th("common_active_task") + '</span>' +
+        satWorkModeChipHtml() +
         '<button type="button" class="sat-card-min" data-sat-act="minimize" ' +
           'title="' + th("sat_minimize") + '" aria-label="' + th("sat_minimize_active_task_card") + '">⌃</button>' +
       '</div>' +

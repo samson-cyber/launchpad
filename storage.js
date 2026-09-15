@@ -311,6 +311,58 @@ var Storage = (function () {
     return true;
   }
 
+  // ===== [WM.1] Workspace mode =====
+  //
+  // TWO MODES, not three and not custom (PLAN decision A). Work is the
+  // disciplined environment - sessions, blocking, friction, reminders, sounds;
+  // Casual runs none of it. The launcher, tracking and named sessions are
+  // untouched by mode either way, so a Casual workspace still tracks.
+  //
+  // A FIELD ON THE WORKSPACE RECORD, NOT A SETTINGS KEY (PLAN decision B), so
+  // it rides the workspace through export, import and delete with no join and
+  // no orphan to clean up when a workspace is deleted.
+  //
+  // AND IT NEEDS NO SWEEP, which is the part worth stating because the two
+  // fields it sits next to both have one. `notes` and `namedSessions` are
+  // ARRAYS that get mutated in place, so they must EXIST before anything can
+  // push to them - hence ensureNotesArrays / ensureNamedSessionsArrays.
+  // `tracking` is a nested object that shipped as an empty placeholder, so it
+  // needed ensureTrackingState to fill in. `mode` is a SCALAR read through a
+  // defaulting reader: absent reads as casual, which is the correct answer for
+  // every workspace that predates this round. Adding a sweep would buy nothing
+  // and would cost a storage write on the first load after upgrade.
+  //
+  // The same reasoning is why createWorkspace() in newtab.js is NOT changed:
+  // it already omits notes and namedSessions and relies on the readers, and a
+  // fourth construction site for this field would be a fourth place to forget.
+  var WORKSPACE_MODES = ["casual", "work"];
+  var WORKSPACE_MODE_DEFAULT = "casual";
+
+  // Anything that is not exactly "work" is casual. Deliberately asymmetric: a
+  // corrupt or unknown value must never silently arm the disciplined mode.
+  function coerceWorkspaceMode(val) {
+    return val === "work" ? "work" : WORKSPACE_MODE_DEFAULT;
+  }
+
+  /** Read-side gate helper. Absent / malformed / legacy all read as casual. */
+  function getWorkspaceMode(workspace) {
+    if (!workspace) return WORKSPACE_MODE_DEFAULT;
+    return coerceWorkspaceMode(workspace.mode);
+  }
+
+  /** Mutate-only, per the convention setTrackingEnabled follows: the caller
+   *  owns the saveAll (BUGS.md J5 - Storage is stateless-by-argument).
+   *  Returns false when nothing changed, so a re-click emits no write. */
+  function setWorkspaceMode(data, workspaceId, mode) {
+    if (!data || !Array.isArray(data.workspaces)) return false;
+    var ws = data.workspaces.find(function (w) { return w.id === workspaceId; });
+    if (!ws) return false;
+    var next = coerceWorkspaceMode(mode);
+    if (getWorkspaceMode(ws) === next) return false;
+    ws.mode = next;
+    return true;
+  }
+
   // [1.0.25] Global manual-pause flag — top-level, NOT per-workspace (PLAN
   // AMENDMENT A2). Idle transitions must never write this: the spec is explicit
   // that a user who manually paused stays paused even after returning to the
@@ -4740,7 +4792,8 @@ var Storage = (function () {
   // (fresh object), complete / cancel (clearActiveTask), the pill's self-heal —
   // drops it for free.
   function emptyPomodoroState() {
-    return { cycleCount: 0, phase: null, phaseEndsAt: null, phaseDurationMs: null, sessionComplete: false };
+    // [WM.1] `mode` is the session stamp - see hydratePomodoroState.
+    return { cycleCount: 0, phase: null, phaseEndsAt: null, phaseDurationMs: null, sessionComplete: false, mode: null };
   }
 
   // Defaulting reader for the phase state: null / legacy / malformed hydrates to
@@ -4870,7 +4923,19 @@ var Storage = (function () {
       // [E1] Only meaningful on phase:null with at least one completed work phase
       // (the addendum's encoding); forced false otherwise so a malformed blob can
       // never paint the session-complete card over a running phase.
-      sessionComplete: (phase === null && cycleCount > 0 && ps.sessionComplete === true)
+      sessionComplete: (phase === null && cycleCount > 0 && ps.sessionComplete === true),
+      // [WM.1] THE SESSION STAMP (PLAN decision C). A focus session runs under
+      // the mode of the workspace it STARTED in, and keeps it to the end even
+      // if the workspace flips mid-session. WM.4's friction and WM.5's presets
+      // read this, never the live workspace - which is the whole reason it is a
+      // stored field rather than a lookup at point of use.
+      //
+      // FORCED NULL WHEN phase IS NULL, exactly as phaseEndsAt and
+      // phaseDurationMs are: the stamp exists for as long as the session does
+      // and not one moment longer, so a stale stamp can never be read as "a
+      // session is running under Work". That invariant is enforced HERE, on
+      // every read, rather than trusted to each of the five writers.
+      mode: (phase && (ps.mode === "work" || ps.mode === "casual")) ? ps.mode : null
     };
   }
 
@@ -4902,6 +4967,12 @@ var Storage = (function () {
     ps.phaseDurationMs = durMs;
     ps.phaseEndsAt = Date.now() + durMs;
     ps.sessionComplete = false;   // [E1] "Start next session" is this same path
+    // [WM.1] STAMPED HERE AND NOWHERE ELSE. This is the only entry point to a
+    // focus session - the start control and E1's "Start next session" are the
+    // same path - so the stamp is written exactly once per session by
+    // construction. Every later transition CARRIES it (nextPomodoroPhase) or
+    // CLEARS it (stop, expiry, session complete); none rewrites it.
+    ps.mode = getWorkspaceMode(getActiveWorkspace(data));
     active.pomodoroState = ps;
     await saveAll(data);
     return true;
@@ -4939,7 +5010,10 @@ var Storage = (function () {
   // A started break stamps fresh phaseEndsAt = now + duration, phaseDurationMs
   // from settings at that moment. Pure — no storage. Exported for the harness.
   function nextPomodoroPhase(ps, settings, now) {
-    var next = { cycleCount: ps.cycleCount, phase: null, phaseEndsAt: null, phaseDurationMs: null, sessionComplete: false };
+    // [WM.1] mode starts null and is carried onto the break below. The
+    // session-complete branch leaves it null: the session is over, so there is
+    // no longer a mode it is running under.
+    var next = { cycleCount: ps.cycleCount, phase: null, phaseEndsAt: null, phaseDurationMs: null, sessionComplete: false, mode: null };
     if (ps.phase === "work") {
       var completed = ps.cycleCount + 1;
       next.cycleCount = completed;
@@ -4947,6 +5021,9 @@ var Storage = (function () {
       next.phase = isLong ? "longBreak" : "shortBreak";
       next.phaseDurationMs = pomodoroPhaseDurationMs(next.phase, settings);
       next.phaseEndsAt = now + next.phaseDurationMs;
+      // CARRIED, NOT RE-READ. The break belongs to the session the work phase
+      // started, so a workspace flip during the work phase must not change it.
+      next.mode = ps.mode;
     } else {
       next.sessionComplete = true;   // [E1] break end -> session complete, no auto work
     }
@@ -4982,7 +5059,8 @@ var Storage = (function () {
     var decidedPhase = ps.phase, decidedEndsAt = ps.phaseEndsAt;
     var nextPs, result;
     if (now > ps.phaseEndsAt + grace) {
-      nextPs = { cycleCount: ps.cycleCount, phase: null, phaseEndsAt: null, phaseDurationMs: null, sessionComplete: false };
+      // [WM.1] mode:null explicitly - an expired session runs under no mode.
+      nextPs = { cycleCount: ps.cycleCount, phase: null, phaseEndsAt: null, phaseDurationMs: null, sessionComplete: false, mode: null };
       result = { action: "expired" };
     } else {
       nextPs = nextPomodoroPhase(ps, getPomodoroSettings(data), now);
@@ -7829,6 +7907,9 @@ var Storage = (function () {
     resolveWorkspaceFromData: resolveWorkspaceFromData,
     isTrackingEnabled: isTrackingEnabled,
     setTrackingEnabled: setTrackingEnabled,
+    WORKSPACE_MODES: WORKSPACE_MODES,
+    getWorkspaceMode: getWorkspaceMode,
+    setWorkspaceMode: setWorkspaceMode,
     isTrackingPaused: isTrackingPaused,
     // [1.0.20] Dashboard end-of-day boundary (minutes since local midnight).
     getEndOfDayMinutes: getEndOfDayMinutes,

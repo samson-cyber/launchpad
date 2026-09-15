@@ -3600,3 +3600,110 @@ goal's status belongs. If it ever surprises a real user, that is the signal to r
 **DELIBERATE SCOPE BOUNDARY, unchanged by this entry:** `reactivateTask` still re-opens a MANUALLY
 completed goal. Un-ticking a child is an UNDO of the event that closed the goal, so re-opening is
 right whoever closed it; attaching a NEW child is not an undo of anything.
+
+---
+
+## 2026-09-15 — Workspace mode: the field, the stamp, and where mode is allowed to show
+
+**Context:** WM.1 of the `[1.13.0]` arc (Asana 1218038740975996). The round ships the mode
+*model*, the switcher *control* and the session *stamp*; WM.2–WM.5 ship every rule mode
+governs. Three of the decisions below were taken on 2026-09-01 and are cited rather than
+re-taken; the rest are new and are the ones this entry exists for.
+
+### The 10-second countdown amendment is ALREADY on the record, and is NOT re-taken here
+
+The brief for this round asked for a DECISIONS entry amending **2026-07-22 ("A focus session
+ENDS: the break auto-starts, the next work phase never does")**. **That amendment already
+exists**, inside the **2026-09-01 "Expansion roadmap and design direction: rulings"** entry,
+under *Workspace mode governs behaviour; budgets sit outside it* — it names the E1 clause,
+replaces silent auto-advance with a visible, cancellable, announced 10-second countdown in
+Work mode only, answers 2026-07-22's procedural objection *and* its semantic one, and states
+that Casual does not auto-advance at all.
+
+**A second entry claiming to amend the same clause would be worse than no entry**, because a
+future session reading the log would find two amendments to one ruling and no way to tell
+which governs. So this entry points at that one and adds nothing to it. **The amendment
+stands exactly as written; WM.5 builds against it.**
+
+### Mode is a scalar field on the workspace record, and it needs no backfill sweep
+
+**Two values, `"casual"` and `"work"`, stored as `workspace.mode`** — a field on the record,
+not a settings key, so it rides the workspace through export, import and delete with no join
+to maintain and no orphan to clean up when a workspace is deleted.
+
+**It gets no `ensure*` sweep, and the reason is a real distinction rather than a shortcut.**
+The two fields it sits beside both have one, for causes mode does not share: `notes` and
+`namedSessions` are **arrays mutated in place**, so they must *exist* before anything can push
+to them; `tracking` is a **nested object that shipped as an empty placeholder**, so
+`ensureTrackingState` had something to fill in. `mode` is a **scalar read through a defaulting
+reader** — absent reads as Casual, which is the correct answer for every workspace that
+predates this round. A sweep would buy nothing and would cost a storage write on the first
+load after upgrade.
+
+**The coercion is deliberately asymmetric:** anything that is not exactly `"work"` is Casual.
+A corrupt, truncated or unknown value must never silently arm the disciplined mode.
+
+**`createWorkspace()` is not changed**, and that is consistent rather than an oversight: it
+already omits `notes` and `namedSessions` and leans on their readers. A fourth construction
+site for this field would be a fourth place to forget it.
+
+### The session stamp lives on `pomodoroState`, and is null whenever no session is running
+
+2026-09-01 ruled that **a session runs under the mode of the workspace it started in**. This
+entry records *where that is written*, because the answer was not obvious: a focus session's
+record is the **`pomodoroState` on the active task**, not a `tracking_sessions` row — those are
+domain-visit spans, they already carry their own `workspaceId`, and nothing in this arc reads
+them.
+
+**Written in exactly one place.** `startPomodoroPhase` is the *only* entry point to a focus
+session — the start control and E1's "Start next session" are the same path — so the stamp is
+written once per session by construction. Every later transition either **carries** it
+(`nextPomodoroPhase`, work → break) or **clears** it (stop, graceful expiry, session complete).
+None rewrites it, so a workspace flipped mid-session cannot change the rules the session began
+under.
+
+**The invariant is enforced on READ, not trusted to the writers.** `hydratePomodoroState`
+forces `mode` to null whenever `phase` is null, exactly as it already does for `phaseEndsAt`
+and `phaseDurationMs`. The stamp therefore exists for precisely as long as the session does,
+and a stale value in a malformed blob can never be read as "a session is running under Work".
+
+### Mode shows on the PILL, and deliberately not on the badge or the toolbar popup
+
+The `[1.9.x]` arc gave the product two session surfaces that did not exist when the 2026-09-01
+rulings were written, and the arc's PLAN required either showing mode on them or stating why
+not. Stating why not:
+
+- **The pill shows it, in Work only.** Casual is the default and it is the *absence* of the
+  rules, so it is the state with nothing to say — and a surface with nothing to say says
+  nothing. That is the rule the focus dot beside it already follows, the rule the badge
+  follows ("otherwise ABSENT — not zero, not a dot, not a colour with empty text"), and the
+  rule the focus ring follows with no target set. A CASUAL chip on every pill for every
+  default user would be permanent furniture whose entire content is that nothing is happening.
+- **The toolbar badge does not.** It means one thing — minutes, or amber for paused, or absent
+  — and `background.js` already records why a fourth meaning on eight pixels is refused. This
+  is the same call decision 6 of the `[1.9.0]` arc made.
+- **The toolbar popup does not, for a different reason.** It never names a workspace at all,
+  so a mode chip there would be an adjective with no noun. If the popup ever gains a workspace
+  line, this is the decision to revisit.
+
+**Pro gating is by inheritance and the control is ABSENT, not disabled.**
+`applyWorkspaceSwitcherState` already hides `#sb-workspace-switcher` outright for anyone
+`isProAccessibleLevel` refuses and closes the dropdown when it does, so free and expired never
+reach the control. A second gate inside the dropdown would only be a second place for the two
+to disagree.
+
+### The switch switches nothing yet, and it says so — behind one flag that WM.5 deletes
+
+WM.1 ships a control that flips a field nothing reads. A user who flips to Work, watches the
+chip appear and sees nothing else change would reasonably conclude the control is broken, so
+the switcher carries one sentence: *"Nothing is enforced yet. The rules Work mode runs arrive
+in later updates."* **That is the difference between "not yet" and "not working".**
+
+**Copy that says "not yet" becomes FALSE the moment the arc lands**, and shipped copy that has
+quietly become a lie is worse than no copy at all. So it is gated on a **single grep-able
+constant**, `WS_MODE_PENDING` in `newtab.js` — the `TRIAL_CTA_ENABLED` shape — and **WM.5 owns
+setting it false and deleting the constant, the string and its CSS rule in one commit.**
+Recorded here rather than left to memory, because the round that must remove it is four rounds
+away.
+
+**Shipped in:** WM.1.

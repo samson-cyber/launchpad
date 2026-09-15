@@ -8174,6 +8174,79 @@ html.has-bg #nesting-tooltip {
   font-weight: 500;
 }
 
+/* ===== [WM.1] The mode control =====
+
+   A SEGMENTED PAIR, NOT A CHECKBOX. Both values are named because neither is
+   an absence: Casual is a mode a user chooses, not Work switched off, and a
+   lone "Work mode" checkbox would say the opposite. It also leaves the control
+   room to grow if a third mode ever earns its place.
+
+   THE SELECTED HALF IS FILL PLUS ACCENT INK, never an accent FILL. The
+   dropdown is the floater tier and its ink is white-on-dark; an accent-filled
+   chip would need its own ink chooser and its own light-wallpaper answer, for
+   a control with two states. */
+.ws-dd-mode {
+  padding: var(--space-1) var(--space-2-5) var(--space-2);
+}
+
+.ws-dd-mode-label {
+  font-size: var(--fs-9);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-meta);
+  margin-block-end: var(--space-1-5);
+}
+
+.ws-dd-mode-seg {
+  display: flex;
+  gap: var(--space-1);
+  padding: 3px;
+  border: 1px solid var(--surface-line);
+  border-radius:var(--radius-lg);
+}
+
+.ws-dd-mode-opt {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: var(--space-1-5) var(--space-2);
+  border: 0;
+  border-radius:var(--radius-md);
+  background: transparent;
+  color: #fff;
+  font-family: inherit;
+  font-size: var(--fs-11);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ws-dd-mode-opt:hover {
+  background: var(--surface-fill);
+}
+
+/* THE SELECTED HALF KEEPS THE ROW'S OWN INK, and the accent moves to the
+   RING. Measured: accent-as-text read 4.49:1 with no wallpaper and 4.10:1 on
+   a light one - below the floor on two of the four real grounds, because
+   --pro-ink-accent is a light blue chosen to sit ON dark frost rather than to
+   carry text at 12px. As a 1px ring it is a UI boundary, not text, and the
+   selected label now measures whatever the unselected one does. Fill, weight
+   and ring carry the state, and aria-pressed carries it for anyone not
+   looking at any of them. */
+.ws-dd-mode-opt.is-on {
+  background: var(--surface-fill);
+  box-shadow: inset 0 0 0 1px var(--pro-ink-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* TEMPORARY - WM.5 removes this rule with WS_MODE_PENDING and its string. */
+.ws-dd-mode-note {
+  margin: var(--space-1-5) 0 0;
+  font-size: var(--fs-9);
+  line-height: 1.45;
+  color: var(--ink-meta);
+}
+
 .ws-dd-add-glyph {
   display: inline-flex;
   align-items: center;
@@ -8794,6 +8867,34 @@ html.has-bg.bg-light .ws-dd-add {
 
 html.has-bg.bg-light .ws-dd-add {
   color: #1e6fc9;
+}
+
+/* [WM.1] The bg-light floater is white-tinted, so every one of these would
+   otherwise composite white-on-white: --ink-meta is white-alpha and
+   --pro-ink-accent (#6fb1ff) is a light blue chosen for dark frost. Same
+   answers the rules above already use - #222 for body ink and #1e6fc9 for the
+   accent - so the control matches the menu it sits in. */
+html.has-bg.bg-light .ws-dd-mode-opt {
+  color: #222;
+}
+
+html.has-bg.bg-light .ws-dd-mode-opt.is-on {
+  color: #222;
+  background: rgba(0, 0, 0, 0.06);
+  box-shadow: inset 0 0 0 1px #1e6fc9;
+}
+
+html.has-bg.bg-light .ws-dd-mode-seg {
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+html.has-bg.bg-light .ws-dd-mode-opt:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+html.has-bg.bg-light .ws-dd-mode-label,
+html.has-bg.bg-light .ws-dd-mode-note {
+  color: rgba(0, 0, 0, 0.62);
 }
 
 html.has-bg.bg-light .ws-dd-divider {
@@ -16180,6 +16281,58 @@ html.bg-light .sat-focus-row.is-on .sat-focus-knob { background: #fff; }
   color: var(--sat-accent);
   margin-inline-start: -2px;
   align-self: center;
+}
+
+/* [WM.1] The WORK chip. Rendered ONLY in Work mode - see satWorkModeChipHtml
+   for why there is no Casual counterpart.
+
+   --sat-accent RATHER THAN A LITERAL, which is what makes it legible on all
+   four grounds without a rule per ground: the token already resolves to
+   --accent with no wallpaper, #8ab4f8 on a dark or image wallpaper, and back
+   to --accent on a light one. .sat-pill-focus beside it is the precedent.
+
+   OUTLINE, NOT FILL. The pill face is a dense row - glyph, dot, label, name,
+   numeral - and a filled chip in it would out-shout the numeral, which is the
+   thing the pill is for. */
+.sat-mode-chip {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 1px var(--space-1);
+  border: 1px solid var(--sat-accent);
+  border-radius:var(--radius-sm);
+  /* THE RING IS THE ACCENT; THE TEXT IS INK. Measured with the accent as the
+     text: 2.74:1 with no wallpaper and 4.04:1 on a light one, because
+     --sat-accent resolves to --accent (#1a73e8) on exactly those two grounds
+     and #1a73e8 is the INTERACTIVE blue, not an ink. It reads fine on the two
+     wallpapered grounds, where the token becomes #8ab4f8 - which is the trap:
+     testing on a wallpaper only would have shipped this.
+
+     Declared explicitly with an html.bg-light partner rather than inherited,
+     per the panel-ink doctrine - a new text rule with no colour of its own
+     takes body's dark ink and vanishes on dark frost. That defect has shipped
+     twice and tools/check-panel-ink.mjs exists because of it. The selector is
+     html.bg-light, not html.has-bg.bg-light, to match .sat-pill-label beside
+     it - the pill's own chain. */
+  color: #fff;
+  font-size: var(--fs-8);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  text-shadow: none;
+  white-space: nowrap;
+}
+
+/* In the card head the chip follows the eyebrow, and .sat-card-head is a
+   space-between row - so without this the chip would float in the middle
+   between the eyebrow and the minimize control instead of sitting with the
+   label it qualifies. */
+.sat-card-head .sat-mode-chip {
+  margin-inline: var(--space-1-5) auto;
+}
+
+html.bg-light .sat-mode-chip {
+  color: #202124;
 }
 
 /* ===== Notes tab ([1.1.1]) =====
