@@ -2599,7 +2599,13 @@
       // retention constant, so it also follows the system date on its own.
       // Rendered through the board's existing locale date formatter, the
       // same one the strip's best-day label uses.
-      '<p class="insights-range-note">' +
+      // [1218227002797833] THE HOOK EXISTS BECAUSE THIS ROW IS BUILT BEFORE
+      // THE DATA IS READ. The shell renders synchronously and the totals
+      // arrive later in insightsRefresh, so the honest caption cannot be
+      // chosen here. It is painted with the horizon sentence - correct for
+      // every profile that has history, which is nearly all of them - and
+      // corrected to the empty-profile sentence once the read lands.
+      '<p class="insights-range-note" data-ins-horizon>' +
         th("insights_history_starts", { date: fmtShortDate(insightsKeyToTs(hz.min)) }) + '</p>' +
       // [1.8.4] THE EXPORT CONTROL SITS ON THE RANGE ROW, and that is a
       // deliberate tension with design-guide 4.2, which says the selector is
@@ -3374,6 +3380,39 @@
     }).catch(function (err) {
       console.error("[LaunchPad] Insights: best-hours read failed", err);
     });
+    // [1218227002797833] THE HORIZON CAPTION, CORRECTED FOR AN EMPTY PROFILE.
+    //
+    // On a profile with no recorded history row one read "History starts 9 Aug",
+    // which is THE RETENTION BOUNDARY - a fact about the system, not about the
+    // user's data. Nothing was recorded on that day or any day since. Same shape
+    // as the donut defect above it: a derived figure presented as a fact about
+    // the data when it is really a fact about the machinery.
+    //
+    // THE CONDITION IS THE WHOLE RETENTION WINDOW, NOT THE SELECTED RANGE, and
+    // that distinction is the point. A profile with history three weeks ago and a
+    // 7-day range selected HAS history - the caption is correct and stays. Only a
+    // profile with nothing anywhere in retention gets the other sentence, so this
+    // reads the horizon rather than reusing the range read already in hand.
+    //
+    // It costs one extra windowed read per refresh. Stated rather than hidden:
+    // the alternative is reusing `range`, which would flip the caption to "no
+    // focus time recorded" every time a short range happened to be empty, which
+    // is a different and wronger claim.
+    (function () {
+      var cap = panel.querySelector("[data-ins-horizon]");
+      if (!cap) return;
+      var hzKeys = Tracking.lastNLocalDayKeys(Tracking.RETENTION_DAYS || 30);
+      Tracking.focusedRangeForScope(scope.workspaceId, hzKeys).then(function (hzRange) {
+        if (token !== insightsReadToken) return;
+        var any = hzKeys.some(function (k) { return (hzRange[k] || 0) > 0; });
+        if (!any) cap.textContent = t("insights_history_none");
+      }).catch(function (err) {
+        // A failed read leaves the horizon sentence in place, which is the
+        // safe direction: it is the correct caption for every profile that
+        // has any history at all.
+        console.error("[LaunchPad] Insights: horizon read failed", err);
+      });
+    })();
     insightsFill(panel, "[data-ins-donut]", insightsTagDonutHtml(byTag, scopeTotalMs, d, combined, rangeLabelNow));
     insightsFill(panel, "[data-ins-topsites]", insightsTopSitesHtml(byDomain, d, combined, rangeLabelNow));
     insightsFill(panel, "[data-ins-toptasks]", insightsTopTasksHtml(byTask, d, combined, rangeLabelNow));
@@ -3510,7 +3549,29 @@
     var legend = insightsDonutLegend(
       ordered.map(function (s) { return { color: s.color, name: s.name, valueText: fmtDurationHM(s.ms) }; })
     );
-    return donutSvg + '<div class="pp-donut-legend">' + legend + '</div>';
+    // THE OVERLAP NOTE, AND ONLY WHEN THE CONDITION ACTUALLY FIRES.
+    //
+    // The comment above this function has explained the overlap to READERS OF
+    // THE SOURCE since the donut shipped; the surface said nothing. [1.8.4]'s
+    // CSV then began carrying a tag_note row stating it outright, which left the
+    // downloadable file more honest than the screen it came from - a user
+    // learned from the artefact something the live board withheld.
+    //
+    // IT NAMES BOTH FACTS, not just the arithmetic. That the parts exceed the
+    // whole is visible if you add the legend up; that UNTAGGED TIME IS NOT DRAWN
+    // is not visible at all, because the clamp deletes the slice rather than
+    // showing it at zero. The second is the defect this was filed for, so the
+    // line says it.
+    //
+    // CONDITIONAL BY RULING. A permanent caveat on a donut most profiles never
+    // trip is clutter; a line that appears when the numbers genuinely overlap is
+    // information at the moment it is needed. The condition is the clamp's own
+    // trigger - tagTotalMs > scopeTotalMs - so the note cannot appear without
+    // the clamp having fired, and cannot be missing when it has.
+    var overlapNote = (tagTotalMs > scopeTotalMs)
+      ? '<p class="insights-tag-overlap-note">' + th("insights_tag_overlap_note") + '</p>'
+      : "";
+    return donutSvg + '<div class="pp-donut-legend">' + legend + '</div>' + overlapNote;
   }
 
   // Top Tasks: top 6 by focused ms over the window ([1.2.1] eyeball pass — was 5;

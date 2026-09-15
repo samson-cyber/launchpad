@@ -3368,8 +3368,16 @@ I18n.register("en", {
       "message": "Deep Work · {range}"
     },
     "insights_history_starts": {
-      "description": "Note under the Insights range selector naming the first day with any recorded history. {date} is already formatted by the locale date formatter.",
+      "description": "Note under the Insights range selector naming the first day with any recorded history. {date} is already formatted by the locale date formatter. Rendered ONLY when the profile has focus time somewhere in the retention window; a profile with none gets insights_history_none instead, because on an empty profile this date is the retention boundary rather than anything the data supports.",
       "message": "History starts {date}"
+    },
+    "insights_history_none": {
+      "description": "Replaces insights_history_starts under the Insights range selector when the profile has NO focus time anywhere in the retention window. States the absence rather than naming the retention boundary, which on an empty profile is a fact about the system and not about the user. VOCABULARY LAW: 'focus time' is the engine's measured figure, not self-reported effort. Rendered with th().",
+      "message": "No focus time recorded yet."
+    },
+    "insights_tag_overlap_note": {
+      "description": "One line beneath the Insights tag donut legend, rendered ONLY when the tag totals exceed the period total - i.e. when multi-tagged sessions have made them overlap. INFORMATION, NOT A WARNING: it explains why the parts add up to more than the whole and why no Untagged slice is drawn, both of which are otherwise silent. Matches what the CSV export's tag_note row already says. Rendered with th().",
+      "message": "A session can carry several tags, so these add up to more than the period total and untagged time is not shown."
     },
     "insights_no_focus_time_in_range": {
       "description": "Empty state for the tag donut. VOCABULARY LAW: 'focus time' is the engine's measured figure, not self-reported effort.",
