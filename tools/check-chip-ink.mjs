@@ -456,7 +456,13 @@ for (const cls of ["tt-tag-pill", "pp-tag-pill", "tag-pill", "sb-ws-chip", "pws-
 // static ink and no ink can clear both halves of the bar — which is exactly the
 // regression this section exists to fail.
 {
-  const grad = SRC.css.match(/[\n}]\s*\.tt-progress-fill \{[^}]*background: linear-gradient\(90deg,\s*(#[0-9a-fA-F]{6})[^,]*,\s*(#[0-9a-fA-F]{6})/);
+  // [2.2.0] EITHER SPELLING. The two stops are var(--pro-identity-from) and
+  // var(--pro-identity-to) now - the Pro brand gradient became nameable so a
+  // gate could assert it does NOT follow --accent (check-accent-boundary.mjs).
+  // What THIS row guards is the DESIGN - two stops rather than one flat ink -
+  // and a token is as much a stop as a hex is, so the pattern accepts both
+  // rather than pinning the spelling and going red on a rename.
+  const grad = SRC.css.match(/[\n}]\s*\.tt-progress-fill \{[^}]*background: linear-gradient\(90deg,\s*(#[0-9a-fA-F]{6}|var\(\s*--[a-z-]+\s*\))[^,]*,\s*(#[0-9a-fA-F]{6}|var\(\s*--[a-z-]+\s*\))/);
   check("progress: the fill is still a two-stop gradient", !!grad, grad ? grad.slice(1, 3).join(" -> ") : "not found");
   const baseInk = SRC.css.match(/[\n}]\s*\.tt-progress-pct-base \{[^}]*color:\s*(rgba?\([^)]*\))/);
   const fillInk = SRC.css.match(/\.tt-progress-pct-fill \{[^}]*color:\s*(rgba?\([^)]*\))/);
@@ -467,11 +473,35 @@ for (const cls of ["tt-tag-pill", "pp-tag-pill", "tag-pill", "sb-ws-chip", "pws-
     // derivable at both ends of the sweep, and both ends have to clear.
     const m = fillInk[1].match(/[\d.]+/g).map(Number);
     const a = m.length > 3 ? m[3] : 1;
+    // [2.2.0] RESOLVE A TOKEN STOP TO ITS LITERAL BEFORE MEASURING IT. The
+    // stops are var(--pro-identity-from/-to) now. This block composites the
+    // in-fill ink over each stop and measures contrast, so a stop arriving as
+    // the STRING "var(...)" makes hexToRgb return null and kills the gate with
+    // a TypeError - an exit 1 that reads as a violation and is a broken
+    // harness. SRC.css is tokens.css + newtab.css in cascade order, which is
+    // what the browser reads, so the definition is right here.
+    //
+    // AN UNRESOLVABLE STOP IS A FAILURE, NOT A SKIP. Quietly continuing past
+    // a token it cannot read is how a gate goes green over an unmeasured
+    // surface.
+    const litOf = (stop) => {
+      const v = /^var\(\s*(--[a-z-]+)\s*\)$/.exec(String(stop).trim());
+      if (!v) return stop;
+      const def = SRC.css.match(new RegExp(v[1] + "\\s*:\\s*(#[0-9a-fA-F]{3,8})\\s*;"));
+      return def ? def[1] : null;
+    };
     for (const stop of [grad[1], grad[2]]) {
-      const bg = C.hexToRgb(stop);
+      const lit = litOf(stop);
+      if (!lit) {
+        check(`progress: gradient stop ${stop} resolves to a literal colour`, false,
+          "no definition found in the token layer");
+        continue;
+      }
+      const bg = C.hexToRgb(lit);
       const comp = "#" + [0, 1, 2].map((i) => Math.round(m[i] * a + bg[i] * (1 - a)).toString(16).padStart(2, "0")).join("");
-      const got = C.contrastRatio(stop, comp);
-      check(`progress: the in-fill % clears ${FLOOR}:1 on gradient stop ${stop}`, got >= FLOOR, got.toFixed(2));
+      const got = C.contrastRatio(lit, comp);
+      const shown = lit === stop ? stop : `${stop} = ${lit}`;
+      check(`progress: the in-fill % clears ${FLOOR}:1 on gradient stop ${shown}`, got >= FLOOR, got.toFixed(2));
     }
   }
   if (baseInk && fillInk) {
@@ -601,8 +631,8 @@ const SEEDS = [
     file: "css", from: ".tt-progress-pct-fill {\n  width: 100cqw;\n  color: rgba(0, 0, 0, 0.82);\n}",
     to: ".tt-progress-pct-fill {\n  width: 100cqw;\n  color: rgba(255, 255, 255, 0.92);\n}" },
   { name: "progress: the fill stops clipping, so the reveal mechanism dies",
-    file: "css", from: ".tt-progress-fill {\n  height: 100%;\n  background: linear-gradient(90deg, #4a90e2 0%, #6fb1ff 100%);\n  transition: width 0.4s ease;\n  overflow: hidden;",
-    to: ".tt-progress-fill {\n  height: 100%;\n  background: linear-gradient(90deg, #4a90e2 0%, #6fb1ff 100%);\n  transition: width 0.4s ease;\n  overflow: visible;" },
+    file: "css", from: ".tt-progress-fill {\n  height: 100%;\n  background: linear-gradient(90deg, var(--pro-identity-from) 0%, var(--pro-identity-to) 100%);\n  transition: width 0.4s ease;\n  overflow: hidden;",
+    to: ".tt-progress-fill {\n  height: 100%;\n  background: linear-gradient(90deg, var(--pro-identity-from) 0%, var(--pro-identity-to) 100%);\n  transition: width 0.4s ease;\n  overflow: visible;" },
   // The priority chips regressing to the tinted outline they replaced.
   { name: "priority: back to a translucent tint with the hue as ink",
     file: "css", from: ".tt-prio-pill.tt-prio-urgent { color: #240704; border-color: var(--prio-urgent); background: var(--prio-urgent); }",

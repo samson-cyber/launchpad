@@ -3542,7 +3542,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
   padding: 0;
   border: none;
   background: none;
-  color: #6fb1ff;
+  color: var(--pro-ink-accent);
   font: inherit;
   font-weight: 600;
   text-decoration: underline;
@@ -5832,7 +5832,7 @@ html.has-bg .rc-empty-state-text {
 }
 
 .session-row:focus-visible {
-  outline: 2px solid var(--sat-accent, #1a73e8);
+  outline: 2px solid var(--sat-accent, var(--accent));
   outline-offset: -2px;
 }
 
@@ -5908,12 +5908,12 @@ html.has-bg .rc-empty-state-text {
    row happens to be hovered. */
 .session-row-more:focus-visible {
   opacity: 1;
-  outline: 2px solid var(--sat-accent, #1a73e8);
+  outline: 2px solid var(--sat-accent, var(--accent));
   outline-offset: -1px;
 }
 
 .vctx-item:focus-visible {
-  outline: 2px solid var(--sat-accent, #1a73e8);
+  outline: 2px solid var(--sat-accent, var(--accent));
   outline-offset: -2px;
 }
 
@@ -5953,7 +5953,7 @@ html.has-bg:not(.bg-light) .vctx-item:focus-visible {
 }
 
 .sessions-trash-btn:focus-visible {
-  outline: 2px solid var(--sat-accent, #1a73e8);
+  outline: 2px solid var(--sat-accent, var(--accent));
   outline-offset: -2px;
 }
 
@@ -8155,7 +8155,7 @@ html.has-bg #nesting-tooltip {
 .ws-dd-check {
   flex-shrink: 0;
   opacity: 0.85;
-  color: #6fb1ff;
+  color: var(--pro-ink-accent);
 }
 
 .ws-dd-lock {
@@ -8170,7 +8170,7 @@ html.has-bg #nesting-tooltip {
 }
 
 .ws-dd-add {
-  color: #6fb1ff;
+  color: var(--pro-ink-accent);
   font-weight: 500;
 }
 
@@ -8206,7 +8206,7 @@ html.has-bg #nesting-tooltip {
 }
 
 .ws-dd-input:focus {
-  border-color: #6fb1ff;
+  border-color: var(--pro-ink-accent);
   background: var(--surface-fill);
 }
 
@@ -8215,7 +8215,7 @@ html.has-bg #nesting-tooltip {
   border: 1px solid rgba(111, 177, 255, 0.5);
   border-radius:var(--radius-md);
   background: rgba(111, 177, 255, 0.18);
-  color: #6fb1ff;
+  color: var(--pro-ink-accent);
   font-family: inherit;
   font-size: var(--fs-12);
   font-weight: 600;
@@ -8322,7 +8322,7 @@ html.has-bg #nesting-tooltip {
   flex: 1;
   min-width: 0;
   padding: 2px var(--space-1-5);
-  border: 1px solid #6fb1ff;
+  border: 1px solid var(--pro-ink-accent);
   background: rgba(255, 255, 255, 0.08);
   border-radius:var(--radius-sm);
   color: #fff;
@@ -8378,7 +8378,7 @@ html.has-bg #nesting-tooltip {
 }
 
 .pws-add-input:focus {
-  border-color: #6fb1ff;
+  border-color: var(--pro-ink-accent);
   background: var(--surface-fill);
 }
 
@@ -8405,7 +8405,7 @@ html.has-bg #nesting-tooltip {
 .pws-add-tracking input[type="checkbox"] {
   margin: 0;
   cursor: pointer;
-  accent-color: #6fb1ff;
+  accent-color: var(--pro-ink-accent);
 }
 
 .pro-workspace-row:hover .pws-tracking,
@@ -8515,7 +8515,7 @@ html.has-bg .pro-tag-name {
   flex: 1;
   min-width: 0;
   padding: 2px var(--space-1-5);
-  border: 1px solid #6fb1ff;
+  border: 1px solid var(--pro-ink-accent);
   background: rgba(255, 255, 255, 0.08);
   border-radius:var(--radius-sm);
   color: #fff;
@@ -8745,7 +8745,7 @@ html.has-bg.bg-light .pro-tags-trash-toggle { color: var(--accent); }
 }
 
 .workspace-readonly-banner-cta {
-  color: #6fb1ff;
+  color: var(--pro-ink-accent);
   text-decoration: underline;
   font-weight: 500;
   cursor: pointer;
@@ -8836,7 +8836,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
   letter-spacing: 0.2px;
   cursor: pointer;
   color: #fff;
-  background: linear-gradient(135deg, #4a90e2 0%, #6fb1ff 100%);
+  background: linear-gradient(135deg, var(--pro-identity-from) 0%, var(--pro-identity-to) 100%);
   box-shadow: 0 1px 4px rgba(74, 144, 226, 0.45);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   position: relative;
@@ -8878,7 +8878,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
 
 .tab-cta-pro {
   background: transparent;
-  color: #6fb1ff;
+  color: var(--pro-ink-accent);
   border: 1px solid rgba(111, 177, 255, 0.55);
   box-shadow: none;
   font-weight: 600;
@@ -8997,7 +8997,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
   padding: 9px var(--space-3);
   border: none;
   border-radius:var(--radius-lg);
-  background: linear-gradient(135deg, #4a90e2 0%, #6fb1ff 100%);
+  background: linear-gradient(135deg, var(--pro-identity-from) 0%, var(--pro-identity-to) 100%);
   color: #fff;
   font-family: inherit;
   font-size: var(--fs-13);
@@ -9021,7 +9021,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
 .up-license-toggle {
   background: transparent;
   border: none;
-  color: #6fb1ff;
+  color: var(--pro-ink-accent);
   font-family: inherit;
   font-size: var(--fs-12);
   cursor: pointer;
@@ -9053,7 +9053,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
 }
 
 .up-license-input:focus {
-  border-color: #6fb1ff;
+  border-color: var(--pro-ink-accent);
   background: var(--surface-fill);
 }
 
@@ -9062,7 +9062,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
   border: none;
   border-radius:var(--radius-md);
   background: rgba(111, 177, 255, 0.2);
-  color: #6fb1ff;
+  color: var(--pro-ink-accent);
   font-family: inherit;
   font-size: var(--fs-12);
   font-weight: 600;
@@ -9225,7 +9225,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
 }
 
 .pro-preview-banner-cta {
-  color: #6fb1ff;
+  color: var(--pro-ink-accent);
   text-decoration: underline;
   font-weight: 500;
   opacity: 0.85;
@@ -9472,7 +9472,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   width: 14px;
   height: 14px;
   cursor: not-allowed;
-  accent-color: #6fb1ff;
+  accent-color: var(--pro-ink-accent);
   opacity: 0.7;
 }
 
@@ -10358,7 +10358,7 @@ html.has-bg.bg-light .dash-recap-value {
 }
 
 .pp-bar-today {
-  fill: #6fb1ff;
+  fill: var(--pro-ink-accent);
 }
 
 /* ===== GRAPHICAL FILLS ON LIGHT GROUNDS ==================================
@@ -11662,7 +11662,7 @@ html.has-bg.bg-light .pro-celebrate-btn:not(.is-primary):hover { background: rgb
 
 .tasks-filter:focus {
   outline: none;
-  border-color: #6fb1ff;
+  border-color: var(--pro-ink-accent);
 }
 
 .tasks-filter option {
@@ -12187,7 +12187,7 @@ body.sat-card-open #content {
 
 .tt-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #4a90e2 0%, #6fb1ff 100%);
+  background: linear-gradient(90deg, var(--pro-identity-from) 0%, var(--pro-identity-to) 100%);
   transition: width 0.4s ease;
   overflow: hidden;
   position: relative;
@@ -13050,8 +13050,8 @@ html.has-bg.bg-light .tt-task-row:hover .tt-due-pill.tt-due-none:hover {
   text-align: start;
 }
 .tasks-filter-multi.is-active {
-  border-color: #6fb1ff;
-  color: #6fb1ff;
+  border-color: var(--pro-ink-accent);
+  color: var(--pro-ink-accent);
 }
 
 /* Filter checkbox popover (reuses .tt-context-menu frosting). */
@@ -13066,7 +13066,7 @@ html.has-bg.bg-light .tt-task-row:hover .tt-due-pill.tt-due-none:hover {
   font-size: var(--fs-13);
 }
 .tt-filter-row:hover { background: rgba(111, 177, 255, 0.18); }
-.tt-filter-check { width: 14px; height: 14px; accent-color: #6fb1ff; cursor: pointer; flex-shrink: 0; }
+.tt-filter-check { width: 14px; height: 14px; accent-color: var(--pro-ink-accent); cursor: pointer; flex-shrink: 0; }
 .tt-filter-row-label { flex: 1; min-width: 0; }
 .tt-filter-empty { padding: var(--space-2) var(--space-2-5); font-size: var(--fs-12); color: var(--ink-meta); }
 
@@ -13447,7 +13447,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
 }
 
 .tt-name-input:focus {
-  border-color: #6fb1ff;
+  border-color: var(--pro-ink-accent);
   background: rgba(0, 0, 0, 0.4);
 }
 
@@ -13513,7 +13513,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
 }
 
 .tt-add-task-input:focus {
-  border-color: #6fb1ff;
+  border-color: var(--pro-ink-accent);
   background: rgba(0, 0, 0, 0.4);
 }
 
@@ -13687,7 +13687,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
 
 .tt-modal-body input:focus,
 .tt-modal-body select:focus {
-  border-color: #6fb1ff;
+  border-color: var(--pro-ink-accent);
   background: rgba(0, 0, 0, 0.4);
 }
 
@@ -13901,7 +13901,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
   border: 1px dashed rgba(255, 255, 255, 0.22);
   border-radius:var(--radius-lg);
   background: transparent;
-  color: #6fb1ff;
+  color: var(--pro-ink-accent);
   font-family: inherit;
   font-size: var(--fs-13);
   cursor: pointer;
@@ -14190,7 +14190,7 @@ html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-danger:hover {
    Every modal in the product ends in Cancel + a primary; on a light wallpaper
    the two were the same button. */
 html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-primary-fill {
-  background: linear-gradient(135deg, #1a73e8 0%, #1667d4 100%);
+  background: linear-gradient(135deg, var(--accent) 0%, #1667d4 100%);
   border-color: transparent;
   color: #fff;
 }
@@ -14539,7 +14539,7 @@ html.has-bg .tag-create-btn:hover:not(:disabled) {
   display: inline-flex;
   align-items: center;
   border-radius: 9999px;
-  background: var(--tag-pill-color, #6fb1ff);
+  background: var(--tag-pill-color, var(--pro-ink-accent));
   color: #fff;
   font-weight: 500;
   font-family: inherit;
@@ -15470,11 +15470,11 @@ html.bg-light .import-btn {
   background: rgba(0, 0, 0, 0.04);
 }
 html.bg-light .import-btn:hover {
-  border-color: #1a73e8;
+  border-color: var(--accent);
   background: rgba(26, 115, 232, 0.10);
 }
 html.bg-light .import-btn-primary {
-  border-color: #1a73e8;
+  border-color: var(--accent);
   background: rgba(26, 115, 232, 0.14);
 }
 html.bg-light #import-undo-row { border-top-color: rgba(0, 0, 0, 0.12); }

@@ -336,6 +336,30 @@ if ! node tools/check-docs.mjs; then
   exit 1
 fi
 
+# THE NINETEENTH GATE - the accent boundary (Asana 1218344798532326).
+#
+# THREE BLUES THAT LOOK ALIKE AND MEAN DIFFERENT THINGS, and the whole job of
+# this gate is to stop a future round folding them together while tidying up:
+# --accent means INTERACTIVE, --pro-identity-* is a BRAND MARK, and the four
+# SVG fills in newtab.html are SOMEONE ELSE'S TRADEMARK quoted visually. A Pro
+# chip that recolours with the accent has stopped being a brand mark, and a
+# Google logo that does is a different problem again.
+#
+# IT IS A GATE RATHER THAN A COMMENT because tokens.css already HAS the
+# comment. The [1.9.4] allowlist is the standing counter-example: a comment
+# describing a class of error sat twelve lines above the exact mistake it
+# described and the mistake happened anyway, and only the package gate caught
+# it - on the first build in 132 commits.
+#
+# Seven --mutate seeds, all caught, including the one the task specified
+# ("point --pro-identity at var(--accent), gate fails").
+#
+# Pure file reads, no browser, no subject to boot: ~0.05s.
+if ! node tools/check-accent-boundary.mjs; then
+  echo 'ERROR: accent boundary gate failed - the Pro identity or the Google logo has drifted toward the accent.' >&2
+  exit 1
+fi
+
 # NOTE — the mutation passes (`--mutate` on either suite above) are development
 # verification, not release gates: they re-boot the subject once per seed and the
 # queue one takes ~16s. Run them when the code under test changes; the gates here

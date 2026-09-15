@@ -60,6 +60,53 @@
   --accent: #1a73e8;
   --accent-text: #fff;
 
+  /* ---- PRO IDENTITY, AND IT DOES NOT FOLLOW THE ACCENT ----
+     The gradient the Upgrade CTA, the upgrade button and the task progress
+     fill are painted with. Named here so the Pro brand is a THING rather than
+     a hex string repeated in three places, and separated from --accent
+     because the two mean different things:
+
+       --accent   means INTERACTIVE or LIVE. If an accent picker ever returns,
+                  this is what follows the user.
+       --pro-*    means THIS IS PRO. A Pro chip that turns green because the
+                  user picked green has stopped being a brand mark.
+
+     THESE MUST NEVER BE DEFINED AS var(--accent), and tools/check-accent-
+     boundary.mjs fails the build if they are. That gate is the durable part
+     of Asana 1218344798532326 - it is what stops a later round quietly
+     folding the brand into the accent while tidying up.
+
+     THE GOOGLE FOUR-COLOUR LOGO in newtab.html is a THIRD thing again, and it
+     is not tokenised here on purpose: it is someone else's trademark rendered
+     as a visual quotation, so it must not move when either of the above does.
+     The same gate asserts its four fills stay literal. */
+  --pro-identity-from: #4a90e2;
+  --pro-identity-to: #6fb1ff;
+
+  /* ---- ACCENT INK ON PRO'S DARK FROST ----
+     The interactive blue for controls sitting on a Pro panel: checkbox tints,
+     link colour, focused input borders, one SVG fill, and the fallback for a
+     user-chosen tag colour. 27 sites carried it as a literal.
+
+     IT IS A THIRD THING, not a synonym for either token above.
+       NOT --accent            #1a73e8 is tuned for a LIGHT base. The
+                               --sat-accent block in newtab.css measures it at
+                               2.38:1 on dark frost - an unfindable sliver.
+       NOT --pro-identity-to   that is the END STOP OF THE BRAND GRADIENT.
+                               Sharing it would mean a change to the Pro
+                               gradient silently recolours 27 controls that
+                               have nothing to do with the brand mark. Same
+                               value today, different meaning, and meaning is
+                               what a token is for.
+
+     SIBLING, NOT DUPLICATE: --sat-accent-ink in newtab.css solves the same
+     problem for the FOCUS surfaces and is keyed to the ground (#8ab4f8 dark /
+     #15539b light). This one is not ground-keyed because every surface it
+     lands on is dark frost whether or not a wallpaper is set. If a light Pro
+     panel ever ships, this token needs the same treatment and that is the
+     moment to look at merging the two. */
+  --pro-ink-accent: #6fb1ff;
+
   /* ---- Frosted-glass tiers ----
      Card: large readable surfaces (panels, cards, sections, submenus).
      Floater: modals, popovers, dropdowns, dialogs.
