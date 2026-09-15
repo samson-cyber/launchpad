@@ -897,8 +897,30 @@ var Storage = (function () {
   // or a DDE payload in a task name is a real attack on whoever opens the file.
   // The mitigation is a leading apostrophe, which spreadsheets treat as
   // "the rest is text". It is applied INSIDE the quoted field so the CSV itself
-  // stays well-formed, and it is applied to the NAME columns only - the numeric
-  // columns are generated here and cannot begin with one of those characters.
+  // stays well-formed.
+  //
+  // IT IS APPLIED ON WRITE, IN csvField, SO NO CALL SITE CAN OPT OUT. It used to
+  // be applied to the NAME columns only, by whichever caller remembered to call
+  // csvGuard - and insightsExportRows remembered for its four dimension rows and
+  // forgot for its nine META rows, one of which carries THE WORKSPACE NAME. That
+  // name is user-controlled, it can arrive from an imported backup rather than
+  // being typed by the person exporting, and the file is a billing artefact
+  // meant to be sent to someone else. A workspace named "-- rewrite the intro"
+  // exported unguarded while a TASK row carrying the identical string was
+  // guarded correctly.
+  //
+  // FIXING THE FIELD WOULD HAVE LEFT THE SHAPE. The next meta row added would
+  // bypass the guard exactly the same way, which is the hardcoded-enumeration
+  // class this project has hit repeatedly. Guarding where the cell is actually
+  // serialised is the one place a caller cannot route around, and it is why the
+  // gate can now assert a property of the OUTPUT rather than a list of fields.
+  //
+  // THE NUMERIC COLUMNS ARE UNAFFECTED IN PRACTICE, and that was checked rather
+  // than assumed: a leading "-" is the only formula lead a number could carry,
+  // fmtDurationHM clamps at Math.max(0, ms), and every ms the export emits is
+  // either a reader total or a Math.max(0, ...) derivation. The gate asserts no
+  // emitted numeric cell is negative, so if that ever stops being true it is the
+  // gate that says so and not somebody's spreadsheet.
   var CSV_FORMULA_LEAD = ["=", "+", "-", "@", String.fromCharCode(9), String.fromCharCode(13)];
 
   function csvGuard(v) {
@@ -908,7 +930,7 @@ var Storage = (function () {
   }
 
   function csvField(v) {
-    var str = (v == null) ? "" : String(v);
+    var str = csvGuard(v);
     var q = String.fromCharCode(34);
     return q + str.split(q).join(q + q) + q;
   }

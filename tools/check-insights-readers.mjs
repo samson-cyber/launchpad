@@ -316,6 +316,101 @@ await (async () => {
       out.indexOf(Q + "a" + Q + "," + Q + "b" + Q) === 1, JSON.stringify(out.slice(0, 12)));
   }
 
+  // ===== THE GUARD IS A PROPERTY OF THE OUTPUT, NOT A LIST OF FIELDS =======
+  //
+  // The [1.8.4] assertions above pin csvGuard's behaviour as a function. They
+  // could not catch the defect that prompted this block, because that defect was
+  // not in the guard - it was in WHICH CELLS REACHED IT. insightsExportRows
+  // guarded its four dimension rows through a push() helper and emitted nine META
+  // rows with a raw rows.push, one of them carrying the user-controlled workspace
+  // name. Every function-level assertion passed the whole time.
+  //
+  // SO THIS ASSERTS THE OUTPUT INSTEAD: parse what buildCsv actually produced
+  // back into cells, and require that NOT ONE of them begins with a formula lead.
+  // That holds no matter which call site built the row, how many columns it has,
+  // or whether a future row type remembers to call the guard - which is the whole
+  // point, since remembering is exactly what failed.
+  if (typeof S.buildCsv === "function") {
+    const LEADS = ["=", "+", "-", "@", String.fromCharCode(9), String.fromCharCode(13)];
+
+    // Parse a buildCsv string back into rows of cells. Every field is quoted and
+    // inner quotes are doubled, so this is a small reader rather than a split.
+    const parse = (text) => {
+      const body = text.charCodeAt(0) === 65279 ? text.slice(1) : text;
+      const rows = []; let row = []; let cell = null; let i = 0;
+      while (i < body.length) {
+        const ch = body.charAt(i);
+        if (cell === null) {
+          if (ch === Q) { cell = ""; i++; continue; }
+          if (ch === ",") { i++; continue; }
+          if (ch === String.fromCharCode(13) && body.charAt(i + 1) === String.fromCharCode(10)) {
+            if (row.length) { rows.push(row); row = []; }
+            i += 2; continue;
+          }
+          i++; continue;
+        }
+        if (ch === Q) {
+          if (body.charAt(i + 1) === Q) { cell += Q; i += 2; continue; }
+          row.push(cell); cell = null; i++; continue;
+        }
+        cell += ch; i++;
+      }
+      if (row.length) rows.push(row);
+      return rows;
+    };
+
+    // THE PARSER MUST BE PROVED BEFORE IT IS TRUSTED. A reader that silently
+    // returned nothing would make every assertion below vacuous - P13 wearing a
+    // green hat - so it round-trips a row whose cells contain the delimiter, the
+    // quote and a newline.
+    {
+      const tricky = [["a,b", 'q' + Q + 'r', "two" + String.fromCharCode(10) + "lines", ""]];
+      const back = parse(S.buildCsv(["h1", "h2", "h3", "h4"], tricky));
+      check("the CSV round-trip reader survives commas, quotes and newlines",
+        back.length === 2 && JSON.stringify(back[1]) === JSON.stringify(tricky[0]),
+        JSON.stringify(back));
+    }
+
+    // A payload in EVERY column of EVERY row, including the header, and one
+    // payload per formula lead. If any cell can bypass the guard this finds it.
+    LEADS.forEach((lead) => {
+      const payload = lead + 'HYPERLINK("http://x","click")';
+      const width = 7;
+      const header = Array.from({ length: width }, () => payload);
+      const rows = [
+        Array.from({ length: width }, () => payload),
+        ["meta", "scope", payload, "", "", "", ""],
+        ["task", payload, payload, "active", "60000", "1m", "0.0167"]
+      ];
+      const cells = parse(S.buildCsv(header, rows)).reduce((a, r) => a.concat(r), []);
+      const leaked = cells.filter((c) => c.length && LEADS.indexOf(c.charAt(0)) !== -1);
+      check("EVERY emitted cell is guarded - lead " + JSON.stringify(lead) +
+        " across " + cells.length + " cells",
+        cells.length === width * 4 && leaked.length === 0,
+        leaked.length ? JSON.stringify(leaked.slice(0, 3)) : "none leaked");
+    });
+
+    // NEGATIVE CONTROL. A guard that prefixes everything is a different defect,
+    // and it would satisfy the assertion above perfectly.
+    {
+      const plain = [["Write the copy", "Studio", "a=b", "42", "", "1h30m", "1.5000"]];
+      const cells = parse(S.buildCsv(["dimension", "name", "id", "status",
+        "focused_ms", "focused_hms", "focused_hours"], plain))[1];
+      check("an ORDINARY row gains no apostrophe anywhere",
+        JSON.stringify(cells) === JSON.stringify(plain[0]), JSON.stringify(cells));
+    }
+
+    // The numeric columns are only safe from the guard while they cannot carry a
+    // leading "-". That is true today by construction; this is what says so if it
+    // ever stops being true, rather than somebody discovering it in a spreadsheet.
+    {
+      const neg = parse(S.buildCsv(["n"], [["-5"]]))[1][0];
+      check("a NEGATIVE number would be turned into text by the guard - so the" +
+        " export must never emit one (documented, not permitted)",
+        neg === "'-5", JSON.stringify(neg));
+    }
+  }
+
   if (typeof S.exportFilename === "function") {
     check("[1.8.4] a multi-day range names both ends",
       S.exportFilename("2026-09-01", "2026-09-07") === "launchpad-focus-2026-09-01_2026-09-07.csv",

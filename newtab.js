@@ -3094,14 +3094,40 @@
   // the file cannot be read as a timesheet of wall clock.
   function insightsExportRows(ctx) {
     var rows = [];
+    // NO csvGuard HERE ANY MORE, and its absence is the fix rather than an
+    // oversight. The guard now runs in Storage.csvField, on write, so every
+    // cell this function emits is guarded whether it goes out through push()
+    // or through a raw rows.push - which is what the meta block below does and
+    // what left the workspace name unguarded. Guarding here as well would be
+    // harmless (csvGuard is idempotent) but would mean a mutation that removed
+    // the serialiser guard still passed on these rows while every meta row went
+    // out raw, which is precisely the blind spot being closed.
     var push = function (dim, name, id, status, ms) {
-      rows.push([dim, Storage.csvGuard(name), Storage.csvGuard(id), status,
+      rows.push([dim, name, id, status,
         String(Math.round(ms)), fmtDurationHM(ms), (ms / 3600000).toFixed(4)]);
     };
 
     // ---- meta, as data rows so the file stays valid CSV -------------------
     // The brief's instruction was that where the numbers cannot reconcile the
     // OUTPUT must say so, not just the report. These rows are how it says so.
+    //
+    // THESE CALL rows.push DIRECTLY AND THAT IS NOW SAFE. They cannot use the
+    // push() helper above - its signature is (dim, name, id, status, ms) and it
+    // computes three numeric columns from ms, which is the wrong shape for a
+    // meta row: most carry no numbers at all and range_total carries numbers
+    // with no name or id. Before the guard moved to the serialiser that made
+    // them unguarded, and "scope" below is THE WORKSPACE NAME - user-controlled.
+    //
+    // AUDIT OF THE NINE, so a later reader does not have to re-derive it:
+    //   range        GENERATED  insightsRangeLabel / insightsCustomLabel
+    //   from, to     GENERATED  day keys, YYYY-MM-DD
+    //   exported_at  GENERATED  ISO timestamp
+    //   scope        USER-CONTROLLED - the workspace name, or the constant
+    //                "all workspaces" when the scope is combined
+    //   measure      CONSTANT
+    //   range_total  GENERATED  numbers only
+    //   reconciles   CONSTANT
+    //   tag_note     CONSTANT
     rows.push(["meta", "range", ctx.rangeLabel, "", "", "", ""]);
     rows.push(["meta", "from", ctx.keys[0] || "", "", "", "", ""]);
     rows.push(["meta", "to", ctx.keys[ctx.keys.length - 1] || "", "", "", "", ""]);
