@@ -1011,8 +1011,11 @@ await (async () => {
   }
 
   // ================= 3. OVERLAP: the reserve ================================
+  // [2.2.0] LOGICAL SPELLING throughout this block. Same computed value under
+  // the only direction that ships; the regexes have to follow the sheet or
+  // they assert rules that are gone and pass on nothing.
   check("overlap: the reserve is on the SHARED root (R1), gated on the card being open",
-    /body\.sat-card-open #content \{[^}]*padding-right: 300px;/.test(SRC.css));
+    /body\.sat-card-open #content \{[^}]*padding-inline-end: 300px;/.test(SRC.css));
   // [1.10.11] AND IT IS ON #content, NOT .tab-panel. This is not a cosmetic
   // move. #content-header is a SIBLING of .tab-panel, so a reserve on the panel
   // narrows the box that centres the clock, the search bar and the grid while
@@ -1032,10 +1035,10 @@ await (async () => {
     const cssCode = SRC.css.replace(/\/\*[\s\S]*?\*\//g, "");
     check("overlap: the old header-only reserve is GONE — the two would have compounded to 600px",
       !/body\.sat-card-open \.tasks-header-right \{/.test(cssCode) &&
-      !/\.tasks-header-right \{[^}]*margin-right: 300px/.test(cssCode));
+      !/\.tasks-header-right \{[^}]*margin-inline-end: 300px/.test(cssCode));
   }
   check("overlap: released in the stacked layout, where a right gutter is dead space",
-    /@media \(max-width: 720px\) \{\s*body\.sat-card-open #content \{ padding-right: 0; \}/.test(SRC.css));
+    /@media \(max-width: 720px\) \{\s*body\.sat-card-open #content \{ padding-inline-end: 0; \}/.test(SRC.css));
   // [1.10.12] THE TRANSITION MUST BE ON THE BASE RULE, NOT IN THE STATE RULE.
   // This check used to require the opposite, and so held a real defect in place:
   // a transition declared inside `body.sat-card-open` is only in the computed
@@ -1043,7 +1046,7 @@ await (async () => {
   // Measured: 9 intermediate frames opening, 0 closing. Asserting the base rule
   // is asserting the thing that actually makes it symmetric.
   check("overlap: it slides rather than jumping, matching the card's minimize feel",
-    /#content \{[^}]*transition:[^;]*padding-right 200ms/.test(SRC.css));
+    /#content \{[^}]*transition:[^;]*padding-inline-end 200ms/.test(SRC.css));
   check("overlap: and the transition is NOT declared inside the state rule, which would animate in and jar out",
     !/body\.sat-card-open #content \{[^}]*transition/.test(SRC.css));
   check("overlap: the reserve is stilled under prefers-reduced-motion rather than left to play",
@@ -1051,8 +1054,14 @@ await (async () => {
   // The reserve's whole point is clearance, so assert the number as well as the
   // placement: 300 is the 280px card at right:14 plus breathing room, and a
   // reserve narrower than the card would put content back under it.
-  check("overlap: the reserve still clears the 280px card docked at right: 14",
-    /body\.sat-card-open #content \{[^}]*padding-right: 300px;/.test(SRC.css));
+  // [2.2.0] THIS ROW WAS A DUPLICATE OF THE RESERVE ROW ABOVE - byte-identical
+  // regex, different label - so the dock its label names was never actually
+  // checked, and the 300px reserve could have gone on clearing a card that had
+  // moved. Found while re-spelling the properties; it now asserts what it says.
+  check("overlap: the card is still DOCKED at the inline end, 14px in",
+    /#active-task-pill \{[^}]*inset-inline-end: 14px;/.test(SRC.css));
+  check("overlap: the reserve still clears the 280px card docked at the inline end",
+    /body\.sat-card-open #content \{[^}]*padding-inline-end: 300px;/.test(SRC.css));
   check("overlap: the class it keys on is really toggled by the widget",
     /classList\.toggle\("sat-card-open", showCard\)/.test(SRC.nt));
 
@@ -1981,18 +1990,18 @@ const SEEDS = [
     to: "    if (false) return;\n    var ms = 0;" },
   // OVERLAP
   { name: "OVERLAP: the reserve moves off the shared root back onto one surface",
-    file: "css", from: "body.sat-card-open #content {\n  padding-right: 300px;", to: "body.sat-card-open .tasks-body {\n  padding-right: 300px;" },
+    file: "css", from: "body.sat-card-open #content {\n  padding-inline-end: 300px;", to: "body.sat-card-open .tasks-body {\n  padding-inline-end: 300px;" },
   // [1.10.11] The regression this round fixed, seeded exactly: put the reserve
   // back on .tab-panel and the panel decentres 150px against its own header.
   { name: "OVERLAP: the reserve slides back down to .tab-panel and decentres the panel against the header",
-    file: "css", from: "body.sat-card-open #content {\n  padding-right: 300px;", to: "body.sat-card-open .tab-panel {\n  padding-right: 300px;" },
+    file: "css", from: "body.sat-card-open #content {\n  padding-inline-end: 300px;", to: "body.sat-card-open .tab-panel {\n  padding-inline-end: 300px;" },
   // [1.10.12] The transition slides back inside the state rule, which animates
   // the column open and snaps it shut.
   { name: "OVERLAP: the transition moves into the state rule and the close stops interpolating",
-    file: "css", from: "body.sat-card-open #content {\n  padding-right: 300px;\n}",
-    to: "body.sat-card-open #content {\n  padding-right: 300px;\n  transition: padding-right 200ms ease;\n}" },
+    file: "css", from: "body.sat-card-open #content {\n  padding-inline-end: 300px;\n}",
+    to: "body.sat-card-open #content {\n  padding-inline-end: 300px;\n  transition: padding-inline-end 200ms ease;\n}" },
   { name: "OVERLAP: the old header reserve comes back and compounds to 600px",
-    file: "css", from: "body.sat-card-open #content {\n  padding-right: 300px;", to: "body.sat-card-open .tasks-header-right {\n  margin-right: 300px;\n}\nbody.sat-card-open #content {\n  padding-right: 300px;" },
+    file: "css", from: "body.sat-card-open #content {\n  padding-inline-end: 300px;", to: "body.sat-card-open .tasks-header-right {\n  margin-inline-end: 300px;\n}\nbody.sat-card-open #content {\n  padding-inline-end: 300px;" },
   // INK
   { name: "INK: the windowed line loses its light-wallpaper override",
     file: "css", from: "html.bg-light .sat-live,\nhtml.bg-light .sat-window { color: var(--text-secondary); text-shadow: none; }",

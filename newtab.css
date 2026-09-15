@@ -164,7 +164,7 @@ html.has-bg:not(.bg-light) .settings-wallpaper-note {
 }
 .settings-dim-value {
   min-width: 34px;
-  text-align: right;
+  text-align: end;
   font-size: var(--fs-11);
   font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
@@ -291,8 +291,8 @@ html.bg-booting *::after {
      125% and 42px at 150%, because the reservation scales with the page.
      The cost is 56px of usable width. Measured: the grid keeps 9 columns at
      1920, 1600, 1440, 1366 and 1280, and drops 9 to 8 at 1100. */
-  margin-left: 56px;
-  margin-right: 56px;
+  margin-inline-start: 56px;
+  margin-inline-end: 56px;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -312,7 +312,12 @@ html.bg-booting *::after {
      200ms for the 150px the column travels is 750px/s, which is the speed the
      sidebar push already runs at (212px over 300ms = 707px/s). The duration was
      never the problem and is deliberately unchanged. */
-  transition: margin-left 300ms ease, padding-right 200ms ease;
+  /* [2.2.0] LOGICAL NAMES IN transition-property, and they had to move with
+     the declarations above or this would have gone quietly dead: a transition
+     naming a property the sheet no longer sets does not error, it just stops
+     animating, and a screenshot of the resting state looks perfect. Verified
+     in a browser rather than assumed - both sampled mid-flight. */
+  transition: margin-inline-start 300ms ease, padding-inline-end 200ms ease;
 }
 
 /* [1.10.12] #content carries the page's two push animations - the sidebar's
@@ -341,7 +346,7 @@ html.bg-booting *::after {
    expanded sidebar + the same 8px gap the collapsed state uses (56 - 48). */
 #sidebar.expanded ~ #content:has(#content-header.is-compact),
 #sidebar.sidebar-locked ~ #content:has(#content-header.is-compact) {
-  margin-left: 268px;
+  margin-inline-start: 268px;
 }
 
 /* ===== Content Header (Logo + Search Bar — fixed at top) ===== */
@@ -818,7 +823,7 @@ html.bg-booting *::after {
  */
 .search-icon {
   flex-shrink: 0;
-  margin-right: var(--space-3);
+  margin-inline-end: var(--space-3);
   /* Also set as a presentation attribute in newtab.html so the two agree; this
      rule is what actually wins, because any CSS beats a presentation attribute. */
   stroke: var(--text-secondary);
@@ -955,7 +960,7 @@ html.bg-booting *::after {
   font-size: var(--fs-12);
   color: var(--text-hint);
   font-weight: 400;
-  margin-left: 2px;
+  margin-inline-start: 2px;
   white-space: nowrap;
   display: none;
 }
@@ -1151,7 +1156,7 @@ html.has-bg .sb-group-more:hover {
   font-size: var(--fs-13);
   font-family: inherit;
   cursor: pointer;
-  text-align: left;
+  text-align: start;
   white-space: nowrap;
 }
 
@@ -1447,7 +1452,7 @@ html.has-bg .gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
 .shortcut-more {
   position: absolute;
   top: 8px;
-  right: 8px;
+  inset-inline-end: 8px;
   width: 24px;
   height: 24px;
   border: none;
@@ -1490,7 +1495,7 @@ html.has-bg .gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
   color: var(--text-primary);
   font-size: var(--fs-13);
   cursor: pointer;
-  text-align: left;
+  text-align: start;
   font-family: inherit;
 }
 
@@ -1507,7 +1512,7 @@ html.has-bg .gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
 .variant-badge {
   position: absolute;
   bottom: -2px;
-  right: -2px;
+  inset-inline-end: -2px;
   background: rgba(0, 0, 0, 0.75);
   color: #fff;
   font-size: var(--fs-11);
@@ -1556,7 +1561,7 @@ html.has-bg .variant-badge {
 .variant-dropdown-arrow {
   position: absolute;
   top: -6px;
-  left: 50%;
+  left: 50%;  /* centring */
   transform: translateX(-50%);
   width: 12px;
   height: 6px;
@@ -1567,13 +1572,13 @@ html.has-bg .variant-badge {
   content: "";
   position: absolute;
   top: 3px;
-  left: 50%;
+  left: 50%;  /* centring */
   transform: translateX(-50%) rotate(45deg);
   width: 8px;
   height: 8px;
   background: var(--pro-frost-floater-bg);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-right: none;
+  border-right: none;  /* geometry */
   border-bottom: none;
 }
 
@@ -1723,7 +1728,7 @@ html:not(.has-bg) .variant-dropdown-more:hover {
   color: #fff;
   font-size: var(--fs-12);
   cursor: pointer;
-  text-align: left;
+  text-align: start;
   font-family: inherit;
 }
 
@@ -1841,7 +1846,7 @@ html:not(.has-bg) .variant-dropdown-more:hover {
   color: var(--text-primary);
   font-size: var(--fs-13);
   cursor: pointer;
-  text-align: left;
+  text-align: start;
   font-family: inherit;
 }
 
@@ -2348,7 +2353,7 @@ html.has-bg .modal-icon-btn:hover {
 #rc-filter-menu {
   position: absolute;
   top: 100%;
-  left: 0;
+  inset-inline-start: 0;
   margin-top: var(--space-1);
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -2368,7 +2373,7 @@ html.has-bg .modal-icon-btn:hover {
   color: var(--text-primary);
   font-size: var(--fs-13);
   font-family: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   transition: background-color 0.1s;
 }
@@ -2434,7 +2439,7 @@ html.has-bg .modal-icon-btn:hover {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1-5);
-  margin-left: auto;
+  margin-inline-start: auto;
   background: var(--icon-bg);
   border-radius: 16px;
   padding: 0 var(--space-2-5);
@@ -2557,7 +2562,7 @@ html.has-bg .modal-icon-btn:hover {
 .rc-badge {
   position: absolute;
   top: -4px;
-  right: -6px;
+  inset-inline-end: -6px;
   min-width: 18px;
   height: 18px;
   padding: 0 var(--space-1);
@@ -2819,7 +2824,7 @@ html.has-bg .rc-panel-item-meta {
 .bg-gallery-thumb .bg-check {
   position: absolute;
   top: 4px;
-  right: 4px;
+  inset-inline-end: 4px;
   width: 20px;
   height: 20px;
   background: var(--accent);
@@ -3361,7 +3366,7 @@ html.bg-image .empty-group-hint {
 #rc-tip {
   position: fixed;
   bottom: 140px;
-  left: 50%;
+  left: 50%;  /* centring */
   transform: translateX(-50%) translateY(16px);
   max-width: 400px;
   background: var(--bg-card);
@@ -3424,7 +3429,7 @@ html.has-bg .rc-tip-text {
 .promo-toast {
   position: fixed;
   bottom: 24px;
-  left: 50%;
+  left: 50%;  /* centring */
   transform: translateX(-50%) translateY(20px);
   display: flex;
   align-items: center;
@@ -3508,7 +3513,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
 #open-all-toast {
   position: fixed;
   bottom: 32px;
-  left: 50%;
+  left: 50%;  /* centring */
   transform: translateX(-50%) translateY(20px);
   background: rgba(32, 33, 36, 0.9);
   color: #fff;
@@ -3533,7 +3538,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
 /* [Tasks] Undo action inside the toast (5-second delete undo). The toast is
    always dark, so the light-blue link works on any wallpaper — no override. */
 .toast-undo {
-  margin-left: 14px;
+  margin-inline-start: 14px;
   padding: 0;
   border: none;
   background: none;
@@ -3550,7 +3555,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
 #sidebar {
   position: fixed;
   top: 0;
-  left: 0;
+  inset-inline-start: 0;
   width: 48px;
   height: 100%;
   display: flex;
@@ -3570,7 +3575,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
 #sidebar-panel {
   position: fixed;
   top: 0;
-  left: 0;
+  inset-inline-start: 0;
   width: 260px;
   height: 100%;
   z-index: 199;
@@ -3608,7 +3613,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
   font-size: var(--fs-13);
   font-family: inherit;
   white-space: nowrap;
-  border-left: 3px solid transparent;
+  border-inline-start: 3px solid transparent;
   transition: background-color 0.15s;
   flex-shrink: 0;
 }
@@ -3707,10 +3712,10 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
   font-size: var(--fs-12);
   font-family: inherit;
   white-space: nowrap;
-  border-left: 3px solid transparent;
+  border-inline-start: 3px solid transparent;
   transition: background-color 0.15s;
   width: 100%;
-  text-align: left;
+  text-align: start;
 }
 
 .sb-group-item:hover {
@@ -3772,7 +3777,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
   max-height: 0;
   overflow: hidden;
   transition: max-height 0.25s ease-out;
-  padding-left: 28px;
+  padding-inline-start: 28px;
 }
 
 .sb-group-wrapper.sb-expanded .sidebar-shortcut-list {
@@ -3887,7 +3892,7 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
 }
 
 .sidebar-variant-item {
-  padding-left: 20px !important;
+  padding-inline-start: 20px !important;
   font-size: var(--fs-11) !important;
   color: var(--ink-meta) !important;
 }
@@ -4316,7 +4321,7 @@ html.bg-light { --sat-amber: #8a6d09; }
 #active-task-pill {
   position: fixed;
   top: 10px;
-  right: 14px;
+  inset-inline-end: 14px;
   z-index: 1500;               /* above content (z 2); below menus/modals */
   background: var(--pro-frost-floater-bg);
   backdrop-filter: var(--pro-frost-floater-blur);
@@ -4350,7 +4355,7 @@ html.bg-light { --sat-amber: #8a6d09; }
   border-radius: inherit;
   color: inherit;
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -4789,7 +4794,7 @@ html.bg-light { --sat-amber: #8a6d09; }
   font-weight: 600;
   color: var(--sat-accent);
   cursor: pointer;
-  text-align: left;
+  text-align: start;
 }
 
 .sat-foreign-switch:hover { text-decoration: underline; }
@@ -5141,7 +5146,7 @@ html.bg-light { --sat-amber: #8a6d09; }
   font-weight: 600;
   letter-spacing: normal;
   cursor: pointer;
-  text-align: left;
+  text-align: start;
 }
 
 .sat-ws-header:hover { color: #fff; }
@@ -5176,7 +5181,7 @@ html.bg-light { --sat-amber: #8a6d09; }
   font: inherit;
   font-size: var(--fs-12);
   cursor: pointer;
-  text-align: left;
+  text-align: start;
 }
 
 .sat-switch-task:hover { background: var(--surface-fill); }
@@ -5485,7 +5490,7 @@ html.has-bg.bg-light .sat-switch-list::-webkit-scrollbar-thumb { background: rgb
 
 html.bg-light #sidebar-panel {
   background: rgba(255, 255, 255, 0.6);
-  border-right: 1px solid rgba(0, 0, 0, 0.08);
+  border-inline-end: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 html.bg-light .sb-item,
@@ -5591,7 +5596,7 @@ html.bg-light .sidebar-variant-item:hover {
   display: none;
   position: fixed;
   top: 12px;
-  left: 12px;
+  inset-inline-start: 12px;
   width: 40px;
   height: 40px;
   border: none;
@@ -5751,7 +5756,7 @@ html.has-bg .rc-empty-state-text {
 #restore-dropdown {
   position: fixed;
   top: 52px;
-  left: 260px;
+  inset-inline-start: 260px;
   max-width: 420px;
   width: 380px;
   max-height: 520px;
@@ -5783,7 +5788,7 @@ html.has-bg .rc-empty-state-text {
 #sessions-dropdown {
   position: fixed;
   top: 52px;
-  left: 260px;
+  inset-inline-start: 260px;
   max-width: 420px;
   width: 380px;
   max-height: 520px;
@@ -5868,7 +5873,7 @@ html.has-bg .rc-empty-state-text {
 .session-fav-more {
   font-size: var(--fs-10);
   color: var(--text-hint);
-  margin-left: 2px;
+  margin-inline-start: 2px;
 }
 
 .session-row-more {
@@ -5937,7 +5942,7 @@ html.has-bg:not(.bg-light) .vctx-item:focus-visible {
   color: var(--text-hint);
   font-family: inherit;
   font-size: var(--fs-12);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
 }
@@ -6131,7 +6136,7 @@ html.has-bg.bg-light .sessions-trash-action:hover {
 #restore-date-menu {
   position: absolute;
   top: 100%;
-  left: 14px;
+  inset-inline-start: 14px;
   margin-top: var(--space-1);
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -6151,7 +6156,7 @@ html.has-bg.bg-light .sessions-trash-action:hover {
   color: var(--text-primary);
   font-size: var(--fs-13);
   font-family: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   transition: background-color 0.1s;
 }
@@ -6397,12 +6402,12 @@ html.has-bg #restore-empty {
 #settings-panel {
   position: fixed;
   top: 0;
-  left: 260px;
+  inset-inline-start: 260px;
   width: 320px;
   max-width: calc(100vw - 280px);
   height: 100%;
   background: var(--bg-card);
-  border-left: 1px solid var(--border);
+  border-inline-start: 1px solid var(--border);
   box-shadow: 4px 0 24px var(--shadow-color);
   z-index: 300;
   display: flex;
@@ -6582,7 +6587,7 @@ html.has-bg #restore-empty {
 .insights-range-note {
   flex: 1 0 100%;
   margin: 0;
-  text-align: right;
+  text-align: end;
   font-size: var(--fs-12);
   color: var(--text-secondary);
   opacity: 0.8;
@@ -6650,8 +6655,8 @@ html.has-bg.bg-light .insights-date {
 .settings-dropdown-menu {
   position: absolute;
   top: calc(100% + 4px);
-  left: 0;
-  right: 0;
+  inset-inline-start: 0;
+  inset-inline-end: 0;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius:var(--radius-md);
@@ -6670,7 +6675,7 @@ html.has-bg.bg-light .insights-date {
   color: var(--text-primary);
   font-size: var(--fs-13);
   font-family: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   transition: background-color 0.1s;
 }
@@ -6759,7 +6764,7 @@ html.has-bg.bg-light .insights-date {
 html.has-bg #settings-panel,
 html.has-bg #pro-settings-panel {
   background: var(--pro-frost-floater-bg);
-  border-left-color: var(--surface-fill);
+  border-inline-start-color: var(--surface-fill);
   backdrop-filter: var(--pro-frost-floater-blur);
   -webkit-backdrop-filter: var(--pro-frost-floater-blur);
 }
@@ -6769,12 +6774,12 @@ html.has-bg #pro-settings-panel {
 #pro-settings-panel {
   position: fixed;
   top: 0;
-  left: 260px;
+  inset-inline-start: 260px;
   width: 360px;
   max-width: calc(100vw - 280px);
   height: 100%;
   background: var(--bg-card);
-  border-left: 1px solid var(--border);
+  border-inline-start: 1px solid var(--border);
   box-shadow: 4px 0 24px var(--shadow-color);
   z-index: 300;
   display: flex;
@@ -7114,7 +7119,7 @@ html.has-bg .pomo-setting-row {
   color: inherit;
   font: inherit;
   font-size: var(--fs-13);
-  text-align: right;
+  text-align: end;
   font-variant-numeric: tabular-nums;
   appearance: textfield;
 }
@@ -7386,7 +7391,7 @@ html.has-bg .settings-privacy {
 
 html.bg-light #settings-panel,
 html.bg-light #pro-settings-panel {
-  border-left-color: rgba(0, 0, 0, 0.08);
+  border-inline-start-color: rgba(0, 0, 0, 0.08);
 }
 
 html.bg-light .settings-header {
@@ -7813,8 +7818,8 @@ html.bg-light .rc-panel-item-meta {
   #content {
     /* [1.10.9] Both sides, for the same reason as Focus view: the rail is not
        reserved at this width, so reserving on one side would decentre it. */
-    margin-right: 0;
-    margin-left: 0;
+    margin-inline-end: 0;
+    margin-inline-start: 0;
   }
 
   #sidebar {
@@ -7861,18 +7866,18 @@ html.bg-light .rc-panel-item-meta {
   }
 
   #restore-dropdown {
-    left: 12px;
-    right: 12px;
+    inset-inline-start: 12px;
+    inset-inline-end: 12px;
     width: auto;
     max-width: none;
     max-height: 70vh;
   }
 
   #settings-panel {
-    left: 0;
+    inset-inline-start: 0;
     width: 100%;
     max-width: none;
-    border-left: none;
+    border-inline-start: none;
   }
 }
 
@@ -7937,8 +7942,8 @@ html.bg-light .rc-panel-item-meta {
 #ungroup-drop-zone {
   position: fixed;
   bottom: 0;
-  left: 56px;
-  right: 0;
+  inset-inline-start: 56px;
+  inset-inline-end: 0;
   height: 80px;
   display: flex;
   align-items: center;
@@ -7970,7 +7975,7 @@ html.bg-light .rc-panel-item-meta {
 #nesting-tooltip {
   position: fixed;
   bottom: 24px;
-  left: 50%;
+  left: 50%;  /* centring */
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.85);
   color: #fff;
@@ -8065,7 +8070,7 @@ html.has-bg #nesting-tooltip {
   content: "";
   position: absolute;
   bottom: -2px;
-  right: -2px;
+  inset-inline-end: -2px;
   width: 12px;
   height: 12px;
   border-radius:var(--radius-circle);
@@ -8099,7 +8104,7 @@ html.has-bg #nesting-tooltip {
 .sb-ws-lock-inline {
   flex-shrink: 0;
   opacity: 0.7;
-  margin-left: -4px;
+  margin-inline-start: -4px;
 }
 
 /* Workspace dropdown — anchored via JS getBoundingClientRect */
@@ -8132,7 +8137,7 @@ html.has-bg #nesting-tooltip {
   background: transparent;
   border: none;
   width: 100%;
-  text-align: left;
+  text-align: start;
   font-family: inherit;
 }
 
@@ -8283,7 +8288,7 @@ html.has-bg #nesting-tooltip {
   content: "";
   position: absolute;
   bottom: -2px;
-  right: -2px;
+  inset-inline-end: -2px;
   width: 11px;
   height: 11px;
   border-radius:var(--radius-circle);
@@ -8822,7 +8827,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
   gap: var(--space-1-5);
   height: 28px;
   padding: 0 14px;
-  margin-left: var(--space-1-5);
+  margin-inline-start: var(--space-1-5);
   border: none;
   border-radius:var(--radius-pill);
   font-family: inherit;
@@ -8842,7 +8847,7 @@ html.has-bg.bg-light .workspace-readonly-banner {
 .tab-cta::before {
   content: "";
   position: absolute;
-  left: -7px;
+  inset-inline-start: -7px;
   top: 6px;
   bottom: 6px;
   width: 1px;
@@ -9314,7 +9319,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
 
 .pp-sort-dropdown::after {
   content: " \25BE";
-  margin-left: var(--space-1-5);
+  margin-inline-start: var(--space-1-5);
   opacity: 0.7;
 }
 
@@ -9437,7 +9442,7 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   font-size: var(--fs-11);
   opacity: 0.7;
   min-width: 28px;
-  text-align: right;
+  text-align: end;
 }
 
 .pp-task-list {
@@ -9454,14 +9459,14 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   padding: var(--space-2) var(--space-2-5);
   border-radius:var(--radius-md);
   background: rgba(255, 255, 255, 0.04);
-  border-left: 3px solid transparent;
+  border-inline-start: 3px solid transparent;
   font-size: var(--fs-13);
 }
 
-.pp-prio-urgent { border-left-color: #e74c3c; }
-.pp-prio-high   { border-left-color: #e67e22; }
-.pp-prio-medium { border-left-color: #f1c40f; }
-.pp-prio-low    { border-left-color: #5dade2; }
+.pp-prio-urgent { border-inline-start-color: #e74c3c; }
+.pp-prio-high   { border-inline-start-color: #e67e22; }
+.pp-prio-medium { border-inline-start-color: #f1c40f; }
+.pp-prio-low    { border-inline-start-color: #5dade2; }
 
 .pp-task-check {
   width: 14px;
@@ -9973,12 +9978,12 @@ html.has-bg.bg-light .dash-meta-prio {
   min-height: 36px;
   padding: 0 0 0 9px;
   font-size: var(--fs-14);
-  border-left: 3px solid transparent;
+  border-inline-start: 3px solid transparent;
 }
-.dash-due-row.tt-prio-urgent { border-left-color: var(--prio-urgent); }
-.dash-due-row.tt-prio-high   { border-left-color: var(--prio-high); }
-.dash-due-row.tt-prio-medium { border-left-color: var(--prio-medium); }
-.dash-due-row.tt-prio-low    { border-left-color: var(--prio-low); }
+.dash-due-row.tt-prio-urgent { border-inline-start-color: var(--prio-urgent); }
+.dash-due-row.tt-prio-high   { border-inline-start-color: var(--prio-high); }
+.dash-due-row.tt-prio-medium { border-inline-start-color: var(--prio-medium); }
+.dash-due-row.tt-prio-low    { border-inline-start-color: var(--prio-low); }
 
 /* The checkbox is the Tasks tab's own .tt-task-check — same size, same accent,
    same affordance, so completing a task looks identical wherever the user does
@@ -9988,7 +9993,7 @@ html.has-bg.bg-light .dash-meta-prio {
 }
 
 .pomo-setting-echo {
-  margin-left: var(--space-2);
+  margin-inline-start: var(--space-2);
   font-size: var(--fs-12);
   color: var(--ink-meta);
   font-variant-numeric: tabular-nums;
@@ -10092,7 +10097,7 @@ html.has-bg.bg-light .dash-meta-prio {
    up with it rather than being left behind in the list it was removed from. */
 .dash-three-row .dash-three-drop {
   flex: 0 0 auto;
-  margin-left: var(--space-2);
+  margin-inline-start: var(--space-2);
   width: 20px;
   height: 20px;
   line-height: 1;
@@ -10695,8 +10700,8 @@ html.has-bg.bg-light .pro-preview-banner-text {
      did too, and the board stopped filling its panel. Adopting the Dashboard
      measure means adopting all of it. */
   width: 100%;
-  padding-left: 28px;
-  padding-right: 28px;
+  padding-inline-start: 28px;
+  padding-inline-end: 28px;
   /* [2.0 contrast fix] On-card ink is LUMINANCE-CLASS-INDEPENDENT white, set
      once at the board root — the dark frost card guarantees the surface, so the
      ink is chosen once and never keyed to a wallpaper class (D14/D16). This
@@ -10724,7 +10729,7 @@ html.has-bg.bg-light .pro-preview-banner-text {
   text-transform: none;
   letter-spacing: 0;
   opacity: 0.6;
-  margin-left: var(--space-1-5);
+  margin-inline-start: var(--space-1-5);
 }
 /* .insights-soon is GONE, not fixed. It was banked in the cockpit round as
    carrying the same unconditional-white the greeting had — correct about the
@@ -10794,7 +10799,7 @@ html.has-bg.bg-light .pro-preview-banner-text {
 }
 .ins-row-range .insights-range-note {
   flex: 0 1 auto;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 /* [1.8.6] THE IDLE RANGE PILL, and the two ways a first attempt at this rule
@@ -11026,7 +11031,7 @@ html.has-bg.bg-light .insights-tab .pp-insights-card {
   flex: 0 0 1.4em;
   font-size: var(--fs-11);
   opacity: 0.7;
-  text-align: right;
+  text-align: end;
 }
 .ins-heat-cells {
   display: grid;
@@ -11486,15 +11491,15 @@ html.has-bg.bg-light .pro-celebrate-btn:not(.is-primary):hover { background: rgb
   height: 10px;
   transform: rotate(45deg);
   background: var(--pro-frost-menu-bg);
-  border-left: 1px solid rgba(255, 255, 255, 0.16);
+  border-left: 1px solid rgba(255, 255, 255, 0.16);  /* geometry */
   border-top: 1px solid rgba(255, 255, 255, 0.16);
 }
 .pro-tour-mark.is-above .pro-tour-arrow {
   top: auto;
   bottom: -5px;
-  border-left: none;
+  border-left: none;  /* geometry */
   border-top: none;
-  border-right: 1px solid rgba(255, 255, 255, 0.16);
+  border-right: 1px solid rgba(255, 255, 255, 0.16);  /* geometry */
   border-bottom: 1px solid rgba(255, 255, 255, 0.16);
 }
 
@@ -11743,11 +11748,11 @@ html.has-bg.bg-light .pro-celebrate-btn:not(.is-primary):hover { background: rgb
    The declaration now lives on the base #content rule above, where it survives
    the class going away. */
 body.sat-card-open #content {
-  padding-right: 300px;
+  padding-inline-end: 300px;
 }
 
 @media (max-width: 720px) {
-  body.sat-card-open #content { padding-right: 0; }
+  body.sat-card-open #content { padding-inline-end: 0; }
 }
 
 .tasks-action {
@@ -11783,7 +11788,7 @@ body.sat-card-open #content {
    plus a lighter blue for the ring to carry. The underline is a second,
    colour-independent affordance, which is what lets this stay a link. */
 .tasks-templates-link {
-  margin-left: var(--space-1);
+  margin-inline-start: var(--space-1);
   color: #b9d6ff;
   font-size: var(--fs-12);
   text-decoration: underline;
@@ -12209,7 +12214,7 @@ html.has-bg.bg-light .tt-progress-fill {
   font-variant-numeric: tabular-nums;
   position: absolute;
   top: 0;
-  left: 0;
+  inset-inline-start: 0;
   height: 100%;
   display: flex;
   align-items: center;
@@ -12385,13 +12390,13 @@ html.has-bg.bg-light .tt-progress-fill {
    padding-left compensates the 3px border so content keeps the base 8px inset
    (the shared .tt-task-row,.tt-recurring-row rule sets padding: 6px 8px). */
 .tt-task-row {
-  border-left: 3px solid transparent;
-  padding-left: 5px;
+  border-inline-start: 3px solid transparent;
+  padding-inline-start: 5px;
 }
-.tt-task-row.tt-prio-urgent { border-left-color: var(--prio-urgent); }
-.tt-task-row.tt-prio-high   { border-left-color: var(--prio-high); }
-.tt-task-row.tt-prio-medium { border-left-color: var(--prio-medium); }
-.tt-task-row.tt-prio-low    { border-left-color: var(--prio-low); }
+.tt-task-row.tt-prio-urgent { border-inline-start-color: var(--prio-urgent); }
+.tt-task-row.tt-prio-high   { border-inline-start-color: var(--prio-high); }
+.tt-task-row.tt-prio-medium { border-inline-start-color: var(--prio-medium); }
+.tt-task-row.tt-prio-low    { border-inline-start-color: var(--prio-low); }
 
 /* [Tasks v2] Controls zone: a fixed-COLUMN grid on the right of every task row
    (priority | date | tag | trash). Fixed column widths make the four slots line
@@ -12402,14 +12407,14 @@ html.has-bg.bg-light .tt-progress-fill {
    truncates so the zone — and its divider — stay at a consistent x. */
 .tt-task-controls {
   flex: 0 0 auto;
-  margin-left: auto;
+  margin-inline-start: auto;
   display: grid;
   grid-template-columns: 72px 78px 66px 24px;
   align-items: center;
   gap: var(--space-1-5);
-  padding-left: var(--space-3);
+  padding-inline-start: var(--space-3);
   /* Subtle but visibly-present divider between the task info and the zone. */
-  border-left: 1px solid rgba(255, 255, 255, 0.22);
+  border-inline-start: 1px solid rgba(255, 255, 255, 0.22);
 }
 
 /* [2.0 timing] THE NAME CLUSTER. The time readouts moved OUT of the right-hand
@@ -12460,7 +12465,7 @@ html.has-bg.bg-light .tt-progress-fill {
    button never eats a click meant for the row. */
 .tt-task-options {
   position: absolute;
-  right: 0;
+  inset-inline-end: 0;
   top: 50%;
   transform: translateY(-50%);
   display: inline-flex;
@@ -12646,7 +12651,7 @@ html.has-bg.bg-light .tt-task-session:hover {
   font-family: inherit;
   font-size: var(--fs-13);
   color: var(--ink-primary);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -12688,13 +12693,13 @@ html.has-bg.bg-light .session-picker-note { color: var(--text-hint); }
   margin-bottom: var(--space-2-5);
 }
 
-.picker-search-input { width: 100%; padding-right: 26px; }
+.picker-search-input { width: 100%; padding-inline-end: 26px; }
 
 .picker-search-input::placeholder { color: var(--ink-chrome); }
 
 .picker-search-clear {
   position: absolute;
-  right: 4px;
+  inset-inline-end: 4px;
   top: 50%;
   transform: translateY(-50%);
   width: 20px;
@@ -12749,7 +12754,7 @@ html.has-bg.bg-light .session-picker-empty { color: var(--text-hint); }
 .tt-task-row.is-active-task::after {
   content: "";
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   top: 0;
   bottom: 0;
   width: 3px;
@@ -13042,7 +13047,7 @@ html.has-bg.bg-light .tt-task-row:hover .tt-due-pill.tt-due-none:hover {
 .tasks-filter-multi {
   padding: var(--space-1-5) var(--space-2-5);
   background-image: none;
-  text-align: left;
+  text-align: start;
 }
 .tasks-filter-multi.is-active {
   border-color: #6fb1ff;
@@ -13083,7 +13088,7 @@ html.has-bg.bg-light .tt-prio-pill.tt-prio-none:hover { background: rgba(0, 0, 0
 html.has-bg.bg-light .tt-task-play { color: rgba(0, 0, 0, 0.66); }
 
 /* [Tasks] Controls zone on light wallpapers: dark divider + trash ink. */
-html.has-bg.bg-light .tt-task-controls { border-left-color: rgba(0, 0, 0, 0.2); }
+html.has-bg.bg-light .tt-task-controls { border-inline-start-color: rgba(0, 0, 0, 0.2); }
 html.has-bg.bg-light .tt-tag-more { color: rgba(0, 0, 0, 0.55); }
 html.has-bg.bg-light .tt-task-trash { color: rgba(0, 0, 0, 0.38); }
 html.has-bg.bg-light .tt-task-row:hover .tt-task-trash { color: rgba(0, 0, 0, 0.6); }
@@ -13181,7 +13186,7 @@ html.has-bg.bg-light .tt-task-trash:hover { color: #d0021b; background: rgba(208
   display: inline-flex;
   align-items: center;
   padding: 2px var(--space-1);
-  margin-left: -4px;
+  margin-inline-start: -4px;
   cursor: pointer;
   vertical-align: middle;
   flex-shrink: 0;
@@ -13420,7 +13425,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
   cursor: text;
   border-radius:var(--radius-sm);
   padding: 1px var(--space-1);
-  margin-left: -4px;
+  margin-inline-start: -4px;
   transition: background 0.15s;
 }
 
@@ -13447,7 +13452,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
 }
 
 .tt-goal-menu-btn {
-  margin-left: var(--space-1);
+  margin-inline-start: var(--space-1);
   padding: var(--space-1) var(--space-1-5);
   border: none;
   border-radius:var(--radius-sm);
@@ -13479,7 +13484,7 @@ html.has-bg.bg-light .tt-task-handle:hover {
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, opacity 0.15s;
   width: 100%;
-  text-align: left;
+  text-align: start;
 }
 
 .tt-goal-add-task:hover {
@@ -14010,7 +14015,7 @@ html.has-bg.bg-light .tt-tpl-task-remove {
 .tt-ctx-item {
   display: block;
   width: 100%;
-  text-align: left;
+  text-align: start;
   padding: 7px var(--space-2-5);
   border: none;
   border-radius:var(--radius-md);
@@ -14302,7 +14307,7 @@ html.has-bg.bg-light .tt-ctx-header {
   color: var(--text-primary);
   font-size: var(--fs-13);
   cursor: pointer;
-  text-align: left;
+  text-align: start;
   font-family: inherit;
 }
 
@@ -14362,7 +14367,7 @@ html.has-bg.bg-light .tt-ctx-header {
   color: var(--text-primary);
   font-size: var(--fs-13);
   cursor: pointer;
-  text-align: left;
+  text-align: start;
   font-family: inherit;
 }
 
@@ -14551,7 +14556,7 @@ html.has-bg .tag-create-btn:hover:not(:disabled) {
 .shortcut-tag-pills {
   position: absolute;
   bottom: -2px;
-  right: -2px;
+  inset-inline-end: -2px;
   display: flex;
   gap: 2px;
   flex-wrap: wrap;
@@ -14575,7 +14580,7 @@ html.has-bg .tag-create-btn:hover:not(:disabled) {
   align-items: center;
   gap: var(--space-1);
   flex-wrap: wrap;
-  margin-left: var(--space-1-5);
+  margin-inline-start: var(--space-1-5);
   vertical-align: middle;
 }
 
@@ -14591,7 +14596,7 @@ html.has-bg .tag-create-btn:hover:not(:disabled) {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  margin-left: var(--space-1);
+  margin-inline-start: var(--space-1);
   flex-shrink: 0;
   opacity: 0;
   transition: opacity 150ms ease 0ms;
@@ -14630,7 +14635,7 @@ html.has-bg .tag-create-btn:hover:not(:disabled) {
   display: flex;
   flex-direction: column;
   gap: var(--space-1-5);
-  text-align: left;
+  text-align: start;
   padding: 14px var(--space-4);
   border-radius:var(--radius-xl);
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -14738,7 +14743,7 @@ html.bg-light .demo-tile-body { color: #3c4043; }
 #import-panel,
 #tips-panel {
   position: fixed;
-  left: var(--sidebar-w, 220px);
+  inset-inline-start: var(--sidebar-w, 220px);
   top: 0;
   bottom: 0;
   width: 320px;
@@ -14746,7 +14751,7 @@ html.bg-light .demo-tile-body { color: #3c4043; }
   overflow-y: auto;
   background: var(--pro-frost-floater-bg, rgba(30, 30, 30, 0.92));
   backdrop-filter: var(--pro-frost-floater-blur, blur(14px));
-  border-right: 1px solid var(--surface-fill);
+  border-inline-end: 1px solid var(--surface-fill);
   color: #fff;
   /* [1.11.1b] FINDING 2. These panels OVERLAY the grid, and a tile sliced in
      half at the panel's edge reads as a rendering fault rather than as
@@ -14799,7 +14804,7 @@ html.bg-light .demo-tile-body { color: #3c4043; }
    3.5 to 5.1:1. */
 #bookmarks-panel {
   position: fixed;
-  left: var(--sidebar-w, 220px);
+  inset-inline-start: var(--sidebar-w, 220px);
   top: 0;
   bottom: 0;
   width: 320px;
@@ -14808,7 +14813,7 @@ html.bg-light .demo-tile-body { color: #3c4043; }
   background: var(--pro-frost-floater-bg, rgba(30, 30, 30, 0.92));
   backdrop-filter: var(--pro-frost-floater-blur, blur(14px));
   -webkit-backdrop-filter: var(--pro-frost-floater-blur, blur(14px));
-  border-right: 1px solid var(--surface-fill);
+  border-inline-end: 1px solid var(--surface-fill);
   color: var(--ink-primary);
   box-shadow: 4px 0 24px var(--shadow-color), 1px 0 0 rgba(255, 255, 255, 0.14);
 }
@@ -14876,7 +14881,7 @@ html.bg-light #bookmarks-panel {
   align-items: center;
   min-height: 30px;
   border-radius: var(--radius-sm);
-  padding-left: calc(var(--bm-depth, 0) * 13px);
+  padding-inline-start: calc(var(--bm-depth, 0) * 13px);
 }
 
 .bm-row:hover {
@@ -14898,7 +14903,7 @@ html.bg-light #bookmarks-panel {
   padding: var(--space-1) var(--space-2);
   color: var(--ink-primary);
   text-decoration: none;
-  text-align: left;
+  text-align: start;
 }
 
 .bm-chevron {
@@ -14952,7 +14957,7 @@ html.bg-light #bookmarks-panel {
   justify-content: center;
   width: 24px;
   height: 24px;
-  margin-right: var(--space-1);
+  margin-inline-end: var(--space-1);
   flex-shrink: 0;
   border: none;
   background: transparent;
@@ -15055,7 +15060,7 @@ html.bg-light #tips-close:hover { color: #202124; background: rgba(0, 0, 0, 0.06
   flex-direction: column;
   gap: 2px;
   width: 100%;
-  text-align: left;
+  text-align: start;
   padding: var(--space-2-5) var(--space-3);
   margin-bottom: var(--space-2);
   border-radius:var(--radius-lg);
@@ -15154,7 +15159,7 @@ html.bg-light #tips-close:hover { color: #202124; background: rgba(0, 0, 0, 0.06
 
 .import-preview-groups {
   margin: 0 0 var(--space-2);
-  padding-left: var(--space-4);
+  padding-inline-start: var(--space-4);
   font-size: var(--fs-11-5);
   line-height: 1.6;
   color: rgba(255, 255, 255, 0.78);
@@ -15207,7 +15212,7 @@ html.bg-light #tips-close:hover { color: #202124; background: rgba(0, 0, 0, 0.06
   align-items: center;
   gap: var(--space-2-5);
   width: 100%;
-  text-align: left;
+  text-align: start;
   font: inherit;
   font-size: var(--fs-12-5);
   line-height: 1.45;
@@ -15317,8 +15322,8 @@ html.bg-light .gs-doneline { color: #1e7e34; }
 .tip-vis-plus::before, .tip-vis-plus::after {
   content: ""; position: absolute; background: rgba(255,255,255,0.75);
 }
-.tip-vis-plus::before { left: 50%; top: 6px; bottom: 6px; width: 1.5px; transform: translateX(-50%); }
-.tip-vis-plus::after  { top: 50%; left: 6px; right: 6px; height: 1.5px; transform: translateY(-50%); }
+.tip-vis-plus::before { left: 50%; top: 6px; bottom: 6px; width: 1.5px; transform: translateX(-50%); }  /* centring */
+.tip-vis-plus::after  { top: 50%; left: 6px; right: 6px; height: 1.5px; transform: translateY(-50%); }  /* geometry */
 /* 2. mini context-menu sketch */
 .tip-vis-menu {
   border: 1.5px solid rgba(255,255,255,0.55);
@@ -15332,8 +15337,8 @@ html.bg-light .gs-doneline { color: #1e7e34; }
   position: absolute; width: 10px; height: 10px; border-radius:var(--radius-sm);
   background: rgba(255,255,255,0.55);
 }
-.tip-vis-drag i:first-child { left: 0; top: 7px; animation: tip-nudge 2.4s ease-in-out infinite; }
-.tip-vis-drag i:last-child  { right: 0; top: 7px; }
+.tip-vis-drag i:first-child { left: 0; top: 7px; animation: tip-nudge 2.4s ease-in-out infinite; }  /* transform-origin */
+.tip-vis-drag i:last-child  { right: 0; top: 7px; }  /* transform-origin */
 @keyframes tip-nudge {
   0%, 60%, 100% { transform: translateX(0); }
   30%           { transform: translateX(5px); }
@@ -15349,6 +15354,7 @@ html.bg-light .gs-doneline { color: #1e7e34; }
   height: 17px; margin-top: var(--space-1);
 }
 .tip-vis-folder::before {
+  /* geometry */
   content: ""; position: absolute; left: -1.5px; top: -5px;
   width: 10px; height: 5px;
   border: 1.5px solid rgba(255,255,255,0.55); border-bottom: 0;
@@ -15357,6 +15363,7 @@ html.bg-light .gs-doneline { color: #1e7e34; }
 /* 5. layered squares */
 .tip-vis-layers { border: 1.5px solid rgba(255,255,255,0.55); width: 17px; height: 17px; margin: var(--space-1) 0 0 5px; }
 .tip-vis-layers::before {
+  /* geometry */
   content: ""; position: absolute; left: -5px; top: -5px; width: 17px; height: 17px;
   border: 1.5px solid rgba(255,255,255,0.35); border-radius:var(--radius-sm);
 }
@@ -15439,7 +15446,7 @@ html.bg-light .tip-vis-swatch i:nth-child(3) { background: rgba(0,0,0,0.25); }
 
 html.bg-light #import-panel,
 html.bg-light #tips-panel {
-  border-right-color: rgba(0, 0, 0, 0.10);
+  border-inline-end-color: rgba(0, 0, 0, 0.10);
   color: var(--text-primary);
 }
 html.bg-light .import-intro,
@@ -15703,7 +15710,7 @@ html.bg-light .sat-focus-hint { color: var(--text-hint); }
 .sat-focus-knob {
   position: absolute;
   top: 2px;
-  left: 2px;
+  left: 2px;  /* transform-origin */
   width: 11px;
   height: 11px;
   border-radius:var(--radius-circle);
@@ -15734,7 +15741,7 @@ html.bg-light .sat-focus-row.is-on .sat-focus-knob { background: #fff; }
   font-size: var(--fs-8);
   line-height: 1;
   color: var(--sat-accent);
-  margin-left: -2px;
+  margin-inline-start: -2px;
   align-self: center;
 }
 
@@ -15824,12 +15831,12 @@ html.bg-light .sat-focus-row.is-on .sat-focus-knob { background: #fff; }
 .note-card::after {
   content: "";
   position: absolute;
-  right: 0;
+  inset-inline-end: 0;
   bottom: 0;
   width: 22px;
   height: 22px;
   background: linear-gradient(315deg, rgba(0,0,0,0.16) 0%, rgba(0,0,0,0.06) 42%, var(--note-paper) 46%);
-  border-bottom-right-radius: 2px;
+  border-end-end-radius: 2px;
   box-shadow: -1px -1px 2px rgba(0, 0, 0, 0.06);
   pointer-events: none;
 }
@@ -15993,7 +16000,7 @@ html.bg-light .sat-focus-row.is-on .sat-focus-knob { background: #fff; }
   flex-direction: column;
   min-height: 0;
   padding: 0 20px 40px;
-  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  border-inline-start: 1px solid rgba(255, 255, 255, 0.12);
   /* Ink and the D6 shadow, mirroring .tasks-tab so the column matches its
      neighbour on every wallpaper tier rather than declaring its own. */
   color: #fff;
@@ -16002,7 +16009,7 @@ html.bg-light .sat-focus-row.is-on .sat-focus-knob { background: #fff; }
 
 html.has-bg.bg-light .notes-panel {
   color: #1f1f1f;
-  border-left-color: rgba(0, 0, 0, 0.14);
+  border-inline-start-color: rgba(0, 0, 0, 0.14);
 }
 
 .notes-panel-title {
@@ -16084,7 +16091,7 @@ html.has-bg.bg-light .notes-panel {
      characters of every note - the part you read to tell one note from
      another. The curl is 22px in the bottom-right; this sits in the top-right
      and never meets it. */
-  right: 6px;
+  inset-inline-end: 6px;
   width: 22px;
   height: 22px;
   display: flex;
@@ -16136,7 +16143,7 @@ html.has-bg.bg-light .notes-panel {
     flex: 0 0 auto;
     min-width: 0;
     width: 100%;
-    border-left: none;
+    border-inline-start: none;
     border-top: 1px solid rgba(255, 255, 255, 0.12);
     padding: var(--space-4) 28px 40px;
   }
@@ -16198,7 +16205,7 @@ html.has-bg.bg-light .notes-search-input:focus { border-color: rgba(0, 0, 0, 0.3
 
 .notes-search-clear {
   position: absolute;
-  right: 4px;
+  inset-inline-end: 4px;
   top: 50%;
   transform: translateY(-50%);
   width: 20px;
@@ -16586,7 +16593,7 @@ html.has-bg.bg-light .notes-default-cycle {
    cleared the corner but its left FLARE did not: with the AI tab active the flare
    landed on the bar's curve and the two merged into a lump instead of a curve.
    The flare has to land on a straight edge for the same reason the tab does. */
-.search-mode:first-child { margin-left: 32px; }
+.search-mode:first-child { margin-inline-start: 32px; }
 
 .search-mode {
   position: relative;
@@ -16680,13 +16687,13 @@ html.bg-light .search-mode.is-active {
 }
 
 .search-mode.is-active::before {
-  left: -10px;
+  left: -10px;  /* mask-paired */
   -webkit-mask: radial-gradient(circle 10px at 0 0, transparent 99%, #000 100%);
   mask: radial-gradient(circle 10px at 0 0, transparent 99%, #000 100%);
 }
 
 .search-mode.is-active::after {
-  right: -10px;
+  right: -10px;  /* mask-paired */
   -webkit-mask: radial-gradient(circle 10px at 100% 0, transparent 99%, #000 100%);
   mask: radial-gradient(circle 10px at 100% 0, transparent 99%, #000 100%);
 }
@@ -16742,14 +16749,14 @@ html.bg-light .search-mode:hover {
   backdrop-filter: var(--pro-frost-floater-blur);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.38);
-  text-align: left;
+  text-align: start;
   /* Pinned to the form's padding box, which IS the bar. left/right rather than
      a width, so it tracks the bar at every window size without a second
      max-width to keep in step. The 6px gap moves into `top`. */
   position: absolute;
   top: calc(100% + 6px);
-  left: var(--space-5);
-  right: var(--space-5);
+  inset-inline-start: var(--space-5);
+  inset-inline-end: var(--space-5);
   /* UNCHANGED AT 900, and the position change does not move it in the stack.
      Above: #content-header (2) and #sidebar (200), so it is never hidden by the
      page furniture it opens over. Below: #shortcut-menu (1000), #nest-submenu
@@ -17028,8 +17035,8 @@ html.bg-light .launcher-row.is-active { outline-color: rgba(0, 0, 0, 0.3); }
      intercept a click meant for what is behind it. */
   position: absolute;
   top: clamp(36px, 7vh, 110px);
-  left: 0;
-  right: 0;
+  inset-inline-start: 0;
+  inset-inline-end: 0;
   margin: 0;
   pointer-events: none;
   text-align: center;
@@ -17146,8 +17153,8 @@ html.has-bg.bg-light #home-greeting {
   display: block;
   width: fit-content;
   max-width: 100%;
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 
 .home-greeting-date {
@@ -17273,7 +17280,7 @@ html.has-bg.bg-light .home-greeting-text:hover { color: rgba(0, 0, 0, 0.95); }
 .greeting-debris-glyph {
   position: absolute;
   top: 0;
-  left: 0;
+  left: 0;  /* transform-origin */
   white-space: pre;
   will-change: transform;
   /* FULL STRENGTH, ON ALL THREE FRAMES. The resting line is translucent because
@@ -17360,7 +17367,7 @@ html.bg-light .bm-row.is-in-launchpad .bm-title { color: var(--text-secondary); 
    popover off-screen and this round is not adding a positioning engine. */
 .icon-picker {
   position: fixed;
-  left: 50%;
+  left: 50%;  /* centring */
   top: 50%;
   transform: translate(-50%, -50%);
   z-index: 2100;
@@ -17485,7 +17492,7 @@ html.layout-list .shortcut {
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-1-5) var(--space-2);
-  text-align: left;
+  text-align: start;
   border-radius: var(--radius-md);
 }
 html.layout-list .shortcut-link {
@@ -17503,7 +17510,7 @@ html.layout-list .shortcut-icon {
 }
 html.layout-list .shortcut-name {
   max-width: none;
-  text-align: left;
+  text-align: start;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -17518,7 +17525,7 @@ html.layout-list .add-tile {
   width: 100%;
   gap: var(--space-3);
   padding: var(--space-1-5) var(--space-2);
-  text-align: left;
+  text-align: start;
 }
 html.layout-list .add-tile-icon { margin: 0; }
 html.layout-list .add-tile-label { max-width: none; }
@@ -17535,7 +17542,7 @@ html.focus-view #sidebar { display: none; }
 /* [1.10.9] BOTH margins, not just the left. Focus view hides the sidebar, so
    neither side has anything to reserve - zeroing only the left would leave the
    column 28px off centre in the other direction. */
-html.focus-view #content { margin-left: 0; margin-right: 0; }
+html.focus-view #content { margin-inline-start: 0; margin-inline-end: 0; }
 html.focus-view #shortcut-grid-area { display: none; }
 html.focus-view #tab-bar { display: none; }
 
@@ -17545,7 +17552,7 @@ html.focus-view #tab-bar { display: none; }
 #focus-exit {
   position: fixed;
   top: var(--space-4);
-  left: var(--space-4);
+  inset-inline-start: var(--space-4);
   z-index: 300;
   display: none;
   align-items: center;
