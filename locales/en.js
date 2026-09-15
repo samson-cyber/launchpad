@@ -4490,3 +4490,99 @@ I18n.register("en", {
       "sense": "error.write"
     }
   });
+// =========================================================================
+// [WM.4] FRICTION, FOCUS SOUNDS, AND THE IDLE THRESHOLD
+//
+// THE COUNTDOWN REPORTS TIME AND NOTHING ELSE (PLAN decision E). Not one of
+// these strings mentions discipline, willpower, or what the user should be
+// doing instead. The gate is a door that takes a moment to open, and the copy
+// is what a door would say if it could: how long, and that you may leave.
+//
+// THE TYPED SENTENCE JUDGES NOTHING. "I am choosing to open this" names the
+// action in the user's own voice. The alternative the 2026-09-01 ruling was
+// written against - something like "I am wasting my time" - would be the
+// product telling someone what they are doing with their afternoon, which is
+// not a thing it is entitled to say.
+// =========================================================================
+I18n.register("en", {
+    "gate_friction_counting": {
+      "description": "The countdown line on the gate while a snooze waits. States the remaining seconds and nothing else. {seconds} counts down.",
+      "message": "Snoozing in {seconds}s",
+      "sense": "status.countdown"
+    },
+    "gate_friction_ready": {
+      "description": "Replaces the countdown when the wait is over and the snooze can be taken. A statement of readiness, not an instruction.",
+      "message": "Ready when you are.",
+      "sense": "status.countdown"
+    },
+    "gate_friction_cancel": {
+      "description": "Leaves the countdown and returns to the gate without snoozing. Enabled at every instant of the wait - the door stays a door.",
+      "message": "Never mind",
+      "sense": "action.button"
+    },
+    "gate_commit_label": {
+      "description": "Label above the commitment input, shown only when the user has armed that toggle and only on a repeat snooze. {sentence} is COMMITMENT_SENTENCE, which must be typed exactly.",
+      "message": "Type this to continue: {sentence}",
+      "sense": "label.field"
+    },
+    "prosettings_commitment_toggle": {
+      "description": "Pro Settings toggle arming the typed sentence on a repeat snooze. OFF by default - the user asks for this, it is never imposed.",
+      "message": "Ask me to type a sentence before a repeat snooze",
+      "sense": "label.toggle"
+    },
+    "prosettings_commitment_note": {
+      "description": "Explains the commitment toggle, including that it applies only to a REPEAT snooze within one session, so a user can predict when they will meet it.",
+      "message": "Off by default. When on, snoozing the same site twice in one focus session asks you to type one short sentence first.",
+      "sense": "note.explanation"
+    },
+    "prosettings_sound_during_focus": {
+      "description": "Section title for the focus texture, directly under the phase-boundary chime picker. Distinguished from it by WHEN it plays: a chime marks a boundary, this runs through the phase.",
+      "message": "Sound during a focus session",
+      "sense": "heading.section"
+    },
+    "prosettings_brown_noise": {
+      "description": "Focus texture. The trailing phrase is what it SOUNDS like, because the colour names mean nothing to most people.",
+      "message": "Brown noise, deep and soft",
+      "sense": "label.option"
+    },
+    "prosettings_pink_noise": {
+      "description": "Focus texture. Same naming rule as brown.",
+      "message": "Pink noise, even and warm",
+      "sense": "label.option"
+    },
+    "prosettings_white_noise": {
+      "description": "Focus texture. Same naming rule; white is the brightest of the three.",
+      "message": "White noise, bright",
+      "sense": "label.option"
+    },
+    "prosettings_rain": {
+      "description": "Focus texture. Named plainly because unlike the noise colours it needs no gloss.",
+      "message": "Rain",
+      "sense": "label.option"
+    },
+    "prosettings_volume": {
+      "description": "Label on the focus texture volume slider.",
+      "message": "Volume",
+      "sense": "label.field"
+    },
+    "prosettings_focus_sound_note": {
+      "description": "States the three conditions under which the texture plays, so a user who hears nothing knows which one is not met.",
+      "message": "Plays only while a focus session is running in a Work workspace, and stops when you pause or the session ends.",
+      "sense": "note.explanation"
+    },
+    "prosettings_idle_after": {
+      "description": "Label on the idle threshold input. Phrased as what it does to the user rather than as a technical threshold.",
+      "message": "Count me idle after",
+      "sense": "label.field"
+    },
+    "prosettings_seconds": {
+      "description": "Unit beside the idle threshold input.",
+      "message": "seconds",
+      "sense": "label.unit"
+    },
+    "prosettings_idle_note": {
+      "description": "Names BOTH readers, because one setting governing two behaviours is exactly the thing a user would not guess, and states the platform floor so a refused value is not a mystery.",
+      "message": "Used both to stop tracking and to stop the active-task timer. The browser will not go below 15 seconds.",
+      "sense": "note.explanation"
+    }
+  });

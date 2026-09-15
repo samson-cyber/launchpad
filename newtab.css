@@ -16058,6 +16058,87 @@ html.bg-light .import-option {
 html.has-bg .focus-block-domain { color: var(--ink-primary); }
 html.has-bg.bg-light .focus-block-domain { color: var(--text-primary); }
 
+/* ===== [WM.4] The sound, commitment and idle controls =====
+ *
+ * THREE INK RULES EACH where text is involved - WM.2's lesson, which WM.3 paid
+ * forward and this round keeps: the base is a --text-* token because with no
+ * wallpaper this panel is LIGHT, html.has-bg takes --ink-*, and
+ * html.has-bg.bg-light comes back. Two rules is the shape that shipped a label
+ * at zero changed pixels. */
+.focus-block-rules-extra {
+  margin-block-start: var(--space-2);
+}
+
+/* A SETTINGS LABEL, NOT A MODAL ONE. The first version reused
+   .tt-modal-label here - it looks right and it is the wrong family:
+   .tt-modal-label carries only opacity and inherits its colour from the modal,
+   which has a dark-frost chain this panel does not share. On a wallpapered
+   panel both labels would have fallen through to --text-primary at about
+   1.05:1. tools/check-panel-ink.mjs refused it before any browser ran, which
+   is the gate doing exactly what it was built for. */
+.focus-field-label {
+  flex: 0 0 auto;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+html.has-bg .focus-field-label { color: var(--ink-primary); }
+html.has-bg.bg-light .focus-field-label { color: var(--text-primary); }
+
+.focus-sound-volume {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+}
+
+.focus-sound-volume input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: #4a90e2;
+}
+
+.focus-idle-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2-5);
+  flex-wrap: wrap;
+}
+
+.focus-idle-input {
+  width: 6em;
+  padding: var(--space-1) var(--space-1-5);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius:var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--fs-12);
+}
+
+html.has-bg .focus-idle-input {
+  color: var(--ink-primary);
+  border-color: var(--surface-line);
+}
+
+html.has-bg.bg-light .focus-idle-input {
+  color: var(--text-primary);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.focus-idle-unit {
+  flex: 0 0 auto;
+  font-size: var(--fs-12);
+  color: var(--text-secondary);
+}
+
+html.has-bg .focus-idle-unit { color: var(--ink-secondary); }
+html.has-bg.bg-light .focus-idle-unit { color: var(--text-secondary); }
+
 /* [WM.3] The second line. It carries what the rule IS, so it gets the row's
    full width rather than competing with the host name for it - and it exists
    only on rows that have a rule, so a session entry is byte-identical to what

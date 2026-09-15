@@ -30,6 +30,28 @@
       <button data-i18n="gate_continue" type="button" id="gate-continue" class="gate-btn">Go to LaunchPad</button>
     </div>
 
+    <!-- [WM.4] The friction panel. Absent from the flow until a snooze asks for
+         it, and it REPLACES the actions row rather than sitting beside it -
+         there is one decision in front of the user at a time. -->
+    <div class="gate-friction hidden" id="gate-friction">
+      <div class="gate-ring-wrap">
+        <svg class="gate-ring" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+          <circle class="gate-ring-track" cx="50" cy="50" r="45" vector-effect="non-scaling-stroke"></circle>
+          <circle class="gate-ring-fill" cx="50" cy="50" r="45" vector-effect="non-scaling-stroke" id="gate-ring-fill"></circle>
+        </svg>
+        <span class="gate-ring-num" id="gate-ring-num"></span>
+      </div>
+      <p class="gate-friction-line" id="gate-friction-line" role="status"></p>
+      <div class="gate-commit hidden" id="gate-commit">
+        <label class="gate-commit-label" for="gate-commit-input" id="gate-commit-label"></label>
+        <input type="text" id="gate-commit-input" class="gate-commit-input" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="gate-actions">
+        <button data-i18n="gate_friction_cancel" type="button" id="gate-friction-cancel" class="gate-btn gate-btn-quiet">Never mind</button>
+        <button type="button" id="gate-friction-go" class="gate-btn" disabled></button>
+      </div>
+    </div>
+
     <p class="gate-footnote" id="gate-footnote"></p>
   </main>
   <script src="i18n.js"></script>

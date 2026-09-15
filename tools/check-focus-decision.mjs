@@ -205,6 +205,7 @@ function buildData(ctx, opts = {}) {
     // stamp - which is exactly the legacy case, and it must still gate.
     const ps = { phase: opts.phase, phaseEndsAt: Date.now() + 600000, phaseDurationMs: 900000, cycleCount: 1, sessionComplete: false };
     if (opts.sessionMode !== undefined) ps.mode = opts.sessionMode;
+    if (opts.sessionId !== undefined) ps.sessionId = opts.sessionId;
     data.activeTask = {
       taskId: "t1", workspaceId: "main", startedAt: Date.now(),
       pomodoroState: ps,
@@ -215,6 +216,12 @@ function buildData(ctx, opts = {}) {
   // fixture only says so when it wants it OFF - which is the budget case that
   // can never fire.
   if (opts.tracking === false) data.workspaces[0].tracking = { enabled: false };
+  // [WM.4] The settings this round adds. Absent unless a fixture asks, so every
+  // pre-existing fixture keeps describing a profile that never opened them.
+  if (opts.commitment !== undefined) data.settings.focus.commitment = opts.commitment;
+  if (opts.sound !== undefined) data.settings.focus.sound = opts.sound;
+  if (opts.idleSec !== undefined) data.settings.focus.idleSec = opts.idleSec;
+  if (opts.snoozes) data.focusSnoozes = opts.snoozes;
   // Fixture self-verification (Q7).
   const wantLevel = opts.expectLevel || null;
   if (wantLevel) {
@@ -532,6 +539,83 @@ function runSuite(ctx) {
     decideAt(buildData(ctx, { armed: true, workspaceMode: "work", blockList: ["youtube.com", { host: "vimeo.com", mode: "budget", limitMin: 1 }] }),
       "youtube.com", WED_1030, used(99 * 60000)) === "session");
 
+  // ===== LAYER 7 [WM.4]: FRICTION, SOUNDS, AND THE IDLE THRESHOLD =====
+  const RUNNING = { phase: "work", sessionMode: "work", sessionId: "s1" };
+  const plan = (o, host) => S.frictionPlanFor(buildData(ctx, o), host || "youtube.com");
+  const snoozed = (session, count) => ({ "youtube.com": { until: Date.now() - 1000, session: session, count: count } });
+
+  check("no session, no friction - a hand-set arm has no stamp to read",
+    plan({ armed: true }).delayMs === 0);
+  check("a CASUAL session has no friction",
+    plan({ phase: "work", sessionMode: "casual", sessionId: "s1" }).delayMs === 0);
+  check("a WORK session: the FIRST snooze waits 10s",
+    plan(RUNNING).delayMs === S.FRICTION_FIRST_MS && plan(RUNNING).repeat === false);
+  check("a REPEAT snooze in the SAME session waits 60s",
+    plan(Object.assign({}, RUNNING, { snoozes: snoozed("s1", 1) })).delayMs === S.FRICTION_REPEAT_MS);
+  check("a snooze from an EARLIER session is not a repeat - the escalation lives inside one session",
+    plan(Object.assign({}, RUNNING, { snoozes: snoozed("s0", 4) })).delayMs === S.FRICTION_FIRST_MS);
+  check("a legacy snooze record (a bare number) is not a repeat either",
+    plan(Object.assign({}, RUNNING, { snoozes: { "youtube.com": Date.now() - 1000 } })).delayMs === S.FRICTION_FIRST_MS);
+  check("a repeat on a DIFFERENT host is not a repeat on this one",
+    plan(Object.assign({}, RUNNING, { snoozes: { "vimeo.com": { until: 1, session: "s1", count: 3 } } })).delayMs === S.FRICTION_FIRST_MS);
+  check("the typed sentence is ABSENT unless the user armed it",
+    plan(Object.assign({}, RUNNING, { snoozes: snoozed("s1", 1) })).needsSentence === false);
+  check("armed, it appears on a REPEAT",
+    plan(Object.assign({}, RUNNING, { commitment: true, snoozes: snoozed("s1", 1) })).needsSentence === true);
+  check("armed, it does NOT appear on a first snooze - escalation, not a toll",
+    plan(Object.assign({}, RUNNING, { commitment: true })).needsSentence === false);
+  check("the sentence judges nothing",
+    S.COMMITMENT_SENTENCE === "I am choosing to open this");
+  check("friction reads the STAMP, not the live workspace: a Work session on a Casual workspace still escalates",
+    plan(Object.assign({}, RUNNING, { workspaceMode: "casual" })).delayMs === S.FRICTION_FIRST_MS);
+  check("and a Casual session on a Work workspace does not",
+    plan({ phase: "work", sessionMode: "casual", sessionId: "s1", workspaceMode: "work" }).delayMs === 0);
+
+  // The session id itself.
+  check("a session id is forced null when no phase is running - it cannot outlive its session",
+    S.hydratePomodoroState({ phase: null, sessionId: "s1" }).sessionId === null);
+  check("and it survives a running phase",
+    S.hydratePomodoroState({ phase: "work", phaseEndsAt: 9, phaseDurationMs: 9, sessionId: "s1" }).sessionId === "s1");
+
+  // Sounds.
+  const plays = (o) => S.focusSoundShouldPlay(buildData(ctx, o));
+  check("no texture chosen, nothing plays", plays(Object.assign({}, RUNNING)) === false);
+  check("a texture chosen and a WORK session playing, it plays",
+    plays(Object.assign({}, RUNNING, { sound: "brown" })) === true);
+  check("a CASUAL session plays nothing however the setting reads",
+    plays({ phase: "work", sessionMode: "casual", sessionId: "s1", sound: "brown" }) === false);
+  check("a BREAK plays nothing - the sound belongs to the focus phase",
+    plays({ phase: "shortBreak", sessionMode: "work", sessionId: "s1", sound: "brown" }) === false);
+  check("PAUSED plays nothing - a frozen session is not a running one",
+    plays(Object.assign({}, RUNNING, { sound: "brown", paused: true })) === false);
+  check("no Pro access plays nothing",
+    plays(Object.assign({}, RUNNING, { sound: "brown", pro: "expired", expectLevel: "expired" })) === false);
+  check("an invented texture falls back to off rather than to noise",
+    S.getFocusSound({ settings: { focus: { sound: "bagpipes" } } }) === "off");
+  check("the default ships OFF", S.getFocusSound({}) === "off");
+
+  // The idle threshold.
+  check("the idle default is 60s", S.getIdleThresholdSec({}) === 60);
+  check("a stored 5 READS as the 15s floor - the browser would ignore anything less",
+    S.getIdleThresholdSec({ settings: { focus: { idleSec: 5 } } }) === S.IDLE_THRESHOLD_FLOOR_SEC);
+  check("a stored 0 and a stored negative read as the floor too",
+    S.getIdleThresholdSec({ settings: { focus: { idleSec: 0 } } }) === 15 &&
+    S.getIdleThresholdSec({ settings: { focus: { idleSec: -30 } } }) === 15);
+  check("garbage reads as the default, not as the floor",
+    S.getIdleThresholdSec({ settings: { focus: { idleSec: "soon" } } }) === 60);
+  check("a sane value is kept",
+    S.getIdleThresholdSec({ settings: { focus: { idleSec: 120 } } }) === 120);
+
+  // ONE VALUE, BOTH READERS. tracking.js holds the live number and writes
+  // chrome.idle.setDetectionInterval, which is what the ACTIVE idle deduction's
+  // onStateChanged obeys; the engine gate reads the same number directly.
+  ctx.Tracking.setIdleSeconds(5);
+  check("tracking clamps to the floor too, so neither reader can be given 5",
+    ctx.Tracking.idleSeconds() === 15, String(ctx.Tracking.idleSeconds()));
+  ctx.Tracking.setIdleSeconds(120);
+  check("and setting it writes the browser's detection interval, which is the other reader's only input",
+    ctx.Tracking.idleSeconds() === 120);
+
   // THE NEVER-BLOCK LIST WINS OVER EVERY ENTRY MODE. It is a transport rule and
   // it runs before the reader is ever consulted, so the assertion is that the
   // URL never becomes a candidate even when it is listed in each mode in turn.
@@ -633,7 +717,11 @@ const SEEDS = [
   {
     name: "snooze ignores expiry",
     note: "a stored snooze becomes permanent",
-    seeds: [{ file: "storage.js", find: "    return v > now ? v : null;", replace: "    return v;" }],
+    // [WM.4] RE-ANCHORED: the reader now tolerates both the bare number and the
+    // {until, session, count} record, so the comparison it guards moved onto the
+    // extracted `until`. Same guard, same defect - a stored snooze becomes
+    // permanent.
+    seeds: [{ file: "storage.js", find: "    return until > now ? until : null;", replace: "    return until;" }],
   },
   {
     name: "www-strip removed from the matcher",
@@ -673,6 +761,61 @@ const SEEDS = [
       find: "        if (entries[j].mode !== mode) continue;",
       replace: "        if (false) continue;",
     }],
+  },
+  {
+    name: "[WM.4] friction ignores the session stamp",
+    note: "a Casual session would escalate - mode-governance dropped",
+    seeds: [{ file: "storage.js", find: '    if (sessionStampMode(data) !== "work") return none;   // Casual, or no session at all', replace: "" }],
+  },
+  {
+    name: "[WM.4] every snooze treated as a repeat",
+    note: "a first snooze would wait 60s",
+    seeds: [{ file: "storage.js", find: "    var repeat = (snoozeSession(prev) === session) && snoozeCount(prev) >= 1;", replace: "    var repeat = true;" }],
+  },
+  {
+    name: "[WM.4] a repeat from an EARLIER session still counts",
+    note: "the escalation would leak across sessions and never reset",
+    seeds: [{ file: "storage.js", find: "    var repeat = (snoozeSession(prev) === session) && snoozeCount(prev) >= 1;", replace: "    var repeat = snoozeCount(prev) >= 1;" }],
+  },
+  {
+    name: "[WM.4] the typed sentence imposed without the toggle",
+    note: "a user who never armed it would meet it anyway",
+    seeds: [{ file: "storage.js", find: "      needsSentence: repeat && isCommitmentArmed(data),", replace: "      needsSentence: repeat," }],
+  },
+  {
+    name: "[WM.4] the session id outlives its session",
+    note: "the next session's first snooze would look like a repeat",
+    seeds: [{
+      file: "storage.js",
+      find: '      sessionId: (phase && typeof ps.sessionId === "string" && ps.sessionId) ? ps.sessionId : null',
+      replace: '      sessionId: (typeof ps.sessionId === "string" && ps.sessionId) ? ps.sessionId : null',
+    }],
+  },
+  {
+    name: "[WM.4] a sound plays through a pause",
+    note: "the texture would say the session was running while the numerals had stopped",
+    seeds: [{ file: "storage.js", find: "    if (isTrackingPaused(data)) return false;\n    if (sessionStampMode(data) !== \"work\") return false;", replace: '    if (sessionStampMode(data) !== "work") return false;' }],
+  },
+  {
+    name: "[WM.4] a sound plays through a break",
+    note: "E1's asymmetry again - the boundary the feature marks would blur",
+    seeds: [{
+      file: "storage.js",
+      // The break guard is now spelled through a local (see focusSoundShouldPlay
+      // for why), so the seed points at the comparison rather than at the return.
+      find: '    return soundPhase === "work";',
+      replace: '    return soundPhase !== null;',
+    }],
+  },
+  {
+    name: "[WM.4] a sound plays in a Casual session",
+    note: "mode-governance dropped from the texture",
+    seeds: [{ file: "storage.js", find: '    if (sessionStampMode(data) !== "work") return false;', replace: "" }],
+  },
+  {
+    name: "[WM.4] the idle floor removed",
+    note: "a 5s threshold would be stored and silently ignored by the browser",
+    seeds: [{ file: "storage.js", find: "    if (n < IDLE_THRESHOLD_FLOOR_SEC) return IDLE_THRESHOLD_FLOOR_SEC;", replace: "" }],
   },
   {
     name: "[WM.3] the schedule mode gate removed",

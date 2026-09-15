@@ -105,3 +105,96 @@ body {
   color: #9aa0a6;
   min-height: 19px;   /* reserved for the same reason as .gate-context */
 }
+
+/* ===== [WM.4] The friction countdown =====
+ *
+ * THE DASHBOARD RING'S GEOMETRY, NOT ITS STYLESHEET. newtab.css cannot be
+ * loaded here - this file's own header says why - so the radius, the viewBox and
+ * the non-scaling stroke come across in gate.js and the colours are declared
+ * fresh in the gate's green. A gate that suddenly painted the product blue would
+ * be a different page wearing this one's clothes.
+ *
+ * AND IT IS STILL F3=b's GENTLE PAGE. The ring reports time. There is no pulse,
+ * no red, and no state in which a control disappears from under the user - the
+ * way out is present and enabled at every instant of the wait. */
+.gate-friction {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.gate-ring-wrap {
+  position: relative;
+  width: 72px;
+  height: 72px;
+}
+
+.gate-ring {
+  width: 72px;
+  height: 72px;
+  transform: rotate(-90deg);   /* start the sweep at twelve o'clock */
+}
+
+.gate-ring-track,
+.gate-ring-fill {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.gate-ring-track { stroke: rgba(255, 255, 255, 0.14); }
+.gate-ring-fill {
+  stroke: #8ed9a8;
+  transition: stroke-dashoffset 0.2s linear;
+}
+
+.gate-ring-num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 600;
+  color: #f1f3f4;
+  font-variant-numeric: tabular-nums;
+}
+
+.gate-friction-line {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #c9cdd1;
+  min-height: 23px;
+}
+
+.gate-commit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 360px;
+}
+
+.gate-commit-label {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #c9cdd1;
+}
+
+.gate-commit-input {
+  appearance: none;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f1f3f4;
+  font: inherit;
+  font-size: 14px;
+}
+
+.gate-commit-input:focus-visible { outline: 2px solid #8ed9a8; outline-offset: 2px; }
+
+.hidden { display: none !important; }

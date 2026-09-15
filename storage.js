@@ -1989,7 +1989,33 @@ var Storage = (function () {
   // C7 — per-site snooze. { normalizedEntry: untilTimestamp }. No alarm: expiry
   // only matters at the next navigation, which wakes the worker anyway (measured
   // in this task's MEASUREMENTS comment).
+  //
+  // [WM.4] A VALUE MAY NOW ALSO BE {until, session, count}, and both shapes stay
+  // valid forever - the block list's trick, for the same reason. A bare number
+  // reads as one snooze belonging to no session, which is exactly what every
+  // record written before this round was.
+  //
+  // WHY A COUNT AT ALL: friction escalates on a REPEAT snooze of the same host
+  // in the same session, and until now nothing distinguished a repeat from a
+  // first. The map held only "until when", and pruneExpiredFocusSnoozes deletes
+  // a key the moment it expires - so after five minutes a second snooze was
+  // indistinguishable from the first by construction.
   var FOCUS_SNOOZE_MS = 5 * 60 * 1000;
+
+  function snoozeUntil(v) {
+    if (typeof v === "number" && isFinite(v)) return v;
+    if (v && typeof v === "object" && typeof v.until === "number" && isFinite(v.until)) return v.until;
+    return null;
+  }
+  function snoozeSession(v) {
+    return (v && typeof v === "object" && typeof v.session === "string") ? v.session : null;
+  }
+  function snoozeCount(v) {
+    if (v && typeof v === "object" && typeof v.count === "number" && isFinite(v.count) && v.count > 0) {
+      return Math.floor(v.count);
+    }
+    return (snoozeUntil(v) === null) ? 0 : 1;
+  }
 
   function ensureFocusSnoozes(data) {
     if (!data) return {};
@@ -2005,8 +2031,14 @@ var Storage = (function () {
     var map = ensureFocusSnoozes(data);
     var removed = 0;
     Object.keys(map).forEach(function (k) {
-      var v = map[k];
-      if (typeof v !== "number" || !isFinite(v) || v <= now) { delete map[k]; removed++; }
+      var until = snoozeUntil(map[k]);
+      // [WM.4] AN EXPIRED RECORD IS KEPT WHEN IT CARRIES A SESSION, because the
+      // count is what makes the NEXT snooze a repeat and the snooze itself
+      // expiring is precisely when that matters. It is dropped when its session
+      // is no longer the running one, which is the only thing that ends the
+      // escalation - see frictionPlanFor.
+      if (until === null) { delete map[k]; removed++; return; }
+      if (until <= now && snoozeSession(map[k]) === null) { delete map[k]; removed++; }
     });
     return removed;
   }
@@ -2021,9 +2053,15 @@ var Storage = (function () {
     var map = ensureFocusSnoozes(data);
     // Opportunistic prune (C7): stale keys are cleared on the write path, so the
     // hot read path never has to.
-    var pruned = pruneExpiredFocusSnoozes(data);
-    if (map[entry] === until && !pruned) return false;   // no-op guard
-    map[entry] = until;
+    pruneExpiredFocusSnoozes(data);
+    // [WM.4] The count carries forward WITHIN a session and restarts outside it.
+    // AND THE NO-OP GUARD IS GONE with it: the old one skipped the write when
+    // the timestamp was unchanged, which is no longer the whole record - a
+    // second snooze at the same instant still has to raise the count.
+    var session = sessionStampId(data);
+    var prev = map[entry];
+    var count = (session !== null && snoozeSession(prev) === session) ? snoozeCount(prev) + 1 : 1;
+    map[entry] = { until: until, session: session, count: count };
     await saveAll(data);
     return true;
   }
@@ -2041,10 +2079,216 @@ var Storage = (function () {
     if (!entry) return null;
     var map = (data.focusSnoozes && typeof data.focusSnoozes === "object" && !Array.isArray(data.focusSnoozes))
       ? data.focusSnoozes : {};
-    var v = map[entry];
-    if (typeof v !== "number" || !isFinite(v)) return null;
+    var until = snoozeUntil(map[entry]);
+    if (until === null) return null;
     var now = (typeof nowMs === "number" && isFinite(nowMs)) ? nowMs : Date.now();
-    return v > now ? v : null;
+    return until > now ? until : null;
+  }
+
+  // ===== [WM.4] FOCUS SOUNDS =====
+  //
+  // PLAN decision F: SYNTHESISED, never files. The zip is under a megabyte and
+  // the CSP forbids remote media, so a minute of usable loop per texture would
+  // dominate the package for a setting that ships off.
+  //
+  // EVERYTHING SHIPS OFF ([1.11.0] decision 7), so the default is "off" and a
+  // user who never opens the setting never hears anything.
+  //
+  // MODE-GOVERNED FROM THE STAMP, exactly as friction is: a Casual session plays
+  // nothing whatever the setting says.
+  var FOCUS_SOUNDS = ["brown", "pink", "white", "rain"];
+  var FOCUS_SOUND_DEFAULT = "off";
+  var FOCUS_SOUND_VOLUME_DEFAULT = 0.4;
+
+  function coerceFocusSound(v) {
+    return (FOCUS_SOUNDS.indexOf(v) !== -1) ? v : FOCUS_SOUND_DEFAULT;
+  }
+
+  function getFocusSound(data) {
+    var f = (data && data.settings && data.settings.focus) || {};
+    return coerceFocusSound(f.sound);
+  }
+
+  async function setFocusSoundTexture(data, v) {
+    if (!data) return false;
+    var next = coerceFocusSound(v);
+    if (!data.settings || typeof data.settings !== "object") data.settings = {};
+    if (!data.settings.focus || typeof data.settings.focus !== "object") data.settings.focus = {};
+    if (data.settings.focus.sound === next) return false;
+    data.settings.focus.sound = next;
+    await saveAll(data);
+    return true;
+  }
+
+  function getFocusSoundVolume(data) {
+    var f = (data && data.settings && data.settings.focus) || {};
+    var v = f.soundVolume;
+    if (typeof v !== "number" || !isFinite(v)) return FOCUS_SOUND_VOLUME_DEFAULT;
+    return Math.max(0, Math.min(1, v));
+  }
+
+  async function setFocusSoundVolume(data, v) {
+    if (!data) return false;
+    var next = (typeof v === "number" && isFinite(v)) ? Math.max(0, Math.min(1, v)) : FOCUS_SOUND_VOLUME_DEFAULT;
+    if (!data.settings || typeof data.settings !== "object") data.settings = {};
+    if (!data.settings.focus || typeof data.settings.focus !== "object") data.settings.focus = {};
+    if (data.settings.focus.soundVolume === next) return false;
+    data.settings.focus.soundVolume = next;
+    await saveAll(data);
+    return true;
+  }
+
+  /** Should a texture be playing RIGHT NOW? Pure; the worker acts on it. */
+  function focusSoundShouldPlay(data) {
+    if (!data) return false;
+    if (getFocusSound(data) === FOCUS_SOUND_DEFAULT) return false;
+    if (!hasProAccessSafe(data)) return false;
+    // STOPS ON PAUSE, which is the same rule the pill's numerals follow: a
+    // frozen session is not a running one.
+    if (isTrackingPaused(data)) return false;
+    if (sessionStampMode(data) !== "work") return false;
+    var active = getActiveTask(data);
+    if (!active) return false;
+    // A BREAK IS NOT WORK. E1's asymmetry again - the sound belongs to the
+    // focus phase, and a break that kept humming would blur the boundary the
+    // whole feature exists to mark.
+    //
+    // SPELLED WITH A LOCAL rather than as a one-line return, deliberately: the
+    // arm derivation in focusBlockingActive ends with a byte-identical line,
+    // and two mutation seeds anchor on THAT one. Identical text in two places
+    // made both of them ANCHOR-AMBIGUOUS and silently stop protecting anything.
+    var soundPhase = hydratePomodoroState(active.pomodoroState).phase;
+    return soundPhase === "work";
+  }
+
+  function hasProAccessSafe(data) {
+    if (typeof ProAccess === "undefined" || typeof ProAccess.hasProAccess !== "function") return false;
+    return !!ProAccess.hasProAccess(data);
+  }
+
+  // ===== [WM.4] THE IDLE THRESHOLD =====
+  //
+  // ONE VALUE, READ BY BOTH, AND IT WAS ALREADY ONE - as a hardcoded constant.
+  // tracking.js carried IDLE_DETECTION_SECONDS = 60 with the note "user-
+  // configurable threshold is v2.1 (spec, Out of scope)", and used it for BOTH
+  // chrome.idle.queryState (the engine's gate) and chrome.idle.
+  // setDetectionInterval - and setDetectionInterval is what drives
+  // onStateChanged, which drives the ACTIVE idle deduction. So the two readers
+  // already shared a value; what they did not have was a setting.
+  //
+  // THE FLOOR IS THE PLATFORM'S. chrome.idle.setDetectionInterval refuses
+  // anything under 15 seconds, so a smaller value would not be a stricter
+  // setting, it would be a setting the browser ignores - which is worse than no
+  // setting at all. Enforced at the WRITER and again at the READER, so a value
+  // that reached storage some other way still reads as 15.
+  var IDLE_THRESHOLD_FLOOR_SEC = 15;
+  var IDLE_THRESHOLD_DEFAULT_SEC = 60;
+  var IDLE_THRESHOLD_MAX_SEC = 60 * 60;
+
+  function coerceIdleThresholdSec(v) {
+    if (typeof v !== "number" || !isFinite(v)) return IDLE_THRESHOLD_DEFAULT_SEC;
+    var n = Math.floor(v);
+    if (n < IDLE_THRESHOLD_FLOOR_SEC) return IDLE_THRESHOLD_FLOOR_SEC;
+    if (n > IDLE_THRESHOLD_MAX_SEC) return IDLE_THRESHOLD_MAX_SEC;
+    return n;
+  }
+
+  function getIdleThresholdSec(data) {
+    var f = (data && data.settings && data.settings.focus) || {};
+    if (f.idleSec === undefined) return IDLE_THRESHOLD_DEFAULT_SEC;
+    return coerceIdleThresholdSec(f.idleSec);
+  }
+
+  async function setIdleThresholdSec(data, v) {
+    if (!data) return false;
+    var next = coerceIdleThresholdSec(v);
+    if (!data.settings || typeof data.settings !== "object") data.settings = {};
+    if (!data.settings.focus || typeof data.settings.focus !== "object") data.settings.focus = {};
+    if (data.settings.focus.idleSec === next) return false;
+    data.settings.focus.idleSec = next;
+    await saveAll(data);
+    return true;
+  }
+
+  // ===== [WM.4] FRICTION =====
+  //
+  // 2026-09-01 dropped E4's strict lock and ruled escalation instead: 10s on the
+  // first snooze, 60s on a repeat within the same session, and a typed sentence
+  // only under a toggle the user arms themselves. PLAN decision E binds all of
+  // it - THE GATE STAYS A DOOR, and a countdown REPORTS time rather than
+  // exhorting.
+  //
+  // MODE-GOVERNED, FROM THE STAMP AND NOT THE LIVE WORKSPACE (decision C). So a
+  // workspace flipped to Casual mid-session keeps the friction it started with,
+  // and a session begun in Casual has none however the workspace is set now.
+  //
+  // AND A MANUAL ARM HAS NO FRICTION AT ALL, which follows from the same rule
+  // rather than being a separate decision: an arm carries no session stamp, so
+  // there is nothing to read. WM.2 established that a hand-set arm is not
+  // mode-governed for BLOCKING; friction is a feature born inside mode, and it
+  // simply has no session to escalate within.
+  var FRICTION_FIRST_MS = 10000;
+  var FRICTION_REPEAT_MS = 60000;
+
+  // THE SENTENCE JUDGES NOTHING. It names the action the user is taking, in
+  // their own voice, and costs the seconds it takes to type. "I am wasting my
+  // time" would be the product telling someone what they are doing with their
+  // afternoon, which is not a thing this product is entitled to say.
+  var COMMITMENT_SENTENCE = "I am choosing to open this";
+
+  function isCommitmentArmed(data) {
+    return !!(data && data.settings && data.settings.focus &&
+              data.settings.focus.commitment === true);
+  }
+
+  async function setCommitmentArmed(data, on) {
+    if (!data) return false;
+    var next = !!on;
+    if (!data.settings || typeof data.settings !== "object") data.settings = {};
+    if (!data.settings.focus || typeof data.settings.focus !== "object") data.settings.focus = {};
+    if (data.settings.focus.commitment === next) return false;
+    data.settings.focus.commitment = next;
+    await saveAll(data);
+    return true;
+  }
+
+  /** The id of the RUNNING focus session, or null. Null for a manual arm. */
+  function sessionStampId(data) {
+    var active = getActiveTask(data);
+    if (!active) return null;
+    return hydratePomodoroState(active.pomodoroState).sessionId;
+  }
+
+  /** The mode the RUNNING focus session was started under, or null. */
+  function sessionStampMode(data) {
+    var active = getActiveTask(data);
+    if (!active) return null;
+    return hydratePomodoroState(active.pomodoroState).mode;
+  }
+
+  /**
+   * What the gate must do before a snooze takes effect.
+   * { delayMs, repeat, needsSentence, sentence }
+   */
+  function frictionPlanFor(data, entry, nowMs) {
+    var none = { delayMs: 0, repeat: false, needsSentence: false, sentence: COMMITMENT_SENTENCE };
+    if (!data) return none;
+    if (sessionStampMode(data) !== "work") return none;   // Casual, or no session at all
+    var session = sessionStampId(data);
+    if (!session) return none;
+    var map = (data.focusSnoozes && typeof data.focusSnoozes === "object" && !Array.isArray(data.focusSnoozes))
+      ? data.focusSnoozes : {};
+    var host = normalizeBlockEntry(entry) || entry;
+    var prev = map[host];
+    // A record from an EARLIER session is not a repeat. The escalation lives
+    // inside one session and starts again with the next.
+    var repeat = (snoozeSession(prev) === session) && snoozeCount(prev) >= 1;
+    return {
+      delayMs: repeat ? FRICTION_REPEAT_MS : FRICTION_FIRST_MS,
+      repeat: repeat,
+      needsSentence: repeat && isCommitmentArmed(data),
+      sentence: COMMITMENT_SENTENCE
+    };
   }
 
   // C8 — capture-first counters. Versioned record, the ensureAchievements idiom
@@ -5306,7 +5550,10 @@ var Storage = (function () {
   // drops it for free.
   function emptyPomodoroState() {
     // [WM.1] `mode` is the session stamp - see hydratePomodoroState.
-    return { cycleCount: 0, phase: null, phaseEndsAt: null, phaseDurationMs: null, sessionComplete: false, mode: null };
+    // [WM.4] `sessionId` rides with it, for the same lifetime and under the
+    // same invariant. Friction escalates WITHIN a session, so it needs to know
+    // which session a snooze belonged to; nothing else in the product did.
+    return { cycleCount: 0, phase: null, phaseEndsAt: null, phaseDurationMs: null, sessionComplete: false, mode: null, sessionId: null };
   }
 
   // Defaulting reader for the phase state: null / legacy / malformed hydrates to
@@ -5448,7 +5695,10 @@ var Storage = (function () {
       // and not one moment longer, so a stale stamp can never be read as "a
       // session is running under Work". That invariant is enforced HERE, on
       // every read, rather than trusted to each of the five writers.
-      mode: (phase && (ps.mode === "work" || ps.mode === "casual")) ? ps.mode : null
+      mode: (phase && (ps.mode === "work" || ps.mode === "casual")) ? ps.mode : null,
+      // [WM.4] Same invariant as `mode`, deliberately: an id that outlived its
+      // session would make the NEXT session's first snooze look like a repeat.
+      sessionId: (phase && typeof ps.sessionId === "string" && ps.sessionId) ? ps.sessionId : null
     };
   }
 
@@ -5486,6 +5736,10 @@ var Storage = (function () {
     // construction. Every later transition CARRIES it (nextPomodoroPhase) or
     // CLEARS it (stop, expiry, session complete); none rewrites it.
     ps.mode = getWorkspaceMode(getActiveWorkspace(data));
+    // [WM.4] A FRESH ID PER SESSION, written at the one entry point, exactly as
+    // the mode stamp is. E1's "Start next session" comes through here too, so a
+    // new session genuinely gets a new id and its friction starts from scratch.
+    ps.sessionId = genId();
     active.pomodoroState = ps;
     await saveAll(data);
     return true;
@@ -5526,7 +5780,7 @@ var Storage = (function () {
     // [WM.1] mode starts null and is carried onto the break below. The
     // session-complete branch leaves it null: the session is over, so there is
     // no longer a mode it is running under.
-    var next = { cycleCount: ps.cycleCount, phase: null, phaseEndsAt: null, phaseDurationMs: null, sessionComplete: false, mode: null };
+    var next = { cycleCount: ps.cycleCount, phase: null, phaseEndsAt: null, phaseDurationMs: null, sessionComplete: false, mode: null, sessionId: null };
     if (ps.phase === "work") {
       var completed = ps.cycleCount + 1;
       next.cycleCount = completed;
@@ -5537,6 +5791,7 @@ var Storage = (function () {
       // CARRIED, NOT RE-READ. The break belongs to the session the work phase
       // started, so a workspace flip during the work phase must not change it.
       next.mode = ps.mode;
+      next.sessionId = ps.sessionId;
     } else {
       next.sessionComplete = true;   // [E1] break end -> session complete, no auto work
     }
@@ -5573,7 +5828,7 @@ var Storage = (function () {
     var nextPs, result;
     if (now > ps.phaseEndsAt + grace) {
       // [WM.1] mode:null explicitly - an expired session runs under no mode.
-      nextPs = { cycleCount: ps.cycleCount, phase: null, phaseEndsAt: null, phaseDurationMs: null, sessionComplete: false, mode: null };
+      nextPs = { cycleCount: ps.cycleCount, phase: null, phaseEndsAt: null, phaseDurationMs: null, sessionComplete: false, mode: null, sessionId: null };
       result = { action: "expired" };
     } else {
       nextPs = nextPomodoroPhase(ps, getPomodoroSettings(data), now);
@@ -8787,6 +9042,24 @@ var Storage = (function () {
     setBlockedDomainMode: setBlockedDomainMode,
     blockingReasonActive: blockingReasonActive,
     blockingEntryHolds: blockingEntryHolds,
+    FRICTION_FIRST_MS: FRICTION_FIRST_MS,
+    FRICTION_REPEAT_MS: FRICTION_REPEAT_MS,
+    COMMITMENT_SENTENCE: COMMITMENT_SENTENCE,
+    isCommitmentArmed: isCommitmentArmed,
+    setCommitmentArmed: setCommitmentArmed,
+    sessionStampId: sessionStampId,
+    sessionStampMode: sessionStampMode,
+    frictionPlanFor: frictionPlanFor,
+    FOCUS_SOUNDS: FOCUS_SOUNDS,
+    getFocusSound: getFocusSound,
+    setFocusSoundTexture: setFocusSoundTexture,
+    getFocusSoundVolume: getFocusSoundVolume,
+    setFocusSoundVolume: setFocusSoundVolume,
+    focusSoundShouldPlay: focusSoundShouldPlay,
+    IDLE_THRESHOLD_FLOOR_SEC: IDLE_THRESHOLD_FLOOR_SEC,
+    IDLE_THRESHOLD_DEFAULT_SEC: IDLE_THRESHOLD_DEFAULT_SEC,
+    getIdleThresholdSec: getIdleThresholdSec,
+    setIdleThresholdSec: setIdleThresholdSec,
     budgetHosts: budgetHosts,
     budgetUsedMs: budgetUsedMs,
     localWeekDay: localWeekDay,

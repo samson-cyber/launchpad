@@ -10486,7 +10486,58 @@
 
     var toggle = $("#focus-auto-arm-toggle");
     if (toggle) toggle.checked = Storage.getFocusSettings(data).autoArmDuringWork;
+
+    // [WM.4] The three controls this round adds, all read from the same `data`
+    // the readers use so the panel can never show a value the product is not
+    // acting on.
+    var commit = $("#focus-commitment-toggle");
+    if (commit) commit.checked = Storage.isCommitmentArmed(data);
+
+    var sound = Storage.getFocusSound(data);
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="focus-sound"]'), function (r) {
+      r.checked = (r.value === sound);
+    });
+    var vol = $("#focus-sound-volume");
+    if (vol) vol.value = String(Math.round(Storage.getFocusSoundVolume(data) * 100));
+
+    var idle = $("#focus-idle-input");
+    // READ THROUGH THE READER, so a stored value below the floor shows as the
+    // floor rather than as the number that will never be honoured.
+    if (idle) idle.value = String(Storage.getIdleThresholdSec(data));
   }
+
+  // [WM.4] Bound once, at panel wiring. Each writes through Storage, which owns
+  // the clamping - the control's own min/max is a convenience for the mouse, not
+  // the guard.
+  function bindFocusExtras() {
+    safeOn("#focus-commitment-toggle", "change", async function () {
+      try { await Storage.setCommitmentArmed(data, this.checked); }
+      catch (err) { console.error("[LaunchPad] Focus: commitment toggle failed", err); }
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="focus-sound"]'), function (r) {
+      r.addEventListener("change", async function () {
+        if (!r.checked) return;
+        try { await Storage.setFocusSoundTexture(data, r.value); }
+        catch (err) { console.error("[LaunchPad] Focus sounds: set failed", err); }
+      });
+    });
+    safeOn("#focus-sound-volume", "change", async function () {
+      try { await Storage.setFocusSoundVolume(data, (parseInt(this.value, 10) || 0) / 100); }
+      catch (err) { console.error("[LaunchPad] Focus sounds: volume failed", err); }
+    });
+    safeOn("#focus-idle-input", "change", async function () {
+      var raw = parseInt(this.value, 10);
+      try {
+        await Storage.setIdleThresholdSec(data, raw);
+        // THE FLOOR IS SHOWN BACK. A user who types 5 sees 15, because 5 is not
+        // what the browser will do and a control that keeps displaying it would
+        // be lying about the setting.
+        this.value = String(Storage.getIdleThresholdSec(data));
+      } catch (err) { console.error("[LaunchPad] Focus: idle threshold failed", err); }
+    });
+  }
+
+  bindFocusExtras();
 
   // Empty input is a NO-OP, not an error: pressing Enter on an empty box is a
   // slip, and answering it with a red note would be scolding the user for nothing.

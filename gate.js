@@ -146,6 +146,11 @@
   }
 
   function render(st) {
+    // [WM.4] A RE-RENDER WHILE FRICTION IS UP WOULD RESTORE THE ACTIONS ROW
+    // UNDER IT. The panel owns the surface until it is dismissed or satisfied,
+    // and the storage change that triggered the re-render is almost always the
+    // snooze this very countdown is waiting to write.
+    if (frictionPlan) return;
     actionsEl.textContent = "";
     if (!st || !st.ok) {
       // The worker did not answer. Leave both real controls in place with the
@@ -262,8 +267,97 @@
     location.replace(chrome.runtime.getURL("newtab.html"));
   });
 
-  // ---- [5 more minutes] — C7 ------------------------------------------------
-  snoozeBtn.addEventListener("click", function () {
+  // ---- [5 more minutes] — C7, and [WM.4] the friction in front of it --------
+  //
+  // THE GATE STAYS A DOOR (PLAN decision E). Nothing here refuses; the door
+  // simply takes a moment to open, and the moment is REPORTED rather than
+  // argued. No red, no pulse, no copy about discipline - a number counting down
+  // and a way out that works at every instant.
+  var frictionEl = $("gate-friction");
+  var frictionLine = $("gate-friction-line");
+  var ringFill = $("gate-ring-fill");
+  var ringNum = $("gate-ring-num");
+  var commitEl = $("gate-commit");
+  var commitLabel = $("gate-commit-label");
+  var commitInput = $("gate-commit-input");
+  var frictionCancel = $("gate-friction-cancel");
+  var frictionGo = $("gate-friction-go");
+
+  // The Dashboard ring's own geometry. ITS CSS CANNOT BE SHARED - gate.css is a
+  // standalone sheet with no newtab.css and no has-bg surface model, by its own
+  // header - so what is shared is the part that makes it that ring: a 100-unit
+  // viewBox, r=45, a non-scaling stroke, and a sweep by stroke-dashoffset from
+  // full circumference to zero. The two colours are the gate's own green,
+  // because --sat-accent is the product blue and this page is not that page.
+  // tools/check-focus-decision.mjs asserts the radius here matches newtab.js's
+  // DASH_RING_R, so the geometry cannot drift even though the sheets are apart.
+  var RING_R = 45;
+  var RING_C = 2 * Math.PI * RING_R;
+  ringFill.setAttribute("stroke-dasharray", RING_C.toFixed(2));
+  ringFill.setAttribute("stroke-dashoffset", "0");
+
+  var frictionTimer = null;
+  var frictionPlan = null;
+  var frictionEndsAt = 0;
+
+  function frictionReady() {
+    if (!frictionPlan) return false;
+    if (Date.now() < frictionEndsAt) return false;
+    if (frictionPlan.needsSentence) {
+      return commitInput.value.trim() === frictionPlan.sentence;
+    }
+    return true;
+  }
+
+  function paintFriction() {
+    var leftMs = Math.max(0, frictionEndsAt - Date.now());
+    var secs = Math.ceil(leftMs / 1000);
+    var total = frictionPlan ? frictionPlan.delayMs : 1;
+    ringNum.textContent = secs > 0 ? String(secs) : "";
+    // Sweeps from full to empty as the wait runs down. Offset 0 is a whole
+    // ring; RING_C is none of it.
+    ringFill.setAttribute("stroke-dashoffset", (RING_C * (1 - (leftMs / total))).toFixed(2));
+    frictionLine.textContent = secs > 0
+      ? I18n.t("gate_friction_counting", { seconds: secs })
+      : I18n.t("gate_friction_ready");
+    frictionGo.disabled = !frictionReady();
+  }
+
+  function stopFriction() {
+    if (frictionTimer) { clearInterval(frictionTimer); frictionTimer = null; }
+  }
+
+  function closeFriction() {
+    stopFriction();
+    frictionPlan = null;
+    frictionEl.classList.add("hidden");
+    actionsEl.classList.remove("hidden");
+    snoozeBtn.disabled = false;
+    endBtn.disabled = false;
+  }
+
+  function beginFriction(plan) {
+    frictionPlan = plan;
+    frictionEndsAt = Date.now() + plan.delayMs;
+    frictionGo.textContent = I18n.t("gate_5_more_minutes");
+    commitEl.classList.toggle("hidden", !plan.needsSentence);
+    if (plan.needsSentence) {
+      commitLabel.textContent = I18n.t("gate_commit_label", { sentence: plan.sentence });
+      commitInput.value = "";
+    }
+    // The actions row goes while this is up: one decision at a time.
+    actionsEl.classList.add("hidden");
+    frictionEl.classList.remove("hidden");
+    paintFriction();
+    stopFriction();
+    frictionTimer = setInterval(paintFriction, 200);
+    if (plan.needsSentence) commitInput.focus();
+  }
+
+  function doSnooze() {
+    stopFriction();
+    frictionGo.disabled = true;
+    frictionCancel.disabled = true;
     snoozeBtn.disabled = true;
     endBtn.disabled = true;
     // AWAIT THE WRITE BEFORE NAVIGATING. If the tab arrived at the site before
@@ -272,6 +366,25 @@
     // not flash-critical, so waiting is free.
     send({ type: "focus-gate-snooze", entry: entry }).then(function () {
       goBackToSite();
+    });
+  }
+
+  commitInput.addEventListener("input", function () { frictionGo.disabled = !frictionReady(); });
+  commitInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && frictionReady()) { e.preventDefault(); doSnooze(); }
+  });
+  frictionCancel.addEventListener("click", closeFriction);
+  frictionGo.addEventListener("click", function () { if (frictionReady()) doSnooze(); });
+
+  snoozeBtn.addEventListener("click", function () {
+    snoozeBtn.disabled = true;
+    endBtn.disabled = true;
+    send({ type: "focus-gate-friction", entry: entry }).then(function (res) {
+      var plan = (res && res.ok && res.plan) ? res.plan : null;
+      // NO PLAN IS NO FRICTION. A worker that did not answer must not invent a
+      // wait the user has no way to understand.
+      if (!plan || !plan.delayMs) return doSnooze();
+      beginFriction(plan);
     });
   });
 

@@ -55,8 +55,37 @@
   var RETENTION_DAYS = 30;
   var DAY_MS = 24 * 60 * 60 * 1000;
 
-  // Fixed at 60s in v1; user-configurable threshold is v2.1 (spec, Out of scope).
+  // [WM.4] NO LONGER FIXED - the note that stood here said "user-configurable
+  // threshold is v2.1 (spec, Out of scope)", and this is that round.
+  //
+  // THE CONSTANT REMAINS AS THE DEFAULT AND AS THE FALLBACK, because this file
+  // is reached in two ways: with a `data` snapshot in hand (the sync path) and
+  // without one (start(), which runs before anything is read). idleSeconds()
+  // below takes the snapshot when there is one and falls back to this when there
+  // is not, so a missed read is the old behaviour rather than an exception.
   var IDLE_DETECTION_SECONDS = 60;
+
+  // The live value, read from the same setting the ACTIVE idle deduction obeys.
+  // Storage owns the floor; this never re-derives it.
+  var _idleSeconds = IDLE_DETECTION_SECONDS;
+  function idleSeconds() { return _idleSeconds; }
+  function setIdleSeconds(sec) {
+    var next = (typeof Storage !== "undefined" && Storage.getIdleThresholdSec)
+      ? Storage.getIdleThresholdSec({ settings: { focus: { idleSec: sec } } })
+      : IDLE_DETECTION_SECONDS;
+    if (next === _idleSeconds) return false;
+    _idleSeconds = next;
+    try {
+      // THE SAME VALUE REACHES BOTH READERS THROUGH THIS ONE CALL. The engine
+      // gate reads it directly in currentIdleState; the ACTIVE idle deduction
+      // never reads it at all - it reacts to chrome.idle.onStateChanged, whose
+      // sensitivity IS this interval. One setting, two consumers, one write.
+      chrome.idle.setDetectionInterval(_idleSeconds);
+    } catch (e) {
+      console.error("[LaunchPad] Tracking: setDetectionInterval failed:", e);
+    }
+    return true;
+  }
 
   // [2026-09-09] THE CAPTURING_LEVELS ARRAY IS GONE; the gate below delegates to
   // ProAccess.isProAccessibleLevel. The reasoning it carried is still true and is
@@ -670,7 +699,7 @@
 
   async function currentIdleState() {
     try {
-      return await chrome.idle.queryState(IDLE_DETECTION_SECONDS);
+      return await chrome.idle.queryState(idleSeconds());
     } catch (e) {
       // Fail open: capture rather than silently stopping on an API hiccup.
       return "active";
@@ -1005,11 +1034,11 @@
   // than waiting for the user's first tab switch. Both steps ride the same
   // queue so a boundary event arriving mid-start cannot interleave.
   function start() {
-    try {
-      chrome.idle.setDetectionInterval(IDLE_DETECTION_SECONDS);
-    } catch (e) {
-      console.error("[LaunchPad] Tracking: setDetectionInterval failed:", e);
-    }
+    // The stored value is not in hand here, so start at the default and let the
+    // worker's `data` watcher apply the user's the moment it reads one. Starting
+    // at the default rather than at nothing keeps this identical to the previous
+    // behaviour for the window before that read lands.
+    setIdleSeconds(IDLE_DETECTION_SECONDS);
     return enqueue(async function () {
       await reconcileOrphansInner();
       // [1.0.26] After reconciling — the orphan just closed is itself an
@@ -1667,6 +1696,8 @@
     DAYS_KEY: DAYS_KEY,
     RETENTION_DAYS: RETENTION_DAYS,
     IDLE_DETECTION_SECONDS: IDLE_DETECTION_SECONDS,
+    setIdleSeconds: setIdleSeconds,
+    idleSeconds: idleSeconds,
 
     start: start,
     sync: sync,

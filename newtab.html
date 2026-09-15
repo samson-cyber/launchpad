@@ -709,6 +709,44 @@
           <button data-i18n="prosettings_add" id="focus-block-add-btn" type="button" class="settings-btn">Add</button>
         </div>
         <div id="focus-block-error" class="focus-block-error is-quiet" role="alert"></div>
+        <div class="focus-block-rules-extra">
+          <label class="pro-toggle-row">
+            <input type="checkbox" id="focus-commitment-toggle">
+            <span data-i18n="prosettings_commitment_toggle">Ask me to type a sentence before a repeat snooze</span>
+          </label>
+          <p data-i18n="prosettings_commitment_note" class="fb-note" id="focus-commitment-note">Off by default. When on, snoozing the same site twice in one focus session asks you to type one short sentence first.</p>
+        </div>
+        <div class="pomo-sound focus-sound">
+          <span data-i18n="prosettings_sound_during_focus" class="pomo-sound-title">Sound during a focus session</span>
+          <div class="pomo-sound-options">
+            <div class="pomo-sound-row">
+              <label class="pomo-sound-label"><input type="radio" name="focus-sound" value="off"><span data-i18n="prosettings_none">None</span></label>
+            </div>
+            <div class="pomo-sound-row">
+              <label class="pomo-sound-label"><input type="radio" name="focus-sound" value="brown"><span data-i18n="prosettings_brown_noise">Brown noise, deep and soft</span></label>
+            </div>
+            <div class="pomo-sound-row">
+              <label class="pomo-sound-label"><input type="radio" name="focus-sound" value="pink"><span data-i18n="prosettings_pink_noise">Pink noise, even and warm</span></label>
+            </div>
+            <div class="pomo-sound-row">
+              <label class="pomo-sound-label"><input type="radio" name="focus-sound" value="white"><span data-i18n="prosettings_white_noise">White noise, bright</span></label>
+            </div>
+            <div class="pomo-sound-row">
+              <label class="pomo-sound-label"><input type="radio" name="focus-sound" value="rain"><span data-i18n="prosettings_rain">Rain</span></label>
+            </div>
+          </div>
+          <div class="focus-sound-volume">
+            <label data-i18n="prosettings_volume" class="focus-field-label" for="focus-sound-volume">Volume</label>
+            <input type="range" id="focus-sound-volume" min="0" max="100" step="5">
+          </div>
+          <p data-i18n="prosettings_focus_sound_note" class="fb-note">Plays only while a focus session is running in a Work workspace, and stops when you pause or the session ends.</p>
+        </div>
+        <div class="focus-idle-row">
+          <label data-i18n="prosettings_idle_after" class="focus-field-label" for="focus-idle-input">Count me idle after</label>
+          <input type="number" id="focus-idle-input" class="focus-idle-input" min="15" max="3600" step="5">
+          <span data-i18n="prosettings_seconds" class="focus-idle-unit">seconds</span>
+        </div>
+        <p data-i18n="prosettings_idle_note" class="fb-note" id="focus-idle-note">Used both to stop tracking and to stop the active-task timer. The browser will not go below 15 seconds.</p>
         <label class="pro-toggle-row">
           <input type="checkbox" id="focus-auto-arm-toggle">
           <span data-i18n="prosettings_block_automatically_during_focus_sessions">Block automatically during focus sessions</span>
