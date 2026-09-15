@@ -3538,3 +3538,65 @@ three text-size tiers and four viewport widths: worst case is the Large tier at 
 80.4px, 19.2px of headroom**. So both tabs keep their width, the strip stays symmetric, and
 `[1.12.2]`'s drop-shadow silhouette — the thing that makes the strip and the bar read as one object
 — is untouched.
+
+---
+
+## 2026-09-15 — A completed goal meets an active child: AUTO-completed re-opens, HAND-completed stays
+
+**Decision.** `[1.4.7]` guaranteed that no reader observes a completed goal still holding an
+unfinished task — on the way OUT, by releasing unfinished children when a goal completes. Nothing
+guaranteed it on the way IN. `44a8ef0` closes that, and the rule turns on WHO closed the goal:
+
+| the goal was | an active child arrives | why |
+| --- | --- | --- |
+| **AUTO-completed** (`goal.autoCompleted === true`) | the goal **RE-OPENS**, and the child attaches | the closure was an INFERENCE from "no open children left", and that inference has just stopped being true |
+| **HAND-completed** | the goal **STAYS completed**, and the child lands **STANDALONE** | the user's judgement is not invalidated by a new task existing |
+
+**THE DESIGN QUESTION WAS ANSWERED BY FINDING THE FIELD DID NOT EXIST.** `completeGoal` (the user
+ticked it) and `completeTask`'s last-child branch (the product closed it) wrote identical `status`
+and `completedAt`, so nothing downstream could tell them apart — and the two want OPPOSITE treatment
+when a child arrives. `goal.autoCompleted` is the smallest field that separates them. **No
+migration and no backfill:** it is absent on existing goals, `undefined` is falsy, and falsy reads
+as MANUAL — the conservative default, so no legacy goal is ever silently re-opened. Same precedent
+as `isCollapsed`.
+
+**WHY THE HAND-COMPLETED CHILD GOES STANDALONE RATHER THAN EITHER ALTERNATIVE.** Re-opening would
+be the mirror of the reported bug rather than a fix for it — a goal the user deliberately finished
+silently un-finishing itself. Leaving the child ATTACHED would break `[1.4.7]`'s invariant just as
+badly as the bug being fixed. Standalone is already this product's idiom for "this parent will not
+take you": `restoreTask` re-homes rather than dangle, and the recurring binder nulls the goal rather
+than spawn under a dead one (D6).
+
+**FIVE WRITERS REACH THIS STATE, AND ONE SHARED HELPER GOVERNS ALL OF THEM.** `createTask` was only
+the reported door; `moveTaskToGoal`, `reassignTaskToGoal` (the drag path), `restoreTask` and the
+recurring sweep could all reach it. `admitActiveChildToGoal` is placed beside
+`releaseUnfinishedTasksFromGoal` **as its inverse**, on `[1.4.7]`'s own reasoning for calling the
+release from both completion paths: the invariant belongs to **the STATE** — "an active child met a
+completed goal" — not to any one caller. A sixth writer inherits it instead of being the line
+somebody forgets. **Completed children are exempt**: a finished task in a finished goal is the
+company that goal is supposed to keep.
+
+**THE RECURRING PATH IS THE FINDING THAT MATTERS, and it is why this is not a latent
+programmatic-only bug.** A template bound to a goal (`[1.0.14]` drag-template-into-goal) whose last
+task is ticked leaves the goal auto-completed **with the binding intact**, and the next sweep spawns
+active instances straight into it — measured pre-fix at four, **with no user action at all**. A
+data-integrity fault on an UNATTENDED path is a different severity from one a user has to trigger.
+`sweepStrandedTasks` does not rescue it: that sweep is one-time and marker-guarded, a migration for
+history rather than a standing repair. Reachable, and now closed.
+
+### The two rulings on the human checks (Claude Chat, 2026-09-15)
+
+**THE STANDALONE LANDING IS SILENT, BY DECISION RATHER THAN BY DEFAULT.** There is no UI route to
+adding a task to a hand-completed goal today — the completed goal card hides its add-task control
+and both pickers filter to active goals — so nobody reaches it. **THE TRIGGER FOR REVISITING IS
+ANY SURFACE THAT OFFERS COMPLETED GOALS AS DESTINATIONS.** The moment one does, this becomes visible
+behaviour and gets a toast or nothing BY CHOICE. Recording that trigger is the whole action here.
+
+**A RE-OPEN IS NOT ANNOUNCED.** A goal reopening because its own recurring template spawned a task
+is **the product doing what the user set up**. A toast on every sweep is noise, and the doctrine is
+that nothing nags. The re-open is visible the next time the user looks at Tasks, which is where a
+goal's status belongs. If it ever surprises a real user, that is the signal to reconsider.
+
+**DELIBERATE SCOPE BOUNDARY, unchanged by this entry:** `reactivateTask` still re-opens a MANUALLY
+completed goal. Un-ticking a child is an UNDO of the event that closed the goal, so re-opening is
+right whoever closed it; attaching a NEW child is not an undo of anything.
