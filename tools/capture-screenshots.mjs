@@ -45,6 +45,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { spawn, execSync } from "node:child_process";
+import { browserArgs } from "./browser-launch.mjs";
 
 const EXT_DIR = process.argv[2];
 const OUT_DIR = process.argv[3];
@@ -141,27 +142,30 @@ console.log(`capture-screenshots: ${EXT_DIR} -> ${OUT_DIR}`);
 fs.rmSync(PROFILE, { recursive: true, force: true });
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
-CHILD = spawn(CHROME, [
-  `--user-data-dir=${PROFILE}`,
-  "--no-first-run", "--no-default-browser-check", "--disable-sync",
-  // Load-bearing on Chrome 137+: without these, --load-extension is ignored
-  // whenever a remote-debugging port is open and the target lands on
-  // chrome-error://chromewebdata with chrome.runtime undefined (I7).
-  "--disable-features=DisableLoadExtensionCommandLineSwitch",
-  "--enable-unsafe-extension-debugging",
-  `--disable-extensions-except=${EXT_DIR}`,
-  `--load-extension=${EXT_DIR}`,
-  `--remote-debugging-port=${PORT}`,
-  "--window-size=1400,900",
-  // HEADLESS BY DEFAULT, same as the computed-style harness: a launching browser
-  // steals focus and these runs take minutes. `--headless=new` still loads
-  // extensions and still serves Page.captureScreenshot. HEADED=1 to watch.
-  // The frames are captured through Emulation.setDeviceMetricsOverride and each
-  // PNG's size is verified from its own IHDR, so the window mode cannot silently
-  // change what is produced.
-  ...(process.env.HEADED === "1" ? [] : ["--headless=new"]),
-  "about:blank",
-], { detached: false, stdio: "ignore" });
+// OFF-SCREEN BY DEFAULT, via tools/browser-launch.mjs. Headless already kept
+// this off the desktop; what the shared module adds is that the HEADED mode
+// below is off-screen too, and that the flag list lives in one place. See
+// BUGS.md I30 and that module's header for the measurements.
+CHILD = spawn(CHROME, browserArgs({
+  profileDir: PROFILE,
+  extDir: EXT_DIR,
+  port: PORT,
+  windowSize: "1400,900",
+  // HEADLESS BY DEFAULT: a launching browser steals focus and these runs take
+  // minutes. --headless=new still loads extensions and still serves
+  // Page.captureScreenshot. HEADED=1 to watch - and that now opens off-screen,
+  // which for THIS harness is the one mode where that is a trade-off worth
+  // naming: you cannot watch a window you cannot see. ONSCREEN=1 as well as
+  // HEADED=1 when the point is to actually look at it.
+  //
+  // AND THE WINDOW MODE CANNOT SILENTLY CHANGE WHAT IS PRODUCED: the frames
+  // come through Emulation.setDeviceMetricsOverride and each PNG size is
+  // verified from its own IHDR. That was true of headless-versus-headed and it
+  // is equally true of off-screen-versus-on, which was then measured anyway -
+  // the same frame captured at -32000 and on a display is byte-identical.
+  headless: process.env.HEADED !== "1",
+  onScreen: process.env.ONSCREEN === "1",
+}), { detached: false, stdio: "ignore" });
 
 let up = false;
 for (let i = 0; i < 30; i++) {

@@ -21,7 +21,8 @@
 //   node --experimental-websocket tools/seed-fixture.mjs \
 //     --profile busy-messy --user-data-dir .scratch/demo --port 9800 --headed --keep
 //
-// --headed drops --headless=new so a window appears; --keep stops teardown
+// --headed drops --headless=new so a window appears - OFF-SCREEN by default,
+// per BUGS.md I30; add --on-screen to actually watch it. --keep stops teardown
 // killing it when this script exits, so the browser outlives the command and
 // the profile at .scratch/demo persists until it is deleted. Close the window
 // when done, then:  rm -rf .scratch/demo
@@ -47,6 +48,7 @@ import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import { spawn, execSync } from "node:child_process";
+import { browserArgs } from "./browser-launch.mjs";
 
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
 const argv = process.argv.slice(2);
@@ -118,11 +120,9 @@ fs.rmSync(PROFILE_DIR, { recursive: true, force: true });
 fs.mkdirSync(PROFILE_DIR, { recursive: true });
 
 console.log(`SEED  profile=${PROFILE}  dir=${path.relative(REPO, PROFILE_DIR)}  port=${PORT}`);
-CHILD = spawn(EDGE, [
-  `--user-data-dir=${PROFILE_DIR}`, "--no-first-run", "--no-default-browser-check", "--disable-sync",
-  "--disable-features=DisableLoadExtensionCommandLineSwitch", "--enable-unsafe-extension-debugging",
-  `--disable-extensions-except=${REPO}`, `--load-extension=${REPO}`, `--remote-debugging-port=${PORT}`,
-  "--window-size=1400,900", ...(flag("--headed") ? [] : ["--headless=new"]), "about:blank"
+// Off-screen by default via browser-launch.mjs (BUGS.md I30). --headed still
+// drops --headless=new; it just no longer lands on the desktop. Add
+// --on-screen alongside it when the whole point is to watch the seeding run.
 // DETACHED WHEN --keep, OR --keep DOES NOT ACTUALLY KEEP ANYTHING. Without this
 // the child stays in the parent's process group, and when the seeder exits the
 // group goes with it - so the browser --keep exists to preserve was dead within
@@ -130,7 +130,14 @@ CHILD = spawn(EDGE, [
 // was true when it was written and false by the time anyone read it, which is
 // the worst kind of harness output. detached + unref makes the child its own
 // group leader so it outlives the command that started it.
-], { stdio: "ignore", detached: flag("--keep") });
+CHILD = spawn(EDGE, browserArgs({
+  profileDir: PROFILE_DIR,
+  extDir: REPO,
+  port: PORT,
+  windowSize: "1400,900",
+  headless: !flag("--headed"),
+  onScreen: flag("--on-screen"),
+}), { stdio: "ignore", detached: flag("--keep") });
 if (flag("--keep")) CHILD.unref();
 
 for (let i = 0; i < 30; i++) { await sleep(1000); try { await j("/json/version"); break; } catch {} }

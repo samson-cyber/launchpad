@@ -51,21 +51,28 @@ import { spawn } from "node:child_process";
 
 
 
+import { browserArgs } from "./browser-launch.mjs";
+
+// NOTE, found while wiring this up and NOT changed here: REPO is an absolute
+// path to the MAIN checkout, so running this from a git worktree drives the
+// extension in C:\Dev\Git\launchpad rather than the tree under test. Every
+// other harness derives its path from process.cwd(). Left alone because this
+// round is about window position and changing it would alter what the tool
+// tests; recorded so it is not rediscovered.
 const REPO = "C:\\Dev\\Git\\launchpad";
 
 function launch(profileDir, port) {
   const exe = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
-  const args = [
-    `--user-data-dir=${profileDir}`,
-    "--no-first-run", "--no-default-browser-check", "--disable-sync",
-    "--disable-features=DisableLoadExtensionCommandLineSwitch",
-    "--enable-unsafe-extension-debugging",
-    `--disable-extensions-except=${REPO}`,
-    `--load-extension=${REPO}`,
-    `--remote-debugging-port=${port}`,
-    "--headless=new",
-    "about:blank",
-  ];
+  // Off-screen by default via browser-launch.mjs; this harness is headless
+  // anyway, and stays that way - it drives dialogs over CDP and needs neither
+  // a compositor nor a window manager.
+  const args = browserArgs({
+    profileDir: profileDir,
+    extDir: REPO,
+    port: port,
+    windowSize: null,
+    headless: true,
+  });
   const p = spawn(exe, args, { detached: false, stdio: "ignore" });
   return p;
 }

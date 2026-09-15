@@ -53,6 +53,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn, execSync } from "node:child_process";
+import { browserArgs } from "./browser-launch.mjs";
 import http from "node:http";
 
 const EXT = process.argv[2];
@@ -94,14 +95,16 @@ fs.rmSync(PROFILE, { recursive: true, force: true });
 // exactly like a migration defect. Making that mechanical beats remembering it.
 const HEADLESS = process.env.HEADED !== "1";
 const MODE = HEADLESS ? "headless" : "headed";
-CHILD = spawn(EDGE, [
-  `--user-data-dir=${PROFILE}`, "--no-first-run", "--no-default-browser-check", "--disable-sync",
-  "--disable-features=DisableLoadExtensionCommandLineSwitch", "--enable-unsafe-extension-debugging",
-  `--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`,
-  `--remote-debugging-port=${PORT}`, "--window-size=1400,900",
-  ...(HEADLESS ? ["--headless=new"] : []),
-  "about:blank",
-], { stdio: "ignore" });
+// Off-screen by default via browser-launch.mjs (BUGS.md I30), so HEADED=1 no
+// longer interrupts anyone. ONSCREEN=1 with it to actually watch.
+CHILD = spawn(EDGE, browserArgs({
+  profileDir: PROFILE,
+  extDir: EXT,
+  port: PORT,
+  windowSize: "1400,900",
+  headless: HEADLESS,
+  onScreen: process.env.ONSCREEN === "1",
+}), { stdio: "ignore" });
 
 let up = false;
 for (let i = 0; i < 30; i++) { await sleep(1000); try { await j("/json/version"); up = true; break; } catch {} }
