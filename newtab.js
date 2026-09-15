@@ -12629,11 +12629,29 @@
     var open = needle ? true : !otCollapsed[win.id];
     var name = win.isSelf ? th("opentabs_this_window") : th("opentabs_window_numbered", { n: win.position });
     var html = '<div class="ot-window' + (open ? " is-open" : "") + '" data-ot-win="' + win.id + '">' +
+      '<div class="ot-window-bar">' +
       '<button class="ot-window-head" type="button" data-ot-window="' + win.id + '" aria-expanded="' + (open ? "true" : "false") + '">' +
         '<svg class="ot-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>' +
         '<span class="ot-window-name">' + name + '</span>' +
         '<span class="ot-window-count">' + th("opentabs_window_tab_count", { count: shown.length }) + '</span>' +
+      '</button>' +
+      // [OT.2] PARK LIVES ON THE WINDOW HEADING, AND ONLY THERE.
+      //
+      // The alternative was a sidebar action meaning "park this window". This
+      // is better for one reason that outweighs discoverability: the control
+      // BELONGS TO A WINDOW, so there is no question which window it parks. A
+      // sidebar action would have to resolve "this window", and [1.9.3] lost a
+      // round to exactly that ambiguity - a page and a service worker disagree
+      // about what current means. Here the window id is in the markup.
+      //
+      // OUTSIDE the heading button rather than inside it, because a button
+      // inside a button is not valid markup and the heading is already the
+      // collapse toggle.
+      '<button class="ot-park" type="button" data-ot-park="' + win.id +
+        '" title="' + esc(t("opentabs_park_tooltip")) + '" aria-label="' + esc(t("opentabs_park_tooltip")) + '">' +
+        th("opentabs_park_action") +
       '</button>';
+    html += '</div>';
     if (open) {
       html += '<div class="ot-window-tabs">';
       for (var i = 0; i < shown.length; i++) html += otRowHtml(shown[i]);
@@ -12737,19 +12755,20 @@
     var byId = Object.create(null);
     all.forEach(function (t) { byId[t.id] = t; });
 
-    var eligible = [];
-    var declined = 0;
-    // Stored in the order the user sees them, which is window order then tab
-    // index - not the order the checkboxes happened to be clicked in.
+    // The ORDER is the caller's business: window order then tab index, which is
+    // what the user sees - not the order the checkboxes happened to be ticked.
+    // What each tab BECOMES is captureTabsForSession's, shared with park and
+    // with Save current tabs.
+    var chosen = [];
     otLastRows.forEach(function (win) {
-      win.tabs.forEach(function (t) {
-        if (!otSelected[t.id]) return;
-        var live = byId[t.id] || t;
-        if (!Storage.isCapturableSessionUrl(live.url)) { declined++; return; }
-        var fav = (live.favIconUrl && live.favIconUrl.indexOf("chrome://") !== 0) ? live.favIconUrl : null;
-        eligible.push({ url: live.url, title: live.title || "", favicon: fav });
+      win.tabs.forEach(function (tab) {
+        if (!otSelected[tab.id]) return;
+        chosen.push(byId[tab.id] || tab);
       });
     });
+    var captured = captureTabsForSession(chosen);
+    var eligible = captured.tabs;
+    var declined = captured.declined;
 
     if (!eligible.length) { showToast(t("opentabs_save_none_eligible")); return; }
 
@@ -12773,6 +12792,139 @@
     await otRenderList();
     showToast(t("opentabs_saved_toast", { count: eligible.length }) +
               (declined ? " " + t("opentabs_save_left_out", { count: declined }) : ""));
+  }
+
+  // ---- park this window ------------------------------------------------
+  //
+  // ONE ACTION: save a window's tabs as a named session, then close them.
+  //
+  // THE ORDER IS THE WHOLE FEATURE, and it is decision 5 of the arc plan.
+  // Collect, WRITE AND CONFIRM THE WRITE PERSISTED, and only then close. There
+  // is no ordering in which both the session and the tabs are lost:
+  //   - browser dies between the write and the close  -> session saved, tabs
+  //     still open. Recoverable, and the worst case is duplicate tabs.
+  //   - the write fails                               -> nothing closes at all.
+  // Closing first would invert both: a crash after the close and before the
+  // write loses every tab, permanently.
+  //
+  // THE READ-BACK IS NOT CEREMONY. Storage.saveAll can reject - a quota, a
+  // serialisation failure - and createNamedSessionAtFront returns null when the
+  // workspace cannot be resolved. Both are silent to a caller that does not
+  // look. Re-reading storage and finding the session BY ID is the only thing
+  // that makes "it persisted" a fact rather than an assumption, and it is what
+  // the round's headline assertion tests: with the write forced to fail, no tab
+  // closes.
+  //
+  // PINNED TABS ARE NEITHER SAVED NOR CLOSED (decision 6, settled here).
+  // Pinning is the user saying "this one stays". Parking it would override
+  // that, and including it in the session while leaving it open would make a
+  // session that duplicates tabs the user still has. So pinned tabs are simply
+  // not park's business, and the confirm says so rather than leaving the user
+  // to notice what remained.
+  //
+  // THE LAUNCHPAD TAB IS NEVER CLOSED (decision 6). Identified by
+  // chrome.tabs.getCurrent(), which on a TAB is unambiguous. A park that closed
+  // its own trigger would be OT.1's LaunchPad-close case by another route.
+  async function otParkWindow(windowId) {
+    if (!windowId) return;
+
+    var me = null;
+    try { me = await chrome.tabs.getCurrent(); } catch (e) { me = null; }
+    var selfTabId = me ? me.id : null;
+
+    var inWindow = [];
+    try { inWindow = await chrome.tabs.query({ windowId: windowId }); } catch (e) { inWindow = []; }
+
+    var pinned = 0;
+    var survivesAnyway = false;
+    var parkable = [];
+    inWindow.forEach(function (tab) {
+      if (tab.id === selfTabId) { survivesAnyway = true; return; }
+      if (tab.pinned) { pinned++; return; }
+      parkable.push(tab);
+    });
+
+    var captured = captureTabsForSession(parkable);
+    if (!captured.tabs.length) { showToast(t("opentabs_park_nothing")); return; }
+
+    // WHAT SURVIVES IS PART OF THE QUESTION, not an afterthought. Which of
+    // these lines applies varies per window, so they are assembled rather than
+    // written as one sentence - a confirm that promises a survivor the window
+    // does not have is worse than a short one.
+    var lines = [t("opentabs_park_confirm_body", { count: captured.tabs.length })];
+    if (survivesAnyway) lines.push(t("opentabs_park_keeps_this_tab"));
+    if (pinned) lines.push(t("opentabs_park_keeps_pinned", { count: pinned }));
+    // Nothing holds the window open, so closing its last tab closes it. That
+    // costs the window's size and position, which is worth one sentence.
+    if (!survivesAnyway && !pinned) lines.push(t("opentabs_park_closes_window"));
+
+    var ok = await confirmModal({
+      title: t("opentabs_park_confirm_title"),
+      message: lines.join(" "),
+      confirmLabel: t("opentabs_park_confirm_button"),
+      // Cancel holds default focus and the primary takes the danger treatment.
+      // Park closes real tabs; aeaf99d converted every native dialog in this
+      // product and this one joins them rather than reintroducing a P30 source.
+      dangerous: true
+    });
+    if (!ok) return;
+
+    // ---- STEP 2: WRITE, AND PROVE IT PERSISTED -------------------------
+    var created = null;
+    try {
+      var ws = Storage.getActiveWorkspace(data);
+      if (!ws) throw new Error("no active workspace");
+      created = Storage.createNamedSessionAtFront(data, {
+        name: "Session " + (sessionsForRender().length + 1),
+        tabs: captured.tabs
+      });
+      if (!created) throw new Error("the writer refused");
+      await Storage.saveAll(data);
+      data = await Storage.getAll();
+      // THE READ-BACK. Not "did saveAll resolve" but "is it in storage now".
+      var back = Storage.getActiveWorkspace(data);
+      var found = back ? Storage.getNamedSessionById(back, created.id) : null;
+      if (!found || !found.tabs || found.tabs.length !== captured.tabs.length) {
+        throw new Error("the session did not read back");
+      }
+    } catch (e) {
+      // NOTHING HAS CLOSED YET AND NOTHING WILL. This is the branch decision 5
+      // exists for; the toast says the tabs are still open because a user who
+      // just pressed "Park and close" has every reason to think they are not.
+      //
+      // AND THE IN-MEMORY `data` IS NOW DIRTY, WHICH IS THE PART THAT BITES.
+      // createNamedSessionAtFront is a PURE MUTATION - it edits the object and
+      // leaves persistence to the caller - so a failed saveAll leaves an ORPHAN
+      // session sitting in memory. Returning here without discarding it means
+      // the next SUCCESSFUL save anywhere in the product writes it out, and the
+      // user gets a session they were told had failed.
+      //
+      // FOUND BY THE DECISION-5 ASSERTION ITSELF: forcing the write to fail and
+      // then parking for real produced TWO identical sessions. The assertion was
+      // written to prove no tab closes; it caught this instead.
+      try { data = await Storage.getAll(); } catch (e2) { /* keep the stale copy */ }
+      showToast(t("opentabs_park_write_failed"));
+      return;
+    }
+
+    renderSessionsList();
+
+    // ---- STEP 3: CLOSE, ONE TAB AT A TIME ------------------------------
+    // MEASURED: chrome.tabs.remove IS NOT ATOMIC. Given [good, staleId, good]
+    // it throws on the stale id AND leaves the tabs after it open - the first
+    // was closed, the third was not. A single array call would therefore strand
+    // an arbitrary suffix of the window whenever one tab had gone away between
+    // the query and the close, which a live tab list makes entirely ordinary.
+    // One call per tab, each guarded, so one casualty costs one tab.
+    var stayed = 0;
+    for (var i = 0; i < parkable.length; i++) {
+      try { await chrome.tabs.remove(parkable[i].id); } catch (e) { stayed++; }
+    }
+
+    otSelected = Object.create(null);
+    await otRenderList();
+    showToast(t("opentabs_park_done", { count: captured.tabs.length - stayed }) +
+              (stayed ? " " + t("opentabs_park_some_stayed", { count: stayed }) : ""));
   }
 
   // ---- live update -----------------------------------------------------
@@ -19147,16 +19299,36 @@
   // Reads the CURRENT window only. Titles come from the tabs API as measured;
   // favicon is the page's own favIconUrl, with chrome:// icons dropped to null
   // because they are unreachable from a page context.
-  async function captureCurrentWindowTabs() {
-    var tabs = await chrome.tabs.query({ currentWindow: true });
+  // [OT.2] ONE CAPTURE PATH FOR EVERY SURFACE THAT SAVES A NAMED SESSION.
+  //
+  // There were about to be THREE copies of this loop: this one (the sessions
+  // panel's Save current tabs, from [1.9.3]), OT.1's save-selection, and now
+  // park. They all answer the same question - "turn these Tab objects into
+  // session tab records" - and each copy is a place the eligibility rule or the
+  // favicon rule can drift. That is the E7 shape, and the badge defect is what
+  // it looks like when it lands.
+  //
+  // IT TAKES TABS RATHER THAN QUERYING. Each caller knows which tabs it means -
+  // the current window, a checked selection, one window minus its pinned tabs -
+  // and that decision is the caller's. What must not vary is what happens to a
+  // tab once chosen.
+  //
+  // THE FAVICON RULE IS HERE AND NOWHERE ELSE: the page's OWN favIconUrl, or
+  // null. Never a derived one - that would send every saved domain to Google's
+  // S2 service, which [1.2.1] refused for this category of data.
+  function captureTabsForSession(tabs) {
     var eligible = [];
     var declined = 0;
-    tabs.forEach(function (t) {
-      if (!isCapturableSessionUrl(t.url)) { declined++; return; }
+    (tabs || []).forEach(function (t) {
+      if (!t || !isCapturableSessionUrl(t.url)) { declined++; return; }
       var fav = (t.favIconUrl && t.favIconUrl.indexOf("chrome://") !== 0) ? t.favIconUrl : null;
       eligible.push({ url: t.url, title: t.title || "", favicon: fav });
     });
     return { tabs: eligible, declined: declined };
+  }
+
+  async function captureCurrentWindowTabs() {
+    return captureTabsForSession(await chrome.tabs.query({ currentWindow: true }));
   }
 
   async function saveCurrentTabsAsSession() {
@@ -21114,6 +21286,8 @@
     // Delegated ONCE on the static hosts, so a re-render never leaves a stale
     // handler behind - the same reason #bm-tree is bound this way.
     safeOn("#ot-list", "click", function (e) {
+      var park = e.target.closest(".ot-park");
+      if (park) { e.stopPropagation(); otParkWindow(Number(park.dataset.otPark)); return; }
       var head = e.target.closest(".ot-window-head");
       if (head) { otToggleWindow(head.dataset.otWindow); return; }
       var close = e.target.closest(".ot-close");

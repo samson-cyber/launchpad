@@ -4116,3 +4116,76 @@ I18n.register("en", {
       "description": "Tab count on a window group heading in the Open tabs panel. When a filter is active this counts MATCHING tabs, not all of them, so the heading agrees with the rows under it."
     }
   });
+
+// =========================================================================
+// OT.2 - PARK THIS WINDOW.
+//
+// One action saves a window's tabs as a NAMED SESSION and closes them. Every
+// string that means the saved set says "named session" (decision 4).
+//
+// THE CONFIRM NAMES WHAT SURVIVES, not just what goes. Park closes real tabs,
+// so the sentence a user reads before pressing it has to account for every tab
+// in the window: the ones being saved, the LaunchPad tab that never closes,
+// and any pinned tabs, which are deliberately left alone. Those survivors are
+// separate keys rather than one assembled sentence because which of them apply
+// varies per window, and a sentence that lists a survivor the window does not
+// have is worse than one that is a little shorter.
+// =========================================================================
+I18n.register("en", {
+    "opentabs_park_action": {
+      "description": "Button on a window group heading in the Open tabs panel. Saves that window's tabs as a named session and closes them. Short because it sits in a 320px panel heading beside the window name and its tab count. VERB, not a noun - the user is parking the window, not looking at a park.",
+      "message": "Park",
+      "sense": "action.button.destructive-adjacent"
+    },
+    "opentabs_park_tooltip": {
+      "description": "Tooltip and accessible name for opentabs_park_action, which is too short to explain itself. Names BOTH halves of what happens - the save and the close - because the close is the irreversible one.",
+      "message": "Save these tabs as a named session and close them",
+      "sense": "a11y.label.action.destructive-adjacent"
+    },
+    "opentabs_park_confirm_title": {
+      "description": "Title of the confirm raised by opentabs_park_action. A QUESTION, matching the other destructive confirms in this product.",
+      "message": "Park this window?",
+      "sense": "heading.dialog.confirm"
+    },
+    "opentabs_park_confirm_button": {
+      "description": "Primary button of the park confirm, styled as the dangerous action with Cancel holding default focus. CONSEQUENCE-LABELLED per the copy voice: it says what it does rather than 'OK', because the close cannot be undone from here.",
+      "message": "Park and close",
+      "sense": "action.button.confirm.destructive"
+    },
+    "opentabs_park_nothing": {
+      "description": "Toast when park is pressed on a window with nothing parkable - typically a window holding only the LaunchPad tab and pinned tabs. Says so rather than writing an empty named session, which would litter the Sessions list with nothing.",
+      "message": "Nothing to park in that window.",
+      "sense": "toast.refusal"
+    },
+    "opentabs_park_write_failed": {
+      "description": "Toast when the named session could not be written. THE SECOND SENTENCE IS THE IMPORTANT ONE: it tells the user their tabs are still there. Park writes the session BEFORE closing anything precisely so this case loses nothing, and the message is what makes that visible rather than merely true.",
+      "message": "Could not save the named session, so nothing was closed. Your tabs are still open.",
+      "sense": "toast.error"
+    },
+    "opentabs_park_confirm_body": {
+      "plural": {"one": "1 tab will be saved as a named session and closed.", "other": "{count} tabs will be saved as a named session and closed."},
+      "description": "First line of the park confirm. Counts only the tabs that will ACTUALLY close - the LaunchPad tab and pinned tabs are excluded and named separately by the keys below. The one-form spells '1' rather than taking {count}, matching sessions_saved_tabs_toast."
+    },
+    "opentabs_park_keeps_this_tab": {
+      "description": "Follows opentabs_park_confirm_body when the window being parked is the one LaunchPad is in. Reassures the user that the page they are looking at will not vanish under them.",
+      "message": "This LaunchPad tab stays open.",
+      "sense": "sentence.confirm.reassurance"
+    },
+    "opentabs_park_closes_window": {
+      "description": "Follows opentabs_park_confirm_body when parking a DIFFERENT window that has nothing left to hold it open. Closing a window's last tab closes the window, which costs its size and position, so the confirm says so rather than letting it be a surprise.",
+      "message": "The window closes with its last tab.",
+      "sense": "sentence.confirm.consequence"
+    },
+    "opentabs_park_keeps_pinned": {
+      "plural": {"one": "1 pinned tab stays open.", "other": "{count} pinned tabs stay open."},
+      "description": "Follows opentabs_park_confirm_body when the window has pinned tabs. PINNED TABS ARE NEITHER SAVED NOR CLOSED: pinning is the user saying this one stays, and parking it would override that. The VERB inflects with the count, which is why this is a plural rather than an interpolation."
+    },
+    "opentabs_park_done": {
+      "plural": {"one": "Parked 1 tab into a named session.", "other": "Parked {count} tabs into a named session."},
+      "description": "Toast after a successful park. Says NAMED SESSION so the user knows where to look for what just disappeared."
+    },
+    "opentabs_park_some_stayed": {
+      "plural": {"one": "1 tab would not close and is still open.", "other": "{count} tabs would not close and are still open."},
+      "description": "Follows opentabs_park_done when some tabs survived the close. MEASURED, not hypothetical: chrome.tabs.remove is not atomic - given a set containing one stale id it throws and leaves later tabs open - so park closes them one at a time and reports any that refused. The session is already written either way, so nothing is lost; the user just has tabs they did not expect."
+    }
+  });

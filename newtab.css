@@ -15009,6 +15009,45 @@ html.bg-light #open-tabs-panel {
 
 .ot-window { display: flex; flex-direction: column; }
 
+/* [OT.2] The heading and the park button share a row. The heading is itself a
+   button (it collapses the window), so park cannot live inside it - a button
+   inside a button is not valid markup - and they sit as siblings instead. */
+.ot-window-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-inline-end: var(--space-2);
+  border-radius: var(--radius-sm);
+}
+.ot-window-bar:hover { background: var(--surface-fill); }
+/* The heading keeps its own hover off now that the bar carries one, or the two
+   tints stack and the row reads as selected rather than hovered. */
+.ot-window-bar .ot-window-head:hover { background: transparent; }
+
+/* PARK IS ALWAYS VISIBLE, unlike the row close which appears on hover.
+   A row x is one of many and reveals itself where the pointer already is; park
+   is one per window and is the surface's reason for existing in OT.2, so
+   hiding it until hover would make the feature undiscoverable to anyone who
+   never happens to sweep a heading. Low emphasis instead of hidden. */
+.ot-park {
+  flex: 0 0 auto;
+  border: 1px solid var(--surface-line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-secondary);
+  font-family: inherit;
+  font-size: var(--fs-11);
+  font-weight: 600;
+  padding: 2px var(--space-1-5);
+  cursor: pointer;
+}
+.ot-park:hover {
+  background: var(--surface-fill);
+  color: var(--ink-primary);
+  border-color: var(--pro-ink-accent);
+}
+html.bg-light #open-tabs-panel .ot-park:hover { border-color: var(--accent); }
+
 .ot-window-head {
   display: flex;
   align-items: center;
