@@ -3765,3 +3765,49 @@ carries `autoArmDuringWork`, `commitment` and `idleSec`.
 `AUDIO_PLAYBACK` reason, the idle threshold, and all of the WM.4 friction work.
 
 **Shipped in:** E6 cut.
+
+---
+
+## 2026-09-16 - The permission diff is no longer always empty: `sidePanel` is added, and the rule is now "no new WARNING", not "no new permission"
+
+**Context.** Every round since `2.0.0` has reported `PERMISSION DIFF: EMPTY` against the packaged
+build, and that phrasing hardened into a rule nobody had re-examined. `[1.16.0]`'s side panel
+cannot be built without the `sidePanel` permission and the `side_panel.default_path` manifest key,
+so the rule had to be either broken or restated.
+
+**THE DECISION: the rule was always about the INSTALL PROMPT, and it is restated as that.** A
+permission matters to a user when Chrome tells them about it on install or on update. An empty diff
+was a cheap proxy for "the prompt does not change", and the proxy is what hardened, not the
+principle. Adding a permission that produces no warning costs the user nothing and costs the
+listing nothing; refusing it on the strength of a proxy would have cost a feature.
+
+**THE EVIDENCE, AND IT IS CHROME'S OWN, NOT THE DOCUMENTATION.**
+`chrome.management.getPermissionWarningsByManifest()` is the API that generates the install
+prompt's text; it takes a manifest string and returns the warning list. It was asked three
+questions in a real browser:
+
+| manifest | warnings |
+| --- | --- |
+| shipped `2.2.0` | 4 |
+| `2.2.0` + `sidePanel` + `side_panel.default_path` | 4, identical strings |
+| `2.2.0` + `management` (the control) | 5 - a new line appears |
+
+The control is the load-bearing row: without it a null result would prove only that the instrument
+was blind. It is not. `sidePanel` is warning-free by the same code that would render the prompt.
+
+**WHAT THE RULE IS NOW.** A round may add a permission whose warning list is unchanged, and the
+IMPLEMENTATION comment reports the diff as what it is - one entry, `sidePanel` - together with the
+warning comparison. A permission that DOES add a warning is still a product decision that belongs
+to Samson and not to a round, because it changes what every existing user is asked to re-approve on
+update. The words "permission diff EMPTY" stop being the pass condition; "no new install warning"
+is.
+
+**A SECOND FINDING, RECORDED BECAUSE IT WAS ONLY VISIBLE FROM HERE.** `tools/check-html-refs.mjs`
+refused this build: `side-panel.html` was allowlisted and, as far as the gate could tell, declared
+by nothing. It was declared - by `side_panel.default_path`, a manifest key the shared
+`enumerateManifest` reader did not know. The reader gained it rather than the file being excused
+into `EXPECTED_UNREFERENCED`, which is reserved for files nothing declares and would have hidden
+the gap. **A manifest-reading gate is only as complete as the manifest keys the product uses**, and
+a new surface is exactly when that gap appears.
+
+**Shipped in:** PF.1.

@@ -4,7 +4,7 @@
   "version": "2.2.0",
   "description": "__MSG_extension_description__",
   "default_locale": "en",
-  "permissions": ["storage", "bookmarks", "contextMenus", "history", "topSites", "tabs", "webNavigation", "alarms", "search", "idle", "offscreen"],
+  "permissions": ["storage", "bookmarks", "contextMenus", "history", "topSites", "tabs", "webNavigation", "alarms", "search", "idle", "offscreen", "sidePanel"],
   "optional_permissions": ["notifications", "downloads"],
   "host_permissions": [
     "https://live.dodopayments.com/*",
@@ -18,6 +18,9 @@
   },
   "background": {
     "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "side-panel.html"
   },
   "action": {
     "default_popup": "companion.html",

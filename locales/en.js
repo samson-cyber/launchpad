@@ -4836,5 +4836,21 @@ I18n.register("en", {
       "description": "Placeholder hint on the quick-add inputs, teaching the grammar by example rather than by a syntax list. The example is the one from the round brief.",
       "message": "Try: Call Nadia tomorrow 3pm !high #acme",
       "sense": "label.placeholder"
+    },
+    "companion_due_head": {
+      "plural": {"one": "Due now ({count})", "other": "Due now ({count})"},
+      "description": "Heading of the due list in the side panel. The count is the unsnoozed total, not the number of rows shown, so a user reading it knows the size of the pile rather than the size of the window onto it."
+    },
+    "companion_due_none": {
+      "message": "Nothing due right now.",
+      "description": "Empty state of the side panel due list. A full stop and no invitation: the panel already carries one route out, and a second call to action in an empty region would be the surface arguing with itself."
+    },
+    "companion_due_overdue": {
+      "message": "Overdue",
+      "description": "Tag on a side-panel due row whose date has passed. A WORD rather than a colour, so the row does not depend on a hue to be read and this surface does not invent a second urgency scale beside the trash countdown one."
+    },
+    "companion_due_more": {
+      "plural": {"one": "{count} more", "other": "{count} more"},
+      "description": "Line under the side panel due list when there are more due tasks than the panel shows. It exists so that nothing is hidden without being counted."
     }
   });

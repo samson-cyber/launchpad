@@ -413,6 +413,17 @@ export function enumerateManifest(m) {
   Object.entries(m.chrome_url_overrides || {}).forEach(([k, v]) => add(v, `chrome_url_overrides.${k}`));
   Object.entries(m.icons || {}).forEach(([sz, v]) => add(v, `icons.${sz}`));
 
+  // [1.16.0] THE SIDE PANEL'S ENTRY, and this reader not knowing the key was a
+  // real gap the moment one existed. side_panel.default_path declares an HTML
+  // page exactly as chrome_url_overrides and action.default_popup do; without
+  // this line check-html-refs saw an allowlisted file that nothing explained and
+  // refused the build - correct in shape, wrong in fact. The alternative, adding
+  // it to EXPECTED_UNREFERENCED, would have put a declared file in the set
+  // reserved for undeclared ones and hidden the gap instead of closing it.
+  if (m.side_panel && m.side_panel.default_path) {
+    add(m.side_panel.default_path, "side_panel.default_path");
+  }
+
   const action = m.action || m.browser_action || m.page_action;
   if (action) {
     if (typeof action.default_icon === "string") add(action.default_icon, "action.default_icon");

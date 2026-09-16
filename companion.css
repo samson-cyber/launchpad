@@ -29,9 +29,100 @@
      "used every declaration the tier carries". */
 }
 
+/* ----- [1.16.0] the side panel -----
+
+   THE SAME GROUND AS THE POPUP, AND FOR THE SAME REASON. Chrome paints the side
+   panel over browser chrome, not over the user's wallpaper, so the has-bg /
+   bg-light branches that govern every in-page surface do not reach here either.
+   One ground, fixed: the floater tier's colour with white ink. That is what this
+   round's ink measurement measures against, and why it is one frame rather than
+   the three real grounds an in-page surface would need.
+
+   NO FIXED WIDTH, WHICH IS THE ONE REAL DIFFERENCE FROM .cmp-popup. A popup is
+   360px because the extension chooses it; a side panel's width is CHROME'S and
+   the USER'S - they drag it - so declaring one here would either be ignored or
+   fight the drag. The card inside already wraps: the name and goal lines ellipse
+   and the metrics row is two flex columns.
+
+   MIN-HEIGHT 100VH so the ground reaches the bottom of a tall panel rather than
+   ending under the last row and leaving the browser's own background showing
+   below it. */
+.cmp-panel {
+  margin: 0;
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  background: var(--pro-frost-floater-bg);
+  color: #fff;
+}
+
 .cmp-root {
   padding: var(--space-4);
 }
+
+/* ----- [1.16.0] the due list -----
+
+   INK IS INHERITED, NOT DECLARED. .cmp-popup and .cmp-panel own `color: #fff`
+   and everything under them takes it; the rows below carry no colour of their
+   own, so there is nothing here to disagree with the surface. Emphasis is
+   weight and size, never opacity - the same rule the rest of this file follows.
+
+   The list is separated from the card by a hairline rather than a heading
+   band: it is a second region on one surface, not a second panel. */
+.cmp-due {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.cmp-due-head {
+  font-size: var(--fs-11);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-2);
+}
+
+.cmp-due-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cmp-due-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  font-size: var(--fs-12);
+  line-height: 1.4;
+}
+
+/* The name takes the room and ellipses; the kind never wraps under it. */
+.cmp-due-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* OVERDUE IS A WORD, NOT A COLOUR. The row must not depend on a hue to be
+   read, and this surface is not the place to invent a second urgency scale
+   beside the trash countdown's. Weight carries it. */
+.cmp-due-kind {
+  flex: 0 0 auto;
+  font-size: var(--fs-10);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cmp-due-more,
+.cmp-due-empty-text {
+  margin-top: var(--space-1);
+  font-size: var(--fs-11);
+}
+
+.cmp-due-empty { padding-top: var(--space-3); }
 
 /* ----- locked (free / expired) ----- */
 .cmp-locked-text {

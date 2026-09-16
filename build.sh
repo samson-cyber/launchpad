@@ -457,6 +457,15 @@ powershell.exe -NoProfile -Command "
     'companion.js',
     'companion.css',
     'companion-popup.js',
+    # [1.16.0] THE SIDE PANEL'S SHELL AND ENTRY, ADDED IN THE SAME COMMIT AS THE
+    # FILES THEMSELVES. That is not diligence, it is the rule this array learned
+    # the hard way: importers.js and quickadd.js each shipped referenced-but-not-
+    # listed, and 16f3331 built tools/check-html-refs.mjs so the third time would
+    # be caught on the commit rather than on a build months later. side-panel.html
+    # is a new HTML entry carrying script references, which is exactly the shape
+    # that gate reads.
+    'side-panel.html',
+    'side-panel.js',
     'background.js',
     'bookmarks.js',
     # [2.2.0] importers.js WAS MISSING AND THE PACKAGE GATE CAUGHT IT ON THE

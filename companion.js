@@ -47,7 +47,14 @@ var Companion = (function () {
   // short-lived foreign context: it opens, it is looked at, it closes. A cache
   // would buy nothing and could serve a stale active task, which is the one
   // thing this surface exists to get right.
-  async function readState() {
+  // [1.16.0] HOW MANY ROWS. A panel has height, not infinite height, and a list
+  // that scrolls past the fold stops being a glance. Six is what fits above the
+  // fold at the panel's native width with the card above it; the count line says
+  // how many more there are, so nothing is hidden without being counted.
+  var DUE_LIST_MAX = 6;
+
+  async function readState(opts) {
+    var wantDue = !!(opts && opts.showDueList);
     var data = await Storage.getAll();
     var level = ProAccess.getProAccessLevel(data);
     var pro = ProAccess.isProAccessibleLevel(level);
@@ -55,7 +62,7 @@ var Companion = (function () {
     // D9 / CLAUDE.md: gate on the CLASSIFIER, never on a hand-written list of
     // states. `grace` is a paying customer and an `active || trialing` check
     // would lock them out silently.
-    if (!pro) return { pro: false, level: level };
+    if (!pro) return { pro: false, level: level, due: null };
 
     var resolved = Storage.resolveActiveTask(data);
     // resolveActiveTask reports a task completed or deleted anywhere as stale.
@@ -103,8 +110,50 @@ var Companion = (function () {
       // so a tick that fires late cannot drift. Frozen while paused, exactly as
       // Storage.activeElapsedMs computes it.
       focusedMs: 0,
-      focusedOpenSince: null
+      focusedOpenSince: null,
+      // [1.16.0 / decision A] THE DUE LIST, and it is Storage.getDueWork's
+      // answer rather than a new one.
+      //
+      // WHY THAT LIST. Three candidates were on the table and the other two
+      // fail on their own terms:
+      //
+      //   TODAY'S THREE is the Dashboard picker's CURATED set - three things
+      //   the user chose, on a full page, with the board in front of them.
+      //   Mirroring it read-only on a surface that cannot curate shows a list
+      //   whose whole meaning is that you picked it, with no way to pick.
+      //
+      //   THE ACTIVE GOAL'S TASKS is empty whenever no goal is active, which is
+      //   most of the time - the same dead end [1.9.4] finding 1 found in the
+      //   empty popup, rebuilt in a new place.
+      //
+      //   getDueWork IS ALREADY THE PRODUCT'S ANSWER to "what needs doing": it
+      //   is what WM.5's reminders fire from, it is per-workspace like every
+      //   other task surface, and it classifies overdue / today / recurring
+      //   itself. Using it means ONE definition of due. A second one here would
+      //   drift from the notification the user got this morning, and I28 is the
+      //   standing entry on what a second implementation of a shared question
+      //   costs.
+      //
+      // SNOOZED ROWS ARE EXCLUDED. A snooze is the user saying "not today", and
+      // a surface that keeps showing it has not heard them.
+      due: null
     };
+
+    if (wantDue) {
+      try {
+        var work = Storage.getDueWork(data);
+        var live = (work.items || []).filter(function (it) { return !it.snoozed; });
+        st.due = {
+          total: live.length,
+          items: live.slice(0, DUE_LIST_MAX).map(function (it) {
+            return { id: it.taskId, name: it.name, kind: it.kind };
+          })
+        };
+      } catch (err) {
+        console.error("[LaunchPad] Companion: due-work read failed", err);
+        st.due = { total: 0, items: [] };
+      }
+    }
 
     // The focused-today numeral comes from the tracking engine, exactly as the
     // pill's satRefreshReadout does. baseMs is settled time; openSince is the
@@ -176,6 +225,47 @@ var Companion = (function () {
       '</div>';
   }
 
+  // [1.16.0] THE LIST IS READ-ONLY, AND THAT IS THE SAME DECISION actionsHtml
+  // ALREADY MADE rather than a new one.
+  //
+  // Its comment rules Complete off the popup because "both are destructive-
+  // adjacent, neither has an undo, and this is a surface the user dismisses by
+  // clicking away from it. A misfire costs a real session." Every word of that
+  // holds for a panel except the last clause, and the panel replaces it with
+  // something worse: it sits open for hours beside whatever the user is doing,
+  // so a stray click is MORE likely, not less. So the rows show what is due and
+  // the route below the card is still the one way to act on it.
+  //
+  // THE KIND IS A WORD, NOT A COLOUR. Overdue is the only kind that differs
+  // from "today" in any way that matters here, and saying it in text means the
+  // row does not depend on a hue to be read - which also keeps this surface out
+  // of the business of inventing a second urgency scale beside the trash
+  // countdown's.
+  function dueListHtml(st) {
+    if (!st.due) return "";
+    if (!st.due.total) {
+      return '<div class="cmp-due cmp-due-empty">' +
+          '<span class="cmp-due-empty-text">' + esc(t("companion_due_none")) + '</span>' +
+        '</div>';
+    }
+    var rows = st.due.items.map(function (it) {
+      return '<li class="cmp-due-row">' +
+          '<span class="cmp-due-name" title="' + esc(it.name) + '">' + esc(it.name) + '</span>' +
+          (it.kind === "overdue"
+            ? '<span class="cmp-due-kind">' + esc(t("companion_due_overdue")) + '</span>'
+            : "") +
+        '</li>';
+    }).join("");
+    var more = st.due.total > st.due.items.length
+      ? '<div class="cmp-due-more">' + esc(t("companion_due_more", { count: st.due.total - st.due.items.length })) + '</div>'
+      : "";
+    return '<div class="cmp-due">' +
+        '<div class="cmp-due-head">' + esc(t("companion_due_head", { count: st.due.total })) + '</div>' +
+        '<ul class="cmp-due-list">' + rows + '</ul>' +
+        more +
+      '</div>';
+  }
+
   function viewHtml(st, now) {
     if (!st.pro) {
       // NOT A PREVIEW STUB. D9 hides the pill entirely for free users and the
@@ -202,6 +292,11 @@ var Companion = (function () {
             (st.paused ? '<span class="cmp-eyebrow cmp-eyebrow-paused">' + esc(t("companion_paused")) + '</span>' : '') +
           '</div>' +
           routeHtml() +
+          // THE EMPTY STATE IS WHERE THE LIST EARNS ITS PLACE MOST. No session
+          // is running, so the card above says almost nothing - and "what should
+          // I be doing" is exactly the question a user with no active task came
+          // to this surface with.
+          dueListHtml(st) +
         '</div>';
     }
 
@@ -261,6 +356,7 @@ var Companion = (function () {
           '</div>' +
         '</div>' +
         actionsHtml(st) +
+        dueListHtml(st) +
       '</div>';
   }
 
@@ -302,6 +398,10 @@ var Companion = (function () {
     if (!container) throw new Error("Companion.mount: a container element is required");
     var options = opts || {};
     var tickMs = options.tickMs || 1000;
+    // THE ONE NEW OPTION. The popup passes nothing and renders exactly what it
+    // rendered before this round - asserted byte-for-byte in the verification,
+    // not argued from the shape of this default.
+    var showDueList = !!options.showDueList;
     var state = null;
     var timer = null;
     var stopped = false;
@@ -346,7 +446,7 @@ var Companion = (function () {
 
     async function render() {
       if (stopped) return;
-      state = await readState();
+      state = await readState({ showDueList: showDueList });
       state.readAt = Date.now();
       container.innerHTML = viewHtml(state, state.readAt);
       container.setAttribute("data-cmp-state", state.pro

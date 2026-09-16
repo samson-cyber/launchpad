@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- [1.16.0] CHROME'S SIDE PANEL. The companion module's SECOND mount point,
+       and the file [1.9.1] said would exist: "TWO MOUNT POINTS. The popup now,
+       the side panel in [1.16.0]. That is why mount() takes its container as an
+       argument and why nothing here reads document.body or a hard-coded id."
+
+       NOT the sidebar, which is the in-page column, and not the popup. The
+       three senses are kept apart in every name here for the reason
+       companion.js states: this product already carries three senses of
+       "session" and a fourth ambiguity would be paid for forever.
+
+       SCRIPT ORDER IS companion.html'S, CHARACTER FOR CHARACTER, so the two
+       shells cannot drift into two initialisation paths: i18n, the catalogue,
+       the DOM pass, then storage, pro-access, tracking, the module, the shell.
+       A new HTML entry carrying script references is exactly what
+       tools/check-html-refs.mjs reads, and every file below is in build.sh's
+       allowlist as of the same commit. -->
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="companion.css">
+</head>
+<body class="cmp-panel">
+  <div class="cmp-root" id="companion-root">
+    <!-- Rendered by companion.js. Empty on purpose, exactly as the popup's is:
+         a hard-coded placeholder would flash a state the user is not in, and a
+         panel that stays open for an hour would flash it on every reload. -->
+  </div>
+
+  <script src="i18n.js"></script>
+  <script src="locales/en.js"></script>
+  <script src="i18n-dom.js"></script>
+  <script src="storage.js"></script>
+  <script src="pro-access.js"></script>
+  <script src="tracking.js"></script>
+  <script src="companion.js"></script>
+  <script src="side-panel.js"></script>
+</body>
+</html>
