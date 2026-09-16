@@ -1,12 +1,17 @@
 # Notes Feature - LaunchPad Pro
 
-Status: **v1.1 SHIPPED.** Drafted 2026-05-15; reconciled to shipped reality 2026-08-30.
+Status: **v1.1 SHIPPED.** Drafted 2026-05-15; reconciled to shipped reality 2026-08-30;
+Notebooks re-specced against the shipped panel 2026-09-16 (NB.1, Asana 1218038593317315).
 
 > **Read the reconciliation banner in the v1.1 section before trusting any interaction
 > described here.** The May draft specced a full-tab, 2D drag-positioned feature. Samson
 > redirected the design on 2026-08-29 after seeing the first render, and most interaction
-> details changed. The v1.2 Notebooks section below is still unbuilt design intent and has
-> NOT been re-specced against what v1.1 actually shipped.
+> details changed.
+>
+> **The Notebooks section below was rewritten on 2026-09-16 and no longer describes a
+> master-detail layout.** The version it replaced assumed a full tab area, a left notebook
+> column, a right content pane and live `{x, y}` note positions - four assumptions, none of
+> which survived the v1.1 redirect. What replaced them is in that section's own banner.
 Owner: Samson
 Related: `workspaces-data-model.md`, `trash-bin.md`, `tasks-and-goals.md`, `pro-tab-architecture.md`
 
@@ -30,20 +35,34 @@ more permissive than the tasks surface they sit inside.
 ## Release plan
 
 - v1.1.0 - Standalone notes. **SHIPPED** across `[1.1.0]`-`[1.1.7]`, riding the 2.1.0 store release.
-- v1.2.0 - Notebooks (organizational layer on top, designed in this spec but built later). **Unbuilt**,
-  and its layout assumptions predate the v1.1 redirect.
+- Clip-to-note. **SHIPPED** in `[1.14.3]` (TD.3), which gave a note its first structured field
+  beyond text (`sourceUrl`) and its first writer outside the page (the service worker).
+- Notebooks - the organizational layer. **UNBUILT.** Re-specced 2026-09-16 against the panel that
+  exists; the arc is `[1.15.x]` on the marker track, rounds NB.1 (this spec), NB.2 (data model and
+  storage) and NB.3 (UI and checkpoint).
+
+**A NUMBERING NOTE, because this doc is where the collision is easiest to trip over.** ROADMAP.md
+calls Notebooks `v1.2.0`, which is a **Notes-era release label**, not the `[1.2.0]` feature marker -
+that marker belongs to Focus Blocking. ROADMAP records the clash as cosmetic. This spec therefore
+says **"Notebooks"** and never "v1.2.0", and the marker-track name for the work is `[1.15.x]`.
 
 ## Workspace scoping
 
-Notes are workspace-scoped. Each workspace has its own notes and (in v1.2) notebooks. Switching workspaces shows the active workspace's notes. The data model lives inside the workspace shape:
+Notes are workspace-scoped. Each workspace has its own notes and, once Notebooks ships, its own
+notebooks. Switching workspaces shows the active workspace's notes. The data model lives inside the
+workspace shape:
 
 ```
 workspace = {
   ...existing fields...,
   notes: [Note],
-  notebooks: [Notebook]  // v1.2 only
+  notebooks: [Notebook]  // NOT YET IN CODE - added by NB.2; see the Notebooks data model
 }
 ```
+
+**`notebooks` is not in `getDefaultData` today**, although `workspaces-data-model.md` has listed it
+in the workspace shape since the original planning. The doc is ahead of the code; NB.2 makes them
+agree. Until then, nothing may read `ws.notebooks` without an array guard.
 
 ## Visual design - nostalgic-realistic sticky notes
 
@@ -91,7 +110,8 @@ note = {
   color: string (palette TOKEN NAME: cream | butter-yellow | soft-pink | mint | sky-blue | peach | lavender),
   position: { x: number, y: number },  // RESERVED AND DORMANT - see below
   rotation: number,  // -2 to +2 degrees, rolled once at creation and stored, never re-rolled at render
-  notebookId: string | null,  // null for v1.1 (always standalone); v1.2 would introduce association
+  notebookId: string | null,  // PRESENT AND DORMANT - see below
+  sourceUrl: string | null,   // [1.14.3] the page a CLIP came from; null for every other note
   tagIds: [string],  // tag ids, integrates with existing tag system
   createdAt: number,  // epoch ms (Date.now())
   updatedAt: number,  // epoch ms (Date.now())
@@ -110,6 +130,20 @@ array. **The shipped `[1.1.0]` implementation in `storage.js` is the reference**
 permutes the array. The field is kept as reserved space with a marker comment in `storage.js` and
 carries no semantics; a future feature that wants it must define them from scratch. Colour is stored
 as a token NAME rather than a hex, so a palette change is a CSS edit and never a data migration.
+
+**`sourceUrl` IS LIVE, AND IT IS `http(s)` ONLY.** `[1.14.3]` added it. It is `null` on every note
+that is not a clip, and a reader renders nothing when it is absent, so every pre-existing note is
+byte-identical through that change. The scheme restriction is a safety rule rather than a tidiness
+one: a clip's URL is rendered as a LINK, and a `javascript:` or `data:` URL reaching an `href` would
+hand a page the user merely right-clicked a click target inside the product. Anything else stores
+`null` and the note keeps its text. `Storage.coerceSourceUrl` is the single gate.
+
+**`notebookId` IS PRESENT AND DORMANT, AND IT IS THE ONE MUSEUM PIECE IN THIS RECORD.** It has
+been on the shape since `[1.1.0]`, is written once at creation as `null`, is passed through by
+`updateNote`, and **is read by nothing.** That is precisely the field-with-a-writer-and-no-reader
+the museum rule forbids, and it survives only because it was specced to be filled by the round that
+is now being written. **NB.2 gives it its reader in the same commit that gives it its first real
+writer** - see the Notebooks data model. If Notebooks is ever abandoned, this field goes with it.
 
 ### Interactions
 
@@ -135,6 +169,14 @@ as a token NAME rather than a hex, so a palette change is a CSS edit and never a
 - **Keyboard:** Tab / Shift+Tab across notes, Enter to edit the focused note, Escape to save, ARIA
   labels on every interactive control, tier-aware focus rings. **Ctrl+N and arrow-key spatial
   navigation are deliberately cut** per the standing click-only rejection.
+- **Clip a selection from any page** (`[1.14.3]`): highlight text, right-click, Save to LaunchPad.
+  The note is written **by the service worker**, not the page - through `enqueueBgData`, because a
+  background writer of the `data` key that skips the queue clobbers or is clobbered by a concurrent
+  `getAll -> mutate -> saveAll` elsewhere. Entitlement is **re-checked at write time**, not only
+  when the menu was built: the menu is a cached artifact of the last rebuild and entitlement can
+  lapse in between. **The clip lands at the TOP of the standalone stack**, which is where a new note
+  lands, and it carries `sourceUrl`. This is the one note-creation path with no LaunchPad surface on
+  screen, which is why its acknowledgement prefers a notification over a toast.
 
 ### Notes settings (Pro Settings)
 
@@ -207,62 +249,325 @@ and the standard pulsing upgrade CTA belongs to the tasks preview shell.
 
 ---
 
-## v1.2 - Notebooks
+## Notebooks
 
-### Layout change
+> **RE-SPECCED 2026-09-16 (NB.1).** The version this replaces described a master-detail layout: a
+> left notebook column at 1/5, a right content pane at 4/5, a persistent "Standalone Notes" home
+> item, and drag-out restoring `{x, y}` grid positions. **All four assumptions are dead.** Notes are
+> not a tab; they are a 20% column of the Tasks tab with a 260px floor, so there is no 4/5 pane to
+> swap and no room for a column inside a column. `position` is dormant and holds nothing, so there
+> are no positions to restore. Everything below is written against the panel that exists, and every
+> decision names what it costs the notes stack, because the stack is the feature and Notebooks is
+> an organiser sitting on top of it.
 
-The Notes tab area splits into two columns:
-- Left 1/5: notebook column - vertical list of notebooks + a persistent "Standalone Notes" item at top + a "+" empty drop target at the bottom for drag-to-create-notebook
-- Right 4/5: content area - swaps between standalone notes grid (default) and a notebook's contents (when a notebook is selected)
+### What a notebook groups, and what "feed" means
 
-The "Standalone Notes" item at the top of the left column is always visible, always clickable, and returns the right pane to the standalone grid when clicked. Acts as the "home" of the Notes tab.
+**A notebook groups NOTES AND NOTHING ELSE.** It is not a container for tasks, goals, sessions or
+attachments; those have their own homes and their own relations, and a notebook that grouped two
+kinds of thing would immediately need a rule for what "delete" means to each.
 
-**Superseded 2026-08-30:** this assumed notes carry live `{x, y}` positions. They do not - v1.1
-ships canonical array order and `position` is dormant (see the v1.1 data model). There is nothing
-to clamp. A Notebooks design must decide ordering within a notebook from scratch, and should also
-account for the fact that notes live in a 20% panel of the Tasks tab rather than a full tab area,
-which is the larger unre-specced assumption in this whole section.
+The task's framing is that quick-add and clip "feed" notebooks. Concretely, and this is narrower
+than it sounds:
 
-### Notebook data model
+- **Clip FEEDS notes, and therefore feeds notebooks only through a note.** `[1.14.3]` gives every
+  clip a note at the top of the standalone stack. See "What a clip does" below, which rules that it
+  keeps landing exactly there.
+- **QUICK-ADD DOES NOT FEED NOTES AT ALL, and the plan's wording is loose here.** `[1.14.1]`'s
+  quick-add parses a sentence into a **TASK** - title, due date, priority, tags. It has no note
+  path, on either of its two surfaces. The only bridge between the two features runs the OTHER
+  way: **promote-to-task** turns a note into a task. So "quick-add feeds notebooks" describes
+  nothing that exists, and NB.2 should not go looking for it. If a future round wants a note
+  quick-add, that is a new surface and a new decision, not a wiring job.
+
+### Layout: a chip strip, not a column
+
+**THE DECISION: notebooks are a single-row strip of chips between the panel title and the search
+input. There is no notebook column, because there is no room for one.**
+
+The panel is `flex: 0 0 20%` with `min-width: 260px`. Splitting 260px into a notebook column and a
+notes stack leaves roughly 130px each - narrower than a single note card, on the surface whose
+entire job is showing note cards. A collapsed rail is no better: 24px of permanent chrome is nearly
+10% of the panel's floor width, spent on a control used far less often than the stack beside it.
+
+So the strip runs horizontally: `All notes` first and always, then one chip per notebook, then a
+trailing `+` that creates one. It scrolls horizontally when the chips overflow rather than wrapping
+to a second row, because a strip that can grow to two rows can grow to three and the stack pays for
+every one of them.
+
+**WHAT IT COSTS THE STACK: one row, about 32px, and only when at least one notebook exists.** The
+strip is **threshold-gated exactly as its two neighbours already are** - the search input renders
+only above 6 live notes, and the trash bar renders only when the workspace has trashed notes. Zero
+notebooks means zero chrome, so a user who never makes one sees a panel byte-identical to today's.
+That is the panel's established idiom and Notebooks does not get to be the first exception to it.
+
+**Selecting a chip scopes the stack; it does not navigate.** `All notes` shows every live note,
+which is today's behaviour unchanged. A notebook chip filters the stack to that notebook's notes.
+The ghost note stays first in both scopes, and creating from it inside a notebook scope creates the
+note **in that notebook** - the scope is the context, so the create affordance means what the strip
+says it means. There is no "notebook view" as a separate screen; there is one stack with a scope.
+
+**Because a scope is not a screen, every per-note behaviour is unchanged inside one.** Promote-to-
+task, promote-to-goal, colour, the hover trash, inline edit and the "delete note after creating"
+checkbox are the same menu on the same card, and promote **leaves `notebookId` alone** - a note
+promoted from inside a notebook stays in that notebook unless the checkbox deletes it. The previous
+draft carried a whole section asserting this; under the scope model there is nothing to assert,
+because there is no second code path for it to diverge from. **Search is the one exception and it
+needs deciding in NB.3: a filter inside a notebook scope searches THAT notebook only.** Searching
+everything from inside a scope would make the scope a lie, and reorder is already disabled while a
+filter is active, so the two interact in the way they already do.
+
+Below the 900px breakpoint the panel already moves under the tasks content at full width and the
+stack becomes a horizontal wrap. **The strip needs no second layout there** - it is already a
+horizontal row, and at full width it simply has more room.
+
+### Drag-to-combine
+
+**THE GESTURE: drag one note onto another and drop. The two become a notebook.** No modifier key.
+
+**Why this is buildable here when drag-to-trash was refused, since the two look alike.** Drag-to-
+trash was cut because SortableJS owns dragging in this column and a second drag semantic in the
+same column is a mode conflict. That reasoning was about a drop target OUTSIDE the list - a can in
+the footer that the sortable knows nothing about. **Drop-on-item is a different shape and this
+codebase already ships it**: the Home grid nests one shortcut into another by hit-testing the
+pointer against a target's own sub-element, gating on a `data-nest-target` flag, and highlighting
+the target - all while SortableJS continues to own ordinary sorting on the same grid. Notebooks
+reuses that idiom rather than inventing a second one.
+
+**NO MODIFIER KEY, AND THIS IS A HARD CONSTRAINT RATHER THAN A PREFERENCE.** The grid's nest reads
+a held Shift to choose between two nest outcomes. Chrome **swallows key events during a native
+drag** (BUGS.md **I8**'s neighbourhood), which is why shift-drag is the product's worked example of
+a gesture that cannot be exercised end to end and has to be named as a gap instead of claimed.
+Combining is a single unambiguous outcome, so it needs no second mode - and specifying it without a
+modifier is what keeps NB.3 verifiable rather than shipping on an untestable gesture.
+
+**THE NEW NOTEBOOK IS CALLED "New notebook", and the name is NOT derived from either note.**
+Deriving it would mean picking one of the two arbitrarily and baking that guess into a label the
+user then has to correct; the first line of a clipped paragraph makes a particularly bad folder
+name. Instead **inline rename opens immediately on creation with the text selected**, the shape
+goal and group renaming already use, so naming it is one typed word and dismissing the rename keeps
+the default.
+
+**WHAT HAPPENS TO BOTH NOTES' POSITIONS: both leave the standalone stack, and inside the notebook
+the order is TARGET FIRST, DRAGGED SECOND.** The target was already sitting where the user aimed;
+the dragged note arrived. **Array order stays canonical inside a notebook exactly as it is in the
+stack** - one ordering model in this feature, not two - and `position {x, y}` stays dormant. A
+notebook must not assume that field holds anything, which is the assumption that killed the
+previous draft of this section.
+
+**The menu route is equal, not a fallback.** A note's right-click menu gains **Add to notebook**,
+listing existing notebooks plus "New notebook...". Drag is faster; the menu is reachable by
+keyboard, and a gesture that only exists as a drag is a gesture a keyboard user does not have.
+
+### Drag-out
+
+**THE GESTURE: with a notebook scope active, drag a note onto the `All notes` chip.** That chip is
+the only standalone target guaranteed to be on screen whenever a notebook is selected, which is
+what makes it the right one - the old spec's "Standalone Notes" home item does not exist and is not
+coming back.
+
+**THE NOTE LANDS AT THE TOP OF THE STANDALONE STACK.** Not appended at the bottom. "It came back"
+and "it just arrived" are the same event from the stack's point of view, and both a new note and a
+clip already land at the top; dropping a note to the bottom of a forty-note stack makes a
+deliberate action look like it did nothing. The menu equivalent is **Remove from notebook**, on the
+same note menu.
+
+A notebook emptied this way **is not auto-deleted.** An empty notebook is a container the user made
+and may be about to fill; deleting it out from under them to tidy up is the product making a
+decision it was not asked to make.
+
+### Deletion: the notes are released, never cascaded
+
+**THE DECISION: deleting a notebook soft-deletes THE NOTEBOOK ONLY. Its notes are released to the
+top of the standalone stack. There is no cascade option.**
+
+**Why, and it is the strongest argument in this spec.** `[1.4.x]` fixed a defect where completing a
+goal HID its unfinished tasks; twenty of Samson's own tasks were affected and needed a migration
+sweep to recover. A notebook that silently takes twelve notes into the trash with it is that same
+visible wrong in a new costume - a container disappearing and taking uncounted work with it. A
+notebook is an ORGANISER, not a container of record: the notes existed before it and do not depend
+on it. So the safe default is the one where nothing the user did not individually name gets deleted.
+
+**THE OLD SPEC'S TWO-OPTION MODAL IS CUT.** It offered "Move notes to standalone" (default) and
+"Delete notebook and all notes". A destructive modal that asks the user to choose between two
+irreversible-feeling outcomes, under the time pressure of having just clicked Delete, is a worse
+surface than one that does the safe thing and says so. The cascade is still reachable in one extra
+step - release, then delete the notes - and that route has the advantage that **each deletion is
+visible and separately restorable**, which the cascade never was.
+
+**THE MODAL IS `confirmModal`, per the no-native-dialogs rule**, and it **states the count**:
+
+> **Delete "Research"?**
+> Its 4 notes stay in All notes. The notebook goes to trash for 30 days.
+> [Cancel] [Delete notebook]
+
+Marked `dangerous`. The count is rendered from the live membership at open time rather than a
+remembered number, and it is the whole reassurance: a user who believes their notes are about to go
+with it will not click, and a modal that does not say so leaves them guessing.
+
+### The trash unit
+
+**THE DECISION: a trashed notebook is its OWN trash row and carries no notes. Restoring it restores
+an empty notebook. Purge at 30 days removes the notebook record only.**
+
+**This is not a second decision; it is the first one seen from the trash's side.** Because deletion
+releases the notes, there are never any notes inside a trashed notebook to unit up with. Had the
+cascade survived, the trash would have needed a composite row that renders a notebook plus a note
+count, a restore that re-attaches every child by id, a purge that deletes notes the user never
+trashed, and a rule for what happens when a released-then-trashed note is restored into a notebook
+that has since been purged. The release decision deletes all four problems rather than solving them.
+
+**THE CONSEQUENCE, STATED RATHER THAN BURIED: restoring a notebook does NOT restore its membership.**
+The notes were released when it was deleted and they stay where they are. That is the price of the
+release rule and it is the right price - re-grouping a handful of notes is a minute's work, and a
+note that vanished with a folder is not recoverable by any amount of work if the user never noticed.
+The deletion modal's wording carries this: it says the notes STAY, which is also a promise that they
+will not come back.
+
+**30-day purge is the universal lifecycle** per `trash-bin.md`, unchanged and not re-litigated here.
+
+### Data model
 
 ```
 notebook = {
-  id: string (stable unique),
+  id: string,            // "nb_" prefix, stable unique
   name: string,
-  position: number,  // position in the left column list
-  createdAt: number,  // epoch ms (Date.now())
-  updatedAt: number,  // epoch ms (Date.now())
-  deletedAt: number | null  // epoch ms when trashed, per trash-bin.md; null when live
+  createdAt: number,     // epoch ms (Date.now())
+  updatedAt: number,     // epoch ms (Date.now())
+  deletedAt: number | null   // epoch ms when trashed, per trash-bin.md; null when live
 }
 ```
 
-A note's optional `notebookId` field associates it with a notebook. Notes without `notebookId` are standalone.
+**THERE IS NO `position` FIELD, and its absence is deliberate.** The previous draft carried
+`position: number` for a note's place in the left column list. There is no left column, and
+`ws.notebooks` array order is canonical for the chip strip exactly as `ws.notes` array order is
+canonical for the stack. **One ordering model in this feature, not two** - the same rule that the
+v1.1 redirect had to establish the hard way when a render-time sort and an array push disagreed and
+a committed reorder had nowhere to land.
 
-### Notebook interactions
+**`note.notebookId` IS THE ASSOCIATION, and NB.2 discharges the museum rule on it.** The field
+already exists, already defaults to `null`, and is already passed through by `updateNote`. It has
+had no reader since `[1.1.0]`. NB.2 adds its first real writer and its first reader **in the same
+commit**, which is what the museum rule asks for.
 
-- Click "Create notebook" button or the empty "+" target - creates a new notebook with default name "New notebook" (inline rename available)
-- Drag standalone note onto the "+" empty target - creates a new notebook containing that note
-- Drag standalone note onto an existing notebook in the left column - adds the note to that notebook
-- Right-click on a standalone note - "Move to notebook" menu - lists existing notebooks for selection (alternative to drag)
-- Click a notebook in the left column - right pane swaps to show that notebook's contents (a grid of just the notes in this notebook). The notebook is highlighted in the left column to indicate selection.
-- While in notebook view: drag a note out onto the "Standalone Notes" item in the left column - the note leaves the notebook and rejoins standalone (position appended to standalone grid)
-- Create new notes directly inside a notebook view (they're added with `notebookId` set to the active notebook)
+**Per-field updaters, no whole-object writes:**
 
-### Notebook visual
+- `createNotebook(data, fields, workspaceId)`
+- `renameNotebook(data, notebookId, name, workspaceId)`
+- `deleteNotebook(data, notebookId, workspaceId)` - soft-delete, AND release membership
+- `restoreNotebook(data, notebookId, workspaceId)`
+- `deleteNotebookPermanent(data, notebookId, workspaceId)`
+- `reorderNotebooks(data, orderedIds, workspaceId)`
+- `setNoteNotebook(data, noteId, notebookId | null, workspaceId)`
 
-Each notebook icon in the left column shows a small stack visual - 2-3 paper notes peeking out underneath the top note, evoking a physical stack. The notebook's name appears below the visual. Selected notebook is highlighted.
+**`setNoteNotebook` IS THE ONLY WRITER OF MEMBERSHIP**, and that is the load-bearing line in this
+list. Drag-to-combine, drag-out, the menu's Add to notebook, the menu's Remove from notebook and
+the release inside `deleteNotebook` are five callers of one function. Five callers each doing their
+own assignment is five chances for the rule to drift, and the product has a worked example of
+exactly that: `[1.4.7]` put the release-on-goal-completion in a shared helper rather than at each
+call site, on the reasoning that it "belongs to the state change, not to one caller's reasoning".
 
-### Notebook deletion
+**`deleteNotebook` RELEASES BEFORE IT SOFT-DELETES, in that order and in one write.** The ordering
+matters for the same reason `[1.4.7]`'s does: no reader may observe a trashed notebook that still
+holds live notes, and doing the release after the soft-delete leaves exactly that window.
 
-Right-click notebook - "Delete" opens a confirmation modal with two options:
-- "Move notes to standalone, delete notebook" (default) - notebook is soft-deleted; its notes are pushed back to the standalone grid (positions are lost; notes are appended at the end of the standalone grid)
-- "Delete notebook and all notes" - notebook and all child notes are soft-deleted together. In trash view, they appear as a single notebook unit; restoring the notebook restores all child notes inside it.
+**Purge registration AT BIRTH.** `"notebooks"` joins `purgeExpiredTrash`'s per-workspace entity
+list **in the commit that creates the record type**, not a later one. That list is a hardcoded
+literal rather than a registry (BUGS.md **E5**, generalised in **E7**), and notes are the standing
+proof of the cost: they soft-deleted correctly and **simply never purged** from `[1.1.0]` until
+`[1.1.3]`, while the trash view counted down to a deletion that could never arrive.
 
-A notebook can also be dragged onto the trash can - same flow with the same modal.
+**Notebooks carry NO `tagIds`, so the purge sweep's SECOND hardcoded list - the tag-id cascade - is
+deliberately NOT touched.** Stated explicitly so a later reader auditing E5 does not "complete" the
+registration by adding notebooks to a cascade that has nothing to clean.
 
-### Promote actions from inside a notebook
+**`ensureNotebooksArrays(data)` joins `getAll`'s sweep chain**, in the shape of `ensureNotesArrays`:
+assign `ws.notebooks = []` **only** when the field is missing or not an array, and return whether
+anything changed. **I28 is the whole reason that shape matters.** `getAll` runs its sweeps on every
+single call and writes the entire blob back if any of them reports a change, so a sweep that is not
+idempotent does not write once - it writes forever, on every read, in every context. The warm-fixture
+assertion in the background-queue gate is what catches it.
 
-Promote-to-task and Promote-to-goal work the same from inside notebook view as from standalone view. The note's `notebookId` is preserved or cleared based on whether the user chose "and delete" (which clears it via soft-delete).
+`getDefaultData`'s workspace shape gains `notebooks: []` in the same commit. **Note for NB.2:**
+`workspaces-data-model.md` has listed `"notebooks": []` in the workspace shape since the v1.2.0
+planning, but `getDefaultData` has never had the key - the doc is ahead of the code, and NB.2 makes
+them agree rather than treating the doc as evidence the field exists.
+
+### What a clip does
+
+**THE DECISION: a clipped note lands STANDALONE, at the top of the stack. Unchanged by this arc.**
+No "Clipped" notebook, no capture into the active notebook. **NB.2 must not modify
+`clipSelectionToNoteBg`.**
+
+Three reasons, and the first is decisive on its own:
+
+1. **The clip is written by the SERVICE WORKER, which cannot know which chip is active.** The
+   active scope is page state, in one tab, of possibly several. The worker would have to read UI
+   state it does not own, or guess - and a clip filed into a notebook the user was not looking at
+   is a clip they will not find.
+2. **An auto-created "Clipped" notebook is a folder nobody asked for**, and it turns every
+   subsequent clip into something filed away rather than something that arrived.
+3. **The top of the standalone stack is where the user already looks** for the thing that just
+   happened, which is exactly why `[1.14.3]` put it there.
+
+A clip can of course be dragged into a notebook afterwards, like any other note.
+
+### Pro
+
+**Notebooks inherit the Tasks tab's gate, one level further down than notes already do.** There is
+no notebooks gate to keep in sync, for the same reason there is no notes gate. The five license
+states behave exactly as they do for notes: `trialing`, `active` and `grace` get the real thing;
+`free` and `expired` get the preview, with **`expired` a full preview lockout identical to free**
+except CTA copy.
+
+**THE FREE PREVIEW SHOWS NO NOTEBOOKS AND NO CHIP STRIP.** Two independent reasons, and either
+alone is sufficient:
+
+- **The preview rule forbids it.** A preview surface must never render a create affordance, and the
+  strip's trailing `+` is one. A control that cannot do anything reads as broken rather than as
+  locked - the `[1.1.4]` preview-ghost bug is the worked example, and it was this same panel.
+- **The threshold already excludes it.** The strip renders only when at least one notebook exists,
+  and the preview writes nothing to storage, so there is never a notebook for it to show.
+
+**The preview therefore stays byte-identical to what ships today** - the same five demo notes in the
+same five colours through the same card component. That is not a happy accident; it is the property
+that makes the preview claim provable in NB.3 rather than merely likely.
+
+### Visual
+
+A chip is a text pill carrying the notebook's name and its live note count. The active chip is
+filled; the rest are outlined. **No stacked-paper illustration** - the previous draft's 2-3 peeking
+note corners were sized for a left-column item in a full tab, and at chip scale in a 260px strip
+they would be decoration nobody can resolve.
+
+**Ink is declared, and it is verified by BROWSER MEASUREMENT rather than by the static gate.** The
+chip strip is JS-rendered inside a panel whose surface darkens under `html.has-bg`, which puts it
+exactly where `tools/check-panel-ink.mjs` cannot see it: the gate parses static `newtab.html`, so a
+container filled at runtime presents it with zero text nodes and passes vacuously (BUGS.md **O1**).
+So NB.3 measures the chip's ink in a real browser on **every ground the panel can render on** - no
+wallpaper, image, dark solid and light solid - and not only the one it is being looked at on.
+
+**Copy the ink from the node you sit next to.** The chips sit inside `.notes-panel`, which declares
+its own ink to mirror `.tasks-tab`. A new rule in there that declares a colour of its own can
+override the thing that is already correct - and on a light wallpaper that mistake paints white on
+white. The neighbouring nodes in this panel are the reference, not a general has-bg recipe.
+
+Every user-visible string goes through `t()` / `th()` and lives in `locales/en.js`:
+`check-i18n-sites` is **ENFORCING**, and a hardcoded sentence in any shape it can see fails the
+build.
+
+### The word "notebook"
+
+Checked across the tree for a collision, because the product has form here - "session" carries four
+distinct senses and their collisions have cost rounds.
+
+**"Notebook" is clean.** It appears in `DECISIONS.md`, `ROADMAP.md`, `trash-bin.md`,
+`workspaces-data-model.md` and this file, and in all of them it means exactly one thing: a grouping
+of notes. In code it appears only as `note.notebookId`, which is this same concept. It collides with
+none of the four senses of "session", and nothing else in the product is called a notebook.
+
+**The one collision that does exist is a NUMBER, not a word**, and it is recorded above: ROADMAP's
+`v1.2.0` Notes-era release label against the `[1.2.0]` feature marker. Cosmetic, already known, and
+the reason this spec never uses "v1.2.0" as a name.
 
 ---
 
@@ -274,6 +579,13 @@ Promote-to-task and Promote-to-goal work the same from inside notebook view as f
 - Tag system (existing): notes are taggable; tag rename/delete cascades to notes per existing tag system behavior
 - Workspaces: notes and notebooks belong to a workspace; workspace switch shows the active workspace's content
 - Tasks/Goals: promote-to-task and promote-to-goal integrate with existing creation modals; no new modals introduced
+- Context menus (`background.js`): the clip entry joins the worker's menu rebuild and reads
+  `isProAccessibleLevel` there, so entitlement is decided in one place rather than copied. The
+  entry is **absent** on free and expired rather than disabled.
+- **Quick-add (`[1.14.1]`) does NOT touch notes.** It parses a sentence into a TASK on the Tasks tab
+  box and the Dashboard picker. Recorded here because the Notebooks plan describes quick-add as
+  "feeding" notebooks and it does not - the only bridge between the two features is
+  promote-to-task, which runs the other way.
 
 ---
 
