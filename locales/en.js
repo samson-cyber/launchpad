@@ -4852,5 +4852,307 @@ I18n.register("en", {
     "companion_due_more": {
       "plural": {"one": "{count} more", "other": "{count} more"},
       "description": "Line under the side panel due list when there are more due tasks than the panel shows. It exists so that nothing is hidden without being counted."
+    },
+    "dashboard_due_on_date": {
+      "description": "Due label on a dashboard row for a task due on a FUTURE day. {date} is already formatted by the caller and is a VALUE, not a sentence fragment. Its siblings dash_overdue and dashboard_due_today are different sentences rather than other dates.",
+      "message": "Due {date}",
+      "sense": "label.due"
+    },
+    "gate_this_site_headline": {
+      "description": "Stand-in for the blocked domain in the gate page's HEADLINE CHIP, used only when the page is reached with no entry in its query string. Renders immediately before gate_is_blocked so the headline still reads as a sentence: 'This site is blocked'. CAPITALISED because it STARTS that sentence - which is the whole reason it is a separate key from gate_this_site, the lower-case form used mid-sentence in the reason line. A language that does not capitalise sentence-initially may give both keys the same value.",
+      "message": "This site",
+      "sense": "placeholder.name"
+    },
+    "sessions_default_numbered_name": {
+      "description": "The name a saved session is born with from the keyboard command, which has no naming step. {n} counts the workspace's existing sessions plus one, so the first is 'Session 1'. SENSE OF SESSION: a saved set of tabs, not a focus interval and not a browser session. Renameable immediately afterwards.",
+      "message": "Session {n}",
+      "sense": "name.tabset"
+    },
+    "group_new_default_name": {
+      "description": "The name a group is born with when the right-click 'New group...' route creates one, which has no naming step. Renameable in place. Capitalised as a proper label because it becomes the user's own data the moment it is written.",
+      "message": "New Group",
+      "sense": "name.group"
+    },
+    "variant_account_label": {
+      "description": "Title given to a nested shortcut whose URL carries a Google-style /u/<n> account segment, so several accounts on one service are told apart in the variant list. {n} is the segment number plus one, so /u/0 reads 'Account 1'.",
+      "message": "Account {n}",
+      "sense": "name.variant"
+    },
+    "focus_commitment_sentence": {
+      "description": "The sentence a user must TYPE EXACTLY to open a blocked site on a repeat snooze. THE SENTENCE JUDGES NOTHING: it names the action in the user's own voice and costs only the seconds it takes to type. Do not translate it into anything that tells the user what they are doing with their time - 'I am wasting my time' is a thing this product is not entitled to say. It is compared character for character against what the user typed, so the translation must be something a person can retype without ambiguity: avoid curly quotes, avoid trailing punctuation.",
+      "message": "I am choosing to open this",
+      "sense": "input.exact-match"
+    },
+    "demo_group_daily": {
+      "description": "Name of the first example group seeded on a fresh install. The sparkle marks it as example data the user may clear; keep a leading symbol if the language allows one. Renameable, and it becomes the user's own data at seed time.",
+      "message": "✨ Daily examples",
+      "sense": "name.group"
+    },
+    "demo_group_work": {
+      "description": "Name of the second example group seeded on a fresh install. Sibling of demo_group_daily and the two should read as a pair. SENSE OF WORK: the kind of site, not the workspace mode (wsmode_work) and not a pomodoro phase (pomodoro_phase_work).",
+      "message": "✨ Work examples",
+      "sense": "name.group"
+    },
+    "pomodoro_phase_work": {
+      "description": "Eyebrow above the pomodoro timer during a focus interval. SENSE: a PHASE of the timer, NOT the workspace mode (wsmode_work / prosettings_work) and not the kind of example site (demo_group_work). Three keys hold the English word 'Work' and a translator must be free to render them differently. Its siblings are pomodoro_phase_break and pomodoro_phase_long_break.",
+      "message": "Work",
+      "sense": "phase.pomodoro"
+    },
+    "pomodoro_phase_break": {
+      "description": "Eyebrow above the pomodoro timer during a short break. Sibling of pomodoro_phase_work and pomodoro_phase_long_break; the three are one set and must stay consistent in register.",
+      "message": "Break",
+      "sense": "phase.pomodoro"
+    },
+    "pomodoro_phase_long_break": {
+      "description": "Eyebrow above the pomodoro timer during the long break after a full cadence. Holds the same English as prosettings_long_break, which is the SETTINGS LABEL for configuring its length - separate keys because one names a state the timer is in and the other names a duration field, and a language may well distinguish them.",
+      "message": "Long break",
+      "sense": "phase.pomodoro"
+    },
+    "trash_goal_restored": {
+      "description": "Toast after restoring a GOAL from the tasks trash. Its sibling is trash_task_restored; two keys rather than one with a placeholder, because a language may inflect the verb by the noun's gender.",
+      "message": "Goal restored",
+      "sense": "toast.confirmation"
+    },
+    "trash_task_restored": {
+      "description": "Toast after restoring a TASK from the tasks trash. Sibling of trash_goal_restored - see that key for why they are two.",
+      "message": "Task restored",
+      "sense": "toast.confirmation"
+    },
+    "trash_goal_reactivated": {
+      "description": "Toast after reactivating a COMPLETED goal, which is a different action from restoring a trashed one: the goal was finished, not deleted. Sibling of trash_task_reactivated.",
+      "message": "Goal reactivated",
+      "sense": "toast.confirmation"
+    },
+    "trash_task_reactivated": {
+      "description": "Toast after reactivating a COMPLETED task. Sibling of trash_goal_reactivated - see that key.",
+      "message": "Task reactivated",
+      "sense": "toast.confirmation"
+    },
+    "goaltpl_saved_as_template": {
+      "description": "Toast after saving a goal as a reusable template. {name} is the goal's own name, quoted in the English. Its failure sibling is goaltpl_save_failed.",
+      "message": "Saved \"{name}\" as a template",
+      "sense": "toast.confirmation"
+    },
+    "goaltpl_save_failed": {
+      "description": "Toast when saving a goal as a template did not succeed. Deliberately does not guess at a cause the code does not know. Sibling of goaltpl_saved_as_template.",
+      "message": "Could not save template",
+      "sense": "toast.failure"
+    },
+    "goal_stranded_moved_to_standalone": {
+      "description": "Toast after completing a goal that still held unfinished tasks, naming how many were released rather than hidden. THIS SENTENCE IS THE WHOLE POINT of the [1.4.x] fix: a goal completion used to HIDE its unfinished tasks, twenty of the developer's own were affected, and it needed a migration sweep. The user must be told where the tasks went.",
+      "message": "",
+      "plural": {
+        "one": "1 unfinished task moved to Standalone.",
+        "other": "{count} unfinished tasks moved to Standalone."
+      }
+    },
+    "wstracking_on_for_workspace": {
+      "description": "Toast after switching focus tracking ON for the current workspace. VOCABULARY LAW: 'focus tracking' is the engine's measured time and must not soften to 'activity' or 'usage'. Sibling of wstracking_off_for_workspace.",
+      "message": "Focus tracking on for this workspace",
+      "sense": "toast.state"
+    },
+    "wstracking_off_for_workspace": {
+      "description": "Toast after switching focus tracking OFF for the current workspace. Sibling of wstracking_on_for_workspace; the pair must stay parallel in structure.",
+      "message": "Focus tracking off for this workspace",
+      "sense": "toast.state"
+    },
+    "ws_count_subtitle": {
+      "description": "Subtitle under the workspace list in Pro Settings, counting how many exist. A bare count of a noun, so it needs the plural rather than a numeral beside a fixed word.",
+      "message": "",
+      "plural": {
+        "one": "1 workspace",
+        "other": "{count} workspaces"
+      }
+    },
+    "pomodoro_completed_this_task": {
+      "description": "Hint beside the pomodoro reset control, counting completed cycles on the CURRENT task. Its empty-state sibling is sat_no_active_task, which renders instead when nothing is active - a different sentence rather than a zero form, which is why this key has no '=0'.",
+      "message": "",
+      "plural": {
+        "one": "1 completed this task",
+        "other": "{count} completed this task"
+      }
+    },
+    "focusblock_subdomains_included": {
+      "description": "Tooltip on a blocked-domain row, stating that the rule covers subdomains as well as the domain itself. {domain} is the entry as the user typed it.",
+      "message": "{domain} (subdomains included)",
+      "sense": "tooltip.explanation"
+    },
+    "common_hide": {
+      "description": "Toggle label that COLLAPSES a revealed section, shown while the section is open. Its sibling is common_show and the two swap on the same control.",
+      "message": "Hide",
+      "sense": "action.toggle"
+    },
+    "common_show": {
+      "description": "Toggle label that REVEALS a hidden section, shown while the section is closed. Sibling of common_hide.",
+      "message": "Show",
+      "sense": "action.toggle"
+    },
+    "import_preview_more_groups": {
+      "description": "Last row of the import preview list when more groups were found than the preview shows, counting the remainder. The leading plus is part of the English convention for 'and this many more' and may be dropped where a language reads better without it.",
+      "message": "",
+      "plural": {
+        "one": "+1 more",
+        "other": "+{count} more"
+      }
+    },
+    "backup_restored": {
+      "description": "Toast after restoring a backup written by a current version. Its sibling backup_restored_older_format says the same thing for a file in the pre-v2 envelope, and the distinction is worth keeping: a user who sees the older-format wording knows why something might be missing.",
+      "message": "Backup restored.",
+      "sense": "toast.confirmation"
+    },
+    "backup_restored_older_format": {
+      "description": "Toast after restoring a backup written in the older envelope. Sibling of backup_restored - see that key for why the two are separate.",
+      "message": "Backup restored (older format).",
+      "sense": "toast.confirmation"
+    },
+    "sat_pick_an_active_task": {
+      "description": "Tooltip on the active-task pill while nothing is active, naming what clicking it will do. Distinct from sat_no_active_task, which is the visible EMPTY-STATE text rather than a tooltip inviting an action.",
+      "message": "Pick an active task",
+      "sense": "tooltip.action"
+    },
+    "task_complete_with_goal": {
+      "description": "Toast after completing a task that finished its parent goal too, announcing both. {name} is the task and {goalName} the goal, both quoted in the English. Its simpler sibling is task_complete_plain, which renders when no goal was finished - two keys rather than one with an optional clause, because a trailing optional clause is exactly what a translator cannot reorder.",
+      "message": "\"{name}\" complete. Goal \"{goalName}\" finished!",
+      "sense": "toast.confirmation"
+    },
+    "task_complete_plain": {
+      "description": "Toast after completing a task that did not finish its parent goal. Sibling of task_complete_with_goal. Deliberately has no full stop in the English, matching the shipped string.",
+      "message": "\"{name}\" complete",
+      "sense": "toast.confirmation"
+    },
+    "tips_examples_already_present": {
+      "description": "Note under the restore-examples control when the example groups are already on the grid, explaining why the control is inert. Its sibling is tips_examples_restore_hint, which renders when the control WILL do something.",
+      "message": "Examples are already on your grid.",
+      "sense": "note.state"
+    },
+    "tips_examples_restore_hint": {
+      "description": "Note under the restore-examples control when the examples are absent, naming exactly what the control will put back. Sibling of tips_examples_already_present.",
+      "message": "Puts the example groups and tips tiles back on your grid.",
+      "sense": "note.action"
+    },
+    "sidebar_collapse_all": {
+      "description": "Label on the sidebar's expand/collapse-all control while every group is expanded. Its sibling is sidebar_expand_all, which is the same control's other state.",
+      "message": "Collapse all",
+      "sense": "action.toggle"
+    },
+    "sidebar_collapse_all_groups": {
+      "description": "Tooltip and accessible name for the sidebar collapse-all control. Sibling of sidebar_expand_all_groups - see that key.",
+      "message": "Collapse all groups",
+      "sense": "tooltip.action"
+    },
+    "sessionmenu_change_task": {
+      "description": "Menu label on a shortcut already attached to a task, offering to move it to a different one. Its unattached sibling is sessionmenu_attach_to_task, which the same control shows when nothing is attached.",
+      "message": "Change task",
+      "sense": "action.menu"
+    },
+    "task_moved_to_goal": {
+      "description": "Toast after moving a task into a goal from the menu. {name} is the task, {goalName} the goal. Its sibling is task_now_standalone, for the move in the other direction.",
+      "message": "{name} moved to {goalName}.",
+      "sense": "toast.confirmation"
+    },
+    "task_now_standalone": {
+      "description": "Toast after moving a task OUT of a goal. SENSE OF STANDALONE: belonging to no goal, which is a real place in this product rather than an absence. Sibling of task_moved_to_goal.",
+      "message": "{name} is now a standalone task.",
+      "sense": "toast.confirmation"
+    },
+    "session_now_on_task": {
+      "description": "Toast after attaching a saved session to a task. {name} is the session, {taskName} the task. SENSE OF SESSION: a saved set of tabs. Its sibling is session_no_longer_on_task.",
+      "message": "{name} is now on {taskName}.",
+      "sense": "toast.confirmation"
+    },
+    "session_no_longer_on_task": {
+      "description": "Toast after detaching a saved session from a task. {name} is the session, {taskName} the task it was on. Its sibling is session_no_longer_on_a_task, used when the previous task cannot be named.",
+      "message": "{name} is no longer on {taskName}.",
+      "sense": "toast.confirmation"
+    },
+    "session_no_longer_on_a_task": {
+      "description": "The detach toast for the case where the task the session was on could not be resolved - deleted, or in another workspace. Says 'a task' rather than naming one. Sibling of session_no_longer_on_task.",
+      "message": "{name} is no longer on a task.",
+      "sense": "toast.confirmation"
+    },
+    "session_deleted_undo": {
+      "description": "Toast after soft-deleting a saved session, shown beside an Undo control. {name} is the session's own name. Letting the toast expire leaves the row in the trash rather than destroying it, so this must not read as permanent.",
+      "message": "{name} deleted.",
+      "sense": "toast.confirmation"
+    },
+    "sessions_tab_count": {
+      "description": "Counts the tabs in a saved session. Used on the session row, its trash row, the row's accessible name and the restore panel. ONE key for all four, because they are one fact about one thing and a language that inflects the noun must inflect it everywhere.",
+      "message": "",
+      "plural": {
+        "one": "1 tab",
+        "other": "{count} tabs"
+      }
+    },
+    "rc_domain_page_count": {
+      "description": "Heading of the recently-closed panel's per-domain list, naming the domain and how many pages it holds. {domain} is a host name and must not be translated; {count} needs the plural because the noun is counted.",
+      "message": "",
+      "plural": {
+        "one": "{domain} (1 page)",
+        "other": "{domain} ({count} pages)"
+      }
+    },
+    "nest_different_sites": {
+      "description": "Toast refusing a nest between two shortcuts on different domains. {hostA} and {hostB} are host names and must not be translated. The second sentence must stay: a refusal that does not say what WOULD work reads as a malfunction. Named in August 2026 as one of four shapes no i18n gate has ever been able to see.",
+      "message": "{hostA} and {hostB} are different sites. Nest tiles from the same address.",
+      "sense": "toast.refusal"
+    },
+    "tasks_standalone_name_collision": {
+      "description": "Toast refusing to move a task to Standalone because a standalone task of that name already exists. {name} is the task's own name, quoted in the English. SENSE OF STANDALONE: belonging to no goal.",
+      "message": "A standalone task named \"{name}\" already exists.",
+      "sense": "toast.refusal"
+    },
+    "note_aria_label": {
+      "description": "Accessible name of a note card, reading the note's own text after a short prefix so a screen reader announces what the card contains. {text} is the note's content, collapsed to one line and truncated. The empty-note case uses common_empty_note instead.",
+      "message": "Note: {text}",
+      "sense": "label.accessible"
+    },
+    "notes_purges_today": {
+      "description": "Countdown on a trashed note whose 30 days expire today. A different sentence from the day count rather than a zero form of it, which is why notes_days_remaining has no '=0'.",
+      "message": "Purges today",
+      "sense": "note.countdown"
+    },
+    "notes_days_remaining": {
+      "description": "Countdown on a trashed note, naming how long before it purges for good. The today case is notes_purges_today, a different sentence rather than a zero form.",
+      "message": "",
+      "plural": {
+        "one": "1 day remaining",
+        "other": "{count} days remaining"
+      }
+    },
+    "goaltpl_no_deadline": {
+      "description": "Summary on a goal template that sets no deadline. Its siblings are goaltpl_due_same_day and goaltpl_due_offset_days, which cover the other two shapes the same summary line can take.",
+      "message": "no deadline",
+      "sense": "summary.template"
+    },
+    "goaltpl_due_same_day": {
+      "description": "Summary on a goal template whose deadline is the day the goal is created. Sibling of goaltpl_no_deadline and goaltpl_due_offset_days.",
+      "message": "due same day",
+      "sense": "summary.template"
+    },
+    "goaltpl_due_offset_days": {
+      "description": "Summary on a goal template whose deadline is a number of days after creation. Sibling of goaltpl_no_deadline and goaltpl_due_same_day; the leading plus is the English convention for an offset.",
+      "message": "",
+      "plural": {
+        "one": "due +1 day",
+        "other": "due +{count} days"
+      }
+    },
+    "goaltpl_deadline_computed": {
+      "description": "Read-only line in the goal modal showing the date a chosen template will set, so the user sees the actual day rather than an offset. {date} is already formatted by the caller and is a VALUE, not a sentence fragment. The trailing clause names WHY the field is read-only.",
+      "message": "{date} · set by this template",
+      "sense": "note.explanation"
+    },
+    "insights_custom_range": {
+      "description": "Label on the Insights custom-range control before any range is chosen. Once a range exists the label becomes the formatted dates themselves, which are values rather than prose.",
+      "message": "custom range",
+      "sense": "label.control"
+    },
+    "sat_pomo_advance_toast": {
+      "description": "Toast shown IN THE PAGE when a focus interval ends and the break begins. It holds the same two sentences as the OS notification notif_break_time_body and notif_break_time_title, joined - the notification is the out-of-page version of this moment and the three must move together. NOT a duplicate key for one sentence: no existing key holds this combined string, and pointing the toast at the body alone would silently drop 'Break time.' VOCABULARY LAW: 'focused' is the engine's measured time and must not soften to 'worked' or 'spent'.",
+      "message": "",
+      "plural": {
+        "one": "Nice, {count} min focused. Break time.",
+        "other": "Nice, {count} min focused. Break time."
+      }
     }
   });

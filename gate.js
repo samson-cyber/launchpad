@@ -35,8 +35,19 @@
   var actionsEl = document.querySelector(".gate-actions");
   // The headline's trailing text node, captured before anything rewrites it, so
   // a re-render back to the blocked state can put it back.
+  // THE FALLBACK GOES THROUGH THE CATALOGUE, and it is a REPOINT rather than a
+  // new key: gate.html's headline already carries data-i18n="gate_is_blocked",
+  // so the literal here was a second copy of a sentence the catalogue already
+  // held - a Decision 4 duplicate that nothing looked for.
+  //
+  // THE LEADING SPACE IS NOT PROSE AND IS NOT CONCATENATED COPY. i18n-dom's
+  // setText preserves the text node's own surrounding whitespace verbatim
+  // (m[1] + value + m[3]), so the live path yields " is blocked" from a
+  // catalogue value of "is blocked". This fallback mirrors that exactly, or the
+  // headline would read "example.comis blocked" on the one path where the node
+  // is missing.
   var HEADLINE_BLOCKED = (headlineEl && headlineEl.lastChild && headlineEl.lastChild.nodeType === 3)
-    ? headlineEl.lastChild.nodeValue : " is blocked";
+    ? headlineEl.lastChild.nodeValue : " " + I18n.t("gate_is_blocked");
 
   // ABSENT, NOT DISABLED. Removed from the DOM, so there is nothing to tab to
   // and nothing greyed out implying a state the user could reach.
@@ -57,7 +68,7 @@
   // normalized before it is ever stored, but this page is reachable with an
   // arbitrary query, so it is treated as untrusted input regardless. textContent
   // cannot introduce markup; innerHTML here would be an injection sink.
-  domainEl.textContent = entry || "This site";
+  domainEl.textContent = entry || I18n.t("gate_this_site_headline");
 
   // Only ever navigate back to an http(s) target — the same scheme allowlist the
   // intercept uses. A crafted ?to=javascript:... must not be followed.

@@ -2361,7 +2361,12 @@ var Storage = (function () {
   // their own voice, and costs the seconds it takes to type. "I am wasting my
   // time" would be the product telling someone what they are doing with their
   // afternoon, which is not a thing this product is entitled to say.
-  var COMMITMENT_SENTENCE = "I am choosing to open this";
+  // A FUNCTION, NOT A CONSTANT, AND THAT IS THE WHOLE POINT. R5.2 found that a
+  // t() call inside a module-level literal FREEZES AT LOAD: English resolves,
+  // every static check agrees, and the value never follows a locale change.
+  // `var COMMITMENT_SENTENCE = I18n.t(...)` would have been exactly that bug.
+  // frictionPlanFor is called per-open, so resolving there is always current.
+  function commitmentSentence() { return I18n.t("focus_commitment_sentence"); }
 
   function isCommitmentArmed(data) {
     return !!(data && data.settings && data.settings.focus &&
@@ -2398,7 +2403,7 @@ var Storage = (function () {
    * { delayMs, repeat, needsSentence, sentence }
    */
   function frictionPlanFor(data, entry, nowMs) {
-    var none = { delayMs: 0, repeat: false, needsSentence: false, sentence: COMMITMENT_SENTENCE };
+    var none = { delayMs: 0, repeat: false, needsSentence: false, sentence: commitmentSentence() };
     if (!data) return none;
     if (sessionStampMode(data) !== "work") return none;   // Casual, or no session at all
     var session = sessionStampId(data);
@@ -2414,7 +2419,7 @@ var Storage = (function () {
       delayMs: repeat ? FRICTION_REPEAT_MS : FRICTION_FIRST_MS,
       repeat: repeat,
       needsSentence: repeat && isCommitmentArmed(data),
-      sentence: COMMITMENT_SENTENCE
+      sentence: commitmentSentence()
     };
   }
 
@@ -3405,7 +3410,7 @@ var Storage = (function () {
   var DEMO_SEED_GROUPS = [
     {
       id: "demo_daily",
-      name: "✨ Daily examples",
+      nameKey: "demo_group_daily",
       shortcuts: [
         { titleKey: "demoshortcut_google", url: "https://www.google.com" },
         { titleKey: "demoshortcut_youtube", url: "https://www.youtube.com" },
@@ -3416,7 +3421,7 @@ var Storage = (function () {
     },
     {
       id: "demo_work",
-      name: "✨ Work examples",
+      nameKey: "demo_group_work",
       shortcuts: [
         { titleKey: "demoshortcut_docs", url: "https://docs.google.com" },
         { titleKey: "demoshortcut_calendar", url: "https://calendar.google.com" },
@@ -3499,7 +3504,7 @@ var Storage = (function () {
     // with them, the Clear Examples control.
     var intro = {
       id: DEMO_INTRO_GROUP_ID,
-      name: "Getting started",
+      name: I18n.t("getting_getting_started"),
       deletedAt: null,
       shortcuts: DEMO_TILES.map(function (kind) {
         i++;
@@ -3516,7 +3521,7 @@ var Storage = (function () {
     var seeded = [intro].concat(DEMO_SEED_GROUPS.map(function (g) {
       return {
         id: g.id,
-        name: g.name,
+        name: I18n.t(g.nameKey),
         deletedAt: null,
         // The title is resolved HERE, at seed time, not where the array is
         // declared: DEMO_SEED_GROUPS is module-level, so a t() in it would
@@ -5765,7 +5770,18 @@ var Storage = (function () {
 
   // Phase eyebrow text. Kept beside the phase readers so a new phase cannot be
   // added in one place and labelled in another.
-  var POMODORO_PHASE_LABELS = { work: "Work", shortBreak: "Break", longBreak: "Long break" };
+  // A FUNCTION for the same reason commitmentSentence is one - a module-level
+  // object of t() calls freezes at load. companion.js reads the EXPORT by name
+  // (Storage.POMODORO_PHASE_LABELS[phase]) and this round may not touch that
+  // file, so the export below is a getter returning a freshly built map: the
+  // caller is unchanged and the value is current.
+  function pomodoroPhaseLabels() {
+    return {
+      work: I18n.t("pomodoro_phase_work"),
+      shortBreak: I18n.t("pomodoro_phase_break"),
+      longBreak: I18n.t("pomodoro_phase_long_break")
+    };
+  }
 
   // H:MM:SS above an hour, M:SS below it. THE CLAMP IS THE POINT and it lives at
   // the formatter because that is the single funnel every time surface flows
@@ -10149,7 +10165,7 @@ var Storage = (function () {
     emptyPomodoroState: emptyPomodoroState,
     hydratePomodoroState: hydratePomodoroState,
     // [1.9.1] Shared with the companion module; see the block beside them.
-    POMODORO_PHASE_LABELS: POMODORO_PHASE_LABELS,
+    get POMODORO_PHASE_LABELS() { return pomodoroPhaseLabels(); },
     fmtDuration: fmtDuration,
     activeElapsedMs: activeElapsedMs,
     LAYOUTS: LAYOUTS,
@@ -10314,7 +10330,10 @@ var Storage = (function () {
     blockingEntryHolds: blockingEntryHolds,
     FRICTION_FIRST_MS: FRICTION_FIRST_MS,
     FRICTION_REPEAT_MS: FRICTION_REPEAT_MS,
-    COMMITMENT_SENTENCE: COMMITMENT_SENTENCE,
+    // A GETTER, not a value. Exported under its original name so no caller
+    // changes, but resolved at ACCESS time - a plain property would re-freeze
+    // the string this round just unfroze.
+    get COMMITMENT_SENTENCE() { return commitmentSentence(); },
     isCommitmentArmed: isCommitmentArmed,
     setCommitmentArmed: setCommitmentArmed,
     sessionStampId: sessionStampId,

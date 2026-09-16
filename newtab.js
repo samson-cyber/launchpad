@@ -649,9 +649,9 @@
     if (typeof dueAt !== "number") return "";
     var today = dashboardTodayAsUtcDay();
     var due = Storage.utcDay(dueAt);
-    if (due < today) return "Overdue";
-    if (due === today) return "Due today";
-    return "Due " + fmtShortDate(dueAt);
+    if (due < today) return t("dash_overdue");
+    if (due === today) return t("dashboard_due_today");
+    return t("dashboard_due_on_date", { date: fmtShortDate(dueAt) });
   }
 
   // ----- Focused Today line (D5) -----
@@ -1559,9 +1559,12 @@
   // not the place to start.
   function dashGreeting() {
     var h = new Date().getHours();
-    if (h < 12) return "Good morning";
-    if (h < 17) return "Good afternoon";
-    return "Good evening";
+    // REPOINTED, not re-authored: the catalogue already held all three of
+    // these as clock_good_*. R5.3 named this helper as one of three holding
+    // copy the catalogue already has - a Decision 4 violation no check looks for.
+    if (h < 12) return t("clock_good_morning");
+    if (h < 17) return t("clock_good_afternoon");
+    return t("clock_good_evening");
   }
 
   function renderDashboardTab(panel, d, periodOverride) {
@@ -2652,7 +2655,7 @@
   // selectable span is 30 days, so a year would be noise, and a year wrap still
   // reads correctly as "Dec 28-Jan 3" without one.
   function insightsCustomLabel(keys) {
-    if (!keys || !keys.length) return "custom range";
+    if (!keys || !keys.length) return t("insights_custom_range");
     var a = fmtShortDate(insightsKeyToTs(keys[0]));
     var b = fmtShortDate(insightsKeyToTs(keys[keys.length - 1]));
     return a === b ? a : (a + "-" + b);
@@ -3842,13 +3845,15 @@
   var NOTE_LABEL_MAX = 60;
   function noteAriaLabel(note) {
     var t = String((note && note.content) || "").replace(/\s+/g, " ").trim();
-    if (!t) return "Empty note";
+    // REPOINTED to common_empty_note, which the catalogue already held.
+    // I18n.t, not t(): this function has a LOCAL t holding the note text.
+    if (!t) return I18n.t("common_empty_note");
     if (t.length > NOTE_LABEL_MAX) {
       var cut = t.slice(0, NOTE_LABEL_MAX);
       var sp = cut.lastIndexOf(" ");
       t = (sp > 0 ? cut.slice(0, sp) : cut).trim();
     }
-    return "Note: " + t;
+    return I18n.t("note_aria_label", { text: t });
   }
 
   function notesPaperVar(color) {
@@ -4537,8 +4542,8 @@
   function notesDaysRemainingLabel(deletedAt) {
     var days = notesDaysRemaining(deletedAt);
     if (days === null) return "";
-    if (days === 0) return "Purges today";
-    return days === 1 ? "1 day remaining" : days + " days remaining";
+    if (days === 0) return t("notes_purges_today");
+    return t("notes_days_remaining", { count: days });
   }
 
   // ~3-line preview per notes.md, clamped in CSS rather than sliced in JS so the
@@ -4797,7 +4802,7 @@
   // multi-line note cannot put a raw break inside a single-line task name.
   function promoteTaskName(content) {
     var s = String(content || "").trim();
-    if (!s) return "New task";
+    if (!s) return t("new_new_task");
     var flat = s.replace(/\s+/g, " ");
     if (flat.length <= PROMOTE_NAME_MAX) return flat;
     var cut = flat.slice(0, PROMOTE_NAME_MAX);
@@ -6405,7 +6410,7 @@
     }
     var panel = document.getElementById("tab-tasks");
     if (panel) renderTasksTab(panel, data);
-    showToast(kind === "goal" ? "Goal restored" : "Task restored");
+    showToast(t(kind === "goal" ? "trash_goal_restored" : "trash_task_restored"));
   }
 
   // [Polish] Completed-box: reactivate a completed goal or task via the visible
@@ -6426,7 +6431,7 @@
     }
     var panel = document.getElementById("tab-tasks");
     if (panel) renderTasksTab(panel, data);
-    showToast(kind === "goal" ? "Goal reactivated" : "Task reactivated");
+    showToast(t(kind === "goal" ? "trash_goal_reactivated" : "trash_task_reactivated"));
   }
 
   // [Tasks] Deleted-box: permanent delete — the ONLY delete that confirms
@@ -8039,7 +8044,8 @@
         function templateDeadlineLabel(offsetDays) {
           var now = new Date();
           var dt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) + offsetDays * 86400000);
-          return dt.getUTCDate() + " " + shortMonthNames()[dt.getUTCMonth()] + " " + dt.getUTCFullYear() + " · set by this template";
+          var dstr = dt.getUTCDate() + " " + shortMonthNames()[dt.getUTCMonth()] + " " + dt.getUTCFullYear();
+          return t("goaltpl_deadline_computed", { date: dstr });
         }
         function showEditableDeadline() {
           deadlineComputed.classList.add("hidden");
@@ -8407,9 +8413,9 @@
   var GOAL_TPL_PRIORITIES = [["", "None"], ["low", "Low"], ["medium", "Medium"], ["high", "High"], ["urgent", "Urgent"]];
 
   function goalTemplateOffsetSummary(tpl) {
-    if (tpl.deadlineOffsetDays == null) return "no deadline";
+    if (tpl.deadlineOffsetDays == null) return t("goaltpl_no_deadline");
     var d = tpl.deadlineOffsetDays;
-    return d === 0 ? "due same day" : "due +" + d + " day" + (d === 1 ? "" : "s");
+    return d === 0 ? t("goaltpl_due_same_day") : t("goaltpl_due_offset_days", { count: d });
   }
 
   function goalTemplateListHtml(workspace) {
@@ -8834,7 +8840,7 @@
         // tasks (name+priority) as a reusable goal template.
         try {
           var savedTpl = await Storage.saveGoalAsTemplate(data, goalId);
-          showToast(savedTpl ? 'Saved "' + goal.name + '" as a template' : "Could not save template");
+          showToast(savedTpl ? t("goaltpl_saved_as_template", { name: goal.name }) : t("goaltpl_save_failed"));
         } catch (err) {
           console.error("[LaunchPad] Tasks: saveGoalAsTemplate failed", err);
         }
@@ -8851,9 +8857,7 @@
           celebrateGoalCompletion(goalId);   // [1.0.24 item 3] immediate, in place
           renderInsightsPanelEager();         // [1.0.22 D10] Goal Crusher may have unlocked
           if (stranded.length) {
-            showToast(stranded.length === 1
-              ? "1 unfinished task moved to Standalone."
-              : stranded.length + " unfinished tasks moved to Standalone.");
+            showToast(t("goal_stranded_moved_to_standalone", { count: stranded.length }));
           }
         };
         if (!stranded.length) {
@@ -11293,7 +11297,7 @@
         // the access-gated dispatcher (D10-safe). This touches only
         // #tab-dashboard, so the workspace-list Sortable above is untouched.
         renderTabPlaceholder("dashboard", currentAccessLevel());
-        showToast(enabled ? "Focus tracking on for this workspace" : "Focus tracking off for this workspace");
+        showToast(t(enabled ? "wstracking_on_for_workspace" : "wstracking_off_for_workspace"));
       });
     });
 
@@ -11375,7 +11379,7 @@
     // Drop the [1.0.3] "Coming in v1.0.6" subtitle now that this section is live.
     var subtitle = host.parentNode && host.parentNode.querySelector(".pro-section-subtitle");
     if (subtitle) {
-      subtitle.textContent = workspaces.length + " workspace" + (workspaces.length === 1 ? "" : "s");
+      subtitle.textContent = t("ws_count_subtitle", { count: workspaces.length });
     }
 
     // Drop the placeholder "Add workspace" button from [1.0.3] (it carries
@@ -11496,7 +11500,7 @@
     var active = Storage.getActiveTask(data);
     var ps = active ? Storage.hydratePomodoroState(active.pomodoroState) : null;
     if (resetBtn) resetBtn.disabled = !ps || ps.cycleCount === 0;
-    if (hint) hint.textContent = ps ? (ps.cycleCount + " completed this task") : "No active task";
+    if (hint) hint.textContent = ps ? t("pomodoro_completed_this_task", { count: ps.cycleCount }) : t("sat_no_active_task");
     // [1.0.18 B-1 / B5] Reflect the toggle as flag AND permission-actually-held: if
     // the user revoked 'notifications' via chrome://settings behind our back, show
     // OFF regardless of the stored flag (async contains check). Clear any stale
@@ -11727,7 +11731,7 @@
       var name = document.createElement("span");
       name.className = "focus-block-domain";
       name.textContent = entry;
-      name.title = entry + " (subdomains included)";
+      name.title = t("focusblock_subdomains_included", { domain: entry });
 
       // A MODE LABEL ONLY WHEN THE MODE IS NOT THE DEFAULT. A row that said
       // "During focus sessions" on every line would be furniture repeating what
@@ -12085,7 +12089,7 @@
           var toggle = document.createElement("button");
           toggle.type = "button";
           toggle.className = "pro-tags-trash-toggle";
-          toggle.textContent = proTagsTrashRevealed ? "Hide" : "Show";
+          toggle.textContent = t(proTagsTrashRevealed ? "common_hide" : "common_show");
           toggle.addEventListener("click", function () {
             proTagsTrashRevealed = !proTagsTrashRevealed;
             renderProTagsSection();
@@ -13803,7 +13807,7 @@
     });
     if (parsed.groups.length > 12) {
       var more = document.createElement("li");
-      more.textContent = "+" + (parsed.groups.length - 12) + " more";
+      more.textContent = t("import_preview_more_groups", { count: parsed.groups.length - 12 });
       ul.appendChild(more);
     }
     var notes = [];
@@ -15303,7 +15307,7 @@
       var ss = launcherScore(sess.name, q);
       if (ss === -1) return;
       out.push({ kind: "session", id: sess.id, label: sess.name,
-                 sub: (sess.tabs || []).length + " tabs",
+                 sub: t("sessions_tab_count", { count: (sess.tabs || []).length }),
                  rank: ss, len: (sess.name || "").length, ord: 900000 + si });
     });
 
@@ -16821,7 +16825,7 @@
     applyWallDim(Storage.getWallDim(data));
       refreshOldFavicons();
       render();
-      showToast(parsed.schema >= 2 ? "Backup restored." : "Backup restored (older format).");
+      showToast(t(parsed.schema >= 2 ? "backup_restored" : "backup_restored_older_format"));
     };
     reader.onerror = function () {
       showToast(t("backup_could_not_read_file"));
@@ -18459,7 +18463,7 @@
   function satPomoAdvanceToast(res) {
     var ms = (typeof res.fromDurationMs === "number" && res.fromDurationMs > 0)
       ? res.fromDurationMs : satPomoPhaseTotalMs("work");
-    return "Nice, " + Math.round(ms / 60000) + " min focused. Break time.";
+    return t("sat_pomo_advance_toast", { count: Math.round(ms / 60000) });
   }
 
   // ===== [1.0.18 B-2] Boundary chime =====
@@ -19427,7 +19431,7 @@
     // is expanded, so its top-right + New / Templates cluster slides clear of the
     // card. The slim pill/empty states sit above the cluster and release it.
     document.body.classList.toggle("sat-card-open", showCard);
-    pill.setAttribute("title", res ? res.task.name : "Pick an active task");
+    pill.setAttribute("title", res ? res.task.name : t("sat_pick_an_active_task"));
     if (showCard) {
       pill.setAttribute("role", "region");
       pill.setAttribute("aria-label", t("common_active_task"));
@@ -19713,8 +19717,8 @@
     // and that path needs a mounted row — which a sidebar completion has no
     // reason to have. So the widget says it itself.
     showToast(result.goalAutoCompleted && result.autoCompletedGoal
-      ? '"' + name + '" complete. Goal "' + result.autoCompletedGoal.name + '" finished!'
-      : '"' + name + '" complete');
+      ? t("task_complete_with_goal", { name: name, goalName: result.autoCompletedGoal.name })
+      : t("task_complete_plain", { name: name }));
   }
 
   // --- Switch dropdown (D5): workspace -> goal -> tasks ---------------------
@@ -20368,9 +20372,9 @@
     btn.setAttribute("aria-disabled", present ? "true" : "false");
     btn.classList.toggle("is-gated", present);
     if (note) {
-      note.textContent = present
-        ? "Examples are already on your grid."
-        : "Puts the example groups and tips tiles back on your grid.";
+      note.textContent = t(present
+        ? "tips_examples_already_present"
+        : "tips_examples_restore_hint");
     }
   }
 
@@ -20915,9 +20919,13 @@
     var labelEl = btn.querySelector(".sb-label");
     var allCollapsed = sidebarExpandedGroupIds.size === 0;
     if (iconSlot) iconSlot.innerHTML = allCollapsed ? CHEVRONS_DOWN_SVG : CHEVRONS_UP_SVG;
-    if (labelEl) labelEl.textContent = allCollapsed ? "Expand all" : "Collapse all";
-    btn.setAttribute("title", allCollapsed ? "Expand all groups" : "Collapse all groups");
-    btn.setAttribute("aria-label", allCollapsed ? "Expand all groups" : "Collapse all groups");
+    if (labelEl) labelEl.textContent = t(allCollapsed ? "sidebar_expand_all" : "sidebar_collapse_all");
+    // REPOINTED: feature_expand_all_name already holds "Expand all groups",
+    // and its own description names these two sinks - newtab.html:36 title
+    // and aria-label - which this JS overwrites on every toggle.
+    var allLabel = t(allCollapsed ? "feature_expand_all_name" : "sidebar_collapse_all_groups");
+    btn.setAttribute("title", allLabel);
+    btn.setAttribute("aria-label", allLabel);
   }
 
   function toggleAllSidebarGroups() {
@@ -21188,10 +21196,10 @@
     }).join("");
     var more = count > 4 ? '<span class="session-fav-more">+' + (count - 4) + '</span>' : "";
     return '<div class="session-row" data-session-id="' + esc(s.id) + '" role="button" tabindex="0" ' +
-             'aria-label="' + esc((s.name || "Untitled session") + ", " + count + (count === 1 ? " tab" : " tabs")) + '">' +
+             'aria-label="' + esc((s.name || t("sessions_untitled_session")) + ", " + t("sessions_tab_count", { count: count })) + '">' +
              '<div class="session-row-main">' +
                '<span class="session-name">' + esc(s.name || t("sessions_untitled_session")) + '</span>' +
-               '<span class="session-meta">' + count + (count === 1 ? " tab" : " tabs") +
+               '<span class="session-meta">' + esc(t("sessions_tab_count", { count: count })) +
                  // [1.4.2] The relationship is legible from BOTH sides: the task row
                  // carries the session, and the session row names its task.
                  (attachedName
@@ -21412,7 +21420,7 @@
     return '<li class="sessions-trash-row" data-trash-session-id="' + esc(s.id) + '">' +
         '<div class="sessions-trash-main">' +
           '<span class="sessions-trash-name">' + esc(s.name || t("sessions_untitled_session")) + '</span>' +
-          '<span class="sessions-trash-meta">' + count + (count === 1 ? " tab" : " tabs") +
+          '<span class="sessions-trash-meta">' + esc(t("sessions_tab_count", { count: count })) +
             ' <span class="sessions-trash-dot" aria-hidden="true">\u00b7</span> ' +
             '<span class="sessions-trash-countdown ' + trashCountdownClass(days) + '">' +
               esc(notesDaysRemainingLabel(s.deletedAt)) +
@@ -21578,7 +21586,7 @@
     var proOk = isProAccessibleLevel(currentAccessLevel());
     var aBtn = $("#sctx-attach"), dBtn = $("#sctx-detach");
     if (aBtn) {
-      aBtn.textContent = attached ? "Change task" : "Attach to task";
+      aBtn.textContent = t(attached ? "sessionmenu_change_task" : "sessionmenu_attach_to_task");
       aBtn.classList.toggle("hidden", !proOk);
     }
     if (dBtn) dBtn.classList.toggle("hidden", !proOk || !attached);
@@ -21631,7 +21639,7 @@
   // rules quietly stop being one rule.
 
   function taskGoalStandaloneCollisionText(name) {
-    return 'A standalone task named "' + name + '" already exists.';
+    return t("tasks_standalone_name_collision", { name: name });
   }
 
   function taskGoalCollisionText(name, suggested) {
@@ -21663,8 +21671,8 @@
         var gname = targetGoalId
           ? (Storage.getGoalById(Storage.getActiveWorkspace(data), targetGoalId) || {}).name
           : null;
-        showToast(gname ? (taskName + " moved to " + gname + ".")
-                        : (taskName + " is now a standalone task."));
+        showToast(gname ? t("task_moved_to_goal", { name: taskName, goalName: gname })
+                        : t("task_now_standalone", { name: taskName }));
       } catch (err) {
         console.error("[LaunchPad] Tasks: menu reassign failed", err);
       }
@@ -22247,7 +22255,7 @@
       data = await Storage.getAll();
       renderSessionsList();
       eagerRenderTasks();
-      showToast((session.name || "Session") + " is now on " + task.name + ".");
+      showToast(t("session_now_on_task", { name: session.name || t("sessions_untitled_session"), taskName: task.name }));
     };
 
     // A MOVE gets a confirm naming BOTH ends, because two things change at once:
@@ -22351,7 +22359,9 @@
       data = await Storage.getAll();
       renderSessionsList();
       eagerRenderTasks();
-      showToast((s.name || "Session") + " is no longer on " + (wasOn ? wasOn.name : "a task") + ".");
+      showToast(wasOn
+        ? t("session_no_longer_on_task", { name: s.name || t("sessions_untitled_session"), taskName: wasOn.name })
+        : t("session_no_longer_on_a_task", { name: s.name || t("sessions_untitled_session") }));
       return;
     }
 
@@ -22363,7 +22373,7 @@
       renderSessionsList();
       // Soft-delete plus undo. Letting the toast expire leaves the row soft-deleted
       // for [1.4.3]'s trash view rather than destroying anything.
-      showUndoToast(name + " deleted.", async function () {
+      showUndoToast(t("session_deleted_undo", { name: name }), async function () {
         Storage.restoreNamedSession(data, id);
         await Storage.saveAll(data);
         data = await Storage.getAll();
@@ -22451,7 +22461,7 @@
     var tabCount = countSessionTabs(session);
     var countEl = $("#restore-tab-count");
     if (countEl) {
-      countEl.textContent = tabCount + " tab" + (tabCount !== 1 ? "s" : "") + " \u00B7 " + formatSavedTime(session ? session.timestamp : null);
+      countEl.textContent = t("sessions_tab_count", { count: tabCount }) + " \u00B7 " + formatSavedTime(session ? session.timestamp : null);
     }
 
     var allBtn = $("#restore-all-btn");
@@ -22683,7 +22693,7 @@
     var title = $("#rc-panel-title");
     var listEl = $("#rc-panel-list");
 
-    title.textContent = group.domain + " (" + group.pages.length + " pages)";
+    title.textContent = t("rc_domain_page_count", { domain: group.domain, count: group.pages.length });
 
     // Sort pages by most recent
     var sorted = group.pages.slice().sort(function (a, b) {
@@ -24499,7 +24509,7 @@
       removeBtn.childNodes.forEach(function (n) {
         if (n.nodeType === 3 && n.textContent.trim()) textNodes.push(n);
       });
-      if (textNodes.length) textNodes[0].textContent = hasVariants ? " Delete all" : " Remove";
+      if (textNodes.length) textNodes[0].textContent = " " + t(hasVariants ? "dialog_delete_variants_action" : "common_remove");
     }
 
     var rect = anchor.getBoundingClientRect();
@@ -24533,7 +24543,7 @@
 
   function openModal(mode, groupId, shortcut) {
     modalState = { mode: mode, groupId: groupId, shortcut: shortcut || null };
-    $("#modal-title").textContent = mode === "edit" ? "Edit shortcut" : "Add shortcut";
+    $("#modal-title").textContent = t(mode === "edit" ? "page_edit_shortcut" : "add_add_shortcut");
     $("#modal-name").value = shortcut ? (shortcut.title || "") : "";
     $("#modal-url").value = shortcut ? (shortcut.url || "") : "";
     $("#modal-name").dataset.edited = mode === "edit" ? "true" : "false";
@@ -25269,7 +25279,7 @@
             var missHostA = getBaseDomain(missDragged.url);
             var missHostB = getBaseDomain(missShortcut.url);
             if (missHostA && missHostB) {
-              showToast(missHostA + " and " + missHostB + " are different sites. Nest tiles from the same address.");
+              showToast(t("nest_different_sites", { hostA: missHostA, hostB: missHostB }));
             }
           }
         }

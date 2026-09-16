@@ -1611,7 +1611,7 @@ async function cmdSaveWindowAsSession(cmdTab) {
     var ws = Storage.getActiveWorkspace(data);
     if (!ws) return;
     var n = (Storage.getAllNamedSessions(ws) || []).length + 1;
-    var created = Storage.createNamedSessionAtFront(data, { name: "Session " + n, tabs: eligible });
+    var created = Storage.createNamedSessionAtFront(data, { name: I18n.t("sessions_default_numbered_name", { n: n }), tabs: eligible });
     if (!created) { result = { skipped: "create-failed" }; return; }
     await Storage.saveAll(data);
     result = { saved: created.name, tabs: eligible.length };
@@ -1716,7 +1716,7 @@ function addShortcutFromContextMenuBg(shortcut, menuId) {
 
       if (targetGroupId === "new") {
         var newId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-        targetGroup = { id: newId, name: "New Group", shortcuts: [], deletedAt: null };
+        targetGroup = { id: newId, name: I18n.t("group_new_default_name"), shortcuts: [], deletedAt: null };
         ws.groups.push(targetGroup);
         ws.groupOrder.push(newId);
       } else {
@@ -1746,7 +1746,7 @@ function addShortcutFromContextMenuBg(shortcut, menuId) {
         try {
           var variantPath = new URL(url).pathname;
           var accountMatch = variantPath.match(/\/u\/(\d+)/);
-          if (accountMatch) variantTitle = "Account " + (parseInt(accountMatch[1]) + 1);
+          if (accountMatch) variantTitle = I18n.t("variant_account_label", { n: parseInt(accountMatch[1]) + 1 });
         } catch (e) {}
         existingMatch.variants.push({
           id: shortcut.id,
