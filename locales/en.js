@@ -89,6 +89,50 @@ I18n.register("en", {
     "description": "Generic action label, shared across surfaces. Shared by 2 sinks: newtab.html:368 text, newtab.html:697 text.",
     "sense": "action.generic"
   },
+  "prosettings_mode_work": {
+    "message": "Work",
+    "description": "Button selecting which mode preset the focus-session lengths below are editing."
+  },
+  "prosettings_mode_casual": {
+    "message": "Casual",
+    "description": "Button selecting which mode preset the focus-session lengths below are editing."
+  },
+  "prosettings_which_mode_these_lengths": {
+    "message": "Which mode these lengths belong to",
+    "description": "Accessible group label on the two mode buttons above the focus-session lengths."
+  },
+  "prosettings_each_mode_keeps_its_own_lengths": {
+    "message": "Each mode keeps its own lengths. A session runs under the mode of the workspace it started in.",
+    "description": "Note under the mode selector, explaining that the lengths are per mode and that a running session keeps the mode it began with."
+  },
+  "prosettings_chain_after_break": {
+    "message": "Roll into the next work phase after a break, with a 10-second countdown you can cancel",
+    "description": "Checkbox enabling phase chaining for the selected mode. Names the countdown so the user knows the advance is never silent."
+  },
+  "prosettings_reminders": {
+    "message": "Reminders",
+    "description": "Pro Settings section heading for due-date reminders."
+  },
+  "prosettings_due_reminders_toggle": {
+    "message": "Remind me about work due today, once each morning",
+    "description": "Checkbox enabling due-date reminder notifications."
+  },
+  "prosettings_due_reminders_note": {
+    "message": "Off by default. Sends one desktop notification per task, at 9am or the first time the browser is open after it, and only in a Work workspace.",
+    "description": "Note under the reminders switch, stating the default, the cadence, the time and the mode gate."
+  },
+  "sat_next_phase_in_seconds": {
+    "plural": {"one": "Next phase in {count}s", "other": "Next phase in {count}s"},
+    "description": "Countdown on the session-done card before the next work phase begins. Reports the time remaining and does not urge; a Cancel control sits beside it."
+  },
+  "notif_due_today_title": {
+    "message": "Due today",
+    "description": "Title of the desktop notification for a task due on the current day."
+  },
+  "notif_due_overdue_title": {
+    "message": "Overdue",
+    "description": "Title of the desktop notification for a task whose due date has passed."
+  },
   "common_cancel": {
     "message": "Cancel",
     "description": "Generic action label, shared across surfaces. Shared by 6 sinks: newtab.html:392 text, newtab.html:612 text, newtab.html:643 text, newtab.html:662 text.",

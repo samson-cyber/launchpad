@@ -1022,6 +1022,95 @@ async function playSoundViaOffscreen(sound) {
   }
 }
 
+// ===== [WM.5 / G2] DUE-DATE REMINDERS =====
+//
+// THE WORKER HOLDS NO POLICY. Storage.dueRemindersToSend answers "which tasks
+// are owed a reminder right now" - the switch, Pro access, the workspace's
+// mode, the 09:00 rule, the snooze and the once-per-day record are all in there
+// and all pure. This half posts what it is handed and records what it posted.
+// The bell will read the same source, which is the bell spec's whole point.
+//
+// ITS OWN ALARM, ITS OWN LIFECYCLE, the heartbeat's discipline: a one-shot
+// `when` re-armed after every fire, never a periodInMinutes. A repeating alarm
+// would wake the worker all day to answer a question whose answer changes once.
+var DUE_REMINDER_ALARM = "due-reminders";
+var DUE_REMINDER_NOTIF_PREFIX = "launchpad-due-";
+
+// The alarm is a PURE DERIVATION of the setting, exactly as 'pomodoro-phase' is
+// of the running phase: on when reminders are enabled, absent otherwise, and
+// re-derived rather than remembered.
+async function reconcileDueReminderAlarm() {
+  // A RAW READ, NOT Storage.getAll. getAll runs the ensure* sweeps and writes
+  // back (BUGS I28), so an answer-shaped call would be a background write - and
+  // this one runs on every `data` change. The switch is a plain boolean at a
+  // known path; reading it does not need the hydrating reader.
+  var raw;
+  try { raw = (await chrome.storage.local.get("data")).data || {}; }
+  catch (err) { console.error("[LaunchPad] Reminders: read failed", err); return; }
+  var want = Storage.getDueRemindersEnabled(raw);
+  var existing = await chrome.alarms.get(DUE_REMINDER_ALARM);
+  if (!want) {
+    if (existing) await chrome.alarms.clear(DUE_REMINDER_ALARM);
+    return;
+  }
+  var when = Storage.nextDueReminderAt(Date.now());
+  // Re-armed only when the target actually moved, so a `data` change that has
+  // nothing to do with reminders does not churn the alarm.
+  if (existing && Math.abs(existing.scheduledTime - when) < 60000) return;
+  chrome.alarms.create(DUE_REMINDER_ALARM, { when: when });
+}
+
+// ONE NOTIFICATION PER TASK, id-keyed by task id so a second pass cannot stack
+// duplicates on top of the first. No buttons: the bell spec gives snooze and
+// complete to the BELL, on a surface where the row and its undo are reachable,
+// and a notification button would be a third completion path - the exact thing
+// Samson's ruling on that spec forbids ("completion must go through
+// Storage.completeTask, not a second implementation").
+async function fireDueReminders() {
+  return enqueueBgData("due-reminders", async function () {
+    var data = await Storage.getAll();
+    var now = Date.now();
+    var owed = Storage.dueRemindersToSend(data, now);
+    if (!owed.length) return;
+    if (!(await hasNotificationsPermission())) return;
+    var sent = [];
+    for (var i = 0; i < owed.length; i++) {
+      var it = owed[i];
+      try {
+        chrome.notifications.create(DUE_REMINDER_NOTIF_PREFIX + it.taskId, {
+          type: "basic",
+          iconUrl: "icons/icon128.png",
+          title: I18n.t(it.kind === "overdue" ? "notif_due_overdue_title" : "notif_due_today_title"),
+          message: it.name
+        });
+        sent.push(it.taskId);
+      } catch (err) {
+        console.error("[LaunchPad] Reminders: notification create failed", err);
+      }
+    }
+    // RECORDED ONLY FOR WHAT ACTUALLY POSTED. A task whose create threw is owed
+    // its reminder still, and marking it sent would lose it for the day.
+    if (Storage.markDueRemindersSent(data, sent, now)) await Storage.saveAll(data);
+  });
+}
+
+// Fire, then re-arm for tomorrow. Both halves, because an alarm that fires and
+// is not re-armed is a feature that works once.
+async function runDueRemindersBg() {
+  // THE CHEAP GATE FIRST, and it is the reason this is safe to call at worker
+  // boot. Reminders ship OFF, so on almost every profile this is one raw read
+  // that writes nothing and enqueues nothing. Entering fireDueReminders would
+  // put a getAll - sweeps, backfill and all - onto the write queue in order to
+  // discover there was nothing to do, which is a background write performed to
+  // answer a question. The BG QUEUE gate's green control caught exactly that.
+  var raw;
+  try { raw = (await chrome.storage.local.get("data")).data || {}; }
+  catch (err) { return; }
+  if (!Storage.getDueRemindersEnabled(raw)) return;
+  await fireDueReminders();
+  await reconcileDueReminderAlarm();
+}
+
 // Route + play one boundary's chime. Called OUTSIDE the `data` queue (see
 // runPomodoroPhaseBg) so holding the worker alive for the audio never stalls
 // unrelated background writers.
@@ -1122,6 +1211,10 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
   // [WM.4] And the idle threshold. The setting lives in `data`, so a change to
   // it arrives here; Tracking owns applying it to both readers.
   applyIdleThreshold();
+  // [WM.5] And the reminder alarm, from the same source and for the same reason
+  // - the switch lives in `data`, so a change to it arrives here. Idempotent
+  // and writes no `data`, so it cannot loop.
+  reconcileDueReminderAlarm();
 });
 
 // [WM.4] ONE SETTING, BOTH READERS, ONE CALL. Tracking.setIdleSeconds writes
@@ -1135,6 +1228,11 @@ function applyIdleThreshold() {
   }).catch(function () { /* the default stands */ });
 }
 applyIdleThreshold();
+// [WM.5] A BROWSER OPENED AT 14:00 MUST NOT WAIT UNTIL TOMORROW. The alarm
+// covers a browser that is already running at 09:00; this covers the one that
+// was not. dueRemindersToSend is idempotent per task per day, so the two paths
+// cannot double-post.
+runDueRemindersBg();
 
 chrome.runtime.onInstalled.addListener(function () {
   requestContextMenuRebuild();
@@ -1540,6 +1638,8 @@ chrome.alarms.onAlarm.addListener(function (alarm) {
     heartbeatBg();
   } else if (alarm.name === AUTO_BACKUP_ALARM) {
     runAutoBackup();
+  } else if (alarm.name === DUE_REMINDER_ALARM) {
+    runDueRemindersBg();
   } else if (alarm.name === BADGE_ALARM) {
     // [1.9.2] Mechanism (b)'s tick half. The alarm exists only while a number
     // is counting down; reconcileBadge re-derives from storage rather than

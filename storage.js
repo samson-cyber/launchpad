@@ -1233,6 +1233,150 @@ var Storage = (function () {
     return n;
   }
 
+  // ===== [WM.5] MODE PRESETS =====
+  //
+  // THE SAME FOUR NUMBERS, ASKED PER ENVIRONMENT, PLUS ONE BOOLEAN.
+  //
+  // STORED PER MODE, GLOBALLY - NOT PER WORKSPACE. A mode is a kind of
+  // environment rather than a place: Work is Work in every workspace, which is
+  // the whole reason the mode switch is a two-value control and not a
+  // per-workspace configuration screen. Two further reasons make it the only
+  // shape that actually works here:
+  //
+  //   THE SESSION STAMP RECORDS THE MODE, NOT THE WORKSPACE (WM.1 decision C).
+  //   A running session knows it is a Work session and does not know which
+  //   workspace started it. A per-workspace preset would therefore be
+  //   unreadable from the stamp, and fixing that would mean stamping the
+  //   workspace id too - adding a field so that a setting could be stored in
+  //   the shape that needed it.
+  //
+  //   PER-WORKSPACE WOULD MULTIPLY THE EDITING SURFACE by the number of
+  //   workspaces for a setting almost nobody changes twice, on a panel Samson
+  //   has already called a mess.
+  //
+  // WHAT CHAINING IS. `chain` is whether a completed break rolls into the next
+  // work phase. Work defaults ON with the visible 10-second countdown that
+  // 2026-09-01 ruled; Casual defaults OFF and a session simply ends. That is
+  // the 2026-07-22 rule preserved for Casual and amended for Work, which is
+  // exactly what that entry says.
+  var MODE_PRESET_DEFAULTS = {
+    work:   { workMin: 25, shortBreakMin: 5, longBreakMin: 15, cyclesBeforeLongBreak: 4, chain: true },
+    casual: { workMin: 25, shortBreakMin: 5, longBreakMin: 15, cyclesBeforeLongBreak: 4, chain: false }
+  };
+
+  // THE CHAINING COUNTDOWN, in ms. Ruled at 10 seconds on 2026-09-01: long
+  // enough to see and cancel, short enough not to be a wait. It lives here
+  // rather than in the page because the gate suite asserts against it and two
+  // copies of a number are two numbers.
+  var CHAIN_COUNTDOWN_MS = 10000;
+
+  // ONE PRO READER FOR THIS ROUND'S SURFACES. blockingProActive below keeps its
+  // name because decision H names it as blocking's single decider and BUGS
+  // cites it; it now delegates here rather than carrying a second copy of the
+  // same three lines.
+  function proActive(data) {
+    if (typeof ProAccess === "undefined" || typeof ProAccess.hasProAccess !== "function") return false;
+    return !!ProAccess.hasProAccess(data);
+  }
+
+  function coerceMode(m) {
+    return (m === "work" || m === "casual") ? m : WORKSPACE_MODE_DEFAULT;
+  }
+
+  // Defaulting reader, the getPomodoroSettings discipline: always a complete,
+  // in-range object whatever is stored, clamped through the SAME
+  // clampPomodoroField the global settings use so a preset value and a global
+  // value are validated identically.
+  function getModePreset(data, mode) {
+    var m = coerceMode(mode);
+    var def = MODE_PRESET_DEFAULTS[m];
+    var bag = (data && data.settings && data.settings.modePresets) || {};
+    var p = bag[m] || {};
+    return {
+      mode: m,
+      workMin: clampPomodoroField("workMin", p.workMin === undefined ? def.workMin : p.workMin),
+      shortBreakMin: clampPomodoroField("shortBreakMin", p.shortBreakMin === undefined ? def.shortBreakMin : p.shortBreakMin),
+      longBreakMin: clampPomodoroField("longBreakMin", p.longBreakMin === undefined ? def.longBreakMin : p.longBreakMin),
+      cyclesBeforeLongBreak: clampPomodoroField("cyclesBeforeLongBreak", p.cyclesBeforeLongBreak === undefined ? def.cyclesBeforeLongBreak : p.cyclesBeforeLongBreak),
+      // Strict boolean coercion, the notificationsEnabled discipline: anything
+      // that is not a literal true or false falls to the mode's default rather
+      // than to `false`, because Casual's default IS false and collapsing the
+      // two would make "never set" indistinguishable from "turned off".
+      chain: (p.chain === true) ? true : (p.chain === false ? false : def.chain)
+    };
+  }
+
+  // THE PHASE CONFIG A SESSION ACTUALLY RUNS UNDER. Every length decision goes
+  // through this one call, and it takes the MODE rather than reading the live
+  // workspace - so a caller holding a session's stamp passes the stamp, and a
+  // caller starting a session passes the mode it is about to stamp.
+  function pomodoroConfigForMode(data, mode) {
+    var preset = getModePreset(data, mode);
+    var global = getPomodoroSettings(data);
+    return {
+      mode: preset.mode,
+      workMin: preset.workMin,
+      shortBreakMin: preset.shortBreakMin,
+      longBreakMin: preset.longBreakMin,
+      cyclesBeforeLongBreak: preset.cyclesBeforeLongBreak,
+      chain: preset.chain,
+      // NOT per mode, deliberately. A chime and a notification are about how
+      // the product talks to you, not about which environment you are in, and
+      // splitting them per mode would mean turning notifications off twice.
+      notificationsEnabled: global.notificationsEnabled,
+      sound: global.sound
+    };
+  }
+
+  async function setModePresetField(data, mode, field, val) {
+    if (!data) return false;
+    var m = coerceMode(mode);
+    if (!Object.prototype.hasOwnProperty.call(MODE_PRESET_DEFAULTS[m], field)) return false;
+    if (!data.settings || typeof data.settings !== "object") data.settings = {};
+    if (!data.settings.modePresets || typeof data.settings.modePresets !== "object") data.settings.modePresets = {};
+    if (!data.settings.modePresets[m] || typeof data.settings.modePresets[m] !== "object") data.settings.modePresets[m] = {};
+    var next = (field === "chain") ? (val === true) : clampPomodoroField(field, val);
+    if (data.settings.modePresets[m][field] === next) return false;
+    data.settings.modePresets[m][field] = next;
+    await saveAll(data);
+    return true;
+  }
+
+  // SEEDED FROM THE GLOBAL DURATIONS, ONCE. A user who set 50/10 before this
+  // round must find 50/10 in BOTH presets rather than a silent reset to 25/5 -
+  // their setting is not wrong, it just did not have a mode attached yet.
+  //
+  // IDEMPOTENT BY CONSTRUCTION, the backfill caller's requirement: it reports
+  // changed only when settings.modePresets is genuinely absent, so it writes
+  // once and the next load finds nothing to do.
+  function ensureModePresets(data) {
+    if (!data || !data.settings || typeof data.settings !== "object") return false;
+    if (data.settings.modePresets && typeof data.settings.modePresets === "object") return false;
+    var g = getPomodoroSettings(data);
+    data.settings.modePresets = {
+      work: { workMin: g.workMin, shortBreakMin: g.shortBreakMin, longBreakMin: g.longBreakMin,
+              cyclesBeforeLongBreak: g.cyclesBeforeLongBreak, chain: MODE_PRESET_DEFAULTS.work.chain },
+      casual: { workMin: g.workMin, shortBreakMin: g.shortBreakMin, longBreakMin: g.longBreakMin,
+                cyclesBeforeLongBreak: g.cyclesBeforeLongBreak, chain: MODE_PRESET_DEFAULTS.casual.chain }
+    };
+    return true;
+  }
+
+  // SHOULD A COMPLETED BREAK ROLL INTO THE NEXT WORK PHASE? Pure; the page acts
+  // on it. Reads the SESSION'S STAMP, never the live workspace (decision C) -
+  // flipping to Casual mid-session must not strand a session that was started
+  // under Work, and flipping to Work mid-session must not start chaining one
+  // that was not.
+  //
+  // PRO-GATED, because presets are a Pro surface and decision H says an expired
+  // profile reads defaults and gets none of the behaviour.
+  function shouldChainAfterBreak(data, ps) {
+    if (!data || !ps) return false;
+    if (!proActive(data)) return false;
+    if (ps.mode !== "work") return false;
+    return getModePreset(data, ps.mode).chain === true;
+  }
+
   // [1.0.18 B-2] Boundary chime ids. An ENUM, so neither the numeric clamp nor
   // the boolean coercion above fits: whitelist-coerce to a known id and degrade
   // EVERYTHING else — missing, null, 3, "chime9", an object — to 'none'. 'none'
@@ -1495,8 +1639,7 @@ var Storage = (function () {
   // and because this is the only decider, that is true on every surface at
   // once rather than on the three that remembered to check.
   function blockingProActive(data) {
-    if (typeof ProAccess === "undefined" || typeof ProAccess.hasProAccess !== "function") return false;
-    return !!ProAccess.hasProAccess(data);
+    return proActive(data);
   }
 
   /** Is this REASON live at all, independent of any host? */
@@ -2807,6 +2950,7 @@ var Storage = (function () {
         var accentDropped = dropAccentSetting(existing);
         var clockDropped = dropClockSettings(existing);
         var soundDropped = dropFocusSoundSettings(existing);
+        var presetsSeeded = ensureModePresets(existing);
         var homeNoteDropped = dropHomeNote(existing);
         var iconsMerged = migrateLegacyIcons(existing);
         // [1.4.7] Runs at most once per profile. The write is needed only on the
@@ -2817,8 +2961,8 @@ var Storage = (function () {
         var strandedUnswept = existing[STRANDED_SWEEP_MARKER] !== true;
         var strandedReleased = sweepStrandedTasks(existing);
         if (patched || trackingSeeded || focusSeeded || notesSeeded || sessionsSeeded ||
-            accentDropped || clockDropped || soundDropped || homeNoteDropped || iconsMerged ||
-            strandedUnswept) {
+            accentDropped || clockDropped || soundDropped || presetsSeeded || homeNoteDropped ||
+            iconsMerged || strandedUnswept) {
           // [1.10.3] THE BACKFILL WRITE GETS ITS OWN try/catch, AND THIS IS A
           // CORRECTNESS FIX RATHER THAN TIDYING. It used to sit inside this
           // function's single try, so an over-quota backfill fell through to the
@@ -5631,6 +5775,8 @@ var Storage = (function () {
     if (!ps || typeof ps !== "object") return emptyPomodoroState();
     var phase = (ps.phase === "work" || ps.phase === "shortBreak" || ps.phase === "longBreak") ? ps.phase : null;
     var cycleCount = (typeof ps.cycleCount === "number" && isFinite(ps.cycleCount) && ps.cycleCount >= 0) ? Math.floor(ps.cycleCount) : 0;
+    // [WM.5] Hoisted out of the object literal because `mode` now depends on it.
+    var sessionComplete = (phase === null && cycleCount > 0 && ps.sessionComplete === true);
     return {
       cycleCount: cycleCount,
       phase: phase,
@@ -5639,19 +5785,32 @@ var Storage = (function () {
       // [E1] Only meaningful on phase:null with at least one completed work phase
       // (the addendum's encoding); forced false otherwise so a malformed blob can
       // never paint the session-complete card over a running phase.
-      sessionComplete: (phase === null && cycleCount > 0 && ps.sessionComplete === true),
+      sessionComplete: sessionComplete,
       // [WM.1] THE SESSION STAMP (PLAN decision C). A focus session runs under
       // the mode of the workspace it STARTED in, and keeps it to the end even
       // if the workspace flips mid-session. WM.4's friction and WM.5's presets
       // read this, never the live workspace - which is the whole reason it is a
       // stored field rather than a lookup at point of use.
       //
-      // FORCED NULL WHEN phase IS NULL, exactly as phaseEndsAt and
-      // phaseDurationMs are: the stamp exists for as long as the session does
-      // and not one moment longer, so a stale stamp can never be read as "a
-      // session is running under Work". That invariant is enforced HERE, on
-      // every read, rather than trusted to each of the five writers.
-      mode: (phase && (ps.mode === "work" || ps.mode === "casual")) ? ps.mode : null,
+      // FORCED NULL WHEN THE SESSION IS OVER, which is not quite the same as
+      // "when phase is null": the stamp exists for as long as the SESSION does,
+      // and the session-complete card is the session's last moment rather than
+      // a sixth state after it. So the stamp survives a running phase OR the
+      // completion marker, and nothing else.
+      //
+      // [WM.5] AMENDED, AND THE DRIVEN RUN IS WHY. This read forced mode to null
+      // on `phase === null` alone, which is every state including the completed
+      // one - so shouldChainAfterBreak, which is asked its question at exactly
+      // that moment, could never see a Work session and the countdown never
+      // appeared. The invariant's PURPOSE is intact: sessionComplete is itself
+      // only true with phase null AND cycleCount > 0 AND the literal marker, so
+      // a stale stamp still cannot be read as a RUNNING session.
+      //
+      // sessionId is deliberately NOT widened with it. Friction gates on the
+      // ID, so leaving that null keeps friction impossible in the completed
+      // state - which is what makes the gate's countdown and the chaining
+      // countdown mutually exclusive by construction rather than by luck.
+      mode: ((phase || sessionComplete) && (ps.mode === "work" || ps.mode === "casual")) ? ps.mode : null,
       // [WM.4] Same invariant as `mode`, deliberately: an id that outlived its
       // session would make the NEXT session's first snooze look like a repeat.
       sessionId: (phase && typeof ps.sessionId === "string" && ps.sessionId) ? ps.sessionId : null
@@ -5677,11 +5836,22 @@ var Storage = (function () {
   // PRESERVED untouched. Writes through saveAll — a phase boundary is a `data`
   // write like the active-task setters, and the engine no-ops on it
   // (computeDesired reads only activeTask.taskId, never pomodoroState).
-  async function startPomodoroPhase(data) {
+  async function startPomodoroPhase(data, opts) {
     var active = getActiveTask(data);
     if (!active) return false;
     var ps = hydratePomodoroState(active.pomodoroState);
-    var durMs = getPomodoroSettings(data).workMin * 60000;
+    // [WM.5] THE MODE'S PRESET, not the global durations. The mode being stamped
+    // three lines below is the one whose lengths this session runs under, so it
+    // is read here rather than looked up again later from a workspace that may
+    // by then have flipped.
+    // [WM.5] THE LIVE WORKSPACE, unless a caller inherits a mode. The only
+    // caller that does is the chaining countdown, which continues a session the
+    // previous mode authorised; every hand start reads the workspace the user
+    // is actually in.
+    var startMode = (opts && (opts.mode === "work" || opts.mode === "casual"))
+      ? opts.mode
+      : getWorkspaceMode(getActiveWorkspace(data));
+    var durMs = pomodoroConfigForMode(data, startMode).workMin * 60000;
     ps.phase = "work";
     ps.phaseDurationMs = durMs;
     ps.phaseEndsAt = Date.now() + durMs;
@@ -5691,7 +5861,7 @@ var Storage = (function () {
     // same path - so the stamp is written exactly once per session by
     // construction. Every later transition CARRIES it (nextPomodoroPhase) or
     // CLEARS it (stop, expiry, session complete); none rewrites it.
-    ps.mode = getWorkspaceMode(getActiveWorkspace(data));
+    ps.mode = startMode;
     // [WM.4] A FRESH ID PER SESSION, written at the one entry point, exactly as
     // the mode stamp is. E1's "Start next session" comes through here too, so a
     // new session genuinely gets a new id and its friction starts from scratch.
@@ -5750,6 +5920,11 @@ var Storage = (function () {
       next.sessionId = ps.sessionId;
     } else {
       next.sessionComplete = true;   // [E1] break end -> session complete, no auto work
+      // [WM.5] ...unless the session's mode chains, which is decided from THIS
+      // stamp. Carried for the same reason the break carries it: the completion
+      // belongs to the session that produced it, and a workspace flipped during
+      // the break must not decide what happens at its end.
+      next.mode = ps.mode;
     }
     return next;
   }
@@ -5787,7 +5962,10 @@ var Storage = (function () {
       nextPs = { cycleCount: ps.cycleCount, phase: null, phaseEndsAt: null, phaseDurationMs: null, sessionComplete: false, mode: null, sessionId: null };
       result = { action: "expired" };
     } else {
-      nextPs = nextPomodoroPhase(ps, getPomodoroSettings(data), now);
+      // [WM.5] The BREAK's length comes from the session's OWN mode, carried on
+      // the stamp - not from the live workspace, which decision C forbids, and
+      // not from the global durations, which no longer decide anything.
+      nextPs = nextPomodoroPhase(ps, pomodoroConfigForMode(data, ps.mode), now);
       result = nextPs.phase
         ? { action: "advanced", from: decidedPhase, to: nextPs.phase, cycleCount: nextPs.cycleCount, fromDurationMs: ps.phaseDurationMs }
         : { action: "completed", cycleCount: nextPs.cycleCount };
@@ -8580,6 +8758,185 @@ var Storage = (function () {
       });
   }
 
+  // ===== [WM.5 / G2] THE SHARED DUE-WORK READER =====
+  //
+  // ONE READER FOR "WHAT IS DUE", AND THIS IS THE DELIVERABLE. The due-work bell
+  // spec (Asana 1218307732763412) rules that THE BELL, THE [1.9.0] TOOLBAR
+  // BADGE AND G2'S NOTIFICATIONS ARE THREE RENDERERS OF ONE QUESTION and must
+  // share a source, because "two independent implementations of 'you have work
+  // due' will disagree within a release". G2 ships here as the FIRST consumer;
+  // the bell and the badge call `Storage.getDueWork` rather than computing their
+  // own. That name is the one the bell spec should cite.
+  //
+  // WHAT COUNTS, all three of the spec's cases:
+  //   overdue   - due on an earlier calendar day, still open
+  //   today     - due on the current calendar day
+  //   recurring - a recurring INSTANCE due today (isRecurringInstance), reported
+  //               as its own kind because the spec asks the bell to fire on it
+  //               distinctly, not because it is a fourth kind of due-ness
+  //
+  // TWO DAY BASES, AND THEY ARE DELIBERATELY NOT MERGED. `dueAt` lives in
+  // UTC-MIDNIGHT-OF-THE-LOCAL-CALENDAR-DATE space ([1.0.13]), so due-ness is
+  // compared with utcDay against the same stamp tasksDueByDay takes. The SNOOZE
+  // is keyed by localDayKey, which the bell spec names explicitly and which the
+  // achievement and cockpit readers already use. Using one helper for both would
+  // be wrong in one direction or the other; using two and saying so is right.
+  //
+  // PURE. No mutation, no saveAll, no chrome.*. The worker asserts it without a
+  // browser, and it can never be the thing that fires a notification.
+  var DUE_WORK_KINDS = ["overdue", "today", "recurring"];
+
+  function dueWorkTodayUtcDay(now) {
+    var dt = (now == null) ? new Date() : new Date(now);
+    return Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate());
+  }
+
+  // Snoozed for TODAY, and for today only. The record is { taskId: localDayKey }
+  // and it EXPIRES BY NOT MATCHING rather than by being swept: tomorrow's key is
+  // a different string, so the task returns on its own if it is still undone.
+  // That is the spec's snooze exactly - "gone until tomorrow, returns if still
+  // undone" - with NO THIRD STATE, which the spec forbids by name.
+  function dueWorkSnoozedToday(data, taskId, now) {
+    var bag = (data && data.dueWorkSnoozes) || {};
+    return bag[taskId] === localDayKey(now);
+  }
+
+  function getDueWork(data, opts) {
+    var o = opts || {};
+    var now = (typeof o.now === "number") ? o.now : Date.now();
+    var out = { items: [], counts: { overdue: 0, today: 0, recurring: 0, total: 0, unsnoozed: 0 } };
+    if (!data) return out;
+    var ws = o.workspaceId
+      ? (data.workspaces || []).find(function (w) { return w.id === o.workspaceId; })
+      : getActiveWorkspace(data);
+    // PER WORKSPACE, like every other task surface. Reporting Personal's due
+    // work while the user is in Work would cross the boundary the product draws
+    // everywhere else.
+    if (!ws) return out;
+    var todayUtc = dueWorkTodayUtcDay(now);
+    tasksDueByDay(ws, todayUtc).forEach(function (t) {
+      var day = utcDay(t.dueAt);
+      var kind = (day < todayUtc) ? "overdue" : (t.isRecurringInstance ? "recurring" : "today");
+      var snoozed = dueWorkSnoozedToday(data, t.id, now);
+      out.items.push({
+        taskId: t.id, name: t.name, workspaceId: ws.id, dueAt: t.dueAt,
+        kind: kind, isRecurringInstance: !!t.isRecurringInstance, snoozed: snoozed
+      });
+      out.counts[kind] += 1;
+      out.counts.total += 1;
+      if (!snoozed) out.counts.unsnoozed += 1;
+    });
+    return out;
+  }
+
+  /** Snooze one task until tomorrow. Mirrors the spec: the ONLY dismissal. */
+  async function snoozeDueWork(data, taskId, now) {
+    if (!data || !taskId) return false;
+    if (!data.dueWorkSnoozes || typeof data.dueWorkSnoozes !== "object" || Array.isArray(data.dueWorkSnoozes)) {
+      data.dueWorkSnoozes = {};
+    }
+    var key = localDayKey(now);
+    if (data.dueWorkSnoozes[taskId] === key) return false;
+    data.dueWorkSnoozes[taskId] = key;
+    await saveAll(data);
+    return true;
+  }
+
+  // ===== [WM.5 / G2] REMINDERS: THE SWITCH AND THE ONCE-PER-DAY RECORD =====
+  //
+  // OFF BY DEFAULT ([1.11.0] decision 7, everything ships off), and the
+  // notifications permission is requested AT FIRST ENABLE rather than at
+  // install - the same shape the phase-boundary toggle already uses, and the
+  // reason both can share one optional permission without either owning it.
+  function getDueRemindersEnabled(data) {
+    return !!(data && data.settings && data.settings.dueRemindersEnabled === true);
+  }
+
+  async function setDueRemindersEnabled(data, on) {
+    if (!data) return false;
+    if (!data.settings || typeof data.settings !== "object") data.settings = {};
+    var next = (on === true);
+    if (data.settings.dueRemindersEnabled === next) return false;
+    data.settings.dueRemindersEnabled = next;
+    await saveAll(data);
+    return true;
+  }
+
+  // ONCE PER TASK PER LOCAL DAY. Same { taskId: localDayKey } shape as the
+  // snooze and for the same reason: it expires by not matching, so there is no
+  // sweep and no growth beyond the tasks a user actually has.
+  function dueReminderSentToday(data, taskId, now) {
+    var bag = (data && data.dueRemindersSent) || {};
+    return bag[taskId] === localDayKey(now);
+  }
+
+  // THE HOUR, AND WHY. A due-date reminder is about the day's work, so it
+  // belongs at the START OF THE DAY - not at midnight, when the day key flips
+  // and nobody is at the machine, and emphatically not on every new tab, which
+  // is the nagging this product's doctrine forbids by name.
+  //
+  // AT OR AFTER, NOT AT. An MV3 worker is not guaranteed to be alive at any
+  // instant, so "fire at 09:00" is not a promise this platform can keep. The
+  // rule is the first pass at or after 09:00 local on a day the task has not
+  // already been reminded about - a browser opened at 14:00 gets it at 14:00,
+  // and a browser already open gets it at 09:00 from the alarm.
+  var DUE_REMINDER_HOUR = 9;
+
+  function dueReminderHourReached(now) {
+    var dt = (now == null) ? new Date() : new Date(now);
+    return dt.getHours() >= DUE_REMINDER_HOUR;
+  }
+
+  /** The next 09:00 local at or after `now`, as an epoch - the alarm's `when`. */
+  function nextDueReminderAt(now) {
+    var ref = (typeof now === "number") ? now : Date.now();
+    var dt = new Date(ref);
+    var at = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), DUE_REMINDER_HOUR, 0, 0, 0).getTime();
+    if (at <= ref) {
+      var t = new Date(ref + 86400000);
+      at = new Date(t.getFullYear(), t.getMonth(), t.getDate(), DUE_REMINDER_HOUR, 0, 0, 0).getTime();
+    }
+    return at;
+  }
+
+  // WHICH TASKS ARE DUE A REMINDER RIGHT NOW. Pure, so the worker's sender holds
+  // no policy at all - it is handed a list and posts it.
+  //
+  // MODE-GOVERNED, AND IT READS THE CURRENT WORKSPACE RATHER THAN A SESSION
+  // STAMP. A reminder is not part of a session and there may be no session at
+  // all; 2026-09-01 settles this shape explicitly for the other non-session
+  // case - "scheduled blocking follows the CURRENT workspace, because a schedule
+  // is about now rather than about what was running" - and a reminder is about
+  // now in exactly the same sense. Work sends; Casual does not.
+  //
+  // PRO-GATED (decision H): an expired profile fires nothing.
+  function dueRemindersToSend(data, now) {
+    var ref = (typeof now === "number") ? now : Date.now();
+    if (!data) return [];
+    if (!getDueRemindersEnabled(data)) return [];
+    if (!proActive(data)) return [];
+    if (getWorkspaceMode(getActiveWorkspace(data)) !== "work") return [];
+    if (!dueReminderHourReached(ref)) return [];
+    return getDueWork(data, { now: ref }).items.filter(function (it) {
+      if (it.snoozed) return false;                          // one dismissal, honoured everywhere
+      return !dueReminderSentToday(data, it.taskId, ref);
+    });
+  }
+
+  /** Record that these tasks have been reminded about today. Caller saves (J5). */
+  function markDueRemindersSent(data, taskIds, now) {
+    if (!data || !Array.isArray(taskIds) || !taskIds.length) return false;
+    if (!data.dueRemindersSent || typeof data.dueRemindersSent !== "object" || Array.isArray(data.dueRemindersSent)) {
+      data.dueRemindersSent = {};
+    }
+    var key = localDayKey(now);
+    var changed = false;
+    taskIds.forEach(function (id) {
+      if (data.dueRemindersSent[id] !== key) { data.dueRemindersSent[id] = key; changed = true; }
+    });
+    return changed;
+  }
+
   // Consecutive days with focused time, ending today. Composed page-side from the
   // Insights range reader's output ({ dayKey: ms }, oldest-first keys, last =
   // today) — which is why it takes the map rather than reading anything: it adds
@@ -9049,6 +9406,26 @@ var Storage = (function () {
     tasksCompletedOnDay: tasksCompletedOnDay,
     goalProgressList: goalProgressList,
     tasksDueByDay: tasksDueByDay,
-    focusStreakFromRange: focusStreakFromRange
+    focusStreakFromRange: focusStreakFromRange,
+    // [WM.5] Mode presets and chaining.
+    MODE_PRESET_DEFAULTS: MODE_PRESET_DEFAULTS,
+    CHAIN_COUNTDOWN_MS: CHAIN_COUNTDOWN_MS,
+    getModePreset: getModePreset,
+    setModePresetField: setModePresetField,
+    pomodoroConfigForMode: pomodoroConfigForMode,
+    shouldChainAfterBreak: shouldChainAfterBreak,
+    // [WM.5 / G2] THE SHARED DUE-WORK READER. The bell and the [1.9.0] badge
+    // call getDueWork rather than computing their own - see the bell spec,
+    // Asana 1218307732763412.
+    getDueWork: getDueWork,
+    snoozeDueWork: snoozeDueWork,
+    dueWorkSnoozedToday: dueWorkSnoozedToday,
+    getDueRemindersEnabled: getDueRemindersEnabled,
+    setDueRemindersEnabled: setDueRemindersEnabled,
+    dueRemindersToSend: dueRemindersToSend,
+    dueReminderSentToday: dueReminderSentToday,
+    markDueRemindersSent: markDueRemindersSent,
+    nextDueReminderAt: nextDueReminderAt,
+    DUE_REMINDER_HOUR: DUE_REMINDER_HOUR
   };
 })();

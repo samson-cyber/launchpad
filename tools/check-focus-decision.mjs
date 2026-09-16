@@ -221,6 +221,14 @@ function buildData(ctx, opts = {}) {
   if (opts.commitment !== undefined) data.settings.focus.commitment = opts.commitment;
   if (opts.idleSec !== undefined) data.settings.focus.idleSec = opts.idleSec;
   if (opts.snoozes) data.focusSnoozes = opts.snoozes;
+  // [WM.5] Presets, reminders and the tasks a due-work fixture needs. Absent
+  // unless asked for, so every older fixture still describes a profile that
+  // never opened any of them.
+  if (opts.presets) data.settings.modePresets = opts.presets;
+  if (opts.reminders !== undefined) data.settings.dueRemindersEnabled = opts.reminders;
+  if (opts.tasks) data.workspaces[0].tasks = opts.tasks;
+  if (opts.dueSnoozes) data.dueWorkSnoozes = opts.dueSnoozes;
+  if (opts.sent) data.dueRemindersSent = opts.sent;
   // Fixture self-verification (Q7).
   const wantLevel = opts.expectLevel || null;
   if (wantLevel) {
@@ -602,6 +610,142 @@ function runSuite(ctx) {
   check("and setting it writes the browser's detection interval, which is the other reader's only input",
     ctx.Tracking.idleSeconds() === 120);
 
+  // ===== LAYER 8 [WM.5]: PRESETS, CHAINING AND THE DUE-WORK READER =====
+
+  // Presets. The four numbers are per MODE and clamp through the SAME
+  // clampPomodoroField the global settings use, so a preset value and a typed
+  // value are validated identically.
+  check("Work's preset defaults to the shipped lengths",
+    S.getModePreset({}, "work").workMin === 25 && S.getModePreset({}, "work").longBreakMin === 15);
+  check("CHAINING DEFAULTS ON FOR WORK and OFF FOR CASUAL - the 2026-09-01 amendment, both halves",
+    S.getModePreset({}, "work").chain === true && S.getModePreset({}, "casual").chain === false);
+  check("an out-of-range preset clamps rather than being stored as typed",
+    S.getModePreset({ settings: { modePresets: { work: { workMin: 999 } } } }, "work").workMin === 60);
+  check("a garbage preset value falls to the field default, not to NaN",
+    S.getModePreset({ settings: { modePresets: { work: { workMin: "abc" } } } }, "work").workMin === 25);
+  check("an unknown mode reads Casual, the product's default mode",
+    S.getModePreset({}, "bagpipes").mode === "casual");
+  check("chain:false on WORK is honoured, not overwritten by Work's own default",
+    S.getModePreset({ settings: { modePresets: { work: { chain: false } } } }, "work").chain === false);
+  check("chain:true on CASUAL is honoured too - the user may want a treadmill anywhere",
+    S.getModePreset({ settings: { modePresets: { casual: { chain: true } } } }, "casual").chain === true);
+  check("the two modes are independent - editing Work leaves Casual alone",
+    S.getModePreset({ settings: { modePresets: { work: { workMin: 50 } } } }, "casual").workMin === 25);
+  check("notifications and the chime are NOT per mode - one answer for both",
+    S.pomodoroConfigForMode({ settings: { pomodoro: { sound: "chime2" } } }, "work").sound === "chime2");
+
+  // Chaining reads the SESSION'S STAMP, never the live workspace (decision C).
+  const chainFor = (o) => S.shouldChainAfterBreak(buildData(ctx, o), { mode: o.stampMode || null });
+  check("a session stamped WORK chains", chainFor({ stampMode: "work" }) === true);
+  check("a session stamped CASUAL does not, whatever the workspace now says",
+    chainFor({ stampMode: "casual", workspaceMode: "work" }) === false);
+  check("AN UNSTAMPED session does not chain - the legacy case must not start work by itself",
+    chainFor({ stampMode: null, workspaceMode: "work" }) === false);
+  check("flipping the workspace to Casual mid-session does NOT stop a Work session chaining",
+    chainFor({ stampMode: "work", workspaceMode: "casual" }) === true);
+  check("EXPIRED chains nothing (decision H)",
+    chainFor({ stampMode: "work", pro: "expired", expectLevel: "expired" }) === false);
+  check("chain:false on the preset stops it even for a Work session",
+    S.shouldChainAfterBreak(buildData(ctx, { presets: { work: { chain: false } } }), { mode: "work" }) === false);
+
+  // THE STAMP'S LIFETIME, amended by WM.5 after a driven run found the
+  // countdown could never appear. These four rows are the amendment and its
+  // limits, together, because widening a lifetime is only safe if what did NOT
+  // widen is asserted in the same breath.
+  const hy = (o) => S.hydratePomodoroState(o);
+  check("the stamp SURVIVES into the session-complete state, which is where chaining is decided",
+    hy({ phase: null, cycleCount: 1, sessionComplete: true, mode: "work" }).mode === "work");
+  check("...but NOT into a plain idle state - no marker, no stamp",
+    hy({ phase: null, cycleCount: 1, sessionComplete: false, mode: "work" }).mode === null);
+  check("...and not with a zero cycle count, which cannot be a completed session",
+    hy({ phase: null, cycleCount: 0, sessionComplete: true, mode: "work" }).mode === null);
+  check("THE SESSION ID DOES NOT WIDEN WITH IT, which is what keeps friction impossible there",
+    hy({ phase: null, cycleCount: 1, sessionComplete: true, mode: "work", sessionId: "s1" }).sessionId === null);
+
+  // ===== THE SHARED DUE-WORK READER =====
+  //
+  // The bell spec (1218307732763412) rules that the bell, the [1.9.0] badge and
+  // G2 are three renderers of ONE question. These rows are the contract all
+  // three inherit, which is why they assert kinds and counts rather than just
+  // "something came back".
+  const DAY = 86400000;
+  const todayUtc = (function () { const n = new Date(); return Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()); })();
+  const task = (id, over, extra) => Object.assign({
+    id: id, name: id, dueAt: todayUtc - (over ? DAY : 0), completed: false, deletedAt: null,
+    isRecurringInstance: false, createdAt: 1
+  }, extra || {});
+  const FIXTURE = [
+    task("t-today", false),
+    task("t-over", true),
+    task("t-rec", false, { isRecurringInstance: true }),
+    task("t-future", false, { dueAt: todayUtc + DAY }),
+    task("t-done", false, { completed: true }),
+    task("t-gone", false, { deletedAt: 1 }),
+    task("t-nodue", false, { dueAt: null })
+  ];
+  const due = (o) => S.getDueWork(buildData(ctx, Object.assign({ tasks: FIXTURE }, o || {})));
+  check("ALL THREE OF THE SPEC'S CASES are reported, and nothing else is",
+    due().counts.total === 3 && due().counts.today === 1 &&
+    due().counts.overdue === 1 && due().counts.recurring === 1,
+    JSON.stringify(due().counts));
+  check("a FUTURE task is not due work", due().items.every((i) => i.taskId !== "t-future"));
+  check("a COMPLETED task is not due work", due().items.every((i) => i.taskId !== "t-done"));
+  check("a TRASHED task is not due work", due().items.every((i) => i.taskId !== "t-gone"));
+  check("a task with NO due date is not due work", due().items.every((i) => i.taskId !== "t-nodue"));
+  check("OVERDUE leads - the reader's order is the order the bell will render",
+    due().items[0].taskId === "t-over");
+  check("a recurring instance due TODAY reports as 'recurring', not as 'today'",
+    due().items.find((i) => i.taskId === "t-rec").kind === "recurring");
+  check("an empty workspace is ABSENCE, not a zero row",
+    S.getDueWork(buildData(ctx, { tasks: [] })).items.length === 0);
+
+  // SNOOZE: gone until tomorrow, back if still undone. NO THIRD STATE.
+  const key = S.localDayKey(Date.now());
+  const dueSnoozedRow = due({ dueSnoozes: { "t-today": key } });
+  check("a snoozed task is STILL REPORTED, flagged - the bell is a signal, not a filter",
+    dueSnoozedRow.counts.total === 3 && dueSnoozedRow.items.find((i) => i.taskId === "t-today").snoozed === true);
+  check("...and the unsnoozed count is what a renderer counts", dueSnoozedRow.counts.unsnoozed === 2);
+  check("YESTERDAY'S snooze does not hold - the task returns on its own",
+    due({ dueSnoozes: { "t-today": "1999-01-01" } }).items.find((i) => i.taskId === "t-today").snoozed === false);
+
+  // ===== G2: WHO GETS A REMINDER, AND WHEN =====
+  // THE REFERENCE CLOCK IS TODAY AT 10:00, not a fixed future date. The first
+  // attempt used 2030-01-15 and every row broke at once: a  years ahead of
+  // the fixture turns t-future into an overdue task, so the counts were right
+  // for the data and wrong for the fixture's intent. The hour is pinned
+  // explicitly so the suite gives the same answer whatever time it is run.
+  const atHour = (h) => { const n = new Date(); n.setHours(h, 0, 0, 0); return n.getTime(); };
+  const REMIND_AT = atHour(10);
+  const owed = (o) => S.dueRemindersToSend(
+    buildData(ctx, Object.assign({ tasks: FIXTURE, reminders: true, workspaceMode: "work" }, o || {})),
+    REMIND_AT);
+  check("with the switch on, in Work, after the hour: every due task is owed one",
+    owed().length === 3);
+  check("THE SWITCH OFF SENDS NOTHING", owed({ reminders: false }).length === 0);
+  check("CASUAL SENDS NOTHING - mode-governed, read from the CURRENT workspace",
+    owed({ workspaceMode: "casual" }).length === 0);
+  check("EXPIRED SENDS NOTHING (decision H)",
+    owed({ pro: "expired", expectLevel: "expired" }).length === 0);
+  check("BEFORE 09:00 SENDS NOTHING - a reminder is about the day's work, not about midnight",
+    S.dueRemindersToSend(buildData(ctx, { tasks: FIXTURE, reminders: true, workspaceMode: "work" }),
+      atHour(7)).length === 0);
+  check("a SNOOZED task is not reminded - one dismissal, honoured in both renderers",
+    owed({ dueSnoozes: { "t-over": S.localDayKey(REMIND_AT) } }).length === 2);
+  check("ONCE PER DAY: a task already reminded about today is not reminded again",
+    owed({ sent: { "t-over": S.localDayKey(REMIND_AT) } }).length === 2);
+  check("...and yesterday's record does not suppress today's reminder",
+    owed({ sent: { "t-over": "1999-01-01" } }).length === 3);
+
+  // The alarm target, which is the one piece of this the worker cannot derive.
+  const noonJan15 = new Date(2030, 0, 15, 12, 0, 0).getTime();
+  const next = S.nextDueReminderAt(noonJan15);
+  check("the next reminder time is TOMORROW at 09:00 when today's hour has passed",
+    new Date(next).getDate() === 16 && new Date(next).getHours() === 9, new Date(next).toString());
+  const dawnJan15 = new Date(2030, 0, 15, 6, 0, 0).getTime();
+  check("...and TODAY at 09:00 when it has not",
+    new Date(S.nextDueReminderAt(dawnJan15)).getDate() === 15 &&
+    new Date(S.nextDueReminderAt(dawnJan15)).getHours() === 9);
+
   // THE NEVER-BLOCK LIST WINS OVER EVERY ENTRY MODE. It is a transport rule and
   // it runs before the reader is ever consulted, so the assertion is that the
   // URL never becomes a candidate even when it is listed in each mode in turn.
@@ -776,6 +920,70 @@ const SEEDS = [
       find: '      sessionId: (phase && typeof ps.sessionId === "string" && ps.sessionId) ? ps.sessionId : null',
       replace: '      sessionId: (typeof ps.sessionId === "string" && ps.sessionId) ? ps.sessionId : null',
     }],
+  },
+  {
+    name: "[WM.5] chaining reads the LIVE workspace instead of the session stamp",
+    note: "decision C inverted - flipping mode mid-session would change the session's own rules",
+    seeds: [{ file: "storage.js", find: '    if (ps.mode !== "work") return false;',
+              replace: '    if (getWorkspaceMode(getActiveWorkspace(data)) !== "work") return false;' }],
+  },
+  {
+    name: "[WM.5] the stamp is cleared before chaining can read it",
+    note: "the exact defect the driven run found: the countdown could never appear",
+    seeds: [{ file: "storage.js",
+              find: '      mode: ((phase || sessionComplete) && (ps.mode === "work" || ps.mode === "casual")) ? ps.mode : null,',
+              replace: '      mode: (phase && (ps.mode === "work" || ps.mode === "casual")) ? ps.mode : null,' }],
+  },
+  {
+    name: "[WM.5] the stamp outlives the session entirely",
+    note: "the WM.1 invariant inverted - a stale stamp would read as a running Work session",
+    seeds: [{ file: "storage.js",
+              find: '      mode: ((phase || sessionComplete) && (ps.mode === "work" || ps.mode === "casual")) ? ps.mode : null,',
+              replace: '      mode: ((ps.mode === "work" || ps.mode === "casual")) ? ps.mode : null,' }],
+  },
+  {
+    name: "[WM.5] Casual chains",
+    note: "2026-07-22's rule for Casual dropped - a session would put the user back on the clock",
+    seeds: [{ file: "storage.js", find: '    casual: { workMin: 25, shortBreakMin: 5, longBreakMin: 15, cyclesBeforeLongBreak: 4, chain: false }',
+              replace: '    casual: { workMin: 25, shortBreakMin: 5, longBreakMin: 15, cyclesBeforeLongBreak: 4, chain: true }' }],
+  },
+  {
+    name: "[WM.5] the preset stops clamping",
+    note: "a typed 999 would be stored and a session would run for sixteen hours",
+    seeds: [{ file: "storage.js",
+              find: '      workMin: clampPomodoroField("workMin", p.workMin === undefined ? def.workMin : p.workMin),',
+              replace: '      workMin: (p.workMin === undefined ? def.workMin : p.workMin),' }],
+  },
+  {
+    name: "[WM.5] reminders ignore the mode",
+    note: "Casual would send notifications, which is the one thing the mode is for",
+    seeds: [{ file: "storage.js", find: '    if (getWorkspaceMode(getActiveWorkspace(data)) !== "work") return [];', replace: "" }],
+  },
+  {
+    name: "[WM.5] reminders ignore the switch",
+    note: "an opt-in feature firing without opt-in",
+    seeds: [{ file: "storage.js", find: "    if (!getDueRemindersEnabled(data)) return [];", replace: "" }],
+  },
+  {
+    name: "[WM.5] reminders ignore the hour",
+    note: "a reminder at 00:01 when the day key flips, which is nobody's morning",
+    seeds: [{ file: "storage.js", find: "    if (!dueReminderHourReached(ref)) return [];", replace: "" }],
+  },
+  {
+    name: "[WM.5] the once-per-day record is ignored",
+    note: "the same task notified on every worker wake - the nagging the doctrine forbids by name",
+    seeds: [{ file: "storage.js", find: "      return !dueReminderSentToday(data, it.taskId, ref);", replace: "      return true;" }],
+  },
+  {
+    name: "[WM.5] a snooze stops suppressing the reminder",
+    note: "a dismissal in one renderer would not mean a dismissal in the other",
+    seeds: [{ file: "storage.js", find: "      if (it.snoozed) return false;                          // one dismissal, honoured everywhere", replace: "" }],
+  },
+  {
+    name: "[WM.5] the snooze stops expiring with the day",
+    note: "'gone until tomorrow' would become the THIRD STATE the bell spec forbids",
+    seeds: [{ file: "storage.js", find: "    return bag[taskId] === localDayKey(now);\n  }\n\n  function getDueWork(data, opts) {",
+              replace: "    return !!bag[taskId];\n  }\n\n  function getDueWork(data, opts) {" }],
   },
   {
     name: "[WM.4] the idle floor removed",

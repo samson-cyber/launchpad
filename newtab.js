@@ -9579,11 +9579,14 @@
     // updater on "change", which clamps + coerces; we then re-render the section
     // so the CLAMPED value is reflected back into the box (e.g. 999 -> 60). The
     // pill's ring reads settings live per tick, so no forced widget render here.
+    // [WM.5] Each now writes the SELECTED MODE'S preset rather than the global
+    // durations, through the one setter that clamps through the same
+    // clampPomodoroField the global reader uses - so 999 still becomes 60.
     var pomoBindings = [
-      ["#pomo-work-min", Storage.setPomodoroWorkMin],
-      ["#pomo-short-break-min", Storage.setPomodoroShortBreakMin],
-      ["#pomo-long-break-min", Storage.setPomodoroLongBreakMin],
-      ["#pomo-cycles", Storage.setPomodoroCyclesBeforeLongBreak]
+      ["#pomo-work-min", "workMin"],
+      ["#pomo-short-break-min", "shortBreakMin"],
+      ["#pomo-long-break-min", "longBreakMin"],
+      ["#pomo-cycles", "cyclesBeforeLongBreak"]
     ];
     // [1.7.2] The daily focus target. Same shape as the four above - per-field
     // updater on "change", then re-render so a CLAMPED or CLEARED value is
@@ -9605,7 +9608,7 @@
     pomoBindings.forEach(function (pair) {
       safeOn(pair[0], "change", async function (e) {
         try {
-          await pair[1](data, e.target.value);
+          await Storage.setModePresetField(data, proPresetMode, pair[1], e.target.value);
         } catch (err) {
           console.error("[LaunchPad] Pomodoro settings: save failed", err);
         }
@@ -10164,11 +10167,24 @@
 
   function renderProPomodoroSettings() {
     var s = Storage.getPomodoroSettings(data);
-    var set = function (sel, val) { var el = $(sel); if (el) el.value = String(val); };
-    set("#pomo-work-min", s.workMin);
-    set("#pomo-short-break-min", s.shortBreakMin);
-    set("#pomo-long-break-min", s.longBreakMin);
-    set("#pomo-cycles", s.cyclesBeforeLongBreak);
+    // [WM.5] The four boxes show the SELECTED mode's preset; the selector and
+    // the chain box are painted by the same call, so the panel can never show a
+    // mode's lengths under another mode's heading.
+    renderModePresetEditor();
+    // [WM.5 / G2] The reminders switch. Shown OFF whenever the permission is not
+    // actually held - the notifications toggle's own defence, for the same
+    // reason: a user who revoked the permission in chrome://settings must not
+    // find a switch claiming reminders are on.
+    var remBox = $("#due-reminders-toggle");
+    if (remBox) {
+      if (!Storage.getDueRemindersEnabled(data) || !chrome.permissions) {
+        remBox.checked = false;
+      } else {
+        chrome.permissions.contains({ permissions: ["notifications"] }, function (has) {
+          remBox.checked = !!has;
+        });
+      }
+    }
     // [A2] Reset control: enabled only with an active task carrying a count > 0.
     var resetBtn = $("#pomo-reset-cycles");
     var hint = $("#pomo-reset-hint");
@@ -10502,6 +10518,80 @@
     if (idle) idle.value = String(Storage.getIdleThresholdSec(data));
   }
 
+  // ===== [WM.5] THE MODE PRESET EDITOR =====
+  //
+  // WHERE THE CONTROL LIVES, and it was a real choice. The switcher is where
+  // MODE lives, but the switcher is a SWITCH: a two-value control in a dropdown
+  // that has to stay instant, and hanging five fields off it would turn
+  // flipping mode into a trip through a form. Pro Settings already holds the
+  // durations, the notifications, the chime, the blocking rules, the friction
+  // and the idle threshold - every other piece of the same discipline - so the
+  // presets go beside them and the Focus-session settings stay in ONE place.
+  //
+  // The redesign is parked, so this lands on the panel Samson called a mess.
+  // It is therefore two controls on the block that already exists - a two-button
+  // selector saying WHICH mode the four inputs are editing, and the chain
+  // checkbox - rather than a second copy of the block per mode.
+  var proPresetMode = "work";
+
+  function renderModePresetEditor() {
+    var box = $("#pomo-chain-toggle");
+    if (!box) return;
+    var preset = Storage.getModePreset(data, proPresetMode);
+    $$(".mode-preset-btn").forEach(function (b) {
+      var on = (b.getAttribute("data-preset-mode") === proPresetMode);
+      b.classList.toggle("is-on", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    box.checked = preset.chain;
+    var w = $("#pomo-work-min"), s = $("#pomo-short-break-min"),
+        l = $("#pomo-long-break-min"), c = $("#pomo-cycles");
+    if (w) w.value = String(preset.workMin);
+    if (s) s.value = String(preset.shortBreakMin);
+    if (l) l.value = String(preset.longBreakMin);
+    if (c) c.value = String(preset.cyclesBeforeLongBreak);
+  }
+
+  function bindModePresets() {
+    safeOn("#pro-settings-panel", "click", function (e) {
+      var btn = e.target.closest && e.target.closest(".mode-preset-btn");
+      if (!btn) return;
+      proPresetMode = (btn.getAttribute("data-preset-mode") === "casual") ? "casual" : "work";
+      renderModePresetEditor();
+    });
+    safeOn("#pomo-chain-toggle", "change", async function () {
+      try { await Storage.setModePresetField(data, proPresetMode, "chain", this.checked); }
+      catch (err) { console.error("[LaunchPad] Presets: chain save failed", err); }
+      renderModePresetEditor();
+    });
+    // [WM.5 / G2] THE REMINDERS SWITCH. Permission requested from THIS gesture
+    // in the ON branch and nowhere else - the shape the phase-boundary toggle
+    // already uses, which is why the two can share one optional permission
+    // without either owning it. Denied reverts the box and never flips the flag.
+    safeOn("#due-reminders-toggle", "change", async function (e) {
+      var box = e.target;
+      if (box.checked) {
+        var granted = false;
+        try {
+          granted = await new Promise(function (resolve) {
+            chrome.permissions.request({ permissions: ["notifications"] }, function (g) { resolve(!!g); });
+          });
+        } catch (err) {
+          console.error("[LaunchPad] Reminders: permission request failed", err);
+          granted = false;
+        }
+        if (!granted) {
+          box.checked = false;
+          var note = $("#due-reminders-note");
+          if (note) note.textContent = t("bind_notifications_permission_was_declined");
+          return;
+        }
+      }
+      try { await Storage.setDueRemindersEnabled(data, box.checked); }
+      catch (err) { console.error("[LaunchPad] Reminders: save failed", err); }
+    });
+  }
+
   // [WM.4] Bound once, at panel wiring. Each writes through Storage, which owns
   // the clamping - the control's own min/max is a convenience for the mouse, not
   // the guard.
@@ -10523,6 +10613,7 @@
   }
 
   bindFocusExtras();
+  bindModePresets();
 
   // Empty input is a NO-OP, not an error: pressing Enter on an empty box is a
   // slip, and answering it with a red note would be scolding the user for nothing.
@@ -16976,6 +17067,78 @@
     return ps.sessionComplete ? ps : null;
   }
 
+  // ===== [WM.5] THE CHAINING COUNTDOWN =====
+  //
+  // 2026-09-01: in Work mode the next work phase starts after a VISIBLE
+  // 10-second countdown with a cancel control. Casual never advances at all.
+  //
+  // PAGE MEMORY, NOT STORAGE, AND THIS IS A DECISION RATHER THAN AN OMISSION.
+  // A stored deadline would outlive the page that showed it: close the tab
+  // during the countdown and the next new tab - minutes or hours later - would
+  // find an expired commitment and start a work phase nobody was watching. That
+  // is precisely the invisible auto-advance 2026-07-22 objected to and which
+  // the visible, cancellable countdown was designed to answer. The consent
+  // property IS the visibility, so the countdown cannot outlive it.
+  //
+  // WHAT THE BACKGROUND CASE GETS INSTEAD: the boundary notification the worker
+  // already posts, which carries a 'Start next session' button. One click
+  // rather than none, which is the right default when nobody is looking.
+  var satChainDeadline = null;     // ms epoch, or null
+  var satChainCancelled = false;   // cleared when a new session begins
+  var satChainTimer = null;
+
+  function satChainClear() {
+    if (satChainTimer) { clearTimeout(satChainTimer); satChainTimer = null; }
+    satChainDeadline = null;
+  }
+
+  // Seconds left, or null when no countdown is running. Called from the render,
+  // so it also ARMS the countdown the first time the card appears in a chaining
+  // state - once, because a re-render must not restart the clock.
+  function satChainRemainingSec() {
+    var done = satSessionComplete();
+    if (!done) {
+      // The session-complete state is gone: either a new session started or the
+      // card was dismissed. Either way the cancel is spent.
+      satChainClear();
+      satChainCancelled = false;
+      return null;
+    }
+    if (satChainCancelled) return null;
+    if (!Storage.shouldChainAfterBreak(data, done)) { satChainClear(); return null; }
+    if (satChainDeadline === null) {
+      satChainDeadline = Date.now() + Storage.CHAIN_COUNTDOWN_MS;
+      satChainTick();
+    }
+    return Math.max(0, Math.ceil((satChainDeadline - Date.now()) / 1000));
+  }
+
+  // ONE TIMER, RE-ARMED, rather than a setInterval: an interval that outlives
+  // its card keeps firing against a stale closure, and this page already carries
+  // a tick of its own that would double-render.
+  function satChainTick() {
+    if (satChainTimer) clearTimeout(satChainTimer);
+    satChainTimer = setTimeout(function () {
+      satChainTimer = null;
+      if (satChainDeadline === null || satChainCancelled) return;
+      if (Date.now() >= satChainDeadline) {
+        var done = satSessionComplete();
+        satChainClear();
+        // THE MODE THAT AUTHORISED THE CHAIN, carried into the session it
+        // starts. Driven: with the workspace flipped to Casual during the
+        // countdown, this started an 11-minute Casual session - while the
+        // countdown on screen was promising the next phase of a Work session.
+        // A HAND click on Start next session still reads the live workspace,
+        // because the user is here and chose it; only the automatic
+        // continuation inherits.
+        satPomoStart(done ? done.mode : null);
+        return;
+      }
+      renderActiveTaskWidget();
+      satChainTick();
+    }, 250);
+  }
+
   // Remaining ms in the running phase, floored at 0. [A2 D4] While tracking is
   // paused the countdown FREEZES: it reads phaseEndsAt - pausedAt, exactly what
   // setTrackingPaused's resume shift restores continuity against. Caller passes
@@ -17793,6 +17956,9 @@
         '</div>';
     }
 
+    // [WM.5] ...UNLESS THE SESSION'S MODE CHAINS, which is the 2026-09-01
+    // amendment to that rule and the only thing below that is new. See
+    // satChainState for why the countdown is page-memory rather than stored.
     // [E1] Session COMPLETE (a break ran to its end): summary + explicit
     // restart. Work NEVER auto-starts — '▶ Start next session' routes through
     // the normal start path (pomo-start clears the marker and begins a work
@@ -17818,7 +17984,17 @@
           '<div class="sat-pomo sat-pomo-done">' +
             '<div class="sat-pomo-done-msg">' +
               th("sat_pomo_session_done_cycle", { position: cyclePos, total: cadence }) + '</div>' +
+            // [WM.5] THE COUNTDOWN GETS ITS OWN LINE. Inside the button row it
+            // made three children of a flex row whose start button is flex:1,
+            // and on a 250px card Cancel landed on top of Start - which the
+            // frame showed and every contrast number missed.
+            (satChainRemainingSec() === null ? '' :
+              '<div class="sat-chain-count">' +
+                th("sat_next_phase_in_seconds", { count: satChainRemainingSec() }) + '</div>') +
             '<div class="sat-pomo-start-row">' +
+              (satChainRemainingSec() === null ? '' :
+                '<button type="button" class="sat-btn" data-sat-act="pomo-chain-cancel">' +
+                  th("common_cancel") + '</button>') +
               '<button type="button" class="sat-btn sat-btn-pomo-start" data-sat-act="pomo-start" ' +
                 'title="' + th("sat_start_the_next_focus_session") + '">' + th("sat_start_next_session") + '</button>' +
             '</div>' +
@@ -17830,7 +18006,11 @@
 
     // [A2 D9/D10] Not running: dual counters, then the Focus-session start control
     // with the sticky work length + a tappable duration segment (chips + custom).
-    var workMin = Storage.getPomodoroSettings(data).workMin;
+    // [WM.5] The length this button would START at, which is the CURRENT
+    // workspace's mode preset - the same value startPomodoroPhase will stamp.
+    // Reading the global durations here would show a number the session would
+    // not use.
+    var workMin = Storage.pomodoroConfigForMode(data, Storage.getWorkspaceMode(Storage.getActiveWorkspace(data))).workMin;
     return '<div class="sat-expanded' + (paused ? ' is-paused' : '') + '">' +
         head +
         // [2.0 hero swap] The stopwatch leads HERE and only here — the two
@@ -18026,10 +18206,14 @@
     renderActiveTaskWidget();
   }
 
-  async function satPomoStart() {
+  async function satPomoStart(modeOverride) {
     satPomoDurOpen = false;   // close the duration picker on start
+    // [WM.5] A cancel belongs to the boundary it was clicked at, not to the
+    // session: the next break should offer the countdown again.
+    satChainCancelled = false;
+    satChainClear();
     try {
-      await Storage.startPomodoroPhase(data);
+      await Storage.startPomodoroPhase(data, modeOverride ? { mode: modeOverride } : null);
     } catch (err) {
       console.error("[LaunchPad] Focus session: start failed", err);
       return;
@@ -18051,7 +18235,10 @@
   // Settings work-minutes input consistent (both read the same stored value).
   async function satPomoSetWorkMin(val) {
     try {
-      await Storage.setPomodoroWorkMin(data, val);
+      // [WM.5] Writes the CURRENT workspace mode's preset, so the chip and the
+      // settings panel are editing one value rather than two.
+      await Storage.setModePresetField(data,
+        Storage.getWorkspaceMode(Storage.getActiveWorkspace(data)), "workMin", val);
     } catch (err) {
       console.error("[LaunchPad] Focus session: duration save failed", err);
     }
@@ -18408,6 +18595,15 @@
       if (act === "complete") { await satComplete(); return; }
       if (act === "cancel") { await satCancel(); return; }
       if (act === "pomo-start") { await satPomoStart(); return; }
+      // [WM.5] CANCEL STOPS THE COUNTDOWN AND NOTHING ELSE. The card stays, and
+      // 'Start next session' is still there - stepping off the treadmill is not
+      // the same act as ending the session.
+      if (act === "pomo-chain-cancel") {
+        satChainCancelled = true;
+        satChainClear();
+        renderActiveTaskWidget();
+        return;
+      }
       if (act === "focus-toggle") { await satToggleFocusArm(); return; }
       if (act === "pomo-stop") { await satPomoStop(); return; }
       if (act === "pomo-duration") { satPomoDurOpen = !satPomoDurOpen; renderActiveTaskWidget(); return; }

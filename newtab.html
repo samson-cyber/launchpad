@@ -640,6 +640,11 @@
       <div class="settings-section">
         <h3 data-i18n="prosettings_focus_sessions" class="settings-section-title">Focus sessions</h3>
         <p data-i18n="prosettings_work_and_break_lengths_changes" class="pro-section-subtitle">Work and break lengths. Changes apply to your next phase.</p>
+        <div class="mode-preset-switch" role="group" data-i18n-aria-label="prosettings_which_mode_these_lengths">
+          <button data-i18n="prosettings_mode_work" type="button" class="mode-preset-btn is-on" data-preset-mode="work" aria-pressed="true">Work</button>
+          <button data-i18n="prosettings_mode_casual" type="button" class="mode-preset-btn" data-preset-mode="casual" aria-pressed="false">Casual</button>
+        </div>
+        <p data-i18n="prosettings_each_mode_keeps_its_own_lengths" class="mode-preset-note">Each mode keeps its own lengths. A session runs under the mode of the workspace it started in.</p>
         <div class="pomo-settings">
           <label class="pomo-setting-row">
             <span data-i18n="prosettings_work" class="pomo-setting-label">Work</span>
@@ -669,6 +674,10 @@
             </span>
           </label>
         </div>
+        <label class="pro-toggle-row">
+          <input type="checkbox" id="pomo-chain-toggle">
+          <span data-i18n="prosettings_chain_after_break" id="pomo-chain-label">Roll into the next work phase after a break, with a 10-second countdown you can cancel</span>
+        </label>
         <div class="pomo-reset-row">
           <button data-i18n="prosettings_reset_cycle_count" type="button" id="pomo-reset-cycles" class="pomo-reset-btn">Reset cycle count</button>
           <span class="pomo-reset-hint" id="pomo-reset-hint"></span>
@@ -695,6 +704,14 @@
             </div>
           </div>
         </div>
+      </div>
+      <div class="settings-section">
+        <h3 data-i18n="prosettings_reminders" class="settings-section-title">Reminders</h3>
+        <label class="pro-toggle-row">
+          <input type="checkbox" id="due-reminders-toggle">
+          <span data-i18n="prosettings_due_reminders_toggle">Remind me about work due today, once each morning</span>
+        </label>
+        <p data-i18n="prosettings_due_reminders_note" class="fb-note" id="due-reminders-note">Off by default. Sends one desktop notification per task, at 9am or the first time the browser is open after it, and only in a Work workspace.</p>
       </div>
       <div class="settings-section focus-block-section">
         <h3 data-i18n="prosettings_focus_blocking" class="settings-section-title">Focus blocking</h3>

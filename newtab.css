@@ -18383,3 +18383,79 @@ html.bg-light #focus-exit {
   color: var(--text-primary);
 }
 html.bg-light #focus-exit:hover { background: rgba(255, 255, 255, 0.96); }
+
+
+/* ===== [WM.5] Mode presets and the chaining countdown =====================
+   NEW SELECTORS ONLY, appended as one block: a parallel session is editing
+   this file this round, and a contiguous addition that touches nothing
+   existing is the shape that rebases without a conflict.
+
+   THE THREE-RULE INK PATTERN on every text node here - base, html.has-bg,
+   html.has-bg.bg-light. Two rules ships white-on-white on a light wallpaper,
+   which is the defect tools/check-panel-ink.mjs exists to refuse. */
+.mode-preset-switch {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-1);
+  margin-block: var(--space-2) var(--space-1-5);
+}
+
+.mode-preset-btn {
+  flex: 0 0 auto;
+  padding: 3px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: transparent;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+/* SELECTION IS CARRIED BY THE BORDER AND THE WEIGHT, NOT BY THE INK. The first
+   version gave the selected button its own colour over an accent tint and
+   measured 4.44:1 with no wallpaper and 3.75:1 on a light one - below the floor
+   on two grounds, and less readable than the UNSELECTED button beside it at
+   5.62 and 5.52. A tint belongs behind text, not in it. */
+.mode-preset-btn.is-on {
+  border-color: rgba(74, 144, 226, 0.85);
+  box-shadow: inset 0 0 0 1px rgba(74, 144, 226, 0.45);
+}
+
+html.has-bg .mode-preset-btn { color: var(--ink-secondary); border-color: rgba(255, 255, 255, 0.16); }
+html.has-bg .mode-preset-btn.is-on { border-color: rgba(120, 170, 235, 0.9); }
+html.has-bg.bg-light .mode-preset-btn { color: var(--text-secondary); border-color: var(--border); }
+html.has-bg.bg-light .mode-preset-btn.is-on { border-color: rgba(74, 144, 226, 0.85); }
+
+.mode-preset-note {
+  margin: 0 0 var(--space-2) 0;
+  font-size: var(--fs-11);
+  color: var(--text-secondary);
+}
+
+html.has-bg .mode-preset-note { color: var(--ink-secondary); }
+html.has-bg.bg-light .mode-preset-note { color: var(--text-secondary); }
+
+/* The chaining countdown on the session-done card. REPORTS TIME, DOES NOT
+   EXHORT - so it is the same weight and the same ink as the message it sits
+   beside, with no colour of its own and nothing that pulses.
+
+   THE PILL'S INK MODEL, NOT THE PANEL'S, and the difference is the whole
+   reason this rule reads the way it does. The settings panel uses the
+   three-rule pattern (base --text-*, html.has-bg --ink-*, html.has-bg.bg-light
+   --text-*). The pill is a body-mounted frost FLOATER that is dark on every
+   ground EXCEPT html.bg-light, so its nodes declare white outright and flip
+   dark under bg-light alone - exactly as .sat-pomo-done-msg does eight rules
+   below. Written with the panel's pattern this measured 1.72 / 1.87 / 1.84 /
+   2.48 across the four grounds, which is dark ink on a dark card. */
+.sat-chain-count {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-2);
+  text-align: center;
+  font-size: var(--fs-12);
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+html.bg-light .sat-chain-count { color: var(--text-primary); text-shadow: none; }
