@@ -5019,12 +5019,22 @@
         // that has never been started would otherwise paint "0m" on every row
         // in the list — noise that says nothing the empty space does not.
         satWorkedChipHtml(task, isActiveTask) +
-        // [1.4.2] The attached session, if any. It joins the CHIP CLUSTER rather
-        // than the controls zone beside it: that zone is a grid with four fixed
-        // columns (72px 78px 66px 24px), so a fifth member either wraps or costs
-        // every row 30px of name width whether it has a session or not. This
-        // cluster is a flex row that already carries conditional children.
-        sessionLaunchChipHtml(workspace, task) +
+        // [1.14.2] The task's OWN attachments, replacing [1.4.2]'s single
+        // session chip and inheriting its placement argument unchanged: the
+        // controls zone beside this one is a four-column grid, so a fifth member
+        // there costs every row 30px of name width whether it has an attachment
+        // or not. This cluster is a flex row that already carries conditional
+        // children.
+        //
+        // DECISION B IS VISIBLE HERE BY WHAT IS ABSENT. A task under a goal
+        // shows ONLY what was attached to the task. The goal's own tools render
+        // once, on the goal header this row sits directly beneath - so they are
+        // visible FROM the row without being ON it. That is the whole of
+        // "visible from rather than inherited": it is a layout fact, not a
+        // second rendering, and there is nothing on this row that could launch
+        // tabs the user did not attach to this task. A standalone task has no
+        // goal header and therefore no goal tools, by construction.
+        attachRowHtml("task", task.id) +
         // Windowed tracked time. Rendered EMPTY and filled by ttRefreshTaskTimes a
         // tick later — the byTask read is async and taskRowHtml is a synchronous
         // builder, the same two-phase shape the cockpit uses. A task with no
@@ -5188,6 +5198,16 @@
           menuBtnHtml +
         '</div>' +
       '</header>' +
+      // [1.14.2 / G4 amendment A] THE GOAL'S TOOLS, ON THE HEADER. This is the
+      // whole of the "organic" feeling the amendment describes: opening a goal
+      // shows what it needs without a menu. Its own row under the header rather
+      // than inside it, because the header is a two-column flex whose right side
+      // is deadline + kebab and whose left truncates the name - chips in either
+      // would fight the name for width on every goal, attached or not.
+      //
+      // ABSENT WITH NOTHING ATTACHED. attachRowHtml returns "" and no rail, no
+      // placeholder and no "0 resources" is painted.
+      attachRowHtml("goal", goal.id) +
       '<div class="tt-goal-progress">' +
         '<div class="tt-progress-bar">' +
           '<span class="tt-progress-pct tt-progress-pct-base" aria-hidden="true">' + pct + '%</span>' +
@@ -5953,6 +5973,26 @@
 
       // [1.4.4] Task-row options pill → the SAME menu right-click opens, anchored
       // under the pill exactly as .tt-goal-menu-btn anchors the goal menu.
+      // [1.14.2] Attachment chips, on a task row OR a goal header. One handler
+      // for both, because the chip carries its own owner - so the two surfaces
+      // cannot drift on what a click does.
+      var attachBtn = target.closest && target.closest("[data-attach-launch]");
+      if (attachBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var aOwner = (attachBtn.getAttribute("data-attach-owner") || "").split(":");
+        attachLaunchOne(aOwner[0], aOwner.slice(1).join(":"), attachBtn.getAttribute("data-attach-launch"));
+        return;
+      }
+      var attachAllBtn = target.closest && target.closest("[data-attach-launch-all]");
+      if (attachAllBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        var allOwner = (attachAllBtn.getAttribute("data-attach-launch-all") || "").split(":");
+        attachLaunchAll(allOwner[0], allOwner.slice(1).join(":"));
+        return;
+      }
+
       var optPill = target.closest && target.closest(".tt-task-options");
       if (optPill) {
         e.preventDefault();
@@ -6100,17 +6140,6 @@
       if (addCancel) {
         var card3 = addCancel.closest(".tt-goal-card");
         if (card3) hideAddTaskInline(card3);
-        return;
-      }
-
-      // [1.4.2] The session chip. Ahead of the name branch for the same reason as
-      // the play glyph: it is a button inside the name cluster and must claim its
-      // own click before any name-zone handling sees it.
-      var sessBtn = target.closest && target.closest(".tt-task-session");
-      if (sessBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        launchNamedSession(sessBtn.dataset.sessionLaunch);
         return;
       }
 
@@ -7793,6 +7822,11 @@
       ctxEntityHeaderHtml("Goal", headerGoal ? headerGoal.name : "") +
       '<button type="button" class="tt-ctx-item" data-action="edit">' + th("goal_edit_2") + '</button>' +
       '<button type="button" class="tt-ctx-item" data-action="save-template">' + th("goal_save_as_template") + '</button>' +
+      // [1.14.2 / G4 amendment A+B] The goal's own tools, and the one-action way
+      // to make one. Both sit under Edit because they are about what the goal
+      // CARRIES rather than about its lifecycle.
+      '<button type="button" class="tt-ctx-item" data-action="attach-resources">' + th("attach_entry") + '</button>' +
+      '<button type="button" class="tt-ctx-item" data-action="capture-session">' + th("attach_capture_window") + '</button>' +
       '<button type="button" class="tt-ctx-item" data-action="complete">' + th("goal_mark_complete") + '</button>' +
       '<div class="tt-ctx-separator"></div>' +
       '<button type="button" class="tt-ctx-item tt-ctx-danger" data-action="delete">' + th("common_delete") + '</button>';
@@ -7818,6 +7852,14 @@
       var goal = workspace && Storage.getGoalById(workspace, goalId);
       if (!goal) return;
       var panel = document.getElementById("tab-tasks");
+      if (action === "attach-resources") {
+        openAttachPicker("goal", goalId);
+        return;
+      }
+      if (action === "capture-session") {
+        await captureWindowIntoGoal(goalId);
+        return;
+      }
       if (action === "edit") {
         openEditGoalModal(goal);
       } else if (action === "save-template") {
@@ -7914,20 +7956,22 @@
     var makeActiveHtml = (!task.completed && !isActiveTask)
       ? '<button type="button" class="tt-ctx-item" data-action="make-active">' + th("task_make_active") + '</button>'
       : "";
-    // [1.4.3] THE TASK SIDE of session attachment. The session side has been
-    // reachable since [1.4.2] from the flyout row's options button; this is the
-    // same relationship approached from the task, which is where Samson found
-    // himself looking for it. Label mirrors the session side exactly: the slot
-    // is always offered and changes face, "Change session" once one is on.
-    // Detach is the entry that comes and goes.
-    var ctxWsSession = workspace ? Storage.getNamedSessionForTask(workspace, task.id) : null;
+    // [1.14.2 / G4] ONE ENTRY FOR THREE KINDS, replacing [1.4.2]'s two.
+    //
+    // Those two were "Attach session to this task" / "Change session" plus a
+    // conditional "Detach session" - a slot that changed face and a partner that
+    // came and went, for ONE kind of resource. With three kinds that shape
+    // becomes six entries on a menu that already has seven, so the slot stops
+    // being a slot and becomes a list, and a list belongs in a picker.
+    //
+    // THE PICKER OWNS DETACH TOO, which is why no detach entry replaces the old
+    // one: attached rows in the picker read "Remove", so attaching and detaching
+    // are one surface rather than a menu entry each. The [1.4.2] session pointer
+    // still resolves - see Storage.resolveAttachments - so a task that had one
+    // before this round still shows and still launches it.
     var sessionItemsHtml =
-      '<button type="button" class="tt-ctx-item" data-action="attach-session">' +
-        (ctxWsSession ? th("task_change_session") : th("task_assign_session_to_this_task")) +
-      '</button>' +
-      (ctxWsSession
-        ? '<button type="button" class="tt-ctx-item" data-action="detach-session">' + th("task_detach_session") + '</button>'
-        : "");
+      '<button type="button" class="tt-ctx-item" data-action="attach-resources">' +
+        th("attach_entry") + '</button>';
     var menu = document.createElement("div");
     menu.className = "tt-context-menu";
     menu.innerHTML =
@@ -7984,19 +8028,8 @@
         if (pPill && pTask) openPriorityPillPopover(pPill, taskId, pTask.priority || null);
       } else if (action === "assign-goal") {
         openTaskGoalPicker(taskId);
-      } else if (action === "attach-session") {
-        openTaskSessionPicker(taskId);
-      } else if (action === "detach-session") {
-        var dws = Storage.getActiveWorkspace(data);
-        var dsess = dws && Storage.getNamedSessionForTask(dws, taskId);
-        if (dsess) {
-          Storage.detachNamedSession(data, dsess.id);
-          await Storage.saveAll(data);
-          data = await Storage.getAll();
-          renderSessionsList();
-          eagerRenderTasks();
-          showToast((dsess.name || "Session") + " is no longer on this task.");
-        }
+      } else if (action === "attach-resources") {
+        openAttachPicker("task", taskId);
       } else if (action === "duplicate") {
         await Storage.duplicateTask(data, taskId);
         if (panel) renderTasksTab(panel, data);
@@ -20723,52 +20756,306 @@
 
   // ---- the SESSION picker, opened from a task ----
 
-  function taskSessionPickerRowsHtml(ws, taskId) {
-    var sessions = pickerFilterBy(Storage.getAllNamedSessions(ws), function (s) { return s.name; });
-    if (!sessions.length) return pickerEmptyHtml("No sessions match that.");
-    return sessions.map(function (s) {
-      var isCurrent = s.taskId === taskId;
-      // The mirror of the task picker's note: a session already on ANOTHER task
-      // is still offered, and choosing it moves it. Same confirm, same wording,
-      // because it is literally the same commit path.
-      var owner = (!isCurrent && s.taskId) ? Storage.getTaskById(ws, s.taskId) : null;
-      var note = isCurrent ? "attached to this task" : (owner ? "on " + owner.name : "");
-      return '<button type="button" class="session-picker-row' + (isCurrent ? " is-current" : "") +
-        '" data-picker-session="' + escapeHtml(s.id) + '">' +
-        '<span class="session-picker-name">' + escapeHtml(s.name || t("sessions_untitled_session")) + '</span>' +
-        (note ? '<span class="session-picker-note">' + escapeHtml(note) + '</span>' : "") +
+  // ===== [1.14.2 / G4] UNIFIED ATTACH RESOURCES =====
+  //
+  // TWO RELATIONS, ONE SURFACE, AND THE COPY KEEPS THEM APART (decision C).
+  // A task row can carry BOTH a tag pill and an attachment chip, and they mean
+  // opposite things: a TAG attributes time to work, an ATTACHMENT opens tabs.
+  // A user who reads one as the other mis-reads their own Insights, so the
+  // picker says which relation it is in a sentence rather than relying on the
+  // word "attach" to carry it.
+  //
+  // "NAMED SESSION", ALWAYS (decision D). The goal header is where the senses of
+  // "session" collide - a saved tab set, the browser's session, and a focus
+  // session all have a claim on the word there - so no string on this surface
+  // says "session" unqualified.
+
+  // How many tabs one click may open before it asks. A window past roughly this
+  // many tabs is where the strip collapses to favicons, and it is about two
+  // Open-Alls. Under it a confirm is the friction the gate doctrine warns about;
+  // over it, one click has done something the user cannot easily undo.
+  var ATTACH_CONFIRM_TABS = 15;
+
+  function attachOwnerFor(ownerKind, ownerId) {
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return null;
+    var owner = (ownerKind === "goal")
+      ? Storage.getGoalById(ws, ownerId)
+      : Storage.getTaskById(ws, ownerId);
+    return owner ? { ws: ws, owner: owner } : null;
+  }
+
+  function attachResolvedFor(ownerKind, ownerId) {
+    var c = attachOwnerFor(ownerKind, ownerId);
+    if (!c) return [];
+    // The legacy [1.4.2] pointer is folded in for TASKS only - that relation
+    // never existed for goals.
+    return Storage.resolveAttachments(c.ws, c.owner, ownerKind === "task" ? ownerId : null);
+  }
+
+  // ---- the chips ---------------------------------------------------------
+  //
+  // WHAT EACH KIND SHOWS, decided rather than defaulted:
+  //   named session - the favicons it CAPTURED at save, up to four, or the
+  //                   placeholder for a tab that had none. Never derived from
+  //                   the URL: that rule is about browsing-domain rows, and
+  //                   these are stored favicons, but the placeholder is what a
+  //                   capture with no favicon already stores.
+  //   group         - its shortcuts' favicons, up to four. A group's identity on
+  //                   Home IS its shortcuts, so showing them is showing it.
+  //   shortcut      - its own favicon.
+  // Each chip also carries the NAME, because a named session and a group can
+  // both be called "Client A" and a row of favicons cannot tell them apart.
+  var ATTACH_FAVICON_MAX = 4;
+
+  function attachFaviconsFor(r) {
+    if (!r) return [];
+    if (r.kind === "session") {
+      return (r.resource.tabs || []).slice(0, ATTACH_FAVICON_MAX).map(function (t) { return t.favicon || null; });
+    }
+    if (r.kind === "group") {
+      return (r.resource.shortcuts || []).slice(0, ATTACH_FAVICON_MAX).map(function (s) { return (s && s.favicon) || null; });
+    }
+    if (r.kind === "shortcut") return [r.resource.favicon || null];
+    return [];
+  }
+
+  function attachKindLabel(kind) {
+    if (kind === "session") return t("attach_kind_named_session");
+    if (kind === "group") return t("attach_kind_group");
+    return t("attach_kind_shortcut");
+  }
+
+  function attachChipHtml(ownerKind, ownerId, r) {
+    var favs = attachFaviconsFor(r).map(function (u) {
+      return '<img class="attach-fav" src="' + escapeHtml(u || "assets/placeholder.svg") +
+             '" alt="" aria-hidden="true">';
+    }).join("");
+    var count = Storage.attachmentUrls(r).length;
+    // The title names the RELATION and the KIND, so a chip beside a tag pill
+    // cannot be read as a tag.
+    var title = t("attach_open_title", {
+      kind: attachKindLabel(r.kind), name: r.name || attachKindLabel(r.kind), count: count
+    });
+    return '<button type="button" class="attach-chip" data-attach-launch="' + escapeHtml(r.kind + ":" + r.id) +
+      '" data-attach-owner="' + escapeHtml(ownerKind + ":" + ownerId) +
+      '" title="' + escapeHtml(title) + '" aria-label="' + escapeHtml(title) + '">' +
+      '<span class="attach-favs" aria-hidden="true">' + favs + '</span>' +
+      '<span class="attach-chip-name">' + escapeHtml(r.name || attachKindLabel(r.kind)) + '</span>' +
+    '</button>';
+  }
+
+  // ABSENT WITH NOTHING ATTACHED. Not "0 resources" and not an empty rail - the
+  // badge rule and the focus ring's rule, which this product applies everywhere
+  // else: a zero is a statement about the user, absence is a statement about the
+  // data.
+  function attachRowHtml(ownerKind, ownerId) {
+    var list = attachResolvedFor(ownerKind, ownerId);
+    if (!list.length) return "";
+    var chips = list.map(function (r) { return attachChipHtml(ownerKind, ownerId, r); }).join("");
+    // The launch-all control appears only with something to combine.
+    var all = list.length > 1
+      ? '<button type="button" class="attach-launch-all" data-attach-launch-all="' +
+          escapeHtml(ownerKind + ":" + ownerId) + '" title="' + th("attach_open_all_title") + '">' +
+          th("attach_open_all") + '</button>'
+      : "";
+    return '<div class="attach-row" data-attach-row="' + escapeHtml(ownerKind + ":" + ownerId) + '">' +
+      chips + all + '</div>';
+  }
+
+  // ---- launching ---------------------------------------------------------
+
+  async function attachLaunchList(list) {
+    var urls = [];
+    list.forEach(function (r) { urls = urls.concat(Storage.attachmentUrls(r)); });
+    if (!urls.length) { showToast(t("attach_nothing_to_open")); return; }
+    try {
+      await chrome.windows.create({ url: urls, focused: true });
+    } catch (err) {
+      console.error("[LaunchPad] Attach: launch failed", err);
+      showToast(t("attach_could_not_open"));
+      return;
+    }
+    // A launched named session still gets its lastLaunchedAt, so the sessions
+    // list keeps ordering correctly however the launch was reached.
+    var touched = false;
+    list.forEach(function (r) {
+      if (r.kind === "session") { Storage.touchNamedSessionLaunched(data, r.id); touched = true; }
+    });
+    if (touched) { await Storage.saveAll(data); data = await Storage.getAll(); }
+  }
+
+  async function attachLaunchOne(ownerKind, ownerId, key) {
+    var parts = String(key).split(":");
+    var list = attachResolvedFor(ownerKind, ownerId).filter(function (r) {
+      return r.kind === parts[0] && r.id === parts.slice(1).join(":");
+    });
+    // NO CONFIRM ON A SINGLE RESOURCE. Clicking one chip is the same act as
+    // clicking Open All on a group, which has never asked - adding a question
+    // here would make the new surface stricter than the shipped one for the
+    // identical outcome.
+    await attachLaunchList(list);
+  }
+
+  // THE CONFIRM IS ON THE COMBINED LAUNCH ONLY, and it is counted rather than
+  // guessed: attachmentTabCount sums what will actually open, so the number in
+  // the question is the number of tabs that appear.
+  async function attachLaunchAll(ownerKind, ownerId) {
+    var list = attachResolvedFor(ownerKind, ownerId);
+    if (!list.length) return;
+    var n = Storage.attachmentTabCount(list);
+    if (n <= ATTACH_CONFIRM_TABS) { await attachLaunchList(list); return; }
+    openTasksConfirmModal({
+      title: t("attach_open_all"),
+      message: t("attach_confirm_many", { count: n, resources: list.length }),
+      confirmLabel: t("attach_open_count", { count: n }),
+      onConfirm: function () { attachLaunchList(list); }
+    });
+  }
+
+  // ---- the picker --------------------------------------------------------
+
+  function attachPickerRowsHtml(ownerKind, ownerId) {
+    var c = attachOwnerFor(ownerKind, ownerId);
+    if (!c) return "";
+    var ws = c.ws;
+    var attached = Object.create(null);
+    attachResolvedFor(ownerKind, ownerId).forEach(function (r) { attached[r.kind + ":" + r.id] = true; });
+
+    var items = [];
+    Storage.getAllNamedSessions(ws).forEach(function (s) {
+      items.push({ kind: "session", id: s.id, name: s.name || t("sessions_untitled_session"),
+                   note: t("attach_note_tabs", { count: (s.tabs || []).length }) });
+    });
+    (ws.groups || []).forEach(function (g) {
+      items.push({ kind: "group", id: g.id, name: g.name || "",
+                   note: t("attach_note_shortcuts", { count: (g.shortcuts || []).length }) });
+    });
+    (ws.groups || []).forEach(function (g) {
+      (g.shortcuts || []).forEach(function (s) {
+        // NO URL, NO ROW. The intro group's onboarding tiles sit in this array
+        // with no name and no url, and offering them gave the picker four rows
+        // with an empty name column and nothing behind them. Caught by looking
+        // at the frame; every contrast number on that surface was green.
+        if (!s || !s.url) return;
+        items.push({ kind: "shortcut", id: s.id, name: s.name || s.url, note: g.name || "" });
+      });
+    });
+
+    var filtered = pickerFilterBy(items, function (i) { return i.name; });
+    if (!filtered.length) return pickerEmptyHtml(t("attach_no_matches"));
+    return filtered.map(function (i) {
+      var on = !!attached[i.kind + ":" + i.id];
+      return '<button type="button" class="session-picker-row' + (on ? " is-current" : "") +
+        '" data-picker-attach="' + escapeHtml(i.kind + ":" + i.id) + '">' +
+        '<span class="session-picker-name">' + escapeHtml(i.name) + '</span>' +
+        '<span class="session-picker-note">' +
+          escapeHtml(attachKindLabel(i.kind) + (i.note ? " \u00b7 " + i.note : "") +
+                     (on ? " \u00b7 " + t("attach_attached_remove") : "")) +
+        '</span>' +
       '</button>';
     }).join("");
   }
 
-  function openTaskSessionPicker(taskId) {
-    var ws = Storage.getActiveWorkspace(data);
-    var task = ws ? Storage.getTaskById(ws, taskId) : null;
-    if (!ws || !task) return;
+  function openAttachPicker(ownerKind, ownerId) {
+    var c = attachOwnerFor(ownerKind, ownerId);
+    if (!c) return;
     pickerFilter = "";
-    var total = Storage.getAllNamedSessions(ws).length;
+    var total = Storage.getAllNamedSessions(c.ws).length +
+      (c.ws.groups || []).length +
+      (c.ws.groups || []).reduce(function (n, g) { return n + ((g.shortcuts || []).length); }, 0);
 
     openTasksModal({
-      title: t("sessions_assign_to_task", { taskName: task.name }),
-      bodyHtml: total
-        ? pickerSearchHtml(total, t("picker_search_sessions")) +
-          '<div class="session-picker" data-picker-list>' + taskSessionPickerRowsHtml(ws, taskId) + '</div>'
-        : '<p class="tt-modal-message">' + th("task_there_are_no_saved_sessions_in") + '</p>',
+      title: t("attach_picker_title", { name: c.owner.name || "" }),
+      bodyHtml:
+        // DECISION C, IN A SENTENCE THE USER READS. Without it "attach" and
+        // "tag" are two verbs on one row and nothing on screen says they are
+        // different relations.
+        '<p class="tt-modal-message attach-relation-note">' + th("attach_relation_note") + '</p>' +
+        (total
+          ? pickerSearchHtml(total, t("attach_search")) +
+            '<div class="session-picker" data-picker-list>' + attachPickerRowsHtml(ownerKind, ownerId) + '</div>'
+          : '<p class="tt-modal-message">' + th("attach_nothing_to_attach") + '</p>'),
       primaryLabel: t("common_close"),
       hideCancel: true,
       onPrimary: function () {},
       onMounted: function (modalEl) {
-        wirePicker(modalEl, "data-picker-session",
-          function () { return taskSessionPickerRowsHtml(Storage.getActiveWorkspace(data), taskId); },
-          function (sessionId) {
-            // The SAME commit path as the session side, so both confirm shapes
-            // read identically whichever side the user started from. Only the
-            // reopen-on-cancel differs, because cancelling should return you to
-            // the picker you were actually looking at.
-            commitSessionAttach(sessionId, taskId, function () { openTaskSessionPicker(taskId); });
+        wirePicker(modalEl, "data-picker-attach",
+          function () { return attachPickerRowsHtml(ownerKind, ownerId); },
+          async function (key) {
+            var parts = String(key).split(":");
+            var kind = parts[0], id = parts.slice(1).join(":");
+            var ctx = attachOwnerFor(ownerKind, ownerId);
+            if (!ctx) return;
+            var on = attachResolvedFor(ownerKind, ownerId).some(function (r) {
+              return r.kind === kind && r.id === id;
+            });
+            if (on) {
+              // DETACHING A LEGACY [1.4.2] SESSION clears the pointer it really
+              // lives on. Removing only the array entry would leave the chip on
+              // screen, because the resolver folds that pointer in.
+              Storage.detachResource(ctx.owner, kind, id);
+              if (kind === "session" && ownerKind === "task") {
+                var legacy = Storage.getNamedSessionForTask(ctx.ws, ownerId);
+                if (legacy && legacy.id === id) Storage.detachNamedSession(data, id);
+              }
+            } else {
+              Storage.attachResource(ctx.owner, kind, id);
+            }
+            await Storage.saveAll(data);
+            data = await Storage.getAll();
+            eagerRenderTasks();
+            var list = modalEl.querySelector("[data-picker-list]");
+            if (list) list.innerHTML = attachPickerRowsHtml(ownerKind, ownerId);
           });
       }
     });
+  }
+
+  // ---- create a named session from a goal (amendment item B) -------------
+  //
+  // ONE ACTION: capture this window, name it, attach it. The capture goes
+  // through captureCurrentWindowTabs - the SAME path the open-tabs panel and
+  // "Save current tabs" use - so the favicons are the real ones the browser had,
+  // not derived from URLs. A second capture path would be a second answer to
+  // "what does a saved tab look like".
+  //
+  // DECISION E AND WHERE IT LANDS. Creating a named session is FREE; attaching
+  // one to a goal is Pro because goals are. A free user must not reach a Pro
+  // surface to create a session - and on this build they cannot reach THIS
+  // control at all, because the whole Tasks tab renders as renderProPreview for
+  // anyone isProAccessibleLevel refuses: the preview's goal cards are static
+  // demo markup with a DISABLED options button and no menu behind it. So the
+  // free branch of this function is unreachable by construction, and building
+  // one would be a control that cannot be reached - the preview-ghost rule.
+  // Creating a named session stays free where it has always been: the sessions
+  // flyout, the open-tabs panel and Save current tabs, none of which this round
+  // touches. Asserted at runtime rather than asserted here.
+  async function captureWindowIntoGoal(goalId) {
+    var c = attachOwnerFor("goal", goalId);
+    if (!c) return;
+    var captured = await captureCurrentWindowTabs();
+    if (!captured.tabs.length) { showToast(t("save_nothing_here_can_be_saved_a")); return; }
+    var suggested = c.owner.name || ("Session " + (sessionsForRender().length + 1));
+    var name = await promptModal({
+      title: t("attach_capture_title"),
+      label: t("dialog_session_name_field"),
+      value: suggested
+    });
+    if (name === null) return;
+    var created = Storage.createNamedSessionAtFront(data, { name: String(name).trim(), tabs: captured.tabs });
+    if (!created) return;
+    // THE ATTACH IS RE-READ, not held: createNamedSessionAtFront mutated the
+    // same `data`, and the goal object in `c` is still the live one, but the
+    // owner is looked up again so this cannot depend on that staying true.
+    var c2 = attachOwnerFor("goal", goalId);
+    if (c2) Storage.attachResource(c2.owner, "session", created.id);
+    await Storage.saveAll(data);
+    data = await Storage.getAll();
+    renderSessionsList();
+    eagerRenderTasks();
+    showToast(t("attach_captured_toast", { count: captured.tabs.length, name: created.name }) +
+              (captured.declined ? " " + t("opentabs_save_left_out", { count: captured.declined }) : ""));
   }
 
   function openSessionAttachPicker(sessionId) {
@@ -20867,20 +21154,6 @@
   // The task-row launch chip. Renders NOTHING when the task has no session, which
   // is what keeps every unattached row byte-identical to before this feature -
   // the same rule satWorkedChipHtml follows two lines above it in the cluster.
-  function sessionLaunchChipHtml(workspace, task) {
-    if (!workspace || !task) return "";
-    var s = Storage.getNamedSessionForTask(workspace, task.id);
-    if (!s) return "";
-    var n = (s.tabs || []).length;
-    var label = s.name || "session";
-    return '<button type="button" class="tt-task-session" data-session-launch="' + escapeHtml(s.id) +
-      '" title="' + escapeHtml("Open " + label + " (" + n + (n === 1 ? " tab" : " tabs") + ")") +
-      '" aria-label="' + escapeHtml("Open session " + label) + '">' +
-        '<span class="tt-session-glyph" aria-hidden="true">\u29C9</span>' +
-        '<span class="tt-session-name">' + escapeHtml(label) + '</span>' +
-      '</button>';
-  }
-
   async function handleSessionCtxAction(action) {
     var id = sessionCtxId;
     closeSessionCtxMenu();

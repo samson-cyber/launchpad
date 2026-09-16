@@ -2917,13 +2917,97 @@ I18n.register("en", {
     "message": "Description",
     "description": "Markup label in taskRowHtml(). Rendered with th()."
   },
-  "task_detach_session": {
-    "message": "Detach session",
-    "description": "Markup label in openTaskContextMenu(). Rendered with th()."
-  },
   "task_duplicate": {
     "message": "Duplicate",
     "description": "Markup label in openTaskContextMenu(). Rendered with th()."
+  },
+  "attach_entry": {
+    "message": "Attach resources",
+    "description": "Menu entry on a task and on a goal, opening the picker that binds a named session, a group or a shortcut for LAUNCHING. Distinct from tagging, which attributes time."
+  },
+  "attach_capture_window": {
+    "message": "Save this window as a named session",
+    "description": "Goal menu entry. Captures the current window as a named session and attaches it in one action."
+  },
+  "attach_kind_named_session": {
+    "message": "named session",
+    "description": "The kind label for a saved tab set. Always qualified as NAMED session: on a goal the word session also means the browser session and the focus session."
+  },
+  "attach_kind_group": {
+    "message": "group",
+    "description": "The kind label for a shortcut group on Home."
+  },
+  "attach_kind_shortcut": {
+    "message": "shortcut",
+    "description": "The kind label for a single shortcut."
+  },
+  "attach_open_title": {
+    "plural": {"one": "Open the {kind} {name}, {count} tab", "other": "Open the {kind} {name}, {count} tabs"},
+    "description": "Title and accessible label on an attachment chip. Names the kind so a chip beside a tag pill cannot be read as a tag, and the tab count so the click is not a surprise."
+  },
+  "attach_open_all": {
+    "message": "Open all",
+    "description": "Control beside the attachment chips that launches every attached resource at once."
+  },
+  "attach_open_all_title": {
+    "message": "Open every attached resource",
+    "description": "Title on the Open all control."
+  },
+  "attach_open_count": {
+    "plural": {"one": "Open {count} tab", "other": "Open {count} tabs"},
+    "description": "Confirm button when opening several resources at once. Names the number of tabs rather than the number of resources, because tabs are what appear."
+  },
+  "attach_confirm_many": {
+    "message": "This opens {count} tabs from {resources} attached resources. Open them?",
+    "description": "Confirm shown when one click would open more tabs than the threshold. Counted from what will actually open, not estimated."
+  },
+  "attach_nothing_to_open": {
+    "message": "There is nothing to open here yet.",
+    "description": "Toast when an attachment resolves to no URLs, for example a named session whose tabs were all removed."
+  },
+  "attach_could_not_open": {
+    "message": "Those tabs could not be opened.",
+    "description": "Toast when the browser refused to open the window."
+  },
+  "attach_picker_title": {
+    "message": "Attach resources to {name}",
+    "description": "Title of the attach picker. Names the task or goal it is binding to."
+  },
+  "attach_relation_note": {
+    "message": "Attached resources open together when you launch this. Tags are separate: they attribute your tracked time and do not open anything.",
+    "description": "The sentence at the top of the attach picker. It exists because attach and tag are two different relations on one surface, and a user who confuses them mis-reads their own time reports."
+  },
+  "attach_search": {
+    "message": "Search resources",
+    "description": "Placeholder in the attach picker search box."
+  },
+  "attach_nothing_to_attach": {
+    "message": "There are no named sessions, groups or shortcuts in this workspace yet.",
+    "description": "Empty state in the attach picker when the workspace has nothing to attach."
+  },
+  "attach_no_matches": {
+    "message": "Nothing matches that.",
+    "description": "Empty state in the attach picker when the search filter excludes everything."
+  },
+  "attach_note_tabs": {
+    "plural": {"one": "{count} tab", "other": "{count} tabs"},
+    "description": "Secondary line on a named-session row in the attach picker."
+  },
+  "attach_note_shortcuts": {
+    "plural": {"one": "{count} shortcut", "other": "{count} shortcuts"},
+    "description": "Secondary line on a group row in the attach picker."
+  },
+  "attach_attached_remove": {
+    "message": "attached, click to remove",
+    "description": "Secondary line on an already-attached row in the attach picker. The picker owns detaching, so there is no separate detach menu entry."
+  },
+  "attach_capture_title": {
+    "message": "Name this named session",
+    "description": "Title of the prompt that names a window captured from a goal."
+  },
+  "attach_captured_toast": {
+    "plural": {"one": "Saved {count} tab as the named session {name} and attached it.", "other": "Saved {count} tabs as the named session {name} and attached it."},
+    "description": "Toast after capturing the current window from a goal. Says both halves of the one action, because it did two things."
   },
   "task_edit": {
     "message": "Edit",
@@ -3533,19 +3617,9 @@ I18n.register("en", {
       "message": "Untitled session",
       "sense": "placeholder.name.session.saved-tabs"
     },
-    "task_assign_session_to_this_task": {
-      "description": "Task context-menu action when NO session is attached yet. Same sense of 'session' as task_change_session - a saved set of tabs.",
-      "message": "Assign session to this task",
-      "sense": "action.session.saved-tabs"
-    },
     "task_assign_to_a_goal": {
       "description": "Task context-menu action when the task has no goal yet. A separate sentence from task_move_to_another_goal rather than one key with a substitution.",
       "message": "Assign to a goal"
-    },
-    "task_change_session": {
-      "description": "Task context-menu action when a session is ALREADY attached. SENSE OF 'SESSION': a saved set of tabs, not a browser session and not a focus session.",
-      "message": "Change session",
-      "sense": "action.session.saved-tabs"
     },
     "task_move_to_another_goal": {
       "description": "Task context-menu action when the task ALREADY belongs to a goal.",

@@ -12705,21 +12705,36 @@ html.has-bg.bg-light .tt-time-chip { color: rgba(0, 0, 0, 0.65); }
 
 html.has-bg.bg-light .tt-task-worked { color: rgba(0, 0, 0, 0.72); }
 
-/* ===== [1.4.2] The attached-session chip =====
-   Sits in the task row's CHIP CLUSTER beside .tt-task-worked, not in the controls
-   grid: that grid is four fixed columns and a fifth member would either wrap or
-   take 30px of name width from every row, attached or not. Same two ink tiers as
-   the chip it sits next to, so it inherits that family rather than inventing one. */
-.tt-task-session {
+/* ===== [1.14.2 / G4] The attachment chips =====
+   Replaces [1.4.2]'s single .tt-task-session chip, whose placement argument this
+   inherits UNCHANGED because the constraint has not: the controls grid beside
+   this cluster is four fixed columns, and a fifth member would either wrap or
+   take 30px of name width from every row, attached or not.
+
+   THE INK IS THE ROW'S OWN MODEL, copied from the chip this replaces rather than
+   from a remembered pattern: white-ish by default, flipping dark under
+   html.bg-light ALONE. The settings panel's three-rule pattern is for a surface
+   that falls through to body; a chip inside .tt-goal-card is not that surface,
+   and applying the panel's pattern here is what BUGS O10's neighbour measured at
+   white-on-white. */
+.attach-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5);
+  margin-top: var(--space-1-5);
+}
+
+.attach-chip {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  max-width: 160px;
+  max-width: 190px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 10px;
-  padding: 1px 7px;
+  padding: 2px 8px;
   font-family: inherit;
   font-size: var(--fs-11);
   font-weight: 600;
@@ -12729,36 +12744,75 @@ html.has-bg.bg-light .tt-task-worked { color: rgba(0, 0, 0, 0.72); }
   transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 
-.tt-task-session:hover {
+.attach-chip:hover {
   background: rgba(255, 255, 255, 0.16);
   border-color: rgba(255, 255, 255, 0.3);
   color: #fff;
 }
 
-.tt-task-session:focus-visible {
+.attach-chip:focus-visible {
   outline: 2px solid var(--sat-accent, #8ab4f8);
   outline-offset: 1px;
 }
 
-.tt-session-glyph { font-size: var(--fs-11); line-height: 1; }
+/* The favicon strip. NO OPACITY anywhere in this block: a faded favicon is a
+   contrast reduction wearing a different name, and TD.1 paid for that lesson. */
+.attach-favs { display: inline-flex; align-items: center; gap: 2px; }
 
-.tt-session-name {
+.attach-fav {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.attach-chip-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-html.has-bg.bg-light .tt-task-session {
+.attach-launch-all {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.28);
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-family: inherit;
+  font-size: var(--fs-11);
+  font-weight: 600;
+  color: var(--ink-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.attach-launch-all:hover { border-color: rgba(255, 255, 255, 0.5); color: #fff; }
+
+.attach-launch-all:focus-visible {
+  outline: 2px solid var(--sat-accent, #8ab4f8);
+  outline-offset: 1px;
+}
+
+html.has-bg.bg-light .attach-chip,
+html.has-bg.bg-light .attach-launch-all {
   background: rgba(0, 0, 0, 0.06);
   border-color: rgba(0, 0, 0, 0.16);
   color: rgba(0, 0, 0, 0.72);
 }
 
-html.has-bg.bg-light .tt-task-session:hover {
+html.has-bg.bg-light .attach-launch-all { background: transparent; border-style: dashed; }
+
+html.has-bg.bg-light .attach-chip:hover,
+html.has-bg.bg-light .attach-launch-all:hover {
   background: rgba(0, 0, 0, 0.12);
   border-color: rgba(0, 0, 0, 0.3);
   color: var(--text-primary);
 }
+
+/* The picker's relation note - decision C's sentence. It inherits the modal's
+   ink like every other .tt-modal-message and declares no colour of its own. */
+.attach-relation-note { margin-bottom: var(--space-2); }
 
 /* ===== [1.4.2] The task picker, inside the tasks-modal family ===== */
 .session-picker {
@@ -12811,7 +12865,11 @@ html.has-bg.bg-light .tt-task-session:hover {
 
 html.has-bg.bg-light .session-picker-row { color: var(--text-primary); }
 html.has-bg.bg-light .session-picker-row:hover { background: rgba(0, 0, 0, 0.06); }
-html.has-bg.bg-light .session-picker-note { color: var(--text-hint); }
+/* [1.14.2] --text-hint measured 2.43:1 here against a 4.5 floor - it is a
+   placeholder token for a light PAGE, and this is a white-tinted frost that is
+   lighter still. --text-secondary is the tier the rest of this family uses on
+   this ground. Measured 2.43 -> 5.05. */
+html.has-bg.bg-light .session-picker-note { color: var(--text-secondary); }
 
 /* ===== [1.4.3] Picker search =====
    Threshold-gated, so it only exists on a list long enough to need it. The

@@ -2951,6 +2951,7 @@ var Storage = (function () {
         var clockDropped = dropClockSettings(existing);
         var soundDropped = dropFocusSoundSettings(existing);
         var presetsSeeded = ensureModePresets(existing);
+        var attachmentsPruned = pruneAttachments(existing);
         var homeNoteDropped = dropHomeNote(existing);
         var iconsMerged = migrateLegacyIcons(existing);
         // [1.4.7] Runs at most once per profile. The write is needed only on the
@@ -2961,8 +2962,8 @@ var Storage = (function () {
         var strandedUnswept = existing[STRANDED_SWEEP_MARKER] !== true;
         var strandedReleased = sweepStrandedTasks(existing);
         if (patched || trackingSeeded || focusSeeded || notesSeeded || sessionsSeeded ||
-            accentDropped || clockDropped || soundDropped || presetsSeeded || homeNoteDropped ||
-            iconsMerged || strandedUnswept) {
+            accentDropped || clockDropped || soundDropped || presetsSeeded || attachmentsPruned ||
+            homeNoteDropped || iconsMerged || strandedUnswept) {
           // [1.10.3] THE BACKFILL WRITE GETS ITS OWN try/catch, AND THIS IS A
           // CORRECTNESS FIX RATHER THAN TIDYING. It used to sit inside this
           // function's single try, so an over-quota backfill fell through to the
@@ -7054,6 +7055,207 @@ var Storage = (function () {
     return session;
   }
 
+  // ===== [1.14.2 / G4] ATTACHED RESOURCES =====
+  //
+  // ONE SHAPE FOR THREE KINDS. An attachment is { kind, id } where kind is
+  // "session", "group" or "shortcut", stored as an ARRAY on the owner - a task
+  // or a goal. Several are allowed; order is the user's, newest appended.
+  //
+  // WHY AN ARRAY OF PAIRS RATHER THAN THREE FIELDS: the three kinds are launched
+  // the same way and rendered the same way, and the only thing that differs is
+  // how each resolves to URLs. Three fields would make every reader do a
+  // three-way merge to answer "what is attached", and the goal header asks
+  // exactly that question.
+  //
+  // THE [1.4.2] RELATION IS NOT MIGRATED AND IS NOT BROKEN. That round stored
+  // the pointer on the SESSION (session.taskId), one-to-one in both directions.
+  // Existing records keep working because resolveAttachments folds that session
+  // in; nothing rewrites it, and a profile that never opens the new picker is
+  // byte-identical. Two writers for one relation would be the drift this
+  // codebase keeps recording, so the NEW writer only ever touches the array and
+  // the OLD reader is consulted rather than duplicated.
+  var ATTACHMENT_KINDS = ["session", "group", "shortcut"];
+
+  function attachmentsOf(owner) {
+    return (owner && Array.isArray(owner.attachments)) ? owner.attachments : [];
+  }
+
+  function sameAttachment(a, kind, id) {
+    return !!a && a.kind === kind && a.id === id;
+  }
+
+  /**
+   * Resolve ONE reference to the live resource, or null.
+   *
+   * A SOFT-DELETED RESOURCE RESOLVES TO NULL AND THE REFERENCE IS KEPT. That is
+   * [1.4.2]'s own rule applied: detachSessionsFromTasks deliberately does not
+   * run on soft-delete because "a trashed task is restorable", and the same
+   * holds in this direction - a named session in its 30-day trash is not
+   * deleted, so its attachment survives untouched, shows nothing and launches
+   * nothing, and comes back intact if the session is restored. It is pruned only
+   * when the trash actually purges it (see pruneAttachments).
+   */
+  function resolveAttachment(ws, ref) {
+    if (!ws || !ref || !ref.id) return null;
+    if (ref.kind === "session") {
+      var s = findLiveNamedSession(ws, ref.id);
+      return s ? { kind: "session", id: s.id, name: s.name || "", resource: s } : null;
+    }
+    if (ref.kind === "group") {
+      var g = (ws.groups || []).find(function (x) { return x && x.id === ref.id; });
+      return g ? { kind: "group", id: g.id, name: g.name || "", resource: g } : null;
+    }
+    if (ref.kind === "shortcut") {
+      // findShortcutById returns the shortcut itself, not a {group, shortcut}
+      // pair - read rather than assumed, because the two shapes are one letter
+      // apart in use and the wrong one fails as "nothing is attached".
+      var sc = findShortcutById(ws, ref.id);
+      // A SHORTCUT WITHOUT A URL IS NOT ATTACHABLE. The intro group's onboarding
+      // DEMO TILES live in a shortcuts array carrying { demoTile, demo: true }
+      // and neither a name nor a url; Home renders them by a different path. An
+      // attachment that can never open is a dangling reference wearing a
+      // different name, so it resolves to null and the sweep drops it.
+      return (sc && sc.url) ? { kind: "shortcut", id: sc.id, name: sc.name || sc.url, resource: sc } : null;
+    }
+    return null;
+  }
+
+  /**
+   * Everything attached to an owner, resolved and live, in order.
+   *
+   * `legacyTaskId` folds in the [1.4.2] session pointer for a TASK. It is passed
+   * rather than inferred so a goal can never accidentally pick one up: that
+   * relation only ever existed for tasks.
+   */
+  function resolveAttachments(ws, owner, legacyTaskId) {
+    var out = [];
+    var seen = Object.create(null);
+    attachmentsOf(owner).forEach(function (ref) {
+      var r = resolveAttachment(ws, ref);
+      if (!r) return;
+      var key = r.kind + ":" + r.id;
+      if (seen[key]) return;
+      seen[key] = true;
+      out.push(r);
+    });
+    if (legacyTaskId) {
+      var legacy = getNamedSessionForTask(ws, legacyTaskId);
+      if (legacy && !seen["session:" + legacy.id]) {
+        out.push({ kind: "session", id: legacy.id, name: legacy.name || "", resource: legacy, legacy: true });
+      }
+    }
+    return out;
+  }
+
+  /** Attach one resource. Idempotent. Pure mutation; the caller pairs saveAll. */
+  function attachResource(owner, kind, id) {
+    if (!owner || !id || ATTACHMENT_KINDS.indexOf(kind) === -1) return false;
+    if (!Array.isArray(owner.attachments)) owner.attachments = [];
+    var exists = owner.attachments.some(function (a) { return sameAttachment(a, kind, id); });
+    if (exists) return false;
+    owner.attachments.push({ kind: kind, id: id });
+    return true;
+  }
+
+  /** Remove one reference. Pure mutation; the caller pairs saveAll. */
+  function detachResource(owner, kind, id) {
+    if (!owner || !Array.isArray(owner.attachments)) return false;
+    var before = owner.attachments.length;
+    owner.attachments = owner.attachments.filter(function (a) { return !sameAttachment(a, kind, id); });
+    return owner.attachments.length !== before;
+  }
+
+  // THE DANGLING-REFERENCE ANSWER: A REFERENCE TO A PERMANENTLY-GONE RESOURCE IS
+  // DROPPED, AND IT IS DROPPED HERE RATHER THAN AT EACH DELETE SITE.
+  //
+  // [1.4.2] chose dropping over showing "(removed)" and this follows it: a
+  // dangling row the user must clear is a chore the product created. What is
+  // different is WHERE. That round hooked the delete path
+  // (detachSessionsFromTasks, called from every permanent task removal), which
+  // works and has to be remembered by every future delete path. Three kinds and
+  // two owners is six such sites, and the one that gets forgotten leaves a
+  // reference nobody can see or clear.
+  //
+  // So the prune is a SWEEP over the owners, and it runs where the other sweeps
+  // run. It cannot be forgotten by a delete path that does not exist yet, which
+  // is the same argument dropFocusSoundSettings made.
+  //
+  // IDEMPOTENT BY CONSTRUCTION, the backfill caller's requirement: it reports
+  // changed only when a reference is actually removed, so it writes once and the
+  // next load finds nothing to do. A soft-deleted resource is NOT pruned -
+  // resolveAttachment returns null for it, but findLiveNamedSession's own
+  // deletedAt test is not what this asks; this asks whether the record EXISTS.
+  function attachmentTargetExists(ws, ref) {
+    if (!ref || !ref.id) return false;
+    if (ref.kind === "session") {
+      var all = Array.isArray(ws.namedSessions) ? ws.namedSessions : [];
+      return all.some(function (s) { return s && s.id === ref.id; });      // trashed still counts
+    }
+    if (ref.kind === "group") {
+      return (ws.groups || []).some(function (g) { return g && g.id === ref.id; });
+    }
+    if (ref.kind === "shortcut") {
+      // Same test as resolveAttachment, so a tile that can never open is pruned
+      // rather than kept as a reference the user cannot see or clear.
+      var sc = findShortcutById(ws, ref.id);
+      return !!(sc && sc.url);
+    }
+    return false;
+  }
+
+  function pruneAttachments(data) {
+    if (!data || !Array.isArray(data.workspaces)) return false;
+    var changed = false;
+    data.workspaces.forEach(function (ws) {
+      if (!ws) return;
+      var owners = [].concat(
+        Array.isArray(ws.tasks) ? ws.tasks : [],
+        Array.isArray(ws.goals) ? ws.goals : []
+      );
+      owners.forEach(function (o) {
+        if (!o || !Array.isArray(o.attachments) || !o.attachments.length) return;
+        var kept = o.attachments.filter(function (ref) {
+          return ref && ATTACHMENT_KINDS.indexOf(ref.kind) !== -1 && attachmentTargetExists(ws, ref);
+        });
+        if (kept.length !== o.attachments.length) { o.attachments = kept; changed = true; }
+      });
+    });
+    return changed;
+  }
+
+  /**
+   * Every URL an attachment would open, in order. The single place the three
+   * kinds turn into tabs, so the launcher holds no per-kind knowledge and the
+   * count a confirm quotes is the count that actually opens.
+   *
+   * A GROUP OPENS WHAT "Open All" OPENS, variants included - anything else would
+   * make one group two different things depending on which control was clicked.
+   */
+  function attachmentUrls(resolved) {
+    if (!resolved) return [];
+    if (resolved.kind === "session") {
+      return (resolved.resource.tabs || []).map(function (t) { return t.url; }).filter(Boolean);
+    }
+    if (resolved.kind === "group") {
+      var urls = [];
+      (resolved.resource.shortcuts || []).forEach(function (s) {
+        if (!s) return;
+        if (s.url) urls.push(s.url);
+        (s.variants || []).forEach(function (v) { if (v && v.url) urls.push(v.url); });
+      });
+      return urls;
+    }
+    if (resolved.kind === "shortcut") {
+      return resolved.resource.url ? [resolved.resource.url] : [];
+    }
+    return [];
+  }
+
+  /** Total tabs a launch would open. What the confirm threshold is measured on. */
+  function attachmentTabCount(list) {
+    return (list || []).reduce(function (n, r) { return n + attachmentUrls(r).length; }, 0);
+  }
+
   // THE DANGLING-REFERENCE GUARD, called from every path that removes a task for
   // good. A saved tab set is the user's own work and outlives the task it was
   // attached to; what must not outlive the task is the POINTER. Soft-delete
@@ -9313,6 +9515,15 @@ var Storage = (function () {
     deleteNamedSessionPermanent: deleteNamedSessionPermanent,
     emptyNamedSessionsTrash: emptyNamedSessionsTrash,
     getNamedSessionById: getNamedSessionById,
+    // [1.14.2 / G4] Attached resources. Pure; the caller pairs saveAll.
+    ATTACHMENT_KINDS: ATTACHMENT_KINDS,
+    attachmentsOf: attachmentsOf,
+    resolveAttachment: resolveAttachment,
+    resolveAttachments: resolveAttachments,
+    attachResource: attachResource,
+    detachResource: detachResource,
+    attachmentUrls: attachmentUrls,
+    attachmentTabCount: attachmentTabCount,
     // [OT.3] recently closed
     RECENTLY_CLOSED_MAX: RECENTLY_CLOSED_MAX,
     getRecentlyClosed: getRecentlyClosed,
