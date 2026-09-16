@@ -7288,6 +7288,67 @@ var Storage = (function () {
     return (note && !note.deletedAt) ? note : null;
   }
 
+  // [1.14.3 / D2] A CLIP'S TEXT IS CAPPED, AND THE CAP IS OURS.
+  //
+  // Chrome truncates info.selectionText itself before the handler ever sees it,
+  // so on today's platform this cap is unlikely to bind. It exists anyway: a
+  // note's size should be bounded by a number this product chose rather than by
+  // a platform detail that can change under it, and BUGS I26 is the standing
+  // reason not to reason about the storage ceiling - a bound you set is the only
+  // one you know.
+  //
+  // 5000 characters is roughly 800 words - a long quotation rather than an
+  // article. [1.10.2] measured that text is cheap and images are not, so this is
+  // generous on purpose; what it rules out is a note that is a whole page.
+  //
+  // A TRUNCATION IS VISIBLE. Appending the marker rather than silently dropping
+  // the tail is the same rule TD.1 applied to a parsed time it could not store:
+  // text that vanishes without a word is the failure, not the truncation.
+  var NOTE_CLIP_MAX_CHARS = 5000;
+  var NOTE_CLIP_TRUNCATION_MARK = "\u2026";
+
+  function coerceSourceUrl(v) {
+    if (typeof v !== "string" || !v) return null;
+    var u;
+    try { u = new URL(v); } catch (e) { return null; }
+    return (u.protocol === "http:" || u.protocol === "https:") ? v : null;
+  }
+
+  function clipNoteContent(text) {
+    var s = (typeof text === "string") ? text : "";
+    // Trailing whitespace only: a selection's own internal line breaks are the
+    // user's and are kept.
+    s = s.replace(/\s+$/, "");
+    if (s.length <= NOTE_CLIP_MAX_CHARS) return s;
+    return s.slice(0, NOTE_CLIP_MAX_CHARS) + NOTE_CLIP_TRUNCATION_MARK;
+  }
+
+  /**
+   * Create a note from a page selection. Pure mutation; the caller pairs saveAll.
+   *
+   * AT THE TOP, because that is what the notes panel means by new. createNote
+   * appends - the right generic behaviour - and notesCreate() on the page
+   * applies the insertion policy at the caller. This writer does the same rather
+   * than changing the shared primitive, so both entry points agree and neither
+   * owns the other's convention.
+   *
+   * Returns null when there is nothing to clip: an empty selection is not a
+   * note, and creating a blank one would be the product inventing content.
+   */
+  function createClippedNote(data, selectionText, sourceUrl, workspaceId) {
+    var content = clipNoteContent(selectionText);
+    if (!content) return null;
+    var note = createNote(data, { content: content, sourceUrl: sourceUrl }, workspaceId);
+    if (!note) return null;
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var arr = ws && ws.notes;
+    if (Array.isArray(arr)) {
+      var at = arr.indexOf(note);
+      if (at > 0) { arr.splice(at, 1); arr.unshift(note); }
+    }
+    return note;
+  }
+
   function newNoteObject(o) {
     o = o || {};
     var now = Date.now();
@@ -7309,6 +7370,18 @@ var Storage = (function () {
       rotation: typeof o.rotation === "number" ? o.rotation : randomNoteRotation(),
       // v1.1 notes are always standalone; [1.2.x] introduces the association.
       notebookId: (o.notebookId === undefined) ? null : o.notebookId,
+      // [1.14.3 / D2] WHERE A CLIP CAME FROM. The first structured field a note
+      // has carried beyond its text, and it is NULL for every note that is not a
+      // clip - which is every note that exists today. A reader tests for it and
+      // renders nothing when it is absent, so an existing note is byte-identical
+      // through this change.
+      //
+      // ONLY http(s). A clip's URL is rendered as a link, and a link is a thing
+      // the user clicks: a javascript: or data: URL reaching an href from a page
+      // the user merely right-clicked would be this feature handing a hostile
+      // page a click target inside the product. Anything else stores null and the
+      // note keeps its text.
+      sourceUrl: coerceSourceUrl(o.sourceUrl),
       tagIds: Array.isArray(o.tagIds) ? o.tagIds.slice() : [],
       createdAt: now,
       updatedAt: now,
@@ -9489,6 +9562,11 @@ var Storage = (function () {
     NOTE_COLORS: NOTE_COLORS,
     ensureNotesArray: ensureNotesArray,
     createNote: createNote,
+    // [1.14.3 / D2] The clip path. Pure; the caller pairs saveAll.
+    NOTE_CLIP_MAX_CHARS: NOTE_CLIP_MAX_CHARS,
+    createClippedNote: createClippedNote,
+    clipNoteContent: clipNoteContent,
+    coerceSourceUrl: coerceSourceUrl,
     updateNote: updateNote,
     deleteNote: deleteNote,
     restoreNote: restoreNote,

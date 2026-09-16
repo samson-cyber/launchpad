@@ -3698,6 +3698,22 @@ I18n.register("en", {
     "sense": "action.generic",
     "description": "Fallback label for a confirm dialog's affirmative button, used only when a caller supplies none. Every caller supplies one today, so it does not render; it exists so that a caller which forgets is still translated. Its partner is common_cancel."
   },
+  "clip_saved_body": {
+    "message": "Saved to your notes.",
+    "description": "Body of the notification confirming a selection was clipped to a note. Short because the notification arrives over whatever page the user is reading and should not detain them."
+  },
+  "clip_saved_title": {
+    "message": "Clipped to LaunchPad",
+    "description": "Title of the notification confirming a selection was clipped. LaunchPad is the product name and is NOT translated."
+  },
+  "clip_saved_truncated": {
+    "message": "Saved to your notes. The selection was longer than {count} characters, so the end was trimmed.",
+    "description": "Replaces clip_saved_body when the selection exceeded the note cap. It names the cap rather than saying only that something was cut, because a user who is told text went missing and not how much cannot tell whether to go back for it."
+  },
+  "ctxmenu_clip_selection": {
+    "message": "Save to LaunchPad note",
+    "description": "Item in the browser right-click menu, shown only when text is selected. Saves the selection and the page address as a note. LaunchPad is the product name and is NOT translated. It sits beside Add to LaunchPad rather than inside it: that one saves a page into a group, this one saves text into a note."
+  },
   "clear_completed_title": {
       "description": "TITLE of the clear-completed confirm. Its sentence is clear_completed_confirm and its button is clear_move_to_deleted; the three are ONE dialog and the title must not drift from the sentence promising the items stay recoverable.",
       "message": "Clear completed?",

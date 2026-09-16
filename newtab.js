@@ -3843,6 +3843,22 @@
   // NOT focusable. The panel already sets pointer-events:none, but that stops a
   // mouse only; without this a keyboard user would tab through demo notes and
   // press Enter on them.
+  // The HOST, not the URL. A note is 208px wide and a real article URL is
+  // hundreds of characters of slug and tracking parameters; printed in full it
+  // would dwarf the quotation it is attributing. The full URL is the title
+  // attribute and the href, so nothing is hidden - it is just not shouted.
+  //
+  // Falls back to the raw string if URL parsing fails, which it should not:
+  // coerceSourceUrl already refused anything that would not parse. Belt and
+  // braces for a note restored from a hand-edited backup.
+  function noteSourceLabel(url) {
+    try {
+      return new URL(url).hostname.replace(/^www\./, "");
+    } catch (e) {
+      return url;
+    }
+  }
+
   function noteCardHtml(note, opts) {
     var preview = !!(opts && opts.preview);
     var rot = (typeof note.rotation === "number") ? note.rotation : 0;
@@ -3855,6 +3871,25 @@
           : ' tabindex="0" aria-label="' + escapeHtml(noteAriaLabel(note)) + '"') +
         ' style="--note-paper: ' + notesPaperVar(note.color) + '; --note-rot: ' + rot + 'deg;">' +
         '<div class="note-body">' + body + '</div>' +
+        // [1.14.3 / D2] WHERE THIS CLIP CAME FROM.
+        //
+        // ABSENT unless the note carries a sourceUrl, which is null on every note
+        // that is not a clip - so every note that exists today renders the exact
+        // bytes it rendered before this change. Asserted byte-for-byte in the
+        // round's verification rather than argued from the shape of the ternary.
+        //
+        // NOT ON A PREVIEW CARD. The preview corpus carries no sourceUrl, so this
+        // is belt and braces rather than a live branch; it is written anyway
+        // because the preview is aria-hidden and pointer-inert, and a focusable
+        // link inside it would be reachable by keyboard from a surface that is
+        // meant to be a picture.
+        ((!preview && note.sourceUrl)
+          ? '<a class="note-source" href="' + escapeHtml(note.sourceUrl) + '"' +
+              ' target="_blank" rel="noopener noreferrer"' +
+              ' title="' + escapeHtml(note.sourceUrl) + '">' +
+              escapeHtml(noteSourceLabel(note.sourceUrl)) +
+            '</a>'
+          : "") +
         // Top-LEFT, not top-right: the curl pseudo-element owns the bottom-right
         // corner, and a delete control overlapping it would fight the paper
         // metaphor. Invisible until hover; absent from the ghost note, which is a
@@ -4536,6 +4571,12 @@
       }
       if (e.target.closest(".notes-search")) return;
       if (e.target.closest("[data-note-new]")) { notesCreate(); return; }
+      // [1.14.3 / D2] The source link is inside the card, so the card branch
+      // below would open the EDITOR on the way to following it - the same trap
+      // the hover trash above documents. stopPropagation only, and deliberately
+      // NO preventDefault: the point of this branch is to let the browser do what
+      // it does with a link.
+      if (e.target.closest(".note-source")) { e.stopPropagation(); return; }
       var card = e.target.closest(".note-card");
       if (card) {
         if (!card.classList.contains("is-editing")) notesEnterEdit(card);
@@ -17393,6 +17434,25 @@
       if (!msg || msg.type !== "lp-pomodoro-sound") return;
       satPlayPomodoroSound(msg.sound).then(function (played) { sendResponse({ played: played }); });
       return true;   // async response — keep the channel open
+    });
+
+    // [1.14.3 / D2] The worker's FALLBACK acknowledgement for a clip, used when
+    // the notifications permission is not held. Its own listener rather than a
+    // branch in the one above, because the two share nothing but the transport.
+    //
+    // It answers {shown:true} only after the toast is actually on screen, so the
+    // worker can tell a delivered acknowledgement from a tab that took the
+    // message and dropped it. The note itself arrives by the ordinary
+    // storage.onChanged refresh, which this does not touch.
+    chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+      if (!msg || msg.type !== "lp-clip-saved") return;
+      try {
+        showToast(msg.message);
+        sendResponse({ shown: true });
+      } catch (err) {
+        sendResponse({ shown: false });
+      }
+      return false;
     });
   }
 

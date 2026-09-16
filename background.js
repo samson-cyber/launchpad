@@ -567,12 +567,43 @@ async function rebuildContextMenuNow() {
       contexts: ["page", "link"]
     });
 
+    // [1.14.3 / D2] CLIP A SELECTION TO A NOTE.
+    //
+    // A SIBLING OF "Add to LaunchPad", NOT A CHILD OF IT. The parent's contexts
+    // are page and link, and its children all mean "save this URL into a group".
+    // A clip saves TEXT into a note; hanging it under a submenu whose every other
+    // row is a group would read as a fourth group.
+    //
+    // contexts: ["selection"] is the whole gate on visibility. Chrome shows the
+    // item only when text is selected, so there is no state where it appears with
+    // nothing to act on. It costs no permission: selectionText rides along with
+    // contextMenus, which the extension has held since 1.0.
+    //
+    // PRO ONLY, AND THIS IS THE [1.1.4] PREVIEW-GHOST RULE APPLIED ONE SURFACE
+    // OUT. Notes are a Pro surface - a free or expired profile gets
+    // notesPreviewPanelHtml, a pointer-inert demo corpus it cannot add to. An
+    // entry that wrote a note such a user can never see is the dead control that
+    // rule forbids, and it would be worse here than in-product: the menu gives no
+    // hint that LaunchPad has a locked tier, so the write would simply look lost.
+    // ABSENT, therefore, not disabled.
+    //
+    // hasProAccess is the canonical reader and it covers grace, who is a paying
+    // customer; a hand-written active || trialing here would silently cut them off.
+    if (ProAccess.hasProAccess(data)) {
+      chrome.contextMenus.create({
+        id: CLIP_MENU_ID,
+        title: I18n.t("ctxmenu_clip_selection"),
+        contexts: ["selection"]
+      });
+    }
+
     if (chrome.runtime.lastError) {
       console.error("[LaunchPad] contextMenus.create failed:", chrome.runtime.lastError.message);
       return;
     }
 
-    console.log("[LaunchPad] Context menu rebuilt with", ordered.length, "group(s)");
+    console.log("[LaunchPad] Context menu rebuilt with", ordered.length, "group(s), clip entry",
+      ProAccess.hasProAccess(data) ? "present" : "absent");
   });
 }
 
@@ -905,7 +936,7 @@ var _soundOffscreenReady = null;            // single-flight creation promise
 // The tab id of an open LaunchPad newtab page, or null. getContexts (Chrome 116+,
 // our manifest minimum) is the only way a worker can ask "is one of my pages
 // alive right now?" without waking anything.
-async function newtabSoundTabId() {
+async function openNewtabTabId() {
   if (!chrome.runtime.getContexts) return null;
   try {
     var ctxs = await chrome.runtime.getContexts({ contextTypes: ["TAB"] });
@@ -1120,7 +1151,7 @@ async function firePomodoroSound(action, sound) {
   // here cannot mask a case that would otherwise have played.
   if (Storage.pomodoroSoundTarget({ context: "sw", action: action, sound: sound, tabOpen: false }) === "none") return;
 
-  var tabId = await newtabSoundTabId();
+  var tabId = await openNewtabTabId();
   var target = Storage.pomodoroSoundTarget({
     context: "sw", action: action, sound: sound, tabOpen: tabId != null
   });
@@ -1346,8 +1377,136 @@ function buildShortcutRecord(info, tab) {
   };
 }
 
+// ===== [1.14.3 / D2] CLIP A SELECTION TO A NOTE ===========================
+//
+// The entry is created in rebuildContextMenuNow above. THAT REBUILD ALREADY
+// RE-RUNS ON A PRO STATE CHANGE and nothing was added to make it: `data.pro`
+// lives inside the `data` key, every writer of Pro state goes through
+// Storage.saveAll, and the chrome.storage.onChanged hook on changes.data calls
+// requestContextMenuRebuild. So a trial starting, lapsing, or reconciling out of
+// grace re-runs this function and the entry appears or vanishes with it. Driven
+// and proven rather than assumed - see the round's report.
+var CLIP_MENU_ID = "lp-clip-selection";
+
+// WHICH WORKSPACE: THE ACTIVE ONE, and from a worker that means the stored
+// field. There is no "current page" to infer from - the user is on a web page,
+// not in LaunchPad - so the only honest reading of "active" is
+// data.activeWorkspaceId, which is exactly what Storage.getActiveWorkspace(data)
+// resolves. Passing null lets createClippedNote call the same resolver the page
+// calls, so a clip lands where the user's own new note would land. One field, one
+// reader, no second definition of active.
+async function clipSelectionToNoteBg(info, tab) {
+  var text = (info && typeof info.selectionText === "string") ? info.selectionText : "";
+  // pageUrl over tab.url: pageUrl is the FRAME the selection was made in, which
+  // is the page the text actually came from. tab.url is the top-level document
+  // and would misattribute a quote taken from an embedded frame. Falling back to
+  // it only when pageUrl is absent.
+  var src = (info && info.pageUrl) || (tab && tab.url) || "";
+  var outcome = null;
+
+  // Through the queue, because this is a background writer of the `data` key and
+  // BUGS L1 is unconditional: a concurrent getAll -> mutate -> saveAll cycle
+  // elsewhere would otherwise clobber this note or be clobbered by it.
+  await enqueueBgData("clip-selection", async function () {
+    var data = await Storage.getAll();
+    // RE-CHECKED AT WRITE TIME, not only at menu-build time. The menu is a cached
+    // artifact of the last rebuild; entitlement can lapse between the rebuild and
+    // the click, and the build gate is not the authority on what may be written.
+    if (!ProAccess.hasProAccess(data)) { outcome = { skipped: "not-pro" }; return; }
+    var note = Storage.createClippedNote(data, text, Storage.coerceSourceUrl(src), null);
+    if (!note) { outcome = { skipped: "nothing-to-clip" }; return; }
+    await Storage.saveAll(data);
+    outcome = { ok: true, truncated: text.length > Storage.NOTE_CLIP_MAX_CHARS };
+  });
+
+  // OUTSIDE the queue. The acknowledgement can wait on a notification callback or
+  // a tab round-trip, and holding the `data` queue open for either would stall
+  // every unrelated background writer behind a piece of UI.
+  if (outcome && outcome.ok) await acknowledgeClip(outcome);
+  return outcome;
+}
+
+// Ask an open newtab to toast. Mirrors sendSoundToTab's shape: a timeout and a
+// lastError guard, because a tab that is gone, or is on a page with no listener,
+// never calls back at all.
+function sendClipToastToTab(tabId, message) {
+  return new Promise(function (resolve) {
+    var settled = false;
+    var done = function (ok) { if (!settled) { settled = true; resolve(ok); } };
+    var timer = setTimeout(function () { done(false); }, CLIP_TOAST_TAB_TIMEOUT_MS);
+    try {
+      chrome.tabs.sendMessage(tabId, { type: "lp-clip-saved", message: message }, function (resp) {
+        clearTimeout(timer);
+        if (chrome.runtime.lastError) return done(false);
+        done(!!(resp && resp.shown));
+      });
+    } catch (err) {
+      clearTimeout(timer);
+      done(false);
+    }
+  });
+}
+var CLIP_TOAST_TAB_TIMEOUT_MS = 1200;
+
+// HOW THE USER KNOWS IT WORKED, and the order is deliberately the OPPOSITE of
+// the chime's.
+//
+// firePomodoroSound prefers an open newtab and falls back to the offscreen
+// document, because either one is equally audible from anywhere. Sight is not
+// like that. A clip is made while the user is looking at somebody else's web
+// page, so by construction they are NOT looking at LaunchPad - a toast on a
+// background tab auto-dismisses long before they ever see it. The notification
+// is the only channel that reaches the surface they are actually on, so it goes
+// first, and the toast is the fallback that covers LaunchPad being visible in
+// another window.
+//
+// AND WHEN NEITHER IS AVAILABLE THE SAVE IS SILENT. That is the dead-control
+// shape read from the other side and it is not dismissed here: this extension
+// ships no content script and holds no scripting permission, so it cannot draw
+// anything on the page the user is looking at, and `notifications` is OPTIONAL
+// and ungranted by default. The badge was considered and refused - background.js
+// already declines to give those eight pixels a fourth meaning, and WM.5's
+// checkpoint asserted that a background write must not change it. So the residual
+// gap is stated in the round's report rather than papered over.
+async function acknowledgeClip(outcome) {
+  var message = outcome && outcome.truncated
+    ? I18n.t("clip_saved_truncated", { count: Storage.NOTE_CLIP_MAX_CHARS })
+    : I18n.t("clip_saved_body");
+
+  if (await hasNotificationsPermission()) {
+    try {
+      chrome.notifications.create(CLIP_NOTIF_ID, {
+        type: "basic",
+        iconUrl: "icons/icon128.png",
+        title: I18n.t("clip_saved_title"),
+        message: message
+      });
+      return;
+    } catch (err) {
+      console.error("[LaunchPad] Clip: notification create failed", err);
+      // fall through to the tab
+    }
+  }
+
+  var tabId = await openNewtabTabId();
+  if (tabId != null && await sendClipToastToTab(tabId, message)) return;
+
+  console.log("[LaunchPad] Clip saved with no visible acknowledgement (no notifications permission, no open LaunchPad tab)");
+}
+var CLIP_NOTIF_ID = "lp-clip-saved";
+
 chrome.contextMenus.onClicked.addListener(async function (info, tab) {
   var menuId = info.menuItemId;
+
+  if (menuId === CLIP_MENU_ID) {
+    try {
+      await clipSelectionToNoteBg(info, tab);
+    } catch (err) {
+      console.error("[LaunchPad] Failed to clip selection:", err);
+    }
+    return;
+  }
+
   if (typeof menuId !== "string" || !menuId.startsWith("add-to-group_")) return;
 
   try {

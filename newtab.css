@@ -16939,6 +16939,46 @@ html.bg-light .sat-mode-chip {
 
 .note-placeholder { color: var(--note-ink-dim); }
 
+/* [1.14.3 / D2] THE CLIP'S SOURCE LINK.
+
+   GROUND-INDEPENDENT, AND THAT IS THE POINT. Every other ink rule this arc has
+   touched needed three grounds because it sat on the wallpaper; this one sits on
+   a sheet of pale paper whose colour comes from --note-paper and never changes
+   with the wallpaper. So it takes --note-ink, exactly as .note-card does, and
+   there is deliberately no html.has-bg or html.bg-light variant: adding one would
+   be copying the panel's model onto a surface that is not the panel, which is the
+   mistake recorded against the pill.
+
+   FULL --note-ink RATHER THAN --note-ink-dim. A link is a target, so it takes the
+   text floor, not the non-text one, and the dim token is 0.55 alpha. The underline
+   and the smaller size carry the "this is secondary" reading instead - and NOT
+   opacity, which per BUGS O10 would dim the element's own focus ring along with
+   its text. */
+.note-source {
+  display: block;
+  margin-top: 8px;
+  font-size: var(--fs-11-5);
+  color: var(--note-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  cursor: pointer;
+  /* The card wraps anywhere; a host name should not be split mid-label. */
+  overflow-wrap: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-source:hover { text-decoration-thickness: 2px; }
+
+/* Its own ring, on the paper rather than on the page ground. */
+.note-source:focus-visible {
+  outline: 2px solid var(--note-ink);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 /* Empty state sits on the PANEL, not on paper, so it takes all three tiers. */
 /* Dimmed by OPACITY, not by a colour token, so it stays legible on whatever
    ink it inherits. Same technique as .tt-empty-state. */
