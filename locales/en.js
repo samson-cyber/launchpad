@@ -2930,7 +2930,7 @@ I18n.register("en", {
   },
   "read_upgrade": {
     "message": "Upgrade",
-    "description": "Markup label in renderReadOnlyBanner(). Rendered with th()."
+    "description": "The one-word button that opens the upgrade flow. TWO SINKS, ONE KEY: the read-only workspace banner it was named for, and the tab-bar CTA chip for a user whose trial is used up (applyCtaState state A-D), where it is both the visible label and the accessible name. The read_ prefix records where it first appeared, not the only place it appears. Its never-trialled counterpart is upgrade_start_free_trial - the two are the SAME BUTTON in different states and must stay the same part of speech: an imperative verb, not a noun."
   },
   "recurring_edit": {
     "message": "Edit",
@@ -3220,7 +3220,7 @@ I18n.register("en", {
   },
   "upgrade_start_free_trial": {
     "message": "Start free trial",
-    "description": "Markup label in openUpgradePopover(). Rendered with th()."
+    "description": "The button that begins the 7-day no-card trial. TWO SINKS, ONE KEY: the upgrade popover it was named for, and the tab-bar CTA chip for a user who has never trialled (applyCtaState state A-D), where it is both the visible label and the accessible name. Its trial-used counterpart is read_upgrade; the two are the SAME BUTTON in different states. It must not promise a card is required or that the trial auto-charges, because it neither is nor does."
   },
   "workspace_add_workspace": {
     "message": "Add workspace",
@@ -5259,5 +5259,36 @@ I18n.register("en", {
       "description": "The same reopening notice as closedpause_named_task, for when the task's name cannot be resolved. The name clause is removed rather than left as an empty quotation.",
       "message": "Paused while the browser was closed. Resume when ready.",
       "sense": "toast.explanation"
+    },
+    "apply_open_pro_settings": {
+      "description": "Accessible name for the tab-bar chip when Pro is active or in grace. The chip SHOWS only a tick and the word Pro (apply_pro), which tells a screen-reader user what the state is but not what the control does - this says what pressing it does. An imperative naming the destination, not a description of the badge.",
+      "message": "Open Pro Settings",
+      "sense": "action.navigate"
+    },
+    "apply_pro_coming_soon": {
+      "description": "Accessible name for the tab-bar chip in teaser mode, whose visible label is the two words of apply_coming_soon. The product name is spelled out here because a screen-reader user meets this chip with no surrounding context, where 'Coming soon' alone names nothing. The chip is INERT in this state, so this must not read as an invitation to press it.",
+      "message": "LaunchPad Pro, coming soon",
+      "sense": "status.availability"
+    },
+    "trial_days_left_chip": {
+      "description": "The tab-bar countdown chip during a trial, at full width. A CHIP, not a sentence: no final full stop, and the middot separates a label from a count rather than joining two clauses - a language that would not use one should drop it. Its narrow-width sibling is trial_days_short and its final-day form is trial_ends_today, which the chip shares with the popover headline. Distinct from trial_ends_in_days, which is a sentence in a paragraph.",
+      "message": "",
+      "plural": {
+        "one": "Trial · {count} day left",
+        "other": "Trial · {count} days left"
+      }
+    },
+    "trial_days_short": {
+      "description": "The same countdown as trial_days_left_chip, for the narrow chip where only a few characters fit. English collapses both forms to a digit and a letter; the plural object is kept rather than a single message BECAUSE it is a counted phrase, and a language whose abbreviation changes with the number must be able to say so. Its final-day form is trial_ends_today_short.",
+      "message": "",
+      "plural": {
+        "one": "{count}d",
+        "other": "{count}d"
+      }
+    },
+    "trial_ends_today_short": {
+      "description": "The narrow-chip form of trial_ends_today, for the final day of a trial. Abbreviated siblings: trial_days_short. Holds the same English as insights_today, which is a 1-day chart window - unrelated surfaces sharing a word, and a language that inflects by context must be free to differ. Capitalised because it stands alone in the chip rather than sitting inside a sentence.",
+      "message": "Today",
+      "sense": "status.trial"
     }
   });

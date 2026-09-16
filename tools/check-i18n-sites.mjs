@@ -784,6 +784,91 @@ function checkCatalogues() {
     }
   }
 
+  // ---------------------------------------------------------------- R5.4
+  // EVERY KEY A t() CALL NAMES MUST EXIST, AND EVERY PLURAL MUST GET ITS COUNT.
+  //
+  // WHY THIS EXISTS, and it is a measured gap rather than a precaution. The
+  // last i18n cluster (applyCtaState's tab-bar chip) was migrated with three
+  // deliberate wiring breaks run against all 22 gates: a t() pointing at a
+  // missing key, a plural called without { count }, and two states wired to one
+  // key. NOTHING CAUGHT ANY OF THEM, while a control break of a structure
+  // check-trial-copy watches went red immediately - so the blindness was real
+  // and not a broken runner. Two of those three are mechanical, and these are
+  // the rules for them.
+  //
+  // WHAT EACH ONE PREVENTS REACHING A USER. A missing key makes t() return the
+  // KEY NAME, so the chip reads "apply_open_pro_settings" - the exact class of
+  // defect R4 fixed when a colour swatch read "Color #4A90E2" aloud. A plural
+  // without its count loses the number entirely, so a countdown says "Trial -
+  // day left". Neither throws, neither shows up in a console, and both look
+  // like working code.
+  //
+  // DERIVED FROM THE CATALOGUE, never from a restated list, for the same reason
+  // the colour rule above derives both its ends: a check carrying its own copy
+  // goes stale against the thing it checks.
+  //
+  // THE THIRD BREAK IS NOT MECHANICAL and is deliberately not attempted here.
+  // Two states pointing at one VALID key is a product error, not a lexical one
+  // - both keys exist and both render - so no static rule can tell it from an
+  // intentional shared sink, of which this catalogue has several by design
+  // ("TWO SINKS, ONE KEY"). It is named in the round's report as a gap rather
+  // than papered over with a rule that would fire on correct code.
+  {
+    const en = fs.readFileSync(path.join(repoRoot, "locales", "en.js"), "utf8");
+    const keys = new Set([...en.matchAll(/^\s*"([a-z0-9_]+)"\s*:\s*\{/gm)].map((m) => m[1]));
+    const plural = new Set();
+    for (const m of en.matchAll(/^\s*"([a-z0-9_]+)"\s*:\s*\{([\s\S]*?)\n\s*\},?\s*$/gm)) {
+      if (/"plural"\s*:/.test(m[2])) plural.add(m[1]);
+    }
+    // Every shipped .js at the repo root, which is WIDER than JS_FILES above on
+    // purpose: companion.js, side-panel.js and quickadd.js call t() too, and a
+    // typo there is as visible to a user as one in newtab.js.
+    const jsFiles = fs.readdirSync(repoRoot).filter((f) => f.endsWith(".js"));
+    const CALL = /(?<![A-Za-z0-9_$])(?:I18n\.)?(t|th|thHtml)\(\s*"([a-z0-9_]+)"\s*(,|\))/g;
+
+    // THE CALL'S OWN ARGUMENT LIST, by walking parentheses from the opening
+    // one. A fixed-width window was the first version of this and it was wrong:
+    // 200 characters after t("trial_days_left_chip") runs into the NEXT
+    // statement, which passes its own { count: n }, so a plural stripped of its
+    // count still saw the word nearby and the rule stayed quiet. Its own
+    // mutation is what said so.
+    function argsOf(src, openParen) {
+      let depth = 0;
+      for (let i = openParen; i < src.length && i < openParen + 2000; i++) {
+        const c = src[i];
+        if (c === "(") depth++;
+        else if (c === ")") { depth--; if (depth === 0) return src.slice(openParen + 1, i); }
+      }
+      return null;   // unbalanced within the cap - treated as unknown, not as a pass
+    }
+
+    let calls = 0;
+    for (const f of jsFiles) {
+      const src = stripComments(fs.readFileSync(path.join(repoRoot, f), "utf8"));
+      for (const m of src.matchAll(CALL)) {
+        calls++;
+        const key = m[2];
+        if (!keys.has(key)) {
+          problems.push([f, `${m[1]}("${key}") names a key with no message in locales/en.js`]);
+        } else if (plural.has(key)) {
+          // A call that closed straight after the key has no second argument at
+          // all, so it cannot be carrying a count and needs no further looking.
+          const args = m[3] === ")" ? "" : argsOf(src, src.indexOf("(", m.index));
+          if (args !== null && !/(?<![A-Za-z0-9_$])count\s*:/.test(args)) {
+            problems.push([f, `${m[1]}("${key}") is a plural called without a count`]);
+          }
+        }
+      }
+    }
+    // ANTI-VACUITY (P2). Either regex silently matching nothing would make both
+    // rules pass on every possible tree. The floors are well under the measured
+    // population (1153 keys, 66 plural, 906 calls) so ordinary growth or
+    // deletion cannot trip them, and a parser change certainly will.
+    if (keys.size < 900) problems.push(["locales/en.js", `only ${keys.size} keys parsed (expected >= 900) - the catalogue shape changed`]);
+    if (plural.size < 40) problems.push(["locales/en.js", `only ${plural.size} plural entries parsed (expected >= 40) - the entry regex broke`]);
+    if (calls < 600) problems.push(["tools/check-i18n-sites.mjs", `only ${calls} literal-key t() calls found (expected >= 600) - the call regex broke`]);
+  }
+
   const dir = path.join(repoRoot, "_locales");
   if (!fs.existsSync(dir)) return problems;
   for (const loc of fs.readdirSync(dir)) {

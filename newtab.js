@@ -2084,10 +2084,13 @@
         '<span class="pro-preview-banner-cta is-teaser" aria-disabled="true">' + th("preview_coming_soon") + '</span>' +
       '</div>';
     }
-    var ctaText = trialUsed ? "Upgrade" : "Start free trial";
+    // THE SAME TWO STATES AS THE TAB-BAR CHIP, and deliberately the same two
+    // keys: this banner and applyCtaState are one button in two places, and a
+    // second pair of keys would let a translator move one and not the other.
+    var ctaKey = trialUsed ? "read_upgrade" : "upgrade_start_free_trial";
     return '<div class="pro-preview-banner">' +
       '<span class="pro-preview-banner-text">' + th("preview_preview_mode_upgrade_to_pro_to") + '</span>' +
-      '<a href="#" class="pro-preview-banner-cta" data-pro-preview-cta>' + ctaText + '</a>' +
+      '<a href="#" class="pro-preview-banner-cta" data-pro-preview-cta>' + th(ctaKey) + '</a>' +
     '</div>';
   }
 
@@ -9863,7 +9866,7 @@
       // State F — Pro badge
       cta.classList.add("tab-cta-pro");
       labelHtml = CHECK_PRO_SVG + '<span>' + th("apply_pro") + '</span>';
-      ariaLabel = "Open Pro Settings";
+      ariaLabel = t("apply_open_pro_settings");
     } else if (level === "trialing") {
       // State E — trial countdown
       cta.classList.add("tab-cta-trial");
@@ -9871,16 +9874,17 @@
       var fullText, shortText;
       if (n <= 0) {
         fullText = t("trial_ends_today");
-        shortText = "Today";
-      } else if (n === 1) {
-        fullText = "Trial · 1 day left";
-        shortText = "1d";
+        shortText = t("trial_ends_today_short");
       } else {
-        fullText = "Trial · " + n + " days left";
-        shortText = n + "d";
+        // ONE CALL, NOT A HAND-WRITTEN BOUNDARY. The n === 1 branch this
+        // replaces was a singular/plural fork in code - the exact shape
+        // check-trial-copy was written to catch on the popover headline - and
+        // the catalogue's plural object now owns it for both widths.
+        fullText = t("trial_days_left_chip", { count: n });
+        shortText = t("trial_days_short", { count: n });
       }
-      labelHtml = '<span class="tab-cta-trial-text-full">' + fullText + '</span>' +
-                  '<span class="tab-cta-trial-text-short">' + shortText + '</span>';
+      labelHtml = '<span class="tab-cta-trial-text-full">' + escapeHtml(fullText) + '</span>' +
+                  '<span class="tab-cta-trial-text-short">' + escapeHtml(shortText) + '</span>';
       ariaLabel = fullText;
     } else if (!trialUsed && !trialCtaLive()) {
       // teaser mode (TRIAL_CTA_ENABLED = false) — the trial funnel is gated off (see trialCtaLive).
@@ -9890,12 +9894,12 @@
       // banner makes the upgrade popover unreachable for a fresh free user.
       cta.classList.add("tab-cta-teaser");
       labelHtml = '<span>' + th("apply_coming_soon") + '</span>';
-      ariaLabel = "LaunchPad Pro, coming soon";
+      ariaLabel = t("apply_pro_coming_soon");
     } else {
       // States A-D — free or expired upgrade CTA
-      var ctaText = trialUsed ? "Upgrade" : "Start free trial";
-      labelHtml = '<span>' + ctaText + '</span>';
-      ariaLabel = ctaText;
+      var ctaKey = trialUsed ? "read_upgrade" : "upgrade_start_free_trial";
+      labelHtml = '<span>' + th(ctaKey) + '</span>';
+      ariaLabel = t(ctaKey);
       if (onProTab) cta.classList.add("is-pulsing");
     }
 
