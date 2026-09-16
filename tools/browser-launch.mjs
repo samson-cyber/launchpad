@@ -79,9 +79,54 @@ export const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.ex
  * @param {boolean} o.onScreen    escape hatch for a human who wants to WATCH a
  *                                run. Never set it from a script.
  */
+// ---------------------------------------------------------------------------
+// WINDOWS MAX_PATH, AND WHY THIS IS A THROW RATHER THAN A COMMENT (I31).
+//
+// The extension's chrome.storage.local is a LevelDB under
+//   <profile>\\Default\\Local Extension Settings\\<32-char id>\\MANIFEST-000001
+// and when that path crosses 260 characters the database NEVER OPENS. Nothing
+// errors. chrome.storage.local.get simply never settles, the page's init awaits
+// its first read forever, and the product presents as dead - no sidebar panel
+// responds, and the console is clean. An hour was lost to it once already.
+//
+// THE THRESHOLD IS MEASURED, NOT ASSUMED. Sweeping profile-path lengths on
+// Edge/Windows 2026-09-16, with everything else identical:
+//   profile 150 -> db 229          storage.local answers in 1ms
+//   profile 175 -> db 254          storage.local answers in 1ms
+//   profile 185 -> db 264 (OVER)   storage.local NEVER RETURNS
+//   profile 195 -> db 274 (OVER)   the extension does not even register
+//
+// THE CHECK CANNOT FALSE-POSITIVE, which is the only reason it is allowed to
+// throw: it refuses exactly the paths on which the storage this product cannot
+// run without is arithmetically unopenable. A path it refuses would not have
+// worked. The band below the limit warns instead, because 20 characters of
+// slack is a judgement rather than a fact.
+const WINDOWS_MAX_PATH = 260;
+// "\Default" + "\Local Extension Settings" + "\<32-char id>" + "\MANIFEST-000001"
+const EXT_STORAGE_SUFFIX = 8 + 25 + 33 + 16;
+const MAX_SAFE_PROFILE_LEN = WINDOWS_MAX_PATH - EXT_STORAGE_SUFFIX;   // 178
+
 export function browserArgs(o) {
   if (!o || !o.profileDir) throw new Error("browserArgs: profileDir is required (I6: never a real profile)");
   if (!o.port) throw new Error("browserArgs: port is required, and must be unique per run (I25)");
+
+  // Only on Windows: MAX_PATH is a Windows limit and a POSIX path of any length
+  // is fine, so a check that fired everywhere would be refusing a working setup.
+  if (process.platform === "win32") {
+    const len = String(o.profileDir).length;
+    if (len > MAX_SAFE_PROFILE_LEN) {
+      throw new Error(
+        `browserArgs: profileDir is ${len} characters, over the ${MAX_SAFE_PROFILE_LEN} this can be (I31).\n` +
+        `  The extension-storage LevelDB would land at ~${len + EXT_STORAGE_SUFFIX} characters, past Windows' ${WINDOWS_MAX_PATH}.\n` +
+        `  It would never open, chrome.storage.local would never settle, and the page would\n` +
+        `  present as DEAD with a clean console. Use a shorter --user-data-dir, e.g. C:\\lp1.\n` +
+        `  Refused: ${o.profileDir}`);
+    }
+    if (len > MAX_SAFE_PROFILE_LEN - 20) {
+      console.warn(`[browser-launch] profileDir is ${len} characters, within 20 of the ${MAX_SAFE_PROFILE_LEN} ` +
+        `limit (I31). A slightly longer id or filename would hang chrome.storage.local silently.`);
+    }
+  }
 
   const args = [
     `--user-data-dir=${o.profileDir}`,

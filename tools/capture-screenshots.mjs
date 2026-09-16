@@ -6,6 +6,10 @@
 //   node tools/capture-screenshots.mjs <extension-dir> <output-dir> [browser-path]
 //   (Node 20 needs --experimental-websocket; Node 22+ does not.)
 //
+//   [browser-path] DEFAULTS TO EDGE and should normally be omitted. Chrome has
+//   not honoured --load-extension since 152 (I22), so passing Chrome ends at the
+//   id-resolution exit however healthy this script is.
+//
 //   <extension-dir>  an UNPACKED extension directory. For a listing set this is
 //                    the unpacked release artifact, never the working tree, so
 //                    the frames show what actually ships:
@@ -49,7 +53,14 @@ import { browserArgs } from "./browser-launch.mjs";
 
 const EXT_DIR = process.argv[2];
 const OUT_DIR = process.argv[3];
-const CHROME = process.argv[4] || "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+// THE DEFAULT IS EDGE, AND THAT IS THE FIX RATHER THAN A PREFERENCE (I22).
+// Chrome has not honoured --load-extension since 152 and still does not on 153,
+// so the old default was a browser this script provably cannot drive: every
+// no-argument run ended at the "could not resolve the extension id" exit, which
+// reads as the SCRIPT having aged rather than as the wrong browser. It cost the
+// 2026-09-16 ink batch a filed bug. Chrome is still passable as argv[4] for the
+// day the switch comes back.
+const CHROME = process.argv[4] || "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
 const PORT = Number(process.env.CAPTURE_PORT || 9422);
 // EVERY SCRATCH PROFILE GOES UNDER .scratch/ — a CONVENTION, not a list.
 // .gitignore used to name five prefixes (scratch, capture, snap, tab, fp), which
@@ -201,16 +212,21 @@ for (let i = 0; i < 20 && !EXT_ID; i++) {
   if (!EXT_ID) await sleep(1000);
 }
 if (!EXT_ID) {
-  console.error("could not resolve the extension id: the browser did not load the extension.");
+  // NAME THE BROWSER. The old message named Chrome 152 unconditionally, so a
+  // failure on any build read as a statement about that one - and a reader with
+  // Edge in front of them had no way to tell whether the message applied.
+  console.error(`could not resolve the extension id: ${ver.Browser} did not load the extension.`);
   console.error("");
-  console.error("  CHROME 152 DOES NOT HONOUR --load-extension, measured 2026-09-01: zero entries");
-  console.error("  in either preference file, with AND without a debug port, with both");
+  console.error("  CHROME DOES NOT HONOUR --load-extension, measured 2026-09-01 on 152 and");
+  console.error("  RECONFIRMED 2026-09-16 on Chrome/153.0.8010.37: zero entries matching the load");
+  console.error("  path in either preference file, with AND without a debug port, with both");
   console.error("  --disable-features=DisableLoadExtensionCommandLineSwitch and");
-  console.error("  --enable-unsafe-extension-debugging set. The only chrome-extension:// targets");
-  console.error("  are Chrome's own built-ins. Re-enabling it needs an enterprise policy, which is");
-  console.error("  a system setting and not this script's business.");
+  console.error("  --enable-unsafe-extension-debugging set. Re-enabling it needs an enterprise");
+  console.error("  policy, which is a system setting and not this script's business.");
   console.error("");
-  console.error("  Pass a Chromium that still allows it as the third argument, e.g. Edge:");
+  console.error("  EDGE STILL WORKS and is this script's default - Edg/153.0.4234.32 drove the");
+  console.error("  full run on 2026-09-16. You only reach this message by passing a browser");
+  console.error("  that cannot, so drop the third argument or pass Edge explicitly:");
   console.error("    node tools/capture-screenshots.mjs <ext> <out> \\");
   console.error("      \"C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe\"");
   process.exit(2);

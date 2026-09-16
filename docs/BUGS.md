@@ -277,7 +277,11 @@ Console-based verification fully satisfies these gates when the snippet exercise
 
 - **I19. HOVER-REVEALED CONTROLS ARE NOT CLICKABLE WITHOUT A REAL POINTER, and a re-render drops the hover that was keeping them rendered.** A control styled `display: none` until its parent is hovered measures a **zero-size box at the origin**, so a coordinate click computed from `getBoundingClientRect` lands at (0, 0) and hits nothing; the run then reports the control as dead. Worse is the second-order version: an action that succeeds **re-renders** and replaces the node, dropping `:hover` because the mouse has not moved, so a loop over several such actions fails on alternating iterations — a pattern that reads as a flaky product bug and is entirely the harness. **Move a real pointer to the parent, re-read the box, assert it has non-zero width before clicking, and re-hover after any action that re-renders.** Companion to **Q9**, which requires the click to hit its intended element; this is the case where the element is not there to be hit yet. `5d9d11f`.
 
-- **I22. CHROME 152 DOES NOT HONOUR `--load-extension` AT ALL, so I6's invocation is Edge-only in practice.** Measured 2026-09-01 while capturing the store set, which the brief asked to run on Chrome because the listing is a Chrome listing. Two launches, identical but for the debug port: **zero** entries matching the load path in either `Preferences` or `Secure Preferences`, no `chrome-extension://` target for the subject, and the service worker never starts — with `--disable-features=DisableLoadExtensionCommandLineSwitch` AND `--enable-unsafe-extension-debugging` both set, which is the pair that still works on Edge. The flags are not the problem and neither is the port; the switch is gone.
+- **I22. CHROME DOES NOT HONOUR `--load-extension` AT ALL, so I6's invocation is Edge-only in practice.** Measured 2026-09-01 on **Chrome 152** while capturing the store set, which the brief asked to run on Chrome because the listing is a Chrome listing. Two launches, identical but for the debug port: **zero** entries matching the load path in either `Preferences` or `Secure Preferences`, no `chrome-extension://` target for the subject, and the service worker never starts — with `--disable-features=DisableLoadExtensionCommandLineSwitch` AND `--enable-unsafe-extension-debugging` both set, which is the pair that still works on Edge. The flags are not the problem and neither is the port; the switch is gone.
+
+  **RECONFIRMED 2026-09-16 ON Chrome/153.0.8010.37, and Edge still works on the same machine at the same hour.** `Edg/153.0.4234.32` resolved the extension id and drove `tools/capture-screenshots.mjs` to `CAPTURE: PASS — 15 passed, 0 failed`. So this is not a Chromium-wide change and it has not spread to Edge: it is Chrome's switch, gone for two majors now.
+
+  **THE TRAP THIS ENTRY ITSELF SET, worth more than the version number.** `capture-screenshots.mjs` DEFAULTED to Chrome — a browser it provably cannot drive — so a no-argument run always ended at "could not resolve the extension id", and the 2026-09-16 ink batch filed that as *the harness's detection having aged on Edge*. It had not; the harness was never given Edge. **A default that cannot work is a trap, not a preference**: the script now defaults to Edge, names the browser it actually tried in the failure, and still accepts Chrome as `argv[4]` for the day the switch returns. When a committed tool fails, check which browser it used before concluding the tool has rotted.
 
   The failure is silent in the I7 style: the browser opens, the debug port answers, and the only `chrome-extension://` targets are Chrome's own built-ins (`nkeimhogjdpnpccoofpliimaahmaaome` hangout_services, `fignfifoniblkonapihmkfakmlgkbkcf` network_speech_synthesis). **Anything that grabs "the first chrome-extension:// target" gets one of those and reports a nonsense result** rather than an error, which is exactly why I7 says to match on the load path instead.
 
@@ -344,6 +348,23 @@ Console-based verification fully satisfies these gates when the snippet exercise
   **`--window-position=-32000,-32000` IS HONOURED ON THIS PLATFORM, NOT CLAMPED.** The window reports back at exactly that origin. Displays here sit at `(3440,165,1920,1080)` and `(0,0,3440,1440)`, so the leftmost visible pixel is `x=0` and the window overlaps nothing. **Some platforms drag a window back on-screen, so this is a measurement rather than a rule** — and it is relative to the display layout, so re-measure if the monitors move.
 
   **NOTHING THE HARNESS MEASURES CHANGES OFF-SCREEN.** `Page.captureScreenshot` reads the compositor, not the screen: the same frame captured off-screen and on-screen is **byte-identical**, 136328 bytes and sha256 `abad203e…` both times. Focus is still controllable in both directions — a window manager off the visible desktop is still a window manager. So the compositor is kept and only the interruption is lost.
+
+- **I31. A LONG SCRATCH-PROFILE PATH MAKES THE PRODUCT LOOK DEAD, AND NOTHING ERRORS.** `chrome.storage.local` is a LevelDB at `<profile>\Default\Local Extension Settings\<32-char id>\MANIFEST-000001`; past Windows' 260-character MAX_PATH it **never opens**, and the API does not reject — it simply never settles. The page's init awaits its first read forever, `bindEvents()` is never reached, **no sidebar panel responds to a click, and the console is clean.** A round lost most of an hour to it.
+
+  **THE TELL IS AREA-SPECIFIC, NOT CONTEXT-SPECIFIC.** In the same page evaluation, with an 8-second timeout on each: `chrome.storage.session` answers in **1ms**, `chrome.bookmarks.getTree` answers in **1ms**, and `chrome.storage.local.get` **never returns**. One storage area is dead and everything else is healthy — that is the discriminator. A second, free one: `<html>` is left at `bg-booting`, because `applyBackground` is downstream of the read (see **O4**), so a root still carrying the boot class a second after load is this bug.
+
+  **THE WORKER HANGS TOO, which corrects the original report.** The finding as filed said the service worker reads `storage.local` in 0ms while the page hangs, making "the worker can, the page cannot" the discriminator. On a clean reproduction **both hang**: worker `timedOut: 8000` against page `timedOut: 8000`, same profile, same moment. Do not use the page/worker split to identify this.
+
+  **THE THRESHOLD, swept on Edge/Windows 2026-09-16 with everything but the path length identical:**
+
+  | profile chars | LevelDB path | result |
+  | --- | --- | --- |
+  | 150 | 229 | `storage.local` answers in 1ms |
+  | 175 | 254 | `storage.local` answers in 1ms |
+  | **185** | **264** | **`storage.local` never returns** |
+  | 195 | 274 | the extension does not register at all — `Secure Preferences` is never written, so a harness resolving the id by load path (**I7**) exits saying the extension did not load |
+
+  **GUARDED, NOT JUST DOCUMENTED.** `tools/browser-launch.mjs` now throws when `profileDir` exceeds `260 - 82` characters on Windows, and warns within 20 of it. The check **cannot false-positive**: it refuses exactly the paths on which the storage this product cannot run without is arithmetically unopenable, and it permits 175, which is measured working. The fix for a refusal is a shorter `--user-data-dir`, e.g. `C:\lp1` — not a deeper `.scratch` under a nested worktree, which is how the length is reached in practice.
 
   **THE FIX IS A MODULE, NOT A FLAG, AND THAT IS THE WHOLE POINT.** The four committed harnesses (`capture-screenshots`, `snapshot-computed-styles`, `seed-fixture`, `drive-dialogs`) were **already headless by default** — each carries a 2026-09-01 comment saying a launching browser steals focus. The browsers that actually interrupted anyone were the **per-round harnesses**: written into a scratchpad to drive one round, hand-rolling their own `spawn()`, deleted when the round closed. There was never anything left to fix, and a flag added to the committed four would not have reached one of them. `tools/browser-launch.mjs` owns the flag list so the NEXT harness inherits it by importing rather than by remembering.
 
@@ -642,6 +663,26 @@ Run when the task added or changed any text, badge, or control that renders insi
 
 - **O4. MEASURED FRAMES MUST BE REACHABLE FRAMES.** The cockpit round reported the greeting's white-on-white at **1.37:1** on the "no wallpaper" frame. The measurement was real and the frame is not: `loadBackground` self-heals a missing background record to `DEFAULT_BG` **and persists it**, and `applyBackground` always adds `has-bg` — so no no-wallpaper state exists after first paint. The fix stands as correct defensive CSS; the *report* was wrong. **An ink table's frame column is a claim about states users can occupy** — enumerate the reachable ones (default dark solid, dark photo, bright photo, light solid) and say which is which. `14ea15f`.
 
+  **RE-ESTABLISHED BY DRIVING IT, 2026-09-16, because this entry did not stop it happening again.** Five profiles, each a path a real user can be on, `<html>` read after boot:
+
+  | path | `<html>` class | `has-bg` |
+  | --- | --- | --- |
+  | fresh profile, never chose a wallpaper | `has-bg bg-dark` | yes |
+  | legacy `"__none__"` record | `has-bg bg-dark` | yes |
+  | light colour chosen (`color:#f5f5f5`) | `has-bg bg-light` | yes |
+  | image wallpaper | `has-bg bg-image` | yes |
+  | `launchpad_background` deleted outright | `has-bg bg-dark` | yes |
+
+  **Zero of five without `has-bg`.** The wiped record heals to `color:#2a2a2a` *and is written back*, so it heals once rather than on every load. `has-bg` is added by both branches of `applyBackground` and is **never removed anywhere in `newtab.js`**.
+
+  **A GROUND-CLASS-FREE ROOT IS REACHABLE, AND `O7` ALREADY MEASURED IT — but it is not the frame harnesses have been building.** `newtab.html` ships `<html class="bg-booting">`, so the boot root carries a class but no GROUND class; a fresh document reads `bg-booting` at `load` and `has-bg bg-dark` 600ms later. O7's **pre-resolve** frame is that state persisting past first paint, and it happens only when the storage read loses the race — never in 8 of 8 true cold starts unthrottled, median 53ms. **A root still on `bg-booting` a second later is I31, not a ground.**
+
+  **AND IN THAT FRAME THE GROUND IS WHITE.** With no ground class the 588 `has-bg` / `bg-light` / `bg-image` rules are inactive and the page falls back to its BASE sheet, which is authored LIGHT: `--bg: #fff`, `--text-primary: #202124`. O7's word for it is right — a coherent light theme, not a broken page.
+
+  **WHICH IS WHY THE HARNESS "NO-WALLPAPER" GROUND IS A STATE NOBODY OCCUPIES.** The 2026-09-16 ink batch and the `[1.13.0]` WM.5 round both made their fourth ground by stripping every class from `<html>` while leaving `body` on the stylesheet's `#2a2a2a`. That is **neither** settled state (all of which carry `has-bg`) **nor** the pre-resolve frame (whose ground is white). It is a manufactured hybrid — **base light-theme ink on a dark ground** — and the product cannot produce it. Every "worst on no-wallpaper" number from those rounds is a real measurement of it, and several were the worst row in their table.
+
+  **SO THE SETTLED LIST IS THREE:** `has-bg bg-dark` (the default and every dark solid), `has-bg bg-image`, `has-bg bg-light`. If a harness wants a fourth it must be O7's pre-resolve frame, built the way O7 builds it — **no ground class AND the base sheet's white ground** — not by deleting classes and leaving the body where it was. **A ground list lives in harness code and drifts from this entry silently**; check the class strings AND the body's computed background against this table before trusting a four-row ink table.
+
 - **O5. ACCENT TOKENS KEY TO THE SURFACE THEY PAINT ON — carry the branch, not the name.** `--sat-accent` is `#1a73e8` in the light theme and flips to `#8ab4f8` the moment a wallpaper sits behind it. The website's old stylesheet claimed `#1a73e8` "matches the extension" — true of a branch the site, which is dark throughout, never renders; on that background it is muddy. **When lifting a token across surfaces, lift the value the DESTINATION would resolve, not the one the source declares first.** O3's sibling: same failure, tokens rather than themes. `ae3b3c5`.
 
 - **O6. A NATIVE FORM CONTROL PAINTS ITSELF FROM `color-scheme`, NOT FROM `color`.** `<input type="date">` renders its own text, calendar indicator and dropdown from the used colour scheme, so a `color` declaration leaves them untouched: on a wallpaper the default light control sits black-on-white against the `rgba(30,30,30,0.85)` frosted panel — measured in the browser before the design was accepted, not assumed. `color-scheme` flips the whole native control at once. **The block mirrors `.seg-btn`'s three-tier structure exactly** — default board light, `html.has-bg` dark, `html.has-bg.bg-light` light again — which is also why the picker carries no per-element ink of its own to keep in sync. Any future native control (`time`, `color`, `select` on some platforms) inherits this entry, and O1 still applies: the board is JS-rendered, so the static ink gate cannot see any of it.
@@ -697,6 +738,14 @@ Run when the task added or changed any text, badge, or control that renders insi
   **NOTHING REPLACES CANCEL.** The grid IS the undo: every wallpaper is one more click away in the same place, and an extra affordance for a reversible one-click action is furniture. `Done` exists only because this modal has no other close control; the backdrop and Escape close it too, and neither reverts anything.
 
   A fixture note that cost a run: the first refusal test seeded **8.808 MB against a ceiling of 8.913 MB**, so the write legitimately fit and the gate reported no refusal. **P25 — a fixture that cannot enter the state never tests the rule.**
+
+- **O10. `opacity` DIMS AN ELEMENT'S OWN FOCUS RING, so a faded control cannot be given a compliant ring by choosing a better colour.** O2 is the ancestor case — a container's opacity trapping its children. This is the element's own: `outline` is composited with the element, so a control at `opacity: 0.55` paints its ring at just over half strength **whatever blue it is**.
+
+  **Measured on `.note-ghost`, and the colour round proved the point by failing to fix it.** Its ring read `1.85 / 1.53 / 2.28 / 2.35` before the one-blue token swap (`1ced097`) and `2.19 / 2.13 / 3.11 / 2.13` after — under the 3:1 non-text floor on three of four grounds either way. Read back from the computed style 2026-09-16: resting `opacity: 0.55`, and **focused `opacity: 0.55`** — the `:focus-visible` rule sets `outline` and nothing else, so focus does not lift the fade.
+
+  **THE DIAGNOSTIC:** if a ring is short of 3:1 and a darker or lighter token does not move it proportionally, read the element's computed `opacity` before reaching for another colour. **THE REMEDIES ARE ALL STRUCTURAL** — raise the opacity on `:focus-visible`, draw the ring on a wrapper the opacity does not reach, or accept the deficit as a documented decision. None of them is a colour change, which is why a token round cannot close one of these.
+
+  **Worth knowing before that decision is taken:** `.note-ghost:hover` already ships `opacity: 0.9`, so the product has already decided that a ghost stops being fully faded when it is interacted with. Whether focus is the same kind of interaction is the open question, filed rather than folded into a colour round. **WCAG 2.4.7 applies to the ring regardless of the element's decorative role.**
 
 ### Section P: Gate and Harness Integrity
 
