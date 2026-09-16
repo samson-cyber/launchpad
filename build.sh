@@ -380,6 +380,32 @@ if ! node tools/check-quickadd.mjs; then
   exit 1
 fi
 
+# [1.14.5] THE SOURCE GATE - shipped markup against this file's own allowlist.
+#
+# IT RUNS HERE, BEFORE THE ZIP, AND THAT PLACEMENT IS THE WHOLE POINT. The
+# allowlist a few hundred lines below is the only thing standing between a
+# referenced file and a dead <script src> in the artifact, and until now it was
+# read exclusively by the packaging step - so the answer arrived AFTER a zip had
+# been produced, on a build that happened roughly once per release.
+#
+# THREE TIMES THAT WAS TOO LATE: importers.js (5c585ae), quickadd.js (3c03f0b),
+# and verify-package's own allowlist reader being editable by prose (d5dd9e3).
+# Every one of them worked perfectly in the tree, because the file was there.
+#
+# This is cheap enough to sit in front of everything: no browser, no zip, two
+# file reads and a tokenizer. It reuses the SAME readers verify-package uses -
+# tools/lib/package-sources.mjs - so the two gates cannot disagree about what
+# the allowlist says.
+#
+# verify-package.mjs at the end of this script is UNCHANGED and still the
+# release backstop: only it opens the artifact and compares three sources
+# including the zip's raw central directory. This one asks a source question
+# early; that one asks an artifact question last.
+if ! node tools/check-html-refs.mjs; then
+  echo 'ERROR: source gate failed - shipped markup references a file the build allowlist does not carry, or the allowlist carries a file nothing explains.' >&2
+  exit 1
+fi
+
 # NOTE — the mutation passes (`--mutate` on either suite above) are development
 # verification, not release gates: they re-boot the subject once per seed and the
 # queue one takes ~16s. Run them when the code under test changes; the gates here
