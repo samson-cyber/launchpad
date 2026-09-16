@@ -125,6 +125,70 @@ I18n.register("en", {
     "plural": {"one": "Next phase in {count}s", "other": "Next phase in {count}s"},
     "description": "Countdown on the session-done card before the next work phase begins. Reports the time remaining and does not urge; a Cancel control sits beside it."
   },
+  "notebooks_add_to_notebook": {
+    "message": "Add to notebook",
+    "description": "Row on a note right-click menu. Opens a picker whose FIRST row is New notebook, so a user with no notebooks yet can make their first one from a surface every note already has. This is the discoverable path: the chip strip does not exist until a notebook does."
+  },
+  "notebooks_all_notes": {
+    "message": "All notes",
+    "description": "The first chip in the notebook strip, always present and never removable. It is a SCOPE, not a notebook: selecting it shows every live note, which is the panel behaviour that shipped before notebooks existed. It is also the drop target for dragging a note out of a notebook."
+  },
+  "notebooks_create_failed": {
+    "message": "That notebook could not be created.",
+    "description": "Toast when the notebook writer refuses. Rare: the only refusal is an empty name, and every caller passes the default name from the catalogue."
+  },
+  "notebooks_default_name": {
+    "message": "New notebook",
+    "description": "The name a notebook is born with, from every route. Deliberately NOT derived from either note in a drag-to-combine: deriving would mean picking one of the two arbitrarily and baking that guess into a label the user then has to correct, and the first line of a clipped paragraph makes a particularly bad folder name. Inline rename opens immediately with the text selected, so naming it is one typed word."
+  },
+  "notebooks_deleted_toast": {
+    "plural": {"=0": "Notebook deleted.", "one": "Notebook deleted. Its note is in All notes.", "other": "Notebook deleted. Its {count} notes are in All notes."},
+    "description": "Toast after a notebook is deleted. Says where the notes went, in the past tense, because the modal promised it a moment earlier and the promise is worth confirming. The zero case omits the clause rather than saying \"its 0 notes\"."
+  },
+  "notebooks_delete_confirm": {
+    "message": "Delete notebook",
+    "description": "The dangerous button in the delete-notebook dialog. Names the thing being deleted so it cannot be misread as deleting the notes."
+  },
+  "notebooks_delete_message": {
+    "plural": {"=0": "It is empty. The notebook goes to trash for 30 days.", "one": "Its 1 note stays in All notes. The notebook goes to trash for 30 days.", "other": "Its {count} notes stay in All notes. The notebook goes to trash for 30 days."},
+    "description": "The delete-notebook dialog body. The count is read from live membership at open time, never remembered, and it is the whole reassurance of this dialog: a user who believes their notes are about to be deleted with the notebook will not click. The word STAY is also a promise that restoring the notebook will not bring them back."
+  },
+  "notebooks_delete_title": {
+    "message": "Delete {name}?",
+    "description": "Title of the delete-notebook dialog. The name is the user own, unquoted here because the dialog title already reads as one."
+  },
+  "notebooks_new_notebook": {
+    "message": "New notebook",
+    "description": "First row of the add-to-notebook picker, and the label on the strip plus control. First ALWAYS, even with twenty notebooks below it: a create control that migrates to the bottom of a growing list gets harder to find the longer the product is used."
+  },
+  "notebooks_notebooks": {
+    "message": "Notebooks",
+    "description": "Accessible name for the chip strip, and the entity label on the notebook context menus."
+  },
+  "notebooks_purge_message": {
+    "message": "This removes the notebook for good. Any notes it once held are already in All notes and are not affected.",
+    "description": "Body of the permanent-delete dialog for a trashed notebook. States plainly that no notes are at risk, because permanent deletion is the moment a user most needs to know a container is not taking anything with it."
+  },
+  "notebooks_purge_title": {
+    "message": "Delete this notebook permanently?",
+    "description": "Title of the permanent-delete dialog for a trashed notebook."
+  },
+  "notebooks_remove_from_notebook": {
+    "message": "Remove from notebook",
+    "description": "Row on a note right-click menu, shown ONLY when the note is in a notebook rather than greyed out when it is not. The keyboard equivalent of dragging a note onto the All notes chip. The note lands at the top of the standalone stack."
+  },
+  "notebooks_rename": {
+    "message": "Rename",
+    "description": "Row on a notebook chip right-click menu. Opens inline rename on the chip itself with the text selected."
+  },
+  "notebooks_restored_empty_toast": {
+    "message": "Notebook restored, empty. Its notes stayed in All notes.",
+    "description": "Toast after restoring a notebook from the trash. Carries the consequence at the moment it matters: deleting released the notes, so restoring cannot bring them back, and a user who expected them needs telling where they are rather than being left to go looking."
+  },
+  "notebooks_trash_restores_empty": {
+    "message": "Restores empty",
+    "description": "Second line on a trashed-notebook row in the notes trash. The row says this before the user clicks Restore, because the person reading this list is exactly the person about to be surprised by it."
+  },
   "notif_due_today_title": {
     "message": "Due today",
     "description": "Title of the desktop notification for a task due on the current day."

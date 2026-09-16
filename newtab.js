@@ -3938,6 +3938,46 @@
   // to. That sort is gone: the stack renders ws.notes in array order, creation
   // inserts at the top, and a drop rewrites the array. The dormant position
   // {x,y} field is untouched (see storage.js).
+  // ===== [NB.3] NOTEBOOKS: THE SCOPE =====
+  //
+  // IN MEMORY, NOT PERSISTED, and that is the same decision notesFilter already
+  // made. A scope is a VIEW, not a preference: it says "I am looking at this
+  // right now", and a reload is the clearest possible statement that the user
+  // stopped looking. Persisting it would mean a user who scoped to a notebook a
+  // week ago opens a new tab to a stack that is missing most of their notes with
+  // no memory of why - which is the shape of every "where did my data go" bug.
+  //
+  // null is ALL NOTES, never a sentinel id. The all-notes chip is not a notebook
+  // and giving it one would put a record in the array that no writer created.
+  var notesScope = null;
+
+  /** The live notebook the scope names, or null. Re-read, never cached: a
+   *  notebook can be deleted from under a scope. */
+  function notesScopeBook(ws) {
+    if (!notesScope || !ws) return null;
+    return Storage.getNotebookById(ws, notesScope) || null;
+  }
+
+  /**
+   * The notes the stack should show, before the text filter.
+   *
+   * THE SCOPE IS APPLIED HERE AND NOWHERE ELSE, so every reader - the stack, the
+   * search threshold, the empty state - agrees about what "the current view"
+   * contains. Two of them disagreeing is how a search box appears over a stack
+   * it cannot search.
+   *
+   * A SCOPE POINTING AT A DELETED NOTEBOOK FALLS BACK TO ALL NOTES rather than
+   * showing an empty stack. Deleting the notebook you are standing in is a
+   * normal thing to do, and the honest answer to "where am I now" is "back where
+   * you started", not a blank panel.
+   */
+  function notesInScope(ws) {
+    var all = ws ? Storage.getAllNotes(ws) : [];
+    if (!notesScope) return all;
+    if (!notesScopeBook(ws)) { notesScope = null; return all; }
+    return all.filter(function (n) { return n.notebookId === notesScope; });
+  }
+
   function notesStackHtml(notes) {
     var visible = notesFilterMatches(notes);
     // [1.1.3] THE GHOST LEADS THE STACK. It used to trail it, which put the one
@@ -4015,19 +4055,90 @@
       '</div>';
   }
 
+  // ===== [NB.3] THE STRIP =====
+  //
+  // ONE ROW, BETWEEN THE TITLE AND THE SEARCH, and it renders ONLY when at least
+  // one notebook exists. That threshold is not a nicety - it is the panel's own
+  // established idiom, which the search input (above 6 notes) and the trash bar
+  // (above 0 trashed) already follow. Zero notebooks means zero chrome and a
+  // panel byte-identical to the one that shipped, asserted by sha256 in this
+  // round's verification rather than argued from the shape of this `if`.
+  //
+  // HORIZONTAL SCROLL, NOT WRAP. A strip that can become two rows can become
+  // three, and the stack pays for every one of them on a panel whose floor width
+  // is 260px.
+  //
+  // THE + IS A SIBLING OF THE CHIPS, not a menu item: creating a notebook from
+  // here is the SECOND path, and the note menu's "New notebook" is the first.
+  // See the menu's own comment for why that ordering matters.
+  function notesNotebookStripHtml(ws) {
+    var books = ws ? Storage.getAllNotebooks(ws) : [];
+    if (!books.length) return "";
+    // THE ENDS ARE PINNED AND ONLY THE MIDDLE SCROLLS, and this was MEASURED
+    // rather than designed. The first cut put all three parts in one scrolling
+    // row, and on the panel's own floor width of 260px, TWO notebooks were
+    // already enough to push the + past the edge: the strip measured 219px wide
+    // with 241px of content, and the + chip sat 22px outside it - clipped, with
+    // scrollbar-width:none so nothing even hinted it was there. The strip's own
+    // create control had scrolled out of reach on the second notebook.
+    //
+    // ALL NOTES IS PINNED FOR A SECOND REASON ON TOP OF THE SPEC'S "first and
+    // always": it is the DRAG-OUT TARGET, and the spec chose it precisely
+    // because it is "the only standalone target guaranteed to be on screen
+    // whenever a notebook is selected". A chip that can scroll away is not
+    // guaranteed to be on screen, so pinning it is what makes that sentence
+    // true rather than aspirational.
+    //
+    // The scroll the spec asks for is still there - it is just the middle,
+    // which is the part that actually grows.
+    var scroller = "";
+    books.forEach(function (b) {
+      var active = (notesScope === b.id);
+      scroller += '<button type="button" class="nb-chip' + (active ? " is-active" : "") + '"' +
+        ' data-nb-scope="' + escapeHtml(b.id) + '"' +
+        (active ? ' aria-current="true"' : "") + '>' +
+        '<span class="nb-chip-name">' + escapeHtml(b.name) + '</span>' +
+        '</button>';
+    });
+    return '<div class="nb-strip" role="group" aria-label="' + th("notebooks_notebooks") + '"' +
+        ' data-nb-strip>' +
+        '<button type="button" class="nb-chip nb-chip-all' + (notesScope ? "" : " is-active") +
+          '" data-nb-scope="" data-nb-all' +
+          (notesScope ? "" : ' aria-current="true"') + '>' +
+          th("notebooks_all_notes") + '</button>' +
+        '<div class="nb-strip-scroll">' + scroller + '</div>' +
+        '<button type="button" class="nb-chip nb-chip-add" data-nb-create' +
+          ' aria-label="' + th("notebooks_new_notebook") + '" title="' + th("notebooks_new_notebook") + '">+</button>' +
+      '</div>';
+  }
+
   function notesPanelHtml(d0) {
     var ws = Storage.getActiveWorkspace(d0);
-    var notes = ws ? Storage.getAllNotes(ws) : [];
+    // [NB.3] THE SCOPED LIST, and the SEARCH THRESHOLD COUNTS IT. The gate is
+    // "more notes than a person can eyeball"; inside a notebook of three, a
+    // search box is exactly the noise the threshold exists to prevent. Counting
+    // the whole workspace here would also make the box claim a reach it does not
+    // have, since a search inside a scope searches that scope only.
+    var notes = notesInScope(ws);
     var trashed = ws ? Storage.getDeletedNotes(ws) : [];
+    // [NB.3] THE BAR COUNTS NOTEBOOKS TOO, AND WITHOUT THIS A TRASHED NOTEBOOK
+    // IS UNREACHABLE. The bar is the only way into the trash view; counting
+    // notes alone means a workspace holding a trashed notebook and no trashed
+    // notes shows no bar at all, so the notebook cannot be restored or purged
+    // and simply waits out its 30 days. Found by the ink run, whose fixture
+    // trashed a notebook and nothing else.
+    var trashedBooks = ws ? Storage.getDeletedNotebooks(ws) : [];
+    var trashTotal = trashed.length + trashedBooks.length;
     // has-trash drives the stack padding that keeps the last note clear of the
     // pinned footer. Conditional, so when the footer is gone the padding goes
     // with it rather than leaving a dead strip at the end of the stack.
-    var panelCls = "notes-panel" + (trashed.length ? " has-trash" : "");
+    var panelCls = "notes-panel" + (trashTotal ? " has-trash" : "");
     return '<aside class="' + panelCls + '" data-notes-panel>' +
         '<div class="notes-panel-title">' + th("notes_notes") + '</div>' +
+        notesNotebookStripHtml(ws) +
         notesSearchHtml(notes.length) +
         '<div class="notes-stack" data-notes-stack>' + notesStackHtml(notes) + '</div>' +
-        notesTrashBarHtml(trashed.length) +
+        notesTrashBarHtml(trashTotal) +
       '</aside>';
   }
 
@@ -4041,7 +4152,7 @@
     var stack = document.querySelector("[data-notes-stack]");
     if (!stack) return;
     var ws = Storage.getActiveWorkspace(data);
-    stack.innerHTML = notesStackHtml(ws ? Storage.getAllNotes(ws) : []);
+    stack.innerHTML = notesStackHtml(notesInScope(ws));
     bindNotesSortable();
   }
 
@@ -4088,13 +4199,185 @@
       // Reorder while a filter is active would rewrite the positions of notes
       // the user cannot see. Disabled rather than cleverly reconciled.
       disabled: !!notesFilter.trim(),
+      onStart: function (evt) { notesNestStart(evt); },
       onMove: function (evt) {
         if (evt.related && evt.related.classList.contains("note-ghost")) return false;
+        // [NB.3] FREEZE A NEST TARGET so SortableJS does not slide it out from
+        // under the cursor before the drop lands. Exactly the Home grid's
+        // updateDragNestTracking guard; without it the target the user aimed at
+        // has moved a full card away by onEnd.
+        if (evt.related && evt.related.dataset && evt.related.dataset.nestTarget === "true") return false;
+      },
+      onEnd: function (evt) {
+        var nested = notesNestFinish(evt);
+        // SORTABLE OWNS THE ORDINARY CASE, AND STILL DOES. A nest returns a
+        // promise and suppresses the reorder commit; anything else falls through
+        // to onUpdate's usual path via notesCommitOrder below. The two live on
+        // the same list without a mode flag, which is the property the spec
+        // required and the reason drop-on-item was buildable here at all.
+        if (nested) { nested.then(function () { renderNotesPanel(); }); return; }
       },
       onUpdate: function () {
         notesCommitOrder();
       }
     });
+  }
+
+  // ===== [NB.3] DRAG-TO-COMBINE AND DRAG-OUT =====
+  //
+  // THE HOME GRID'S IDIOM, REUSED RATHER THAN REINVENTED: mark candidates with
+  // data-nest-target, track the pointer on the document's native `drag` event,
+  // hit-test against the target's own rect with a pad, highlight the hovered
+  // one, and let SortableJS keep ordinary sorting on the same list.
+  //
+  // NO MODIFIER KEY, AND IT IS A HARD CONSTRAINT RATHER THAN A SIMPLIFICATION.
+  // The grid reads a held Shift to pick between two nest outcomes; Chrome
+  // SWALLOWS key events during a native drag (BUGS I8's neighbourhood), which is
+  // why shift-drag is this product's standing example of a gesture that cannot
+  // be exercised end to end. Combining has one unambiguous outcome, so it needs
+  // no second mode - and specifying it without one is what keeps this round
+  // verifiable instead of shipping on an untestable gesture.
+  //
+  // THE PAD IS THE CARD ITSELF, not a sub-element. The grid hit-tests the icon
+  // because a shortcut tile is mostly label; a note card is all body, so the
+  // card's own rect is the honest target.
+  var notesDragState = null;
+  var NOTES_NEST_PAD = 6;
+
+  function notesNestStart(evt) {
+    var draggedId = evt.item && evt.item.dataset ? evt.item.dataset.noteId : null;
+    if (!draggedId) return;
+    notesDragState = { draggedId: draggedId, hoveredTarget: null, hoveredChip: null,
+                       lastX: undefined, lastY: undefined };
+
+    // EVERY OTHER LIVE CARD IS A TARGET. Unlike the grid, there is no domain to
+    // match on: any two notes can become a notebook, which is the whole gesture.
+    var stack = document.querySelector("[data-notes-stack]");
+    if (stack) {
+      [].forEach.call(stack.querySelectorAll(".note-card[data-note-id]"), function (el) {
+        if (el.dataset.noteId === draggedId) return;
+        el.dataset.nestTarget = "true";
+      });
+    }
+
+    notesDragState._move = function (e) {
+      if (!notesDragState) return;
+      // drag events fire with 0,0 sometimes - the grid ignores those and so does
+      // this, for the same reason.
+      if (e.clientX === 0 && e.clientY === 0) return;
+      notesDragState.lastX = e.clientX;
+      notesDragState.lastY = e.clientY;
+      notesNestHover(e.clientX, e.clientY);
+    };
+    document.addEventListener("drag", notesDragState._move);
+  }
+
+  function notesNestHover(x, y) {
+    if (!notesDragState) return;
+    var hovered = null;
+    var stack = document.querySelector("[data-notes-stack]");
+    if (stack) {
+      [].forEach.call(stack.querySelectorAll(".note-card[data-note-id]"), function (el) {
+        if (el.dataset.nestTarget !== "true") return;
+        if (el.classList.contains("sortable-ghost")) return;
+        var r = el.getBoundingClientRect();
+        if (x >= r.left - NOTES_NEST_PAD && x <= r.right + NOTES_NEST_PAD &&
+            y >= r.top - NOTES_NEST_PAD && y <= r.bottom + NOTES_NEST_PAD) hovered = el;
+      });
+    }
+    if (hovered !== notesDragState.hoveredTarget) {
+      if (notesDragState.hoveredTarget) notesDragState.hoveredTarget.classList.remove("note-nest-hover");
+      notesDragState.hoveredTarget = hovered;
+      if (hovered) hovered.classList.add("note-nest-hover");
+    }
+
+    // DRAG-OUT: the All notes chip. It is the only standalone target guaranteed
+    // on screen whenever a notebook scope is active, which is what makes it the
+    // right one.
+    var chip = document.querySelector(".nb-chip[data-nb-all]");
+    var overChip = null;
+    if (chip && notesScope) {
+      var cr = chip.getBoundingClientRect();
+      if (x >= cr.left - NOTES_NEST_PAD && x <= cr.right + NOTES_NEST_PAD &&
+          y >= cr.top - NOTES_NEST_PAD && y <= cr.bottom + NOTES_NEST_PAD) overChip = chip;
+    }
+    if (overChip !== notesDragState.hoveredChip) {
+      if (notesDragState.hoveredChip) notesDragState.hoveredChip.classList.remove("nb-chip-drop");
+      notesDragState.hoveredChip = overChip;
+      if (overChip) overChip.classList.add("nb-chip-drop");
+    }
+  }
+
+  function notesNestCleanup() {
+    var stack = document.querySelector("[data-notes-stack]");
+    if (stack) {
+      [].forEach.call(stack.querySelectorAll(".note-card"), function (el) {
+        delete el.dataset.nestTarget;
+        el.classList.remove("note-nest-hover");
+      });
+    }
+    var chip = document.querySelector(".nb-chip[data-nb-all]");
+    if (chip) chip.classList.remove("nb-chip-drop");
+    if (notesDragState && notesDragState._move) {
+      document.removeEventListener("drag", notesDragState._move);
+    }
+    notesDragState = null;
+  }
+
+  /**
+   * Resolve the drop. Returns a PROMISE when the drop was a nest or a drag-out,
+   * and null when it was an ordinary sort - which is the signal onEnd uses to
+   * decide whether to let SortableJS's own commit run.
+   */
+  function notesNestFinish(evt) {
+    var state = notesDragState;
+    if (!state) return null;
+    if (state.lastX !== undefined) notesNestHover(state.lastX, state.lastY);
+    var target = state.hoveredTarget;
+    var chip = state.hoveredChip;
+    var draggedId = state.draggedId;
+    notesNestCleanup();
+
+    if (chip) return notesDragOut(draggedId);
+    if (target && target.dataset.noteId && target.dataset.noteId !== draggedId) {
+      return notesCombine(target.dataset.noteId, draggedId);
+    }
+    return null;
+  }
+
+  /**
+   * TARGET FIRST, DRAGGED SECOND. The target was already sitting where the user
+   * aimed; the dragged note arrived. Array order is canonical inside a notebook
+   * exactly as it is in the stack - one ordering model in this feature, not two -
+   * and position {x,y} stays dormant.
+   */
+  async function notesCombine(targetId, draggedId) {
+    var nb = Storage.createNotebook(data, {
+      name: t("notebooks_default_name"),
+      attachNoteId: targetId
+    });
+    if (!nb) { showToast(t("notebooks_create_failed")); return; }
+    Storage.setNoteNotebook(data, draggedId, nb.id);
+    // Order the two inside the notebook: target immediately before dragged.
+    var ws = Storage.getActiveWorkspace(data);
+    var arr = ws && ws.notes;
+    if (Array.isArray(arr)) {
+      var ti = arr.findIndex(function (n) { return n.id === targetId; });
+      var di = arr.findIndex(function (n) { return n.id === draggedId; });
+      if (ti !== -1 && di !== -1 && di !== ti + 1) {
+        var moved = arr.splice(di, 1)[0];
+        ti = arr.findIndex(function (n) { return n.id === targetId; });
+        arr.splice(ti + 1, 0, moved);
+      }
+    }
+    await Storage.saveAll(data);
+    notesScope = nb.id;
+    renderNotesPanel();
+    notebookBeginRename(nb.id);
+  }
+
+  async function notesDragOut(noteId) {
+    await notebookRemoveNote(noteId);
   }
 
   // Commit the DOM order into the array. Works on IDS, not on Sortable indices,
@@ -4188,8 +4471,21 @@
     // straight out of view. Clear the filter first, so the note you just made is
     // the one you are looking at.
     notesFilter = "";
+    // [NB.3] THE SCOPE IS THE CONTEXT. Creating from the ghost inside a notebook
+    // creates the note IN that notebook, because otherwise the create affordance
+    // sitting at the top of a scoped stack would produce a note that vanishes
+    // from the view it was made in - the same failure the filter-clearing line
+    // above already prevents for search.
+    //
+    // THROUGH setNoteNotebook, never by assigning notebookId here. NB.2 made
+    // that function the one writer of membership precisely so a fifth caller
+    // could not invent its own assignment.
     var note = Storage.createNote(data, { content: "" });
     if (!note) return;
+    var scopeWs = Storage.getActiveWorkspace(data);
+    if (notesScope && notesScopeBook(scopeWs)) {
+      Storage.setNoteNotebook(data, note.id, notesScope);
+    }
     // [1.1.2] NEWEST AT TOP AS A REAL ARRAY POSITION. createNote appends, which
     // is the right generic behaviour; the panel wants newest-first, so the
     // insertion position is the caller's policy and is applied here rather than
@@ -4273,17 +4569,59 @@
       "</li>";
   }
 
+  // [NB.3] A TRASHED NOTEBOOK IS ITS OWN ROW AND CARRIES NO NOTES.
+  //
+  // That is not a second decision - it is the release decision seen from the
+  // trash's side. Because deleteNotebook releases every note before soft-
+  // deleting the record, there are never any notes inside a trashed notebook to
+  // unit up with, so this row needs no child list, no count, no re-attach on
+  // restore and no rule for a released-then-trashed note coming back into a
+  // notebook that has since been purged. Four problems deleted rather than
+  // solved.
+  //
+  // THE CONSEQUENCE IS IN THE ROW'S OWN COPY rather than buried in a spec: the
+  // row says the notebook restores empty, because a user looking at this list is
+  // exactly the person about to be surprised by it.
+  function notebookTrashRowHtml(nb) {
+    return "<li class=\"notes-trash-row is-notebook\" data-trash-notebook-id=\"" + escapeHtml(nb.id) + "\">" +
+        // ITS OWN SURFACE, NOT .notes-trash-paper. That class exists for a
+        // sticky note: it pins near-black ink against a --note-paper colour the
+        // note supplies inline. A notebook has no paper colour, so reusing the
+        // class put #2c2417 on the dark modal at 1.10:1 - measured, not
+        // guessed. A notebook is not a note, and the trash unit "carries no
+        // notes", so the paper idiom was wrong here before it was unreadable.
+        "<div class=\"nb-trash-card\">" +
+          "<div class=\"notes-trash-preview\">" + escapeHtml(nb.name) + "</div>" +
+          "<div class=\"nb-trash-note\">" + th("notebooks_trash_restores_empty") + "</div>" +
+        "</div>" +
+        "<div class=\"notes-trash-meta\">" +
+          "<span class=\"notes-trash-countdown " +
+            trashCountdownClass(notesDaysRemaining(nb.deletedAt)) +
+            "\">" + escapeHtml(notesDaysRemainingLabel(nb.deletedAt)) +
+          "</span>" +
+          "<span class=\"notes-trash-actions\">" +
+            "<button type=\"button\" class=\"notes-trash-action\" data-trash-nb-restore>" + th('notes_restore') + "</button>" +
+            "<button type=\"button\" class=\"notes-trash-action is-danger\" data-trash-nb-purge>" + th('notes_delete_permanently') + "</button>" +
+          "</span>" +
+        "</div>" +
+      "</li>";
+  }
+
   function notesTrashBodyHtml() {
     var ws = Storage.getActiveWorkspace(data);
     var trashed = ws ? Storage.getDeletedNotes(ws) : [];
-    if (!trashed.length) {
+    var trashedBooks = ws ? Storage.getDeletedNotebooks(ws) : [];
+    if (!trashed.length && !trashedBooks.length) {
       return "<div class=\"notes-trash-empty\">" + th('notes_nothing_in_the_trash_deleted_notes') + "</div>";
     }
-    // Most recently trashed first: the note just deleted is the one most likely
-    // being looked for.
-    var rows = trashed.slice().sort(function (a, b) {
-      return (b.deletedAt || 0) - (a.deletedAt || 0);
-    }).map(notesTrashRowHtml).join("");
+    // ONE LIST, SORTED BY WHEN IT WAS TRASHED, notes and notebooks together.
+    // Two sections would ask the user to know which kind of thing they deleted
+    // before they can look for it, and the thing they deleted most recently is
+    // the thing they are most likely looking for regardless of its kind.
+    var rows = trashed.map(function (n) { return { at: n.deletedAt || 0, html: notesTrashRowHtml(n) }; })
+      .concat(trashedBooks.map(function (b) { return { at: b.deletedAt || 0, html: notebookTrashRowHtml(b) }; }))
+      .sort(function (a, b) { return b.at - a.at; })
+      .map(function (r) { return r.html; }).join("");
     return "<ul class=\"notes-trash-list\">" + rows + "</ul>";
   }
 
@@ -4295,7 +4633,12 @@
     if (body) body.innerHTML = notesTrashBodyHtml();
     var ws = Storage.getActiveWorkspace(data);
     var emptyBtn = overlay.querySelector(".notes-trash-empty-btn");
-    if (emptyBtn) emptyBtn.disabled = !(ws && Storage.getDeletedNotes(ws).length);
+    // [NB.3] BOTH KINDS. The button empties the trash, and a trash holding only
+    // a notebook is not empty.
+    if (emptyBtn) {
+      emptyBtn.disabled = !(ws && (Storage.getDeletedNotes(ws).length ||
+                                   Storage.getDeletedNotebooks(ws).length));
+    }
     renderNotesPanel();
   }
 
@@ -4332,6 +4675,38 @@
         var emptyBtn = overlay.querySelector(".notes-trash-empty-btn");
         if (emptyBtn) emptyBtn.disabled = !(ws && Storage.getDeletedNotes(ws).length);
         overlay.addEventListener("click", async function (e) {
+          // [NB.3] The notebook rows, checked FIRST because they are a
+          // different data-attribute and would otherwise fall through the
+          // note-row guard below and do nothing.
+          var nbRow = e.target.closest("[data-trash-notebook-id]");
+          if (nbRow) {
+            var nbId = nbRow.getAttribute("data-trash-notebook-id");
+            if (e.target.closest("[data-trash-nb-restore]")) {
+              if (Storage.restoreNotebook(data, nbId)) {
+                await Storage.saveAll(data);
+                // THE TOAST CARRIES THE CONSEQUENCE. The row said it would
+                // restore empty; this says it did, at the moment it matters,
+                // because a user who expected their notes back needs to be told
+                // where they are rather than left to go looking.
+                showToast(t("notebooks_restored_empty_toast"));
+              }
+              notesTrashRefresh(overlay);
+              return;
+            }
+            if (e.target.closest("[data-trash-nb-purge]")) {
+              var okPurge = await confirmModal({
+                title: t("notebooks_purge_title"),
+                message: t("notebooks_purge_message"),
+                confirmLabel: t("notes_delete_permanently"),
+                dangerous: true
+              });
+              if (okPurge) {
+                await Storage.deleteNotebookPermanent(data, nbId);
+                notesTrashRefresh(overlay);
+              }
+            }
+            return;
+          }
           var row = e.target.closest("[data-trash-note-id]");
           if (!row) return;
           var id = row.getAttribute("data-trash-note-id");
@@ -4382,14 +4757,26 @@
   function confirmEmptyNotesTrash() {
     var ws = Storage.getActiveWorkspace(data);
     var count = ws ? Storage.getDeletedNotes(ws).length : 0;
-    if (!count) return;
+    // [NB.3] NOTEBOOKS COUNT TOO, AND THE BUTTON HAS TO MEAN WHAT IT SAYS.
+    // Storage.emptyNotesTrash sweeps NOTES only, and this round does not own
+    // storage.js - so the notebooks are purged here, one call each through
+    // deleteNotebookPermanent, which is the writer NB.2 exported for exactly
+    // this. It saves per call rather than once for the batch; that is a few
+    // extra writes on an action a user takes rarely, and the alternative was a
+    // second sweep function in a file this round must not touch.
+    var books = ws ? Storage.getDeletedNotebooks(ws) : [];
+    var total = count + books.length;
+    if (!total) return;
     openTasksConfirmModal({
       title: t("empty_empty_the_notes_trash"),
-      message: t("notes_empty_trash_confirm", { count: count }),
+      message: t("notes_empty_trash_confirm", { count: total }),
       confirmLabel: t("empty_empty_trash"),
       dangerous: true,
       onConfirm: async function () {
         await Storage.emptyNotesTrash(data);
+        for (var i = 0; i < books.length; i++) {
+          await Storage.deleteNotebookPermanent(data, books[i].id);
+        }
         renderNotesPanel();
         reopenNotesTrashView();
       },
@@ -4473,6 +4860,183 @@
     notesMenuEl = null;
   }
 
+  // ===== [NB.3] THE NOTEBOOK PICKER AND ITS WRITERS =====
+  //
+  // A SECOND CONTEXT MENU RATHER THAN A MODAL. TD.2's attach picker is a modal
+  // because it searches three entity types across a workspace; this picks one
+  // name from a short list, and raising a dialog over a 208px note to do it
+  // would be heavier than the thing it decides. Same .tt-context-menu component,
+  // same dismissal lifecycle, so there is no new surface to keep in step.
+  function openNotebookPicker(x, y, noteId) {
+    closeNotesMenu();
+    var ws = Storage.getActiveWorkspace(data);
+    var note = ws ? Storage.getNoteById(ws, noteId) : null;
+    if (!note) return;
+    var books = Storage.getAllNotebooks(ws);
+
+    // NEW NOTEBOOK FIRST, ALWAYS. On a fresh profile it is the only row, and it
+    // is the reason this picker can be the first notebook's origin at all. It
+    // stays first even with twenty notebooks: the list below it grows, and a
+    // create control that migrates to the bottom of a growing list is a control
+    // that gets harder to find the longer you use the product.
+    var rows = '<button type="button" class="tt-ctx-item" data-nb-pick="__new">' +
+      th("notebooks_new_notebook") + '</button>';
+    if (books.length) {
+      rows += '<div class="tt-ctx-separator"></div>';
+      books.forEach(function (b) {
+        var here = (note.notebookId === b.id);
+        rows += '<button type="button" class="tt-ctx-item' + (here ? " is-current" : "") + '"' +
+          ' data-nb-pick="' + escapeHtml(b.id) + '"' + (here ? " disabled" : "") + '>' +
+          escapeHtml(b.name) + '</button>';
+      });
+    }
+
+    var menu = document.createElement("div");
+    menu.className = "tt-context-menu";
+    menu.innerHTML = ctxEntityHeaderHtml(t("notebooks_notebooks"),
+      note.content ? note.content.slice(0, 40) : t("common_empty_note")) + rows;
+    document.body.appendChild(menu);
+    var w = menu.offsetWidth, h = menu.offsetHeight;
+    menu.style.left = Math.max(8, Math.min(x, window.innerWidth - w - 8)) + "px";
+    menu.style.top = Math.max(8, Math.min(y, window.innerHeight - h - 8)) + "px";
+    notesMenuEl = menu;
+
+    menu.addEventListener("click", function (ev) {
+      var btn = ev.target.closest("[data-nb-pick]");
+      if (!btn) return;
+      var pick = btn.getAttribute("data-nb-pick");
+      closeNotesMenu();
+      if (pick === "__new") notebookCreateWithNote(noteId);
+      else notebookAddNote(noteId, pick);
+    });
+
+    setTimeout(function () {
+      if (!notesMenuEl) return;
+      var onDoc = function (ev) {
+        if (notesMenuEl && notesMenuEl.contains(ev.target)) return;
+        teardown();
+      };
+      var onKey = function (ev) { if (ev.key === "Escape") teardown(); };
+      function teardown() {
+        document.removeEventListener("mousedown", onDoc, true);
+        document.removeEventListener("keydown", onKey, true);
+        closeNotesMenu();
+      }
+      document.addEventListener("mousedown", onDoc, true);
+      document.addEventListener("keydown", onKey, true);
+    }, 0);
+  }
+
+  /**
+   * Create a notebook holding this note. ONE WRITER CALL.
+   *
+   * createNotebook takes attachNoteId precisely so a create-then-attach cannot
+   * half-succeed and leave an empty notebook behind - NB.2 built that parameter
+   * for this caller. The default name comes from the catalogue, because storage
+   * refuses to hold untranslated prose.
+   */
+  async function notebookCreateWithNote(noteId) {
+    var nb = Storage.createNotebook(data, {
+      name: t("notebooks_default_name"),
+      attachNoteId: noteId || null
+    });
+    if (!nb) { showToast(t("notebooks_create_failed")); return; }
+    await Storage.saveAll(data);
+    // SCOPE TO IT. The note just left the stack the user was looking at; landing
+    // them in the notebook it went to is the only reading under which the action
+    // did not make a note disappear.
+    notesScope = nb.id;
+    renderNotesPanel();
+    notebookBeginRename(nb.id);
+  }
+
+  async function notebookAddNote(noteId, notebookId) {
+    if (!Storage.setNoteNotebook(data, noteId, notebookId)) return;
+    await Storage.saveAll(data);
+    renderNotesPanel();
+  }
+
+  async function notebookRemoveNote(noteId) {
+    if (!Storage.setNoteNotebook(data, noteId, null)) return;
+    // THE TOP OF THE STANDALONE STACK, not the bottom. "It came back" and "it
+    // just arrived" are the same event from the stack's point of view, and a
+    // note dropped to the bottom of a forty-note stack makes a deliberate action
+    // look like it did nothing.
+    notesMoveToTop(noteId);
+    await Storage.saveAll(data);
+    renderNotesPanel();
+  }
+
+  /** Move a note to array position 0. The stack's newest-first policy, applied
+   *  by the caller exactly as notesCreate applies it. */
+  function notesMoveToTop(noteId) {
+    var ws = Storage.getActiveWorkspace(data);
+    var arr = ws && ws.notes;
+    if (!Array.isArray(arr)) return;
+    var at = arr.findIndex(function (n) { return n.id === noteId; });
+    if (at > 0) { var n = arr.splice(at, 1)[0]; arr.unshift(n); }
+  }
+
+  // ---- rename, inline on the chip -----------------------------------------
+  //
+  // INLINE, WITH THE TEXT SELECTED, which is the shape goal and group renaming
+  // already use and the shape the spec asks for on creation. Dismissing keeps
+  // the default name, so a user who drags two notes together and presses Escape
+  // still has a working notebook rather than a refusal.
+  function notebookBeginRename(notebookId) {
+    var chip = document.querySelector('.nb-chip[data-nb-scope="' + notebookId + '"]');
+    if (!chip) return;
+    var ws = Storage.getActiveWorkspace(data);
+    var nb = ws ? Storage.getNotebookById(ws, notebookId) : null;
+    if (!nb) return;
+    chip.classList.add("is-renaming");
+    chip.innerHTML = '<input type="text" class="nb-chip-input" maxlength="60"' +
+      ' value="' + escapeHtml(nb.name) + '" autocomplete="off" spellcheck="false">';
+    var input = chip.querySelector(".nb-chip-input");
+    input.focus();
+    input.select();
+    var done = false;
+    var commit = async function (save) {
+      if (done) return;
+      done = true;
+      var v = (input.value || "").trim();
+      if (save && v && v !== nb.name) {
+        if (Storage.renameNotebook(data, notebookId, v)) await Storage.saveAll(data);
+      }
+      renderNotesPanel();
+    };
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); commit(true); }
+      else if (e.key === "Escape") { e.preventDefault(); commit(false); }
+      e.stopPropagation();
+    });
+    input.addEventListener("blur", function () { commit(true); });
+  }
+
+  // ---- deletion -------------------------------------------------------------
+  async function notebookDelete(notebookId) {
+    var ws = Storage.getActiveWorkspace(data);
+    var nb = ws ? Storage.getNotebookById(ws, notebookId) : null;
+    if (!nb) return;
+    // THE COUNT IS READ LIVE, AT OPEN TIME, not remembered from a render. It is
+    // the whole reassurance of this dialog - a user who believes their notes are
+    // about to go with it will not click - so a stale number would be worse than
+    // no number.
+    var count = Storage.notesInNotebook(ws, notebookId, { liveOnly: true }).length;
+    var ok = await confirmModal({
+      title: t("notebooks_delete_title", { name: nb.name }),
+      message: t("notebooks_delete_message", { count: count }),
+      confirmLabel: t("notebooks_delete_confirm"),
+      dangerous: true
+    });
+    if (!ok) return;
+    if (!Storage.deleteNotebook(data, notebookId)) return;
+    await Storage.saveAll(data);
+    if (notesScope === notebookId) notesScope = null;
+    renderNotesPanel();
+    showToast(t("notebooks_deleted_toast", { count: count }));
+  }
+
   function openNotesMenu(x, y, noteId) {
     closeNotesMenu();
     var ws = Storage.getActiveWorkspace(data);
@@ -4492,6 +5056,22 @@
       '<div class="note-swatches">' + swatches + '</div>' +
       '<button type="button" class="tt-ctx-item" data-note-action="promote-task">' + th("notes_promote_to_task") + '</button>' +
       '<button type="button" class="tt-ctx-item" data-note-action="promote-goal">' + th("notes_promote_to_goal") + '</button>' +
+      // [NB.3] THE DISCOVERABLE PATH, AND IT SHIPS AHEAD OF THE STRIP.
+      //
+      // The strip only exists once a notebook does, so on a fresh profile it is
+      // not on screen - which means the ONLY way to make a first notebook has to
+      // live somewhere every note already is. That is this row, and it is the
+      // REVIEW's addition made concrete: the picker it opens offers "New
+      // notebook" as its FIRST row, so a user with zero notebooks is one
+      // right-click from having one.
+      //
+      // "Remove from notebook" appears only when the note is IN one, rather than
+      // sitting greyed out. A control that cannot do anything reads as broken
+      // rather than as inapplicable - the [1.1.4] preview-ghost rule.
+      '<button type="button" class="tt-ctx-item" data-note-action="notebook">' + th("notebooks_add_to_notebook") + '</button>' +
+      (note.notebookId
+        ? '<button type="button" class="tt-ctx-item" data-note-action="notebook-remove">' + th("notebooks_remove_from_notebook") + '</button>'
+        : "") +
       '<button type="button" class="tt-ctx-item" data-note-action="delete">' + th("common_delete") + '</button>';
     document.body.appendChild(menu);
 
@@ -4541,6 +5121,20 @@
       if (e.target.closest('[data-note-action="promote-goal"]')) {
         closeNotesMenu();
         promoteNoteToGoal(noteId);
+        return;
+      }
+      // [NB.3] The picker opens AT THE MENU'S OWN CORNER rather than at a fresh
+      // pointer position: the click that opens it is on a row, and re-reading
+      // the cursor would put the second menu under the user's hand.
+      if (e.target.closest('[data-note-action="notebook"]')) {
+        var r = menu.getBoundingClientRect();
+        closeNotesMenu();
+        openNotebookPicker(r.left, r.top, noteId);
+        return;
+      }
+      if (e.target.closest('[data-note-action="notebook-remove"]')) {
+        closeNotesMenu();
+        await notebookRemoveNote(noteId);
         return;
       }
       if (e.target.closest('[data-note-action="delete"]')) {
@@ -4644,6 +5238,48 @@
       renderNotesStack();
     });
 
+    // [NB.3] THE STRIP. Delegated on the panel like every other notes handler,
+    // so the strip appearing and disappearing at the threshold needs no rebind.
+    panel.addEventListener("click", function (e) {
+      var add = e.target.closest("[data-nb-create]");
+      if (add) {
+        e.preventDefault();
+        e.stopPropagation();
+        // NO NOTE ATTACHED. The + makes an EMPTY notebook, which is a legitimate
+        // thing to want - the spec's own "an empty notebook is a container the
+        // user made and may be about to fill" - and passing a note here would be
+        // inventing membership the user did not ask for.
+        notebookCreateWithNote(null);
+        return;
+      }
+      var chip = e.target.closest("[data-nb-scope]");
+      if (!chip || chip.classList.contains("is-renaming")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var id = chip.getAttribute("data-nb-scope") || null;
+      if (id === notesScope) return;
+      // SCOPING CLEARS THE FILTER. A search typed inside one scope means nothing
+      // in the next, and carrying it across would show an empty stack whose
+      // reason is off screen in an input the user has stopped looking at.
+      notesFilter = "";
+      notesScope = id;
+      // THE WHOLE PANEL, not just the stack: the active chip moves, and the
+      // search input's own threshold is a function of the SCOPED count, so it
+      // can appear or disappear on a scope change.
+      renderNotesPanel();
+    });
+
+    // A notebook chip's own menu: rename and delete.
+    panel.addEventListener("contextmenu", function (e) {
+      var chip = e.target.closest(".nb-chip[data-nb-scope]");
+      if (!chip) return;
+      var id = chip.getAttribute("data-nb-scope");
+      if (!id) return;   // "All notes" is not a notebook and has no menu
+      e.preventDefault();
+      e.stopPropagation();
+      openNotebookChipMenu(e.clientX, e.clientY, id);
+    });
+
     panel.addEventListener("contextmenu", function (e) {
       var card = e.target.closest(".note-card");
       if (!card || card.classList.contains("note-ghost")) return;
@@ -4651,6 +5287,48 @@
       e.stopPropagation();
       openNotesMenu(e.clientX, e.clientY, card.dataset.noteId);
     });
+  }
+
+  // The chip's own menu. Two rows, because a chip has exactly two things that
+  // can be done to it that are not "select it".
+  function openNotebookChipMenu(x, y, notebookId) {
+    closeNotesMenu();
+    var ws = Storage.getActiveWorkspace(data);
+    var nb = ws ? Storage.getNotebookById(ws, notebookId) : null;
+    if (!nb) return;
+    var menu = document.createElement("div");
+    menu.className = "tt-context-menu";
+    menu.innerHTML = ctxEntityHeaderHtml(t("notebooks_notebooks"), nb.name) +
+      '<button type="button" class="tt-ctx-item" data-nb-chip-action="rename">' + th("notebooks_rename") + '</button>' +
+      '<button type="button" class="tt-ctx-item" data-nb-chip-action="delete">' + th("common_delete") + '</button>';
+    document.body.appendChild(menu);
+    var w = menu.offsetWidth, h = menu.offsetHeight;
+    menu.style.left = Math.max(8, Math.min(x, window.innerWidth - w - 8)) + "px";
+    menu.style.top = Math.max(8, Math.min(y, window.innerHeight - h - 8)) + "px";
+    notesMenuEl = menu;
+    menu.addEventListener("click", function (ev) {
+      var btn = ev.target.closest("[data-nb-chip-action]");
+      if (!btn) return;
+      var act = btn.getAttribute("data-nb-chip-action");
+      closeNotesMenu();
+      if (act === "rename") notebookBeginRename(notebookId);
+      else notebookDelete(notebookId);
+    });
+    setTimeout(function () {
+      if (!notesMenuEl) return;
+      var onDoc = function (ev) {
+        if (notesMenuEl && notesMenuEl.contains(ev.target)) return;
+        teardown();
+      };
+      var onKey = function (ev) { if (ev.key === "Escape") teardown(); };
+      function teardown() {
+        document.removeEventListener("mousedown", onDoc, true);
+        document.removeEventListener("keydown", onKey, true);
+        closeNotesMenu();
+      }
+      document.addEventListener("mousedown", onDoc, true);
+      document.addEventListener("keydown", onKey, true);
+    }, 0);
   }
 
   // ===== Tasks Tab ([1.0.10]) =====

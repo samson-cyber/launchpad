@@ -17319,6 +17319,164 @@ html.has-bg.bg-light .notes-panel {
   border-inline-start-color: rgba(0, 0, 0, 0.14);
 }
 
+/* ===== [NB.3] THE NOTEBOOK STRIP =====
+
+   INHERIT. NO DECLARED COLOUR ANYWHERE IN THIS BLOCK, and that is the rule this
+   exact panel taught the product rather than a stylistic preference.
+   .notes-panel declares `color: #fff` and flips to #1f1f1f under
+   html.has-bg.bg-light; every child - the title, the search input, the trash
+   bar - takes `color: inherit` and flips only its SURFACE. TD.1's preview row
+   declared its own ink here and painted white-on-white on a light wallpaper,
+   and the fix was to stop declaring. These chips sit in the same column, so
+   they follow the same rule: ink inherited, emphasis carried on background and
+   WEIGHT, and no opacity - opacity is a contrast reduction wearing a different
+   name.
+
+   THE STATIC INK GATE CANNOT SEE ANY OF THIS. check-panel-ink parses newtab.html
+   and this strip is built in JS, so it presents zero text nodes and passes
+   vacuously (BUGS O1). Every node below was browser-measured on all three real
+   grounds before anything else in this round was claimed. */
+/* ONE ROW THAT SCROLLS, NEVER TWO. A strip that can wrap to a second row can
+   wrap to a third, and the stack pays for every one of them on a panel whose
+   floor width is 260px.
+
+   BUT ONLY THE MIDDLE SCROLLS. Measured on the first cut: at the panel's floor
+   width, TWO notebooks pushed the + chip 22px outside a 219px strip, with
+   scrollbar-width:none hiding any hint of it - the create control gone on the
+   second notebook. So the two ends are pinned flex items and the chips scroll
+   between them. All notes is pinned for a second reason as well: it is the
+   drag-out target, and the spec picked it for being "guaranteed to be on
+   screen", which a chip that can scroll away is not. */
+.nb-strip {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding-bottom: var(--space-2);
+  min-width: 0;
+}
+
+.nb-strip-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.nb-strip-scroll::-webkit-scrollbar { display: none; }
+
+.nb-chip-all,
+.nb-chip-add { flex: 0 0 auto; }
+
+.nb-chip {
+  flex: 0 0 auto;
+  max-width: 132px;
+  padding: 3px var(--space-2);
+  font-family: inherit;
+  font-size: var(--fs-11-5);
+  line-height: 1.6;
+  color: inherit;
+  background: var(--surface-fill);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius:var(--radius-pill);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: none;
+}
+
+.nb-chip:hover { border-color: rgba(255, 255, 255, 0.42); }
+
+/* THE ACTIVE CHIP IS A FILL AND A WEIGHT, not a colour. Making it the accent
+   would mean declaring ink on top of it and re-deriving the contrast per
+   ground - the exact thing the panel's model exists to avoid. */
+.nb-chip.is-active {
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.42);
+}
+
+.nb-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.nb-chip-add {
+  padding-inline: var(--space-2);
+  font-weight: 600;
+}
+
+/* The drag-out target, lit only while a note is over it. */
+.nb-chip-drop {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.nb-chip-input {
+  width: 100px;
+  font-family: inherit;
+  font-size: var(--fs-11-5);
+  color: inherit;
+  background: transparent;
+  border: 0;
+  outline: none;
+  text-shadow: none;
+}
+
+/* Light wallpaper: only the SURFACE flips. The ink is already correct, because
+   it was never declared. */
+html.has-bg.bg-light .nb-chip {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.16);
+}
+html.has-bg.bg-light .nb-chip:hover { border-color: rgba(0, 0, 0, 0.34); }
+html.has-bg.bg-light .nb-chip.is-active {
+  background: rgba(0, 0, 0, 0.12);
+  border-color: rgba(0, 0, 0, 0.34);
+}
+
+/* The drop target on a note card during drag-to-combine. A ring, not a fill:
+   the card's paper colour is the note's own and must not be repainted. */
+.note-card.note-nest-hover {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* THE TRASHED-NOTEBOOK CARD. Deliberately NOT .notes-trash-paper: that class
+   pins near-black --note-ink against a --note-paper colour each note supplies
+   inline, and a notebook has none - reusing it measured 1.10:1, dark on dark.
+   This inherits the modal's ink like every other line of text in that dialog
+   and carries a neutral fill, which is also the honest look: a trashed notebook
+   holds no notes, so it should not be dressed as one. */
+.nb-trash-card {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--space-2) var(--space-2-5);
+  border-radius: var(--radius-md);
+  background: var(--surface-fill);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: inherit;
+  font-size: var(--fs-13);
+  line-height: 1.4;
+}
+
+html.has-bg.bg-light .nb-trash-card {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.14);
+}
+
+/* The second line, saying it restores empty. Inherits, like the card. */
+.nb-trash-note {
+  margin-top: 4px;
+  font-size: var(--fs-11);
+  font-style: italic;
+}
+
 .notes-panel-title {
   flex-shrink: 0;
   font-size: var(--fs-12);
