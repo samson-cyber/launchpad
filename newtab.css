@@ -925,7 +925,17 @@ html.bg-booting *::after {
   background: transparent;
   border-radius:var(--radius-sm);
   cursor: pointer;
-  color: var(--text-hint);
+  /* WAS --text-hint (#9aa0a6). This bare rule is what paints the chevron on a
+     ground with NO frost behind it, and #9aa0a6 there is a plain non-text
+     failure: 2.6:1 with no wallpaper, 4.97:1 after. (That one cell is the only
+     reading in the round my own determinism control would not bless - a 2px
+     stroke on white falls under the sampler's change threshold on a first pass
+     and reports nothing; the round report says so rather than rounding it off.)
+     --text-secondary is the
+     same substitution #search-input::placeholder made for the same reason on
+     the same token. The dark grounds never reach this rule - see the
+     html.has-bg:not(.bg-light) block - so nothing on a wallpaper moves. */
+  color: var(--text-secondary);
   padding: 0;
   flex-shrink: 0;
   transition: background-color 0.15s;
@@ -1076,7 +1086,11 @@ html.has-bg .group-name-input {
   background: transparent;
   border-radius:var(--radius-circle);
   cursor: pointer;
-  color: var(--text-hint);
+  /* Same substitution as .group-collapse-btn above, for the same reason and on
+     the same ground. These two sit in one row and are one control family; a
+     round that fixed the chevron and left its neighbour would have made them
+     disagree for a reason invisible to the user. */
+  color: var(--text-secondary);
   transition: background-color 0.15s, color 0.15s;
   flex-shrink: 0;
 }
@@ -3172,8 +3186,16 @@ html.has-bg:not(.bg-light) .group-open-all-btn:hover {
   background: var(--surface-fill);
 }
 
+/* THE THREE-DOT GETS ITS NEIGHBOUR'S TREATMENT ON A PHOTOGRAPH, and the gap
+   between them is why. .group-collapse-btn on this same ground takes --ink-meta
+   AND a drop-shadow; this took --ink-chrome and no shadow. On a photo wallpaper
+   that is the difference between 3.67:1 and 2.80:1 - the
+   chevron cleared the 3:1 non-text floor and the three-dot beside it did not,
+   in the same row, on the same ground. Matched to the chevron rather than given
+   a third value. */
 html.has-bg:not(.bg-light) .group-more-btn {
-  color: var(--ink-chrome);
+  color: var(--ink-meta);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
 
 html.has-bg:not(.bg-light) .group-more-btn:hover {
@@ -3230,8 +3252,21 @@ html.has-bg.bg-light .group-open-all-btn:hover {
   background: var(--surface-fill);
 }
 
+/* THE CHEVRON HAD NO LIGHT-WALLPAPER RULE AT ALL, which is the whole finding on
+   this pair. Its neighbour below has had one since it shipped; the chevron fell
+   through to the bare #9aa0a6 and measured 2.39:1 on the #f5f5f5
+   preset - a flat solid ground with no photograph, no text-shadow and no
+   variation, which is exactly the case the 3:1 non-text floor is calibrated
+   for, reachable by one click in Settings.
+   --ink-meta rather than the --ink-chrome the three-dot carried: 0.46 black on
+   #f5f5f5 measured 3.01:1, over the floor by a hair and not
+   enough margin for a 2px stroke. Both controls take 0.56 now, and they match. */
+html.has-bg.bg-light .group-collapse-btn {
+  color: var(--ink-meta);
+}
+
 html.has-bg.bg-light .group-more-btn {
-  color: var(--ink-chrome);
+  color: var(--ink-meta);
 }
 
 html.has-bg.bg-light .group-more-btn:hover {
@@ -8136,7 +8171,15 @@ html.has-bg #nesting-tooltip {
 .ws-dd-check {
   flex-shrink: 0;
   opacity: 0.85;
-  color: var(--pro-ink-accent);
+  /* --pro-ink-accent is #6fb1ff, a light blue chosen to sit ON dark frost, and
+     it has no light-ground variant. The workspace dropdown is NOT dark on every
+     ground: on a light wallpaper it composites to near-white, and the check
+     measured 1.96:1 there - the worst reading in this round and
+     worse than the chevron it was filed alongside. --sat-accent-ink carries the
+     same surface-keyed pair this needs (#8ab4f8 on dark frost, #15539b once the
+     frost flips white), so this is the existing token rather than a new one -
+     the same move b808db3 made for the fills that had no bright variant. */
+  color: var(--sat-accent-ink);
 }
 
 .ws-dd-lock {
@@ -16510,7 +16553,15 @@ html.bg-light .sat-focus-row.is-on .sat-focus-knob { background: #fff; }
   flex: 0 0 auto;
   font-size: var(--fs-8);
   line-height: 1;
-  color: var(--sat-accent);
+  /* --sat-accent-ink, NOT --sat-accent, and the distinction is the one the
+     [2.0 timing] block beside the tokens already spells out. --sat-accent is
+     keyed to the WALLPAPER; this dot sits on the PILL FACE, which is dark frost
+     whether or not a wallpaper is set. So with no wallpaper --sat-accent
+     resolved to #1a73e8 on near-black and measured 2.93:1, under
+     the 3:1 non-text floor, while the identical dot on a dark wallpaper was
+     fine. --sat-accent-ink is the token keyed to the SURFACE instead, which is
+     the right question for anything painted on this face. */
+  color: var(--sat-accent-ink);
   margin-inline-start: -2px;
   align-self: center;
 }
