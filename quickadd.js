@@ -40,6 +40,52 @@
 //      silently attached, one level down.
 // `dueTime` IS NOT PERSISTED BY TD.1. Any round that adds a reminder time
 // should read this note first.
+//
+// ---------------------------------------------------------------------------
+// RECURRENCE, AND WHY IT FORKS WHAT THIS PARSER RETURNS.
+//
+// TD.1 left recurrence out on purpose, because it changes WHAT THE CONTROL
+// PRODUCES: a task, or a template. TD.4's checkpoint then found the cost of
+// leaving it out, and it is not that "every friday" does nothing - it is that
+// "every friday" QUIETLY DID SOMETHING ELSE. `friday` matched the weekday
+// branch, so a habit became a ONE-OFF task due next Friday, and the stray
+// "every" was left sitting in the title. The user gets one run of a thing they
+// asked to repeat, and nothing tells them.
+//
+// So recurrence is now recognised, and it is returned as its OWN FIELD in the
+// shape the recurring-template writer already takes (storage.js
+// createRecurringTemplate / validateRecurringPattern):
+//
+//   recurrence: { frequency, daysOfWeek, dayOfMonth, timeOfDay } | null
+//
+// Matching that shape is the whole point. A field the writer does not take is
+// a field a later round silently drops, which is the same class of quiet loss
+// this change exists to end - one level up.
+//
+// `dueAt` IS NULL WHENEVER `recurrence` IS SET, and that is not a tidiness
+// rule: a template has no single due date. The template's own `nextScheduledAt`
+// is computed by the [1.0.14] sweep from frequency + timeOfDay, and a dueAt
+// here would be a second, competing answer to "when is this next".
+//
+// THE ANCHORS THE PARSER SUPPLIES, because the writer REFUSES a template
+// without them. validateRecurringPattern requires a non-empty daysOfWeek for
+// 'weekly' and an integer dayOfMonth for 'monthly', so an unqualified "every
+// week" or "every month" has to resolve to something:
+//   "every week"  -> weekly on THE WEEKDAY THE USER IS TYPING ON
+//   "every month" -> monthly on TODAY'S DAY OF MONTH
+// Both are read from `now` in `zone`, so both stay pure and both stay
+// zone-correct. Neither is a guess about intent; they are the only non-
+// arbitrary readings of "starting now, every week/month".
+//
+// `timeOfDay` IS LEFT NULL WHEN NO EXPLICIT TIME WAS WRITTEN, rather than
+// defaulted to "09:00" here. createRecurringTemplate already defaults it, and
+// two copies of a default are one copy too many.
+//
+// A CADENCE SUPPRESSES EVERY DATE PHRASE, INCLUDING "tonight". So "every friday
+// tonight" is weekly-on-Friday with NO time, and the word "tonight" is left in
+// the title where the user can see it was not read. That is the ordering doing
+// the work, not a special case: "tonight"'s implied 20:00 exists to resolve a
+// DAY, and a template has no day to resolve.
 // ===========================================================================
 (function (root) {
   "use strict";
@@ -74,6 +120,83 @@
   };
 
   var DAY_MS = 86400000;
+
+  // ---- recurrence, and its edges, stated once -----------------------------
+  //
+  // WHAT IS PARSED:
+  //   every day | daily                      -> daily
+  //   every weekday | weekdays               -> weekly, Mon-Fri
+  //   every <weekday>[, <weekday> and ...]   -> weekly, those days
+  //   every week | weekly                    -> weekly, today's weekday
+  //   every 7 days                           -> weekly, today's weekday
+  //   every 1 day                            -> daily
+  //   every month | monthly                  -> monthly, today's day of month
+  //
+  // WHAT IS NOT PARSED, AND WHY. Every one of these is refused because the
+  // STORED RECORD CANNOT HOLD IT, not because the phrase is unusual:
+  //
+  //   "every 2 days", "every 3 weeks", "every other friday", "fortnightly"
+  //     THERE IS NO INTERVAL FIELD. frequency is exactly daily|weekly|monthly,
+  //     so an interval of 2 has nowhere to go. Storing it as 'daily' would run
+  //     the habit twice as often as asked, which is worse than not parsing it.
+  //   "every first monday", "every 15th"
+  //     Monthly carries a dayOfMonth, not an ordinal weekday or a parsed
+  //     ordinal; the writer would reject the first and mis-file the second.
+  //   "twice a week", "every weekend", "every other week"
+  //     Same interval problem, or a day-set the phrase does not name.
+  //
+  // AND THE PART THAT IS THE ACTUAL FIX: a refused recurrence must not fall
+  // through and become a ONE-OFF. "every other friday" contains `friday`, and
+  // the weekday branch below would happily make it a task due next Friday -
+  // which is the exact defect this round was opened for, in a near-miss shape.
+  // precededByEvery() stops it, so a phrase we cannot represent produces
+  // NOTHING and stays in the title, where the user can see it was not read.
+  //
+  // THE ASYMMETRY WORTH NAMING: a bare "weekdays" IS recurrence, while a bare
+  // "friday" is a one-off. That is not an inconsistency - "friday" has a
+  // perfectly good single-occurrence meaning and "weekdays" has none, so
+  // reading the second as recurrence invents nothing.
+  var WEEKDAY_ALT = "sunday|sun|monday|mon|tuesday|tues|tue|wednesday|wed|" +
+    "thursday|thurs|thu|friday|fri|saturday|sat";
+
+  // A weekday list: "monday", "mon and fri", "mon, wed and fri".
+  var DAY_LIST = "(" + WEEKDAY_ALT + ")((?:\\s*(?:,|and|&)\\s*(?:" + WEEKDAY_ALT + "))*)";
+
+  // ALL GLOBAL, AND THAT IS LOAD-BEARING RATHER THAN HABIT. scan() advances
+  // past a match its callback REFUSES, and on a non-global regex exec() always
+  // restarts at 0 - so a refusing callback (which "every 2 days" relies on)
+  // would spin forever. The /g is what makes the refusal terminate.
+  var RECUR_DAILY_RE    = /(^|\s)(?:every\s+day|daily)\b/gi;
+  var RECUR_WEEKDAYS_RE = /(^|\s)(?:every\s+weekday|weekdays)\b/gi;
+  var RECUR_DAYLIST_RE  = new RegExp("(^|\\s)every\\s+" + DAY_LIST + "\\b", "gi");
+  var RECUR_WEEKLY_RE   = /(^|\s)(?:every\s+week|weekly)\b/gi;
+  var RECUR_MONTHLY_RE  = /(^|\s)(?:every\s+month|monthly)\b/gi;
+  // "every N days" / "every N weeks". The INTERVAL is captured so it can be
+  // read and REFUSED rather than ignored - see the note above.
+  var RECUR_EVERY_N_RE  = /(^|\s)every\s+(\d{1,3})\s+(days?|weeks?)\b/gi;
+
+  // Pulls the individual day names back out of a matched list, so
+  // "every mon, wed and fri" becomes [1, 3, 5].
+  var WEEKDAY_SCAN_RE = new RegExp("\\b(?:" + WEEKDAY_ALT + ")\\b", "gi");
+
+  // Is the weekday at `idx` preceded by "every" (optionally with one word in
+  // between, as in "every other friday")? Looks at the text BEFORE the match
+  // rather than using a lookbehind, because the thing being tested is a short
+  // trailing phrase and reading it directly is plainer than a variable-length
+  // lookbehind doing the same job.
+  function precededByEvery(text, idx) {
+    return /\bevery(\s+\S+)?\s+$/i.test(text.slice(0, idx));
+  }
+
+  function dedupeSortedDays(list) {
+    var seen = {}, out = [];
+    for (var i = 0; i < list.length; i++) {
+      if (seen[list[i]]) continue;
+      seen[list[i]] = true;
+      out.push(list[i]);
+    }
+    return out.sort(function (a, b) { return a - b; });
+  }
 
   var MONTH_ALT = Object.keys(MONTHS)
     .sort(function (a, b) { return b.length - a.length; })
@@ -153,8 +276,15 @@
    * @param {object} opts  { now: number (required), zone: string (required) }
    * @returns {{
    *   title: string,          the sentence with every consumed token removed
-   *   dueAt: number|null,     UTC-midnight stamp of the LOCAL calendar date
+   *   dueAt: number|null,     UTC-midnight stamp of the LOCAL calendar date.
+   *                           ALWAYS null when `recurrence` is set.
    *   dueTime: {hour:number,minute:number}|null,   parsed, NOT persisted
+   *   recurrence: null | {    the recurring-template writer's own shape
+   *     frequency: "daily"|"weekly"|"monthly",
+   *     daysOfWeek: number[]|null,   0=Sun..6=Sat; non-empty iff weekly
+   *     dayOfMonth: number|null,     1-31; non-null iff monthly
+   *     timeOfDay: string|null       "HH:mm", null when none was written
+   *   },
    *   priority: string|null,  one of low|medium|high|urgent
    *   tags: string[],         tag NAMES, in order, de-duplicated within the text
    *   matched: string[]       which kinds fired, for the preview and the tests
@@ -164,7 +294,7 @@
     var o = opts || {};
     var src = typeof text === "string" ? text : "";
     var result = {
-      title: src.trim(), dueAt: null, dueTime: null,
+      title: src.trim(), dueAt: null, dueTime: null, recurrence: null,
       priority: null, tags: [], matched: []
     };
     if (!src.trim()) return result;
@@ -224,11 +354,109 @@
     });
     spans = spans.concat(timeSpans);
 
+    // ---- recurrence, BEFORE any date phrase ---------------------------------
+    //
+    // THE ORDER IS THE FIX. This runs before the date branches so "every
+    // friday" is consumed as a cadence and can never reach the weekday branch;
+    // it runs after the time scan so an explicit "7am" is already available to
+    // become timeOfDay.
+    var todayDow = dowOf(todayStamp);
+
+    function two(n) { return (n < 10 ? "0" : "") + n; }
+
+    function setRecurrence(freq, days, dom) {
+      result.recurrence = {
+        frequency: freq,
+        daysOfWeek: days || null,
+        dayOfMonth: (dom === undefined || dom === null) ? null : dom,
+        // ONLY AN EXPLICIT TIME CAN BE HERE, AND THE ORDERING IS WHY - not a
+        // flag. The only other writer of dueTime is "tonight"'s implied 20:00,
+        // and the branch that sets it is skipped outright once recurrence is
+        // read, so at this point dueTime is either an explicitly written time
+        // or null. An `explicitTime` guard was written here first and removed:
+        // it could never fire, and a guard that cannot fire reads as protection
+        // while protecting nothing. The seeded-mutation pass caught it by
+        // ESCAPING - the assertion that claimed to pin it passed against a
+        // subject with the guard deleted, which is what a vacuous test does.
+        timeOfDay: result.dueTime
+          ? two(result.dueTime.hour) + ":" + two(result.dueTime.minute)
+          : null
+      };
+      result.matched.push("recurrence");
+      return true;
+    }
+
+    // every day | daily
+    spans = spans.concat(scan(src, RECUR_DAILY_RE, function () {
+      return setRecurrence("daily", null, null);
+    }));
+
+    // every weekday | weekdays  -> Mon..Fri
+    if (!result.recurrence) {
+      spans = spans.concat(scan(src, RECUR_WEEKDAYS_RE, function () {
+        return setRecurrence("weekly", [1, 2, 3, 4, 5], null);
+      }));
+    }
+
+    // every <weekday>[, <weekday> and <weekday>]
+    if (!result.recurrence) {
+      spans = spans.concat(scan(src, RECUR_DAYLIST_RE, function (m) {
+        var names = m[0].match(WEEKDAY_SCAN_RE) || [];
+        var days = [];
+        for (var i = 0; i < names.length; i++) {
+          var d = WEEKDAYS[names[i].toLowerCase()];
+          if (d !== undefined) days.push(d);
+        }
+        if (!days.length) return false;
+        return setRecurrence("weekly", dedupeSortedDays(days), null);
+      }));
+    }
+
+    // every week | weekly -> anchored on the weekday the user is typing on,
+    // because the writer refuses a weekly template with no days.
+    if (!result.recurrence) {
+      spans = spans.concat(scan(src, RECUR_WEEKLY_RE, function () {
+        return setRecurrence("weekly", [todayDow], null);
+      }));
+    }
+
+    // every month | monthly -> anchored on today's day of month, same reason.
+    if (!result.recurrence) {
+      spans = spans.concat(scan(src, RECUR_MONTHLY_RE, function () {
+        return setRecurrence("monthly", null, nowCivil.day);
+      }));
+    }
+
+    // every N days | every N weeks
+    //
+    // ONLY THE INTERVALS THE RECORD CAN HOLD. N=1 day is daily and N=7 days or
+    // N=1 week is weekly; everything else is REFUSED by returning false, which
+    // leaves the phrase in the title rather than storing a cadence the user did
+    // not ask for. "every 2 days" stored as 'daily' would run the habit twice
+    // as often as asked - a silent doubling is worse than an unparsed phrase.
+    if (!result.recurrence) {
+      spans = spans.concat(scan(src, RECUR_EVERY_N_RE, function (m) {
+        var n = parseInt(m[2], 10);
+        var unit = m[3].toLowerCase();
+        if (unit.indexOf("day") === 0) {
+          if (n === 1) return setRecurrence("daily", null, null);
+          if (n === 7) return setRecurrence("weekly", [todayDow], null);
+          return false;
+        }
+        if (n === 1) return setRecurrence("weekly", [todayDow], null);
+        return false;
+      }));
+    }
+
     // ---- a date phrase ------------------------------------------------------
+    //
+    // SKIPPED ENTIRELY WHEN A CADENCE WAS READ. A template has no single due
+    // date, and resolving one here would put a second, competing answer to
+    // "when is this next" beside the template's own nextScheduledAt.
     var dateStamp = null;
 
     // today / tonight / tomorrow
-    var wordSpans = scan(src, /(^|\s)(today|tonight|tomorrow)\b/gi, function (m) {
+    var wordSpans = result.recurrence ? [] : scan(src, /(^|\s)(today|tonight|tomorrow)\b/gi, function (m) {
       var w = m[2].toLowerCase();
       dateStamp = (w === "tomorrow") ? addDays(todayStamp, 1) : todayStamp;
       // "tonight" carries an implied evening hour, but ONLY when the user did
@@ -240,7 +468,7 @@
     spans = spans.concat(wordSpans);
 
     // in N days
-    if (dateStamp === null) {
+    if (!result.recurrence && dateStamp === null) {
       spans = spans.concat(scan(src, /(^|\s)in\s+(\d{1,3})\s+days?\b/gi, function (m) {
         var n = parseInt(m[2], 10);
         if (n < 1 || n > 365) return false;   // a typo'd 9999 is not a due date
@@ -257,10 +485,17 @@
     // own day overwhelmingly means the coming one. "next friday" is then seven
     // days beyond that, which on a Friday is fourteen. That is a consequence
     // rather than a special case, and it is stated rather than smoothed over.
-    if (dateStamp === null) {
+    if (!result.recurrence && dateStamp === null) {
       spans = spans.concat(scan(src, /(^|\s)(next\s+)?(sunday|sun|monday|mon|tuesday|tues|tue|wednesday|wed|thursday|thurs|thu|friday|fri|saturday|sat)\b/gi, function (m) {
         var target = WEEKDAYS[m[3].toLowerCase()];
         if (target === undefined) return false;
+        // A WEEKDAY THE WORD "every" REACHES IS NEVER A ONE-OFF. The recurrence
+        // scan above has already taken the shapes it can represent, so anything
+        // still carrying an "every" here is one it REFUSED - "every other
+        // friday", "every 2nd friday". Letting it through would make a habit
+        // into a single task due next Friday, which is precisely the defect
+        // this round closes, arriving by a slightly longer road.
+        if (precededByEvery(src, m.index + m[1].length)) return false;
         var delta = (target - dowOf(todayStamp) + 7) % 7;
         if (delta === 0) delta = 7;
         if (m[2]) delta += 7;
@@ -275,7 +510,7 @@
     // NEXT year. Numeric forms like 20/9 are refused outright - 3/4 is March 4th
     // to one reader and April 3rd to another, and there is no signal in the box
     // to settle it. Refusing is the only answer that cannot be silently wrong.
-    if (dateStamp === null) {
+    if (!result.recurrence && dateStamp === null) {
       // THE MONTH ALTERNATION IS BUILT FROM THE MONTH NAMES, not from a generic
       // [a-z]{3,9}. A generic word class matches "Renew 20" in "Renew 20 sep"
       // and consumes the number before the real pattern can see it, so "20 sep"
@@ -304,7 +539,7 @@
     // THE EDGE: "3pm" on its own means TODAY if 3pm is still ahead, and
     // TOMORROW if it has already gone. Anything else either invents a date in
     // the past or refuses a perfectly ordinary sentence.
-    if (dateStamp === null && result.dueTime) {
+    if (!result.recurrence && dateStamp === null && result.dueTime) {
       var minutesNow = nowCivil.hour * 60 + nowCivil.minute;
       var minutesDue = result.dueTime.hour * 60 + result.dueTime.minute;
       dateStamp = (minutesDue > minutesNow) ? todayStamp : addDays(todayStamp, 1);
@@ -321,7 +556,8 @@
     // creating something the user cannot see or name.
     if (!result.title) {
       result.title = src.trim();
-      result.dueAt = null; result.dueTime = null; result.priority = null;
+      result.dueAt = null; result.dueTime = null; result.recurrence = null;
+      result.priority = null;
       result.tags = []; result.matched = [];
     }
     return result;

@@ -292,11 +292,206 @@ for (const z of ZONES) {
   eq("whitespace input invents nothing", p("   ").dueAt, null);
 }
 
+// ===================== recurrence =====================
+//
+// THE DEFECT THIS SECTION EXISTS FOR: "long run every friday" matched `friday`
+// as a weekday and produced a ONE-OFF task due next Friday. A habit ran once
+// and nothing said so.
+//
+// TWO HALVES, AND THE SECOND IS THE ONE THAT KEEPS THE FIX HONEST:
+//   1. the recurrence cases produce a template-shaped record and NO dueAt, and
+//   2. A BARE WEEKDAY WITH NO "every" IS STILL A ONE-OFF. A fix that widened
+//      into every weekday sentence would pass half of this section and break
+//      the product, so the negative is asserted beside every positive.
+//
+// THE THREE ZONES ARE NOT CEREMONY HERE. "every week" and "every month" have
+// to anchor on something, and they anchor on the day the USER is typing on -
+// which at T_EVENING is 16 Sep (a Wednesday) in Los Angeles and 17 Sep (a
+// Thursday) in London and Sydney. So the correct answer genuinely differs by
+// zone, and a parser reading the host clock would agree across all three.
+
+// The writer's own rules, COPIED rather than imported - the same discipline as
+// utcDay above, and for the same reason: if storage.js's
+// validateRecurringPattern changes, this gate should go red and make someone
+// look rather than silently following it.
+const TEMPLATE_FREQS = ["daily", "weekly", "monthly"];
+const TIME_OF_DAY_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const isInt = (v) => typeof v === "number" && Number.isFinite(v) && (v | 0) === v;
+
+function templateShapeErrors(rec) {
+  if (rec === null) return ["recurrence is null"];
+  const errs = [];
+  // EXACTLY the writer's four fields. An extra field here is a field the
+  // template writer does not take, which a later round would silently drop -
+  // the same quiet loss this round exists to end, one level up.
+  const keys = Object.keys(rec).sort().join(",");
+  if (keys !== "dayOfMonth,daysOfWeek,frequency,timeOfDay") errs.push(`fields are ${keys}`);
+  if (TEMPLATE_FREQS.indexOf(rec.frequency) === -1) errs.push(`frequency ${JSON.stringify(rec.frequency)}`);
+  if (rec.frequency === "weekly") {
+    if (!Array.isArray(rec.daysOfWeek) || rec.daysOfWeek.length === 0) errs.push("weekly needs a non-empty daysOfWeek");
+    else if (!rec.daysOfWeek.every((d) => isInt(d) && d >= 0 && d <= 6)) errs.push("daysOfWeek outside 0..6");
+  } else if (rec.daysOfWeek !== null) errs.push("daysOfWeek must be null unless weekly");
+  if (rec.frequency === "monthly") {
+    if (!isInt(rec.dayOfMonth) || rec.dayOfMonth < 1 || rec.dayOfMonth > 31) errs.push("monthly needs dayOfMonth 1..31");
+  } else if (rec.dayOfMonth !== null) errs.push("dayOfMonth must be null unless monthly");
+  if (rec.timeOfDay !== null && !TIME_OF_DAY_RE.test(rec.timeOfDay)) errs.push(`timeOfDay ${JSON.stringify(rec.timeOfDay)}`);
+  return errs;
+}
+
+// `expect` may be a literal record, or a function of the user's own local
+// today - which is the only frame in which one expectation is right in all
+// three zones at once.
+function recurCase(label, text, now, expect, wantTitle) {
+  for (const z of ZONES) {
+    const r = QuickAdd.parse(text, { now, zone: z.name });
+    const [Y, M, D] = localYmd(now, z.name).split("-").map(Number);
+    const dow = new Date(Date.UTC(Y, M - 1, D)).getUTCDay();
+    const want = typeof expect === "function" ? expect({ dow, dayOfMonth: D }) : expect;
+
+    const errs = templateShapeErrors(r.recurrence);
+    check(`${label} [${z.name}] matches the template writer's shape`, errs.length === 0, errs.join("; "));
+    eq(`${label} [${z.name}] recurrence`, r.recurrence, want);
+    // THE HEADLINE INVARIANT: a template has no single due date.
+    check(`${label} [${z.name}] dueAt is null`, r.dueAt === null, String(r.dueAt));
+    check(`${label} [${z.name}] matched names recurrence`, r.matched.indexOf("recurrence") !== -1, r.matched.join(","));
+    if (wantTitle !== undefined) eq(`${label} [${z.name}] title`, r.title, wantTitle);
+  }
+}
+
+// A phrase the RECORD CANNOT HOLD must produce nothing at all - and in
+// particular must not fall through into a one-off, which is the defect
+// arriving by a longer road.
+function refuseCase(label, text, now) {
+  for (const z of ZONES) {
+    const r = QuickAdd.parse(text, { now, zone: z.name });
+    check(`${label} [${z.name}] no recurrence invented`, r.recurrence === null, JSON.stringify(r.recurrence));
+    check(`${label} [${z.name}] and NO one-off either`, r.dueAt === null, String(r.dueAt));
+    check(`${label} [${z.name}] the phrase stays in the title`, /every/i.test(r.title), r.title);
+  }
+}
+
+const DAILY = { frequency: "daily", daysOfWeek: null, dayOfMonth: null, timeOfDay: null };
+const weekly = (days, timeOfDay = null) => ({ frequency: "weekly", daysOfWeek: days, dayOfMonth: null, timeOfDay });
+const monthly = (dayOfMonth, timeOfDay = null) => ({ frequency: "monthly", daysOfWeek: null, dayOfMonth, timeOfDay });
+
+// ---- THE REPORTED CASE, first and by name ----
+recurCase("THE DEFECT 'long run every friday'", "long run every friday", T_EVENING, weekly([5]), "long run");
+recurCase("THE DEFECT at the late instant", "long run every friday", T_MORNING, weekly([5]), "long run");
+
+// ---- daily ----
+recurCase("every day", "every day water plants", T_EVENING, DAILY, "water plants");
+recurCase("daily", "daily standup", T_EVENING, DAILY, "standup");
+recurCase("every 1 day", "every 1 day vitamins", T_EVENING, DAILY, "vitamins");
+
+// ---- weekly, days named ----
+recurCase("every weekday", "every weekday gym", T_EVENING, weekly([1, 2, 3, 4, 5]), "gym");
+recurCase("weekdays (bare)", "weekdays gym", T_EVENING, weekly([1, 2, 3, 4, 5]), "gym");
+recurCase("every mon, wed and fri", "every mon, wed and fri gym", T_EVENING, weekly([1, 3, 5]), "gym");
+recurCase("every monday and thursday", "every monday and thursday standup", T_EVENING, weekly([1, 4]), "standup");
+recurCase("a day list de-dupes and sorts", "every fri, mon and fri gym", T_EVENING, weekly([1, 5]), "gym");
+
+// ---- weekly and monthly, ANCHORED ON THE USER'S OWN TODAY ----
+// These are the zone-sensitive ones; the expectation is a function of the
+// user's local date, not a constant.
+recurCase("every week", "every week review", T_EVENING, ({ dow }) => weekly([dow]), "review");
+recurCase("weekly (bare)", "weekly retro", T_EVENING, ({ dow }) => weekly([dow]), "retro");
+recurCase("every 7 days", "every 7 days backup", T_EVENING, ({ dow }) => weekly([dow]), "backup");
+recurCase("every month", "every month rent", T_EVENING, ({ dayOfMonth }) => monthly(dayOfMonth), "rent");
+recurCase("monthly (bare)", "monthly invoices", T_EVENING, ({ dayOfMonth }) => monthly(dayOfMonth), "invoices");
+
+// ANTI-VACUITY FOR THE ANCHOR (P2). If the parser read the HOST zone instead of
+// its `zone` argument, every row above would still be internally consistent -
+// so assert that the three zones genuinely DISAGREE here, which is the only
+// thing that proves the anchor is the user's.
+{
+  const day = (z) => QuickAdd.parse("every week review", { now: T_EVENING, zone: z }).recurrence.daysOfWeek[0];
+  const dom = (z) => QuickAdd.parse("every month rent", { now: T_EVENING, zone: z }).recurrence.dayOfMonth;
+  check("ANCHOR: 'every week' resolves to a DIFFERENT day in LA than in London",
+    day("America/Los_Angeles") !== day("Europe/London"),
+    `LA ${day("America/Los_Angeles")} vs London ${day("Europe/London")}`);
+  check("ANCHOR: 'every month' resolves to a DIFFERENT day-of-month in LA than in London",
+    dom("America/Los_Angeles") !== dom("Europe/London"),
+    `LA ${dom("America/Los_Angeles")} vs London ${dom("Europe/London")}`);
+}
+
+// ---- timeOfDay ----
+recurCase("an explicit time becomes timeOfDay", "every day 7am meds", T_EVENING, { ...DAILY, timeOfDay: "07:00" });
+recurCase("a 24-hour time becomes timeOfDay", "every month rent 09:00", T_EVENING,
+  ({ dayOfMonth }) => monthly(dayOfMonth, "09:00"));
+// A CADENCE SUPPRESSES EVERY DATE PHRASE, "tonight" INCLUDED - so it is not
+// merely that tonight's implied 20:00 is kept out of timeOfDay, it is that the
+// word is never read at all and is LEFT IN THE TITLE for the user to see.
+//
+// The first version of this row asserted only `timeOfDay: null` and was
+// VACUOUS: under recurrence nothing ever sets dueTime, so the row passed
+// against a subject with its guard deleted. The seeded-mutation pass found it
+// by escaping. Asserting the title is what makes the claim real.
+recurCase("EDGE a cadence suppresses 'tonight' entirely",
+  "every friday tonight", T_EVENING, weekly([5]), "tonight");
+
+// ---- what the record cannot hold ----
+refuseCase("EDGE 'every 2 days' has no interval field", "every 2 days x", T_EVENING);
+refuseCase("EDGE 'every 3 weeks' has no interval field", "every 3 weeks x", T_EVENING);
+refuseCase("EDGE 'every other friday' is refused AND stays a non-date",
+  "every other friday long run", T_EVENING);
+refuseCase("EDGE 'every 2nd friday' is refused AND stays a non-date",
+  "every 2nd friday long run", T_EVENING);
+
+// ---- THE NEGATIVE: THE FIX MUST NOT WIDEN ----
+//
+// Every one of these was a one-off before this round and must still be one.
+// Without this block, a parser that treated EVERY weekday as recurrence would
+// pass everything above.
+{
+  const oneOff = (label, text, now) => {
+    for (const z of ZONES) {
+      const r = QuickAdd.parse(text, { now, zone: z.name });
+      check(`NEGATIVE ${label} [${z.name}] is still a ONE-OFF`, r.dueAt !== null, String(r.dueAt));
+      check(`NEGATIVE ${label} [${z.name}] invents no recurrence`, r.recurrence === null, JSON.stringify(r.recurrence));
+    }
+  };
+  oneOff("bare 'friday'", "call Nadia friday", T_EVENING);
+  oneOff("'next friday'", "dentist next friday", T_EVENING);
+  oneOff("'tomorrow'", "call Nadia tomorrow", T_EVENING);
+  oneOff("'today'", "call Nadia today", T_EVENING);
+  oneOff("'in 3 days'", "review in 3 days", T_EVENING);
+  oneOff("'sep 20'", "renew sep 20", T_EVENING);
+  oneOff("the TD.1 example sentence", "Call Nadia tomorrow 3pm !high #acme", T_EVENING);
+
+  // And a plain sentence still invents nothing of either kind.
+  const plain = QuickAdd.parse("Email the landlord about the boiler", { now: T_EVENING, zone: "Europe/London" });
+  eq("NEGATIVE a plain sentence invents no recurrence", plain.recurrence, null);
+  eq("NEGATIVE a plain sentence invents no due date", plain.dueAt, null);
+}
+
+// ---- recurrence composes with the other tokens ----
+{
+  const r = QuickAdd.parse("every monday standup !high #team 9am", { now: T_EVENING, zone: "Europe/London" });
+  eq("recurrence composes: recurrence", r.recurrence, weekly([1], "09:00"));
+  eq("recurrence composes: title", r.title, "standup");
+  eq("recurrence composes: priority", r.priority, "high");
+  eq("recurrence composes: tags", r.tags, ["team"]);
+  eq("recurrence composes: no due date", r.dueAt, null);
+}
+
 // ===================== purity =====================
 {
   const a = QuickAdd.parse("Call Nadia tomorrow 3pm !high #acme", { now: T_EVENING, zone: "Australia/Sydney" });
   const b = QuickAdd.parse("Call Nadia tomorrow 3pm !high #acme", { now: T_EVENING, zone: "Australia/Sydney" });
   eq("PURE: same input, same output", a, b);
+
+  // The recurrence path too, because it reads `now` for its weekly/monthly
+  // anchors and is therefore the newest place a stray clock read could hide.
+  const ra = QuickAdd.parse("every week review 9am", { now: T_EVENING, zone: "Australia/Sydney" });
+  const rb = QuickAdd.parse("every week review 9am", { now: T_EVENING, zone: "Australia/Sydney" });
+  eq("PURE: same recurrence input, same output", ra, rb);
+  // The module-level recurrence regexes are /g, so their lastIndex survives a
+  // call. Parsing twice and getting the same answer is what proves scan()'s
+  // reset actually resets - a stale lastIndex would make the SECOND parse of a
+  // sentence differ from the first, which no single-parse assertion can see.
+  const rc = QuickAdd.parse("every monday and thursday standup", { now: T_EVENING, zone: "Europe/London" });
+  const rd = QuickAdd.parse("every monday and thursday standup", { now: T_EVENING, zone: "Europe/London" });
+  eq("PURE: a /g regex's lastIndex does not leak between calls", rc, rd);
 
   // And it REFUSES rather than silently reaching for a clock, which is what
   // would make the zone dimension untestable.
@@ -309,7 +504,10 @@ for (const z of ZONES) {
 }
 
 // ===================== the anti-vacuity floor (P2) =====================
-const MIN = 120;
+// 120 when TD.1 wrote it; 482 once recurrence landed. The floor tracks the
+// suite it actually guards - left at 120 it would still pass with the entire
+// recurrence section deleted, which is exactly the vacuum it exists to catch.
+const MIN = 440;
 
 let pass = 0, fail = 0;
 console.log("\nQUICK-ADD — the parser, in three zones\n");
