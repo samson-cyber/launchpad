@@ -443,6 +443,10 @@ powershell.exe -NoProfile -Command "
     '_locales',
     'offscreen.html',
     'offscreen.js',
+    # [1.14.1] TD.1's parser. Referenced by newtab.html and MISSING from this
+    # array until TD.2's build caught it - the same shape as the importers.js
+    # miss recorded above, and the second time this class has reached a build.
+    'quickadd.js',
     'gate.html',
     'gate.js',
     'gate.css',
