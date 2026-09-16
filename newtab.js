@@ -1548,6 +1548,10 @@
     return '<div class="dash-quickadd">' +
         '<input type="text" class="tt-add-task-input dash-quickadd-input" data-dash-quickadd ' +
           'placeholder="' + th("dash_add_a_task_due_today_2") + '" aria-label="' + th("dash_add_a_task_due_today") + '">' +
+        // [TD.1] aria-live=polite, not assertive: the preview changes on every
+        // keystroke, and assertive would interrupt the user mid-word on every
+        // one of them.
+        '<div class="qa-preview" aria-live="polite" hidden></div>' +
       '</div>';
   }
 
@@ -1788,6 +1792,13 @@
       dashRepaintAfterMutation(panel);
     });
 
+    // [TD.1] The parse preview on the cockpit's own box, same handler shape as
+    // the Tasks tab's.
+    panel.addEventListener("input", function (e) {
+      var qi = e.target;
+      if (qi && qi.hasAttribute && qi.hasAttribute("data-dash-quickadd")) quickAddRenderPreview(qi);
+    });
+
     // Quick-add. Enter commits; the input is not in a <form>, so there is no
     // submit to suppress and no page-navigation risk to guard against.
     panel.addEventListener("keydown", async function (e) {
@@ -1796,16 +1807,35 @@
       if (e.key !== "Enter") return;
       e.preventDefault();
 
-      var name = (input.value || "").trim();
-      if (!name) return;
+      var raw = (input.value || "").trim();
+      if (!raw) return;
       input.disabled = true;
 
+      // [TD.1] The same parser as the Tasks tab box. THE PARSED DATE WINS over
+      // this module's due-today default: the module exists to add work for
+      // today, but a user who typed "tomorrow" said so, and silently overriding
+      // them would be the module arguing with its own input.
+      //
       // dueAt is UTC-midnight of the LOCAL calendar date — the space dueAt
       // actually lives in. See dashboardTodayAsUtcDay's note for the two ways to
-      // get this wrong by a day, one of which bites in UTC+8 specifically.
+      // get this wrong by a day, one of which bites in UTC+8 specifically. The
+      // parser encodes it the same way, which is what makes the two agree.
+      //
+      // NO HIERARCHY MODAL HERE, and it is not an omission: this box creates
+      // STANDALONE tasks (no goalId), and checkTaskDueConflict returns
+      // no-conflict whenever task.goalId is null. There is no goal deadline to
+      // be past.
+      var parsed = quickAddParse(raw);
+      var name = parsed ? parsed.title : raw;
+      var tagIds = parsed ? await quickAddResolveTagIds(parsed.tags) : [];
       var created;
       try {
-        created = await Storage.createTask(data, { name: name, dueAt: dashboardTodayAsUtcDay() });
+        created = await Storage.createTask(data, {
+          name: name,
+          dueAt: (parsed && parsed.dueAt !== null) ? parsed.dueAt : dashboardTodayAsUtcDay(),
+          priority: parsed ? parsed.priority : null,
+          tagIds: tagIds
+        });
       } catch (err) {
         console.error("[LaunchPad] Dashboard: quick-add failed", err);
       }
@@ -5135,9 +5165,10 @@
     var addTaskBlockHtml = isCompleted ? "" :
       '<button type="button" class="tt-goal-add-task" data-goal-id="' + escapeHtml(goal.id) + '">' + th("goal_add_task") + '</button>' +
       '<div class="tt-add-task-inline hidden" data-goal-id="' + escapeHtml(goal.id) + '">' +
-        '<input type="text" class="tt-add-task-input" placeholder="' + th("goal_task_name") + '" maxlength="200" autocomplete="off" spellcheck="false">' +
+        '<input type="text" class="tt-add-task-input" placeholder="' + th("quickadd_hint") + '" maxlength="200" autocomplete="off" spellcheck="false">' +
         '<button type="button" class="tt-add-task-save">' + th("goal_add") + '</button>' +
         '<button type="button" class="tt-add-task-cancel">' + th("common_cancel") + '</button>' +
+        '<div class="qa-preview" aria-live="polite" hidden></div>' +
       '</div>';
     // [1.0.11] When collapsed, the body (child task list + "+ Add task") is
     // omitted entirely. Header (name, auto-tag, deadline + overdue, progress
@@ -6214,6 +6245,21 @@
         var card2 = input.closest(".tt-goal-card");
         if (card2) hideAddTaskInline(card2);
       }
+    });
+
+    // [TD.1] THE PARSE RUNS AS THE USER TYPES, not on submit, and that is the
+    // decision rather than a default. A preview that appears only after Enter
+    // is not a preview - the point is that the user can still change their mind,
+    // and by then the task exists. `input` rather than `keydown` so a paste and
+    // an autocorrect are seen too.
+    //
+    // NO COLLISION WITH [1.10.1]'s LAUNCHER, confirmed rather than assumed: the
+    // launcher binds to #search-input, and its one global key ("/" to focus
+    // search) returns early on isTypingTarget(e.target), which every input in
+    // the product satisfies. Nothing it listens for reaches this box.
+    panel.addEventListener("input", function (e) {
+      var input = e.target && e.target.closest && e.target.closest(".tt-add-task-input");
+      if (input) quickAddRenderPreview(input);
     });
   }
 
@@ -8337,19 +8383,127 @@
     if (input) input.value = "";
   }
 
+  // ===== [TD.1] QUICK-ADD: THE PARSE, ITS PREVIEW, AND THE COMMIT ===========
+  //
+  // The parser itself is in quickadd.js and is pure - it takes `now` and `zone`
+  // and never reads a clock. Everything impure lives here: the user's zone, the
+  // tag lookup, and the write.
+  //
+  // THE ZONE COMES FROM THE HOST, ONCE, AT THE CALL SITE. Intl's resolved
+  // options are the browser's own answer to "where is this user", which is the
+  // same source every date the product renders already trusts.
+  function quickAddZone() {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; }
+    catch (e) { return "UTC"; }
+  }
+
+  function quickAddParse(text) {
+    if (typeof QuickAdd === "undefined" || !QuickAdd.parse) return null;
+    try { return QuickAdd.parse(text, { now: Date.now(), zone: quickAddZone() }); }
+    catch (e) { return null; }
+  }
+
+  function fmtTimeOfDay(tm) {
+    if (!tm) return "";
+    var d = new Date(Date.UTC(2000, 0, 1, tm.hour, tm.minute));
+    try { return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone: "UTC" }); }
+    catch (e) { return tm.hour + ":" + String(tm.minute).padStart(2, "0"); }
+  }
+
+  // THE PREVIEW IS NOT DECORATION. A due date silently attached is worse than
+  // none, and this grammar can also take a word OUT of the middle of a sentence
+  // ("Call tomorrow Nadia" -> "Call Nadia"), so the user has to see the title it
+  // is actually going to create before they commit it. Rendered on every
+  // keystroke, hidden entirely when nothing was recognised - a preview that
+  // says "nothing parsed" on every ordinary sentence is just noise.
+  function quickAddPreviewHtml(parsed) {
+    if (!parsed || !parsed.matched.length) return "";
+    var chips = "";
+    if (parsed.dueAt !== null) {
+      chips += '<span class="qa-chip"><span class="qa-chip-k">' + th("quickadd_preview_due") + '</span>' +
+        escapeHtml(fmtShortDateUTC(parsed.dueAt)) + '</span>';
+    }
+    if (parsed.priority) {
+      chips += '<span class="qa-chip"><span class="qa-chip-k">' + th("quickadd_preview_priority") + '</span>' +
+        escapeHtml(parsed.priority) + '</span>';
+    }
+    if (parsed.tags.length) {
+      chips += '<span class="qa-chip"><span class="qa-chip-k">' + th("quickadd_preview_tags") + '</span>' +
+        escapeHtml(parsed.tags.map(function (t) { return "#" + t; }).join(" ")) + '</span>';
+    }
+    var note = parsed.dueTime
+      ? '<div class="qa-note">' + th("quickadd_time_not_saved", { time: fmtTimeOfDay(parsed.dueTime) }) + '</div>'
+      : "";
+    return '<div class="qa-line"><span class="qa-lead">' + th("quickadd_preview_lead") + '</span>' +
+        '<span class="qa-title">' + escapeHtml(parsed.title) + '</span>' + chips +
+      '</div>' + note;
+  }
+
+  function quickAddRenderPreview(input) {
+    var host = input && input.parentNode && input.parentNode.querySelector(".qa-preview");
+    if (!host) return;
+    var html = quickAddPreviewHtml(quickAddParse(input.value || ""));
+    host.innerHTML = html;
+    host.hidden = !html;
+  }
+
+  // #acme MUST NOT MINT A SECOND "acme". The normalisation here is character
+  // for character the one isDuplicateTagName uses - trim().toLowerCase(), and
+  // ACTIVE tags only, so a tag sitting in the 30-day trash is not silently
+  // resurrected by typing its name. getActiveTags is re-read inside the loop
+  // because createTag pushes onto the same array: "#a #a" in one sentence would
+  // otherwise create two.
+  async function quickAddResolveTagIds(names) {
+    if (!names || !names.length) return [];
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return [];
+    var ids = [];
+    for (var i = 0; i < names.length; i++) {
+      var want = names[i].trim().toLowerCase();
+      var hit = Storage.getActiveTags(ws).find(function (t) {
+        return t && typeof t.name === "string" && t.name.trim().toLowerCase() === want;
+      });
+      if (hit) { if (ids.indexOf(hit.id) === -1) ids.push(hit.id); continue; }
+      var made = await Storage.createTag(data, { name: names[i] });
+      if (made && made.id) ids.push(made.id);
+    }
+    return ids;
+  }
+
   async function commitAddTaskInline(card) {
     var inline = card.querySelector(".tt-add-task-inline");
     var input = inline && inline.querySelector(".tt-add-task-input");
     if (!input) return;
-    var name = (input.value || "").trim();
+    var raw = (input.value || "").trim();
     var goalId = card.getAttribute("data-goal-id");
-    if (!name || !goalId) {
+    if (!raw || !goalId) {
       hideAddTaskInline(card);
       return;
     }
-    var created = await Storage.createTask(data, { name: name, goalId: goalId });
+    var parsed = quickAddParse(raw);
+    var name = parsed ? parsed.title : raw;
+    var tagIds = parsed ? await quickAddResolveTagIds(parsed.tags) : [];
+
+    // CREATED WITHOUT dueAt ON PURPOSE. The due date goes through
+    // commitTaskDueAt, which is the shipped path that runs
+    // checkTaskDueConflict and opens the 3-button deadline-hierarchy modal
+    // when the date is past the parent goal's deadline (G1 routes through it).
+    // That check needs a task that EXISTS - it reads task.goalId - so the write
+    // has to be create-then-commit rather than one call. Cancelling the modal
+    // leaves the task created and undated, which is exactly what cancelling a
+    // due-date change has always done.
+    var created = await Storage.createTask(data, {
+      name: name, goalId: goalId,
+      priority: parsed ? parsed.priority : null,
+      tagIds: tagIds
+    });
     if (!created) {
       console.warn("[LaunchPad] Tasks tab: createTask failed");
+      return;
+    }
+    if (parsed && parsed.dueAt !== null) {
+      await commitTaskDueAt(created.id, parsed.dueAt);
+      return;   // commitTaskDueAt re-renders, or the modal will
     }
     var panel = document.getElementById("tab-tasks");
     if (panel) renderTasksTab(panel, data);

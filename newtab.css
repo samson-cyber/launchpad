@@ -13628,6 +13628,77 @@ html.has-bg.bg-light .tt-task-handle:hover {
   display: flex;
   gap: var(--space-1-5);
   margin-top: var(--space-2);
+  /* [TD.1] The preview is a full-width row UNDER the input rather than a fourth
+     flex item beside it: it is a sentence, not a control, and squeezing it into
+     the row would take width from the box the user is typing into. */
+  flex-wrap: wrap;
+}
+
+/* ===== [TD.1] THE QUICK-ADD PARSE PREVIEW ================================
+   Shared by the Tasks tab's inline box and the cockpit's quick-add, which is
+   why it is keyed on its own class rather than on either container.
+
+   THIS ROW INHERITS ITS INK AND DECLARES NONE, WHICH IS THE OPPOSITE OF WHAT
+   I WROTE FIRST AND THE MEASUREMENT IS WHY. The reflex is the a68dd89 rule -
+   declare a colour and add an html.has-bg branch - so the first version set
+   --text-secondary with --ink-meta on has-bg. Measured on the four grounds it
+   was under 4.5:1 on TWELVE of sixteen readings, and two of them were absurd:
+   1.40:1 with no wallpaper and 1.08:1 on a light one.
+
+   The reason is that a68dd89's rule answers a question this element does not
+   ask. That rule is for a surface whose ink would otherwise fall through to
+   BODY. This row is inside .tt-goal-card, and the whole Tasks tab already
+   resolves its own ink per ground - .tt-goal-name and .tt-task-name declare no
+   colour at all and read correctly on every ground BY INHERITING it. Declaring
+   a colour here did not protect the row, it OVERRODE the one thing that was
+   already right, and on bg-light it painted white-on-white (the card is light
+   on that ground and dark on the other three).
+
+   So: inherit, and carry emphasis on weight and size instead of on colour.
+   AND NO OPACITY - opacity is a contrast reduction wearing a different name,
+   and the 0.75/0.80/0.85 the first version used were themselves worth
+   0.3-0.8 of a ratio point on a row that had none to spare. */
+.qa-preview {
+  flex: 1 0 100%;
+  margin-top: var(--space-1-5);
+  font-size: var(--fs-12);
+  line-height: 1.5;
+  color: inherit;
+}
+
+.qa-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+
+.qa-lead,
+.qa-chip-k {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: var(--fs-11);
+}
+
+/* The title the box is actually going to create. Emphasised because this
+   grammar can take a word out of the MIDDLE of a sentence, so the remaining
+   title is the thing most worth reading before committing - by WEIGHT, so the
+   emphasis costs no contrast. */
+.qa-title { font-weight: 600; }
+
+.qa-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 1px var(--space-1-5);
+  border-radius:var(--radius-pill);
+  background: var(--surface-fill);
+  white-space: nowrap;
+}
+
+.qa-note {
+  margin-top: var(--space-1);
+  font-size: var(--fs-11);
 }
 
 .tt-add-task-input {

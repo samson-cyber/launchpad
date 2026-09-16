@@ -4576,5 +4576,35 @@ I18n.register("en", {
       "description": "Names BOTH readers, because one setting governing two behaviours is exactly the thing a user would not guess, and states the platform floor so a refused value is not a mystery.",
       "message": "Used both to stop tracking and to stop the active-task timer. The browser will not go below 15 seconds.",
       "sense": "note.explanation"
+    },
+    "quickadd_preview_lead": {
+      "description": "Leads the quick-add parse preview. Present tense and conditional - the task has NOT been created yet, and the whole point of the preview is that the user can still change their mind.",
+      "message": "Will add",
+      "sense": "label.preview"
+    },
+    "quickadd_preview_due": {
+      "description": "Label on the parsed due-date chip in the quick-add preview.",
+      "message": "Due",
+      "sense": "label.field"
+    },
+    "quickadd_preview_priority": {
+      "description": "Label on the parsed priority chip in the quick-add preview.",
+      "message": "Priority",
+      "sense": "label.field"
+    },
+    "quickadd_preview_tags": {
+      "description": "Label on the parsed tags chip in the quick-add preview.",
+      "message": "Tags",
+      "sense": "label.field"
+    },
+    "quickadd_time_not_saved": {
+      "description": "Shown when the user wrote a time of day. A due date in this product is a DAY and carries no time, so the time was used to work out WHICH day and then discarded. Says so plainly rather than letting the user believe a reminder was set - a swallowed time is the same failure as a silently attached due date.",
+      "message": "{time} set the day; a due date has no time yet",
+      "sense": "note.explanation"
+    },
+    "quickadd_hint": {
+      "description": "Placeholder hint on the quick-add inputs, teaching the grammar by example rather than by a syntax list. The example is the one from the round brief.",
+      "message": "Try: Call Nadia tomorrow 3pm !high #acme",
+      "sense": "label.placeholder"
     }
   });

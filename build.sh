@@ -360,6 +360,26 @@ if ! node tools/check-accent-boundary.mjs; then
   exit 1
 fi
 
+# [TD.1] The quick-add parser, run in THREE ZONES on every build.
+#
+# This is a release gate rather than a development one because the thing it
+# guards is invisible in the zone the build happens to run in. `dueAt` lives in
+# UTC-midnight-of-the-LOCAL-calendar-date space ([1.0.13]), and the two ways to
+# encode it wrongly land a day out in OPPOSITE directions - so a suite run only
+# in Europe/London passes while a Sydney user's "tomorrow" is on the wrong day.
+# Los Angeles, London and Sydney, with the host TZ pinned to a fourth zone
+# (Asia/Kolkata) so anything reaching for the system clock's zone shows up.
+#
+# Every due date is asserted twice: as the stored stamp, and as the utcDay()
+# getDueWork would read back from it against the user's own calendar day. The
+# second is the contract; the first is only the encoding.
+#
+# Pure, no browser, no subject to boot beyond one file: ~0.1s.
+if ! node tools/check-quickadd.mjs; then
+  echo 'ERROR: quick-add parser gate failed - a parsed due date does not survive the three-zone contract.' >&2
+  exit 1
+fi
+
 # NOTE — the mutation passes (`--mutate` on either suite above) are development
 # verification, not release gates: they re-boot the subject once per seed and the
 # queue one takes ~16s. Run them when the code under test changes; the gates here
