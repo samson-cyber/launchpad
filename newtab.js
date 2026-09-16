@@ -1826,6 +1826,28 @@
       // no-conflict whenever task.goalId is null. There is no goal deadline to
       // be past.
       var parsed = quickAddParse(raw);
+
+      // [1.14.6] THIS BOX DOES NOT MAKE TEMPLATES, AND SAYS SO RATHER THAN
+      // QUIETLY MAKING ONE.
+      //
+      // The module is the three things due today. A recurring template has no
+      // due date at all and appears in the Tasks tab's Recurring section, so
+      // creating one here would satisfy nothing the user came to this box for -
+      // and the alternative the parser leaves on the table is worse: dueAt is
+      // null whenever recurrence is set, so the default below would stamp the
+      // template's sentence onto a ONE-OFF TASK DUE TODAY with the cadence
+      // deleted. That is exactly what this box did before this commit, driven
+      // and recorded on the task.
+      //
+      // The preview has already said this in place, on every keystroke, so the
+      // refusal is never a surprise at Enter; the input keeps its text and its
+      // focus so the sentence can be moved rather than retyped.
+      if (parsed && parsed.recurrence) {
+        input.disabled = false;
+        input.focus();
+        return;
+      }
+
       var name = parsed ? parsed.title : raw;
       var tagIds = parsed ? await quickAddResolveTagIds(parsed.tags) : [];
       var created;
@@ -4699,6 +4721,28 @@
       out.push(name || d.toDateString().slice(0, 3));
     }
     SHORT_DAY_NAMES = out;
+    return out;
+  }
+
+  // [1.14.6] The same list in full. A single day reads better spelled out
+  // ("Repeats every Friday"); three do not ("Repeats every Monday, Wednesday
+  // and Friday" is a paragraph), so the plural branch uses the short names.
+  // SAME FIXED ANCHOR as shortDayNames, for the same reason: 2026-02-01 is a
+  // Sunday, so index 0..6 is getDay() order, and the list cannot depend on when
+  // the page was opened.
+  var LONG_DAY_NAMES = null;
+  function longDayNames() {
+    if (LONG_DAY_NAMES) return LONG_DAY_NAMES;
+    var out = [];
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(2026, 1, 1 + i);
+      var name = "";
+      try {
+        name = d.toLocaleDateString(undefined, { weekday: "long" });
+      } catch (e) {}
+      out.push(name || shortDayNames()[i]);
+    }
+    LONG_DAY_NAMES = out;
     return out;
   }
 
@@ -8688,15 +8732,79 @@
     catch (e) { return tm.hour + ":" + String(tm.minute).padStart(2, "0"); }
   }
 
+  // [1.14.6] THE CADENCE, IN WORDS.
+  //
+  // WHY THIS ROW EXISTS AT ALL. Before it, a sentence carrying a cadence was
+  // the worst case the preview was built to prevent: 4cdd69c taught the parser
+  // to CONSUME "every day", so the words left the title and nothing put them
+  // back anywhere the user could see. Driven on master before this round:
+  // "water the plants every day" previewed as "Will add: water the plants" -
+  // the cadence deleted in silence - and then created a one-off task. TD.1's
+  // own comment says the preview exists because "this grammar can also take a
+  // word OUT of the middle of a sentence", and that is precisely what had
+  // stopped being shown.
+  //
+  // The list joiner is Intl's, not a hand-rolled "a, b and c": the separator
+  // and the final conjunction differ per locale, and this file already defers
+  // every date it renders to Intl for the same reason.
+  function quickAddJoinList(names) {
+    try {
+      return new Intl.ListFormat(undefined, { style: "long", type: "conjunction" }).format(names);
+    } catch (e) {
+      return names.join(", ");
+    }
+  }
+
+  function quickAddRecurrenceText(rec) {
+    if (!rec) return "";
+    if (rec.frequency === "daily") return t("quickadd_repeats_daily");
+    if (rec.frequency === "weekly") {
+      var days = (rec.daysOfWeek || []).slice().sort(function (a, b) { return a - b; });
+      if (!days.length) return "";
+      // ONE DAY SPELLED OUT, SEVERAL ABBREVIATED. Both go through the plural
+      // key rather than being two hand-picked strings, so a locale whose
+      // sentence actually changes with the count has somewhere to say so even
+      // though English's does not.
+      var table = (days.length === 1) ? longDayNames() : shortDayNames();
+      var names = days.map(function (n) { return table[n] || String(n); });
+      return t("quickadd_repeats_weekly", { count: days.length, days: quickAddJoinList(names) });
+    }
+    if (rec.frequency === "monthly") {
+      // "ON DAY 17", NOT "ON THE 17th", AND THE DEVIATION IS DELIBERATE. An
+      // ordinal needs per-locale suffix rules - English alone wants four forms
+      // and most languages want something else entirely - for one string. The
+      // product already says "Monthly on day 17" on the recurring row itself,
+      // so this borrows the vocabulary that shipped rather than inventing an
+      // ordinal system beside it.
+      return t("quickadd_repeats_monthly", { day: rec.dayOfMonth });
+    }
+    return "";
+  }
+
   // THE PREVIEW IS NOT DECORATION. A due date silently attached is worse than
   // none, and this grammar can also take a word OUT of the middle of a sentence
   // ("Call tomorrow Nadia" -> "Call Nadia"), so the user has to see the title it
   // is actually going to create before they commit it. Rendered on every
   // keystroke, hidden entirely when nothing was recognised - a preview that
   // says "nothing parsed" on every ordinary sentence is just noise.
-  function quickAddPreviewHtml(parsed) {
+  function quickAddPreviewHtml(parsed, opts) {
     if (!parsed || !parsed.matched.length) return "";
+    var refuses = !!(opts && opts.refusesRecurrence);
     var chips = "";
+
+    // [1.14.6] THE CADENCE CHIP, AND NO DUE CHIP BESIDE IT. The parser
+    // guarantees dueAt is null whenever recurrence is set, so the due branch
+    // below is already unreachable in this state - but the two are mutually
+    // exclusive as a matter of MEANING, not of field population: a template has
+    // no single due date to show. Asserted in the round's verification rather
+    // than left to the parser's contract.
+    if (parsed.recurrence) {
+      var recText = quickAddRecurrenceText(parsed.recurrence);
+      if (recText) {
+        chips += '<span class="qa-chip"><span class="qa-chip-k">' + th("quickadd_preview_repeats") + '</span>' +
+          escapeHtml(recText) + '</span>';
+      }
+    }
     if (parsed.dueAt !== null) {
       chips += '<span class="qa-chip"><span class="qa-chip-k">' + th("quickadd_preview_due") + '</span>' +
         escapeHtml(fmtShortDateUTC(parsed.dueAt)) + '</span>';
@@ -8709,18 +8817,56 @@
       chips += '<span class="qa-chip"><span class="qa-chip-k">' + th("quickadd_preview_tags") + '</span>' +
         escapeHtml(parsed.tags.map(function (t) { return "#" + t; }).join(" ")) + '</span>';
     }
-    var note = parsed.dueTime
-      ? '<div class="qa-note">' + th("quickadd_time_not_saved", { time: fmtTimeOfDay(parsed.dueTime) }) + '</div>'
-      : "";
-    return '<div class="qa-line"><span class="qa-lead">' + th("quickadd_preview_lead") + '</span>' +
+    // THE TIME NOTE FLIPS ITS MEANING WHEN THIS IS A TEMPLATE, and leaving it
+    // alone would have been a lie the recurrence path introduced. For a one-off
+    // task the parsed time is genuinely DROPPED - a task record has no time
+    // field - which is what the shipped note says. A recurring template DOES
+    // store it, as timeOfDay, and the parser hands it over. So the same
+    // condition has to say the opposite thing, and it now does.
+    var note = "";
+    if (parsed.dueTime) {
+      note = '<div class="qa-note">' +
+        (parsed.recurrence
+          ? th("quickadd_time_kept", { time: fmtTimeOfDay(parsed.dueTime) })
+          : th("quickadd_time_not_saved", { time: fmtTimeOfDay(parsed.dueTime) })) +
+        '</div>';
+    }
+
+    // WHERE IT LANDS, SAID OUT LOUD. A user typing into a box that adds TASKS
+    // and getting a TEMPLATE has had the noun changed under them; the least the
+    // preview can do is name the section it will appear in, since it will not
+    // be in the list they were looking at.
+    //
+    // AND ON THE DASHBOARD, THE REFUSAL AND ITS REASON. That module's whole job
+    // is the three things due today; a template has no due date and lands in a
+    // different tab entirely. Creating one from there would be the same class of
+    // surprise this round exists to remove, only in the other direction - so it
+    // refuses, and says why and where to go instead. A control that silently
+    // does something else is the failure; a control that declines out loud is
+    // not.
+    var where = "";
+    if (parsed.recurrence) {
+      where = '<div class="qa-note qa-where' + (refuses ? " is-refusal" : "") + '">' +
+        (refuses ? th("quickadd_recurrence_not_here") : th("quickadd_lands_in_recurring")) +
+        '</div>';
+    }
+
+    return '<div class="qa-line"><span class="qa-lead">' +
+        th(refuses && parsed.recurrence ? "quickadd_preview_lead_blocked" : "quickadd_preview_lead") + '</span>' +
         '<span class="qa-title">' + escapeHtml(parsed.title) + '</span>' + chips +
-      '</div>' + note;
+      '</div>' + where + note;
   }
 
   function quickAddRenderPreview(input) {
     var host = input && input.parentNode && input.parentNode.querySelector(".qa-preview");
     if (!host) return;
-    var html = quickAddPreviewHtml(quickAddParse(input.value || ""));
+    // WHICH BOX THIS IS, read from the input itself rather than passed down from
+    // two call sites that could drift apart. The Dashboard's is the only one
+    // carrying data-dash-quickadd, and it is the same attribute its own keydown
+    // handler gates on - so the preview and the commit cannot disagree about
+    // which box refuses.
+    var refuses = !!(input.hasAttribute && input.hasAttribute("data-dash-quickadd"));
+    var html = quickAddPreviewHtml(quickAddParse(input.value || ""), { refusesRecurrence: refuses });
     host.innerHTML = html;
     host.hidden = !html;
   }
@@ -8761,6 +8907,55 @@
     var parsed = quickAddParse(raw);
     var name = parsed ? parsed.title : raw;
     var tagIds = parsed ? await quickAddResolveTagIds(parsed.tags) : [];
+
+    // [1.14.6] A CADENCE MEANS A TEMPLATE, NOT A TASK, AND THAT IS THE WHOLE
+    // ROUND. createTask below would produce a one-off whose cadence had been
+    // deleted from its own title - which is what shipped between 4cdd69c and
+    // this commit, driven and recorded on the task.
+    //
+    // THE FOUR PARSED FIELDS GO STRAIGHT ACROSS, because the parser was shaped
+    // for this writer: frequency, daysOfWeek, dayOfMonth and timeOfDay are
+    // createRecurringTemplate's own argument names. null timeOfDay is its
+    // documented default ("09:00"), so an unwritten time needs no special case
+    // here.
+    //
+    // PRIORITY AND TAGS RIDE ALONG because the template record takes both and
+    // generated instances inherit them - dropping them would silently lose what
+    // the user typed. goalId is the card's, and on this path there is ALWAYS a
+    // card: this function returns early when the goal id is missing.
+    //
+    // isHabit IS NOT OFFERED, deliberately. TD.4's month grid is a checkbox in
+    // the template editor, and a checkbox is a different control family from a
+    // sentence - there is nothing to type that would mean it, and inventing a
+    // token for it would be grammar nobody asked for. The template is created
+    // without a grid and its own editor turns one on.
+    if (parsed && parsed.recurrence) {
+      var rec = parsed.recurrence;
+      var tpl = await Storage.createRecurringTemplate(data, {
+        name: name,
+        frequency: rec.frequency,
+        daysOfWeek: rec.daysOfWeek,
+        dayOfMonth: rec.dayOfMonth,
+        timeOfDay: rec.timeOfDay,
+        goalId: goalId,
+        priority: parsed.priority,
+        tagIds: tagIds
+      });
+      if (!tpl || tpl.err) {
+        // The writer validates the pattern and returns {err,message}. Surface it
+        // and KEEP THE TEXT: a refusal the user can still fix must not also take
+        // their sentence away.
+        console.warn("[LaunchPad] Tasks tab: createRecurringTemplate refused",
+          tpl && tpl.err, tpl && tpl.message);
+        showToast((tpl && tpl.message) || t("quickadd_recurrence_failed"));
+        return;
+      }
+      hideAddTaskInline(card);
+      showToast(t("quickadd_made_recurring", { name: tpl.name }));
+      var recPanel = document.getElementById("tab-tasks");
+      if (recPanel) renderTasksTab(recPanel, data);
+      return;
+    }
 
     // CREATED WITHOUT dueAt ON PURPOSE. The due date goes through
     // commitTaskDueAt, which is the shipped path that runs

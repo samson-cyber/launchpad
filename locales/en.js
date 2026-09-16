@@ -4723,6 +4723,46 @@ I18n.register("en", {
       "message": "Tags",
       "sense": "label.field"
     },
+    "quickadd_lands_in_recurring": {
+      "message": "This will be added to Recurring, not to this list.",
+      "description": "Line under the quick-add preview when the sentence carries a cadence. It exists because the box the user typed into adds TASKS and they are about to get a TEMPLATE, which appears in a different section - so the preview names where it will actually be, rather than letting them look for it in the list they were watching."
+    },
+    "quickadd_made_recurring": {
+      "message": "{name} was added to Recurring.",
+      "description": "Toast after a quick-add sentence creates a recurring template. Confirms the thing created is not where the user was looking, which the preview already warned about."
+    },
+    "quickadd_preview_lead_blocked": {
+      "message": "Cannot add",
+      "description": "Replaces the WILL ADD label on the Dashboard quick-add when the sentence carries a cadence, which that box does not create. Says the outcome, not the rule; the reason follows on its own line."
+    },
+    "quickadd_preview_repeats": {
+      "message": "Repeats",
+      "description": "Key of the cadence chip in the quick-add preview. The value beside it is the cadence in words. There is deliberately no DUE chip on the same row: a recurring template has no single due date."
+    },
+    "quickadd_recurrence_failed": {
+      "message": "That repeating task could not be created.",
+      "description": "Fallback toast when the recurring-template writer refuses a quick-add sentence and returns no message of its own. The typed sentence is deliberately kept in the box so it can be fixed rather than retyped."
+    },
+    "quickadd_recurrence_not_here": {
+      "message": "Repeating tasks are added in the Tasks tab. This box adds work due today.",
+      "description": "Shown under the Dashboard quick-add preview when the sentence carries a cadence. Two sentences on purpose: where to go, and why this box is not it. The box refuses rather than quietly creating something it does not show."
+    },
+    "quickadd_repeats_daily": {
+      "message": "daily",
+      "description": "The cadence in words, beside the Repeats chip, for a sentence like \"water the plants every day\". Lower case because it follows the chip key rather than starting a sentence."
+    },
+    "quickadd_repeats_monthly": {
+      "message": "monthly on day {day}",
+      "description": "The cadence in words for a monthly template. DAY N rather than an ordinal (\"the 17th\"): ordinals need per-locale suffix rules, and the product already says \"Monthly on day 17\" on the recurring row itself, so this reuses the vocabulary that shipped."
+    },
+    "quickadd_repeats_weekly": {
+      "plural": {"one": "every {days}", "other": "every {days}"},
+      "description": "The cadence in words for a weekly template. The two English forms are identical because only the LIST changes (\"every Friday\" against \"every Mon, Wed and Fri\"), and the list is built by Intl. It is a plural key anyway so a locale whose sentence really does change with the number of days has somewhere to say so."
+    },
+    "quickadd_time_kept": {
+      "message": "Repeats at {time}.",
+      "description": "Replaces quickadd_time_not_saved when the sentence is a recurring one. The same condition has to say the opposite thing: a task record drops the parsed time, and a recurring template STORES it as timeOfDay. Leaving the old note in place would have been a lie this feature introduced."
+    },
     "quickadd_time_not_saved": {
       "description": "Shown when the user wrote a time of day. A due date in this product is a DAY and carries no time, so the time was used to work out WHICH day and then discarded. Says so plainly rather than letting the user believe a reminder was set - a swallowed time is the same failure as a silently attached due date.",
       "message": "{time} set the day; a due date has no time yet",

@@ -10266,6 +10266,15 @@ html.has-bg.bg-light .dash-meta-prio {
      only 14 on the surface. The seam between the due list and quick-add is an
      inter-group seam, so it takes the 12px step (d47daaf). */
   margin-top: var(--space-3);
+  /* [1.14.6] THE WRAP TD.1 GAVE THE OTHER BOX AND NOT THIS ONE.
+     .qa-preview is `flex: 1 0 100%`, which only puts it on its own row if the
+     container wraps. .tt-add-task-inline gained flex-wrap in TD.1 with a comment
+     explaining exactly why - "squeezing it into the row would take width from the
+     box the user is typing into" - and this sibling container never did, so the
+     preview has been laying out BESIDE the input and crushing it since TD.1
+     shipped. Pre-existing, and invisible enough at one short line to survive a
+     round; this round's preview is three lines and a frame made it obvious. */
+  flex-wrap: wrap;
 }
 
 .dash-quickadd-input {
@@ -13988,6 +13997,31 @@ html.has-bg.bg-light .tt-task-handle:hover {
 .qa-note {
   margin-top: var(--space-1);
   font-size: var(--fs-11);
+}
+
+/* [1.14.6] WHERE A CADENCE LANDS, and on the Dashboard why it will not.
+
+   NO COLOUR HERE, AND THAT IS THE ROW'S OWN HARD-WON RULE rather than an
+   omission. The block twenty lines above records what happened when this
+   preview declared its ink: the card resolves its own colour per ground, so a
+   declaration did not protect the row, it OVERRODE the one thing already
+   correct and painted white-on-white on bg-light. .qa-where sits in exactly the
+   same place, so it inherits exactly the same way.
+
+   AND NO OPACITY, for the same reason recorded there: opacity is a contrast
+   reduction wearing a different name, and this row has none to spare. The
+   refusal carries its emphasis on WEIGHT, which costs no ratio.
+
+   The refusal is deliberately NOT red. It is not an error - the sentence is
+   valid and the product understood it perfectly; it simply belongs in another
+   tab. Colouring it as a failure would tell the user they did something wrong
+   when they did not. */
+.qa-where {
+  flex: 1 0 100%;
+}
+
+.qa-where.is-refusal {
+  font-weight: 600;
 }
 
 .tt-add-task-input {
