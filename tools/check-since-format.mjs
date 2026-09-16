@@ -18,6 +18,12 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { loadI18n } from "./lib/i18n-harness.mjs";
+
+// The real engine and the real catalogue. Its own anti-vacuity guard throws if
+// the catalogue fails to register, so a suite can never pass by comparing key
+// names against key names.
+const { t: T } = loadI18n(process.argv[2] || process.cwd());
 
 const repoRoot = process.argv[2] || process.cwd();
 
@@ -99,11 +105,19 @@ function subject({ activeTask, mutate }) {
     body = mutate(body);
     if (body === before) throw new Error("negative control did not apply — the anchor it patches has moved");
   }
-  const factory = new Function("Storage", "data", body + "\n  return satActiveSinceText;");
+  // [1.5.0] t() IS INJECTED, and the reason is the whole of BUGS.md P20. This
+  // suite lifts satActiveSinceText out of newtab.js into a bare Function. The
+  // moment that sentence became t("sat_active_since", …) the extracted body
+  // threw `t is not defined` and the gate reported SUBJECT DID NOT LOAD - so
+  // the gate was, in effect, forbidding the migration. It gets the REAL engine
+  // and the REAL catalogue, exactly as check-license-line does, so the suite
+  // keeps asserting the rendered sentence while SOURCING it from the catalogue
+  // the product reads. A copy change then moves both sides at once.
+  const factory = new Function("Storage", "data", "t", body + "\n  return satActiveSinceText;");
   const getActiveTask = () => activeTask;
   return factory({ getActiveTask: getActiveTask, fmtDuration: REAL_FMT_DURATION,
                    fmtStopwatch: REAL_FMT_STOPWATCH,
-                   activeElapsedMs: REAL_ACTIVE_ELAPSED(getActiveTask) }, {});
+                   activeElapsedMs: REAL_ACTIVE_ELAPSED(getActiveTask) }, {}, T);
 }
 
 let loaded;

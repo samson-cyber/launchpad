@@ -34,6 +34,14 @@
 var Importers = (function () {
   "use strict";
 
+  // The catalogue, reached the way companion.js reaches it. i18n.js loads
+  // before importers.js in newtab.html, so I18n is there in practice; the
+  // guard means a load-order change degrades to a visible key rather than a
+  // thrown ReferenceError in the middle of an import.
+  function t(key, params) {
+    return (typeof I18n !== "undefined" && I18n.t) ? I18n.t(key, params) : key;
+  }
+
   var MAX_TITLE = 200;
 
   // ---- URL hygiene -------------------------------------------------------
@@ -101,10 +109,10 @@ var Importers = (function () {
     // Toby: { lists: [ { title, cards: [ { url, title, customTitle } ] } ] }
     if (obj && Array.isArray(obj.lists)) {
       groups = obj.lists.map(function (l) {
-        return { name: (l && (l.title || l.name)) || "Toby list",
+        return { name: (l && (l.title || l.name)) || t("import_group_toby_list"),
                  links: collect(l && l.cards, skipped) };
       });
-      if (countLinks(groups)) return result("toby", "Toby", groups, skipped.n);
+      if (countLinks(groups)) return result("toby", t("importfmt_toby"), groups, skipped.n);
     }
 
     // Session Buddy: { sessions: [ { windows: [ { tabs: [...] } ] } ] }, and the
@@ -117,10 +125,10 @@ var Importers = (function () {
         : null;
     if (wins && wins.length) {
       groups = wins.map(function (w, i) {
-        return { name: (w && (w.title || w.name)) || ("Window " + (i + 1)),
+        return { name: (w && (w.title || w.name)) || t("import_group_window", { count: i + 1 }),
                  links: collect(w && w.tabs, skipped) };
       });
-      if (countLinks(groups)) return result("session-buddy", "Session Buddy", groups, skipped.n);
+      if (countLinks(groups)) return result("session-buddy", t("importfmt_session_buddy"), groups, skipped.n);
     }
 
     // Speed Dial 2: { groups: [ { name, dials: [ { url, title } ] } ] }
@@ -129,14 +137,14 @@ var Importers = (function () {
         return { name: (g && (g.name || g.title)) || ("Group " + (i + 1)),
                  links: collect(g && (g.dials || g.items || g.links), skipped) };
       });
-      if (countLinks(groups)) return result("speed-dial-2", "Speed Dial 2", groups, skipped.n);
+      if (countLinks(groups)) return result("speed-dial-2", t("importfmt_speed_dial_2"), groups, skipped.n);
     }
 
     // THE FLOOR. Any JSON at all: walk it and take every object carrying a url.
     var found = [];
     deepWalk(obj, found, skipped, 0);
     if (found.length) {
-      return result("json", "JSON export", [{ name: "Imported links", links: found }], skipped.n);
+      return result("json", t("importfmt_json_export"), [{ name: t("import_group_links"), links: found }], skipped.n);
     }
     return null;
   }
@@ -188,7 +196,7 @@ var Importers = (function () {
   // is a flat token stream in practice - H3 opens a folder, A is a link, /DL
   // closes one.
   function fromNetscape(text) {
-    var groups = [{ name: "Imported bookmarks", links: [] }];
+    var groups = [{ name: t("import_group_bookmarks"), links: [] }];
     var stack = [];
     var skipped = 0;
     var re = /<(\/?)(DL|H3|A)\b([^>]*)>([\s\S]*?)(?=<)/gi;
@@ -209,7 +217,7 @@ var Importers = (function () {
       }
     }
     if (!countLinks(groups)) return null;
-    return result("netscape", "Bookmarks HTML", groups, skipped);
+    return result("netscape", t("importfmt_bookmarks_html"), groups, skipped);
   }
 
   function stripTags(s) { return String(s).replace(/<[^>]*>/g, ""); }
@@ -247,9 +255,9 @@ var Importers = (function () {
     if (!countLinks(groups)) return null;
     var multi = groups.filter(function (g) { return g.links.length; }).length > 1;
     for (var k = 0; k < groups.length; k++) {
-      groups[k].name = multi ? ("Imported group " + (k + 1)) : "Imported links";
+      groups[k].name = multi ? t("import_group_numbered", { count: k + 1 }) : t("import_group_links");
     }
-    return result(sawPipe ? "onetab" : "urls", sawPipe ? "OneTab" : "Pasted links", groups, skipped);
+    return result(sawPipe ? "onetab" : "urls", sawPipe ? t("importfmt_onetab") : t("importfmt_pasted_links"), groups, skipped);
   }
 
   // ---- the sniffer -------------------------------------------------------

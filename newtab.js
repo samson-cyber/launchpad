@@ -916,7 +916,7 @@
     var combined = (scope.mode === "combined");
     var lines = [];
     var topTask = dashRecapTopTask(byTask, d, combined);
-    if (topTask) lines.push(dashRecapLineHtml("Most focused", topTask.name, topTask.ms));
+    if (topTask) lines.push(dashRecapLineHtml(t("dash_recap_most_focused"), topTask.name, topTask.ms));
     // "SESSION" DELIBERATELY CARRIES A FOURTH SENSE HERE. Ruled 2026-09-09,
     // reversing [1.8.5] item D. That round renamed this to "Longest stretch"
     // because "session" already means a saved TAB SET and a BROWSER session, and
@@ -929,9 +929,9 @@
     // the untokenised backlog check-i18n-sites reports; it is why this revert had
     // to touch a render site at all, where the Insights half was one catalogue
     // value. Flagged rather than fixed: tokenising the recap is its own change.
-    if (longestMs > 0) lines.push(dashRecapLineHtml("Longest session", null, longestMs));
+    if (longestMs > 0) lines.push(dashRecapLineHtml(t("insights_wk_longest"), null, longestMs));
     var topTag = dashRecapTopTag(byTag, d, combined);
-    if (topTag) lines.push(dashRecapLineHtml("Top tag", topTag.name, topTag.ms));
+    if (topTag) lines.push(dashRecapLineHtml(t("insights_wk_top_tag"), topTag.name, topTag.ms));
     // Empty when every line suppressed — the .dash-recap:empty rule collapses the
     // tile, so the card keeps only its calm header + the focused line.
     el.innerHTML = lines.join("");
@@ -1973,22 +1973,22 @@
     goals: [
       {
         id: "demo-goal-1",
-        name: "Ship Q3 report",
+        nameKey: "demo_goal_q3",
         tag: DEMO_TAG_PALETTE.shipQ3,
-        deadline: "May 31",
+        deadlineKey: "demo_goal_q3_deadline",
         tasks: [
-          { id: "demo-task-1", name: "Draft executive summary",       priority: "high",   active: false, completed: false },
-          { id: "demo-task-2", name: "Pull regional revenue numbers", priority: "medium", active: true,  completed: false, elapsed: "00:23:15" }
+          { id: "demo-task-1", nameKey: "demo_task_exec_summary",       priority: "high",   active: false, completed: false },
+          { id: "demo-task-2", nameKey: "demo_task_revenue", priority: "medium", active: true,  completed: false, elapsed: "00:23:15" }
         ]
       },
       {
         id: "demo-goal-2",
-        name: "Learn TypeScript",
+        nameKey: "demo_goal_typescript",
         tag: DEMO_TAG_PALETTE.learnTs,
-        deadline: "Jun 14",
+        deadlineKey: "demo_goal_typescript_deadline",
         tasks: [
-          { id: "demo-task-3", name: "Finish generics chapter", priority: null,  active: false, completed: false },
-          { id: "demo-task-4", name: "Build a tiny todo app",   priority: "low", active: false, completed: false }
+          { id: "demo-task-3", nameKey: "demo_task_generics", priority: null,  active: false, completed: false },
+          { id: "demo-task-4", nameKey: "demo_task_todo_app",   priority: "low", active: false, completed: false }
         ]
       }
     ]
@@ -2017,12 +2017,12 @@
     { name: "stackoverflow.com", ms: 1 * 3600000 + 30 * 60000 }
   ];
   var DEMO_PREVIEW_TASKS = [
-    { name: "Ship the Q3 report", ms: 6 * 3600000 + 40 * 60000 },
-    { name: "Learn TypeScript generics", ms: 5 * 3600000 + 10 * 60000 },
-    { name: "Rewrite the onboarding email", ms: 3 * 3600000 + 55 * 60000 },
-    { name: "Review the design system", ms: 3 * 3600000 },
-    { name: "Plan next quarter", ms: 2 * 3600000 + 20 * 60000 },
-    { name: "Tidy the backlog", ms: 1 * 3600000 + 45 * 60000 }
+    { nameKey: "insights_wk_preview_task", ms: 6 * 3600000 + 40 * 60000 },
+    { nameKey: "demo_top_task_generics", ms: 5 * 3600000 + 10 * 60000 },
+    { nameKey: "demo_top_task_onboarding", ms: 3 * 3600000 + 55 * 60000 },
+    { nameKey: "demo_top_task_design_system", ms: 3 * 3600000 },
+    { nameKey: "demo_top_task_next_quarter", ms: 2 * 3600000 + 20 * 60000 },
+    { nameKey: "demo_top_task_backlog", ms: 1 * 3600000 + 45 * 60000 }
   ];
 
   // The SAME row markup the product's list peers use, so the preview shows the
@@ -2032,7 +2032,12 @@
     return rows.map(function (r) {
       var pct = Math.round((r.ms / max) * 100);
       return '<div class="insights-task-row">' +
-          '<span class="insights-task-name">' + escapeHtml(r.name) + '</span>' +
+          // TWO KINDS OF ROW THROUGH ONE RENDERER. The task rows carry a
+          // nameKey, because their names are copy. The SITE rows carry a plain
+          // name, because "figma.com" is a domain and must never be translated.
+          // Assuming a single caller here silently emptied the Time-by-site
+          // list, which no static check noticed and the DOM comparison did.
+          '<span class="insights-task-name">' + (r.nameKey ? th(r.nameKey) : escapeHtml(r.name)) + '</span>' +
           '<span class="insights-task-bar"><span class="insights-task-bar-fill" style="width:' + pct + '%"></span></span>' +
           '<span class="insights-task-dur">' + fmtDurationHM(r.ms) + '</span>' +
         '</div>';
@@ -2064,12 +2069,12 @@
     // Marathoner remains the sole banked future candidate. Consistency copy was
     // corrected to the live definition (was "Deep work every weekday for 2 weeks").
     badges: [
-      { id: "first-week",   titleKey: "dash_first_week",   desc: "Used LaunchPad 7 days running",          unlocked: true,  glyph: "calendar" },
-      { id: "goal-crusher", titleKey: "dash_goal_crusher", desc: "Completed 5 goals",                      unlocked: true,  glyph: "target"   },
-      { id: "deep-diver",   titleKey: "dash_deep_diver",   desc: "Single 2-hour focus block",              unlocked: true,  glyph: "compass"  },
-      { id: "variety",      titleKey: "dash_variety",      desc: "5 different tags in a week",             unlocked: false, glyph: "layers"   },
-      { id: "consistency",  titleKey: "dash_consistency",  desc: "Complete a task 7 days running",         unlocked: false, glyph: "trend"    },
-      { id: "curator",      titleKey: "dash_curator",      desc: "50+ shortcuts organized",                unlocked: false, glyph: "bookmark" }
+      { id: "first-week",   titleKey: "dash_first_week",   descKey: "dash_first_week_desc",          unlocked: true,  glyph: "calendar" },
+      { id: "goal-crusher", titleKey: "dash_goal_crusher", descKey: "dash_goal_crusher_desc",                      unlocked: true,  glyph: "target"   },
+      { id: "deep-diver",   titleKey: "dash_deep_diver",   descKey: "dash_deep_diver_desc",              unlocked: true,  glyph: "compass"  },
+      { id: "variety",      titleKey: "dash_variety",      descKey: "dash_variety_desc",             unlocked: false, glyph: "layers"   },
+      { id: "consistency",  titleKey: "dash_consistency",  descKey: "achv_consistency_desc",         unlocked: false, glyph: "trend"    },
+      { id: "curator",      titleKey: "dash_curator",      descKey: "dash_curator_desc",                unlocked: false, glyph: "bookmark" }
     ]
   };
 
@@ -2118,7 +2123,7 @@
           : '';
         return '<div class="pp-task-row ' + priorityClass(t.priority) + '">' +
             '<input type="checkbox" class="pp-task-check" disabled>' +
-            '<span class="pp-task-name">' + escapeHtml(t.name) + '</span>' +
+            '<span class="pp-task-name">' + th(t.nameKey) + '</span>' +
             renderTagPill(g.tag) +
             activeBadge +
           '</div>';
@@ -2126,11 +2131,11 @@
       return '<div class="pp-goal-card">' +
           '<div class="pp-goal-header">' +
             '<div class="pp-goal-header-left">' +
-              '<span class="pp-goal-name">' + escapeHtml(g.name) + '</span>' +
+              '<span class="pp-goal-name">' + th(g.nameKey) + '</span>' +
               renderTagPill(g.tag) +
             '</div>' +
             '<div class="pp-goal-header-right">' +
-              '<span class="pp-goal-deadline">' + escapeHtml(g.deadline) + '</span>' +
+              '<span class="pp-goal-deadline">' + th(g.deadlineKey) + '</span>' +
               '<button class="pp-icon-btn" type="button" disabled aria-label="' + th("tasks_goal_options") + '">' + THREE_DOT_SM_SVG + '</button>' +
             '</div>' +
           '</div>' +
@@ -2205,18 +2210,18 @@
       // never follow a switch. The renderer resolves them.
       pickup: { titleKey: "tasks_preview_pickup_title", goalKey: "tasks_preview_pickup_goal" },
     three: [
-      { name: "Draft the executive summary", prio: "tt-prio-high", overdue: false },
-      { name: "Pull regional revenue numbers", prio: "tt-prio-urgent", overdue: true }
+      { nameKey: "demo_pv_task_exec_summary", prio: "tt-prio-high", overdue: false },
+      { nameKey: "demo_task_revenue", prio: "tt-prio-urgent", overdue: true }
     ],
     due: [
-      { name: "Reply to the design review thread", prio: "tt-prio-medium", overdue: false },
-      { name: "Book the studio for Thursday", prio: "", overdue: true },
-      { name: "Renew the domain", prio: "tt-prio-low", overdue: false }
+      { nameKey: "demo_pv_task_design_review", prio: "tt-prio-medium", overdue: false },
+      { nameKey: "demo_pv_task_studio", prio: "", overdue: true },
+      { nameKey: "demo_pv_task_domain", prio: "tt-prio-low", overdue: false }
     ],
     goals: [
-      { name: "Ship the Q3 report", pct: 40, frac: "2 of 5" },
-      { name: "Learn TypeScript", pct: 0, frac: "0 of 4" },
-      { name: "Rebuild onboarding flow", pct: 25, frac: "1 of 4" }
+      { nameKey: "insights_wk_preview_task", pct: 40, frac: "2 of 5" },
+      { nameKey: "demo_goal_typescript", pct: 0, frac: "0 of 4" },
+      { nameKey: "demo_pv_goal_onboarding", pct: 25, frac: "1 of 4" }
     ]
   };
 
@@ -2224,7 +2229,7 @@
     return '<div class="dash-due-row' + (extraClass ? " " + extraClass : "") +
         (row.prio ? " " + row.prio : "") + '">' +
         '<input type="checkbox" class="tt-task-check dash-due-check" disabled>' +
-        '<span class="dash-due-name">' + escapeHtml(row.name) + '</span>' +
+        '<span class="dash-due-name">' + th(row.nameKey) + '</span>' +
         (row.overdue ? '<span class="dash-meta-due is-overdue">' + th("dash_overdue") + '</span>' : '') +
       '</div>';
   }
@@ -2311,7 +2316,7 @@
           '<div class="insights-task-list">' +
             D.goals.map(function (g) {
               return '<div class="insights-task-row">' +
-                  '<span class="insights-task-name">' + escapeHtml(g.name) + '</span>' +
+                  '<span class="insights-task-name">' + th(g.nameKey) + '</span>' +
                   '<span class="insights-task-bar"><span class="insights-task-bar-fill" style="width:' + g.pct + '%"></span></span>' +
                   '<span class="insights-task-dur">' + escapeHtml(g.frac) + '</span>' +
                 '</div>';
@@ -2429,14 +2434,14 @@
     var d = DEMO_INSIGHTS_DATA;
 
     // 30-day trend bars — through the shared builder.
-    var trendSvg = insightsBarChartSvg(d.trend30.days, d.trend30.todayIndex, "Deep work trend over the last 30 days", "30 days ago", "today");
+    var trendSvg = insightsBarChartSvg(d.trend30.days, d.trend30.todayIndex, t("insights_trend_caption"), t("insights_axis_start_30"), t("insights_today"));
 
     // Donut chart + legend — through the shared builders. The demo segments carry
     // {tag:{name,color}, hours}; map them to the builders' {color,value}/name shape.
     var donutSvg = insightsDonutSvg(
       d.donut.segments.map(function (s) { return { color: s.tag.color, value: s.hours }; }),
       d.donut.centerLabel,
-      "Time by tag, last 30 days"
+      t("insights_tag_caption_30")
     );
     var donutLegend = insightsDonutLegend(
       d.donut.segments.map(function (s) { return { color: s.tag.color, name: s.tag.name, valueText: s.hours + "h" }; })
@@ -2446,7 +2451,7 @@
     var badgesHtml = d.badges.map(function (b) {
       var lockedCls = b.unlocked ? "" : " pp-badge-locked";
       var glyph = renderBadgeGlyph(b.glyph);
-      var subtitle = b.unlocked ? escapeHtml(b.desc) : "Locked";
+      var subtitle = b.unlocked ? th(b.descKey) : th("badge_locked");
       return '<div class="pp-badge' + lockedCls + '">' +
           '<div class="pp-badge-icon">' + glyph + '</div>' +
           '<div class="pp-badge-title">' + th(b.titleKey) + '</div>' +
@@ -2489,7 +2494,7 @@
     var heatHtml = insightsHeatmapHtml({
       grid: demoGrid, totalMs: 32 * 3600000, includedDays: 30, excludedDays: 0,
       firstIncluded: null, knownFrom: null
-    }, "last 30 days");
+    }, t("insights_last_30_days"));
 
     var wkHtml = insightsWeeklyHtml({
       spanLabel: th("insights_wk_preview_span"),
@@ -2578,12 +2583,12 @@
   // user deserves to see the target). Trends are a v2.1 promise; the history is
   // already accruing behind the scenes.
   var INSIGHTS_BADGES = [
-    { id: "first-week",   titleKey: "badge_first_week",   desc: "Open LaunchPad 7 days running",          glyph: "calendar" },
-    { id: "goal-crusher", titleKey: "badge_goal_crusher", desc: "Complete 5 different goals",             glyph: "target"   },
-    { id: "deep-diver",   titleKey: "badge_deep_diver",   desc: "A single 2-hour focus session",         glyph: "compass"  },
-    { id: "variety",      titleKey: "badge_variety",      desc: "Complete tasks across 5 tags in a week", glyph: "layers"   },
-    { id: "consistency",  titleKey: "badge_consistency",  desc: "Complete a task 7 days running",         glyph: "trend"    },
-    { id: "curator",      titleKey: "badge_curator",      desc: "Organize 50+ shortcuts",                 glyph: "bookmark" }
+    { id: "first-week",   titleKey: "badge_first_week",   descKey: "badge_first_week_desc",          glyph: "calendar" },
+    { id: "goal-crusher", titleKey: "badge_goal_crusher", descKey: "badge_goal_crusher_desc",             glyph: "target"   },
+    { id: "deep-diver",   titleKey: "badge_deep_diver",   descKey: "badge_deep_diver_desc",         glyph: "compass"  },
+    { id: "variety",      titleKey: "badge_variety",      descKey: "badge_variety_desc", glyph: "layers"   },
+    { id: "consistency",  titleKey: "badge_consistency",  descKey: "achv_consistency_desc",         glyph: "trend"    },
+    { id: "curator",      titleKey: "badge_curator",      descKey: "badge_curator_desc",                 glyph: "bookmark" }
   ];
   var INSIGHTS_BADGE_BY_ID = INSIGHTS_BADGES.reduce(function (m, b) { m[b.id] = b; return m; }, {});
 
@@ -2624,16 +2629,16 @@
   // "Focused" is deliberately absent from all of this copy. It stays reserved for
   // engine-measured time; these are window names, not measurements.
   var INSIGHTS_RANGES = [
-    { days: 1,  labelKey: "insights_today",        btn: "Today" },
-    { days: 7,  labelKey: "insights_past_7_days",  btn: "Past 7 days" },
-    { days: 30, labelKey: "insights_last_30_days", btn: "Last 30 days" }
+    { days: 1,  labelKey: "insights_today",        btnKey: "insights_btn_today" },
+    { days: 7,  labelKey: "insights_past_7_days",  btnKey: "insights_btn_past_7" },
+    { days: 30, labelKey: "insights_last_30_days", btnKey: "insights_btn_last_30" }
   ];
 
   function insightsRangeLabel(days) {
     for (var i = 0; i < INSIGHTS_RANGES.length; i++) {
       if (INSIGHTS_RANGES[i].days === days) return t(INSIGHTS_RANGES[i].labelKey);
     }
-    return "last 30 days";
+    return t("insights_last_30_days");
   }
 
   // [1.2.2 R2] The custom range is TRANSIENT by decision: a pinned calendar range
@@ -2688,7 +2693,7 @@
             return '<button type="button" class="seg-btn' + (on ? ' active' : '') + '"' +
               ' data-ins-range="' + r.days + '"' +
               ' aria-pressed="' + (on ? 'true' : 'false') + '">' +
-              escapeHtml(r.btn) +
+              th(r.btnKey) +
             '</button>';
           }).join("") +
           '<button type="button" class="seg-btn' + (custom ? ' active' : '') + '"' +
@@ -2764,7 +2769,7 @@
       var lit = !!e;
       if (lit) earnedCount++;
       // Lit -> when earned; locked -> the real target (D9).
-      var sub = lit ? ("Earned " + escapeHtml(fmtShortDate(e.earnedAt))) : escapeHtml(b.desc);
+      var sub = lit ? th("badge_earned_on", { date: fmtShortDate(e.earnedAt) }) : th(b.descKey);
       return '<div class="pp-badge insights-badge' + (lit ? "" : " pp-badge-locked") + '"' + (lit ? ' data-earned="1"' : '') + '>' +
           '<div class="pp-badge-icon">' + renderBadgeGlyph(b.glyph) + '</div>' +
           '<div class="pp-badge-title">' + th(b.titleKey) + '</div>' +
@@ -3263,15 +3268,15 @@
     rows.push(["meta", "exported_at", new Date().toISOString(), "", "", "", ""]);
     rows.push(["meta", "scope", ctx.scopeLabel, "", "", "", ""]);
     rows.push(["meta", "measure",
-      "engine-measured focused time only; not wall clock or time worked", "", "", "", ""]);
+      t("export_meta_measure"), "", "", "", ""]);
     rows.push(["meta", "range_total", "", "", String(Math.round(ctx.totalMs)),
       fmtDurationHM(ctx.totalMs), (ctx.totalMs / 3600000).toFixed(4)]);
     rows.push(["meta", "reconciles",
-      "task, goal and domain rows each sum to range_total; tag rows do not - see tag_note",
+      t("export_meta_reconciles"),
       "", "", "", ""]);
     rows.push(["meta", "tag_note",
-      "a session carrying several tags counts in FULL under each of them, so tag rows can " +
-      "exceed range_total; untagged is then clamped at zero and may understate", "", "", "", ""]);
+      t("export_meta_tag_note"),
+      "", "", "", ""]);
 
     // ---- tasks ------------------------------------------------------------
     // Trashed and purged tasks are INCLUDED. The board's Top-tasks list drops
@@ -3294,13 +3299,13 @@
       // PURGED: no name exists anywhere. The id is the only truthful identifier
       // left, so it goes in the id column and the name says what happened
       // rather than inventing something that was never the task's name.
-      push("task", "(deleted task)", b.taskId, "purged", b.ms);
+      push("task", t("export_task_deleted"), b.taskId, "purged", b.ms);
     });
     // Untasked focus is real and the engine records it in the total and in
     // byDomain but never in byTask - its own comment says so. Emitting it as a
     // row is what makes the task rows sum to the range total exactly.
     var untaskedMs = Math.max(0, ctx.totalMs - taskedMs);
-    if (untaskedMs > 0) push("task", "(no task)", "", "none", untaskedMs);
+    if (untaskedMs > 0) push("task", t("export_task_none"), "", "none", untaskedMs);
 
     // ---- goals ------------------------------------------------------------
     // No byGoalForScope reader exists; a goal total is task time grouped by the
@@ -3318,16 +3323,16 @@
       byGoal[gid] = (byGoal[gid] || 0) + b.ms;
     });
     Object.keys(byGoal).forEach(function (gid) {
-      if (!gid) { push("goal", "(no goal)", "", "none", byGoal[gid]); return; }
+      if (!gid) { push("goal", t("export_goal_none"), "", "none", byGoal[gid]); return; }
       var ws = Storage.getActiveWorkspace(ctx.d);
       var goal = ws && Storage.getGoalById ? Storage.getGoalById(ws, gid) : null;
       var raw = (!goal && ws && Array.isArray(ws.goals))
         ? ws.goals.find(function (g) { return g.id === gid; }) : null;
       if (goal) push("goal", goal.name, gid, "active", byGoal[gid]);
       else if (raw) push("goal", raw.name, gid, "trashed", byGoal[gid]);
-      else push("goal", "(deleted goal)", gid, "purged", byGoal[gid]);
+      else push("goal", t("export_goal_deleted"), gid, "purged", byGoal[gid]);
     });
-    if (unknownGoalMs > 0) push("goal", "(goal unknown - task purged)", "", "purged", unknownGoalMs);
+    if (unknownGoalMs > 0) push("goal", t("export_goal_unknown"), "", "purged", unknownGoalMs);
     // THE GOAL DIMENSION SAYS THIS IN ITS OWN VOICE. It read "(no task)" until
     // 2026-09-09 - the TASK dimension's label, borrowed verbatim, which is how it
     // reached a live export as: goal,(no task),,none,2134763. The tag dimension
@@ -3345,7 +3350,7 @@
     // It leads with the goal noun like both siblings, names the cause after the
     // dash exactly as "(goal unknown - task purged)" does, and reuses no other
     // dimension's wording.
-    if (untaskedMs > 0) push("goal", "(no goal - untasked)", "", "none", untaskedMs);
+    if (untaskedMs > 0) push("goal", t("export_goal_untasked"), "", "none", untaskedMs);
 
     // ---- tags -------------------------------------------------------------
     var tagTotal = 0;
@@ -3357,12 +3362,12 @@
         ? ws.tags.find(function (t) { return t.id === b.tagId; }) : null;
       if (tag) push("tag", tag.name, b.tagId, "active", b.ms);
       else if (raw) push("tag", raw.name, b.tagId, "trashed", b.ms);
-      else push("tag", "(deleted tag)", b.tagId, "purged", b.ms);
+      else push("tag", t("export_tag_deleted"), b.tagId, "purged", b.ms);
     });
     // Derived exactly as the board's donut derives it, clamp included, so the
     // file and the screen cannot disagree. The clamp is why tags carry a note.
     var untaggedMs = Math.max(0, ctx.totalMs - tagTotal);
-    if (untaggedMs > 0) push("tag", "(untagged)", "", "none", untaggedMs);
+    if (untaggedMs > 0) push("tag", t("export_tag_untagged"), "", "none", untaggedMs);
 
     // ---- domains ----------------------------------------------------------
     // Every session carries a domain, so these sum to the total with no
@@ -3404,7 +3409,7 @@
 
     var rows = insightsExportRows({
       d: d, keys: keys, rangeLabel: rangeLabel,
-      scopeLabel: (scope.mode === "combined") ? "all workspaces" :
+      scopeLabel: (scope.mode === "combined") ? t("export_scope_all_workspaces") :
         ((Storage.getActiveWorkspace(d) || {}).name || "workspace"),
       totalMs: totalMs, byTag: res[1], byTask: res[2], byDomain: res[3]
     });
@@ -3484,9 +3489,9 @@
       // Em-dash form, matching the visible card title exactly rather than a
       // second phrasing: "over the " + label reads as "over the today" for the
       // one-day preset, and a screen-reader string is copy like any other.
-      insightsBarChartSvg(hours, todayIdx, "Deep work, " + rangeLabelNow,
+      insightsBarChartSvg(hours, todayIdx, t("insights_deep_work_caption", { range: rangeLabelNow }),
         fmtShortDate(insightsKeyToTs(keys[0])),
-        endsToday ? "today" : fmtShortDate(insightsKeyToTs(keys[keys.length - 1]))));
+        endsToday ? t("insights_today") : fmtShortDate(insightsKeyToTs(keys[keys.length - 1]))));
     // [1.8.3] The weekly card is INDEPENDENT OF THE RANGE SELECTOR - it always
     // describes this week against last, whatever window the rest of the board
     // is showing. That is deliberate: "this week vs last" is a fixed question,
@@ -3585,7 +3590,7 @@
       // disagree are one.
       { num: fmtDurationHM(scopeTotalMs), label: rangeLabel },
       { num: bestMs > 0 ? fmtDurationHM(bestMs) : "—",
-        label: bestMs > 0 ? ("best day · " + escapeHtml(fmtShortDate(insightsKeyToTs(bestKey)))) : "best day" },
+        label: bestMs > 0 ? th("insights_best_day_on", { date: fmtShortDate(insightsKeyToTs(bestKey)) }) : th("insights_preview_best_day") },
       { num: fmtDurationHM(avgMs), label: t("insights_daily_avg") }
     ];
     // [1.8.1] THE SAME THREE FIGURES, RE-TIERED. items[0] is the period total
@@ -3656,8 +3661,8 @@
 
     var untaggedMs = Math.max(0, scopeTotalMs - tagTotalMs);
     var ordered = slices.slice();
-    if (deletedMs > 0) ordered.push({ color: INSIGHTS_DELETED_TAG_COLOR, name: "Deleted tags", ms: deletedMs });
-    if (untaggedMs > 0) ordered.push({ color: INSIGHTS_UNTAGGED_COLOR, name: "Untagged", ms: untaggedMs });
+    if (deletedMs > 0) ordered.push({ color: INSIGHTS_DELETED_TAG_COLOR, name: t("insights_deleted_tags"), ms: deletedMs });
+    if (untaggedMs > 0) ordered.push({ color: INSIGHTS_UNTAGGED_COLOR, name: t("insights_untagged"), ms: untaggedMs });
 
     if (scopeTotalMs <= 0 || ordered.length === 0) {
       return '<div class="insights-empty">' + th("insights_no_focus_time_in_range", { range: rangeLabel }) + '</div>';
@@ -3667,7 +3672,7 @@
     var donutSvg = insightsDonutSvg(
       ordered.map(function (s) { return { color: s.color, value: s.ms }; }),
       fmtDurationHM(drawnTotalMs),
-      "Time by tag, " + rangeLabel
+      t("insights_tag_caption", { range: rangeLabel })
     );
     var legend = insightsDonutLegend(
       ordered.map(function (s) { return { color: s.color, name: s.name, valueText: fmtDurationHM(s.ms) }; })
@@ -3833,12 +3838,23 @@
   // The demo corpus for the free preview. Deliberately shaped like real notes so
   // it flows through the SAME renderer: preview is the promise, and the only
   // difference from a Pro render is where the array came from.
+  // A DEMO NOTE IS THE SAME SHAPE AS A REAL ONE, and that is the point: the
+  // preview flows through noteCardHtml exactly as the user's own notes do. So
+  // the demo array carries a contentKey and this resolves it into an ordinary
+  // note just before rendering, rather than teaching the shared renderer about
+  // a key it would only ever see from one caller. Resolved per render, so a
+  // locale switch moves it - which a t() inside the array below would not.
+  function resolveDemoNote(n) {
+    return { id: n.id, content: t(n.contentKey), color: n.color,
+             rotation: n.rotation, deletedAt: n.deletedAt };
+  }
+
   var NOTES_DEMO = [
-    { id: "demo1", content: "Call the studio back about the October shoot.", color: "butter-yellow", rotation: -1.4, deletedAt: null },
-    { id: "demo2", content: "Groceries: oat milk, coffee, the good bread.", color: "mint", rotation: 1.1, deletedAt: null },
-    { id: "demo3", content: "Idea: a weekly review ritual on Friday afternoons.", color: "soft-pink", rotation: -0.6, deletedAt: null },
-    { id: "demo4", content: "Book flights before prices climb again.", color: "sky-blue", rotation: 1.8, deletedAt: null },
-    { id: "demo5", content: "Read the piece on deep work that Sam sent.", color: "cream", rotation: -1.9, deletedAt: null }
+    { id: "demo1", contentKey: "demo_note_studio", color: "butter-yellow", rotation: -1.4, deletedAt: null },
+    { id: "demo2", contentKey: "demo_note_groceries", color: "mint", rotation: 1.1, deletedAt: null },
+    { id: "demo3", contentKey: "demo_note_review_ritual", color: "soft-pink", rotation: -0.6, deletedAt: null },
+    { id: "demo4", contentKey: "demo_note_flights", color: "sky-blue", rotation: 1.8, deletedAt: null },
+    { id: "demo5", contentKey: "demo_note_deep_work", color: "cream", rotation: -1.9, deletedAt: null }
   ];
 
   // [1.1.4] Content-derived accessible name, single-line and bounded. A screen
@@ -4424,7 +4440,7 @@
     return '<aside class="notes-panel notes-panel-preview" aria-label="' + th("notes_notes_preview") + '">' +
         '<div class="notes-panel-title">' + th("notes_notes_2") + '</div>' +
         '<div class="notes-stack">' +
-          NOTES_DEMO.map(function (n) { return noteCardHtml(n, { preview: true }); }).join("") +
+          NOTES_DEMO.map(function (n) { return noteCardHtml(resolveDemoNote(n), { preview: true }); }).join("") +
         '</div>' +
       '</aside>';
   }
@@ -4817,7 +4833,7 @@
   // field is empty and immediately invalid.
   function promoteGoalName(content) {
     var first = String(content || "").split("\n")[0].trim();
-    return first || "New goal";
+    return first || t("modal_title_new_goal");
   }
 
   // Rendered ONLY for a promote, so the ordinary New Task / New Goal modals are
@@ -5525,7 +5541,7 @@
     var p = task.priority || null;
     var cls = "tt-prio-pill " + (p ? taskPriorityClass(p) : "tt-prio-none");
     var label = p ? PRIORITY_LABELS[p] : "";
-    var aria = p ? ("Priority: " + label + ". Click to change") : "Set priority";
+    var aria = p ? t("task_priority_set_aria", { priority: label }) : t("task_priority_unset_aria");
     return '<button type="button" class="' + cls + '" data-task-id="' + escapeHtml(task.id) +
       '" data-priority="' + (p || "") + '" aria-label="' + escapeHtml(aria) + '" title="' + escapeHtml(aria) + '">' +
       '<span class="tt-prio-flag" aria-hidden="true">⚑</span>' +
@@ -5544,7 +5560,7 @@
     var cls = "tt-due-pill" + (has ? "" : " tt-due-none");
     var label = has ? fmtShortDateUTC(task.dueAt) : "";
     var ymd = has ? ymdFromTs(task.dueAt) : "";
-    var aria = has ? ("Due " + label + ". Click to change") : "Add date";
+    var aria = has ? t("task_due_set_aria", { date: label }) : t("due_add_date");
     return '<button type="button" class="' + cls + '" data-task-id="' + escapeHtml(task.id) +
       '" data-due="' + escapeHtml(ymd) + '" aria-label="' + escapeHtml(aria) + '" title="' + escapeHtml(aria) + '">' +
       // [2.0 ink] Was the U+1F5D3 emoji, and it was the one finding in this round
@@ -5634,11 +5650,11 @@
 
   function priorityFilterLabel() {
     var n = taskFilterState.priorities.length;
-    return n ? "Priority (" + n + ")" : "Priority";
+    return n ? t("task_filter_priority_n", { count: n }) : t("task_priority");
   }
   function tagFilterLabel() {
     var n = taskFilterState.tagIds.length;
-    return n ? "Tag (" + n + ")" : "Tag";
+    return n ? t("task_filter_tag_n", { count: n }) : t("tasks_tag");
   }
   function tasksSelectedAttr(a, b) { return a === b ? " selected" : ""; }
 
@@ -5744,8 +5760,8 @@
     var activeCls = isActiveTask ? " is-active-task" : "";
     var rowPaused = isActiveTask && Storage.isTrackingPaused(data);
     var playAct = !isActiveTask ? "activate" : (rowPaused ? "resume" : "pause");
-    var playTitle = playAct === "activate" ? "Start task"
-      : (playAct === "pause" ? "Pause tracking" : "Resume tracking");
+    var playTitle = playAct === "activate" ? t("task_play_start")
+      : (playAct === "pause" ? t("sat_pause_tracking") : t("sat_resume_tracking"));
     var playGlyph = playAct === "activate" ? "▷" : (playAct === "pause" ? "⏸" : "▶");
     var playHtml = '<button type="button" class="tt-task-play' + (rowPaused ? ' is-paused' : '') +
       '" data-task-id="' + escapeHtml(task.id) + '" data-play-act="' + playAct +
@@ -5895,7 +5911,7 @@
       var ms = byId[id] || 0;
       if (!(ms > 0)) { slot.innerHTML = ""; return; }
       var txt = fmtDurationHM(ms);
-      var tip = txt + " tracked in the last " + days + " days";
+      var tip = t("task_tracked_in_last_days", { duration: txt, count: days });
       var life = lifeById[id];
       if (life) tip += "\n" + satLifetimeText(life.ms, life.since);
       slot.innerHTML = '<span class="tt-time-chip" title="' +
@@ -6146,12 +6162,12 @@
     var DOW_LABELS = shortDayNames();
     var hint = "";
     if (template.frequency === "daily") {
-      hint = "Daily at " + (template.timeOfDay || "09:00");
+      hint = t("recur_hint_daily", { time: template.timeOfDay || "09:00" });
     } else if (template.frequency === "weekly") {
       var days = (template.daysOfWeek || []).map(function (d) { return DOW_LABELS[d] || ""; }).filter(Boolean);
-      hint = "Weekly on " + (days.join(", ") || "—") + " at " + (template.timeOfDay || "09:00");
+      hint = t("recur_hint_weekly", { days: days.join(", ") || "—", time: template.timeOfDay || "09:00" });
     } else if (template.frequency === "monthly") {
-      hint = "Monthly on day " + (template.dayOfMonth || "—") + " at " + (template.timeOfDay || "09:00");
+      hint = t("recur_hint_monthly", { day: template.dayOfMonth || "—", time: template.timeOfDay || "09:00" });
     }
     var pausedBadge = template.isActive ? "" : '<span class="tt-recurring-paused">' + th("recurring_paused") + '</span>';
     var tagHtml = "";
@@ -8000,7 +8016,7 @@
     }
 
     openTasksModal({
-      title: isEdit ? "Edit goal" : "New goal",
+      title: isEdit ? t("modal_title_edit_goal") : t("modal_title_new_goal"),
       primaryLabel: isEdit ? "Save" : "Create",
       bodyHtml:
         '<div class="tt-modal-row">' +
@@ -8082,13 +8098,13 @@
         var errorEl = overlay.querySelector(".tt-modal-error");
         var name = (nameInput.value || "").trim();
         if (!name) {
-          showModalError(errorEl, "Name is required.");
+          showModalError(errorEl, t("modal_name_required"));
           nameInput.focus();
           return false;
         }
         var deadlineAt = parseDateInputToTs(deadlineInput.value);
         if (deadlineInput.value && deadlineAt === null) {
-          showModalError(errorEl, "Deadline is not a valid date.");
+          showModalError(errorEl, t("modal_deadline_invalid"));
           return false;
         }
         if (isEdit) {
@@ -8103,12 +8119,12 @@
           if (deadlineAt !== existingGoal.deadlineAt) {
             var dl = Storage.checkGoalDeadlineConflict(data, existingGoal.id, deadlineAt);
             if (dl.blocked) {
-              showModalError(errorEl, dl.blockingTaskName + " is due " + fmtShortDateUTC(dl.blockingDueAt) + ", so the goal deadline can't be earlier. Update the task first or pick a later deadline.");
+              showModalError(errorEl, t("modal_goal_deadline_before_task", { task: dl.blockingTaskName, date: fmtShortDateUTC(dl.blockingDueAt) }));
               return false;
             }
           }
           var renamed = await Storage.renameGoal(data, existingGoal.id, name);
-          if (!renamed) { showModalError(errorEl, "Could not rename goal."); return false; }
+          if (!renamed) { showModalError(errorEl, t("modal_goal_rename_failed")); return false; }
           await Storage.updateGoalDeadline(data, existingGoal.id, deadlineAt);
           await Storage.updateGoalDescription(data, existingGoal.id, description);
         } else {
@@ -8125,7 +8141,7 @@
               deadlineAt: deadlineAt,
               autoCreateTag: !!(autoTagInput && autoTagInput.checked)
             });
-            if (!inst) { showModalError(errorEl, "Could not create goal from template."); return false; }
+            if (!inst) { showModalError(errorEl, t("modal_goal_from_template_failed")); return false; }
             // instantiateGoalTemplate takes the template's own description, so an
             // edited/promoted one is applied after the fact rather than lost.
             var instGoal = inst && inst.goal ? inst.goal : inst;
@@ -8135,7 +8151,7 @@
           } else {
             var fields = { name: name, description: description, deadlineAt: deadlineAt, autoCreateTag: !!(autoTagInput && autoTagInput.checked) };
             var created = await Storage.createGoal(data, fields);
-            if (!created) { showModalError(errorEl, "Could not create goal."); return false; }
+            if (!created) { showModalError(errorEl, t("modal_goal_create_failed")); return false; }
           }
         }
         // Same ordering contract as the task modal: only after a creation that
@@ -8215,13 +8231,13 @@
         var errorEl = overlay.querySelector(".tt-modal-error");
         var name = (nameInput.value || "").trim();
         if (!name) {
-          showModalError(errorEl, "Name is required.");
+          showModalError(errorEl, t("modal_name_required"));
           nameInput.focus();
           return false;
         }
         var dueAt = parseDateInputToTs(dueInput.value);
         if (dueInput.value && dueAt === null) {
-          showModalError(errorEl, "Due date is not a valid date.");
+          showModalError(errorEl, t("modal_due_date_invalid"));
           return false;
         }
         var priority = priorityInput.value || null;
@@ -8231,7 +8247,7 @@
         // Standalone — explicit goalId: null per PLAN.
         fields.goalId = null;
         var created = await Storage.createTask(data, fields);
-        if (!created) { showModalError(errorEl, "Could not create task."); return false; }
+        if (!created) { showModalError(errorEl, t("modal_task_create_failed")); return false; }
         // ORDER IS THE CONTRACT: the note is only ever deleted AFTER a creation
         // that actually succeeded. The early return above is what makes a failed
         // promote leave the note alone.
@@ -8292,7 +8308,7 @@
     }
 
     openTasksModal({
-      title: isEdit ? "Edit recurring task" : "New recurring task",
+      title: isEdit ? t("modal_title_edit_recurring") : t("modal_title_new_recurring"),
       primaryLabel: isEdit ? "Save" : "Create",
       bodyHtml:
         '<div class="tt-modal-row">' +
@@ -8347,7 +8363,7 @@
         var errorEl = overlay.querySelector(".tt-modal-error");
         var name = (nameInput.value || "").trim();
         if (!name) {
-          showModalError(errorEl, "Name is required.");
+          showModalError(errorEl, t("modal_name_required"));
           nameInput.focus();
           return false;
         }
@@ -8362,7 +8378,7 @@
         if (frequency === "weekly") {
           var checked = [].slice.call(overlay.querySelectorAll(".tt-recur-dow:checked"));
           if (checked.length === 0) {
-            showModalError(errorEl, "Pick at least one day of the week.");
+            showModalError(errorEl, t("modal_pick_a_weekday"));
             return false;
           }
           fields.daysOfWeek = checked.map(function (cb) { return parseInt(cb.value, 10); });
@@ -8370,7 +8386,7 @@
           var domInput = overlay.querySelector(".tt-recur-dom-input");
           var dom = parseInt(domInput.value, 10);
           if (!dom || dom < 1 || dom > 31) {
-            showModalError(errorEl, "Day of month must be between 1 and 31.");
+            showModalError(errorEl, t("modal_day_of_month_range"));
             return false;
           }
           fields.dayOfMonth = dom;
@@ -8398,7 +8414,7 @@
         }
         if (!result || (result && result.err)) {
           showModalError(errorEl, (result && result.message) ||
-            (isEdit ? "Could not save recurring task." : "Could not create recurring task."));
+            (isEdit ? t("modal_recurring_save_failed") : t("modal_recurring_create_failed")));
           return false;
         }
         var panel = document.getElementById("tab-tasks");
@@ -8546,7 +8562,7 @@
     var reopen = function () { setTimeout(openTemplatesPanel, 0); };
 
     openTasksModal({
-      title: isEdit ? "Edit template" : "New template",
+      title: isEdit ? t("modal_title_edit_template") : t("modal_title_new_template"),
       primaryLabel: isEdit ? "Save" : "Create",
       bodyHtml:
         '<div class="tt-modal-row">' +
@@ -8594,13 +8610,13 @@
       onPrimary: async function (overlay) {
         var errorEl = overlay.querySelector(".tt-modal-error");
         var name = (overlay.querySelector(".tt-tpl-name-input").value || "").trim();
-        if (!name) { showModalError(errorEl, "Name is required."); return false; }
+        if (!name) { showModalError(errorEl, t("modal_name_required")); return false; }
         var description = overlay.querySelector(".tt-tpl-desc-input").value || "";
         var offsetRaw = overlay.querySelector(".tt-tpl-offset-input").value;
         var offset = null;
         if (offsetRaw !== "" && offsetRaw != null) {
           var parsed = parseInt(offsetRaw, 10);
-          if (isNaN(parsed) || parsed < 0) { showModalError(errorEl, "Deadline days must be 0 or more (blank for none)."); return false; }
+          if (isNaN(parsed) || parsed < 0) { showModalError(errorEl, t("modal_template_deadline_days")); return false; }
           offset = parsed;
         }
         var taskList = [].slice.call(overlay.querySelectorAll(".tt-tpl-task-row")).map(function (row) {
@@ -8623,7 +8639,7 @@
             name: name, description: description, deadlineOffsetDays: offset, taskList: taskList
           });
         }
-        if (!result) { showModalError(errorEl, "Could not save template."); return false; }
+        if (!result) { showModalError(errorEl, t("modal_template_save_failed")); return false; }
         reopen();
       },
       onCancel: reopen
@@ -8771,7 +8787,7 @@
           console.error("[LaunchPad] Tasks tab: delete recurring template failed", err2);
         }
         if (panel) renderTasksTab(panel, data);
-        showToast("Recurring task deleted, existing instances kept");
+        showToast(t("task_recurring_deleted_toast"));
       }
     });
 
@@ -8921,7 +8937,7 @@
     var workspace = Storage.getActiveWorkspace(data);
     var task = workspace && Storage.getTaskById(workspace, taskId);
     if (!task) return;
-    var completeLabel = task.completed ? "Reactivate" : "Mark complete";
+    var completeLabel = task.completed ? t("completed_reactivate") : t("task_mark_complete");
     // [1.0.16] Entry point (3). Directly under the entity header — it is the
     // primary verb for an open task. Suppressed on a completed task (nothing to
     // focus on) and on the already-active one (setActiveTask is idempotent, but
@@ -9183,7 +9199,7 @@
   function openTaskDueConflictModal(taskId, conflict) {
     var taskDateStr = fmtShortDateUTC(conflict.candidateDueAt);
     var goalDateStr = fmtShortDateUTC(conflict.goalDeadlineAt);
-    var goalName = conflict.goalName || "the goal";
+    var goalName = conflict.goalName || t("goal_conflict_fallback_name");
     openTasksModal({
       title: t("task_due_date_after_goal_deadline"),
       bodyHtml: '<p class="tt-modal-message">' +
@@ -9202,7 +9218,7 @@
         rerenderTasksPanel();
       },
       extraButtons: [{
-        label: "Keep goal deadline, set task to " + goalDateStr,
+        label: t("goal_conflict_keep_deadline", { date: goalDateStr }),
         onClick: async function () {
           try {
             await Storage.updateTaskDueAt(data, taskId, conflict.goalDeadlineAt);
@@ -10028,7 +10044,7 @@
     if (level === "trialing") {
       return {
         title: trialPopoverHeadline(ProAccess.trialDaysRemaining(d)),
-        subhead: "Keep your focus going. Upgrade any time, and everything you've set up stays."
+        subhead: t("upgrade_sheet_subhead_trial_used")
       };
     }
 
@@ -10038,9 +10054,9 @@
     // promise with no button under it — fall back to the upgrade title.
     return {
       title: (trialUsed || !trialCtaLive())
-        ? "Upgrade to LaunchPad Pro"
-        : "Try LaunchPad Pro free for 7 days",
-      subhead: "Workspaces, tasks, time tracking, and more."
+        ? t("upgrade_sheet_title_upgrade")
+        : t("upgrade_sheet_title_try"),
+      subhead: t("upgrade_sheet_subhead_new")
     };
   }
 
@@ -10199,12 +10215,12 @@
       var key = (input.value || "").trim();
       clearLicenseError();
       if (!key) {
-        showLicenseError("Enter a license key.");
+        showLicenseError(t("license_error_enter_key"));
         input.focus();
         return;
       }
       if (typeof LicenseClient === "undefined") {
-        showLicenseError("License module unavailable. Reload the page and try again.");
+        showLicenseError(t("license_error_module_missing"));
         return;
       }
       input.disabled = true;
@@ -10240,12 +10256,12 @@
           showToast(t("apply_license_applied_pro_features_now_active"));
         } else {
           if (snapshot) Object.assign(data.pro, snapshot);
-          var msg = (result && result.message) || "Could not validate license.";
+          var msg = (result && result.message) || t("license_error_validate_failed");
           showLicenseError(msg);
         }
       } catch (err) {
         if (snapshot) Object.assign(data.pro, snapshot);
-        showLicenseError((err && err.message) || "Unexpected error validating license.");
+        showLicenseError((err && err.message) || t("license_error_unexpected"));
       } finally {
         input.disabled = false;
         applyBtn.disabled = false;
@@ -11072,10 +11088,10 @@
   }
 
   function planLabelForLevel(level) {
-    if (level === "trialing") return "Plan: Trial";
-    if (level === "active") return "Plan: Pro";
-    if (level === "grace") return "Plan: Pro (grace)";
-    return "Plan: Free";
+    if (level === "trialing") return t("plan_line_trial");
+    if (level === "active") return t("plan_line_pro");
+    if (level === "grace") return t("plan_line_grace");
+    return t("plan_line_free");
   }
 
   function renderProSubscriptionSection() {
@@ -11248,7 +11264,7 @@
         var color = workspaceColorForIndex(idx);
         var isLast = workspaces.length === 1;
         var deleteCls = "pws-delete" + (isLast ? " is-disabled" : "");
-        var deleteTitle = isLast ? "You need at least one workspace." : "Delete workspace";
+        var deleteTitle = isLast ? t("ws_delete_blocked_last") : t("pro_delete_workspace");
         var roCls = ws.isReadOnly ? " is-readonly" : "";
         // [1.0.25] Per-workspace tracking toggle. Default ON for every
         // workspace including Main (spec, Workspace Scoping).
@@ -11942,7 +11958,7 @@
       return;
     }
     if (!res || !res.ok) {
-      showFocusBlockError((res && res.message) || "Could not add that site.");
+      showFocusBlockError((res && res.message) || t("focusblock_add_failed"));
       return;
     }
     input.value = "";
@@ -12083,8 +12099,8 @@
       subtitle.textContent = "";
       if (tags.length > 0) {
         subtitle.appendChild(document.createTextNode(
-          activeCount + " active tag" + (activeCount === 1 ? "" : "s") +
-          (archivedCount > 0 ? " · " + archivedCount + " in trash" : "")
+          t("tags_active_count", { count: activeCount }) +
+          (archivedCount > 0 ? " " + t("tags_in_trash_suffix", { count: archivedCount }) : "")
         ));
         // The counter line doubles as the disclosure. Built as a real element
         // rather than innerHTML so no tag data is ever re-serialised here.
@@ -12858,8 +12874,8 @@
         '<div class="badge-splash-glow" aria-hidden="true"></div>' +
         '<div class="badge-splash-icon">' + renderBadgeGlyph(meta.glyph) + '</div>' +
         '<div class="badge-splash-eyebrow">' + th("badge_achievement_unlocked") + '</div>' +
-        '<div class="badge-splash-title">' + escapeHtml(meta.title) + '</div>' +
-        '<div class="badge-splash-desc">' + escapeHtml(meta.desc) + '</div>' +
+        '<div class="badge-splash-title">' + th(meta.titleKey) + '</div>' +
+        '<div class="badge-splash-desc">' + th(meta.descKey) + '</div>' +
       '</div>';
 
     var timer = null;
@@ -12910,10 +12926,10 @@
   }
 
   var PRO_TOUR_STEPS = [
-    { sel: '.tab[data-tab="tasks"]',     text: "Plan it: tasks, goals, and recurring work live here." },
-    { sel: '.tab[data-tab="dashboard"]', text: "See your focused time add up across every workspace." },
-    { sel: '.tab[data-tab="insights"]',  text: "Deep work, tags, sites, top tasks. Measured automatically." },
-    { sel: '#active-task-pill',          text: "Start a focus session here; blocking arms itself while you work." }
+    { sel: '.tab[data-tab="tasks"]',     textKey: "tour_tasks" },
+    { sel: '.tab[data-tab="dashboard"]', textKey: "tour_dashboard" },
+    { sel: '.tab[data-tab="insights"]',  textKey: "tour_insights" },
+    { sel: '#active-task-pill',          textKey: "tour_active_task" }
   ];
 
   function prefersReducedMotion() {
@@ -13160,7 +13176,7 @@
     clearProTourRing();
     proTourState.mark.innerHTML =
       '<div class="pro-tour-arrow" aria-hidden="true"></div>' +
-      '<div class="pro-tour-text">' + escapeHtml(step.text) + '</div>' +
+      '<div class="pro-tour-text">' + th(step.textKey) + '</div>' +
       '<div class="pro-tour-foot">' +
         '<span class="pro-tour-count">' + (proTourState.index + 1) + ' of ' + PRO_TOUR_STEPS.length + '</span>' +
         '<span class="pro-tour-btns">' +
@@ -13429,7 +13445,7 @@
         if (callback) callback();
         return;
       }
-      topSitesWs.groups.push({ id: groupId, name: "Top Sites", shortcuts: shortcuts, deletedAt: null });
+      topSitesWs.groups.push({ id: groupId, name: t("topsites_group_name"), shortcuts: shortcuts, deletedAt: null });
       topSitesWs.groupOrder.push(groupId);
       Storage.saveAll(data).then(function () {
         render();
@@ -16694,12 +16710,12 @@
       return { ok: false, status: "corrupt-store", store: "tracking_days", schema: isV2 ? 2 : 1 };
     }
 
-    var present = ["shortcuts, groups and settings"];
+    var present = [t("backup_contains_core")];
     if (stores.launchpad_background !== undefined && stores.launchpad_background !== null) {
       present.push("wallpaper");
     }
-    if (stores.data && stores.data.pro && stores.data.pro.licenseKey) present.push("license key");
-    if (stores.tracking_sessions || stores.tracking_days) present.push("tracked focus history");
+    if (stores.data && stores.data.pro && stores.data.pro.licenseKey) present.push(t("backup_contains_license"));
+    if (stores.tracking_sessions || stores.tracking_days) present.push(t("backup_contains_tracking"));
 
     return { ok: true, status: "ok", schema: isV2 ? 2 : 1, stores: stores, present: present };
   }
@@ -16711,12 +16727,12 @@
   function backupConfirmMessage(parsed, dateStr) {
     var list = parsed.present.join(", ");
     if (parsed.schema >= 2) {
-      return "This backup from " + dateStr + " contains: " + list + ". " +
-        "Importing replaces all of it. Your current data is saved as a recovery backup first. Continue?";
+      return t("backup_restore_confirm", { date: dateStr, list: list });
+        
     }
-    return "This is an older backup format from " + dateStr + ". " +
-      "It contains: " + list + ". Everything else, including your tracked focus history, " +
-      "is left exactly as it is. Your current data is saved as a recovery backup first. Continue?";
+    return t("backup_restore_confirm_legacy", { date: dateStr, list: list });
+      
+      
   }
 
   // ---- license on the way back in -------------------------------------------
@@ -16775,7 +16791,7 @@
         return;
       }
 
-      var dateStr = "an unknown date";
+      var dateStr = t("backup_unknown_date");
       if (envelope.exportedAt) {
         try { dateStr = new Date(envelope.exportedAt).toLocaleDateString(); } catch (e) {}
       }
@@ -17014,7 +17030,7 @@
       var counts = {};
       richest.forEach(function (v) { counts[v] = (counts[v] || 0) + 1; });
       idx.forEach(function (i, n) {
-        out[i] = counts[richest[n]] > 1 ? "same address" : variantClean(richest[n]);
+        out[i] = counts[richest[n]] > 1 ? t("variant_same_address") : variantClean(richest[n]);
       });
     });
 
@@ -18069,7 +18085,7 @@
     // the session-done card — has no other home for the count, so it keeps
     // leading with it, and those surfaces are unchanged by the swap.
     if (leadWithCount === false) return "since " + since;
-    return "Active " + (countText != null ? countText : satStopwatchText()) + " · since " + since;
+    return t("sat_active_since", { duration: countText != null ? countText : satStopwatchText(), since: since });
   }
 
   // The since-line markup. Rendered on every card branch that carries a time
@@ -18141,6 +18157,11 @@
   //
   // Reduced motion drops the animation only — the dot and the words are
   // unchanged, so no information lives in the movement.
+  // THE KEY, NOT THE SENTENCE. This line runs once at load, so holding the
+  // resolved English here would freeze the tooltip at whichever locale was
+  // active then; the use sites resolve it per render instead.
+  var SAT_LIVE_TITLE = "sat_title_ready";
+
   function satTrackingIndicatorHtml(paused) {
     if (paused) return "";
     var res = Storage.resolveActiveTask(data);
@@ -18148,7 +18169,7 @@
     if (!Storage.isTrackingEnabled(res.workspace)) return "";
     var live = satReadout.taskId === res.task.id && satReadout.openSince != null;
     var label = live ? "Tracking" : "Ready";
-    var title = live ? "Recording time for this task right now." : SAT_LIVE_TITLE;
+    var title = live ? t("sat_title_recording") : t(SAT_LIVE_TITLE);
     return '<span class="sat-live' + (live ? " is-live" : "") + '" title="' + escapeHtml(title) + '">' +
         '<span class="sat-live-dot" aria-hidden="true"></span>' +
         '<span class="sat-live-word">' + escapeHtml(label) + '</span>' +
@@ -18212,7 +18233,6 @@
     return anchor ? head + " since " + anchor : head;
   }
 
-  var SAT_LIFETIME_TITLE = "Total focused time recorded for this task, kept beyond the day aggregates it came from";
 
   // [2.1.1] THE LINE APPEARS ONLY WHEN IT CAN SAY SOMETHING THE WINDOW CANNOT.
   //
@@ -18241,6 +18261,11 @@
     return (Date.now() - since) >= satWindowDays() * SAT_DAY_MS;
   }
 
+  // THE KEY, NOT THE SENTENCE. This line runs once at load, so holding the
+  // resolved English here would freeze the tooltip at whichever locale was
+  // active then; the use sites resolve it per render instead.
+  var SAT_LIFETIME_TITLE = "sat_title_lifetime";
+
   function satLifetimeLineHtml() {
     var res = Storage.resolveActiveTask(data);
     if (!res || res.stale || !res.task) return "";
@@ -18248,7 +18273,7 @@
     var ms = satLifetime.ms;
     if (!(ms > 0)) return "";
     if (!satLifetimeIsInformative(satLifetime.since)) return "";
-    return '<div class="sat-lifetime" title="' + escapeHtml(SAT_LIFETIME_TITLE) + '">' +
+    return '<div class="sat-lifetime" title="' + th(SAT_LIFETIME_TITLE) + '">' +
         escapeHtml(satLifetimeText(ms, satLifetime.since)) +
       '</div>';
   }
@@ -18256,7 +18281,7 @@
   function satWindowLineHtml() {
     var ms = satTaskWindow.taskId && satTaskWindow.ms > 0 ? satTaskWindow.ms : 0;
     if (!ms) return "";
-    var txt = fmtDurationHM(ms) + " · last " + satWindowDays() + " days";
+    var txt = t("sat_last_days", { duration: fmtDurationHM(ms), count: satWindowDays() });
     return '<div class="sat-window" title="' +
       th("sat_window_tracked_time_title", { days: satWindowDays() }) + '">' +
       escapeHtml(txt) + '</div>';
@@ -18309,9 +18334,14 @@
   // with the amber treatment. Focused today keeps its own label below rather
   // than becoming a second "PAUSED" on the same card — both numbers are frozen
   // and both are tinted, so the state is unmistakable without saying it twice.
+  // THE KEY, NOT THE SENTENCE. This line runs once at load, so holding the
+  // resolved English here would freeze the tooltip at whichever locale was
+  // active then; the use sites resolve it per render instead.
+  var SAT_ACTIVE_TITLE = "sat_title_active";
+
   function satIdleHeadlineHtml(paused) {
     return '<div class="sat-hero-time">' + escapeHtml(satStopwatchText()) + '</div>' +
-      '<div class="sat-hero-label" title="' + escapeHtml(SAT_ACTIVE_TITLE) + '">' +
+      '<div class="sat-hero-label" title="' + th(SAT_ACTIVE_TITLE) + '">' +
         (paused ? th("sat_paused") : th("sat_active")) +
       '</div>' +
       // The stamp alone: the count it used to lead with is the headline above.
@@ -18768,12 +18798,10 @@
   // [2.0] Reworded with the word ("Active" -> "Ready"). A tooltip left behind
   // explaining a label that no longer exists is how a rename becomes a second
   // vocabulary; the register is unchanged — a full sentence, plain, no jargon.
-  var SAT_LIVE_TITLE = "Ready. Time records as soon as you browse a site. This page is not tracked, so the number holds here.";
 
   // [2.0] The stopwatch's own sentence. It says the quiet part out loud: this is
   // a wall-clock, not the engine's measurement, and the two are different numbers
   // about different things.
-  var SAT_ACTIVE_TITLE = "Wall-clock since you activated this task, pauses excluded. Not measured browsing time.";
 
   // [2.0] THE ACTIVATION STOPWATCH — time since this task was activated, pauses
   // excluded. ONE number, ONE regime, and it always counts.
@@ -18846,7 +18874,7 @@
       work: !!(pomo && pomo.phase === "work"),
       text: countText != null ? countText : satStopwatchText(),
       unit: "active",
-      title: SAT_ACTIVE_TITLE
+      title: t(SAT_ACTIVE_TITLE)
     };
   }
 
@@ -18869,7 +18897,6 @@
   // outright so the two readouts sitting inches apart cannot be confused —
   // "active, pauses excluded" versus the windowed chip's "tracked in the last N
   // days". Never blended, never summed.
-  var SAT_WORKED_TITLE = "Total time this task has been active, pauses excluded";
 
   // ONE definition of the number (Storage.taskWorkedMs): banked + the current
   // activation when this is the running task. The row and the card both come
@@ -18883,12 +18910,17 @@
   // figure on this card — a freshly activated task shows it the moment the
   // first second lands, which is honest, where "0m worked" on a task you just
   // started is noise.
+  // THE KEY, NOT THE SENTENCE. This line runs once at load, so holding the
+  // resolved English here would freeze the tooltip at whichever locale was
+  // active then; the use sites resolve it per render instead.
+  var SAT_WORKED_TITLE = "sat_title_worked";
+
   function satWorkedLineHtml() {
     var res = Storage.resolveActiveTask(data);
     if (!res || res.stale || !res.task) return "";
     var ms = Storage.taskWorkedMs(data, res.task);
     if (!(ms > 0)) return "";
-    return '<div class="sat-worked" title="' + escapeHtml(SAT_WORKED_TITLE) + '">' +
+    return '<div class="sat-worked" title="' + th(SAT_WORKED_TITLE) + '">' +
         '<span class="sat-worked-val">' + escapeHtml(fmtDurationHM(ms)) + '</span>' +
         '<span class="sat-worked-unit">' + th("sat_worked_on_this_task") + '</span>' +
       '</div>';
@@ -18901,7 +18933,7 @@
     var ms = Storage.taskWorkedMs(data, task);
     if (!(ms > 0)) return "";
     return '<span class="tt-task-worked' + (isActive ? " is-live" : "") +
-        '" title="' + escapeHtml(SAT_WORKED_TITLE) + '">' +
+        '" title="' + th(SAT_WORKED_TITLE) + '">' +
         '<span class="tt-worked-val">' + escapeHtml(fmtDurationHM(ms)) + '</span>' +
         '<span class="tt-worked-unit">worked</span>' +
       '</span>';
@@ -19087,7 +19119,7 @@
       }
     }
     var act = res ? "restore" : "pick";
-    var label = res ? "Restore active task card" : "Pick an active task";
+    var label = res ? t("sat_restore_card") : t("sat_pick_an_active_task");
     return '<button type="button" class="sat-pill-face" data-sat-act="' + act + '" ' +
       'aria-label="' + label + '">' + inner + '</button>';
   }
@@ -19124,11 +19156,11 @@
   function satFocusRowHtml() {
     var state = Storage.focusArmState(data);          // "off" | "manual" | "auto"
     var on = state !== "off";
-    var label = state === "off" ? "Focus blocking: off"
-              : state === "auto" ? "Focus blocking: on (auto)"
-              : "Focus blocking: on";
+    var label = state === "off" ? t("focusblock_state_off")
+              : state === "auto" ? t("focusblock_state_auto")
+              : t("focusblock_state_on");
     var empty = Storage.getBlockList(data).length === 0;
-    var title = on ? "Turn focus blocking off" : "Turn focus blocking on";
+    var title = on ? t("focusblock_turn_off") : t("focusblock_turn_on");
     return '<div class="sat-focus-row' + (on ? ' is-on' : '') + '">' +
         '<button type="button" class="sat-focus-toggle" data-sat-act="focus-toggle" ' +
           'role="switch" aria-checked="' + (on ? 'true' : 'false') + '" ' +
@@ -20046,11 +20078,11 @@
     var shortcutCount = group.shortcuts.length;
     var countBadge = '<span class="group-count">(' + shortcutCount + " shortcut" + (shortcutCount !== 1 ? "s" : "") + ")</span>";
     var openAllBtn = shortcutCount > 0
-      ? '<button class="group-open-all-btn" data-group-id="' + group.id + '" title="' + th("group_open_all_shortcuts_in_new_tabs") + '">\u25B6 Open All</button>'
+      ? '<button class="group-open-all-btn" data-group-id="' + group.id + '" title="' + th("group_open_all_shortcuts_in_new_tabs") + '">' + th("group_open_all") + '</button>'
       : '';
     var gridStyle = collapsed ? ' style="max-height:0"' : '';
     var emptyHint = shortcutCount === 0
-      ? '<span class="empty-group-hint">or right-click any page \u2192 Add to LaunchPad</span>'
+      ? '<span class="empty-group-hint">' + th("group_empty_hint") + '</span>'
       : '';
     var groupTagPills = tagPillsHTML(group, Storage.getActiveWorkspace(data), "group-tag-pills");
     return (
@@ -20297,16 +20329,16 @@
   // (not self-executable); the workspaces row is actionable only when the
   // switcher is available (folds in the old renderTipsActionability logic).
   var GS_ROWS = [
-    { step: "1", act: "add-shortcut", vis: "tip-vis-plus",   text: "Add your first shortcut" },
+    { step: "1", act: "add-shortcut", vis: "tip-vis-plus",   textKey: "tip_add_shortcut" },
     // textKey, not text: GS_ROWS is a MODULE-LEVEL array, so a t() call written
     // here runs once when newtab.js loads and the result is frozen. English
     // looks right and a locale switch never updates it. The key is stored and
     // resolved in the renderer instead, which runs per paint.
     { step: "2", act: null,           vis: "tip-vis-menu",   textKey: "gettingstarted_save_with_right_click" },
-    { step: "3", act: null,           vis: "tip-vis-drag",   inner: "<i></i><i></i>", text: "Nest one tile on another" },
-    { step: "4", act: "add-group",    vis: "tip-vis-folder", text: "Create a group" },
-    { step: "5", act: "workspaces",   vis: "tip-vis-layers", text: "Switch workspaces" },
-    { step: "6", act: "background",   vis: "tip-vis-swatch", inner: "<i></i><i></i><i></i>", text: "Pick a background" }
+    { step: "3", act: null,           vis: "tip-vis-drag",   inner: "<i></i><i></i>", textKey: "tip_nest_tile" },
+    { step: "4", act: "add-group",    vis: "tip-vis-folder", textKey: "tip_create_group" },
+    { step: "5", act: "workspaces",   vis: "tip-vis-layers", textKey: "tip_switch_workspaces" },
+    { step: "6", act: "background",   vis: "tip-vis-swatch", inner: "<i></i><i></i><i></i>", textKey: "demo_pick_a_background" }
   ];
 
   function renderGettingStarted() {
@@ -21224,8 +21256,8 @@
     var trashed = ws ? Storage.getDeletedNamedSessions(ws) : [];
     if (!trashed.length) return "";
     var label = trashed.length === 1
-      ? "1 session in trash"
-      : trashed.length + " sessions in trash";
+      ? t("sessions_in_trash", { count: 1 })
+      : t("sessions_in_trash", { count: trashed.length });
     return '<button type="button" class="sessions-trash-btn" data-sessions-trash' +
       ' aria-label="' + esc(label) + '" title="' + esc(label) + '">' +
         TRASH_SM_SVG +
@@ -21731,7 +21763,7 @@
     // destination like any other, and the drag surface treats it as one too.
     // It is filtered by the same query so the list cannot claim to be filtered
     // while quietly keeping a row that does not match.
-    if (!pickerFilter.trim() || "no goal standalone".indexOf(pickerFilter.trim().toLowerCase()) !== -1) {
+    if (!pickerFilter.trim() || t("task_no_goal_standalone").toLowerCase().indexOf(pickerFilter.trim().toLowerCase()) !== -1) {
       rows += '<button type="button" class="session-picker-row' + (current === null ? " is-current" : "") +
         '" data-picker-goal="">' +
         '<span class="session-picker-name">' + th("task_no_goal_standalone") + '</span>' +
@@ -21746,7 +21778,7 @@
         (isCurrent ? '<span class="session-picker-note">current</span>' : "") +
       '</button>';
     }).join("");
-    if (!rows) return pickerEmptyHtml("No goals match that.");
+    if (!rows) return pickerEmptyHtml(t("picker_no_goals_match"));
     return rows;
   }
 
@@ -21764,8 +21796,8 @@
       // entry reads "Assign to a goal" on a standalone task and "Move to another
       // goal" on a grouped one, and a dialog that renames the verb between the
       // click and the panel reads as a different feature than the one asked for.
-      title: task.goalId ? ("Move " + task.name + " to another goal")
-                         : ("Assign " + task.name + " to a goal"),
+      title: task.goalId ? t("picker_move_task_to_goal", { task: task.name })
+                         : t("picker_assign_task_to_goal", { task: task.name }),
       bodyHtml: pickerSearchHtml(total, t("picker_search_goals")) +
         '<div class="session-picker" data-picker-list>' + taskGoalPickerRowsHtml(ws, task) + '</div>',
       primaryLabel: t("common_close"),
@@ -21877,13 +21909,13 @@
       Storage.getAllTasks(ws).filter(function (t) { return !t.completed; }),
       function (t) { return t.name; }
     );
-    if (!tasks.length) return pickerEmptyHtml("No tasks match that.");
+    if (!tasks.length) return pickerEmptyHtml(t("picker_no_tasks_match"));
     return tasks.map(function (t) {
       var taken = Storage.getNamedSessionForTask(ws, t.id);
       var isCurrent = t.id === currentTaskId;
       // A task that already holds ANOTHER session is still offered: choosing it
       // moves the attachment, and the confirm names what is being displaced.
-      var note = isCurrent ? "attached to this session"
+      var note = isCurrent ? t("picker_attached_note")
         : (taken ? "holds " + taken.name : "");
       return '<button type="button" class="session-picker-row' + (isCurrent ? " is-current" : "") +
         '" data-picker-task="' + escapeHtml(t.id) + '">' +
@@ -22218,8 +22250,8 @@
       // session has none and "Change task" once it has one, so a single fixed
       // title contradicted the click in one of the two states.
       title: session.taskId
-        ? ("Change the task for " + (session.name || "this session"))
-        : ("Attach " + (session.name || "session") + " to a task"),
+        ? t("picker_change_session_task", { session: session.name || t("sessions_this_session") })
+        : t("picker_attach_session_task", { session: session.name || t("session_unnamed_fallback") }),
       bodyHtml: attachPickerBodyHtml(ws, session.taskId),
       // [1.4.5] ONE dismiss, in the primary slot, following the family: a modal
       // that commits nothing labels that slot for what it does (the templates
@@ -22638,7 +22670,7 @@
 
     var groups = groupByDomain(items);
     if (!groups.length) {
-      var emptyMsg = rcActiveFilter === "today" ? "No browsing history yet today" : "No pages found for this period";
+      var emptyMsg = rcActiveFilter === "today" ? t("recent_empty_today") : t("recent_empty_period");
       list.innerHTML = '<div class="rc-empty-state"><div class="rc-empty-state-icon">&#128214;</div><div class="rc-empty-state-text">' + emptyMsg + '</div></div>';
       return;
     }
@@ -23106,7 +23138,7 @@
 
   function handleBgUpload(file) {
     if (!file || !file.type.startsWith("image/")) {
-      showBgError("Please select a valid image file.");
+      showBgError(t("bg_error_not_an_image"));
       return;
     }
     hideBgError();
@@ -23127,7 +23159,7 @@
       img.src = reader.result;
     };
     reader.onerror = function () {
-      showBgError("Failed to read file.");
+      showBgError(t("bg_error_read_failed"));
     };
     reader.readAsDataURL(file);
   }
@@ -23136,7 +23168,7 @@
     url = (url || "").trim();
     if (!url) return;
     if (!/^https?:\/\//i.test(url)) {
-      showBgError("Please enter a valid URL starting with http:// or https://");
+      showBgError(t("bg_error_bad_url"));
       return;
     }
     hideBgError();
@@ -23149,7 +23181,7 @@
       });
     };
     img.onerror = function () {
-      showBgError("Could not load image. The server may block external access. Try uploading the image instead.");
+      showBgError(t("bg_error_load_failed"));
     };
     img.src = url;
   }

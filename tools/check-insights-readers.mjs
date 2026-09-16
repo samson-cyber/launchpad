@@ -22,6 +22,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
+// The real engine and the real catalogue, so the export-label rows below can
+// assert a KEY and still read its English without hardcoding it.
+import { loadI18n } from "./lib/i18n-harness.mjs";
 
 const repoRoot = process.argv[2] || process.cwd();
 const clone = (v) => JSON.parse(JSON.stringify(v));
@@ -427,35 +430,71 @@ await (async () => {
 // newtab.js rather than VM ones, because insightsExportRows lives on the page
 // and this suite loads storage.js and tracking.js - a static read is the honest
 // way to pin a string literal that no loadable module owns.
+// [1.5.0] THE CENSUS ROUND: THESE ROWS ASSERT KEYS, NOT ENGLISH.
+//
+// They used to grep newtab.js for `push("goal", "(no goal)"` and compare the
+// parenthesised English. That is BUGS.md P20 - an assertion pinning a literal
+// blocks that literal from ever being tokenised - and it did exactly that: the
+// moment these labels became t("export_goal_none") the regex matched nothing
+// and four rows went red, with the gate reporting an absent label rather than a
+// migrated one.
+//
+// The properties worth keeping are unchanged, and none of them was ever really
+// about the English. "The goal dimension must not reuse the task dimension's
+// label" is about two sinks sharing one SOURCE, and KEY IDENTITY says that
+// more exactly than string equality: two keys holding the same sentence are
+// still two labels a translator can move apart, while one key in two places
+// cannot be. So the keys are read from the call sites and their English is
+// resolved THROUGH THE REAL CATALOGUE - which means a copy change moves the
+// expectation with it instead of failing.
 {
   const nSrc = fs.readFileSync(path.join(repoRoot, "newtab.js"), "utf8");
-  const re = /push\("(task|goal|tag)",\s*"(\([^"]*\))"/g;
-  const byDim = { task: [], goal: [], tag: [] };
+  const { t } = loadI18n(repoRoot);
+  const re = /push\("(task|goal|tag)",\s*t\("([a-z0-9_]+)"\)/g;
+  const keysByDim = { task: [], goal: [], tag: [] };
   let m;
-  while ((m = re.exec(nSrc)) !== null) byDim[m[1]].push(m[2]);
-  const all = byDim.task.concat(byDim.goal, byDim.tag);
+  while ((m = re.exec(nSrc)) !== null) keysByDim[m[1]].push(m[2]);
+  const allKeys = keysByDim.task.concat(keysByDim.goal, keysByDim.tag);
+  const en = (k) => t(k);
+  const textByDim = {
+    task: keysByDim.task.map(en), goal: keysByDim.goal.map(en), tag: keysByDim.tag.map(en),
+  };
+  const allText = allKeys.map(en);
+
+  // ANTI-VACUITY (P2). If the call-site regex stops matching - the next round
+  // renames the helper, or wraps the call - every row below compares empty
+  // arrays and passes for free, which is the failure mode the old version
+  // actually hit. The floor is asserted FIRST and fails loudly.
+  check("[1.5.0] the absence labels are still readable at their call sites",
+    allKeys.length >= 7, JSON.stringify(keysByDim));
+  check("[1.5.0] every absence key resolves to real English, not its own name",
+    allKeys.length > 0 && allKeys.every((k) => en(k) && en(k) !== k),
+    JSON.stringify(allKeys.filter((k) => !en(k) || en(k) === k)));
 
   check("[2026-09-09] the export still emits parenthesised absence labels",
-    all.length >= 6, JSON.stringify(byDim));
-  check("[2026-09-09] EVERY absence label is unique across the three dimensions",
-    new Set(all).size === all.length, JSON.stringify(all));
-  check("[2026-09-09] the goal dimension does NOT reuse the task dimension's (no task)",
-    byDim.goal.indexOf("(no task)") === -1, JSON.stringify(byDim.goal));
-  check("[2026-09-09] the task dimension keeps (no task) as its own",
-    byDim.task.indexOf("(no task)") !== -1, JSON.stringify(byDim.task));
-  check("[2026-09-09] the tag dimension keeps (untagged) as its own",
-    byDim.tag.indexOf("(untagged)") !== -1, JSON.stringify(byDim.tag));
+    allText.length >= 7 && allText.every((s) => /^\(.*\)$/.test(s)), JSON.stringify(textByDim));
+  check("[2026-09-09] EVERY absence label is a distinct KEY across the three dimensions",
+    new Set(allKeys).size === allKeys.length, JSON.stringify(allKeys));
+  check("[2026-09-09] ...and their English is distinct too",
+    new Set(allText).size === allText.length, JSON.stringify(allText));
+  check("[2026-09-09] the goal dimension does NOT reuse the task dimension's no-task key",
+    keysByDim.goal.indexOf("export_task_none") === -1, JSON.stringify(keysByDim.goal));
+  check("[2026-09-09] the task dimension keeps export_task_none as its own",
+    keysByDim.task.indexOf("export_task_none") !== -1, JSON.stringify(keysByDim.task));
+  check("[2026-09-09] the tag dimension keeps export_tag_untagged as its own",
+    keysByDim.tag.indexOf("export_tag_untagged") !== -1, JSON.stringify(keysByDim.tag));
   // The two goal absences are DIFFERENT FACTS - no goal possible vs goal
   // unknowable - and [1.8.4] kept them apart on purpose.
   check("[2026-09-09] untasked goal time is distinct from purged-task goal time",
-    byDim.goal.indexOf("(no goal - untasked)") !== -1 &&
-    byDim.goal.indexOf("(goal unknown - task purged)") !== -1 &&
-    byDim.goal.indexOf("(no goal)") !== -1, JSON.stringify(byDim.goal));
+    keysByDim.goal.indexOf("export_goal_untasked") !== -1 &&
+    keysByDim.goal.indexOf("export_goal_unknown") !== -1 &&
+    keysByDim.goal.indexOf("export_goal_none") !== -1, JSON.stringify(keysByDim.goal));
   // Each dimension's ABSENCE label (the "none"-status one) differs pairwise.
-  const absence = { task: "(no task)", goal: "(no goal - untasked)", tag: "(untagged)" };
+  const absence = { task: "export_task_none", goal: "export_goal_untasked", tag: "export_tag_untagged" };
   check("[2026-09-09] the three dimensions' untasked/absence labels are pairwise distinct",
     new Set(Object.values(absence)).size === 3 &&
-    Object.keys(absence).every((k) => byDim[k].indexOf(absence[k]) !== -1),
+    new Set(Object.values(absence).map(en)).size === 3 &&
+    Object.keys(absence).every((k) => keysByDim[k].indexOf(absence[k]) !== -1),
     JSON.stringify(absence));
 }
 

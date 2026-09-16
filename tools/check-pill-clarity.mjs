@@ -632,7 +632,7 @@ await (async () => {
     // section 8 holds to naming the wall-clock and excluding measured browsing.
     // SAT_LIVE_TITLE stays the pill indicator's, unchanged.
     check("active row: the live figure explains itself, and the pill's own sentence is untouched",
-      /title: SAT_ACTIVE_TITLE/.test(extractFn(SRC.nt, "satRowLiveState")) &&
+      /title: t\(SAT_ACTIVE_TITLE\)/.test(extractFn(SRC.nt, "satRowLiveState")) &&
       /escapeHtml\(s\.title\)/.test(extractFn(SRC.nt, "satRowLiveHtml")) &&
       /SAT_LIVE_TITLE/.test(extractFn(SRC.nt, "satTrackingIndicatorHtml")));
     check("active row: it is painted by the SHARED 1s tick, not a second timer",
@@ -776,7 +776,8 @@ await (async () => {
         eq("hero: the idle card LEADS with the activation stopwatch", heroText, "5:00");
         eq("hero: ...labeled 'Active' — the unit of a wall-clock, never 'focused'", (idleHtml.match(/class="sat-hero-label"[^>]*>([^<]*)</) || [])[1], "Active");
         check("hero: ...and carries the wall-clock tooltip to its new position",
-          idleHtml.indexOf(ctx.escapeHtml(ctx.SAT_ACTIVE_TITLE)) !== -1 && /wall-clock/i.test(ctx.SAT_ACTIVE_TITLE));
+          idleHtml.indexOf(ctx.escapeHtml(CATALOGUE.t(ctx.SAT_ACTIVE_TITLE))) !== -1 &&
+          /wall-clock/i.test(CATALOGUE.t(ctx.SAT_ACTIVE_TITLE)));
         eq("hero: FOCUSED TODAY is DEMOTED, NOT DROPPED — still rendered, from the engine", todayText, "7:00");
         check("hero: ...with its label intact", /class="sat-time-label-text">Focused today</.test(idleHtml));
         check("hero: ...and its liveness indicator intact", /class="sat-live/.test(idleHtml));
@@ -953,8 +954,25 @@ await (async () => {
       /\.sat-focus-row \{[^}]*flex-wrap: wrap;/.test(SRC.css));
     check("focus row: ...and the hint cannot be squeezed into an ellipsis instead of wrapping",
       /[\n}]\s*\.sat-focus-hint \{[^}]*flex: 0 0 auto;/.test(SRC.css));
-    check("focus row: both strings are kept whole — neither the state nor the hint was shortened away",
-      /Focus blocking: on \(auto\)/.test(SRC.nt) && /no sites listed/.test(SRC.nt));
+    // [1.5.0] ASSERTED THROUGH THE CATALOGUE, NOT AGAINST newtab.js. This used
+    // to regex the source for the literal "Focus blocking: on (auto)", which is
+    // BUGS.md P20 and blocked that string from migrating - it went red the
+    // moment the state line became t("focusblock_state_auto").
+    //
+    // It also matched "no sites listed" ANYWHERE in newtab.js, and the only
+    // occurrence is inside a COMMENT. So half this row has been passing on
+    // prose about the code rather than on the code. Both halves now resolve a
+    // KEY through the real catalogue, which is what "kept whole" was ever about:
+    // the auto state must still say it is automatic, not be clipped to "on".
+    check("focus row: the state line still distinguishes automatic from always-on",
+      CATALOGUE.t("focusblock_state_auto") !== CATALOGUE.t("focusblock_state_on") &&
+      CATALOGUE.t("focusblock_state_auto").indexOf(CATALOGUE.t("focusblock_state_on")) === 0 &&
+      CATALOGUE.t("focusblock_state_auto").length > CATALOGUE.t("focusblock_state_on").length,
+      JSON.stringify([CATALOGUE.t("focusblock_state_off"), CATALOGUE.t("focusblock_state_on"), CATALOGUE.t("focusblock_state_auto")]));
+    check("focus row: all three states are distinct sentences, none shortened away",
+      new Set(["focusblock_state_off", "focusblock_state_on", "focusblock_state_auto"].map(function (k) { return CATALOGUE.t(k); })).size === 3 &&
+      ["focusblock_state_off", "focusblock_state_on", "focusblock_state_auto"].every(function (k) { return CATALOGUE.t(k) && CATALOGUE.t(k) !== k; }),
+      JSON.stringify(["focusblock_state_off", "focusblock_state_on", "focusblock_state_auto"].map(function (k) { return CATALOGUE.t(k); })));
     // The highlight, and the three-way collision it had to avoid.
     check("highlight: the accent bar is ::after — not a border (priority owns it), not an outline (paused), not a box-shadow (drag lift)",
       /\.tt-task-row\.is-active-task::after \{/.test(SRC.css) &&

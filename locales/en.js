@@ -5292,3 +5292,725 @@ I18n.register("en", {
       "sense": "status.trial"
     }
   });
+
+// [1.5.0] THE CENSUS, pass A - dashboard recap, achievement descriptions,
+// insights chart captions and ranges, the CSV export's human-readable
+// metadata, and the demo seed. The chart captions are ACCESSIBLE NAMES and
+// were invisible to the markup-reading gate (BUGS.md I15); the demo seed is
+// content shown once on a fresh profile and is the user's data thereafter.
+I18n.register("en", {
+    "dash_recap_most_focused": {
+      "description": "Day Recap row label: the task the user spent most focused time on today. A LABEL in a two-column row, not a sentence - no final stop. Its two row-mates already had keys and are REPOINTED rather than duplicated: insights_wk_longest and insights_wk_top_tag, both from the weekly review card, which carry the same labels in the same sense.",
+      "message": "Most focused",
+      "sense": "label.recap"
+    },
+    "dash_first_week_desc": {
+      "description": "What earned the 'first week' achievement, under its title in the EARNED list on the dashboard. Past tense; the still-locked wording is badge_first_week_desc.",
+      "message": "Used LaunchPad 7 days running"
+    },
+    "dash_goal_crusher_desc": {
+      "description": "What earned the 'goal crusher' achievement, in the EARNED list. Past tense; the locked form is badge_goal_crusher_desc.",
+      "message": "Completed 5 goals"
+    },
+    "dash_deep_diver_desc": {
+      "description": "What earned the 'deep diver' achievement, in the EARNED list. Past tense; the locked form is badge_deep_diver_desc.",
+      "message": "Single 2-hour focus block"
+    },
+    "dash_variety_desc": {
+      "description": "What earned the 'variety' achievement, in the EARNED list. Past tense; the locked form is badge_variety_desc.",
+      "message": "5 different tags in a week"
+    },
+    "dash_curator_desc": {
+      "description": "What earned the 'curator' achievement, in the EARNED list. Past tense; the locked form is badge_curator_desc.",
+      "message": "50+ shortcuts organized"
+    },
+    "badge_first_week_desc": {
+      "description": "What it takes to earn the 'first week' badge, shown while it is still LOCKED. Imperative - it describes something still to do; the earned wording is dash_first_week_desc.",
+      "message": "Open LaunchPad 7 days running"
+    },
+    "badge_goal_crusher_desc": {
+      "description": "What it takes to earn the 'goal crusher' badge while LOCKED. Imperative; the earned form is dash_goal_crusher_desc.",
+      "message": "Complete 5 different goals"
+    },
+    "badge_deep_diver_desc": {
+      "description": "What it takes to earn the 'deep diver' badge while LOCKED. Imperative; the earned form is dash_deep_diver_desc.",
+      "message": "A single 2-hour focus session"
+    },
+    "badge_variety_desc": {
+      "description": "What it takes to earn the 'variety' badge while LOCKED. Imperative; the earned form is dash_variety_desc.",
+      "message": "Complete tasks across 5 tags in a week"
+    },
+    "badge_curator_desc": {
+      "description": "What it takes to earn the 'curator' badge while LOCKED. Imperative; the earned form is dash_curator_desc.",
+      "message": "Organize 50+ shortcuts"
+    },
+    "achv_consistency_desc": {
+      "description": "What the 'consistency' achievement takes, used in BOTH the earned dashboard list and the locked badge list. ONE KEY, TWO SINKS: every other achievement has a past-tense earned form and an imperative locked form, but this one reads identically in English, so Decision 4 makes it a single key. A language that marks aspect and needs the two to differ should say so rather than translate this twice.",
+      "message": "Complete a task 7 days running"
+    },
+    "badge_locked": {
+      "description": "Shown in place of an achievement's description while it is still locked, in the Pro preview badge grid. One word standing alone in a small tile.",
+      "message": "Locked",
+      "sense": "status.achievement"
+    },
+    "badge_earned_on": {
+      "description": "Shown in place of an achievement's description once it has been earned, naming the day. {date} is an already-formatted short date.",
+      "message": "Earned {date}",
+      "sense": "status.achievement"
+    },
+    "insights_trend_caption": {
+      "description": "Accessible name for the 30-day deep-work bar chart. A screen-reader user gets this INSTEAD of the bars, so it says what the chart shows rather than merely naming it.",
+      "message": "Deep work trend over the last 30 days"
+    },
+    "insights_axis_start_30": {
+      "description": "The left-hand axis label on the fixed 30-day trend chart - the oldest day shown. On a variable range the same position carries a formatted date instead. Its right-hand pair is insights_today.",
+      "message": "30 days ago"
+    },
+    "insights_tag_caption_30": {
+      "description": "Accessible name for the time-by-tag donut on the fixed 30-day demo window. The variable-range form is insights_tag_caption.",
+      "message": "Time by tag, last 30 days"
+    },
+    "insights_tag_caption": {
+      "description": "Accessible name for the time-by-tag donut, naming whichever range is selected. {range} is a PHRASE such as 'last 30 days' (insights_last_30_days), not a number - the sentence must read naturally with a phrase dropped into it.",
+      "message": "Time by tag, {range}"
+    },
+    "insights_deep_work_caption": {
+      "description": "Accessible name for the deep-work bar chart, naming whichever range is selected. {range} is a phrase such as 'last 30 days'.",
+      "message": "Deep work, {range}"
+    },
+    "insights_btn_today": {
+      "description": "The button narrowing Insights to today alone. A BUTTON: capitalised and standing alone, where insights_today is the same range named lower-case inside a sentence. DELIBERATE DUPLICATE: Four keys already hold 'Today' - a recent-history filter, an update notice, the narrow trial chip. This one is an Insights range button and a language that inflects a standalone button differently from a filter option must be free to.",
+      "message": "Today",
+      "sense": "label.range"
+    },
+    "insights_btn_past_7": {
+      "description": "The button narrowing Insights to the last seven days. A button, capitalised; the in-sentence form of the same range is insights_past_7_days.",
+      "message": "Past 7 days",
+      "sense": "label.range"
+    },
+    "insights_btn_last_30": {
+      "description": "The button widening Insights to the last thirty days. A button, capitalised; the in-sentence form of the same range is insights_last_30_days.",
+      "message": "Last 30 days",
+      "sense": "label.range"
+    },
+    "insights_best_day_on": {
+      "description": "Label on the summary tile for the most focused day in range. {date} is an already-formatted short date. The middot separates a label from a date rather than joining two clauses - a language that would not use one should drop it.",
+      "message": "best day · {date}",
+      "sense": "label.insights"
+    },
+    "insights_deleted_tags": {
+      "description": "The donut row gathering focused time that belonged to tags since deleted. A real row, not an error state; its sibling for time carrying no tag at all is insights_untagged.",
+      "message": "Deleted tags"
+    },
+    "insights_untagged": {
+      "description": "The donut row gathering focused time that carried no tag at all. Its sibling for time whose tag has since been deleted is insights_deleted_tags.",
+      "message": "Untagged"
+    },
+    "export_meta_measure": {
+      "description": "Note in the exported CSV saying what the numbers measure. Sits in the value column beside the constant key 'measure', which is NOT translated because parsers match on it.",
+      "message": "engine-measured focused time only; not wall clock or time worked"
+    },
+    "export_meta_reconciles": {
+      "description": "Note in the exported CSV saying which row groups sum to the total. 'range_total' and 'tag_note' are literal column keys in the same file and must NOT be translated.",
+      "message": "task, goal and domain rows each sum to range_total; tag rows do not - see tag_note"
+    },
+    "export_meta_tag_note": {
+      "description": "Note in the exported CSV explaining why tag rows can exceed the total. 'range_total' is a literal column key in the same file and must NOT be translated.",
+      "message": "a session carrying several tags counts in FULL under each of them, so tag rows can exceed range_total; untagged is then clamped at zero and may understate"
+    },
+    "export_scope_all_workspaces": {
+      "description": "Value of the CSV's 'scope' row when the export covers every workspace rather than one.",
+      "message": "all workspaces"
+    },
+    "export_task_deleted": {
+      "description": "Stands in for a task's name in the CSV export when the task was purged and no name survives anywhere. Parenthesised because it is a statement ABOUT the missing name, not a name.",
+      "message": "(deleted task)"
+    },
+    "export_task_none": {
+      "description": "Stands in for a task's name in the CSV export, for focused time that belonged to no task.",
+      "message": "(no task)"
+    },
+    "export_goal_none": {
+      "description": "Stands in for a goal's name in the CSV export, for tasks belonging to no goal.",
+      "message": "(no goal)"
+    },
+    "export_goal_deleted": {
+      "description": "Stands in for a goal's name in the CSV export when the goal was purged.",
+      "message": "(deleted goal)"
+    },
+    "export_goal_unknown": {
+      "description": "Stands in for a goal's name in the CSV export when the task that would name it was purged, so the goal cannot be resolved.",
+      "message": "(goal unknown - task purged)"
+    },
+    "export_goal_untasked": {
+      "description": "Stands in for a goal's name in the CSV export, for time recorded against no task and therefore against no goal.",
+      "message": "(no goal - untasked)"
+    },
+    "export_tag_deleted": {
+      "description": "Stands in for a tag's name in the CSV export when the tag was purged.",
+      "message": "(deleted tag)"
+    },
+    "demo_task_exec_summary": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo task on the Tasks board. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Draft executive summary"
+    },
+    "demo_task_revenue": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo task on the Tasks board, REUSED as a row in the Pro preview board - one key, two sinks, because it is the same sentence. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Pull regional revenue numbers"
+    },
+    "demo_goal_typescript": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo goal name, REUSED as a demo goal in the Pro preview board. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Learn TypeScript"
+    },
+    "demo_task_generics": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo task under the TypeScript demo goal. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Finish generics chapter"
+    },
+    "demo_task_todo_app": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo task under the TypeScript demo goal. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Build a tiny todo app"
+    },
+    "demo_top_task_generics": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo row in the Insights top-tasks chart. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Learn TypeScript generics"
+    },
+    "demo_top_task_onboarding": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo row in the Insights top-tasks chart. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Rewrite the onboarding email"
+    },
+    "demo_top_task_design_system": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo row in the Insights top-tasks chart. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Review the design system"
+    },
+    "demo_top_task_next_quarter": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo row in the Insights top-tasks chart. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Plan next quarter"
+    },
+    "demo_top_task_backlog": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo row in the Insights top-tasks chart. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Tidy the backlog"
+    },
+    "demo_pv_task_exec_summary": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo task in the Pro PREVIEW board shown to free users. Deliberately a different sentence from demo_task_exec_summary, which is the real board's. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Draft the executive summary"
+    },
+    "demo_pv_task_design_review": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo task in the Pro preview board shown to free users. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Reply to the design review thread"
+    },
+    "demo_pv_task_studio": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo task in the Pro preview board shown to free users. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Book the studio for Thursday"
+    },
+    "demo_pv_task_domain": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo task in the Pro preview board shown to free users. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Renew the domain"
+    },
+    "demo_pv_goal_onboarding": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo goal in the Pro preview board shown to free users. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Rebuild onboarding flow"
+    },
+    "demo_note_studio": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo sticky note's body. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Call the studio back about the October shoot."
+    },
+    "demo_note_flights": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo sticky note's body. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Book flights before prices climb again."
+    },
+    "demo_note_deep_work": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo sticky note's body. 'Sam' is a placeholder person; a translator should use a name common in their own market. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Read the piece on deep work that Sam sent."
+    },
+    "demo_goal_q3": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo goal name on the Tasks board. Its longer sibling demo_top_task_q3 ('Ship the Q3 report') is the Insights row; they are deliberately different strings. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Ship Q3 report"
+    },
+    "demo_goal_q3_deadline": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. The deadline shown on a demo goal. An already-formatted SHORT DATE, written out rather than computed, so a translator should give a plausible short date in their own convention rather than translating the month name in isolation. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "May 31"
+    },
+    "demo_goal_typescript_deadline": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. The deadline shown on the second demo goal. An already-formatted short date; see demo_goal_q3_deadline. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Jun 14"
+    },
+    "demo_note_groceries": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo sticky note's body. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Groceries: oat milk, coffee, the good bread."
+    },
+    "demo_note_review_ritual": {
+      "description": "Seed content shown once on a brand-new profile so the surface is not empty; it becomes ordinary user data as soon as the user edits it. A demo sticky note's body. A translator should write a natural example for their own market rather than translate this literally.",
+      "message": "Idea: a weekly review ritual on Friday afternoons."
+    }
+  });
+
+// [1.5.0] THE CENSUS, pass A3 - the export's untagged label. One token, so the
+// census could not see it; check-insights-readers found it by going red.
+I18n.register("en", {
+    "export_tag_untagged": {
+      "description": "Stands in for a tag's name in the CSV export, for focused time that carried no tag at all. Parenthesised and lower case because it is a statement ABOUT the missing tag, not a tag name - which is what separates it from insights_untagged ('Untagged'), the donut row for the same time on the Insights chart. The two are deliberately different strings on different surfaces.",
+      "message": "(untagged)"
+    }
+  });
+
+// [1.5.0] THE CENSUS, pass B - modal validation, task-row controls, recurrence
+// hints, upgrade and licence copy, workspaces and tags, the tour, the backup
+// confirmations, the active-task tooltips, focus blocking, the pickers and
+// the wallpaper errors.
+I18n.register("en", {
+    "modal_name_required": {
+      "description": "Validation error under the name field when it is left empty. ONE KEY, FOUR SINKS: the goal, task, recurring-task and template modals all state the same rule, so it is written once.",
+      "message": "Name is required."
+    },
+    "modal_deadline_invalid": {
+      "description": "Validation error when a goal's deadline is not a date the field can parse. Its task-side sibling is modal_due_date_invalid.",
+      "message": "Deadline is not a valid date."
+    },
+    "modal_due_date_invalid": {
+      "description": "Validation error when a task's due date is not a date the field can parse. Its goal-side sibling is modal_deadline_invalid.",
+      "message": "Due date is not a valid date."
+    },
+    "modal_goal_deadline_before_task": {
+      "description": "Validation error when a goal's deadline would fall before a task inside it is due. {task} is the blocking task's name and {date} an already-formatted short date. Two sentences: what is wrong, then the two ways out.",
+      "message": "{task} is due {date}, so the goal deadline can't be earlier. Update the task first or pick a later deadline."
+    },
+    "modal_goal_rename_failed": {
+      "description": "Error when renaming a goal did not take. A write failed rather than the input being wrong, so it names no field.",
+      "message": "Could not rename goal."
+    },
+    "modal_goal_from_template_failed": {
+      "description": "Error when creating a goal from a template did not take.",
+      "message": "Could not create goal from template."
+    },
+    "modal_goal_create_failed": {
+      "description": "Error when creating a goal did not take.",
+      "message": "Could not create goal."
+    },
+    "modal_task_create_failed": {
+      "description": "Error when creating a task did not take.",
+      "message": "Could not create task."
+    },
+    "modal_pick_a_weekday": {
+      "description": "Validation error on a weekly recurring task when no day of the week is ticked.",
+      "message": "Pick at least one day of the week."
+    },
+    "modal_day_of_month_range": {
+      "description": "Validation error on a monthly recurring task when the day of month is outside 1-31.",
+      "message": "Day of month must be between 1 and 31."
+    },
+    "modal_recurring_save_failed": {
+      "description": "Error when saving an EDITED recurring task did not take. Its create-side sibling is modal_recurring_create_failed.",
+      "message": "Could not save recurring task."
+    },
+    "modal_recurring_create_failed": {
+      "description": "Error when creating a NEW recurring task did not take. Its edit-side sibling is modal_recurring_save_failed.",
+      "message": "Could not create recurring task."
+    },
+    "modal_template_deadline_days": {
+      "description": "Validation error on a template's deadline-in-days field when it is negative or not a number. The parenthesis says what to do instead of filling it in.",
+      "message": "Deadline days must be 0 or more (blank for none)."
+    },
+    "modal_template_save_failed": {
+      "description": "Error when saving a template did not take.",
+      "message": "Could not save template."
+    },
+    "modal_title_edit_goal": {
+      "description": "Title of the goal modal when editing an existing goal. Its create-side sibling is modal_title_new_goal.",
+      "message": "Edit goal"
+    },
+    "modal_title_new_goal": {
+      "description": "Title of the goal modal when creating one, and also the fallback name for an untitled goal. Its edit-side sibling is modal_title_edit_goal.",
+      "message": "New goal"
+    },
+    "modal_title_edit_recurring": {
+      "description": "Title of the recurring-task modal when editing. Its create-side sibling is modal_title_new_recurring.",
+      "message": "Edit recurring task"
+    },
+    "modal_title_new_recurring": {
+      "description": "Title of the recurring-task modal when creating. Its edit-side sibling is modal_title_edit_recurring.",
+      "message": "New recurring task"
+    },
+    "modal_title_edit_template": {
+      "description": "Title of the template modal when editing. Its create-side sibling is modal_title_new_template.",
+      "message": "Edit template"
+    },
+    "modal_title_new_template": {
+      "description": "Title of the template modal when creating. Its edit-side sibling is modal_title_edit_template.",
+      "message": "New template"
+    },
+    "task_priority_set_aria": {
+      "description": "Accessible name on a task's priority chip once a priority is set. {priority} is the priority's own label. Two sentences because a screen reader reads state then action; the unset form is task_priority_unset_aria.",
+      "message": "Priority: {priority}. Click to change"
+    },
+    "task_priority_unset_aria": {
+      "description": "Accessible name on a task's priority chip while no priority is set. The set form is task_priority_set_aria.",
+      "message": "Set priority"
+    },
+    "task_due_set_aria": {
+      "description": "Accessible name on a task's due-date chip once a date is set. {date} is an already-formatted date. The unset form is task_due_unset_aria.",
+      "message": "Due {date}. Click to change"
+    },
+    "task_filter_priority_n": {
+      "description": "The priority filter button showing how many priorities are selected. {count} is that number, in parentheses after the label.",
+      "message": "Priority ({count})"
+    },
+    "task_filter_tag_n": {
+      "description": "The tag filter button showing how many tags are selected. {count} is that number.",
+      "message": "Tag ({count})"
+    },
+    "task_play_start": {
+      "description": "Tooltip on a task's play control when the task is not yet active - pressing it makes this the active task and starts recording. Its pause and resume siblings already existed and are repointed: sat_pause_tracking, sat_resume_tracking.",
+      "message": "Start task"
+    },
+    "task_mark_complete": {
+      "description": "The control that completes an open task. Its opposite for an already-completed one is the existing completed_reactivate. DELIBERATE DUPLICATE: goal_mark_complete already holds 'Mark complete' for a GOAL. A task and a goal are different objects and a language that inflects the verb by its object must be able to differ.",
+      "message": "Mark complete"
+    },
+    "task_recurring_deleted_toast": {
+      "description": "Toast after deleting a recurring template, reassuring the user that instances already created are untouched. No final stop: it is a toast, not a sentence in a paragraph.",
+      "message": "Recurring task deleted, existing instances kept"
+    },
+    "task_tracked_in_last_days": {
+      "description": "Tooltip on a task's cumulative time chip. {duration} is an already-formatted duration and {count} the number of days in the window.",
+      "message": "",
+      "plural": {
+        "one": "{duration} tracked in the last day",
+        "other": "{duration} tracked in the last {count} days"
+      }
+    },
+    "goal_conflict_fallback_name": {
+      "description": "Stands in for a goal's name in the deadline-conflict dialog when the name cannot be resolved. Lower case because it sits inside a sentence.",
+      "message": "the goal"
+    },
+    "goal_conflict_keep_deadline": {
+      "description": "The choice that keeps the goal's deadline and moves the task's due date to match. {date} is an already-formatted date.",
+      "message": "Keep goal deadline, set task to {date}"
+    },
+    "recur_hint_daily": {
+      "description": "One-line summary of a daily recurring template. {time} is a clock time in the user's own format.",
+      "message": "Daily at {time}"
+    },
+    "recur_hint_weekly": {
+      "description": "One-line summary of a weekly recurring template. {days} is an already-joined list of weekday names and {time} a clock time. A language that orders 'on Monday, Tuesday at 09:00' differently should reorder the placeholders.",
+      "message": "Weekly on {days} at {time}"
+    },
+    "recur_hint_monthly": {
+      "description": "One-line summary of a monthly recurring template. {day} is a day number and {time} a clock time.",
+      "message": "Monthly on day {day} at {time}"
+    },
+    "upgrade_sheet_subhead_trial_used": {
+      "description": "Sub-heading on the upgrade sheet for someone whose trial has ended. Reassurance, not a feature list: the point is that nothing they built is lost. Its never-trialled sibling is upgrade_sheet_subhead_new.",
+      "message": "Keep your focus going. Upgrade any time, and everything you've set up stays."
+    },
+    "upgrade_sheet_title_upgrade": {
+      "description": "Heading on the upgrade sheet for someone who has already used their trial. Its never-trialled sibling is upgrade_sheet_title_try.",
+      "message": "Upgrade to LaunchPad Pro"
+    },
+    "upgrade_sheet_title_try": {
+      "description": "Heading on the upgrade sheet for someone who has never trialled Pro. Names the trial length rather than the price. Its trial-used sibling is upgrade_sheet_title_upgrade.",
+      "message": "Try LaunchPad Pro free for 7 days"
+    },
+    "upgrade_sheet_subhead_new": {
+      "description": "Sub-heading on the upgrade sheet for someone who has never trialled Pro - the short feature list. Its trial-used sibling is upgrade_sheet_subhead_trial_used.",
+      "message": "Workspaces, tasks, time tracking, and more."
+    },
+    "license_error_enter_key": {
+      "description": "Validation error when Apply is pressed with the licence-key field empty.",
+      "message": "Enter a license key."
+    },
+    "license_error_module_missing": {
+      "description": "Error when the licence module failed to load, so the key cannot be checked at all. Tells the user the one thing that might fix it.",
+      "message": "License module unavailable. Reload the page and try again."
+    },
+    "license_error_validate_failed": {
+      "description": "Fallback error when the licence check failed and the server sent no message of its own.",
+      "message": "Could not validate license."
+    },
+    "license_error_unexpected": {
+      "description": "Fallback error when the licence check threw rather than returning a failure. Distinct from license_error_validate_failed, which is a clean refusal.",
+      "message": "Unexpected error validating license."
+    },
+    "plan_line_trial": {
+      "description": "The plan line in Pro settings during a trial. 'Plan:' is a label and the word after it is the tier. Siblings: plan_line_pro, plan_line_grace, plan_line_free.",
+      "message": "Plan: Trial"
+    },
+    "plan_line_pro": {
+      "description": "The plan line in Pro settings on a paid, verified subscription. Siblings: plan_line_trial, plan_line_grace, plan_line_free.",
+      "message": "Plan: Pro"
+    },
+    "plan_line_grace": {
+      "description": "The plan line in Pro settings for a paid subscription that has not been verified recently - still fully working, hence 'Pro', with the state in parentheses. Siblings: plan_line_pro, plan_line_trial, plan_line_free.",
+      "message": "Plan: Pro (grace)"
+    },
+    "plan_line_free": {
+      "description": "The plan line in Pro settings with no Pro access. Siblings: plan_line_trial, plan_line_pro, plan_line_grace.",
+      "message": "Plan: Free"
+    },
+    "ws_delete_blocked_last": {
+      "description": "Tooltip on the delete control of the only remaining workspace, explaining why it is refused. A statement of the rule rather than an error, because nothing has gone wrong yet.",
+      "message": "You need at least one workspace."
+    },
+    "focusblock_add_failed": {
+      "description": "Fallback error when adding a site to the focus block list failed and the caller sent no message of its own.",
+      "message": "Could not add that site."
+    },
+    "tags_active_count": {
+      "description": "The count line above the tag list. {count} is the number of tags not in the trash; its trashed companion is appended separately from tags_in_trash_suffix.",
+      "message": "",
+      "plural": {
+        "one": "{count} active tag",
+        "other": "{count} active tags"
+      }
+    },
+    "tags_in_trash_suffix": {
+      "description": "Appended to tags_active_count when some tags are in the trash. {count} is that number. The middot separates two counts rather than joining clauses - a language that would not use one should drop it.",
+      "message": "· {count} in trash"
+    },
+    "tour_tasks": {
+      "description": "Tour bubble pointing at the Tasks tab. 'Plan it' echoes the tab's own promise; the colon introduces the list.",
+      "message": "Plan it: tasks, goals, and recurring work live here."
+    },
+    "tour_dashboard": {
+      "description": "Tour bubble pointing at the Dashboard tab.",
+      "message": "See your focused time add up across every workspace."
+    },
+    "tour_insights": {
+      "description": "Tour bubble pointing at the Insights tab. A list of four things and then the point - that none of it has to be logged by hand.",
+      "message": "Deep work, tags, sites, top tasks. Measured automatically."
+    },
+    "tour_active_task": {
+      "description": "Tour bubble pointing at the active-task pill. The semicolon joins the action to its consequence.",
+      "message": "Start a focus session here; blocking arms itself while you work."
+    },
+    "tip_add_shortcut": {
+      "description": "Step 1 of the first-run tip strip.",
+      "message": "Add your first shortcut"
+    },
+    "tip_nest_tile": {
+      "description": "Step 3 of the first-run tip strip - dragging one tile onto another to make a group.",
+      "message": "Nest one tile on another"
+    },
+    "tip_create_group": {
+      "description": "Step 4 of the first-run tip strip.",
+      "message": "Create a group"
+    },
+    "tip_switch_workspaces": {
+      "description": "Step 5 of the first-run tip strip.",
+      "message": "Switch workspaces"
+    },
+    "topsites_group_name": {
+      "description": "Name of the group created by 'Import Top Sites'. Becomes an ordinary group the user can rename, so it is a name rather than a label.",
+      "message": "Top Sites"
+    },
+    "backup_contains_core": {
+      "description": "The first item in the list of what a backup file holds. Lower case because it sits inside a sentence built from backup_restore_confirm.",
+      "message": "shortcuts, groups and settings"
+    },
+    "backup_contains_license": {
+      "description": "Listed among a backup's contents when it carries a Pro licence key.",
+      "message": "license key"
+    },
+    "backup_contains_tracking": {
+      "description": "Listed among a backup's contents when it carries tracked focus history.",
+      "message": "tracked focus history"
+    },
+    "backup_unknown_date": {
+      "description": "Stands in for a backup's date when the file does not carry one. Lower case because it sits inside a sentence where a date would.",
+      "message": "an unknown date"
+    },
+    "backup_restore_confirm": {
+      "description": "Confirmation before restoring a CURRENT-format backup. {date} is the backup's date (or backup_unknown_date) and {list} an already-joined list of its contents. Says what is replaced, then the safety net, then asks.",
+      "message": "This backup from {date} contains: {list}. Importing replaces all of it. Your current data is saved as a recovery backup first. Continue?"
+    },
+    "backup_restore_confirm_legacy": {
+      "description": "Confirmation before restoring an OLDER-format backup, which carries less. {date} and {list} as in backup_restore_confirm. The extra clause exists because the thing NOT replaced is the surprising part.",
+      "message": "This is an older backup format from {date}. It contains: {list}. Everything else, including your tracked focus history, is left exactly as it is. Your current data is saved as a recovery backup first. Continue?"
+    },
+    "variant_same_address": {
+      "description": "Shown in place of a shortcut variant's distinguishing detail when two variants resolve to the same address and nothing separates them. Lower case: it sits where a URL fragment would.",
+      "message": "same address"
+    },
+    "sat_title_recording": {
+      "description": "Tooltip on the active-task time while it is recording. Present tense and plain: the number is moving.",
+      "message": "Recording time for this task right now."
+    },
+    "sat_title_lifetime": {
+      "description": "Tooltip on a task's lifetime total, explaining that it outlives the daily aggregates it was built from. No final stop: it is a short tooltip label.",
+      "message": "Total focused time recorded for this task, kept beyond the day aggregates it came from"
+    },
+    "sat_title_ready": {
+      "description": "Tooltip on the active-task time before any browsing has happened. Three short sentences: the state, the trigger, and why the number is not moving while the user reads it.",
+      "message": "Ready. Time records as soon as you browse a site. This page is not tracked, so the number holds here."
+    },
+    "sat_title_active": {
+      "description": "Tooltip on the wall-clock reading, drawing the distinction that matters: this is time since activation, NOT measured browsing time. Its measured counterpart is sat_title_lifetime.",
+      "message": "Wall-clock since you activated this task, pauses excluded. Not measured browsing time."
+    },
+    "sat_title_worked": {
+      "description": "Tooltip on the worked total - time the task has been the active one, pauses excluded. No final stop.",
+      "message": "Total time this task has been active, pauses excluded"
+    },
+    "sat_active_since": {
+      "description": "The active-task pill's line: how much, and since when. {duration} is an already-formatted count and {since} an already-formatted time. The middot separates two facts rather than joining clauses.",
+      "message": "Active {duration} · since {since}"
+    },
+    "sat_last_days": {
+      "description": "The task time chip's window line. {duration} is an already-formatted duration and {count} the number of days.",
+      "message": "",
+      "plural": {
+        "one": "{duration} · last day",
+        "other": "{duration} · last {count} days"
+      }
+    },
+    "sat_restore_card": {
+      "description": "Tooltip on the control that brings a dismissed active-task card back. Its no-task sibling is the existing sat_pick_an_active_task.",
+      "message": "Restore active task card"
+    },
+    "focusblock_state_off": {
+      "description": "The focus-blocking status line when blocking is off. 'Focus blocking:' is a label; siblings focusblock_state_auto, focusblock_state_on.",
+      "message": "Focus blocking: off"
+    },
+    "focusblock_state_auto": {
+      "description": "The focus-blocking status line when blocking arms itself with a focus session. The parenthesis distinguishes it from always-on. Siblings: focusblock_state_off, focusblock_state_on.",
+      "message": "Focus blocking: on (auto)"
+    },
+    "focusblock_state_on": {
+      "description": "The focus-blocking status line when blocking is on regardless of a session. Siblings: focusblock_state_off, focusblock_state_auto.",
+      "message": "Focus blocking: on"
+    },
+    "focusblock_turn_off": {
+      "description": "Tooltip on the focus-blocking toggle while it is on. Its opposite is focusblock_turn_on.",
+      "message": "Turn focus blocking off"
+    },
+    "focusblock_turn_on": {
+      "description": "Tooltip on the focus-blocking toggle while it is off. Its opposite is focusblock_turn_off.",
+      "message": "Turn focus blocking on"
+    },
+    "group_open_all": {
+      "description": "The control that opens every shortcut in a group at once. The triangle is a play glyph and should stay; only the words are translated.",
+      "message": "▶ Open All"
+    },
+    "group_empty_hint": {
+      "description": "Hint inside an empty group, naming the other way to add a page. The arrow stands for 'then' and is a glyph, not a word.",
+      "message": "or right-click any page → Add to LaunchPad"
+    },
+    "sessions_in_trash": {
+      "description": "The count of saved sessions currently in the trash. {count} is that number.",
+      "message": "",
+      "plural": {
+        "one": "{count} session in trash",
+        "other": "{count} sessions in trash"
+      }
+    },
+    "picker_no_goals_match": {
+      "description": "Shown in the goal picker when the filter matches nothing. Its task-side sibling is picker_no_tasks_match.",
+      "message": "No goals match that."
+    },
+    "picker_no_tasks_match": {
+      "description": "Shown in the task picker when the filter matches nothing. Its goal-side sibling is picker_no_goals_match.",
+      "message": "No tasks match that."
+    },
+    "picker_move_task_to_goal": {
+      "description": "Title of the goal picker for a task that already belongs to a goal. {task} is the task's name. Its unassigned sibling is picker_assign_task_to_goal.",
+      "message": "Move {task} to another goal"
+    },
+    "picker_assign_task_to_goal": {
+      "description": "Title of the goal picker for a task with no goal yet. {task} is the task's name. Its reassignment sibling is picker_move_task_to_goal.",
+      "message": "Assign {task} to a goal"
+    },
+    "picker_attached_note": {
+      "description": "Marks the row in the task picker that the session is already attached to.",
+      "message": "attached to this session"
+    },
+    "picker_change_session_task": {
+      "description": "Title of the task picker for a session that already has a task. {session} is the session's name, or session_unnamed_fallback when it has none.",
+      "message": "Change the task for {session}"
+    },
+    "picker_attach_session_task": {
+      "description": "Title of the task picker for a session with no task yet. {session} as in picker_change_session_task.",
+      "message": "Attach {session} to a task"
+    },
+    "session_unnamed_fallback": {
+      "description": "Stands in for a session's name in picker_attach_session_task when it has none. Lower case, inside a sentence; the demonstrative form is the existing sessions_this_session.",
+      "message": "session"
+    },
+    "recent_empty_today": {
+      "description": "Shown in the browsing-history panel when today's filter has nothing yet. Its other-period sibling is recent_empty_period.",
+      "message": "No browsing history yet today"
+    },
+    "recent_empty_period": {
+      "description": "Shown in the browsing-history panel when a non-today filter has nothing. Its today sibling is recent_empty_today.",
+      "message": "No pages found for this period"
+    },
+    "bg_error_not_an_image": {
+      "description": "Error when the chosen file is not an image the browser can read.",
+      "message": "Please select a valid image file."
+    },
+    "bg_error_read_failed": {
+      "description": "Error when reading the chosen file failed - the file is an image but could not be loaded.",
+      "message": "Failed to read file."
+    },
+    "bg_error_bad_url": {
+      "description": "Error when the pasted wallpaper address is not a usable http(s) URL. Names the two schemes rather than saying 'invalid', because that is the actual fix.",
+      "message": "Please enter a valid URL starting with http:// or https://"
+    },
+    "bg_error_load_failed": {
+      "description": "Error when a wallpaper URL loaded nothing. Names the most likely cause - hotlink protection - and the way round it, because 'could not load' alone leaves the user with nothing to try.",
+      "message": "Could not load image. The server may block external access. Try uploading the image instead."
+    }
+  });
+
+// [1.5.0] THE CENSUS, pass D - importers.js. The FORMAT NAMES are product
+// names and each description says to use the name that product uses in the
+// market rather than to translate it. The GROUP NAMES are seed content: they
+// become real groups the user can rename.
+I18n.register("en", {
+    "importfmt_toby": {
+      "description": "The name of an import format, shown to the user once LaunchPad has worked out which kind of file they gave it. A PRODUCT NAME: use the name that product uses in this market, and leave it in English if it has none. Toby is a tab-manager extension.",
+      "message": "Toby"
+    },
+    "importfmt_session_buddy": {
+      "description": "The name of an import format, shown to the user once LaunchPad has worked out which kind of file they gave it. A PRODUCT NAME: use the name that product uses in this market, and leave it in English if it has none. Session Buddy is a tab-manager extension.",
+      "message": "Session Buddy"
+    },
+    "importfmt_speed_dial_2": {
+      "description": "The name of an import format, shown to the user once LaunchPad has worked out which kind of file they gave it. A PRODUCT NAME: use the name that product uses in this market, and leave it in English if it has none. Speed Dial 2 is a new-tab extension. The '2' is part of the name, not a version to drop.",
+      "message": "Speed Dial 2"
+    },
+    "importfmt_onetab": {
+      "description": "The name of an import format, shown to the user once LaunchPad has worked out which kind of file they gave it. A PRODUCT NAME: use the name that product uses in this market, and leave it in English if it has none. OneTab is a tab-manager extension. One word, capital T.",
+      "message": "OneTab"
+    },
+    "importfmt_bookmarks_html": {
+      "description": "The name of an import format, shown to the user once LaunchPad has worked out which kind of file they gave it. A PRODUCT NAME: use the name that product uses in this market, and leave it in English if it has none. Not a product but the export format every browser calls 'Bookmarks HTML' - the Netscape bookmark file. 'HTML' stays.",
+      "message": "Bookmarks HTML"
+    },
+    "importfmt_json_export": {
+      "description": "The name of an import format, shown to the user once LaunchPad has worked out which kind of file they gave it. A PRODUCT NAME: use the name that product uses in this market, and leave it in English if it has none. The fallback when the file is JSON carrying links but matches no format LaunchPad recognises. Not a product name; this one is ordinary words and should be translated.",
+      "message": "JSON export"
+    },
+    "importfmt_pasted_links": {
+      "description": "The name of an import format, shown to the user once LaunchPad has worked out which kind of file they gave it. A PRODUCT NAME: use the name that product uses in this market, and leave it in English if it has none. The fallback when the user pasted a list of addresses rather than giving a file. Not a product name; ordinary words.",
+      "message": "Pasted links"
+    },
+    "import_group_toby_list": {
+      "description": "The name of a group LaunchPad creates during an import. It becomes a REAL GROUP in the user's sidebar and they can rename it, so it is seed content rather than a label. Used for a Toby list that carries no title of its own.",
+      "message": "Toby list"
+    },
+    "import_group_links": {
+      "description": "The name of a group LaunchPad creates during an import. It becomes a REAL GROUP in the user's sidebar and they can rename it, so it is seed content rather than a label. Used when every imported link goes into one group - the single-group case. Its multi-group sibling is import_group_numbered.",
+      "message": "Imported links"
+    },
+    "import_group_bookmarks": {
+      "description": "The name of a group LaunchPad creates during an import. It becomes a REAL GROUP in the user's sidebar and they can rename it, so it is seed content rather than a label. Used for the top level of a Bookmarks HTML import, holding links that sat outside any folder.",
+      "message": "Imported bookmarks"
+    },
+    "import_group_numbered": {
+      "description": "The name of a group LaunchPad creates during an import. It becomes a REAL GROUP in the user's sidebar and they can rename it, so it is seed content rather than a label. Used when an import produced several groups and none had a name. {count} is the group's position, counting from 1. Its single-group sibling is import_group_links.",
+      "message": "Imported group {count}"
+    },
+    "import_group_window": {
+      "description": "The name of a group LaunchPad creates during an import. It becomes a REAL GROUP in the user's sidebar and they can rename it, so it is seed content rather than a label. Used for a saved browser window that carries no title. {count} is the window's position, counting from 1.",
+      "message": "Window {count}"
+    }
+  });
