@@ -375,6 +375,18 @@ fi
 # second is the contract; the first is only the encoding.
 #
 # Pure, no browser, no subject to boot beyond one file: ~0.1s.
+# [NB.2] Notebooks data model. The seven updaters, the sweep's idempotence, the
+# purge registration and the ONE-WRITER rule on note.notebookId, driven in a VM
+# against the real storage.js - there is no UI yet, so there is nothing to drive
+# in a browser and nothing a screenshot could show. The row that earns its keep
+# is the SEQUENCE one: deleteNotebook must release before it soft-deletes, and
+# both orderings leave identical end state, so only the order of writes can tell
+# them apart. ~0.3s. `--mutate` re-runs it against 10 seeded reversions.
+if ! node tools/check-notebooks.mjs; then
+  echo 'ERROR: notebooks gate failed — the data model, its sweep or the one-writer rule has regressed.' >&2
+  exit 1
+fi
+
 if ! node tools/check-quickadd.mjs; then
   echo 'ERROR: quick-add parser gate failed - a parsed due date does not survive the three-zone contract.' >&2
   exit 1

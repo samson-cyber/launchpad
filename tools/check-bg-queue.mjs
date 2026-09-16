@@ -396,6 +396,38 @@ async function runSuite(ctx, store, stats, listeners) {
       stats.dataSets === afterSweep, `dataSets moved by ${stats.dataSets - afterSweep}`);
   }
 
+  // ===== [NB.2] THE NOTEBOOKS SWEEP ========================================
+  //
+  // ensureNotebooksArrays backfills ws.notebooks on a profile that predates the
+  // field - which is EVERY profile, since getDefaultData never carried the key
+  // until this round. The spec asked for the rows here rather than only in the
+  // notebooks gate, and the reason is that this is the suite that measures
+  // WRITE COUNTS: I28's failure mode is not a wrong value, it is a correct
+  // value written on every single read, forever, in every context. Only a
+  // harness that counts sets can see it.
+  {
+    await seed(ctx, store);
+    // Take the array away, exactly as an un-upgraded profile has it.
+    store.data.workspaces.forEach((ws) => { delete ws.notebooks; });
+
+    const beforeSweep = stats.dataSets;
+    await ctx.Storage.getAll();
+    check("[NB.2] the notebooks array is backfilled on a profile that lacks it",
+      store.data.workspaces.every((ws) => Array.isArray(ws.notebooks)),
+      JSON.stringify(store.data.workspaces.map((ws) => typeof ws.notebooks)));
+    check("[NB.2] the backfill WROTE once - a profile without the key is a change",
+      stats.dataSets > beforeSweep, `dataSets moved by ${stats.dataSets - beforeSweep}`);
+
+    const afterSweep = stats.dataSets;
+    await ctx.Storage.getAll();
+    await ctx.Storage.getAll();
+    check("[NB.2] I28 IDEMPOTENT: two further warm loads write NOTHING",
+      stats.dataSets === afterSweep, `dataSets moved by ${stats.dataSets - afterSweep}`);
+    check("[NB.2] and the notes beside it are untouched",
+      store.data.workspaces.every((ws) => Array.isArray(ws.notes)),
+      JSON.stringify(store.data.workspaces.map((ws) => typeof ws.notes)));
+  }
+
   // ===== SOLO BASELINES — every assertion below is re-based off these (Q5) ==
   // Never hard-code "N writes": a defaulting or migrating reader can perform a
   // backfill write on first read and silently invalidate a literal count.

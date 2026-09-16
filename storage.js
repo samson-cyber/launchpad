@@ -169,6 +169,11 @@ var Storage = (function () {
         tasks: [],
         tags: [],
         notes: [],
+        // [NB.2] The doc was ahead of the code: workspaces-data-model.md has
+        // listed "notebooks": [] in the workspace shape since the v1.2.0
+        // planning, and getDefaultData never had the key. This is the commit
+        // that makes them agree.
+        notebooks: [],
         namedSessions: [],
         tracking: emptyTrackingState()
       }],
@@ -286,6 +291,31 @@ var Storage = (function () {
     (data.workspaces || []).forEach(function (ws) {
       if (!Array.isArray(ws.notes)) {
         ws.notes = [];
+        changed = true;
+      }
+    });
+    return changed;
+  }
+
+  // [NB.2] ensureNotesArrays' shape, deliberately and exactly.
+  //
+  // IDEMPOTENCE IS THE WHOLE POINT, AND I28 IS WHY. getAll runs every sweep on
+  // EVERY call and writes the entire blob back if any of them reports a change,
+  // so a sweep that returns true unconditionally does not write once - it writes
+  // forever, on every read, in every context. `changed` therefore flips only on
+  // the run that actually assigns, and the background-queue gate's warm-fixture
+  // assertion is what holds this honest.
+  //
+  // It also covers the construction site this round is NOT allowed to touch:
+  // createWorkspace lives in newtab.js and already omits `notes` and
+  // `namedSessions`, relying on these sweeps rather than repeating the shape.
+  // `notebooks` joins that arrangement rather than becoming a fourth place to
+  // forget - the reasoning is already recorded beside WORKSPACE_MODES above.
+  function ensureNotebooksArrays(data) {
+    var changed = false;
+    (data.workspaces || []).forEach(function (ws) {
+      if (!Array.isArray(ws.notebooks)) {
+        ws.notebooks = [];
         changed = true;
       }
     });
@@ -2883,6 +2913,11 @@ var Storage = (function () {
         tasks: [],
         tags: [],
         notes: [],
+        // [NB.2] The doc was ahead of the code: workspaces-data-model.md has
+        // listed "notebooks": [] in the workspace shape since the v1.2.0
+        // planning, and getDefaultData never had the key. This is the commit
+        // that makes them agree.
+        notebooks: [],
         namedSessions: [],
         tracking: emptyTrackingState()
       }],
@@ -2946,6 +2981,7 @@ var Storage = (function () {
         var trackingSeeded = ensureTrackingState(existing);
         var focusSeeded = ensureFocusBlockingState(existing);
         var notesSeeded = ensureNotesArrays(existing);
+        var notebooksSeeded = ensureNotebooksArrays(existing);
         var sessionsSeeded = ensureNamedSessionsArrays(existing);
         var accentDropped = dropAccentSetting(existing);
         var clockDropped = dropClockSettings(existing);
@@ -2964,7 +3000,7 @@ var Storage = (function () {
         // is precisely what the BG QUEUE gate's warm-fixture assertion catches.
         var strandedUnswept = existing[STRANDED_SWEEP_MARKER] !== true;
         var strandedReleased = sweepStrandedTasks(existing);
-        if (patched || trackingSeeded || focusSeeded || notesSeeded || sessionsSeeded ||
+        if (patched || trackingSeeded || focusSeeded || notesSeeded || notebooksSeeded || sessionsSeeded ||
             accentDropped || clockDropped || soundDropped || presetsSeeded || attachmentsPruned ||
             homeNoteDropped || iconsMerged || habitFlagsSeeded || strandedUnswept) {
           // [1.10.3] THE BACKFILL WRITE GETS ITS OWN try/catch, AND THIS IS A
@@ -2981,6 +3017,7 @@ var Storage = (function () {
             if (trackingSeeded) console.log("[LaunchPad] Seeded per-workspace tracking state (default ON)");
             if (focusSeeded) console.log("[LaunchPad] Seeded focus-blocking state (auto-arm default ON)");
             if (notesSeeded) console.log("[LaunchPad] Seeded per-workspace notes array");
+            if (notebooksSeeded) console.log("[LaunchPad] Seeded per-workspace notebooks array");
             if (sessionsSeeded) console.log("[LaunchPad] Seeded per-workspace named-sessions array");
             if (strandedReleased > 0) {
               console.log("[LaunchPad] Released " + strandedReleased +
@@ -5098,7 +5135,18 @@ var Storage = (function () {
       // not a registry, so an unregistered entity soft-deletes correctly and then
       // never purges. Named sessions carry no tagIds, so they need no entry in the
       // tag-cascade batch below.
-      ["goals", "tasks", "recurringTemplates", "goalTemplates", "notes", "namedSessions"].forEach(function (key) {
+      // [NB.2] "notebooks" REGISTERED AT BIRTH - in the commit that creates the
+      // record type, not a later one. Notes are the standing proof of the cost:
+      // they soft-deleted correctly and simply never purged from [1.1.0] until
+      // [1.1.3], while the trash view counted down to a deletion that could
+      // never arrive. expired() needs no change - a notebook carries the shared
+      // epoch-ms deletedAt, so the arithmetic already works.
+      //
+      // AND DELIBERATELY NOT IN THE TAG CASCADE BELOW. A notebook has no
+      // tagIds, so there is nothing for that batch to clean. Stated here so a
+      // later E5 audit does not "complete" the registration by adding notebooks
+      // to a list that would do nothing for them.
+      ["goals", "tasks", "recurringTemplates", "goalTemplates", "notes", "namedSessions", "notebooks"].forEach(function (key) {
         var arr = ws[key];
         if (!Array.isArray(arr)) return;
         for (var i = arr.length - 1; i >= 0; i--) {
@@ -7454,7 +7502,12 @@ var Storage = (function () {
       if (typeof f.position.y === "number") note.position.y = f.position.y;
     }
     if (typeof f.rotation === "number") note.rotation = f.rotation;
-    if (f.notebookId !== undefined) note.notebookId = f.notebookId;
+    // [NB.2] THE notebookId PASSTHROUGH IS GONE, AND ITS REMOVAL IS THE POINT.
+    // setNoteNotebook is the ONLY writer of membership; a blind passthrough here
+    // was a second one, and a second writer is where the rule drifts. It had no
+    // callers - nothing has ever passed notebookId to updateNote, which is what
+    // made the field a museum piece - so removing it changes no behaviour and
+    // closes the hole before NB.3 can find it. The gate asserts the count.
     if (Array.isArray(f.tagIds)) note.tagIds = f.tagIds.slice();
 
     note.updatedAt = Date.now();
@@ -7621,6 +7674,340 @@ var Storage = (function () {
    */
   function getNoteById(workspace, noteId) {
     return findLiveNote(workspace, noteId);
+  }
+
+  // ===== [NB.2] NOTEBOOKS ===================================================
+  //
+  // A notebook GROUPS NOTES AND NOTHING ELSE, and it is an ORGANISER rather
+  // than a container of record: the notes existed before it and do not depend
+  // on it. Every decision below follows from that one sentence.
+  //
+  // THE RECORD: { id, name, createdAt, updatedAt, deletedAt }. There is NO
+  // `position` field, and its absence is deliberate - `ws.notebooks` array
+  // order is canonical exactly as `ws.notes` array order is. One ordering model
+  // in this feature, not two; the v1.1 redirect established that the hard way
+  // when a render-time sort and an array push disagreed and a committed reorder
+  // had nowhere to land.
+  //
+  // NO UI EXISTS YET. This round is the data model and its seven updaters; the
+  // chip strip, the picker, the drag and the modal are all NB.3. Nothing in
+  // this file renders, and nothing here owns user-visible copy - see
+  // createNotebook on why the name is required rather than defaulted.
+  //
+  // THE MUSEUM PIECE IS DISCHARGED HERE. `note.notebookId` has been on the
+  // shape since [1.1.0], written once as null by newNoteObject and passed
+  // through by updateNote, and READ BY NOTHING. This commit gives it its first
+  // real writer (setNoteNotebook) and its first reader (notesInNotebook, which
+  // deleteNotebook's release depends on) together, which is what the museum
+  // rule asks for. updateNote's blind passthrough is REMOVED in the same
+  // commit - see the note there.
+
+  function genNotebookId() {
+    return "nb_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  // Per-workspace lazy array, mirroring ensureNotesArray. The plural sweep
+  // above handles existing profiles on read; this handles the first write into
+  // a workspace that has not been swept yet.
+  function ensureNotebooksArray(workspace) {
+    if (!workspace) return null;
+    if (!Array.isArray(workspace.notebooks)) workspace.notebooks = [];
+    return workspace.notebooks;
+  }
+
+  function newNotebookObject(fields) {
+    var o = fields || {};
+    var now = Date.now();
+    return {
+      id: typeof o.id === "string" && o.id ? o.id : genNotebookId(),
+      name: String(o.name),
+      createdAt: typeof o.createdAt === "number" ? o.createdAt : now,
+      updatedAt: typeof o.updatedAt === "number" ? o.updatedAt : now,
+      deletedAt: (o.deletedAt === undefined) ? null : o.deletedAt
+    };
+  }
+
+  function findLiveNotebook(workspace, notebookId) {
+    var books = ensureNotebooksArray(workspace);
+    if (!books) return null;
+    var nb = books.find(function (b) { return b.id === notebookId; });
+    return (nb && !nb.deletedAt) ? nb : null;
+  }
+
+  // Live OR trashed. Needed by restoreNotebook and deleteNotebookPermanent,
+  // which by definition operate on records findLiveNotebook refuses.
+  function findAnyNotebook(workspace, notebookId) {
+    var books = ensureNotebooksArray(workspace);
+    if (!books) return null;
+    return books.find(function (b) { return b.id === notebookId; }) || null;
+  }
+
+  /**
+   * [NB.2] THE FIRST READER OF note.notebookId, and the one deleteNotebook's
+   * release is built on. Returns every note in the workspace pointing at this
+   * notebook - INCLUDING TRASHED ONES, deliberately. A trashed note still holds
+   * a pointer, and a pointer to a record that is about to be removed is exactly
+   * the dangling reference the release rule exists to prevent.
+   */
+  function notesInNotebook(workspace, notebookId, opts) {
+    var notes = ensureNotesArray(workspace);
+    if (!notes || !notebookId) return [];
+    var liveOnly = !!(opts && opts.liveOnly);
+    return notes.filter(function (n) {
+      if (n.notebookId !== notebookId) return false;
+      return liveOnly ? !n.deletedAt : true;
+    });
+  }
+
+  /**
+   * [NB.2] THE ONLY WRITER OF MEMBERSHIP, and that is the load-bearing line in
+   * this whole section. Drag-to-combine, drag-out, the menu's Add to notebook,
+   * the menu's Remove from notebook and the release inside deleteNotebook are
+   * five callers of ONE function. Five callers each doing their own assignment
+   * is five chances for the rule to drift, and [1.4.7] is the worked example of
+   * why the rule belongs to the state change rather than to each caller.
+   *
+   * IT FINDS THE NOTE WITHOUT THE LIVE FILTER, on purpose. Releasing a TRASHED
+   * note is a legitimate membership write - deleteNotebook has to clear the
+   * pointer on every note that holds it, or a restored note would point at a
+   * notebook that has since been purged. Refusing trashed notes here would
+   * force deleteNotebook to write the field itself, which would break the
+   * one-writer rule this function exists to be.
+   *
+   * @param {string|null} notebookIdOrNull  null releases the note to standalone
+   * @returns {object|null} the note, or null if it or the target is missing
+   */
+  function setNoteNotebook(data, noteId, notebookIdOrNull, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var notes = ensureNotesArray(ws);
+    if (!notes) return null;
+    var note = notes.find(function (n) { return n.id === noteId; });
+    if (!note) return null;
+
+    if (notebookIdOrNull !== null) {
+      // A note may only join a LIVE notebook. Joining a trashed one would
+      // recreate the state deleteNotebook exists to prevent.
+      if (!findLiveNotebook(ws, notebookIdOrNull)) {
+        console.warn("[LaunchPad] setNoteNotebook: no live notebook " + notebookIdOrNull);
+        return null;
+      }
+    }
+    if (note.notebookId === notebookIdOrNull) return note;   // no-op writes nothing
+    note.notebookId = notebookIdOrNull;
+    note.updatedAt = Date.now();
+    return note;
+  }
+
+  /**
+   * [NB.2] Create a notebook. PURE - the caller pairs saveAll, per the notes
+   * precedent.
+   *
+   * THE NAME IS REQUIRED, NOT DEFAULTED, and that boundary is deliberate. The
+   * ruling is that drag-to-combine creates a notebook called "New notebook",
+   * but that string is USER-VISIBLE COPY: check-i18n-sites is ENFORCING, so it
+   * belongs in locales/en.js and reaches this function through t() from NB.3.
+   * A default here would either hardcode untranslated prose in the storage
+   * layer or put a second copy of the name in a second place.
+   *
+   * `fields.attachNoteId` EXISTS FOR NB.3's "Add to notebook -> New notebook".
+   * The REVIEW's addition is that the menu route must be able to CREATE, not
+   * only add to an existing notebook - otherwise a user with zero notebooks
+   * cannot make their first one from the surface every note already has. Doing
+   * it here makes that flow ONE writer call rather than two, so a create that
+   * succeeds and an attach that fails cannot leave an empty notebook behind.
+   */
+  function createNotebook(data, fields, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws) {
+      console.warn("[LaunchPad] createNotebook: workspace not found");
+      return null;
+    }
+    var f = fields || {};
+    var name = typeof f.name === "string" ? f.name.trim() : "";
+    if (!name) {
+      console.warn("[LaunchPad] createNotebook: name is required and must be non-empty after trim");
+      return null;
+    }
+    var books = ensureNotebooksArray(ws);
+    var nb = newNotebookObject({ name: name });
+    books.push(nb);
+
+    // Through setNoteNotebook like every other membership change, never by
+    // assigning the field here.
+    if (f.attachNoteId) setNoteNotebook(data, f.attachNoteId, nb.id, workspaceId);
+    return nb;
+  }
+
+  /**
+   * [NB.2] Rename. PURE. Refuses an empty name rather than storing one - a
+   * nameless chip is unreadable and unclickable.
+   */
+  function renameNotebook(data, notebookId, name, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var nb = findLiveNotebook(ws, notebookId);
+    if (!nb) return null;
+    var trimmed = typeof name === "string" ? name.trim() : "";
+    if (!trimmed) {
+      console.warn("[LaunchPad] renameNotebook: name must be non-empty after trim");
+      return null;
+    }
+    if (nb.name === trimmed) return nb;       // no-op writes nothing
+    nb.name = trimmed;
+    nb.updatedAt = Date.now();
+    return nb;
+  }
+
+  /**
+   * [NB.2] Soft-delete, AND RELEASE. PURE and SYNCHRONOUS, and the synchronicity
+   * is the guarantee rather than a style choice.
+   *
+   * THE NOTES ARE RELEASED, NEVER CASCADED. [1.4.x] fixed a defect where
+   * completing a goal HID its unfinished tasks - twenty of Samson's own were
+   * affected and it needed a migration sweep to recover. A notebook that takes
+   * twelve notes into the trash with it is that same visible wrong in a new
+   * costume. The cascade is still reachable in one extra step (release, then
+   * delete the notes), and that route has the advantage that each deletion is
+   * separately visible and separately restorable, which a cascade never was.
+   *
+   * RELEASE HAPPENS BEFORE THE SOFT-DELETE, and there is NO await between them,
+   * so there is no point at which any reader - in this tab or another - can
+   * observe a trashed notebook that still holds notes. Ordering alone would
+   * give "one write"; being synchronous gives "one state change", which is the
+   * stronger property and the one the spec actually asks for.
+   *
+   * THE STATED CONSEQUENCE: membership is GONE, not remembered. restoreNotebook
+   * gives back an EMPTY notebook. Re-grouping is a minute's work; a note that
+   * vanished with a folder is not recoverable by any amount of work if nobody
+   * noticed.
+   */
+  function deleteNotebook(data, notebookId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var nb = findLiveNotebook(ws, notebookId);
+    if (!nb) return null;
+
+    // Every note that points here, trashed ones included - see notesInNotebook.
+    var held = notesInNotebook(ws, notebookId);
+    for (var i = 0; i < held.length; i++) {
+      setNoteNotebook(data, held[i].id, null, workspaceId);
+    }
+    nb.deletedAt = Date.now();
+    return nb;
+  }
+
+  /**
+   * [NB.2] The un-delete half: deletedAt = null, exactly reversing the
+   * soft-delete and NOTHING ELSE. Membership is not restored, because
+   * deleteNotebook did not remember it - see the note there. updatedAt is
+   * deliberately not touched: restoring is not editing, per restoreNote.
+   */
+  function restoreNotebook(data, notebookId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var nb = findAnyNotebook(ws, notebookId);
+    if (!nb || !nb.deletedAt) return null;
+    nb.deletedAt = null;
+    return nb;
+  }
+
+  /**
+   * [NB.2] Hard-remove one notebook. Mirrors deleteNotePermanent: splice by id,
+   * saveAll, boolean.
+   *
+   * NO CASCADE, AND NONE IS NEEDED. A notebook reaches this function only
+   * through the trash, and deleteNotebook already released every note before
+   * putting it there - so by construction nothing points at it. The release is
+   * repeated defensively anyway, because a record could also arrive here from a
+   * restored backup whose notes still carry the id.
+   */
+  async function deleteNotebookPermanent(data, notebookId, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var books = ws && ws.notebooks;
+    if (!Array.isArray(books)) return false;
+    var idx = books.findIndex(function (b) { return b && b.id === notebookId; });
+    if (idx === -1) return false;
+
+    // THROUGH setNoteNotebook, not by assigning the field. This loop is
+    // defensive and will usually find nothing, which is exactly the kind of
+    // path that grows a private assignment "because it is only a cleanup" - and
+    // then there are two writers of membership again.
+    var stragglers = notesInNotebook(ws, notebookId);
+    for (var i = 0; i < stragglers.length; i++) {
+      setNoteNotebook(data, stragglers[i].id, null, workspaceId);
+    }
+
+    books.splice(idx, 1);
+    await saveAll(data);
+    return true;
+  }
+
+  /**
+   * [NB.2] Reorder the workspace's LIVE notebooks. Shaped on reorderNotes:
+   * same (data, orderedIds, workspaceId) signature, same validation ladder,
+   * same permute-the-array body, same saveAll-then-return tail - because array
+   * order is canonical here exactly as it is for notes.
+   *
+   * Trashed notebooks keep their slots: the caller orders what it can see, and
+   * a reorder must not silently promote a record out of the trash.
+   */
+  async function reorderNotebooks(data, orderedIds, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws) return null;
+    if (!Array.isArray(orderedIds)) {
+      console.warn("[LaunchPad] reorderNotebooks: orderedIds must be an array");
+      return null;
+    }
+    var books = ensureNotebooksArray(ws);
+    if (!books) return null;
+
+    var byId = {};
+    books.forEach(function (b) { byId[b.id] = b; });
+    var liveSlots = [];
+    books.forEach(function (b, i) { if (!b.deletedAt) liveSlots.push(i); });
+
+    if (orderedIds.length !== liveSlots.length) {
+      console.warn("[LaunchPad] reorderNotebooks: order must account for every live notebook exactly once");
+      return null;
+    }
+    for (var i = 0; i < orderedIds.length; i++) {
+      var id = orderedIds[i];
+      if (typeof id !== "string") {
+        console.warn("[LaunchPad] reorderNotebooks: every id must be a string");
+        return null;
+      }
+      var b = byId[id];
+      if (!b) {
+        console.warn("[LaunchPad] reorderNotebooks: id not found in workspace: " + id);
+        return null;
+      }
+      if (b.deletedAt) {
+        console.warn("[LaunchPad] reorderNotebooks: id refers to a soft-deleted notebook: " + id);
+        return null;
+      }
+    }
+
+    for (var j = 0; j < orderedIds.length; j++) {
+      books[liveSlots[j]] = byId[orderedIds[j]];
+    }
+    await saveAll(data);
+    return books;
+  }
+
+  /** Active (non-deleted) notebooks. Shallow defensive copy, per getAllNotes. */
+  function getAllNotebooks(workspace) {
+    var books = ensureNotebooksArray(workspace);
+    if (!books) return [];
+    return books.filter(function (b) { return !b.deletedAt; });
+  }
+
+  /** Soft-deleted notebooks, for NB.3's trash rows. Mirrors getDeletedNotes. */
+  function getDeletedNotebooks(workspace) {
+    var books = ensureNotebooksArray(workspace);
+    if (!books) return [];
+    return books.filter(function (b) { return !!b.deletedAt; });
+  }
+
+  /** Lookup by id. Null if missing OR soft-deleted, matching getNoteById. */
+  function getNotebookById(workspace, notebookId) {
+    return findLiveNotebook(workspace, notebookId);
   }
 
   // ===== Recurring Task Templates =====
@@ -9835,6 +10222,25 @@ var Storage = (function () {
     deleteNotePermanent: deleteNotePermanent,
     emptyNotesTrash: emptyNotesTrash,
     NOTE_TRASH_TTL_MS: TRASH_TTL_MS,
+    // Notebooks ([NB.2]) - pure mutations, caller pairs saveAll, except
+    // reorderNotebooks and deleteNotebookPermanent which save themselves, per
+    // the notes precedent they are shaped on. NO UI consumes these yet; NB.3
+    // builds the strip, the picker, the drag and the modal.
+    ensureNotebooksArray: ensureNotebooksArray,
+    ensureNotebooksArrays: ensureNotebooksArrays,
+    createNotebook: createNotebook,
+    renameNotebook: renameNotebook,
+    deleteNotebook: deleteNotebook,
+    restoreNotebook: restoreNotebook,
+    deleteNotebookPermanent: deleteNotebookPermanent,
+    reorderNotebooks: reorderNotebooks,
+    // THE ONLY WRITER OF MEMBERSHIP. Every path that changes a note's
+    // notebookId goes through this one function.
+    setNoteNotebook: setNoteNotebook,
+    notesInNotebook: notesInNotebook,
+    getAllNotebooks: getAllNotebooks,
+    getDeletedNotebooks: getDeletedNotebooks,
+    getNotebookById: getNotebookById,
     // Named sessions ([1.4.0]) - pure mutations, caller pairs saveAll, except
     // reorderNamedSessions which saves itself per the notes/goals precedent.
     ensureNamedSessionsArray: ensureNamedSessionsArray,
