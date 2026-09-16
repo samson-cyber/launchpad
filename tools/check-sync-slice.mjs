@@ -64,7 +64,20 @@ const PREFIX = Storage.SYNC_PREFIX;
 const FIELDS = Storage.SYNC_SETTING_FIELDS || [];
 
 // Everything that must NEVER travel, named individually so a failure names it.
-const FORBIDDEN_SETTINGS = ["collapsedGroups", "greetingSeenDay", "storageNoticeAt", "lastBackupAt"];
+//
+// [PF.2 follow-up, ruled 2026-09-16] The last three are the ruled exclusions,
+// and the gate carries them for the reason the ruling gives: each looks like an
+// ordinary preference, so the only durable form of "do not add this" is a build
+// that goes red when someone does. Adding any one of them to the allowlist in
+// storage.js turns this suite RED and names the row.
+//   nestingTipDismissed  onboarding state, per-machine by nature
+//   autoBackupEnabled    the backup file lands in THIS machine's downloads
+//   notificationsEnabled the permission is per-browser; a synced `true` reads ON
+//                        and does nothing on a machine that never granted it
+const FORBIDDEN_SETTINGS = [
+  "collapsedGroups", "greetingSeenDay", "storageNoticeAt", "lastBackupAt",
+  "nestingTipDismissed", "autoBackupEnabled", "notificationsEnabled",
+];
 // data.pro's verdict: per-machine by definition. A synced verdict MINTS access.
 const FORBIDDEN_PRO = ["instanceId", "instanceName", "subscriptionStatus", "lastVerifiedAt", "trialStartedAt", "trialEndedAt", "email"];
 
@@ -75,12 +88,19 @@ const dirty = {
   settings: {
     iconSize: "large", textSize: "large", layout: "compact", focusView: true,
     searchMode: "search", wallDim: 0.4, dueRemindersEnabled: true,
-    pomodoro: { workMin: 50, sound: "chime2" },
+    // notificationsEnabled is NESTED, and that is the point of this row. It has
+    // no top-level existence anywhere in the product, so a gate that only
+    // checked top-level settings would pass while the field travelled inside
+    // pomodoro - which is exactly what it did until this round.
+    pomodoro: { workMin: 50, sound: "chime2", notificationsEnabled: true },
     focus: { idleSec: 90, commitment: true },
     modePresets: { work: { workMin: 45 }, casual: { workMin: 20 } },
     collapsedGroups: { g1: true, g2: true },
     greetingSeenDay: "2026-09-16", storageNoticeAt: 1, lastBackupAt: 2,
+    nestingTipDismissed: true, autoBackupEnabled: true,
     columns: 8, locale: "en-GB", defaultNoteColor: "lavender",
+    endOfDayMinutes: 1320, focusTargetMin: 120, insightsRangeDays: 30,
+    combinedAnalyticsEnabled: true,
   },
   pro: {
     licenseKey: "LP-KEY", instanceId: "inst_seat", instanceName: "Machine",
@@ -101,8 +121,15 @@ const blob = JSON.stringify(slice);
 check("the slice is non-empty", sliceKeys.length >= 8, sliceKeys.length + " keys");
 check("the prefix is a real namespace", typeof PREFIX === "string" && PREFIX.length >= 4, PREFIX);
 check("the allowlist is populated", FIELDS.length >= 8, FIELDS.length + " fields");
+// SCOPED TO THE TOP-LEVEL EXCLUSIONS ON PURPOSE. notificationsEnabled is in
+// FORBIDDEN_SETTINGS - so the allowlist loop below still guards it - but it has
+// no top-level existence in the product, so requiring it at dirty.settings[k]
+// would assert a shape that does not occur. Its own anti-vacuity row, further
+// down, asserts it where it actually lives: inside pomodoro.
+const FORBIDDEN_TOP_LEVEL = FORBIDDEN_SETTINGS.filter((k) => k !== "notificationsEnabled");
 check("the dirty subject really does carry the excluded keys",
-  FORBIDDEN_SETTINGS.every((k) => dirty.settings[k] !== undefined) && dirty.__devProOverride === true);
+  FORBIDDEN_TOP_LEVEL.every((k) => dirty.settings[k] !== undefined) && dirty.__devProOverride === true,
+  FORBIDDEN_TOP_LEVEL.filter((k) => dirty.settings[k] === undefined).join(",") || "all present");
 
 // ---- the actual rules ----------------------------------------------------
 check("every key is namespaced", sliceKeys.every((k) => k.indexOf(PREFIX) === 0),
@@ -119,6 +146,57 @@ for (const k of FORBIDDEN_SETTINGS) {
   check(`settings.${k} is not in the allowlist`, !FIELDS.includes(k));
   check(`settings.${k} does not appear in the built slice`, !blob.includes(JSON.stringify(dirty.settings[k])) || !sliceKeys.includes(PREFIX + k));
 }
+// ---- the NESTED exclusion, which the loop above cannot see ---------------
+//
+// FORBIDDEN_SETTINGS' loop asserts "not a top-level allowlist entry". For
+// notificationsEnabled that is true and useless: the field only ever exists
+// inside pomodoro, and pomodoro syncs whole. These rows assert the thing that
+// actually matters - it is stripped on the way OUT and re-grafted from local on
+// the way IN, so a merge can never overwrite this machine's permission answer.
+const OMIT = Storage.SYNC_OMIT_SUBFIELDS || {};
+check("the omission table names pomodoro.notificationsEnabled",
+  Array.isArray(OMIT.pomodoro) && OMIT.pomodoro.includes("notificationsEnabled"),
+  JSON.stringify(OMIT));
+check("ANTI-VACUITY: the dirty pomodoro really does carry notificationsEnabled",
+  dirty.settings.pomodoro.notificationsEnabled === true);
+check("pomodoro still syncs its other fields",
+  slice[PREFIX + "pomodoro"] && slice[PREFIX + "pomodoro"].workMin === 50 &&
+  slice[PREFIX + "pomodoro"].sound === "chime2",
+  JSON.stringify(slice[PREFIX + "pomodoro"]));
+check("notificationsEnabled is STRIPPED out of the synced pomodoro",
+  slice[PREFIX + "pomodoro"] &&
+  !Object.prototype.hasOwnProperty.call(slice[PREFIX + "pomodoro"], "notificationsEnabled"),
+  JSON.stringify(slice[PREFIX + "pomodoro"]));
+check("notificationsEnabled appears NOWHERE in the built slice",
+  !/notificationsEnabled/.test(blob), blob.slice(0, 200));
+
+// THE INBOUND HALF. An arriving pomodoro carries no notificationsEnabled, so a
+// wholesale assignment would DELETE the local one. Assert it survives, and that
+// the rest of the arrival still lands.
+{
+  const local = { settings: { pomodoro: { workMin: 25, sound: "none", notificationsEnabled: true } } };
+  const arrival = {};
+  arrival[PREFIX + "pomodoro"] = { workMin: 50, sound: "chime2" };
+  Storage.applySyncedValues(local, arrival);
+  check("a merged pomodoro KEEPS this machine's notificationsEnabled",
+    local.settings.pomodoro.notificationsEnabled === true,
+    JSON.stringify(local.settings.pomodoro));
+  check("...and still adopts the arriving fields",
+    local.settings.pomodoro.workMin === 50 && local.settings.pomodoro.sound === "chime2",
+    JSON.stringify(local.settings.pomodoro));
+}
+
+// ---- the seven RULED IN actually travel ---------------------------------
+// The mirror of the exclusion rows: an allowlist entry that silently failed to
+// build would leave these absent and every "is not present" row above would
+// still pass.
+for (const [f, want] of [["columns", 8], ["locale", "en-GB"], ["endOfDayMinutes", 1320],
+                         ["focusTargetMin", 120], ["insightsRangeDays", 30],
+                         ["defaultNoteColor", "lavender"], ["combinedAnalyticsEnabled", true]]) {
+  check(`settings.${f} syncs (ruled in 2026-09-16)`, slice[PREFIX + f] === want,
+    String(slice[PREFIX + f]));
+}
+
 check("__devProOverride is not in the allowlist", !FIELDS.includes("__devProOverride"));
 check("__devProOverride does not appear in the built slice", !/devProOverride/i.test(blob) && !sliceKeys.some((k) => /devPro/i.test(k)));
 

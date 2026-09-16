@@ -3876,4 +3876,122 @@ not sync today. An allowlist that ships too narrow is widened in an afternoon; o
 wide is a privacy incident, so the narrow reading was taken and the list is recorded here for a
 later ruling rather than decided in passing.
 
+> **SETTLED 2026-09-16 by the PF.2 follow-up. This paragraph is history; the ruling below is the
+> live one.** Seven of the ten now sync, three are excluded for reasons that are written into
+> `SYNC_SETTING_FIELDS`'s own comments so the next audit does not "complete" them, and the list of
+> ten was wrong about the tenth - `notificationsEnabled` was already syncing. See the
+> **2026-09-16 - The ten unruled settings are ruled** entry at the foot of this file.
+
 **Shipped in:** PF.2.
+
+---
+
+## 2026-09-16 - The ten unruled settings are ruled: seven sync, three do not, and one of the ten was already syncing
+
+**Context.** PF.2 shipped the sync slice as an allowlist and named ten settings that were in
+neither the allowlist nor the exclusion list, recording them for a later ruling rather than
+deciding them in passing. This is that ruling.
+
+**SEVEN NOW SYNC:** `columns`, `locale`, `endOfDayMinutes`, `focusTargetMin`,
+`insightsRangeDays`, `defaultNoteColor`, `combinedAnalyticsEnabled`. Each is a preference a
+user would expect to follow them to a second machine, which is the only test this allowlist
+applies. `columns` in particular sat oddly beside `iconSize`, `textSize` and `layout`,
+which have synced since the first commit of the feature.
+
+**THREE DO NOT, AND THE REASONS NOW LIVE IN THE CODE RATHER THAN HERE.** The exclusion list in
+`storage.js` carries a written reason per entry, because a reason recorded only in a decisions
+file is a reason the next audit will not read before "completing" the allowlist:
+
+- `nestingTipDismissed` - onboarding state, per-machine by nature. Syncing it means a machine
+  the user has never opened decides it has already taught them something.
+- `autoBackupEnabled` - the backup file lands in *this* machine's Downloads, so the setting is a
+  statement about this machine, not about the user. It also rides the optional `downloads`
+  permission, which is per-browser.
+- `notificationsEnabled` - the `notifications` permission is OPTIONAL and per-browser, so a
+  synced `true` arriving on a machine that never granted it produces a toggle that reads ON and
+  does nothing. That is worse than one that reads off, because the user then believes they are
+  covered.
+
+**THE LIST OF TEN WAS WRONG ABOUT THE TENTH, and finding that out changed the work from a no-op
+to a behaviour change.** `notificationsEnabled` has no top-level existence: the only field of
+that name is `settings.pomodoro.notificationsEnabled`, and `pomodoro` syncs WHOLE. It was
+therefore **already travelling** at the moment PF.2 listed it as not syncing. Honouring the ruling
+meant actively REMOVING it - `SYNC_OMIT_SUBFIELDS` strips it on the way out, and the inbound
+merge re-grafts the LOCAL value before comparing - rather than declining to add it.
+
+**THE GATE ENFORCES THE EXCLUSIONS, WHICH IS THE ONLY DURABLE FORM THIS REASONING TAKES.**
+`tools/check-sync-slice.mjs` went from 33 to 53 assertions. Each of the three exclusions added
+to the allowlist turns it RED, and so does emptying the omission table - four mutants, four
+caught, none escaped. The nested one needed its own anti-vacuity row: the existing row asserts
+`dirty.settings[k] !== undefined`, which a nested field can never satisfy, so a
+`FORBIDDEN_TOP_LEVEL` list scopes that row and the nested field is proven present by a row of
+its own.
+
+**Shipped in:** PF.2 follow-up.
+
+---
+
+## 2026-09-16 - The Firefox add-on id is fixed now, at `launchpad@mylaunchpad.me`, while it still costs nothing
+
+**THE DECISION: `browser_specific_settings.gecko.id` = `launchpad@mylaunchpad.me`, in the
+manifest today, inert on Chrome.** PF.5 assessed the port and did not commit to one; this key is
+the one piece of a port that is cheaper to do before the decision than after it, because the id is
+what any Firefox-side `storage.sync` data would be keyed to. An add-on that ships without an id
+gets one assigned at signing, and changing it later is a new add-on with a new sync namespace and
+a new listing - so an id chosen now is an option kept open, not a port begun.
+
+**WHY THE EMAIL-LIKE FORM RATHER THAN A UUID.** Mozilla accepts either `{uuid}` or an
+email-like string. The email-like form is self-identifying on a domain the product already owns -
+`mylaunchpad.me` is in `host_permissions` and serves the privacy policy - and it avoids minting
+a second opaque identifier nobody can check against anything. A `{uuid}` would read the same to
+Firefox and worse to a human.
+
+**IT IS NOT A PERMISSION, AND THAT WAS ASSERTED RATHER THAN ASSUMED.** All five permission-bearing
+fields (`permissions`, `optional_permissions`, `host_permissions`, `optional_host_permissions`,
+`content_security_policy`) compare identical against `origin/master`, with exactly one top-level
+key added. `chrome.management.getPermissionWarningsByManifest` returns the **same four strings in
+the same order** as PF.1 measured, with two controls proving the instrument is not blind: adding
+`management` produces a fifth line, and adding `https://*/*` REWRITES line 1 from the two named
+hosts to "Read and change all your data on all websites". That second control is worth keeping in
+mind - it changes a warning without changing the COUNT, so a count-based check would have called
+it no change.
+
+**Shipped in:** PF.2 follow-up.
+
+---
+
+## 2026-09-16 - SortableJS ships unminified, and the AMO source-upload question is removed rather than argued
+
+**THE DECISION: `lib/Sortable.min.js` is replaced by `lib/Sortable.js`** - the same library,
+the same version (1.15.0), the same upstream, unminified. This is PF.5's own recommendation acted
+on, and it holds whether or not the Firefox port ever happens.
+
+**WHY, and it is a review-queue argument rather than a technical one.** AMO requires a source
+upload when an add-on uses code minifiers or generators, with a README naming OS, tool versions
+and the commands to reproduce the build. LaunchPad has no build pipeline - `build.sh` only zips
+the tree - so the policy's trigger does not obviously fire. The one ambiguity was a vendored
+pre-minified third-party file. Shipping the readable copy converts a reviewer judgement call into
+a non-event, and it makes the Chrome package easier to audit too.
+
+**PROVENANCE WAS CHECKED, NOT ASSUMED - a version banner is the cheapest thing in a file to be
+wrong.** The minified file this repo shipped is byte-identical, once line endings are normalised,
+to the published `sortablejs@1.15.0` `Sortable.min.js`; the replacement is byte-identical to the
+`Sortable.js` of that same release, taken from the `1.15.0` tag of `github.com/SortableJS/Sortable`
+and cross-checked against the npm artifact. So the swap is provably the same release and not a
+same-numbered rebuild.
+
+**THE GESTURE IS UNVERIFIABLE, SO THE TWO VERIFIABLE THINGS WERE ASSERTED INSTEAD.** No harness in
+this repo can drive a native HTML5 drag. What a broken swap would actually break is (a) whether
+each `new Sortable(...)` site constructs and (b) whether the writer a drag ends in still works.
+All eight call sites were read back through `Sortable.get(el)` - the library's own registry, not a
+class name the product paints itself - and the cross-goal task move was driven through its MENU
+route, which reaches the same writer the drag does. The Sortables were then asserted to have
+REBOUND after the re-render that move triggers. The harness was shown failing with the library
+removed.
+
+**`build.sh` needed no change: its allowlist names the `lib` DIRECTORY**, so a rename inside it
+follows automatically, and the source gate follows `newtab.html`'s `<script src>` rather than a
+hardcoded name. Recorded because "update the allowlist" was the expected work and the right answer
+was that there was none.
+
+**Shipped in:** PF.2 follow-up.

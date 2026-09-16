@@ -392,6 +392,18 @@ if ! node tools/check-quickadd.mjs; then
   exit 1
 fi
 
+# [PF.2 follow-up] The sync slice: what leaves this machine, and what must not.
+# PF.2 SHIPPED THIS GATE AND NEVER WIRED IT IN, so it has been green-by-nobody
+# since - exactly the shape of the importers.js miss recorded below, where a
+# thing that only a build reads was never read by a build. It is wired now.
+# What it earns: the allowlist is an allowlist (a settings key not named in it
+# cannot travel), the licence VERDICT never syncs while the KEY does, and each
+# of the three ruled exclusions turns it RED if somebody "completes" the list.
+if ! node tools/check-sync-slice.mjs; then
+  echo 'ERROR: sync slice gate failed - something leaves this machine that should not, or a synced setting stopped travelling.' >&2
+  exit 1
+fi
+
 # [1.14.5] THE SOURCE GATE - shipped markup against this file's own allowlist.
 #
 # IT RUNS HERE, BEFORE THE ZIP, AND THAT PLACEMENT IS THE WHOLE POINT. The

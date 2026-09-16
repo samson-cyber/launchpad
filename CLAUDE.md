@@ -117,7 +117,7 @@ LaunchPad uses **two distinct, parallel numbering tracks**. They look alike but 
 
 - **Manifest V3** Chrome extension
 - Vanilla HTML / CSS / JavaScript (no build pipeline — direct file edit, reload unpacked)
-- **SortableJS** bundled locally (`/lib/Sortable.min.js`) for drag-and-drop. NOT from CDN due to CSP.
+- **SortableJS 1.15.0** bundled locally as `/lib/Sortable.js` for drag-and-drop. NOT from CDN due to CSP. **Unminified since 2026-09-16** (PF.2 follow-up): Mozilla's add-on review requires readable source, and the minified copy would have forced a sources upload at submission. The file is the upstream `Sortable.js` from the `1.15.0` tag of `github.com/SortableJS/Sortable`, byte-identical to the npm artifact once line endings are normalised; the minified copy it replaced was likewise byte-identical to that release's `Sortable.min.js`. **Do not re-minify it and do not edit it** — it is a vendored dependency, and a local edit is invisible to anyone reading the version banner.
 - `chrome.storage.local` for data (key: `"data"` — NOT `"launchpad_data"`)
 - `chrome.search.query` for search (uses user's default search engine, does NOT offer a picker — removed in v1.0.2 for Chrome Web Store "single purpose" policy)
 - `chrome.alarms` for background scheduling (session snapshots, forthcoming tracking flushes)

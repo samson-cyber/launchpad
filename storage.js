@@ -9965,6 +9965,13 @@ var Storage = (function () {
   var SYNC_SETTING_FIELDS = [
     "iconSize", "textSize", "layout", "focusView", "searchMode", "wallDim",
     "dueRemindersEnabled",
+    // [PF.2 follow-up, ruled 2026-09-16] The seven that PF.2 shipped in neither
+    // list and reported for a ruling. All seven are PREFERENCES a user would
+    // expect to follow them to another machine, which is the whole test this
+    // allowlist applies. `columns` in particular sat oddly beside iconSize,
+    // textSize and layout, which synced from the first commit.
+    "columns", "locale", "endOfDayMinutes", "focusTargetMin",
+    "insightsRangeDays", "defaultNoteColor", "combinedAnalyticsEnabled",
     // STRUCTURED, AND KEPT WHOLE ON PURPOSE. pomodoro carries the boundary
     // chime, focus carries the idle threshold and the commitment sentence, and
     // modePresets carries both modes. Each is one key, so a collision can only
@@ -9973,6 +9980,52 @@ var Storage = (function () {
     // keys to remove a window measured in seconds.
     "pomodoro", "focus", "modePresets"
   ];
+
+  // ---- THE EXCLUSION LIST, AND WHY EACH ONE IS OUT -------------------------
+  //
+  // RECORDED SO THE NEXT AUDIT DOES NOT "COMPLETE" THE ALLOWLIST. Each of these
+  // looks like an ordinary preference and is not, and the gate turns RED if any
+  // of them is added - which is the only durable form this reasoning can take.
+  //
+  //   nestingTipDismissed   ONBOARDING STATE, per-machine by nature. It records
+  //                         that this browser has shown a one-time tip. Syncing
+  //                         it means a machine the user has never opened decides
+  //                         it has already taught them something.
+  //   autoBackupEnabled     THE BACKUP FILE LANDS IN *THIS* MACHINE'S DOWNLOADS,
+  //                         so the setting is a statement about this machine and
+  //                         not about the user. It also rides the optional
+  //                         `downloads` permission, which is per-browser.
+  //   notificationsEnabled  THE PERMISSION IS PER-BROWSER. `notifications` is an
+  //                         OPTIONAL permission requested at first enable, so a
+  //                         synced `true` arriving on a machine that never
+  //                         granted it produces a toggle that reads ON and does
+  //                         nothing - worse than one that reads off, because the
+  //                         user then believes they are covered.
+  //
+  // THE THIRD ONE IS NOT LIKE THE OTHER TWO, and this is the reason the code
+  // below exists. The other two are top-level settings that simply never
+  // entered the allowlist. `notificationsEnabled` has NO top-level existence at
+  // all - the only field of that name is `settings.pomodoro.notificationsEnabled`,
+  // and `pomodoro` syncs WHOLE. So it was already travelling, and honouring the
+  // ruling means REMOVING it rather than declining to add it. Stripped on the
+  // way out, and preserved from the local value on the way in, so a merge can
+  // never overwrite this machine's answer to a permission question.
+  var SYNC_OMIT_SUBFIELDS = { pomodoro: ["notificationsEnabled"] };
+
+  // Copy an object minus the subfields that must not leave this machine. Returns
+  // the value unchanged when there is nothing to omit, so every other field in
+  // the table costs nothing.
+  function syncStripSubfields(field, value) {
+    var omit = SYNC_OMIT_SUBFIELDS[field];
+    if (!omit || !value || typeof value !== "object" || Array.isArray(value)) return value;
+    var out = {};
+    for (var k in value) {
+      if (!Object.prototype.hasOwnProperty.call(value, k)) continue;
+      if (omit.indexOf(k) !== -1) continue;
+      out[k] = value[k];
+    }
+    return out;
+  }
   var SYNC_LICENSE_FIELD = "licenseKey";
   var SYNC_BG_ROTATE_FIELD = "bgRotate";
 
@@ -9995,7 +10048,9 @@ var Storage = (function () {
     if (data && data.settings) {
       for (var i = 0; i < SYNC_SETTING_FIELDS.length; i++) {
         var f = SYNC_SETTING_FIELDS[i];
-        if (data.settings[f] !== undefined) out[syncKeyFor(f)] = data.settings[f];
+        if (data.settings[f] !== undefined) {
+          out[syncKeyFor(f)] = syncStripSubfields(f, data.settings[f]);
+        }
       }
     }
     // THE KEY AND ONLY THE KEY. Never instanceId (it is this machine's Dodo
@@ -10120,8 +10175,27 @@ var Storage = (function () {
       var k = syncKeyFor(f);
       if (!Object.prototype.hasOwnProperty.call(bag, k)) continue;
       if (bag[k] === undefined) continue;
-      if (JSON.stringify(data.settings[f]) === JSON.stringify(bag[k])) continue;
-      data.settings[f] = bag[k];
+      // THE OMITTED SUBFIELDS ARE TAKEN BACK FROM LOCAL, not from the bag. An
+      // arriving `pomodoro` carries no notificationsEnabled (buildSyncSlice
+      // stripped it), so assigning the arrival wholesale would DELETE this
+      // machine's answer to a per-browser permission question. Re-graft it.
+      var incoming = bag[k];
+      var omit = SYNC_OMIT_SUBFIELDS[f];
+      if (omit && incoming && typeof incoming === "object" && !Array.isArray(incoming)) {
+        var merged = {};
+        for (var ik in incoming) {
+          if (Object.prototype.hasOwnProperty.call(incoming, ik)) merged[ik] = incoming[ik];
+        }
+        var local = data.settings[f];
+        for (var oi = 0; oi < omit.length; oi++) {
+          if (local && typeof local === "object" && local[omit[oi]] !== undefined) {
+            merged[omit[oi]] = local[omit[oi]];
+          }
+        }
+        incoming = merged;
+      }
+      if (JSON.stringify(data.settings[f]) === JSON.stringify(incoming)) continue;
+      data.settings[f] = incoming;
       res.settings.push(f);
     }
     var lk = bag[syncKeyFor(SYNC_LICENSE_FIELD)];
@@ -10233,6 +10307,7 @@ var Storage = (function () {
     // [1.16.0] PF.2 - the sync slice.
     SYNC_PREFIX: SYNC_PREFIX,
     SYNC_SETTING_FIELDS: SYNC_SETTING_FIELDS,
+    SYNC_OMIT_SUBFIELDS: SYNC_OMIT_SUBFIELDS,
     SYNC_DEBOUNCE_MS: SYNC_DEBOUNCE_MS,
     syncAvailable: syncAvailable,
     syncAllKeys: syncAllKeys,
