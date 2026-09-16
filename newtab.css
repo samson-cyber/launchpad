@@ -12386,7 +12386,22 @@ html.has-bg.bg-light .tt-progress-fill {
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: #4a90e2;
+  /* The same literal the notes focus rings carried, on the same ruling: one
+     blue, and it is the token. This one is a TINT rather than a ring - the
+     fill the browser paints when the box is CHECKED - so an unchecked box is
+     unaffected by this line and measures identically either way (10.37 / 15.28
+     / 16.29 / 4.50 on the four grounds, before and after).
+
+     Checked, before -> after: 7.69 -> 6.91, 11.32 -> 7.25, 12.08 -> 7.73,
+     3.26 -> 4.47. READ THOSE WITH THE CAVEAT THEY DESERVE rather than as a
+     clean delta: a checkbox is a composite of fill, checkmark and border, and
+     the sampler reports the most-changed pixels, which is the WHITE CHECKMARK
+     on dark grounds before the change (ink 255,255,255) and the BLUE FILL after
+     (ink 138,180,248). The two columns are therefore not measuring the same
+     sub-feature on those grounds. What is like-for-like is LIGHT, where the
+     fill dominates both times and the change is an improvement, 3.26 -> 4.47,
+     because #1a73e8 is darker than #4a90e2 on white. */
+  accent-color: var(--sat-accent, #4a90e2);
 }
 
 .tt-task-name {
@@ -13802,7 +13817,8 @@ html.has-bg.bg-light .tt-task-handle:hover {
   font-size: var(--fs-12);
 }
 
-.tt-modal-dow-toggle input { accent-color: #4a90e2; }
+/* Same ruling as .tt-task-check: one blue, and it is the token. */
+.tt-modal-dow-toggle input { accent-color: var(--sat-accent, #4a90e2); }
 
 .tt-modal-error {
   padding: var(--space-1-5) var(--space-2-5);
@@ -17258,24 +17274,53 @@ html.has-bg.bg-light .notes-trash-action:hover { background: rgba(0, 0, 0, 0.07)
    behind it. The outline sits OUTSIDE the card (offset) because the card itself
    is rotated paper and an inset ring reads as a border on the sheet. */
 .note-card:focus { outline: none; }
+/* ONE FOCUS-RING BLUE, AND IT IS THE TOKEN. These rules carried a literal
+   #4a90e2 with a hand-written html.has-bg.bg-light override to #1b64b8, while
+   every other focus ring in the product - session rows, tip rows, the panel
+   close buttons, the task-session and session-picker rows - takes
+   var(--sat-accent). A user tabbing from a session row into a note card saw
+   the ring change colour, and 8836c77 found it while enumerating blue
+   literals but could not fix it there: that round was scoped to tokenisation
+   with every frame proven byte-identical, and harmonising these necessarily
+   changes a rendered colour.
+
+   --sat-accent is the same per-ground pair in token form: --accent (#1a73e8)
+   with no wallpaper and on a light one, #8ab4f8 on dark and image grounds. The
+   literal had only TWO states to the token's three, which is exactly where the
+   two disagreed - on image and dark grounds the literal stayed #4a90e2 while
+   the session rows went to #8ab4f8.
+
+   MEASURED FROM THE SCREEN, non-text floor 3:1, before -> after:
+                    none          image         dark          light
+     .note-card    3.15 -> 4.27  2.39 -> 3.84  4.77 -> 7.46  5.11 -> 3.91
+     .note-swatch  3.29 -> 4.51  4.90 -> 7.65  5.01 -> 7.82  5.85 -> 4.47
+   THE IMAGE GROUND IS THE ONE THAT WAS ACTUALLY FAILING - .note-card at 2.39 -
+   and it is precisely the ground the literal had no second state for. Light
+   drops (5.11 -> 3.91, 5.85 -> 4.47) because #1a73e8 is lighter than the
+   hand-picked #1b64b8 it replaces; both stay over the floor, and that is the
+   cost of having one answer instead of two, paid where there was margin.
+
+   THE GHOST IS NOT RESCUED BY THIS AND IS NOT PRETENDED TO BE. Its ring reads
+   1.85 / 1.53 / 2.28 / 2.35 before and 2.19 / 2.13 / 3.11 / 2.13 after - under
+   3:1 on three of four grounds either way. The cause is not the colour:
+   .note-ghost carries opacity:0.55 and opacity dims the element's OUTLINE along
+   with the element, so the ring is painted at just over half strength whatever
+   blue it is. Fixing it means deciding whether a focused placeholder stops
+   being faded, which is a different decision from this one and is filed rather
+   than folded in. */
 .note-card:focus-visible {
-  outline: 2px solid #4a90e2;
+  outline: 2px solid var(--sat-accent, #4a90e2);
   outline-offset: 3px;
 }
-html.has-bg.bg-light .note-card:focus-visible { outline-color: #1b64b8; }
 
 /* The ghost is a button and gets the same treatment for the same reason. */
 .note-ghost:focus-visible,
 .notes-trash-btn:focus-visible,
 .notes-trash-action:focus-visible,
 .note-swatch:focus-visible {
-  outline: 2px solid #4a90e2;
+  outline: 2px solid var(--sat-accent, #4a90e2);
   outline-offset: 2px;
 }
-html.has-bg.bg-light .note-ghost:focus-visible,
-html.has-bg.bg-light .notes-trash-btn:focus-visible,
-html.has-bg.bg-light .notes-trash-action:focus-visible,
-html.has-bg.bg-light .note-swatch:focus-visible { outline-color: #1b64b8; }
 
 /* The hover trash is revealed on hover; it must also appear on keyboard focus,
    or it is a control a keyboard user can focus but never see. */
