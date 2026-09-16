@@ -3096,6 +3096,10 @@ var Storage = (function () {
           console.error("[LaunchPad] Write adoption failed:", adoptErr);
         }
       }
+      // [1.16.0] PF.2. AFTER the local write has succeeded, and inside its own
+      // guard: sync is a convenience on top of local storage and must never be
+      // able to turn a successful local save into a reported failure.
+      syncPush(data);
       return true;
     } catch (err) {
       _pendingWriteIds.delete(writeId);
@@ -3290,7 +3294,12 @@ var Storage = (function () {
 
   async function saveBackgroundConfig(cfg) {
     try {
-      await chrome.storage.local.set({ launchpad_background: normalizeBackground(cfg) });
+      var normalized = normalizeBackground(cfg);
+      await chrome.storage.local.set({ launchpad_background: normalized });
+      // [1.16.0] PF.2. The ROTATION MODE only - buildSyncSlice reads cfg.rotate
+      // and nothing else, so `global` and `ws` (which hold the actual images)
+      // are not reachable from here.
+      syncPushBackground(normalized);
       return true;
     } catch (err) {
       reportWriteFailure(err, "saveBackgroundConfig");
@@ -9909,6 +9918,302 @@ var Storage = (function () {
     return out;
   }
 
+  // ===== [1.16.0] PF.2 - THE storage.sync SLICE ===========================
+  //
+  // WHAT SYNCS AND WHY IT IS A LIST RATHER THAN A RULE. Every name below is
+  // written out. There is no "everything except" anywhere in this block,
+  // because an exclusion list is a promise that the next person to add a
+  // setting will remember to think about privacy, and they will not. A new
+  // setting does not sync until somebody adds it here on purpose.
+  //
+  // ONE KEY PER SETTING, NOT ONE KEY FOR THE LOT. chrome.storage.sync is
+  // last-write-wins per TOP-LEVEL KEY, and that was measured rather than read:
+  // with the whole settings object under one key, machine A reading, machine B
+  // writing, then machine A writing its own change back loses B entirely
+  // ({"columns":6} after B had set 9). Split one key per setting, both survive.
+  // The control that makes that mean something: the same blob written with a
+  // RE-READ between keeps both, so the loss is the read-modify-write window and
+  // not a blind instrument.
+  //
+  // THE NAMESPACE IS LOAD-BEARING, not decoration. Three onChanged listeners in
+  // this codebase do not filter on areaName - background.js's context-menu
+  // rebuild, companion.js's re-render and newtab.js's write-provenance gate -
+  // and they key off "data", "tracking_sessions" and "__lastWrite". Introducing
+  // a second storage area makes all three live. Prefixed keys collide with none
+  // of them; a sync key named "data" trips all of them, which is the control the
+  // gate asserts.
+  //
+  // WHAT IS EXCLUDED BY CONSTRUCTION - not filtered, simply never a candidate:
+  //   collapsedGroups   keyed by GROUP ID, and group ids do not travel. On the
+  //                     other machine it is a map of ids that do not exist. It
+  //                     is also the only settings key that grows without bound
+  //                     (~20 bytes per group), so leaving it out is what makes
+  //                     the slice bounded by construction.
+  //   greetingSeenDay / storageNoticeAt / lastBackupAt   per-device state
+  //                     wearing a preference's clothes.
+  //   any wallpaper IMAGE   an uploaded wallpaper is ~1.08 MB, 10.6% of the
+  //                     whole 100KB-per-item... it does not fit at all, and the
+  //                     ROTATION MODE is the part that is a preference.
+  //   __devProOverride  top-level, not in settings and not in pro, so it is not
+  //                     reachable from this table at any price. The gate proves
+  //                     that by adding it to the allowlist and failing.
+  var SYNC_PREFIX = "lp_sync:";
+  var SYNC_DEBOUNCE_MS = 1500;
+  var SYNC_RETRY_MS = 20000;
+
+  // Settings that sync, by their real names in data.settings.
+  var SYNC_SETTING_FIELDS = [
+    "iconSize", "textSize", "layout", "focusView", "searchMode", "wallDim",
+    "dueRemindersEnabled",
+    // STRUCTURED, AND KEPT WHOLE ON PURPOSE. pomodoro carries the boundary
+    // chime, focus carries the idle threshold and the commitment sentence, and
+    // modePresets carries both modes. Each is one key, so a collision can only
+    // lose a FIELD INSIDE one object and only when two machines edit the same
+    // panel inside the same debounce window. The alternative is seventeen more
+    // keys to remove a window measured in seconds.
+    "pomodoro", "focus", "modePresets"
+  ];
+  var SYNC_LICENSE_FIELD = "licenseKey";
+  var SYNC_BG_ROTATE_FIELD = "bgRotate";
+
+  function syncAvailable() {
+    return !!(typeof chrome !== "undefined" && chrome.storage && chrome.storage.sync);
+  }
+  function syncKeyFor(name) { return SYNC_PREFIX + name; }
+  function syncAllKeys() {
+    var out = [];
+    for (var i = 0; i < SYNC_SETTING_FIELDS.length; i++) out.push(syncKeyFor(SYNC_SETTING_FIELDS[i]));
+    out.push(syncKeyFor(SYNC_LICENSE_FIELD));
+    out.push(syncKeyFor(SYNC_BG_ROTATE_FIELD));
+    return out;
+  }
+
+  // THE SLICE, built from the table and from nothing else. Whatever is in
+  // `data` that is not named above cannot appear in the return value.
+  function buildSyncSlice(data, bgCfg) {
+    var out = {};
+    if (data && data.settings) {
+      for (var i = 0; i < SYNC_SETTING_FIELDS.length; i++) {
+        var f = SYNC_SETTING_FIELDS[i];
+        if (data.settings[f] !== undefined) out[syncKeyFor(f)] = data.settings[f];
+      }
+    }
+    // THE KEY AND ONLY THE KEY. Never instanceId (it is this machine's Dodo
+    // seat), never subscriptionStatus or lastVerifiedAt (the verdict is per
+    // machine and a synced one would MINT offline grace on a machine that never
+    // earned it - the same defect importLicenseState was written to prevent).
+    if (data && data.pro && typeof data.pro.licenseKey === "string" && data.pro.licenseKey) {
+      out[syncKeyFor(SYNC_LICENSE_FIELD)] = data.pro.licenseKey;
+    }
+    if (bgCfg && bgCfg.rotate) {
+      out[syncKeyFor(SYNC_BG_ROTATE_FIELD)] = { on: bgCfg.rotate.on === true, every: bgCfg.rotate.every };
+    }
+    return out;
+  }
+
+  // ---- the debounced writer ------------------------------------------------
+  //
+  // 120 writes per minute is a REAL ceiling that THROWS, not a guideline: 130
+  // rapid writes measured 108 accepted and 22 refused with "This request
+  // exceeds the MAX_WRITE_OPERATIONS_PER_MINUTE quota." So changes are batched
+  // into one set() per debounce window - at 1.5s that is at most 40 writes a
+  // minute even under continuous edits, a third of the ceiling.
+  //
+  // AND A REFUSED BATCH IS PUT BACK, never dropped. A dropped batch is a
+  // setting that silently stopped syncing, which is worse than a slow one.
+  var _syncSnapshot = null;
+  var _syncPending = {};
+  var _syncTimer = null;
+  var _syncStats = { writes: 0, batched: 0, retries: 0, lastError: null };
+
+  function syncQueue(slice) {
+    if (!syncAvailable()) return 0;
+    var queued = 0;
+    for (var k in slice) {
+      if (!Object.prototype.hasOwnProperty.call(slice, k)) continue;
+      var enc = JSON.stringify(slice[k]);
+      // Already known to be the value on the other side - nothing to say.
+      if (_syncSnapshot && _syncSnapshot[k] === enc) continue;
+      _syncPending[k] = slice[k];
+      queued++;
+    }
+    if (!queued) return 0;
+    _syncStats.batched += queued;
+    if (!_syncTimer) _syncTimer = setTimeout(syncFlush, SYNC_DEBOUNCE_MS);
+    return queued;
+  }
+
+  async function syncFlush() {
+    _syncTimer = null;
+    var batch = _syncPending;
+    _syncPending = {};
+    var keys = Object.keys(batch);
+    if (!keys.length) return true;
+    try {
+      await chrome.storage.sync.set(batch);
+      if (!_syncSnapshot) _syncSnapshot = {};
+      for (var i = 0; i < keys.length; i++) _syncSnapshot[keys[i]] = JSON.stringify(batch[keys[i]]);
+      _syncStats.writes++;
+      return true;
+    } catch (err) {
+      // PUT IT BACK, behind anything queued since, and try again later.
+      for (var j = 0; j < keys.length; j++) {
+        if (!Object.prototype.hasOwnProperty.call(_syncPending, keys[j])) _syncPending[keys[j]] = batch[keys[j]];
+      }
+      _syncStats.retries++;
+      _syncStats.lastError = String((err && err.message) || err);
+      if (!_syncTimer) _syncTimer = setTimeout(syncFlush, SYNC_RETRY_MS);
+      console.warn("[LaunchPad] sync write deferred:", _syncStats.lastError);
+      return false;
+    }
+  }
+
+  // Called from saveAll. Must never throw into the write path: a sync failure
+  // is not a reason for a LOCAL save to report failure.
+  function syncPush(data) {
+    if (!syncAvailable()) return;
+    try { syncQueue(buildSyncSlice(data, null)); }
+    catch (err) { console.warn("[LaunchPad] sync push skipped:", err && err.message); }
+  }
+
+  function syncPushBackground(cfg) {
+    if (!syncAvailable()) return;
+    try { syncQueue(buildSyncSlice(null, cfg)); }
+    catch (err) { console.warn("[LaunchPad] sync push (background) skipped:", err && err.message); }
+  }
+
+  // ---- the read side -------------------------------------------------------
+  //
+  // MERGE PER KEY, into local. Whatever the other machine last said about a
+  // named setting wins for THAT setting and touches no other. The loop back is
+  // broken by value rather than by a flag: after a merge the local value equals
+  // the synced one, so the push that follows the save finds nothing changed.
+  //
+  // THE LICENCE IS NOT MERGED LIKE A SETTING. A key arriving here is by
+  // definition a key this machine has not activated, so it takes
+  // applyLicenseFromPopover's SHAPE - clear the seat and the verdict, keep the
+  // key - and the caller then runs the real validation path. That is the
+  // popover's shape and deliberately not importLicenseState's: the restore
+  // keeps instanceId because it is the same machine reactivating its own
+  // backup, whereas this machine has never registered this key and must
+  // activate to get a seat of its own.
+  function adoptSyncedLicenseKey(data, key) {
+    if (!data || !key || typeof key !== "string") return false;
+    if (!data.pro || typeof data.pro !== "object") data.pro = {};
+    if (data.pro.licenseKey === key) return false;
+    data.pro.licenseKey = key;
+    data.pro.instanceId = null;
+    data.pro.instanceName = null;
+    data.pro.lastVerifiedAt = null;
+    data.pro.subscriptionStatus = "free";
+    return true;
+  }
+
+  // Applies a bag of synced values to `data` in place. Returns what changed so
+  // the caller can decide whether a save and a re-render are warranted.
+  function applySyncedValues(data, bag) {
+    var res = { settings: [], licenseKeyAdopted: false, bgRotate: null };
+    if (!data || !bag) return res;
+    if (!data.settings) data.settings = {};
+    for (var i = 0; i < SYNC_SETTING_FIELDS.length; i++) {
+      var f = SYNC_SETTING_FIELDS[i];
+      var k = syncKeyFor(f);
+      if (!Object.prototype.hasOwnProperty.call(bag, k)) continue;
+      if (bag[k] === undefined) continue;
+      if (JSON.stringify(data.settings[f]) === JSON.stringify(bag[k])) continue;
+      data.settings[f] = bag[k];
+      res.settings.push(f);
+    }
+    var lk = bag[syncKeyFor(SYNC_LICENSE_FIELD)];
+    if (typeof lk === "string" && lk) res.licenseKeyAdopted = adoptSyncedLicenseKey(data, lk);
+    var rot = bag[syncKeyFor(SYNC_BG_ROTATE_FIELD)];
+    if (rot && typeof rot === "object") res.bgRotate = { on: rot.on === true, every: rot.every };
+    return res;
+  }
+
+  // Read every namespaced key and fold it into local. The snapshot is primed
+  // from what was read, so the push that follows says nothing.
+  async function syncMergeIntoLocal(data) {
+    if (!syncAvailable() || !data) return { settings: [], licenseKeyAdopted: false, bgRotate: null, unavailable: true };
+    var bag;
+    try { bag = await chrome.storage.sync.get(syncAllKeys()); }
+    catch (err) {
+      console.warn("[LaunchPad] sync read failed:", err && err.message);
+      return { settings: [], licenseKeyAdopted: false, bgRotate: null, unavailable: true };
+    }
+    var res = applySyncedValues(data, bag);
+    if (!_syncSnapshot) _syncSnapshot = {};
+    for (var k in bag) {
+      if (!Object.prototype.hasOwnProperty.call(bag, k)) continue;
+      _syncSnapshot[k] = JSON.stringify(bag[k]);
+      // A VALUE THAT ARRIVED SUPERSEDES ONE THIS MACHINE HAD QUEUED for the
+      // same key. Without this the pending flush writes the older local value
+      // back over the newer remote one, the resulting onChanged merges it into
+      // local, and the other machine's change is silently undone - measured,
+      // with the licence key, before this line existed.
+      if (Object.prototype.hasOwnProperty.call(_syncPending, k)) delete _syncPending[k];
+    }
+    if (res.bgRotate) {
+      try {
+        var cfg = await getBackgroundConfig();
+        if (cfg.rotate.on !== res.bgRotate.on || cfg.rotate.every !== res.bgRotate.every) {
+          cfg.rotate = { on: res.bgRotate.on, every: res.bgRotate.every };
+          await saveBackgroundConfig(cfg);
+        } else {
+          res.bgRotate = null;
+        }
+      } catch (e) { res.bgRotate = null; }
+    }
+    return res;
+  }
+
+  // EVERY CONTEXT THAT LOADS storage.js WATCHES THE SYNC AREA, and this is not
+  // the same job as background.js's merge listener.
+  //
+  // background.js decides what an incoming value MEANS - it merges into local,
+  // adopts a licence, re-renders. This one only keeps THIS context's outbound
+  // queue honest, and it has to exist in every context because the queue does:
+  // the page and the service worker each hold their own _syncPending, so a
+  // merge performed in one of them cannot cancel a stale write queued in the
+  // other. That is not a theoretical gap - it is the measured one. The worker
+  // adopted the incoming licence key, the page's queue flushed the older value
+  // over the top a second later, the resulting onChanged merged it back, and
+  // the other machine's change was undone.
+  //
+  // Scoped to areaName "sync" and to the namespace, so it is inert for every
+  // local write and for anything that is not ours.
+  function syncNoteExternalChange(changes) {
+    for (var k in changes) {
+      if (!Object.prototype.hasOwnProperty.call(changes, k)) continue;
+      if (k.indexOf(SYNC_PREFIX) !== 0) continue;
+      var nv = changes[k].newValue;
+      if (!_syncSnapshot) _syncSnapshot = {};
+      if (nv === undefined) delete _syncSnapshot[k];
+      else _syncSnapshot[k] = JSON.stringify(nv);
+      // The value that just landed is newer than anything queued here for the
+      // same key. Dropping it is what last-write-wins means from this side.
+      if (Object.prototype.hasOwnProperty.call(_syncPending, k)) delete _syncPending[k];
+    }
+  }
+  if (syncAvailable() && chrome.storage.onChanged && chrome.storage.onChanged.addListener) {
+    chrome.storage.onChanged.addListener(function (changes, areaName) {
+      if (areaName !== "sync") return;
+      syncNoteExternalChange(changes);
+    });
+  }
+
+  // For harnesses and for the gate. Reading the stats is how a test asserts
+  // ONE batched write rather than five.
+  function syncStats() {
+    return { writes: _syncStats.writes, batched: _syncStats.batched,
+             retries: _syncStats.retries, lastError: _syncStats.lastError,
+             pending: Object.keys(_syncPending).length, timerArmed: !!_syncTimer };
+  }
+  async function syncFlushNow() {
+    if (_syncTimer) { clearTimeout(_syncTimer); _syncTimer = null; }
+    return await syncFlush();
+  }
+
   return {
     // [1.0.11.2] Write-provenance hooks — see saveAll() above.
     TAB_INSTANCE_ID: TAB_INSTANCE_ID,
@@ -9925,6 +10230,19 @@ var Storage = (function () {
     getDefaultData: getDefaultData,
     getAll: getAll,
     saveAll: saveAll,
+    // [1.16.0] PF.2 - the sync slice.
+    SYNC_PREFIX: SYNC_PREFIX,
+    SYNC_SETTING_FIELDS: SYNC_SETTING_FIELDS,
+    SYNC_DEBOUNCE_MS: SYNC_DEBOUNCE_MS,
+    syncAvailable: syncAvailable,
+    syncAllKeys: syncAllKeys,
+    buildSyncSlice: buildSyncSlice,
+    applySyncedValues: applySyncedValues,
+    adoptSyncedLicenseKey: adoptSyncedLicenseKey,
+    syncMergeIntoLocal: syncMergeIntoLocal,
+    syncPush: syncPush,
+    syncStats: syncStats,
+    syncFlushNow: syncFlushNow,
     migrate: migrate,
     emptyTrackingState: emptyTrackingState,
     ensureTrackingState: ensureTrackingState,

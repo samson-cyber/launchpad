@@ -382,6 +382,66 @@ function runProReconcile() {
 //     structured error) -> subscriptionStatus flips to 'invalid', which
 //     getProAccessLevel maps straight to 'free' (the proven manual-button path).
 //
+// ===== [1.16.0] PF.2 - THE SYNC READ SIDE ==================================
+//
+// THE MERGE RUNS HERE AND NOT IN THE PAGE, for the reason enqueueBgData exists
+// (BUGS.md L1): this is a background writer of the `data` key, and a bare
+// getAll -> mutate -> saveAll outside the queue can clobber a concurrent one.
+// It is also the only context that is awake when the browser starts and no tab
+// is open, which is exactly when a second machine's settings should arrive.
+//
+// THE LOOP IS BROKEN BY VALUE, NOT BY A FLAG. syncMergeIntoLocal primes the
+// snapshot from what it just read, so the saveAll below pushes nothing back:
+// buildSyncSlice finds every value already equal to the snapshot. A flag would
+// have to be cleared correctly on every path; equality clears itself.
+//
+// THE LICENCE TAKES THE POPOVER'S SHAPE, not the restore's. Storage cleared the
+// seat and the verdict and kept the key; what remains is the network half, and
+// it goes through the SAME LicenseClient.ensureValidated every other entry
+// point uses. Since instanceId is now null, ensureValidated's first stage
+// ACTIVATES, which is the point - this machine needs a seat of its own, and a
+// synced key that skipped activation would never be registered on Dodo's side.
+function runSyncMerge(reason) {
+  return enqueueBgData("sync-merge", async function () {
+    if (!Storage.syncAvailable()) return { unavailable: true };
+    var data = await Storage.getAll();
+    var res = await Storage.syncMergeIntoLocal(data);
+    if (res.unavailable) return res;
+    var touched = res.settings.length > 0 || res.licenseKeyAdopted;
+    if (touched) await Storage.saveAll(data);
+
+    if (res.licenseKeyAdopted) {
+      // A key this machine has never activated. Validate through the real path;
+      // a failure here is not a failed merge - the key is stored and unverified,
+      // which the ordinary expiry path already knows how to present.
+      try {
+        await LicenseClient.ensureValidated(data, data.pro.licenseKey, { force: true });
+        await Storage.saveAll(data);
+      } catch (err) {
+        console.error("[LaunchPad] Synced licence validation failed (" + (reason || "unknown") + "):", err);
+      }
+    }
+    if (touched) {
+      // The page re-renders off its own `data` onChanged; the badge and the
+      // context menus are this context's job.
+      requestContextMenuRebuild();
+    }
+    return res;
+  });
+}
+
+// EVERY SYNC WRITE FROM ANOTHER MACHINE LANDS HERE. Scoped to areaName "sync"
+// deliberately - the three listeners in this codebase that do NOT scope are the
+// reason the keys are namespaced, and a fourth unscoped one would undo that.
+chrome.storage.onChanged.addListener(function (changes, areaName) {
+  if (areaName !== "sync") return;
+  var mine = Object.keys(changes || {}).some(function (k) {
+    return k.indexOf(Storage.SYNC_PREFIX) === 0;
+  });
+  if (!mine) return;
+  runSyncMerge("sync-changed");
+});
+
 // force:true bypasses the 24h per-newtab debounce so a relaunch shortly after a
 // cancellation catches it; our own 6h throttle (sibling key) is what bounds the
 // Dodo call rate. We persist ONLY when an entitlement field actually moved, so a
@@ -1267,6 +1327,10 @@ runDueRemindersBg();
 
 chrome.runtime.onInstalled.addListener(function () {
   requestContextMenuRebuild();
+  // [1.16.0] PF.2. A fresh install on a second machine is the case the whole
+  // slice exists for: Chrome has already populated storage.sync before any tab
+  // opens, so the settings are there to be adopted at this moment.
+  runSyncMerge("installed");
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
   chrome.alarms.create(PRO_RECONCILE_ALARM, { periodInMinutes: PRO_RECONCILE_PERIOD_MINUTES });
   // [1.3.0 R2] Reconciled rather than created blind: the weekly alarm exists
@@ -1294,6 +1358,7 @@ chrome.runtime.onInstalled.addListener(function () {
 });
 chrome.runtime.onStartup.addListener(function () {
   requestContextMenuRebuild();
+  runSyncMerge("startup");
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
   chrome.alarms.create(PRO_RECONCILE_ALARM, { periodInMinutes: PRO_RECONCILE_PERIOD_MINUTES });
   // [1.3.0 R2] Reconciled rather than created blind: the weekly alarm exists

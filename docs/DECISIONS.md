@@ -3811,3 +3811,69 @@ the gap. **A manifest-reading gate is only as complete as the manifest keys the 
 a new surface is exactly when that gap appears.
 
 **Shipped in:** PF.1.
+
+---
+
+## 2026-09-16 - Sync ships, ON BY DEFAULT, and the 2026-07-22 question is closed
+
+**The question 2026-07-22 left open** was whether the settings + licence slice should ship at all,
+and if so whether it should be opt-in. It is closed: **it ships, on by default, governed by
+Chrome's own sync switch and by no setting inside LaunchPad.**
+
+**WHY ON BY DEFAULT, when the product's identity is "all data local".** The decision's own
+rationale - *"a reinstall recovers Pro status and preferences instantly"* - is unachievable
+off-by-default, because the user would have to have enabled it BEFORE the event it protects
+against. A backup you must remember to switch on protects nobody at the moment they need it.
+The cost of defaulting it on is bounded by what Chrome sync already is: for a user not signed in
+to Chrome, `storage.sync` is a local store and nothing travels at all; for a user who IS signed
+in with sync on, they have already opted into Chrome carrying extension data, and this rides that
+same switch. There is deliberately **no LaunchPad setting** for it - a second switch that can
+disagree with Chrome's is a support burden and a lie about who is in control.
+
+**THE POLICY CLAUSE SHIPPED IN THE SAME COMMIT, and that is the load-bearing part.** The
+2026-09-16 round that stopped PF.2 stopped it because the published policy said *"No data ever
+leaves your device"*. Shipping sync without amending that would have made a published legal
+document false on the day of release. Both copies now carry a Chrome sync paragraph naming what
+travels, what does not, and that Chrome's setting governs it.
+
+**THE DESIGN, and every number in it was measured before anything was written.**
+
+- **One sync key per setting, namespaced `lp_sync:<name>`.** `storage.sync` is last-write-wins per
+  TOP-LEVEL key. With the whole settings object under one key, machine A reading, B writing, then
+  A writing its own change back **loses B entirely** - measured. Split per key, both survive. The
+  control that makes that mean something: the same blob written with a re-read keeps both, so the
+  loss is the read-modify-write window and not a blind instrument.
+- **The namespace is load-bearing.** Three `onChanged` listeners in this codebase do not filter on
+  `areaName` and key off `data` / `tracking_sessions` / `__lastWrite`. A second storage area makes
+  all three live; prefixed keys trip none of them, and a sync key named `data` trips all of them.
+- **An allowlist, never an exclusion rule.** A new setting does not sync until somebody adds it on
+  purpose. `collapsedGroups` is excluded because it is keyed by GROUP ID - ids do not travel, so on
+  the other machine it is a map of ids that do not exist - and because it is the only settings key
+  that grows without bound, so excluding it is what makes the slice bounded by construction.
+  `__devProOverride` is top-level, so the table cannot reach it at any price.
+- **The licence key travels; the verdict never does.** `instanceId` is this machine's Dodo seat and
+  `subscriptionStatus`/`lastVerifiedAt` are its verdict - a synced verdict would MINT offline grace
+  on a machine that never earned it, the same defect `importLicenseState` exists to prevent. An
+  arriving key takes `applyLicenseFromPopover`'s shape (clear the seat and the verdict, keep the
+  key) and then activates, so the second machine registers a seat of its own.
+- **A debounced batching writer.** 120 writes/minute is a real ceiling that THROWS: 130 rapid
+  writes measured 108 accepted and 22 refused. Batching at 1.5s caps this at ~40/minute under
+  continuous edits. A refused batch is put back, never dropped.
+
+**A RACE THE DESIGN DID NOT ANTICIPATE, found by the harness and fixed.** Each context that loads
+`storage.js` has its own outbound queue. A queued local value could flush OVER a newer value that
+had just arrived from another machine, and the resulting `onChanged` would then merge the stale
+value back into local - silently undoing the other machine's change. Cancelling the queue inside
+the merge was not enough, because the merge runs in the service worker and the stale queue was in
+the page. Every context now watches the sync area and drops any queued push for a key that has
+just arrived.
+
+**WHAT IS NOT SETTLED.** The ruled allowlist covers preferences and the licence key. Several
+settings are in neither the allowlist nor the exclusion list - `columns`, `locale`,
+`endOfDayMinutes`, `combinedAnalyticsEnabled`, `focusTargetMin`, `insightsRangeDays`,
+`defaultNoteColor`, `nestingTipDismissed`, `autoBackupEnabled`, `notificationsEnabled`. They do
+not sync today. An allowlist that ships too narrow is widened in an afternoon; one that ships too
+wide is a privacy incident, so the narrow reading was taken and the list is recorded here for a
+later ruling rather than decided in passing.
+
+**Shipped in:** PF.2.
