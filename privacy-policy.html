@@ -3,68 +3,101 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LaunchPad — Privacy Policy</title>
+  <title>LaunchPad: Privacy Policy</title>
+  <!-- THIS FILE IS THE COPY THAT SHIPS INSIDE THE EXTENSION. Its policy text is
+       generated from the same source as the published copy at
+       https://mylaunchpad.me/privacy-policy and the two must say the same thing.
+       The markup around the text differs on purpose: that one is a page on a
+       website with a shared stylesheet, a header and a footer, and none of those
+       exist inside the zip. Styling is inline here for the same reason. -->
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      color: #333;
+      line-height: 1.6;
+    }
+    .container-prose {
       max-width: 640px;
       margin: 40px auto;
       padding: 0 20px;
-      color: #333;
-      line-height: 1.6;
     }
     h1 { font-size: 1.5rem; }
     h2 { font-size: 1.1rem; margin-top: 1.5em; }
     p { margin: 0.5em 0; }
+    code { background: #f2f2f2; padding: 0 3px; border-radius: 3px; }
+    a { color: #1a73e8; }
     .updated { color: #666; font-size: 0.9rem; }
   </style>
 </head>
-<body>
-  <h1>LaunchPad — Privacy Policy</h1>
-  <p class="updated"><strong>Last updated:</strong> March 4, 2026</p>
+<body class="prose-page">
+  <main>
+    <div class="container-prose">
+      <h1>Privacy Policy</h1>
+      <p class="updated"><strong>Last updated:</strong> September 16, 2026</p>
 
-  <h2>Overview</h2>
-  <p>LaunchPad is a Chrome extension that replaces your new tab page with a customizable shortcut dashboard. We are committed to protecting your privacy.</p>
+      <h2>Overview</h2>
+      <p>LaunchPad is a Chrome extension that replaces your new tab page with a dashboard of your own shortcuts. There is no LaunchPad account, there is no LaunchPad server, and there is no analytics or tracking of any kind.</p>
 
-  <h2>Data Collection</h2>
-  <p>LaunchPad does not collect, transmit, or store any personal data on external servers. No analytics, telemetry, or usage data is gathered. LaunchPad does not have a backend server. No data ever leaves your device.</p>
+      <h2>What stays on your device</h2>
+      <p>Everything you create in LaunchPad stays on your device: your shortcuts, groups, tasks, goals, notes, notebooks, saved sessions, tracked time, wallpapers and settings. It is kept in your browser's own storage and it is never sent to us. There is nowhere for it to be sent to - we do not run a server that could receive it, and we could not read your data even if we wanted to.</p>
 
-  <h2>Local Storage</h2>
-  <p>All shortcuts, groups, settings, wallpaper preferences, and session data are stored locally on your device using Chrome's built-in storage API (chrome.storage.local). This data remains entirely on your computer and is never transmitted anywhere.</p>
+      <h2>What does leave your device</h2>
+      <p>A few things do travel, and it is worth being precise about them. Each one is a request your browser makes so it can show you something or check something. None of them sends a copy of your data anywhere, and none of them is stored by us.</p>
+      <p><strong>Website icons.</strong> To show the small icon on a shortcut, your browser asks Google's public favicon service at <code>www.google.com</code> for that site's icon. Google receives the site's domain - <code>github.com</code>, say - and nothing else: not the full address, not the rest of your browsing, not anything identifying you. For eight Google products - Gmail, Docs, Sheets, Slides, Drive, Calendar, Ads and Meet - LaunchPad asks for Google's own published icon file instead, from <code>ssl.gstatic.com</code>, <code>fonts.gstatic.com</code>, <code>calendar.google.com</code> or <code>ads.google.com</code>. Those are ordinary requests for a picture, the same as the one above. If you set your own picture on a shortcut, it is kept on your device and no request is made at all.</p>
+      <p><strong>Wallpapers.</strong> If you choose a wallpaper from the built-in gallery, your browser downloads that photograph from Unsplash, at <code>images.unsplash.com</code>, exactly as it would download an image on any web page. Unsplash receives a request for a picture and nothing about you. A wallpaper you upload yourself never leaves your device.</p>
+      <p><strong>Searches.</strong> When you search from the LaunchPad search bar, your browser hands the query to whichever search engine you have set as your default in Chrome. It goes from your browser straight to that search engine. LaunchPad does not see it, does not store it, and keeps no record that you searched.</p>
+      <p><strong>A Pro subscription.</strong> If you buy Pro, a licence key is sent to our payment provider so your subscription can be checked. That is described in full in the next section.</p>
 
-  <h2>Permissions</h2>
-  <p>LaunchPad requests the following browser permissions, each used solely for core functionality:</p>
-  <p><strong>storage</strong> — Saves your shortcuts, groups, settings, and session data locally on your device.</p>
-  <p><strong>topSites</strong> — Used during initial setup to suggest your most visited sites as shortcuts.</p>
-  <p><strong>bookmarks</strong> — Allows you to import your existing Chrome bookmarks into LaunchPad groups.</p>
-  <p><strong>history</strong> — Displays your browsing history in the History panel so you can quickly revisit sites.</p>
-  <p><strong>tabs</strong> — Captures favicon URLs for your shortcuts and saves open tabs for the session restore feature.</p>
-  <p><strong>sessions</strong> — Enables restoring recently closed browser tabs.</p>
-  <p><strong>contextMenus</strong> — Adds the "Add to LaunchPad" option to your right-click menu on any webpage.</p>
-  <p><strong>search</strong> — Uses Chrome's built-in search to respect the user's default search engine preference.</p>
+      <h2>Pro subscriptions and Dodo Payments</h2>
+      <p>LaunchPad Pro is a paid subscription. Payments and licences are handled for us by <a href="https://dodopayments.com" target="_blank" rel="noopener noreferrer">Dodo Payments</a>, who act as the merchant of record - they are the company you actually buy from, and they take and hold the payment.</p>
+      <p><strong>Paying.</strong> When you start a purchase, LaunchPad opens Dodo's own checkout page, at <code>checkout.dodopayments.com</code>, in a new tab. From that moment you are on Dodo's website, and what happens there is covered by Dodo's privacy policy rather than this one. Your card details are typed into Dodo's page and go to Dodo. They never pass through LaunchPad, and LaunchPad never sees or stores them. When the payment succeeds, Dodo returns you to a page on mylaunchpad.me carrying your new licence key, and LaunchPad picks it up from there so Pro switches on without you having to copy anything by hand.</p>
+      <p><strong>Checking that a subscription is still running.</strong> Your licence key is stored on your device. So that Pro knows whether your subscription is still active, LaunchPad sends that key to Dodo's licence service at <code>live.dodopayments.com</code> at three moments, and the full contents of each message are listed here:</p>
+      <p>When you first activate a licence on a device, LaunchPad sends the licence key and a short device label it builds from your operating system - "LaunchPad on Windows", or Mac, Linux, ChromeOS or Android. That label is the name of the operating system family and nothing more. It is not your computer's name, not a serial number, and not anything that identifies you or singles out your machine.</p>
+      <p>On a routine re-check, LaunchPad sends the licence key and nothing else. This happens at most once every six hours, and only while your browser is running.</p>
+      <p>If you remove a licence from a device, LaunchPad sends the licence key and the identifier Dodo issued when that device was activated, so that Dodo can free the slot for you to use elsewhere.</p>
+      <p>If you would like to check that against the code, LaunchPad is open source. Those three messages are the only ones it ever sends to Dodo, they are sent from <code>license.js</code>, and the only named values in them are <code>license_key</code>, <code>name</code> (the operating-system label above) and <code>license_key_instance_id</code>.</p>
+      <p><strong>What is never sent to Dodo.</strong> None of your shortcuts, groups, tasks, goals, notes, notebooks, saved sessions, tracked time, browsing history, searches or settings. Across the whole life of a subscription, Dodo receives a licence key, and once, a word naming your operating system. Nothing else from inside LaunchPad ever reaches them.</p>
+      <p>What Dodo does with your payment details is set out in <a href="https://dodopayments.com/privacy-policy" target="_blank" rel="noopener noreferrer">Dodo Payments' own privacy policy</a>.</p>
+      <p>If you never buy Pro, none of this happens. LaunchPad contacts Dodo only on behalf of someone who has a licence key.</p>
 
-  <h2>Third-Party Services</h2>
-  <p>LaunchPad uses the following external services solely to display content within the extension:</p>
-  <p><strong>Google Favicon API</strong> — Used to fetch website icons for your shortcuts. Only the domain name is sent to retrieve the icon. No personal data is transmitted.</p>
-  <p><strong>Unsplash</strong> — If you choose a wallpaper from the built-in gallery, images are loaded from Unsplash. No personal data is shared with Unsplash.</p>
-  <p>Apart from these, LaunchPad does not communicate with any other third-party servers or services.</p>
+      <h2>Permissions</h2>
+      <p>LaunchPad asks for the following browser permissions, each for one job:</p>
+      <p><strong>storage</strong>: keeps your shortcuts, groups, tasks, goals, notes, tracked time and settings on this device.</p>
+      <p><strong>bookmarks</strong>: lets you import your existing Chrome bookmarks into LaunchPad.</p>
+      <p><strong>contextMenus</strong>: provides the right-click "Add to LaunchPad" command, and clipping a selection to a note.</p>
+      <p><strong>history</strong>: powers the browsing-history panel on your new tab page.</p>
+      <p><strong>topSites</strong>: powers the "Import Top Sites" button, which adds your most visited sites as a group. It runs only when you click it.</p>
+      <p><strong>tabs</strong>: powers saving and restoring sets of tabs, and opening a whole group at once.</p>
+      <p><strong>search</strong>: sends what you type in the search bar to your own default search engine.</p>
+      <p><strong>webNavigation</strong>: powers Focus Blocking, so LaunchPad can turn you away from sites you have chosen to block during a focus session.</p>
+      <p><strong>alarms</strong>: schedules focus timers, reminders and routine housekeeping.</p>
+      <p><strong>idle</strong>: notices when you are away from the keyboard, so time you were not there is never counted as focused time.</p>
+      <p><strong>offscreen</strong>: plays the focus chime when no LaunchPad tab is open.</p>
+      <p><strong>sidePanel</strong>: shows LaunchPad in Chrome's side panel.</p>
+      <p>Two more are optional, are off unless you turn them on, and can be withdrawn at any time in Chrome's settings:</p>
+      <p><strong>notifications</strong>: desktop alerts for focus sessions and due reminders.</p>
+      <p><strong>downloads</strong>: saves a backup file to your computer when you ask for one.</p>
+      <p>Chrome also asks you to allow LaunchPad to reach two addresses: <code>live.dodopayments.com</code>, for the licence checks described above, and <code>mylaunchpad.me</code>, so LaunchPad can recognise the page you are returned to after a purchase and pick up your licence key from it.</p>
 
-  <h2>Tracking</h2>
-  <p>There are no cookies, pixels, fingerprinting, advertising, or any other form of tracking.</p>
+      <h2>Tracking</h2>
+      <p>There are no cookies, no pixels, no fingerprinting, no advertising and no analytics. LaunchPad does not count how many times you open it, does not record which features you use, and has no way of knowing who you are.</p>
 
-  <h2>Account</h2>
-  <p>No account or sign-in is required to use LaunchPad.</p>
+      <h2>Account</h2>
+      <p>No account and no sign-in are needed to use LaunchPad. Pro is attached to a licence key rather than to an account, so we hold no email address and no password for you. Dodo holds whatever details you gave them when you paid.</p>
 
-  <h2>Data Sharing</h2>
-  <p>We do not sell, trade, rent, or share any user data with third parties.</p>
+      <h2>Data sharing</h2>
+      <p>We do not sell, trade, rent or share your data with anyone. We do not hold any of it to share.</p>
 
-  <h2>Children's Privacy</h2>
-  <p>LaunchPad does not knowingly collect any data from children under the age of 13. Since LaunchPad does not collect any personal data from any user, no special provisions are necessary.</p>
+      <h2>Children's Privacy</h2>
+      <p>LaunchPad does not knowingly collect any data from children under the age of 13. Since LaunchPad does not collect personal data from any user, no special provisions are necessary.</p>
 
-  <h2>Changes to This Policy</h2>
-  <p>If we update this privacy policy, we will post the revised version on this page with an updated date. Continued use of LaunchPad after changes constitutes acceptance of the updated policy.</p>
+      <h2>Changes to This Policy</h2>
+      <p>If we update this privacy policy, we will post the revised version on this page with an updated date. Continued use of LaunchPad after changes constitutes acceptance of the updated policy.</p>
 
-  <h2>Contact</h2>
-  <p>For questions about this privacy policy or LaunchPad, contact us at <a href="mailto:info.skewed@gmail.com">info.skewed@gmail.com</a> or open an issue on the project's <a href="https://github.com/samson-cyber/launchpad">GitHub repository</a>.</p>
+      <h2>Contact</h2>
+      <p>For questions about this privacy policy or LaunchPad, contact us at <a href="mailto:support@mylaunchpad.me">support@mylaunchpad.me</a> or open an issue on the project's <a href="https://github.com/samson-cyber/launchpad">GitHub repository</a>.</p>
+    </div>
+  </main>
 </body>
 </html>
