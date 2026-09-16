@@ -3707,3 +3707,61 @@ Recorded here rather than left to memory, because the round that must remove it 
 away.
 
 **Shipped in:** WM.1.
+
+---
+
+## 2026-09-16 — Focus sounds (E6) are CUT. Decision F's own condition was synthesised-or-nothing, and it came out nothing
+
+**Context.** E6 shipped in WM.4 and was extended in the WM.4 follow-up: four WebAudio
+textures (brown, pink and white noise, plus a rain bed with scheduled droplet transients), a
+picker and volume slider in Pro Settings, a four-second preview on select, and session
+playback through the offscreen document while a Work-mode focus phase ran. Samson heard it on
+his own profile and rejected it on sight: *"everything about it is kind of just bad."*
+
+**Outcome.** The whole feature is removed — the picker, the slider, the preview, the
+generator, the session playback, the reconciler, the second lifetime the offscreen document
+had grown, the storage keys, the catalogue strings and the gate's assertions about all of it.
+**Chimes are untouched.** They are one-shot phase-boundary sounds from `[1.0.18 B-2]`, they
+predate this arc, and nothing was wrong with them; the chime-on-select from the WM.4 follow-up
+stays and the separate play button stays removed. The offscreen document stays, with its
+`AUDIO_PLAYBACK` reason, because the chimes still need it.
+
+**Why it failed, which is the part worth keeping.** The research this came from
+(`docs/RESEARCH/launchpad-expansion-research-2026-09-01.md`, item E6) cited Momentum Plus
+soundscapes and Rize focus music as paid headline features and judged that LaunchPad could
+"ship the honest version in under a week". That judgement was wrong in one specific way: **the
+products it was measured against use recorded audio and generative engines, and E6 was
+constrained to synthesis.** Decision F set that constraint deliberately and for good reasons —
+the zip is under a megabyte, the CSP forbids remote media, and a minute of usable loop per
+texture would have dominated the package for a setting that ships off — and it carried its own
+escape clause: *if it does not convince, leave it out.* Filtered noise and scheduled droplets
+are simply not what a listener compares them to. The constraint was sound; what it could
+produce was not competitive with the thing it was imitating, and no amount of tuning inside the
+constraint would have closed that gap.
+
+**If ambient sound returns it is with real audio, and that is a separate decision.** It would
+carry a zip-size cost measured in hundreds of kilobytes per texture and a CSP question about
+where the files come from, and it must be argued on those terms rather than inherited from
+this entry. Nothing here is a ruling that ambient sound is a bad idea.
+
+**THE PATTERN THAT MATTERS MORE THAN THIS FEATURE: this is the THIRD item from the 2026-09-01
+expansion research to be cut on sight after being built.** The accent picker went in `445f691`
+for visibly doing nothing; the free scratchpad note went in `b3efbf0`; focus sounds go here.
+Three features, three builds, three rejections at the moment of first contact with a real
+screen and a real pair of ears — and in every case the rejection took seconds and the build
+took days. **So the next item taken from that research list is checked against a screen before
+it reaches a task**: a sketch, a prototype, a recording, a five-minute look — whatever the
+cheapest honest version of "would you actually want this" is for that item. The research is a
+list of things competitors charge for, which is evidence that a market exists and is not
+evidence that this product should carry them.
+
+**The stored keys are swept.** `settings.focus.sound` and `settings.focus.soundVolume` are
+removed by `dropFocusSoundSettings` on load, idempotently, the third sweep of this shape after
+`[1.10.8]` accent and `[1.11.3c]` the clock lines — a key naming a feature that does not exist
+must not ride inside every backup envelope forever. `settings.focus` itself survives: it still
+carries `autoArmDuringWork`, `commitment` and `idleSec`.
+
+**Not affected:** the chime path and its routing, `closeSoundOffscreen`'s chime behaviour, the
+`AUDIO_PLAYBACK` reason, the idle threshold, and all of the WM.4 friction work.
+
+**Shipped in:** E6 cut.

@@ -423,11 +423,6 @@ powershell.exe -NoProfile -Command "
     '_locales',
     'offscreen.html',
     'offscreen.js',
-    # [WM.4 follow-up] Loaded by BOTH newtab.html and offscreen.html. Exactly the
-    # shape the importers.js miss above had: referenced from HTML, invisible to
-    # a build that does not list it, and perfectly fine in dev because the
-    # unpacked tree has the file.
-    'focus-noise.js',
     'gate.html',
     'gate.js',
     'gate.css',

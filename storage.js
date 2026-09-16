@@ -693,6 +693,41 @@ var Storage = (function () {
     return changed;
   }
 
+  // [1.13.0 E6] FOCUS SOUNDS WERE CUT, and this is the sweep that keeps a
+  // profile which chose a texture from carrying two dangling preferences.
+  //
+  // The third of these now - [1.10.8] accent, [1.11.3c] the clock lines, and
+  // these. Same reason every time: a key naming a feature that does not exist
+  // would otherwise sit in the blob forever and ride inside every backup
+  // envelope, where a later reader finds a setting with nothing behind it. The
+  // generator is gone, so the profile already BEHAVES correctly whatever these
+  // said - this is about the stored shape, not about anything audible.
+  //
+  // ONLY THE TWO KEYS. settings.focus SURVIVES: it still holds autoArmDuringWork,
+  // commitment and idleSec, and deleting the parent to be tidy would take three
+  // live settings with it.
+  //
+  // IDEMPOTENT BY CONSTRUCTION, which the backfill caller requires: it reports
+  // changed only when at least one key is actually present, so the write happens
+  // once and the next load finds nothing to do. A sweep that returned true
+  // unconditionally would make a warm blob write on every single load, which is
+  // what the BG QUEUE gate's warm-fixture assertion exists to catch.
+  var FOCUS_SOUND_SETTING_KEYS = ["sound", "soundVolume"];
+
+  function dropFocusSoundSettings(data) {
+    if (!data || !data.settings || typeof data.settings !== "object") return false;
+    var focus = data.settings.focus;
+    if (!focus || typeof focus !== "object") return false;
+    var changed = false;
+    for (var i = 0; i < FOCUS_SOUND_SETTING_KEYS.length; i++) {
+      if (Object.prototype.hasOwnProperty.call(focus, FOCUS_SOUND_SETTING_KEYS[i])) {
+        delete focus[FOCUS_SOUND_SETTING_KEYS[i]];
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
   // ===== [1.10.2] CUSTOM SHORTCUT ICONS ====================================
   //
   // FREE, per PLAN decision 5. Not a Pro sweetener and not a tier boundary: it is
@@ -2085,87 +2120,6 @@ var Storage = (function () {
     return until > now ? until : null;
   }
 
-  // ===== [WM.4] FOCUS SOUNDS =====
-  //
-  // PLAN decision F: SYNTHESISED, never files. The zip is under a megabyte and
-  // the CSP forbids remote media, so a minute of usable loop per texture would
-  // dominate the package for a setting that ships off.
-  //
-  // EVERYTHING SHIPS OFF ([1.11.0] decision 7), so the default is "off" and a
-  // user who never opens the setting never hears anything.
-  //
-  // MODE-GOVERNED FROM THE STAMP, exactly as friction is: a Casual session plays
-  // nothing whatever the setting says.
-  var FOCUS_SOUNDS = ["brown", "pink", "white", "rain"];
-  var FOCUS_SOUND_DEFAULT = "off";
-  var FOCUS_SOUND_VOLUME_DEFAULT = 0.4;
-
-  function coerceFocusSound(v) {
-    return (FOCUS_SOUNDS.indexOf(v) !== -1) ? v : FOCUS_SOUND_DEFAULT;
-  }
-
-  function getFocusSound(data) {
-    var f = (data && data.settings && data.settings.focus) || {};
-    return coerceFocusSound(f.sound);
-  }
-
-  async function setFocusSoundTexture(data, v) {
-    if (!data) return false;
-    var next = coerceFocusSound(v);
-    if (!data.settings || typeof data.settings !== "object") data.settings = {};
-    if (!data.settings.focus || typeof data.settings.focus !== "object") data.settings.focus = {};
-    if (data.settings.focus.sound === next) return false;
-    data.settings.focus.sound = next;
-    await saveAll(data);
-    return true;
-  }
-
-  function getFocusSoundVolume(data) {
-    var f = (data && data.settings && data.settings.focus) || {};
-    var v = f.soundVolume;
-    if (typeof v !== "number" || !isFinite(v)) return FOCUS_SOUND_VOLUME_DEFAULT;
-    return Math.max(0, Math.min(1, v));
-  }
-
-  async function setFocusSoundVolume(data, v) {
-    if (!data) return false;
-    var next = (typeof v === "number" && isFinite(v)) ? Math.max(0, Math.min(1, v)) : FOCUS_SOUND_VOLUME_DEFAULT;
-    if (!data.settings || typeof data.settings !== "object") data.settings = {};
-    if (!data.settings.focus || typeof data.settings.focus !== "object") data.settings.focus = {};
-    if (data.settings.focus.soundVolume === next) return false;
-    data.settings.focus.soundVolume = next;
-    await saveAll(data);
-    return true;
-  }
-
-  /** Should a texture be playing RIGHT NOW? Pure; the worker acts on it. */
-  function focusSoundShouldPlay(data) {
-    if (!data) return false;
-    if (getFocusSound(data) === FOCUS_SOUND_DEFAULT) return false;
-    if (!hasProAccessSafe(data)) return false;
-    // STOPS ON PAUSE, which is the same rule the pill's numerals follow: a
-    // frozen session is not a running one.
-    if (isTrackingPaused(data)) return false;
-    if (sessionStampMode(data) !== "work") return false;
-    var active = getActiveTask(data);
-    if (!active) return false;
-    // A BREAK IS NOT WORK. E1's asymmetry again - the sound belongs to the
-    // focus phase, and a break that kept humming would blur the boundary the
-    // whole feature exists to mark.
-    //
-    // SPELLED WITH A LOCAL rather than as a one-line return, deliberately: the
-    // arm derivation in focusBlockingActive ends with a byte-identical line,
-    // and two mutation seeds anchor on THAT one. Identical text in two places
-    // made both of them ANCHOR-AMBIGUOUS and silently stop protecting anything.
-    var soundPhase = hydratePomodoroState(active.pomodoroState).phase;
-    return soundPhase === "work";
-  }
-
-  function hasProAccessSafe(data) {
-    if (typeof ProAccess === "undefined" || typeof ProAccess.hasProAccess !== "function") return false;
-    return !!ProAccess.hasProAccess(data);
-  }
-
   // ===== [WM.4] THE IDLE THRESHOLD =====
   //
   // ONE VALUE, READ BY BOTH, AND IT WAS ALREADY ONE - as a hardcoded constant.
@@ -2852,6 +2806,7 @@ var Storage = (function () {
         var sessionsSeeded = ensureNamedSessionsArrays(existing);
         var accentDropped = dropAccentSetting(existing);
         var clockDropped = dropClockSettings(existing);
+        var soundDropped = dropFocusSoundSettings(existing);
         var homeNoteDropped = dropHomeNote(existing);
         var iconsMerged = migrateLegacyIcons(existing);
         // [1.4.7] Runs at most once per profile. The write is needed only on the
@@ -2862,7 +2817,8 @@ var Storage = (function () {
         var strandedUnswept = existing[STRANDED_SWEEP_MARKER] !== true;
         var strandedReleased = sweepStrandedTasks(existing);
         if (patched || trackingSeeded || focusSeeded || notesSeeded || sessionsSeeded ||
-            accentDropped || clockDropped || homeNoteDropped || iconsMerged || strandedUnswept) {
+            accentDropped || clockDropped || soundDropped || homeNoteDropped || iconsMerged ||
+            strandedUnswept) {
           // [1.10.3] THE BACKFILL WRITE GETS ITS OWN try/catch, AND THIS IS A
           // CORRECTNESS FIX RATHER THAN TIDYING. It used to sit inside this
           // function's single try, so an over-quota backfill fell through to the
@@ -9050,12 +9006,6 @@ var Storage = (function () {
     sessionStampId: sessionStampId,
     sessionStampMode: sessionStampMode,
     frictionPlanFor: frictionPlanFor,
-    FOCUS_SOUNDS: FOCUS_SOUNDS,
-    getFocusSound: getFocusSound,
-    setFocusSoundTexture: setFocusSoundTexture,
-    getFocusSoundVolume: getFocusSoundVolume,
-    setFocusSoundVolume: setFocusSoundVolume,
-    focusSoundShouldPlay: focusSoundShouldPlay,
     IDLE_THRESHOLD_FLOOR_SEC: IDLE_THRESHOLD_FLOOR_SEC,
     IDLE_THRESHOLD_DEFAULT_SEC: IDLE_THRESHOLD_DEFAULT_SEC,
     getIdleThresholdSec: getIdleThresholdSec,

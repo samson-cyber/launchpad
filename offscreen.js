@@ -1,4 +1,4 @@
-/* global chrome, Audio, setTimeout, FocusNoise */
+/* global chrome, Audio, setTimeout */
 
 // [1.0.18 B-2] Offscreen audio host — the service worker's speakers.
 //
@@ -47,49 +47,12 @@ function playSound(url) {
   });
 }
 
-// ===== [WM.4 follow-up] THE TEXTURES MOVED TO focus-noise.js =====
-//
-// The generator that stood here now lives in focus-noise.js, loaded by this
-// document AND by the settings page. The reason is this round's whole subject:
-// selecting a texture in Settings must play THE SAME SOUND the session will,
-// and two copies of a noise generator drift - which the user discovers by
-// picking Rain, hearing one thing, and meeting another twenty minutes later.
-//
-// What stays here is the plumbing: this document is the WORKER's speaker, and
-// it still knows nothing about phases, settings or storage.
-//
-// THE DOCUMENT STILL HAS TWO LIVES. The chime path above creates it, plays once
-// and is closed by the worker. A texture OUTLIVES the message that started it,
-// so the worker keeps the document open while one is playing. A PREVIEW is
-// neither: it happens in the page, where the click that asked for it is, and
-// this document is not involved at all.
+// Lifecycle note, kept because it is what a reader will wonder about: this
+// listener answers ONE message type. [WM.4] briefly added a second - a texture
+// channel with its own synthesiser and its own lifetime - and [1.13.0 E6] cut
+// it, so the document is once again created, asked for one chime, and closed.
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
-  if (!msg) return;
-  if (msg.type === "lp-offscreen-play") {
-    playSound(msg.url).then(function (played) { sendResponse({ played: played }); });
-    return true;  // keep the channel open — the response lands when playback ends
-  }
-  // The texture channel. Answers SYNCHRONOUSLY and with the resulting state, so
-  // the caller - and the harness - reads what happened rather than assuming it.
-  if (msg.type === "lp-offscreen-noise") {
-    try {
-      if (msg.action === "start" && msg.texture) {
-        // NO HOLD: a session's texture runs until it is told to stop.
-        FocusNoise.start(msg.texture, typeof msg.volume === "number" ? msg.volume : 0.4, 0);
-      } else if (msg.action === "volume") {
-        FocusNoise.setVolume(typeof msg.volume === "number" ? msg.volume : 0.4);
-      } else {
-        FocusNoise.stopNow();
-      }
-      sendResponse(FocusNoise.state());
-    } catch (err) {
-      console.error("[LaunchPad] Focus sounds: offscreen noise failed", err);
-      sendResponse({ error: String(err && err.message), playing: false });
-    }
-    return true;
-  }
-  if (msg.type === "lp-offscreen-noise-state") {
-    sendResponse(FocusNoise.state());
-    return true;
-  }
+  if (!msg || msg.type !== "lp-offscreen-play") return;
+  playSound(msg.url).then(function (played) { sendResponse({ played: played }); });
+  return true;  // keep the channel open — the response lands when playback ends
 });

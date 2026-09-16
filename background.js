@@ -978,14 +978,13 @@ function ensureSoundOffscreen() {
   return p;
 }
 
-// [WM.4] A TEXTURE OUTLIVES THE MESSAGE THAT STARTED IT, so the chime path's
-// "close when the chime ends" would silence it. Same document, same
-// AUDIO_PLAYBACK reason, two lifetimes - and this is the one line that keeps
-// them from fighting.
-var _noisePlaying = false;
-
+// [1.13.0 E6] ONE LIFETIME AGAIN. WM.4 gave this document a second life - a
+// texture that outlived the message which started it - and guarded the close
+// with a module flag meaning "a texture is playing", so a chime ending could
+// not silence it. Focus sounds are cut, so there is nothing left to protect and
+// that guard would be a test which can never be true. Create, play one chime,
+// close: as [1.0.18 B-2] had it.
 async function closeSoundOffscreen() {
-  if (_noisePlaying) return;
   if (!chrome.offscreen || !chrome.offscreen.closeDocument) return;
   try {
     await chrome.offscreen.closeDocument();
@@ -1021,69 +1020,6 @@ async function playSoundViaOffscreen(sound) {
   } finally {
     await closeSoundOffscreen();
   }
-}
-
-// ===== [WM.4] FOCUS SOUNDS =====
-//
-// The worker decides WHETHER a texture should be playing; the offscreen
-// document only ever does as it is told. Storage.focusSoundShouldPlay is the
-// whole policy - the setting, Pro access, the pause flag, the session's WM.1
-// stamp and the phase - and it is pure, so the harness asserts it without a
-// browser and this reconciler cannot disagree with it.
-var _noiseTexture = null;
-
-function sendOffscreen(msg) {
-  return new Promise(function (resolve) {
-    try {
-      chrome.runtime.sendMessage(msg, function (res) {
-        void chrome.runtime.lastError;   // no receiver -> resolve null, never throw
-        resolve(res || null);
-      });
-    } catch (e) { resolve(null); }
-  });
-}
-
-var _noiseReconciling = null;
-var _noiseDirty = false;
-function reconcileFocusSound() {
-  // Coalesced, and a change arriving mid-pass is REMEMBERED - the WM.3 lesson,
-  // applied where the same shape would bite the same way.
-  if (_noiseReconciling) { _noiseDirty = true; return _noiseReconciling; }
-  _noiseReconciling = (async function () {
-    try {
-      var got = await chrome.storage.local.get("data");
-      var data = (got && got.data) || {};
-      var want = Storage.focusSoundShouldPlay(data) ? Storage.getFocusSound(data) : null;
-      var vol = Storage.getFocusSoundVolume(data);
-      if (want === _noiseTexture && want === null) return;
-      if (want === null) {
-        _noiseTexture = null;
-        if (_noisePlaying) {
-          _noisePlaying = false;
-          await sendOffscreen({ type: "lp-offscreen-noise", action: "stop" });
-          await closeSoundOffscreen();
-        }
-        return;
-      }
-      if (!(await ensureSoundOffscreen())) return;
-      // [WM.4 follow-up] A VOLUME CHANGE NO LONGER RESTARTS THE TEXTURE. It used
-      // to re-send "start" on every pass, which is idempotent but audible: the
-      // loop begins again and the 120 ms ramp runs, so nudging the slider mid
-      // session made the sound blip. Only a texture change restarts.
-      var same = (_noisePlaying && _noiseTexture === want);
-      _noisePlaying = true;
-      _noiseTexture = want;
-      await sendOffscreen(same
-        ? { type: "lp-offscreen-noise", action: "volume", volume: vol }
-        : { type: "lp-offscreen-noise", action: "start", texture: want, volume: vol });
-    } catch (e) {
-      console.error("[LaunchPad] Focus sounds: reconcile failed", e);
-    } finally {
-      _noiseReconciling = null;
-      if (_noiseDirty) { _noiseDirty = false; reconcileFocusSound(); }
-    }
-  })();
-  return _noiseReconciling;
 }
 
 // Route + play one boundary's chime. Called OUTSIDE the `data` queue (see
@@ -1183,10 +1119,6 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
   // and every phase change land in `data`, so the badge is exact at all four
   // moments the user is actually looking at it.
   reconcileBadge();
-  // [WM.4] And the texture, from the same source and at the same four moments -
-  // a sound that kept playing through a pause would be saying the session was
-  // still running when the numerals had already stopped.
-  reconcileFocusSound();
   // [WM.4] And the idle threshold. The setting lives in `data`, so a change to
   // it arrives here; Tracking owns applying it to both readers.
   applyIdleThreshold();
@@ -1203,7 +1135,6 @@ function applyIdleThreshold() {
   }).catch(function () { /* the default stands */ });
 }
 applyIdleThreshold();
-reconcileFocusSound();
 
 chrome.runtime.onInstalled.addListener(function () {
   requestContextMenuRebuild();

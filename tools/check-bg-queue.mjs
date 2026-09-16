@@ -360,6 +360,42 @@ async function runSuite(ctx, store, stats, listeners) {
       stats.dataSets === before, `dataSets moved by ${stats.dataSets - before}`);
   }
 
+  // ===== [1.13.0 E6] THE FOCUS-SOUND SWEEP =================================
+  //
+  // Focus sounds were cut, and settings.focus.sound / soundVolume are swept off
+  // any profile that chose a texture. Two things have to hold, and the second is
+  // the one that bites: the keys must GO, and the sweep must be IDEMPOTENT -
+  // a sweep reporting changed unconditionally would make every warm load write
+  // the blob forever, which is the exact shape the check above exists for.
+  //
+  // settings.focus itself must SURVIVE. It still carries autoArmDuringWork,
+  // commitment and idleSec, and deleting the parent to be tidy would take three
+  // live settings with it.
+  {
+    await seed(ctx, store);
+    store.data.settings.focus.sound = "rain";
+    store.data.settings.focus.soundVolume = 0.85;
+    store.data.settings.focus.commitment = true;
+    store.data.settings.focus.idleSec = 120;
+
+    const beforeSweep = stats.dataSets;
+    await ctx.Storage.getAll();
+    const focus = store.data.settings.focus || {};
+    check("[E6] the cut texture keys are swept off a profile that carried them",
+      !("sound" in focus) && !("soundVolume" in focus),
+      `focus keys now: ${Object.keys(focus).join(",")}`);
+    check("[E6] and settings.focus SURVIVES with its three live settings",
+      focus.autoArmDuringWork !== undefined && focus.commitment === true && focus.idleSec === 120,
+      JSON.stringify(focus));
+    check("[E6] the sweep WROTE once - a profile carrying the keys is a change",
+      stats.dataSets > beforeSweep, `dataSets moved by ${stats.dataSets - beforeSweep}`);
+
+    const afterSweep = stats.dataSets;
+    await ctx.Storage.getAll();
+    check("[E6] IDEMPOTENT: the next load finds nothing to do and writes nothing",
+      stats.dataSets === afterSweep, `dataSets moved by ${stats.dataSets - afterSweep}`);
+  }
+
   // ===== SOLO BASELINES — every assertion below is re-based off these (Q5) ==
   // Never hard-code "N writes": a defaulting or migrating reader can perform a
   // backfill write on first read and silently invalidate a literal count.
@@ -1333,6 +1369,28 @@ const SEEDS = [
       file: "background.js",
       find: "  return enqueueBgData(\"favicon-refresh\", async function () {\n  try {\n    var data = await Storage.getAll();",
       replace: "  var __preQueue = Storage.getAll();\n  return enqueueBgData(\"favicon-refresh\", async function () {\n  try {\n    var data = await __preQueue;",
+    }],
+  },
+  {
+    // [1.13.0 E6] The sweep stops sweeping. The keys the cut removed would ride
+    // in every backup envelope forever - the [1.10.8] failure, repeated.
+    name: "[E6] the focus-sound sweep is inert",
+    seeds: [{
+      file: "storage.js",
+      find: "        delete focus[FOCUS_SOUND_SETTING_KEYS[i]];\n        changed = true;",
+      replace: "        changed = false;",
+    }],
+  },
+  {
+    // [1.13.0 E6] The other failure mode, and the worse one: a sweep that
+    // reports changed unconditionally makes a WARM blob write on every single
+    // load, forever. This is the exact shape the warm-fixture assertion exists
+    // to catch, pointed at the newest sweep.
+    name: "[E6] the sweep reports changed unconditionally (a warm blob writes forever)",
+    seeds: [{
+      file: "storage.js",
+      find: "    var focus = data.settings.focus;\n    if (!focus || typeof focus !== \"object\") return false;\n    var changed = false;",
+      replace: "    var focus = data.settings.focus;\n    if (!focus || typeof focus !== \"object\") return false;\n    var changed = true;",
     }],
   },
 ];

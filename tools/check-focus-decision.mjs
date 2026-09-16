@@ -219,7 +219,6 @@ function buildData(ctx, opts = {}) {
   // [WM.4] The settings this round adds. Absent unless a fixture asks, so every
   // pre-existing fixture keeps describing a profile that never opened them.
   if (opts.commitment !== undefined) data.settings.focus.commitment = opts.commitment;
-  if (opts.sound !== undefined) data.settings.focus.sound = opts.sound;
   if (opts.idleSec !== undefined) data.settings.focus.idleSec = opts.idleSec;
   if (opts.snoozes) data.focusSnoozes = opts.snoozes;
   // Fixture self-verification (Q7).
@@ -577,22 +576,9 @@ function runSuite(ctx) {
   check("and it survives a running phase",
     S.hydratePomodoroState({ phase: "work", phaseEndsAt: 9, phaseDurationMs: 9, sessionId: "s1" }).sessionId === "s1");
 
-  // Sounds.
-  const plays = (o) => S.focusSoundShouldPlay(buildData(ctx, o));
-  check("no texture chosen, nothing plays", plays(Object.assign({}, RUNNING)) === false);
-  check("a texture chosen and a WORK session playing, it plays",
-    plays(Object.assign({}, RUNNING, { sound: "brown" })) === true);
-  check("a CASUAL session plays nothing however the setting reads",
-    plays({ phase: "work", sessionMode: "casual", sessionId: "s1", sound: "brown" }) === false);
-  check("a BREAK plays nothing - the sound belongs to the focus phase",
-    plays({ phase: "shortBreak", sessionMode: "work", sessionId: "s1", sound: "brown" }) === false);
-  check("PAUSED plays nothing - a frozen session is not a running one",
-    plays(Object.assign({}, RUNNING, { sound: "brown", paused: true })) === false);
-  check("no Pro access plays nothing",
-    plays(Object.assign({}, RUNNING, { sound: "brown", pro: "expired", expectLevel: "expired" })) === false);
-  check("an invented texture falls back to off rather than to noise",
-    S.getFocusSound({ settings: { focus: { sound: "bagpipes" } } }) === "off");
-  check("the default ships OFF", S.getFocusSound({}) === "off");
+  // [1.13.0 E6] Eight sound rows stood here. Focus sounds are cut, and an
+  // assertion about a reader that no longer exists is not a weaker test, it is
+  // a broken one.
 
   // The idle threshold.
   check("the idle default is 60s", S.getIdleThresholdSec({}) === 60);
@@ -790,27 +776,6 @@ const SEEDS = [
       find: '      sessionId: (phase && typeof ps.sessionId === "string" && ps.sessionId) ? ps.sessionId : null',
       replace: '      sessionId: (typeof ps.sessionId === "string" && ps.sessionId) ? ps.sessionId : null',
     }],
-  },
-  {
-    name: "[WM.4] a sound plays through a pause",
-    note: "the texture would say the session was running while the numerals had stopped",
-    seeds: [{ file: "storage.js", find: "    if (isTrackingPaused(data)) return false;\n    if (sessionStampMode(data) !== \"work\") return false;", replace: '    if (sessionStampMode(data) !== "work") return false;' }],
-  },
-  {
-    name: "[WM.4] a sound plays through a break",
-    note: "E1's asymmetry again - the boundary the feature marks would blur",
-    seeds: [{
-      file: "storage.js",
-      // The break guard is now spelled through a local (see focusSoundShouldPlay
-      // for why), so the seed points at the comparison rather than at the return.
-      find: '    return soundPhase === "work";',
-      replace: '    return soundPhase !== null;',
-    }],
-  },
-  {
-    name: "[WM.4] a sound plays in a Casual session",
-    note: "mode-governance dropped from the texture",
-    seeds: [{ file: "storage.js", find: '    if (sessionStampMode(data) !== "work") return false;', replace: "" }],
   },
   {
     name: "[WM.4] the idle floor removed",

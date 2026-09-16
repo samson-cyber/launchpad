@@ -9732,10 +9732,6 @@
   function closeProSettingsPanel(opts) {
     var panel = $("#pro-settings-panel");
     if (!panel || panel.classList.contains("hidden")) return;
-    // [WM.4 follow-up] A preview belongs to the panel that started it. Leaving
-    // one running behind a closed panel is a noise with no visible source, and
-    // no control anywhere to stop it.
-    if (typeof FocusNoise !== "undefined") FocusNoise.stop();
     panel.classList.add("hidden");
 
     closeTagPalettePopover();
@@ -10494,42 +10490,16 @@
     var toggle = $("#focus-auto-arm-toggle");
     if (toggle) toggle.checked = Storage.getFocusSettings(data).autoArmDuringWork;
 
-    // [WM.4] The three controls this round adds, all read from the same `data`
-    // the readers use so the panel can never show a value the product is not
-    // acting on.
+    // [WM.4] The controls this round adds, all read from the same `data` the
+    // readers use so the panel can never show a value the product is not acting
+    // on. ([1.13.0 E6] The texture picker was read here too, and is cut.)
     var commit = $("#focus-commitment-toggle");
     if (commit) commit.checked = Storage.isCommitmentArmed(data);
-
-    var sound = Storage.getFocusSound(data);
-    Array.prototype.forEach.call(document.querySelectorAll('input[name="focus-sound"]'), function (r) {
-      r.checked = (r.value === sound);
-    });
-    var vol = $("#focus-sound-volume");
-    if (vol) vol.value = String(Math.round(Storage.getFocusSoundVolume(data) * 100));
 
     var idle = $("#focus-idle-input");
     // READ THROUGH THE READER, so a stored value below the floor shows as the
     // floor rather than as the number that will never be honoured.
     if (idle) idle.value = String(Storage.getIdleThresholdSec(data));
-  }
-
-  // [WM.4 follow-up] The preview, and the one case where there is not one.
-  //
-  // IF A SESSION IS ALREADY PLAYING, THE SESSION IS THE PREVIEW. Writing the
-  // setting is enough: the worker's reconciler hears the `data` change and
-  // switches the running texture. Previewing here as well would play two
-  // textures at once out of two different audio contexts - the page's and the
-  // offscreen document's - which is not a preview, it is a mess.
-  var FOCUS_PREVIEW_MS = 4000;
-  function previewFocusTexture(texture) {
-    if (typeof FocusNoise === "undefined") return;
-    if (texture === "off") { FocusNoise.stop(); return; }
-    if (Storage.focusSoundShouldPlay(data)) return;   // the session has it
-    try {
-      FocusNoise.start(texture, Storage.getFocusSoundVolume(data), FOCUS_PREVIEW_MS);
-    } catch (err) {
-      console.error("[LaunchPad] Focus sounds: preview failed", err);
-    }
   }
 
   // [WM.4] Bound once, at panel wiring. Each writes through Storage, which owns
@@ -10539,35 +10509,6 @@
     safeOn("#focus-commitment-toggle", "change", async function () {
       try { await Storage.setCommitmentArmed(data, this.checked); }
       catch (err) { console.error("[LaunchPad] Focus: commitment toggle failed", err); }
-    });
-    // [WM.4 follow-up] SELECTING A TEXTURE PLAYS IT, and this is the defect
-    // Samson reported: the picker only wrote the setting, and the worker plays a
-    // texture only while a Work session runs - so choosing Rain did nothing at
-    // all, and you found out what you had chosen twenty minutes later. A control
-    // that visibly does nothing is the shape the accent picker was cut for.
-    //
-    // FOUR SECONDS. Long enough to know what it is - rain needs about two before
-    // the droplets read as droplets rather than as noise - and short enough that
-    // changing your mind three times is twelve seconds rather than a minute.
-    Array.prototype.forEach.call(document.querySelectorAll('input[name="focus-sound"]'), function (r) {
-      r.addEventListener("change", async function () {
-        if (!r.checked) return;
-        try { await Storage.setFocusSoundTexture(data, r.value); }
-        catch (err) { console.error("[LaunchPad] Focus sounds: set failed", err); }
-        previewFocusTexture(r.value);
-      });
-    });
-    // LIVE, NOT ON COMMIT. "input" rather than "change" so dragging the slider
-    // moves what you are hearing while you drag; the WRITE is still debounced
-    // onto change, because a slider fires input per pixel and every one of those
-    // would be a storage write.
-    safeOn("#focus-sound-volume", "input", function () {
-      var v = (parseInt(this.value, 10) || 0) / 100;
-      if (typeof FocusNoise !== "undefined") FocusNoise.setVolume(v);
-    });
-    safeOn("#focus-sound-volume", "change", async function () {
-      try { await Storage.setFocusSoundVolume(data, (parseInt(this.value, 10) || 0) / 100); }
-      catch (err) { console.error("[LaunchPad] Focus sounds: volume failed", err); }
     });
     safeOn("#focus-idle-input", "change", async function () {
       var raw = parseInt(this.value, 10);

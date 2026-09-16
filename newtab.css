@@ -16067,20 +16067,6 @@ html.has-bg.bg-light .focus-block-domain { color: var(--text-primary); }
 html.has-bg .focus-field-label { color: var(--ink-primary); }
 html.has-bg.bg-light .focus-field-label { color: var(--text-primary); }
 
-.focus-sound-volume {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: var(--space-2);
-  margin-block-start: var(--space-2);
-}
-
-.focus-sound-volume input[type="range"] {
-  flex: 1 1 auto;
-  min-width: 0;
-  accent-color: #4a90e2;
-}
-
 .focus-idle-row {
   display: flex;
   flex-direction: row;

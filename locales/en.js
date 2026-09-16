@@ -4518,41 +4518,6 @@ I18n.register("en", {
       "message": "Off by default. When on, snoozing the same site twice in one focus session asks you to type one short sentence first.",
       "sense": "note.explanation"
     },
-    "prosettings_sound_during_focus": {
-      "description": "Section title for the focus texture, directly under the phase-boundary chime picker. Distinguished from it by WHEN it plays: a chime marks a boundary, this runs through the phase.",
-      "message": "Sound during a focus session",
-      "sense": "heading.section"
-    },
-    "prosettings_brown_noise": {
-      "description": "Focus texture. The trailing phrase is what it SOUNDS like, because the colour names mean nothing to most people.",
-      "message": "Brown noise, deep and soft",
-      "sense": "label.option"
-    },
-    "prosettings_pink_noise": {
-      "description": "Focus texture. Same naming rule as brown.",
-      "message": "Pink noise, even and warm",
-      "sense": "label.option"
-    },
-    "prosettings_white_noise": {
-      "description": "Focus texture. Same naming rule; white is the brightest of the three.",
-      "message": "White noise, bright",
-      "sense": "label.option"
-    },
-    "prosettings_rain": {
-      "description": "Focus texture. Named plainly because unlike the noise colours it needs no gloss.",
-      "message": "Rain",
-      "sense": "label.option"
-    },
-    "prosettings_volume": {
-      "description": "Label on the focus texture volume slider.",
-      "message": "Volume",
-      "sense": "label.field"
-    },
-    "prosettings_focus_sound_note": {
-      "description": "States the three conditions under which the texture plays, so a user who hears nothing knows which one is not met.",
-      "message": "Plays only while a focus session is running in a Work workspace, and stops when you pause or the session ends.",
-      "sense": "note.explanation"
-    },
     "prosettings_idle_after": {
       "description": "Label on the idle threshold input. Phrased as what it does to the user rather than as a technical threshold.",
       "message": "Count me idle after",
