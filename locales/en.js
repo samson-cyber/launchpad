@@ -308,6 +308,42 @@ I18n.register("en", {
     "message": "Move & Delete",
     "description": "Text on the groupdelete surface."
   },
+  "habit_track_on_grid": {
+    "message": "Track this on a month grid",
+    "description": "Checkbox in the recurring-task dialog. Turning it on draws a month grid of completed days on the template row. Says what the control DOES rather than naming a concept, because the result is checkable and the concept is not."
+  },
+  "habit_track_hint": {
+    "message": "A square fills on each day you complete this. Nothing is counted and nothing resets.",
+    "description": "Sub-label under the month-grid checkbox. The second sentence is the promise the grid makes and is load-bearing: it tells the user up front that this is a record, not a scoreboard, so turning it on cannot feel like signing up to be measured."
+  },
+  "habit_grid_label": {
+    "plural": {"one": "{month}: {count} day completed", "other": "{month}: {count} days completed"},
+    "description": "Accessible label for the whole month grid, which is a single image to a screen reader. Names only what was DONE. There is deliberately no count of days not done, because the grid does not show one either."
+  },
+  "habit_day_done": {
+    "message": "{date}: completed",
+    "description": "Tooltip on a filled square."
+  },
+  "habit_day_open": {
+    "message": "{date}: waiting",
+    "description": "Tooltip on a partly-filled square, meaning an instance for that day exists and is not ticked. WAITING, not late and not due: the square makes no claim about whether the day is going badly."
+  },
+  "habit_day_skipped": {
+    "message": "{date}: not added",
+    "description": "Tooltip on the faintest square, meaning the catch-up ceiling declined to create that day instance. It says what the PRODUCT did. There is no tooltip at all on an empty day, because an empty day is the absence of a mark and giving it words would be the grid commenting on a gap."
+  },
+  "recurring_caught_up": {
+    "message": "Picked up where you left off.",
+    "description": "First half of the notice shown once after a sweep that hit the instance ceiling. Deliberately about resuming rather than about an absence. Must never acquire a count of days away."
+  },
+  "recurring_caught_up_detail": {
+    "plural": {"one": "{count} earlier instance was not added.", "other": "{count} earlier instances were not added."},
+    "description": "Second half of the catch-up notice. Counts what the product did NOT create, which is a fact about the sweep rather than about the user. Passive on purpose: the user is not the actor in this sentence."
+  },
+  "recurring_caught_up_dismiss": {
+    "message": "Dismiss",
+    "description": "Accessible label for the X that clears the catch-up notice permanently."
+  },
   "history_all": {
     "message": "All",
     "description": "Text on the history surface."

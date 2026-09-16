@@ -5262,6 +5262,153 @@
     '</article>';
   }
 
+  // ===== [1.14.4 / G7] THE HABIT GRID =====
+  //
+  // DECISION G, AND THE ONE PLACE I DID LESS THAN THE BRIEF ASKED, deliberately.
+  //
+  // The brief specifies "accent at FOUR alpha steps" and then asks the right
+  // question about them: a habit either happened on a day or it did not, so four
+  // steps need four meanings or the grid is lying. I could not find four honest
+  // ones. THREE ARE REAL and they are these:
+  //
+  //   DONE (1.00)     an instance for that day is complete.
+  //   OPEN (0.52)     an instance for that day exists and is not complete. This
+  //                   is today's square before you tick it, and an overdue one
+  //                   still sitting in the list. It says "waiting", not "failed".
+  //   SKIPPED (0.20)  a scheduled day the CEILING declined to materialise. This
+  //                   is the one the grid would otherwise lie about: a day the
+  //                   product never asked you for is not a day you let pass, and
+  //                   without this step the two are the same hairline square.
+  //
+  // The fourth candidate I rejected was a RECENCY FADE - today bright, older
+  // days dimmer. It is the obvious way to get a fourth step and it is exactly
+  // the lie the brief warns about: it makes a day you completed three weeks ago
+  // look less completed than one you did this morning, which is a claim about
+  // the past that is simply untrue. The other rejected candidate was ON TIME vs
+  // LATE; that one is at least true, but a dimmer square for a late tick reads
+  // as partial credit, and decision G's whole point is that the grid does not
+  // grade. Both are dropped and the grid has three steps.
+  //
+  // EMPTY IS A HAIRLINE - the absence of a fill, not grey, not red, not a mark.
+  // BEFORE THE HABIT EXISTED IS ABSENT ALTOGETHER: the cell renders with no
+  // border at all, because a hairline means "this day could have happened and
+  // did not" and a day before the template existed is not that. Future days in
+  // the current month are absent for the same reason.
+  //
+  // NO STREAK COUNT, NO RED, NO "MISSED". Not merely because the brief says so:
+  // the 2026-07-20 celebration-doctrine amendment already banned "any surface
+  // that keeps reminding the user of streaks/progress after the moment has
+  // passed", and a streak counter on a row that is always on screen is the
+  // definition of that surface. The grid shows what happened and says nothing
+  // about it.
+  // [1.14.4 / G] ONE-SHOT RECOGNITION, AND THE STATE IS DELIBERATELY IN RAM.
+  //
+  // The 2026-07-20 celebration-doctrine amendment permits a single one-shot
+  // acknowledgement at the moment something is earned and bans "any surface that
+  // keeps reminding the user of streaks/progress after the moment has passed".
+  // A PERSISTED flag would replay the animation on the next reload, which is
+  // precisely the banned half - so this is a module variable, it is CONSUMED BY
+  // THE RENDER THAT READS IT, and a refresh finds nothing.
+  //
+  // It is also the goal-completion celebration's model rather than the badge
+  // splash's: immediate and in place, never queued. A queue would deliver it
+  // later, and "later" is the one thing a moment cannot survive.
+  var habitJustCompletedId = null;
+
+  var HABIT_GRID_STATE_CLASS = {
+    done: "is-done", open: "is-open", skipped: "is-skipped",
+    empty: "is-empty", before: "is-before"
+  };
+
+  function habitGridHtml(workspace, template) {
+    var grid = Storage.habitGridMonth(workspace, template, Date.now(), habitWeekStart());
+    var labels = shortDayNames();
+    var head = "";
+    for (var c = 0; c < 7; c++) {
+      head += '<span class="habit-dow" aria-hidden="true">' +
+        escapeHtml((labels[(c + habitWeekStart()) % 7] || "").slice(0, 1)) + '</span>';
+    }
+    var cellsHtml = "";
+    grid.cells.forEach(function (cell) {
+      if (!cell) { cellsHtml += '<span class="habit-cell is-pad"></span>'; return; }
+      // TITLE ON EVERY REAL SQUARE, because a 12px square with no text is
+      // unreadable to a screen reader and ambiguous to everyone else. The whole
+      // grid carries one aria-label (below) and the squares are aria-hidden, so
+      // this is a pointer affordance rather than a second announcement.
+      var title = habitCellTitle(cell);
+      cellsHtml += '<span class="habit-cell ' + HABIT_GRID_STATE_CLASS[cell.state] + '"' +
+        (cell.stamp === grid.today ? ' data-habit-today="1"' : "") +
+        ' data-habit-day="' + cell.stamp + '"' +
+        (title ? ' title="' + escapeHtml(title) + '"' : "") +
+        ' aria-hidden="true"></span>';
+    });
+    var done = grid.cells.filter(function (c) { return c && c.state === "done"; }).length;
+    // CONSUME ON RENDER. Read once, cleared here, so the second render of the
+    // same grid - a filter change, a sibling completing, a scroll restore - does
+    // not replay it.
+    var justDone = (habitJustCompletedId === template.id);
+    if (justDone) habitJustCompletedId = null;
+    if (justDone) cellsHtml = cellsHtml.replace(' data-habit-today="1"', ' data-habit-today="1" data-habit-justdone="1"');
+    return '<div class="habit-grid" role="img" aria-label="' +
+        escapeHtml(t("habit_grid_label", { count: done, month: habitMonthName(grid) })) + '">' +
+      '<div class="habit-dow-row" aria-hidden="true">' + head + '</div>' +
+      '<div class="habit-cells">' + cellsHtml + '</div>' +
+    '</div>';
+  }
+
+  /**
+   * Would completing this task make today's square newly done? Returns the
+   * habit template's id if so, else null. Pure read; runs before the write.
+   */
+  function habitArmOneShot(taskId) {
+    try {
+      var ws = Storage.getActiveWorkspace(data);
+      var task = ws && Storage.getTaskById(ws, taskId);
+      if (!task || !task.recurringTemplateId) return null;
+      var tpl = Storage.getRecurringTemplateById(ws, task.recurringTemplateId);
+      if (!tpl || !tpl.isHabit) return null;
+      var grid = Storage.habitGridMonth(ws, tpl, Date.now(), 0);
+      var todayCell = grid.cells.filter(function (c) { return c && c.stamp === grid.today; })[0];
+      return (todayCell && todayCell.state === "done") ? null : tpl.id;
+    } catch (e) { return null; }
+  }
+
+  // SUNDAY-FIRST, AND IT IS NOT A CHOICE THIS ROUND GETS TO MAKE.
+  //
+  // I went looking for a week-start setting to follow and there ISN'T ONE - no
+  // getWeekStartsOn, no stored field, nothing. What the codebase does have is a
+  // single consistent convention: getDay/getUTCDay return 0 for Sunday, the
+  // recurring modal's DOW_VALUES are indexed from it, nextRecurrenceUTC matches
+  // days against it, and shortDayNames() is built from Feb 1 2026 - a Sunday -
+  // so its index 0 is Sunday too. The grid uses that same indexing.
+  //
+  // Inventing a Monday-first setting here would be a second day convention in a
+  // codebase that has exactly one, for a feature that did not ask for it. If a
+  // week-start setting is ever added it belongs at the product level and this
+  // grid should follow it; the column order is read through this one function
+  // precisely so that change is a single edit.
+  function habitWeekStart() { return 0; }
+
+  function habitMonthName(grid) {
+    try {
+      return new Date(grid.year, grid.month, 1).toLocaleDateString(undefined, { month: "long" });
+    } catch (e) { return ""; }
+  }
+
+  // ONE STRING PER STATE, and none of them is a judgement. There is deliberately
+  // no title at all on an empty day: "nothing happened here" is what the absence
+  // of a fill already says, and giving it words would be the grid commenting on
+  // a gap, which decision G forbids.
+  function habitCellTitle(cell) {
+    var day = "";
+    try { day = new Date(cell.stamp).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" }); }
+    catch (e) { day = String(cell.day); }
+    if (cell.state === "done") return t("habit_day_done", { date: day });
+    if (cell.state === "open") return t("habit_day_open", { date: day });
+    if (cell.state === "skipped") return t("habit_day_skipped", { date: day });
+    return "";
+  }
+
   function recurringRowHtml(workspace, template) {
     // Pattern hint mirrors the spec's "Weekly review • every Monday" copy.
     // Daily prints just the time-of-day; weekly prints the day-of-week list;
@@ -5288,6 +5435,11 @@
       '<span class="tt-recurring-hint">' + escapeHtml(hint) + '</span>' +
       tagHtml +
       pausedBadge +
+      // IN THE TEMPLATE ROW, which is where the habit LIVES. Not on the task row
+      // - an instance is an ordinary task, and a grid on each of them would draw
+      // the same picture N times. Not on the goal card - a goal is not a cadence.
+      // Non-habit templates are byte-identical to what they rendered before.
+      (template.isHabit ? habitGridHtml(workspace, template) : "") +
     '</li>';
   }
 
@@ -5818,11 +5970,30 @@
           standaloneHtml +
         '</section>'
       : '';
+    // [1.14.4 / H] THE CEILING SPEAKS, ONCE. Present only when the last sweep
+    // actually refused something, dismissible, and gone for good on dismiss.
+    //
+    // WHAT IT MAY NOT SAY is as decided as what it says. No day count, no
+    // "missed", no "streak", no "again" - the doctrine bans the surface that
+    // keeps reminding you, and the difference between information and a scold
+    // here is entirely in the words. "Picked up where you left off" is the whole
+    // message; the number it carries is how many instances were NOT added, which
+    // is a fact about what the product did, not about what the user failed to do.
+    var catchUp = d && d.recurringCatchUp;
+    var catchUpHtml = (catchUp && catchUp.skipped > 0)
+      ? '<div class="tt-catchup" role="status">' +
+          '<span class="tt-catchup-text">' + th("recurring_caught_up") + " " +
+            escapeHtml(t("recurring_caught_up_detail", { count: catchUp.skipped })) + '</span>' +
+          '<button type="button" class="tt-catchup-dismiss" data-catchup-dismiss aria-label="' +
+            th("recurring_caught_up_dismiss") + '">&times;</button>' +
+        '</div>'
+      : '';
     var recurringSectionHtml = showActiveSections
       ? '<section class="tt-section" data-section="recurring">' +
           '<h2 class="tt-section-title">' + th("tasks_recurring") +
             (recurringVisible.length ? ' <span class="tt-section-count">' + recurringVisible.length + '</span>' : '') +
           '</h2>' +
+          catchUpHtml +
           recurringHtml +
         '</section>'
       : '';
@@ -5988,6 +6159,14 @@
       // dwell is visible (and rapid completes don't clobber each other). Grab
       // the row NOW — the panel isn't re-rendered until the flow settles.
       var row = target.closest(".tt-task-row");
+      // [1.14.4 / G] ARM THE ONE-SHOT - BEFORE the write, because the question is
+      // whether today was ALREADY done, and after the write it always is.
+      //
+      // ONCE PER DAY, NOT ONCE PER TICK. Completing a second instance of the same
+      // habit on a day whose square is already filled changes nothing on the grid
+      // and so acknowledges nothing: the recognition is for "today is done", and
+      // today can only become done once.
+      habitJustCompletedId = habitArmOneShot(taskId);
       var completeResult;
       try {
         completeResult = await Storage.completeTask(data, taskId);
@@ -6002,6 +6181,22 @@
     panel.addEventListener("click", async function (e) {
       var target = e.target;
       if (!target) return;
+
+      // [1.14.4 / H] Dismiss the catch-up notice. It is gone for good: the
+      // record is deleted rather than flagged read, so there is no state left
+      // that a later render could resurrect.
+      var catchUpX = target.closest && target.closest("[data-catchup-dismiss]");
+      if (catchUpX) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (Storage.dismissRecurringCatchUp(data)) {
+          Storage.saveAll(data).catch(function (err) {
+            console.error("[LaunchPad] Tasks tab: catch-up dismiss failed", err);
+          });
+        }
+        renderTasksTab(panel, data);
+        return;
+      }
 
       // [1.0.12] Priority / Tag multi-select filter buttons → checkbox popover.
       var filterBtn = target.closest && target.closest(".tasks-filter-multi");
@@ -7389,6 +7584,14 @@
           '<input type="checkbox" class="tt-recur-active"' + ((!isEdit || existing.isActive) ? " checked" : "") + '>' +
           '<span>' + th("freq_active") + '</span>' +
         '</label>' +
+        // [1.14.4 / G7] THE HABIT CHECKBOX. Default OFF, and the hint says what
+        // it does rather than what it means - "track this on a month grid" is
+        // checkable against the result; "make this a habit" is not.
+        '<label class="tt-modal-row tt-modal-checkbox-row">' +
+          '<input type="checkbox" class="tt-recur-habit"' + ((isEdit && existing.isHabit) ? " checked" : "") + '>' +
+          '<span>' + th("habit_track_on_grid") + '</span>' +
+        '</label>' +
+        '<div class="tt-modal-hint">' + th("habit_track_hint") + '</div>' +
         '<div class="tt-modal-error hidden" role="alert"></div>',
       onMounted: function (overlay) {
         var freqSelect = overlay.querySelector(".tt-recur-freq-select");
@@ -7422,7 +7625,8 @@
           name: name,
           frequency: frequency,
           timeOfDay: timeInput.value || "09:00",
-          isActive: !!activeInput.checked
+          isActive: !!activeInput.checked,
+          isHabit: !!(overlay.querySelector(".tt-recur-habit") || {}).checked
         };
         if (frequency === "weekly") {
           var checked = [].slice.call(overlay.querySelectorAll(".tt-recur-dow:checked"));

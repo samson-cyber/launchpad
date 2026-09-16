@@ -2952,6 +2952,9 @@ var Storage = (function () {
         var soundDropped = dropFocusSoundSettings(existing);
         var presetsSeeded = ensureModePresets(existing);
         var attachmentsPruned = pruneAttachments(existing);
+        // [1.14.4 / G7] isHabit, normalised across every workspace.
+        var habitFlagsSeeded = (Array.isArray(existing.workspaces) ? existing.workspaces : [])
+          .map(ensureHabitFlags).some(Boolean);
         var homeNoteDropped = dropHomeNote(existing);
         var iconsMerged = migrateLegacyIcons(existing);
         // [1.4.7] Runs at most once per profile. The write is needed only on the
@@ -2963,7 +2966,7 @@ var Storage = (function () {
         var strandedReleased = sweepStrandedTasks(existing);
         if (patched || trackingSeeded || focusSeeded || notesSeeded || sessionsSeeded ||
             accentDropped || clockDropped || soundDropped || presetsSeeded || attachmentsPruned ||
-            homeNoteDropped || iconsMerged || strandedUnswept) {
+            homeNoteDropped || iconsMerged || habitFlagsSeeded || strandedUnswept) {
           // [1.10.3] THE BACKFILL WRITE GETS ITS OWN try/catch, AND THIS IS A
           // CORRECTNESS FIX RATHER THAN TIDYING. It used to sit inside this
           // function's single try, so an over-quota backfill fell through to the
@@ -3611,6 +3614,20 @@ var Storage = (function () {
   // docs/SPECS/tasks-and-goals.md). Field landed early so the helper exists
   // before the feature does — saves a follow-up touch when [1.0.14] wires
   // template generation.
+  // [1.14.4 / G7] isHabit is absent on every template created before this
+  // round. Absent reads as false through !!, so no backfill is strictly needed -
+  // but the getAll sweep normalises it anyway so the stored shape is uniform and
+  // a reader never has to distinguish "false" from "not there".
+  function ensureHabitFlags(workspace) {
+    var arr = workspace && workspace.recurringTemplates;
+    if (!Array.isArray(arr)) return false;
+    var changed = false;
+    arr.forEach(function (t) {
+      if (t && typeof t.isHabit !== "boolean") { t.isHabit = false; changed = true; }
+    });
+    return changed;
+  }
+
   function ensureRecurringTemplatesArray(workspace) {
     if (!workspace) return null;
     if (!Array.isArray(workspace.recurringTemplates)) workspace.recurringTemplates = [];
@@ -7776,6 +7793,25 @@ var Storage = (function () {
       nextScheduledAt: nextScheduledAt,
       lastInstanceId: null,
       isActive: isActive,
+      // [1.14.4 / G7] A HABIT IS A TEMPLATE WITH A GRID, AND THAT IS ALL IT IS.
+      //
+      // A FLAG, not a separate record and not a frequency constraint. The two
+      // alternatives were both considered and both are wrong:
+      //
+      //   A FREQUENCY RULE ("daily templates are habits") decides for the user
+      //   on evidence it does not have. "Long run every Sunday" is a habit;
+      //   "pay the rent on the 1st" is not, and both are recurring templates on
+      //   a cadence. Frequency does not know which is which. The user does.
+      //
+      //   A SEPARATE RECORD would duplicate the pattern validation, the sweep,
+      //   the goal binding and the soft-delete - every one of which already
+      //   works - to gain a boolean. The museum rule cuts the other way here:
+      //   a second model whose only difference is a render site is not a model.
+      //
+      // So it is a checkbox at creation, default OFF. Everything downstream of
+      // the template - the sweep, the instances, completion - is untouched, and
+      // a habit's instance is an ordinary task in every respect.
+      isHabit: !!f.isHabit,
       tagIds: tagIds,
       createdAt: now,
       updatedAt: now,
@@ -7885,6 +7921,13 @@ var Storage = (function () {
     if (Object.prototype.hasOwnProperty.call(u, "description")) {
       template.description = (u.description === undefined || u.description === null) ? "" : String(u.description);
     }
+    if (Object.prototype.hasOwnProperty.call(u, "isHabit")) {
+      // Turning the grid ON for an existing template is allowed and shows its
+      // real history: the grid is DERIVED from instances that already exist, so
+      // it is not backdated or invented - it simply starts being drawn. Turning
+      // it off hides the grid and destroys nothing.
+      template.isHabit = !!u.isHabit;
+    }
 
     template.updatedAt = Date.now();
     await saveAll(data);
@@ -7945,7 +7988,32 @@ var Storage = (function () {
   // template but has NO v1 behavior (D4) — scheduling is day-granular.
 
   var RECUR_DAY_MS = 24 * 60 * 60 * 1000;
-  var RECUR_OVERDUE_CEILING = 7; // D3: keep at most 7 (newest); older skipped.
+  // [1.0.14 D3 / 1.14.4 H] THE INSTANCE CEILING. SEVEN, AND IT IS NOT NEW.
+  //
+  // THE NUMBER WAS ALREADY DECIDED AND ALREADY SHIPPED, which is the finding
+  // rather than the decision. tasks-and-goals.md's open question 4 asked "if a
+  // user never opens LaunchPad for 60 days, do we generate 60 missed daily
+  // instances?" and proposed "max 7 overdue instances kept, older skipped
+  // silently"; [1.0.14] built exactly that, for ALL recurring templates, and the
+  // spec was simply never updated to say so.
+  //
+  // IT STAYS AT SEVEN. A week is the unit a person can actually read - "what I
+  // would have had if I had been away a week" - and moving a shipped number
+  // that already matches its own spec would churn behaviour for nothing.
+  //
+  // WHAT THIS ROUND CHANGES IS THE WORD "SILENTLY". A sweep that quietly drops
+  // 53 occurrences is the product making a decision on the user's behalf and
+  // never mentioning it; the summary it returns has always carried `skipped`,
+  // and the only consumer was a console.log nobody reads. So the sweep now
+  // records what it refused - see recurringCatchUp below - and the Tasks tab
+  // says so once, dismissibly.
+  //
+  // THE DOCTRINE STILL BINDS. "Picked up where you left off" is information;
+  // "you missed 53 days" is a scold, and the 2026-07-20 celebration-doctrine
+  // amendment bans any surface that keeps reminding the user of progress after
+  // the moment has passed. Hence: no count of days away, no streak, no red, and
+  // the notice clears the moment it is dismissed.
+  var RECUR_OVERDUE_CEILING = 7;
 
   function recurUtcMidnight(epoch) {
     var d = new Date(epoch);
@@ -8017,7 +8085,7 @@ var Storage = (function () {
    * @returns {Promise<{instancesCreated:number, templatesAdvanced:number, skipped:number}>}
    */
   async function runRecurringSweep(data, nowTs) {
-    var summary = { instancesCreated: 0, templatesAdvanced: 0, skipped: 0 };
+    var summary = { instancesCreated: 0, templatesAdvanced: 0, skipped: 0, skippedTemplates: [] };
     if (!data || !Array.isArray(data.workspaces)) return summary;
     var now = (typeof nowTs === "number") ? nowTs : Date.now();
     var changed = false;
@@ -8051,8 +8119,26 @@ var Storage = (function () {
 
         var toCreate = occ;
         if (occ.length > RECUR_OVERDUE_CEILING) {
-          summary.skipped += occ.length - RECUR_OVERDUE_CEILING;
+          var cut = occ.slice(0, occ.length - RECUR_OVERDUE_CEILING);
+          summary.skipped += cut.length;
           toCreate = occ.slice(occ.length - RECUR_OVERDUE_CEILING);
+          // THE GRID SHOWS THE GAP EITHER WAY. The ceiling governs what lands in
+          // the task LIST; the grid is a record of what happened, and a day the
+          // product declined to ask about is not the same as a day the user let
+          // pass. Only a habit keeps the list, and only for days the grid can
+          // still draw - one month back is all it can show, so an unbounded
+          // array would grow forever to store days nothing will ever read.
+          if (tpl.isHabit) {
+            var keepFrom = now - (SKIPPED_DAYS_RETAINED * RECUR_DAY_MS);
+            var prior = Array.isArray(tpl.skippedDays) ? tpl.skippedDays : [];
+            var merged = prior.concat(cut).filter(function (s) { return s >= keepFrom; });
+            // De-duplicated and ordered, so a re-sweep cannot double-enter a day.
+            var seen = {};
+            tpl.skippedDays = merged.filter(function (s) {
+              if (seen[s]) return false; seen[s] = true; return true;
+            }).sort(function (a, b) { return a - b; });
+          }
+          summary.skippedTemplates.push({ id: tpl.id, name: tpl.name, count: cut.length });
         }
 
         // Goal binding: inherit the template's goalId only if that goal is still
@@ -8093,8 +8179,178 @@ var Storage = (function () {
       });
     });
 
+    // [1.14.4 / H] HOW THE USER LEARNS IT. One record, consumed by one line on
+    // the Tasks tab, cleared on dismiss. NOT a notification and NOT a badge: the
+    // user was away, they are back, and the first thing the product says to them
+    // should not arrive as an alert.
+    if (summary.skipped > 0) {
+      data.recurringCatchUp = {
+        at: now,
+        skipped: summary.skipped,
+        templates: summary.skippedTemplates.length
+      };
+      changed = true;
+    }
+
     if (changed) await saveAll(data);
     return summary;
+  }
+
+  /** Clear the catch-up notice. Mutate-only; the caller pairs saveAll. */
+  function dismissRecurringCatchUp(data) {
+    if (!data || !data.recurringCatchUp) return false;
+    delete data.recurringCatchUp;
+    return true;
+  }
+
+  // Days of skipped history the grid can still draw. The grid shows ONE month,
+  // so 62 covers the current month and the one before it under every month
+  // length - enough for the view, bounded so the array cannot grow forever.
+  var SKIPPED_DAYS_RETAINED = 62;
+
+  // ===== [1.14.4 / G7] THE HABIT GRID =====
+  //
+  // WHICH DAY, AND IT IS NOT THE SWEEP'S. [WM.3] already settled this question
+  // for schedule windows and the reasoning transfers verbatim: the recurring
+  // sweep does date arithmetic at UTC midnight with getUTCDay, which is right
+  // for "which calendar date does this recur on" and WRONG for "which square did
+  // this land on". A grid is a wall calendar - it is a local wall-clock question,
+  // and a user at UTC-5 completing something at 23:30 on the 8th would have it
+  // drawn on the 9th if the UTC day decided.
+  //
+  // So the grid keys on the LOCAL calendar day of completedAt, and it does not
+  // invent a helper to do it: achievements already bucket completions with
+  // achDayKey(t.completedAt) (the streak reader), and dueWorkTodayUtcDay already
+  // encodes a LOCAL calendar date into the UTC-midnight stamp space that dueAt
+  // uses. This reader uses that same encoding, so a square and a dueAt are
+  // directly comparable and no third definition of a day enters the codebase.
+  var HABIT_GRID_EMPTY = "empty";        // the day passed, nothing is recorded
+  var HABIT_GRID_DONE = "done";          // an instance for that day is complete
+  var HABIT_GRID_OPEN = "open";          // an instance exists and is not complete
+  var HABIT_GRID_SKIPPED = "skipped";    // a scheduled day the ceiling did not create
+  var HABIT_GRID_BEFORE = "before";      // earlier than the habit itself
+
+  /** The UTC-midnight stamp of the LOCAL calendar day containing ts. */
+  function habitLocalDayStamp(ts) {
+    var dt = new Date(ts);
+    return Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate());
+  }
+
+  /**
+   * The month grid for one habit template.
+   *
+   * PURE AND DERIVED. It reads instances and returns cells; it stores nothing,
+   * and there is no per-day record anywhere. That is what makes G7 true - a
+   * habit really is a template with a grid, and the grid is a VIEW of tasks that
+   * already exist rather than a second ledger that could disagree with them.
+   *
+   * Returns { year, month, cells: [{ stamp, day, state }] } where cells begins
+   * with `lead` nulls so the first of the month falls in its real weekday column.
+   *
+   * @param ws         the workspace
+   * @param template   the habit template
+   * @param now        epoch ms; the month containing it is the month drawn
+   * @param weekStart  0 = Sunday, 1 = Monday. The column order only.
+   */
+  function habitGridMonth(ws, template, now, weekStart) {
+    var nowTs = (typeof now === "number") ? now : Date.now();
+    var ref = new Date(nowTs);
+    var year = ref.getFullYear(), month = ref.getMonth();
+    var todayStamp = habitLocalDayStamp(nowTs);
+    var ws0 = (weekStart === 1) ? 1 : 0;
+
+    // Every live instance of THIS template, bucketed by the day it belongs to.
+    // A COMPLETED instance is bucketed by when it was COMPLETED, not by what it
+    // was due; an OPEN one has no completion, so it is bucketed by its dueAt.
+    // That distinction is the whole reason a late tick lands on the day the user
+    // actually did the thing, which is what a habit grid is a record of.
+    var byDay = {};
+    (ws && ws.tasks ? ws.tasks : []).forEach(function (t) {
+      if (!t || t.deletedAt || t.recurringTemplateId !== template.id) return;
+      var stamp;
+      if (t.completed && typeof t.completedAt === "number") {
+        stamp = habitLocalDayStamp(t.completedAt);
+      } else if (typeof t.dueAt === "number") {
+        stamp = t.dueAt;
+      } else { return; }
+      // DONE WINS. Two instances can share a square when a late tick lands on a
+      // day that already has its own; the square says done, because it did.
+      if (byDay[stamp] !== HABIT_GRID_DONE) {
+        byDay[stamp] = (t.completed ? HABIT_GRID_DONE : HABIT_GRID_OPEN);
+      }
+    });
+
+    // The days the ceiling refused, recorded by the sweep. Same stamp space.
+    var skipped = {};
+    var sk = template.skippedDays;
+    if (Array.isArray(sk)) sk.forEach(function (s) { if (typeof s === "number") skipped[s] = true; });
+
+    var createdStamp = (typeof template.createdAt === "number")
+      ? habitLocalDayStamp(template.createdAt) : null;
+
+    var first = new Date(year, month, 1);
+    var lead = (first.getDay() - ws0 + 7) % 7;
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    var cells = [];
+    for (var i = 0; i < lead; i++) cells.push(null);
+    for (var day = 1; day <= daysInMonth; day++) {
+      var stamp = Date.UTC(year, month, day);
+      var state;
+      if (createdStamp != null && stamp < createdStamp) {
+        // BEFORE THE HABIT EXISTED IS ABSENT, NOT EMPTY, and the difference is
+        // the grid's honesty. "Empty" means a day this habit could have happened
+        // on and did not. A day before the template was created is not that -
+        // the habit could not have happened, and drawing a hairline there would
+        // be the grid making a claim about a period it has no information about.
+        state = HABIT_GRID_BEFORE;
+      } else if (stamp > todayStamp) {
+        // The future is also not a claim. Same treatment.
+        state = HABIT_GRID_BEFORE;
+      } else if (byDay[stamp]) {
+        state = byDay[stamp];
+      } else if (skipped[stamp]) {
+        state = HABIT_GRID_SKIPPED;
+      } else {
+        state = HABIT_GRID_EMPTY;
+      }
+      cells.push({ stamp: stamp, day: day, state: state });
+    }
+
+    // THE GRID STOPS AT THE WEEK CONTAINING TODAY, and this was found by LOOKING
+    // at a frame rather than by any assertion - every contrast row was green and
+    // every state was measured before anyone noticed.
+    //
+    // A full month is up to six rows. Drawn on the 3rd, four of them are days
+    // that have not happened, and since an unhappened day is correctly ABSENT
+    // (it is not a day this habit could have happened on), those rows render as
+    // nothing at all - a tall column of blank space under every habit that reads
+    // as a broken component rather than as a calendar.
+    //
+    // So the month GROWS. It shows the weeks that have happened and stops; on
+    // the last day of the month it is the full month. Nothing is hidden - every
+    // day that could carry information is drawn - and the row no longer reserves
+    // space for information that cannot exist yet.
+    var lastIdx = -1;
+    for (var ci = 0; ci < cells.length; ci++) {
+      if (cells[ci] && cells[ci].stamp === todayStamp) { lastIdx = ci; break; }
+    }
+    if (lastIdx >= 0) {
+      // Round up to the end of that week so the final row is a whole row.
+      var endOfWeek = lastIdx + (6 - (lastIdx % 7));
+      cells = cells.slice(0, Math.min(cells.length, endOfWeek + 1));
+    }
+
+    return { year: year, month: month, cells: cells, today: todayStamp };
+  }
+
+  /** Is this task today's instance of a habit? Used for the one-shot only. */
+  function isHabitInstanceForToday(ws, task, now) {
+    if (!task || !task.recurringTemplateId) return false;
+    var tpl = getRecurringTemplateById(ws, task.recurringTemplateId);
+    if (!tpl || !tpl.isHabit) return false;
+    return habitLocalDayStamp((typeof now === "number") ? now : Date.now())
+      === habitLocalDayStamp(typeof task.completedAt === "number" ? task.completedAt : Date.now());
   }
 
   // ===== [1.0.15] Goal Templates =====
@@ -9629,6 +9885,12 @@ var Storage = (function () {
     getRecurringTemplateById: getRecurringTemplateById,
     // [1.0.14] Recurring instance generation
     runRecurringSweep: runRecurringSweep,
+    // [1.14.4] Habits and the ceiling.
+    RECUR_OVERDUE_CEILING: RECUR_OVERDUE_CEILING,
+    habitGridMonth: habitGridMonth,
+    habitLocalDayStamp: habitLocalDayStamp,
+    isHabitInstanceForToday: isHabitInstanceForToday,
+    dismissRecurringCatchUp: dismissRecurringCatchUp,
     nextRecurrenceUTC: nextRecurrenceUTC,
     // [1.2.0 R1] Focus blocking — storage foundations. The intercept (R2) reads
     // focusBlockingActive + getBlockList + matchesBlockedDomain +
