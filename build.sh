@@ -308,6 +308,23 @@ if ! node tools/check-i18n-sites.mjs; then
   exit 1
 fi
 
+# [1.5.0] THE i18n CENSUS — the instrument check-i18n-sites cannot be. Where the
+# site gate asks "is there prose at a construction site I can parse?", this asks
+# "is there an English sentence in this file that is not a catalogue key?", and
+# it is blind to none of the eight shapes the parser cannot reach. Its closing
+# condition is a population of zero, and a zero nobody re-derives is worth
+# nothing — so it runs on every build rather than ad hoc.
+#
+# WIRED IN BY THE 1218551512094479 ROUND, NOT BY THE ROUND THAT WROTE IT. It was
+# the FIFTH instance of the unwired-gate class and the second one live at the
+# same moment as check-sync-slice: committed, complete, and run by nobody. The
+# boot check now refuses a build that leaves any check-*.mjs out of this list,
+# so this is the last one that can happen this way.
+if ! node tools/check-i18n-census.mjs; then
+  echo 'ERROR: i18n census failed - an English sentence survives outside the catalogue, or the census is broken.' >&2
+  exit 1
+fi
+
 # [1.12] BUTTON SPECIFICITY - a ground rule must not outrank a state modifier.
 # NOT ENFORCING: it reports its count and fails only if the count GOES UP, the
 # same shape check-i18n-sites used while its backlog was being worked down.

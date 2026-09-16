@@ -37,6 +37,17 @@
 // the hardcoded-enumeration class, exactly the hardcoded enumeration it exists
 // to catch - a new mutation runner would simply never be checked.
 //
+// THIS FILE IS THE GATE ABOUT GATES, and it now carries three sections. They
+// are here together because they answer the same question in three forms - does
+// the suite still have teeth? - and because a claim about the gates belongs
+// next to the other claims about the gates rather than in a fourth file nobody
+// wires in, which is precisely the defect section 3 exists to catch.
+//
+//   1. BOOT      can every --mutate runner still load its own subject?
+//   2. ANCHORING can a gate's CSS assertion silently drift to a scoped rule?
+//   3. WIRING    is every tools/check-*.mjs actually run by build.sh, and does
+//                every gate build.sh names exist? (Asana 1218551512094479)
+//
 // Usage:  node tools/check-mutation-boot.mjs [repoRoot]
 // Exit 0 = every runner boots. 1 = at least one is dead, or the scan is unsound.
 // ===========================================================================
@@ -183,8 +194,95 @@ try {
   unsound++;
 }
 
-const finalVerdict = (dead || unsound || unanchored) ? "FAIL" : verdict;
+// ===== THE RUNNER LIST \u2014 is every gate actually WIRED INTO build.sh? ======
+//
+// THE FAILURE: a gate can be written, committed, and left out of build.sh's
+// runner list, and nothing notices. It looks like a gate, it passes when run by
+// hand, and it gates nothing. Green by nobody.
+//
+// THE INSTANCE: 250cb05 shipped check-sync-slice.mjs with 33 assertions about
+// what leaves the machine over chrome.storage.sync, and never added it here. It
+// sat unrun for a full round; 11989c4 found it while extending that same gate.
+//
+// FOURTH INSTANCE OF ONE CLASS - a thing only a build reads, that no build
+// read. importers.js and quickadd.js were both missing from the packaging
+// ALLOWLIST; side-panel.html was declared by a manifest key the shared reader
+// did not know; this one is the RUNNER list, which is why none of the three
+// earlier fixes covered it. Each of those was fixed by adding the missing entry,
+// and none of them made the next instance impossible, because the answer always
+// arrived from a build rather than from a check. This is the check.
+//
+// IT RUNS HERE because this file is already the gate-about-gates, and presence
+// in the runner list is the same kind of claim as "the runner can still boot".
+// It costs one directory read and one file read.
+//
+// WHAT IT CANNOT SEE, stated so nobody reads more into a green than is there:
+// a gate that IS wired in, runs, and asserts NOTHING. A file of zero assertions
+// exits 0 and passes this check. That is the P2 anti-vacuity floors' job, and
+// they do it per gate, from inside. THIS IS ONLY ABOUT PRESENCE.
+//
+// BOTH DIRECTIONS, because each catches a different mistake: a gate on disk and
+// not in build.sh is a gate nobody runs; a gate in build.sh and not on disk is
+// a build that dies at the shell on a rename.
+//
+// THE PARSER MUST NOT MATCH COMMENTS, and that is not hypothetical - build.sh
+// names tools/check-html-refs.mjs inside a comment today. A parser that counted
+// that would let a gate be "wired" by being mentioned, which is the exact
+// failure in a more embarrassing form. Comments are stripped first.
+//
+// The parser's failure mode is deliberately the loud one: if the invocation
+// regex ever stops matching, the parsed set empties and EVERY gate reports
+// unwired, rather than every gate silently passing.
+let unwired = 0, phantom = 0;
+try {
+  const shPath = path.join(repoRoot, "build.sh");
+  const sh = fs.readFileSync(shPath, "utf8").replace(/\r\n/g, "\n");
+  // A `#` at line start or after whitespace opens a shell comment. None of the
+  // gate invocations contain one, so this cannot eat a real line.
+  const code = sh.split("\n").map((l) => l.replace(/(^|\s)#.*$/, "$1")).join("\n");
+  const INVOKE = /\bnode\s+(?:--[\w=.-]+\s+)*tools\/([\w.-]+\.mjs)/g;
+  const invoked = new Set();
+  let inv;
+  while ((inv = INVOKE.exec(code))) invoked.add(inv[1]);
+
+  if (!invoked.size) {
+    unsound++;
+    console.log("  UNSOUND  build.sh invokes no tools/*.mjs at all \u2014 either every gate was removed,");
+    console.log("           or the invocation pattern this scan matches on has changed shape");
+  } else if (!files.some((f) => invoked.has(f))) {
+    // Anti-vacuity with teeth: the parse must yield names that are really on
+    // disk. A regex returning plausible-looking rubbish would otherwise report
+    // a full runner list made of files that do not exist.
+    unsound++;
+    console.log(`  UNSOUND  build.sh's ${invoked.size} invocation(s) name no gate that exists in tools/ \u2014`);
+    console.log("           the parse is producing names, but not the names of real files");
+  } else {
+    for (const f of files) {
+      if (invoked.has(f)) continue;
+      unwired++;
+      console.log(`  UNWIRED  tools/${f}`);
+      console.log(`           exists and is never run by build.sh. Add it to the runner list, or`);
+      console.log(`           delete it \u2014 a gate nobody runs is worse than no gate, because the`);
+      console.log(`           suite's count says it is covered.`);
+    }
+    for (const f of invoked) {
+      if (fs.existsSync(path.join(toolsDir, f))) continue;
+      phantom++;
+      console.log(`  PHANTOM  build.sh runs tools/${f}, which does not exist`);
+      console.log(`           The build would die at the shell. A rename that missed build.sh.`);
+    }
+    if (!unwired && !phantom) {
+      console.log(`  OK   all ${files.length} gate(s) are wired into build.sh, and all ` +
+        `${invoked.size} invocation(s) resolve`);
+    }
+  }
+} catch (e) {
+  console.log("  UNSOUND  the build.sh runner-list scan did not run: " + e.message);
+  unsound++;
+}
+
+const finalVerdict = (dead || unsound || unanchored || unwired || phantom) ? "FAIL" : verdict;
 console.log(`\nMUTATION BOOT: ${finalVerdict} \u2014 ${booted} runner(s) boot, ${dead} dead, ` +
   `${unsound} unsound, ${inProcess} in-process (of ${runners.length} with --mutate, ${files.length} gates scanned), ` +
-  `${unanchored} unanchored CSS assertion(s)\n`);
-process.exit(dead || unsound || unanchored ? 1 : 0);
+  `${unanchored} unanchored CSS assertion(s), ${unwired} unwired gate(s), ${phantom} phantom invocation(s)\n`);
+process.exit(dead || unsound || unanchored || unwired || phantom ? 1 : 0);
