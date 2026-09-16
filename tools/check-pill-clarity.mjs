@@ -1726,10 +1726,27 @@ await (async () => {
   // what makes it once-per-fold across tabs rather than once per tab.
   check("toast: it consumes and PERSISTS before it paints (D8)",
     /if \(!Storage\.consumeClosedPauseNotice\(data\)\) return;[\s\S]{0,900}?await Storage\.saveAll\(data\);[\s\S]{0,300}?showToast\(/.test(SRC.nt));
-  check("toast: it names the task and says why",
-    /Paused "' \+ name \+ '" while the browser was closed\. Resume when ready\./.test(SRC.nt));
-  check("toast: it has a fallback when the task name cannot be resolved",
-    /"Paused while the browser was closed\. Resume when ready\."/.test(SRC.nt));
+  // THESE TWO USED TO REGEX newtab.js FOR THE ENGLISH ITSELF, which made
+  // this gate the thing preventing the sentence from ever being
+  // translated (BUGS.md P20). What they are FOR is that the reopen toast
+  // names the task when it can and degrades honestly when it cannot - and
+  // both of those are properties of the SENTENCE, assertable through the
+  // catalogue without pinning one spelling of it.
+  const NAMED = CATALOGUE.t("closedpause_named_task", { name: "Ship the thing" });
+  const UNNAMED = CATALOGUE.t("closedpause_unnamed_task");
+  check("toast: the named form is wired at the call site",
+    /t\("closedpause_named_task", \{ name: name \}\)/.test(SRC.nt));
+  check("toast: it NAMES THE TASK - the name reaches the rendered sentence",
+    NAMED.includes("Ship the thing"), NAMED);
+  check("toast: the fallback form is wired at the call site",
+    /t\("closedpause_unnamed_task"\)/.test(SRC.nt));
+  check("toast: the fallback names no task and leaves no empty quotation",
+    !/\{name\}/.test(UNNAMED) && !/""|“”/.test(UNNAMED), UNNAMED);
+  // ANTI-VACUITY (P2): if the two resolved to the same string the rows
+  // above would pass while the distinction they exist for had vanished.
+  check("toast: the two forms are genuinely different sentences",
+    NAMED !== UNNAMED && NAMED.length > UNNAMED.length,
+    JSON.stringify([NAMED, UNNAMED]));
   check("toast: it is guarded at the CALL SITE, not inside the callee (D13)",
     /if \(!isProOnboardingBusy\(\)\) \{\s*\n\s*try \{\s*\n\s*await maybeShowClosedBrowserPauseToast\(\);/.test(SRC.nt) &&
     !(() => {

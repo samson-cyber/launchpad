@@ -9870,7 +9870,7 @@
       var n = ProAccess.trialDaysRemaining(d);
       var fullText, shortText;
       if (n <= 0) {
-        fullText = "Trial ends today";
+        fullText = t("trial_ends_today");
         shortText = "Today";
       } else if (n === 1) {
         fullText = "Trial · 1 day left";
@@ -10006,9 +10006,8 @@
   // negative guard here is belt-and-braces for a hand-edited or clock-shifted
   // record: "-2 days left in your trial" would be worse than useless.
   function trialPopoverHeadline(n) {
-    if (!(n > 0)) return "Trial ends today";        // also folds NaN and negatives
-    if (n === 1) return "1 day left in your trial";
-    return n + " days left in your trial";
+    if (!(n > 0)) return t("trial_ends_today");     // also folds NaN and negatives
+    return t("trial_days_left", { count: n });
   }
 
   // Popover copy per access state. Returns { title, subhead }.
@@ -10207,7 +10206,7 @@
       input.disabled = true;
       applyBtn.disabled = true;
       var oldText = applyBtn.textContent;
-      applyBtn.textContent = "Checking...";
+      applyBtn.textContent = t("license_checking");
 
       var snapshot = null;
       try {
@@ -11084,8 +11083,8 @@
     if (level === "trialing") {
       var days = ProAccess.trialDaysRemaining(data);
       var trialMeta = (days <= 0)
-        ? "Trial ends today."
-        : "Trial ends in " + days + " day" + (days === 1 ? "" : "s") + ".";
+        ? t("trial_ends_today_sentence")
+        : t("trial_ends_in_days", { count: days });
       html += '<p class="pro-sub-line pro-sub-meta">' + escapeHtml(trialMeta) + '</p>';
     }
     // [QA 2026-08-10] "Last verified" USED TO RENDER HERE for active/grace, and
@@ -11138,38 +11137,38 @@
     var lastVerifiedAt = (pro && pro.lastVerifiedAt) || 0;
 
     function ago() {
-      if (!lastVerifiedAt) return "never";
+      if (!lastVerifiedAt) return t("license_verified_never");
       var days = Math.floor((nowMs - lastVerifiedAt) / DAY_MS_LOCAL);
-      if (days <= 0) return "today";
-      return days === 1 ? "1 day ago" : days + " days ago";
+      if (days <= 0) return t("license_verified_today");
+      return t("license_verified_days_ago", { count: days });
     }
 
-    if (result && result.checking) return { tone: "idle", text: "Checking..." };
+    if (result && result.checking) return { tone: "idle", text: t("license_checking") };
 
     // Idle render. This is where the Subscription section's old "Last verified"
     // line now lives -- one fact, next to the control that changes it.
     if (!result) {
-      if (status === "active") return { tone: "ok", text: "License active. Last verified " + ago() + "." };
-      if (status === "invalid") return { tone: "bad", text: "License is not valid. Last checked " + ago() + "." };
-      return { tone: "idle", text: "Not checked yet." };
+      if (status === "active") return { tone: "ok", text: t("license_active_last_verified", { when: ago() }) };
+      if (status === "invalid") return { tone: "bad", text: t("license_not_valid_last_checked", { when: ago() }) };
+      return { tone: "idle", text: t("license_not_checked_yet") };
     }
 
     // A real answer came back.
     if (result.ok) {
-      if (status === "active") return { tone: "ok", text: "License active. Verified just now." };
-      if (status === "invalid") return { tone: "bad", text: "License is not valid. It may have expired or been cancelled." };
-      return { tone: "idle", text: "License status: " + (status || "unknown") + "." };
+      if (status === "active") return { tone: "ok", text: t("license_active_verified_just_now") };
+      if (status === "invalid") return { tone: "bad", text: t("license_not_valid_expired_or_cancelled") };
+      return { tone: "idle", text: t("license_status_unknown", { status: status || "unknown" }) };
     }
 
     // No answer came back. Nothing below may imply a verdict unless we have one.
     //
     // Our own fault -- the check never left the building.
     if (result.error === "invalid_args" || result.error === "module_missing" || result.error === "threw") {
-      return { tone: "warn", text: "Could not run the check. Reload the page and try again." };
+      return { tone: "warn", text: t("license_could_not_run_check") };
     }
     // Dodo's fault or the network's. State preserved, offline grace lives on.
     if (typeof LicenseClient !== "undefined" && LicenseClient.isTransientError(result.error)) {
-      return { tone: "warn", text: "Could not reach the license server. Try again." };
+      return { tone: "warn", text: t("license_could_not_reach_server") };
     }
     // A definitive rejection -- but only trusted while it AGREES WITH THE STATE
     // MACHINE. ensureValidated flips subscriptionStatus to 'invalid' on exactly
@@ -11177,9 +11176,9 @@
     // here without that flip, we do not actually know it was a rejection. The
     // honest non-verdict is the default; the accusation needs evidence.
     if (status === "invalid") {
-      return { tone: "bad", text: result.message || "This license was rejected." };
+      return { tone: "bad", text: result.message || t("license_rejected") };
     }
-    return { tone: "warn", text: "Could not reach the license server. Try again." };
+    return { tone: "warn", text: t("license_could_not_reach_server") };
   }
 
   // Renders the line under the Check button. Gated on the SAME predicate as the
@@ -13347,8 +13346,8 @@
     // showToast uses textContent, so the task name needs no escaping and cannot
     // inject markup no matter what the user called their task.
     showToast(name
-      ? 'Paused "' + name + '" while the browser was closed. Resume when ready.'
-      : "Paused while the browser was closed. Resume when ready.", 6000);
+      ? t("closedpause_named_task", { name: name })
+      : t("closedpause_unnamed_task"), 6000);
   }
 
   // ===== Right-Click Tip =====

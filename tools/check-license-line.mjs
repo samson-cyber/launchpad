@@ -17,6 +17,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
+import { loadI18n } from "./lib/i18n-harness.mjs";
 
 const repoRoot = process.argv[2] || process.cwd();
 
@@ -69,13 +70,26 @@ function extractDayMs() {
   return value;
 }
 
-let LicenseClient, DAY_MS, statusLine;
+let LicenseClient, DAY_MS, statusLine, t;
 try {
+  ({ t } = loadI18n(repoRoot));
   LicenseClient = loadLicenseClient();
   DAY_MS = extractDayMs();
+  // THE SUBJECT CALLS t(). Before this it did not, and that was not a
+  // stylistic difference - it was BUGS.md P20 in force: this gate asserted
+  // the English licenceStatusLine returned, so the moment a sentence became
+  // t("key") the function threw `t is not defined` and the gate reported
+  // SUBJECT DID NOT LOAD. The gate was, in effect, forbidding the migration.
+  //
+  // The real engine and the real catalogue, not a stub returning key names:
+  // what this suite is FOR is that the line says the right thing in each
+  // state, and "the right thing" is a sentence. Sourcing the expectations
+  // from the same catalogue means a copy change moves both sides and the
+  // gate FOLLOWS it rather than failing on it.
   const ctx = {
     LicenseClient,
     DAY_MS_LOCAL: DAY_MS,
+    t,
     Math, Date, String, Number, Boolean, Object,
   };
   ctx.globalThis = ctx;
@@ -113,24 +127,93 @@ function textLacks(label, result, pro, needle) {
   if (ok) { pass++; } else { fail++; console.log(`  FAIL ${label}\n       text: ${JSON.stringify(got)}\n       must NOT contain: ${JSON.stringify(needle)}`); }
 }
 
+// WHICH KEY RENDERED, rather than which words appeared.
+//
+// Every assertion below that used to look for a PHRASE now asks which catalogue
+// entry produced the line. That is exact, it is a stronger claim than a
+// substring, and above all it SURVIVES A REWORDING OF ANY SENTENCE - which is
+// the property this gate has to have if it is not to block the migration again
+// (BUGS.md P20). An earlier version of this file derived the forbidden phrase
+// from the common prefix of two sentences; rewording one of the pair collapsed
+// that prefix to nothing and the gate refused to run. Correct, and still a
+// failure on a copy change.
+const LICENCE_KEYS = [
+  "license_checking",
+  "license_active_last_verified",
+  "license_not_valid_last_checked",
+  "license_not_checked_yet",
+  "license_active_verified_just_now",
+  "license_not_valid_expired_or_cancelled",
+  "license_could_not_run_check",
+  "license_could_not_reach_server",
+  "license_rejected",
+];
+// {when} is a VALUE dropped into two of those sentences, so the lookup has to
+// try the forms it can take. Ten days is well past anything the suite drives.
+const WHEN_FORMS = () => {
+  const out = [t("license_verified_never"), t("license_verified_today")];
+  for (let n = 1; n <= 10; n++) out.push(t("license_verified_days_ago", { count: n }));
+  return out;
+};
+function whichKey(text) {
+  const whens = WHEN_FORMS();
+  for (const k of LICENCE_KEYS) {
+    if (t(k) === text) return k;
+    for (const w of whens) if (t(k, { when: w }) === text) return k;
+  }
+  return null;   // a raw message from the licence server, or something new
+}
+// ANTI-VACUITY (P2). If two licence sentences ever resolved to the same string,
+// whichKey would answer with whichever came first and every identity assertion
+// below would be quietly meaningless.
+{
+  const seen = new Map();
+  for (const k of LICENCE_KEYS) {
+    const v = t(k, { when: "X" });
+    if (seen.has(v)) {
+      console.error(`LICENSE LINE: GATE BROKEN - ${k} and ${seen.get(v)} render the same sentence,`);
+      console.error("            so asking which key produced a line cannot distinguish them.");
+      process.exit(2);
+    }
+    seen.set(v, k);
+  }
+}
+function saysKey(label, result, pro, wantKey) {
+  const text = statusLine(result, pro, NOW).text;
+  const got = whichKey(text);
+  if (got === wantKey) { pass++; return; }
+  fail++;
+  console.log(`  FAIL ${label}\n       text: ${JSON.stringify(text)}\n       key:  ${got} (wanted ${wantKey})`);
+}
+function notKeys(label, result, pro, forbidden) {
+  const text = statusLine(result, pro, NOW).text;
+  const got = whichKey(text);
+  if (!forbidden.includes(got)) { pass++; return; }
+  fail++;
+  console.log(`  FAIL ${label}\n       text: ${JSON.stringify(text)}\n       rendered the forbidden key ${got}`);
+}
+const INVALID_KEYS = ["license_not_valid_last_checked", "license_not_valid_expired_or_cancelled"];
+
 const activePro = (ageDays) => ({ subscriptionStatus: "active", lastVerifiedAt: NOW - ageDays * DAY_MS, licenseKey: "K" });
 const invalidPro = (ageDays) => ({ subscriptionStatus: "invalid", lastVerifiedAt: NOW - ageDays * DAY_MS, licenseKey: "K" });
 
 console.log("STATE 1 — checking (in flight)");
 tone("checking", { checking: true }, activePro(0), "idle");
-check("checking text", statusLine({ checking: true }, activePro(0), NOW).text, "Checking...");
+check("checking text", statusLine({ checking: true }, activePro(0), NOW).text, t("license_checking"));
 // The in-flight line must not leak the previous verdict alongside itself.
-textLacks("checking says nothing about validity", { checking: true }, invalidPro(0), "not valid");
+notKeys("checking says nothing about validity", { checking: true }, invalidPro(0), INVALID_KEYS);
 
 console.log("STATE 2 — fresh success");
 tone("ok + active", { ok: true }, activePro(0), "ok");
-textHas("says active", { ok: true }, activePro(0), "License active");
-textHas("says JUST NOW, not a date", { ok: true }, activePro(0), "verified just now");
+check("says active, verified just now", statusLine({ ok: true }, activePro(0), NOW).text,
+  t("license_active_verified_just_now"));
 
 console.log("STATE 3 — fresh definite rejection");
 tone("ok-response + invalid", { ok: true }, invalidPro(0), "bad");
-textHas("honest rejection", { ok: true }, invalidPro(0), "not valid");
-textLacks("no false 'active'", { ok: true }, invalidPro(0), "License active");
+check("honest rejection", statusLine({ ok: true }, invalidPro(0), NOW).text,
+  t("license_not_valid_expired_or_cancelled"));
+notKeys("no false 'active'", { ok: true }, invalidPro(0),
+  ["license_active_last_verified", "license_active_verified_just_now"]);
 
 console.log("STATE 4 — NETWORK / TRANSIENT: never a verdict (the whole point)");
 for (const err of ["network", "http_5xx", "unknown"]) {
@@ -139,17 +222,20 @@ for (const err of ["network", "http_5xx", "unknown"]) {
   // Worst case: the stored status is ACTIVE and the network died. Must not
   // report a verdict, and must not claim a fresh success either.
   tone(`${err} (was active)`, { ok: false, error: err }, activePro(2), "warn");
-  textHas(`${err} says unreachable`, { ok: false, error: err }, activePro(2), "Could not reach the license server");
-  textLacks(`${err} never says invalid`, { ok: false, error: err }, activePro(2), "not valid");
-  textLacks(`${err} never says verified`, { ok: false, error: err }, activePro(2), "verified just now");
+  check(`${err} says unreachable`, statusLine({ ok: false, error: err }, activePro(2), NOW).text,
+    t("license_could_not_reach_server"));
+  notKeys(`${err} never says invalid`, { ok: false, error: err }, activePro(2), INVALID_KEYS);
+  notKeys(`${err} never says verified`, { ok: false, error: err }, activePro(2),
+    ["license_active_verified_just_now", "license_active_last_verified"]);
 }
 
 console.log("STATE 5 — our own fault: the check never left the building");
 for (const err of ["invalid_args", "module_missing", "threw"]) {
   check(`license.js does NOT call '${err}' transient`, LicenseClient.isTransientError(err), false);
   tone(`${err}`, { ok: false, error: err }, activePro(1), "warn");
-  textHas(`${err} blames neither side`, { ok: false, error: err }, activePro(1), "Could not run the check");
-  textLacks(`${err} never says invalid`, { ok: false, error: err }, activePro(1), "not valid");
+  check(`${err} blames neither side`, statusLine({ ok: false, error: err }, activePro(1), NOW).text,
+    t("license_could_not_run_check"));
+  notKeys(`${err} never says invalid`, { ok: false, error: err }, activePro(1), INVALID_KEYS);
 }
 
 console.log("STATE 6 — definitive rejection carries Dodo's own reason");
@@ -165,24 +251,35 @@ console.log("STATE 7 — THE HONEST DEFAULT: unrecognised error, status NOT flip
 const futureErr = { ok: false, error: "some_future_code_2027", message: "Whatever this is." };
 check("premise: not transient", LicenseClient.isTransientError("some_future_code_2027"), false);
 tone("unknown code, still active", futureErr, activePro(1), "warn");
-textLacks("does not libel a good licence", futureErr, activePro(1), "not valid");
+notKeys("does not libel a good licence", futureErr, activePro(1), INVALID_KEYS);
 textLacks("does not parrot an unexplained message", futureErr, activePro(1), "Whatever this is.");
 // ...but the SAME code WITH the flip is trusted, because the state machine spoke.
 tone("unknown code, status flipped", futureErr, invalidPro(0), "bad");
 
 console.log("STATE 8 — idle render on panel open (the relocated 'Last verified')");
 tone("idle active", null, activePro(0), "ok");
-check("today", statusLine(null, activePro(0), NOW).text, "License active. Last verified today.");
-check("1 day", statusLine(null, activePro(1), NOW).text, "License active. Last verified 1 day ago.");
-check("5 days", statusLine(null, activePro(5), NOW).text, "License active. Last verified 5 days ago.");
+// THE COMPOSITION IS THE ASSERTION: which key, filled with which VALUE key.
+// {when} is a value dropped into the sentence, never a fragment concatenated
+// onto it, so the plural lives in one key and the sentence in another.
+const lastVerified = (when) => t("license_active_last_verified", { when });
+check("today", statusLine(null, activePro(0), NOW).text, lastVerified(t("license_verified_today")));
+check("1 day", statusLine(null, activePro(1), NOW).text,
+  lastVerified(t("license_verified_days_ago", { count: 1 })));
+check("5 days", statusLine(null, activePro(5), NOW).text,
+  lastVerified(t("license_verified_days_ago", { count: 5 })));
 // Singular/plural boundary, the class of bug check-trial-copy was written for.
-check("2 days plural", statusLine(null, activePro(2), NOW).text, "License active. Last verified 2 days ago.");
+check("2 days plural", statusLine(null, activePro(2), NOW).text,
+  lastVerified(t("license_verified_days_ago", { count: 2 })));
 check("never verified", statusLine(null, { subscriptionStatus: "active", licenseKey: "K" }, NOW).text,
-  "License active. Last verified never.");
+  lastVerified(t("license_verified_never")));
+// AND THE PLURAL RULE IS REAL, not a re-implementation: 1 and 2 must differ.
+check("the day count actually pluralises",
+  t("license_verified_days_ago", { count: 1 }) !== t("license_verified_days_ago", { count: 2 }), true);
 tone("idle invalid", null, invalidPro(3), "bad");
-textHas("idle invalid is dated too", null, invalidPro(3), "last checked 3 days ago");
+check("idle invalid is dated too", statusLine(null, invalidPro(3), NOW).text,
+  t("license_not_valid_last_checked", { when: t("license_verified_days_ago", { count: 3 }) }));
 tone("idle, never checked", null, { licenseKey: "K" }, "idle");
-check("never-checked copy", statusLine(null, { licenseKey: "K" }, NOW).text, "Not checked yet.");
+check("never-checked copy", statusLine(null, { licenseKey: "K" }, NOW).text, t("license_not_checked_yet"));
 
 console.log("STATE 9 — defensive shapes");
 tone("null pro", null, null, "idle");

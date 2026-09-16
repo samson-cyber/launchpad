@@ -20,6 +20,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
+import { loadI18n } from "./lib/i18n-harness.mjs";
 
 const repoRoot = process.argv[2] || process.cwd();
 const DAY_MS = 86400000;
@@ -59,10 +60,16 @@ function loadProAccess() {
   return ctx.ProAccess;
 }
 
-let headline, showControls, ProAccess;
+let headline, showControls, ProAccess, t;
 try {
+  // t IS PASSED IN, because the subject now calls it. Before this the
+  // headline held its English inline and this suite asserted that English -
+  // so migrating it threw `t is not defined` here and the gate reported
+  // SUBJECT DID NOT LOAD. BUGS.md P20: the assertion was blocking the
+  // tokenisation. The real catalogue, so a copy change moves both sides.
+  ({ t } = loadI18n(repoRoot));
   ProAccess = loadProAccess();
-  headline = new Function(extract(NT, "trialPopoverHeadline", "newtab.js") + "\n  return trialPopoverHeadline;")();
+  headline = new Function("t", extract(NT, "trialPopoverHeadline", "newtab.js") + "\n  return trialPopoverHeadline;")(t);
   showControls = new Function(extract(NT, "shouldShowLicenseControls", "newtab.js") + "\n  return shouldShowLicenseControls;")();
   if (typeof headline("x") !== "string") throw new Error("trialPopoverHeadline did not return a string");
 } catch (e) {
@@ -74,16 +81,27 @@ const rows = [];
 const check = (name, pass, detail = "") => rows.push({ name, pass: !!pass, detail });
 
 // ---- the headline, branch by branch ---------------------------------------
-check("7 days -> plural", headline(7) === "7 days left in your trial", headline(7));
-check("2 days -> plural", headline(2) === "2 days left in your trial", headline(2));
+// EXPECTATIONS FROM THE CATALOGUE, so this suite asserts WHICH KEY each
+// branch renders rather than pinning one spelling of it.
+const DAYS_LEFT = (n) => t("trial_days_left", { count: n });
+const ENDS_TODAY = t("trial_ends_today");
+// ANTI-VACUITY (P2): if the two ever resolved to the same string, every
+// branch row below would pass while proving nothing about the branching.
+if (DAYS_LEFT(1) === ENDS_TODAY || DAYS_LEFT(1) === DAYS_LEFT(2)) {
+  console.error("TRIAL COPY: GATE BROKEN - the headline's branches do not produce distinct copy,");
+  console.error("            so the assertions below cannot tell them apart.");
+  process.exit(2);
+}
+check("7 days -> plural", headline(7) === DAYS_LEFT(7), headline(7));
+check("2 days -> plural", headline(2) === DAYS_LEFT(2), headline(2));
 check("1 day  -> SINGULAR (the boundary nobody sees until day six)",
-  headline(1) === "1 day left in your trial", headline(1));
-check("0      -> 'Trial ends today', not '0 days left'",
-  headline(0) === "Trial ends today", headline(0));
-check("negative -> 'Trial ends today' (clock shift / hand-edited record)",
-  headline(-3) === "Trial ends today", headline(-3));
-check("NaN -> 'Trial ends today' rather than 'NaN days left'",
-  headline(NaN) === "Trial ends today", headline(NaN));
+  headline(1) === DAYS_LEFT(1), headline(1));
+check("0      -> the ends-today form, not '0 days left'",
+  headline(0) === ENDS_TODAY, headline(0));
+check("negative -> the ends-today form (clock shift / hand-edited record)",
+  headline(-3) === ENDS_TODAY, headline(-3));
+check("NaN -> the ends-today form rather than 'NaN days left'",
+  headline(NaN) === ENDS_TODAY, headline(NaN));
 check("no headline ever renders a bare '0 days'",
   ![0, -1, NaN].some((n) => /0 days|NaN/.test(headline(n))));
 
@@ -99,15 +117,15 @@ const trialing = (startedDaysAgo) => ({
   const fresh = ProAccess.trialDaysRemaining(trialing(0));
   check("REAL CLOCK: a trial started just now reads 7 days", fresh === 7, `n=${fresh}`);
   check("REAL CLOCK: ...and renders the plural headline",
-    headline(fresh) === "7 days left in your trial", headline(fresh));
+    headline(fresh) === DAYS_LEFT(7), headline(fresh));
 
   const day6 = ProAccess.trialDaysRemaining(trialing(5.5));
   check("REAL CLOCK: 5.5 days in reads 2 days", day6 === 2, `n=${day6}`);
 
   const lastDay = ProAccess.trialDaysRemaining(trialing(6.5));
   check("REAL CLOCK: inside the final 24h collapses to 0", lastDay === 0, `n=${lastDay}`);
-  check("REAL CLOCK: ...and renders 'Trial ends today'",
-    headline(lastDay) === "Trial ends today", headline(lastDay));
+  check("REAL CLOCK: ...and renders the ends-today form",
+    headline(lastDay) === ENDS_TODAY, headline(lastDay));
 
   const over = ProAccess.trialDaysRemaining(trialing(9));
   check("REAL CLOCK: an expired trial clamps at 0, never negative", over === 0, `n=${over}`);

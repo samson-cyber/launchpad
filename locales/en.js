@@ -5154,5 +5154,110 @@ I18n.register("en", {
         "one": "Nice, {count} min focused. Break time.",
         "other": "Nice, {count} min focused. Break time."
       }
+    },
+
+    "license_checking": {
+      "description": "Transient status while a licence check is in flight. TWO SINKS, ONE KEY: the line under the Check button and the Apply button's own label while it waits. The ellipsis is part of the English and may be dropped where a language does not use one. It must say NOTHING about validity - the previous verdict is still on screen and this line must not appear to confirm or contradict it.",
+      "message": "Checking...",
+      "sense": "status.license"
+    },
+    "license_verified_never": {
+      "description": "Fills {when} in license_active_last_verified and license_not_valid_last_checked when the licence has never been checked. Lower case because it sits INSIDE those sentences rather than starting one. Siblings: license_verified_today, license_verified_days_ago.",
+      "message": "never",
+      "sense": "value.time"
+    },
+    "license_verified_today": {
+      "description": "Fills {when} when the licence was checked today. Holds the same lower-case English as insights_today, which is the 1-day window inside a CHART TITLE - unrelated surfaces that happen to share a word, and a language that inflects by context must be free to differ. Siblings: license_verified_never, license_verified_days_ago.",
+      "message": "today",
+      "sense": "value.time"
+    },
+    "license_verified_days_ago": {
+      "description": "Fills {when}, counting days since the last check. The singular/plural boundary here is the class of bug check-trial-copy was written for, so it is a plural object and never a ternary. Siblings: license_verified_never, license_verified_today.",
+      "message": "",
+      "plural": {
+        "one": "1 day ago",
+        "other": "{count} days ago"
+      }
+    },
+    "license_active_last_verified": {
+      "description": "Idle status under the licence control when the licence is valid. {when} is filled by license_verified_never / _today / _days_ago - a VALUE dropped into this sentence, never a fragment concatenated onto it. Its invalid counterpart is license_not_valid_last_checked and the two must stay parallel in shape.",
+      "message": "License active. Last verified {when}.",
+      "sense": "status.license"
+    },
+    "license_not_valid_last_checked": {
+      "description": "Idle status when the stored subscription status is invalid. Counterpart of license_active_last_verified, same {when} value. SAYS 'last checked' RATHER THAN 'last verified' on purpose: nothing was verified, so the neutral verb is the honest one.",
+      "message": "License is not valid. Last checked {when}.",
+      "sense": "status.license"
+    },
+    "license_not_checked_yet": {
+      "description": "Idle status when no check has ever run and no status is stored. A NON-VERDICT: it must not read as either a pass or a failure, because the product genuinely does not know.",
+      "message": "Not checked yet.",
+      "sense": "status.license"
+    },
+    "license_active_verified_just_now": {
+      "description": "Status after a check that came back good. Says JUST NOW rather than a date, because the user pressed the button a second ago and a date would make a fresh answer look stale.",
+      "message": "License active. Verified just now.",
+      "sense": "status.license"
+    },
+    "license_not_valid_expired_or_cancelled": {
+      "description": "Status after a check that came back and the state machine agreed the licence is invalid. Names the two ordinary causes rather than accusing the user of anything; both are recoverable and neither is misconduct.",
+      "message": "License is not valid. It may have expired or been cancelled.",
+      "sense": "status.license"
+    },
+    "license_status_unknown": {
+      "description": "Fallback status line when a check returned successfully but the stored status is neither active nor invalid. {status} is a RAW ENUM VALUE from storage (or the word 'unknown') and is deliberately not translated - it is diagnostic, and a translated enum cannot be matched against the code that produced it.",
+      "message": "License status: {status}.",
+      "sense": "status.license"
+    },
+    "license_could_not_run_check": {
+      "description": "Status when the check never left the building - bad arguments, a missing module, a throw. BLAMES NEITHER SIDE and asserts nothing about the licence: this is our fault, not the server's and not the user's. Must never contain the words of license_not_valid_*.",
+      "message": "Could not run the check. Reload the page and try again.",
+      "sense": "status.license"
+    },
+    "license_could_not_reach_server": {
+      "description": "Status when the network or the licence server did not answer. THE WHOLE POINT OF THIS SENTENCE IS THAT IT IS NOT A VERDICT: stored state is preserved and offline grace lives on, so it must never imply the licence is invalid and must never claim a fresh success. It is also the honest DEFAULT for an unrecognised error the state machine did not act on.",
+      "message": "Could not reach the license server. Try again.",
+      "sense": "status.license"
+    },
+    "license_rejected": {
+      "description": "Last-resort status when the licence server rejected the key and gave no message of its own. Normally the server's own message is shown instead; this renders only when that message is missing.",
+      "message": "This license was rejected.",
+      "sense": "status.license"
+    },
+    "trial_ends_today": {
+      "description": "Trial headline on the final day, where a day count would read '0 days left'. An EXACT FORM rather than a zero plural, because the sentence changes shape rather than its number. TWO SINKS, ONE KEY: the trial popover headline and the tab-bar countdown chip. Its counted sibling is trial_days_left.",
+      "message": "Trial ends today",
+      "sense": "heading.trial"
+    },
+    "trial_days_left": {
+      "description": "Trial popover headline, counting the days remaining. The final day uses trial_ends_today instead, which is why this carries no '=0'. The singular boundary is the one check-trial-copy exists to guard.",
+      "message": "",
+      "plural": {
+        "one": "1 day left in your trial",
+        "other": "{count} days left in your trial"
+      }
+    },
+    "trial_ends_today_sentence": {
+      "description": "Subscription-section meta line on the trial's final day. A SEPARATE KEY from trial_ends_today despite the near-identical English: this one is a full SENTENCE ending in a full stop, sitting in a paragraph, while trial_ends_today is a HEADLINE. A language that punctuates headings differently needs both. Its counted sibling is trial_ends_in_days.",
+      "message": "Trial ends today.",
+      "sense": "note.trial"
+    },
+    "trial_ends_in_days": {
+      "description": "Subscription-section meta line, counting the days left. Sibling of trial_ends_today_sentence; both are sentences in a paragraph rather than headlines.",
+      "message": "",
+      "plural": {
+        "one": "Trial ends in 1 day.",
+        "other": "Trial ends in {count} days."
+      }
+    },
+    "closedpause_named_task": {
+      "description": "Toast on reopening the browser, explaining that a task the user left running was paused while the browser was closed. {name} is the task's own name, quoted in the English. Its unnamed sibling is closedpause_unnamed_task. THE INVITATION AT THE END MUST SURVIVE TRANSLATION: the pause is an explanation, not a reprimand, and 'Resume when ready' is what keeps it one.",
+      "message": "Paused \"{name}\" while the browser was closed. Resume when ready.",
+      "sense": "toast.explanation"
+    },
+    "closedpause_unnamed_task": {
+      "description": "The same reopening notice as closedpause_named_task, for when the task's name cannot be resolved. The name clause is removed rather than left as an empty quotation.",
+      "message": "Paused while the browser was closed. Resume when ready.",
+      "sense": "toast.explanation"
     }
   });
