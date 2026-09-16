@@ -202,12 +202,49 @@ const PARSER_FIXTURES = [
   }
 ];
 
+// The allowlist reader has its own fixtures, for the same reason the HTML
+// extractor does: it is source B, and a source that mis-parses is worse than one
+// that is missing, because it reports a confident wrong answer.
+const ALLOWLIST_FIXTURES = [
+  {
+    name: "an apostrophe in a comment does not become an entry",
+    sh: "$allow = @(\n" +
+        "    'manifest.json',\n" +
+        "    # [1.14.1] TD.1's parser. Referenced by newtab.html and MISSING from this\n" +
+        "    # array until TD.2's build caught it.\n" +
+        "    'quickadd.js'\n" +
+        ")",
+    want: ["manifest.json", "quickadd.js"]
+  },
+  {
+    name: "a trailing comment after a real entry is stripped",
+    sh: "$allow = @(\n    'a.js',   # it's fine\n    'b.js'\n)",
+    want: ["a.js", "b.js"]
+  },
+  {
+    name: "a # inside a quoted entry is NOT a comment",
+    sh: "$allow = @(\n    'weird#name.js',\n    'b.js'\n)",
+    want: ["weird#name.js", "b.js"]
+  },
+  {
+    name: "ordinary entries are unaffected",
+    sh: "$allow = @(\n    'manifest.json',\n    'newtab.html',\n    'locales'\n)",
+    want: ["manifest.json", "newtab.html", "locales"]
+  }
+];
+
 function runParserSelfTest() {
   const results = [];
   for (const f of PARSER_FIXTURES) {
     const got = localRefs(f.html);
     const ok = got.length === f.want.length && got.every((g, i) => g === f.want[i]);
     results.push({ name: f.name, ok, got, want: f.want });
+  }
+  for (const f of ALLOWLIST_FIXTURES) {
+    const r = parseAllowlistText(f.sh);
+    const got = r.ok ? r.entries : ["<<" + r.why + ">>"];
+    const ok = got.length === f.want.length && got.every((g, i) => g === f.want[i]);
+    results.push({ name: "allowlist: " + f.name, ok, got, want: f.want });
   }
   return results;
 }
@@ -230,15 +267,56 @@ function readAllowlist(buildShPath) {
   if (!fs.existsSync(buildShPath)) {
     return { ok: false, why: `build.sh not found at ${buildShPath}` };
   }
-  const sh = fs.readFileSync(buildShPath, "utf8");
+  return parseAllowlistText(fs.readFileSync(buildShPath, "utf8"));
+}
+
+// The parse, SEPARATED FROM THE FILE READ so it can be fixtured without a
+// temp file. Source B is the allowlist; a source that mis-parses is worse than
+// a missing one, because it reports a confident wrong answer.
+function parseAllowlistText(sh) {
   const block = sh.match(/\\?\$allow\s*=\s*@\(([\s\S]*?)\)/);
   if (!block) {
     return { ok: false, why: "could not locate the `$allow = @( ... )` array in build.sh" };
   }
+  // COMMENTS COME OUT FIRST, AND THIS IS NOT TIDYING.
+  //
+  // The scan below pairs single quotes. An APOSTROPHE in a comment is a single
+  // quote, so two comment lines reading "TD.1's parser ..." and "... TD.2's
+  // build" pair with each other and the text between them is read as an
+  // allowlist ENTRY. That is exactly what happened: the [1.14.1] comment added
+  // beside 'quickadd.js' produced two phantom entries, and the gate duly
+  // reported them under "allowlist entries absent from the repo".
+  //
+  // Absent entries are only informational, so the gate still passed - which is
+  // the part that makes this worth fixing rather than noting. The failure mode
+  // in the other direction is silent and real: if an apostrophe pair happened to
+  // span a genuine filename, that file would be ALLOWLISTED by a comment, and
+  // source B - the thing this gate cross-checks the zip against - would be
+  // quietly wrong. An allowlist that can be edited by prose is not an allowlist.
+  //
+  // Found by TD.4's packaged smoke, which is the first build since the comment
+  // landed. Third time a build has caught something no other check could see.
+  const uncommented = block[1]
+    .split(/\r?\n/)
+    .map(function (line) {
+      // Everything from the first # that is not inside a quoted string. Walking
+      // the line rather than regexing it, because the thing being got wrong here
+      // is precisely quote pairing.
+      var inQ = false, qc = "";
+      for (var i = 0; i < line.length; i++) {
+        var ch = line[i];
+        if (inQ) { if (ch === qc) inQ = false; continue; }
+        if (ch === "'" || ch === '"') { inQ = true; qc = ch; continue; }
+        if (ch === "#") return line.slice(0, i);
+      }
+      return line;
+    })
+    .join("\n");
+
   const entries = [];
   const re = /'([^']+)'/g;
   let m;
-  while ((m = re.exec(block[1]))) entries.push(norm(m[1]));
+  while ((m = re.exec(uncommented))) entries.push(norm(m[1]));
   if (!entries.length) {
     return { ok: false, why: "found the `$allow = @( ... )` array in build.sh but it parsed to zero entries" };
   }
