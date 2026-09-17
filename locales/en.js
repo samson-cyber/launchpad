@@ -3956,16 +3956,16 @@ I18n.register("en", {
       "sense": "action.notification.session.focus-interval"
     },
     "recur_invalid_day_of_month": {
-      "description": "Inline error when the monthly day-of-month is out of range. Same developer phrasing as recur_invalid_day_of_week and the same note applies.",
-      "message": "Monthly templates require dayOfMonth as an integer 1-31."
+      "description": "Inline error when the monthly day-of-month is out of range. REWRITTEN 2026-09-17 from \"Monthly templates require dayOfMonth as an integer 1-31.\" - it named a stored field rather than the control, which is labelled Day of month. The range matches that input's own min and max, so the sentence and the control cannot drift apart.",
+      "message": "That day of month is out of range. Choose a day from 1 to 31."
     },
     "recur_invalid_day_of_week": {
-      "description": "Inline error for a malformed day-of-week list. UNREACHABLE through the UI, which offers seven checkboxes - it can only appear from an import or a restore. The wording names a FIELD rather than a control and reads as developer text; that is preserved verbatim here because this round may not change what a user sees, and is worth rewriting on its own.",
-      "message": "daysOfWeek values must be integers 0-6."
+      "description": "Inline error for a malformed day-of-week list, reachable from an import or a restore rather than from the modal, which offers seven checkboxes. REWRITTEN 2026-09-17 from \"daysOfWeek values must be integers 0-6.\", which named a stored field and its numeric encoding; the control is labelled Days of week and the user ticks named days. DELIBERATELY NOT the same sentence as recur_weekly_requires_days: that one means \"you ticked none\" and this one means \"what arrived was not readable\", and a user who can act on the first cannot act on the second.",
+      "message": "Some of the days of week were not recognised. Tick the days this task should repeat on."
     },
     "recur_invalid_frequency": {
-      "description": "Inline error when the recurrence frequency is none of daily/weekly/monthly. UNREACHABLE through the UI, which offers exactly those three, and equally unreachable through quick-add, whose parser emits only those three - so it can only appear from an import or a restore. Like recur_invalid_day_of_week it names a FIELD and reads as developer text; preserved verbatim for the same reason, because a migration may not change what a user sees. The three sibling branches of the same validator were migrated earlier and this one was simply missed.",
-      "message": "frequency must be 'daily', 'weekly', or 'monthly'."
+      "description": "Inline error when the recurrence frequency is none of the three offered, reachable from an import or a restore rather than from the modal, whose select carries exactly those three, and not from quick-add, whose parser emits only those three. REWRITTEN 2026-09-17 from a field name and a quoted enum. The three words name the OPTIONS the Frequency select shows, so a translation moves them together with the options.",
+      "message": "That frequency was not recognised. Choose daily, weekly or monthly."
     },
     "recur_weekly_requires_days": {
       "description": "Inline error in the New Recurring modal when the weekly frequency is chosen and no day is ticked. The only one of the three pattern errors a user can reach through the UI.",
