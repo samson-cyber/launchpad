@@ -6078,6 +6078,26 @@ I18n.register("en", {
       "description": "Toast after a snooze. Says what happened and when it ends, so 'snooze' is not a word the user has to guess the duration of. {name} is the task.",
       "message": "{name} snoozed until tomorrow"
     },
+    "settings_privacy": {
+      "description": "Section heading in the FREE Settings panel holding the track-time opt-out. Named Privacy rather than Tracking because what the row governs is whether the browser measures the user at all, which is the question they are actually answering.",
+      "message": "Privacy"
+    },
+    "settings_track_time_on_sites": {
+      "description": "The free opt-out's label. ENGINE-MEASURED TIME ON WEB PAGES - the same sense pt_time_on_other_sites means, and the control that decides whether any of it is recorded. ON by default per the 2026-09-12 ruling. Writes the per-workspace tracking state, the same one Pro Settings writes.",
+      "message": "Track time on sites"
+    },
+    "settings_track_time_note": {
+      "description": "Note under the opt-out. Says what it does, what it is for, and where the data goes - the last clause is load-bearing, because a user reading 'track' on a browser extension reasonably assumes it leaves.",
+      "message": "On by default. Measures how long you spend on each site so the Dashboard can show today. Stays on this device."
+    },
+    "settings_track_on": {
+      "description": "Toast when the user switches site tracking ON. States the consequence rather than congratulating.",
+      "message": "Tracking time on sites"
+    },
+    "settings_track_off": {
+      "description": "Toast when the user switches site tracking OFF. Says what stops AND what happens to what was already measured, because 'off' alone leaves the user wondering whether their history was deleted.",
+      "message": "Stopped. Today's card is hidden; nothing already recorded is deleted."
+    },
   });
 
 // [1.16.1] DB.2 - completion from the bell. The recurring second confirm and

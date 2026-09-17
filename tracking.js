@@ -35,7 +35,12 @@
  * Console: Tracking.debugSummary()
  */
 
-/* global chrome, Storage, ProAccess */
+/* global chrome, Storage */
+// ProAccess LEFT THIS LIST IN PT.2. It was declared here for the capture
+// entitlement gate, which is gone - passive time is free - and no code in
+// this file consults it any more. A global declared and never used is a
+// claim about a dependency that does not exist, which is the same shape as
+// a comment asserting a path set that has since changed (E7's corollary).
 
 (function (root) {
   "use strict";
@@ -87,23 +92,29 @@
     return true;
   }
 
-  // [2026-09-09] THE CAPTURING_LEVELS ARRAY IS GONE; the gate below delegates to
-  // ProAccess.isProAccessibleLevel. The reasoning it carried is still true and is
-  // kept: 'grace' is included deliberately (PLAN AMENDMENT A3) because the user
-  // is still entitled during the offline-grace window and focus history cannot
-  // be backfilled once the moment has passed; 'expired' and 'free' stop capture
-  // while existing records are preserved untouched.
+  // [PT.2, 2026-09-17] CAPTURE CONSULTS NO ENTITLEMENT AT ALL. Passive time is
+  // free (Samson, 2026-09-12): the engine measures site time for every profile,
+  // and what Pro buys is the HISTORICAL half - Insights, ranges, comparisons,
+  // the export - each gated on its own surface.
   //
-  // What changed is WHERE that rule lives. An array here made "capture is
-  // allowed for exactly the levels that get the real surface" a claim two files
-  // had to keep true independently. It was true - measured, not assumed, before
-  // this change - but a rule that happens to agree is not a rule with one
-  // source. The array was exported as Tracking.CAPTURING_LEVELS and had no
-  // consumer anywhere in the repo, so the export goes with it.
+  // THE HISTORY, because this line has now moved twice and the direction
+  // matters. It began as a CAPTURING_LEVELS array here; [2026-09-09] replaced
+  // that with a delegation to ProAccess.isProAccessibleLevel, because an array
+  // made "capture is allowed for exactly the levels that get the real surface"
+  // a claim two files had to keep true independently. That reasoning was right
+  // and is why there is nothing to delete now: a delegation is removed in one
+  // line, where an array would have left a second definition of entitlement
+  // sitting in this file for someone to re-enable by accident.
   //
-  // pro-access.js loads before tracking.js in all three contexts that use it:
-  // background.js importScripts it first, and newtab.html and companion.html
-  // both link it above tracking.js.
+  // WHAT THE OLD RULE SAID, kept so nobody reconstructs it from memory: 'grace'
+  // captured deliberately (the user is entitled during the offline-grace window
+  // and focus history cannot be backfilled once the moment has passed), while
+  // 'expired' and 'free' stopped capture with existing records left untouched.
+  // Only the last of those still has an effect, and it is now the opposite one.
+  //
+  // THE PER-WORKSPACE SWITCH IS THE ONLY GATE LEFT, which is why the free
+  // Settings row writes through Storage.setTrackingEnabled rather than adding a
+  // key of its own.
 
   // Serialized op chain. Boundary events can arrive faster than a
   // read-modify-write round-trips (rapid tab switching), which would drop
@@ -232,14 +243,30 @@
   function evaluateGates(data) {
     if (!data) return { ok: false, reason: "no-data" };
 
-    var level;
-    try {
-      level = ProAccess.getProAccessLevel(data);
-    } catch (e) {
-      console.error("[LaunchPad] Tracking: entitlement check failed:", e);
-      return { ok: false, reason: "entitlement-lost" };
-    }
-    if (!ProAccess.isProAccessibleLevel(level)) return { ok: false, reason: "entitlement-lost" };
+    // [PT.2] PASSIVE TIME IS FREE, AND THE ENTITLEMENT GATE IS GONE FROM HERE.
+    //
+    // THIS IS THE ROUND'S REAL BEHAVIOUR CHANGE AND IT DESERVES TO BE READ.
+    // Until now this returned entitlement-lost for any non-Pro profile, so a
+    // free user's browsing was never measured at all. Samson reversed the
+    // Pro-only ruling on 2026-09-12: "passive time TODAY is free; the 30 days
+    // of it, sliced and compared, is Pro." A free Dashboard that shows a user
+    // their own time needs the engine to have recorded it, so the gate that
+    // refused is the one thing standing between the ruling and the feature.
+    //
+    // WHAT THIS DOES AND DOES NOT OPEN. It opens CAPTURE - sessions, day
+    // aggregates, byDomain. It opens no SURFACE: Insights stays Pro, ranges and
+    // comparisons stay Pro, the export stays Pro. A free user sees today, on
+    // the Dashboard, and nothing else.
+    //
+    // AND IT MEANS EVERY EXISTING FREE USER STARTS BEING MEASURED ON UPDATE,
+    // because tracking is ON by default per workspace (emptyTrackingState) and
+    // that default was previously unreachable for them. That is the announcement
+    // PT.2 owes the release notes, and the reason the opt-out ships in the same
+    // commit rather than a later one. Nothing leaves the device either way.
+    //
+    // The per-workspace switch below is now the ONLY gate a free user has, which
+    // is why the free Settings row writes through setTrackingEnabled rather than
+    // inventing a second key.
 
     // Manual pause. Idle never writes this flag — a user who manually paused
     // stays paused after returning to the keyboard (spec, Manual pause).

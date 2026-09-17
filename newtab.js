@@ -866,6 +866,9 @@
           '<div class="tab-placeholder-text">' + th("tab_coming_soon") + '</div>' +
         '</div>';
     } else {
+      // [PT.2] The Dashboard is PARTIALLY free: a live passive-time card
+      // above the preview. Every other Pro tab is unchanged.
+      if (id === "dashboard") { renderFreeDashboard(panel, data); return; }
       renderProPreview(id, panel, data);
     }
   }
@@ -4250,6 +4253,39 @@
         openUpgradePopover(cta, data);
       });
     }
+  }
+
+  // ===== [PT.2] THE FREE DASHBOARD =====
+  //
+  // THE CONTRADICTION THE SPEC LEFT, AND HOW IT IS RESOLVED. The 2026-09-12
+  // reversal says the two passive-time sections are FREE. The Dashboard is a PRO
+  // TAB, and a free profile forks to renderProPreview - static demo markup. So
+  // "free" needed a surface, and the PLAN ruled one: the free Dashboard shows the
+  // passive-time card LIVE, on the user's own data, with the Pro sections
+  // previewed beneath it. The tab itself is no longer gated; it is PARTIALLY
+  // free.
+  //
+  // WHY THE LIVE HALF GOES ON TOP. The preview is a picture of a product the user
+  // has never touched. Putting something true about their own morning above it
+  // turns the picture into an upsell that has just earned a moment of attention,
+  // rather than the first thing they see.
+  //
+  // THE PREVIEW BENEATH IS UNTOUCHED, and that is an assertion rather than an
+  // intention: renderProPreview's markup is byte-identical to what it produced
+  // before this round, and the round's verification compares the rendered subtree
+  // against master's whole preview. The live card is a SIBLING above it, never a
+  // wrapper around it, so the comparison has something whole to compare.
+  function renderFreeDashboard(panel, d) {
+    // The same gate the Pro card uses - null scope means tracking is off for this
+    // workspace, and the card is then ABSENT rather than empty (the badge rule).
+    var scope = dashFocusedScope(d);
+    var live = scope ? '<div class="dash-free-live"><div class="pp-insights-card dash-passive" data-dash-passive></div></div>' : '';
+    // renderProPreview owns the panel's innerHTML, so it runs FIRST and the live
+    // half is inserted before it. Prepending rather than re-templating is what
+    // keeps the preview's markup out of this function entirely.
+    renderProPreview("dashboard", panel, d);
+    if (live) panel.insertAdjacentHTML("afterbegin", live);
+    if (scope) dashRefreshPassive(panel, scope);
   }
 
   // ===== Notes Tab ([1.1.1]) =====
@@ -12336,6 +12372,23 @@
     // in the ON branch and nowhere else - the shape the phase-boundary toggle
     // already uses, which is why the two can share one optional permission
     // without either owning it. Denied reverts the box and never flips the flag.
+    // [PT.2] The free opt-out. Writes the SAME per-workspace tracking state the
+    // Pro Settings row writes - setTrackingEnabled, mutate-only, caller saves
+    // (J5) - so the two controls cannot disagree and there is no second key to
+    // migrate later. Repaints the Dashboard because the card's presence is what
+    // the switch actually changes.
+    safeOn("#settings-track-sites", "change", async function (e) {
+      var ws = Storage.getActiveWorkspace(data);
+      if (!ws) return;
+      Storage.setTrackingEnabled(data, ws.id, !!e.target.checked);
+      await Storage.saveAll(data);
+      var dashPanel = document.getElementById("tab-dashboard");
+      if (dashPanel && !dashPanel.classList.contains("hidden")) {
+        renderTabPlaceholder("dashboard", currentAccessLevel());
+      }
+      showToast(t(e.target.checked ? "settings_track_on" : "settings_track_off"));
+    });
+
     safeOn("#due-reminders-toggle", "change", async function (e) {
       var box = e.target;
       if (box.checked) {
@@ -15407,6 +15460,14 @@
   function openSettingsPanel() {
     var panel = $("#settings-panel");
     if (!panel) return;
+    // [PT.2] The opt-out shows the stored per-workspace state. IT LIVES HERE,
+    // in the FREE panel opener, and the first version put it in
+    // renderProAnalyticsToggle - a Pro-only function that never runs for the
+    // audience this control exists for. The driven test caught it: the box
+    // read unchecked on a profile that was tracking, so the first click turned
+    // tracking ON rather than off.
+    var trackBox = $("#settings-track-sites");
+    if (trackBox) trackBox.checked = Storage.isTrackingEnabled(Storage.getActiveWorkspace(data));
     if (!panel.classList.contains("hidden")) { closeSettingsPanel(); return; }
 
     // [1.0.11.12] Cross-panel mutual exclusion is handled by openPanel().

@@ -541,6 +541,19 @@
           </div>
         </div>
       </div>
+      <!-- [PT.2] The free opt-out. ONE ROW, deliberately: the settings
+           redesign is parked, and this is the control Samson's ruling
+           requires ("on by default, with a control"), not a section that
+           anticipates one. It writes through the SAME per-workspace
+           tracking state Pro Settings writes - no second key. -->
+      <div class="settings-section">
+        <h3 data-i18n="settings_privacy" class="settings-section-title">Privacy</h3>
+        <label class="pro-toggle-row">
+          <input type="checkbox" id="settings-track-sites">
+          <span data-i18n="settings_track_time_on_sites">Track time on sites</span>
+        </label>
+        <p data-i18n="settings_track_time_note" class="fb-note" id="settings-track-note">On by default. Measures how long you spend on each site so the Dashboard can show today. Stays on this device.</p>
+      </div>
       <div class="settings-section">
         <h3 data-i18n="settings_data" class="settings-section-title">Data</h3>
         <div class="settings-row">

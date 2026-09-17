@@ -11316,6 +11316,41 @@ html.has-bg.bg-light .ins-heat-cell { background: rgba(0, 0, 0, 0.07); }
 
 /* Top tasks — rows inside a pp-insights-card, so ink inherits the card's ink
    (white on dark, #222 on light via the shared override below). */
+/* ----- [PT.2] The free Dashboard: a live card above the preview ----- */
+
+/* A PLAIN WRAPPER AND NOTHING ELSE. The card inside is PT.1's .pp-insights-card
+   .dash-passive, unchanged, so it carries its own ink on every ground and this
+   rule must not have an opinion about colour. The only job here is the gap
+   between the live half and the preview beneath it. */
+.dash-free-live {
+  max-width: 420px;
+  margin: 0 auto var(--space-4);
+  /* ON-CARD INK, SET AT THIS ROOT, AND THE FRAME IS WHY THIS LINE EXISTS.
+     .pp-insights-card declares NO colour - .dash-tab sets color:#fff once at
+     its root for exactly that reason, and its own comment calls the failure
+     "the a68dd89 / 8902816 class verbatim, a third time". Moving the card out
+     of .dash-tab for the free surface made it the FOURTH: the first frame of
+     this round showed a card with bars and an overflow count and NO TEXT AT
+     ALL, because every label fell through to body var(--text-primary) #202124
+     and composited dark-on-dark over the frost.
+
+     The bg-light rule below re-darkens on the white-tinted card and wins on
+     specificity, mirroring html.has-bg.bg-light .dash-mod .pp-insights-card
+     rather than inventing a second set of values. */
+  color: #fff;
+}
+
+html.has-bg.bg-light .dash-free-live .pp-insights-card {
+  --ink-primary: rgba(0, 0, 0, 0.87);
+  --ink-secondary: rgba(0, 0, 0, 0.66);
+  --ink-meta: rgba(0, 0, 0, 0.56);
+  --ink-chrome: rgba(0, 0, 0, 0.46);
+  --ink-hint: rgba(0, 0, 0, 0.38);
+  --surface-line: rgba(0, 0, 0, 0.14);
+  --surface-fill: rgba(0, 0, 0, 0.06);
+  color: #222;
+}
+
 /* ===== [DB.1] The due-work bell ===== */
 
 /* THE DOCTRINE IS IN THIS BLOCK, AND IT IS ASSERTED RATHER THAN DESCRIBED.

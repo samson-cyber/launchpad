@@ -449,8 +449,31 @@ structural("...and again on a light wallpaper",
     /return !!ProAccess\.hasProAccess\(data\);/.test(ST));
   structural("background.js no longer carries its own blocking Pro copy",
     !/function focusProActive\(/.test(bg));
-  structural("tracking.js gates capture through ProAccess",
-    /if \(!ProAccess\.isProAccessibleLevel\(level\)\)/.test(tr));
+  // [PT.2] THIS ASSERTION USED TO SAY THE OPPOSITE, and the change is a RULING
+  // rather than a relaxation. It required tracking.js to refuse capture for any
+  // non-Pro profile. Samson reversed that on 2026-09-12 - "passive time TODAY is
+  // free" - so a free Dashboard can show a user their own time, which needs the
+  // engine to have recorded it.
+  //
+  // WHAT THE OLD ROW WAS FOR IS PRESERVED IN THE NEW ONE. Its point was never
+  // "capture is Pro"; it was that the entitlement decision must DELEGATE rather
+  // than hand-write a level set, which is how the CAPTURING_LEVELS array became
+  // a defect. The replacement asserts the stronger post-ruling fact: capture
+  // consults NO entitlement at all, so there is no level set to get wrong and no
+  // second copy to drift. The row below it, which forbids the array, is
+  // unchanged and now carries the whole of the original concern.
+  //
+  // WHAT IS STILL PRO IS ASSERTED ELSEWHERE AND IS NOT WEAKENED HERE: the
+  // Insights board, ranges, comparisons and the export all gate on their own
+  // surfaces. This is about CAPTURE only.
+  // ASSERTED OVER CODE, NOT OVER THE FILE. The first version of this row tested
+  // the raw source for the name and failed on the COMMENT above evaluateGates -
+  // which is history worth keeping (M2), not a rule still in force. A gate that
+  // cannot tell a live guard from a description of a dead one would force the
+  // next author to delete the reasoning in order to go green.
+  const trCode = tr.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+  structural("tracking.js does NOT gate capture on entitlement (PT.2: passive time is free)",
+    !/isProAccessibleLevel/.test(trCode) && !/hasProAccess/.test(trCode));
   structural("tracking.js no longer carries a CAPTURING_LEVELS array",
     !/var CAPTURING_LEVELS\s*=/.test(tr));
 }
