@@ -3955,6 +3955,26 @@ I18n.register("en", {
       "message": "Start next session",
       "sense": "action.notification.session.focus-interval"
     },
+    "pt_today_by_site_title": {
+      "description": "Heading over the Dashboard's two passive-time lists. NAMES THE SCOPE IN THE HEADING so the two sections beneath inherit it and neither has to repeat it: today, and by site. ENGINE-MEASURED TIME ON WEB PAGES, today only - not wall clock, not session length. The distinction is the whole reason this section exists: a focus session that ran for ten minutes on a PDF records nothing here, and a user who does not know that reads the number as a broken timer. The word SITE is load-bearing and may not be dropped in translation - the boundary being invisible is what produces both failures this feature was opened about.",
+      "message": "Today, by site"
+    },
+    "pt_time_on_tasks": {
+      "description": "Sub-heading of the first list: the part of today's site time that had a task active. ENGINE-MEASURED TIME ON WEB PAGES, today only - not wall clock, not session length. The distinction is the whole reason this section exists: a focus session that ran for ten minutes on a PDF records nothing here, and a user who does not know that reads the number as a broken timer. Its peer is pt_time_on_other_sites and the two SUM to the total - they are not overlapping views of one quantity. Do not translate as 'focused', which this product reserves for all engine-measured time and which therefore applies to BOTH lists.",
+      "message": "Time on tasks"
+    },
+    "pt_time_on_other_sites": {
+      "description": "Sub-heading of the second list: today's site time with NO task active. ENGINE-MEASURED TIME ON WEB PAGES, today only - not wall clock, not session length. The distinction is the whole reason this section exists: a focus session that ran for ten minutes on a PDF records nothing here, and a user who does not know that reads the number as a broken timer. The word OTHER carries the arithmetic - these are the sites that are not already counted in pt_time_on_tasks above, so the two lists sum rather than overlap. The export already calls this category '(no task)'; this is the same quantity in the interface's voice.",
+      "message": "Time on other sites"
+    },
+    "pt_no_time_on_tasks": {
+      "description": "Shown in place of the first list when today has site time but none of it had a task active - the common case for a user who has never started a task. Says what to do, not that something is missing. ENGINE-MEASURED TIME ON WEB PAGES, today only - not wall clock, not session length. The distinction is the whole reason this section exists: a focus session that ran for ten minutes on a PDF records nothing here, and a user who does not know that reads the number as a broken timer. ",
+      "message": "No task was active today. Start one to see time here."
+    },
+    "pt_more_sites": {
+      "description": "Row under the site list when more domains were visited than the list shows. {count} is how many are NOT displayed. The hidden ones are still counted in the total above.",
+      "message": "{count} more"
+    },
     "recur_invalid_day_of_month": {
       "description": "Inline error when the monthly day-of-month is out of range. REWRITTEN 2026-09-17 from \"Monthly templates require dayOfMonth as an integer 1-31.\" - it named a stored field rather than the control, which is labelled Day of month. The range matches that input's own min and max, so the sentence and the control cannot drift apart.",
       "message": "That day of month is out of range. Choose a day from 1 to 31."

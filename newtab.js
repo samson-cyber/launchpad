@@ -1664,6 +1664,14 @@
               '<div class="insights-task-list">' + dashGoalsHtml(ws) + '</div>' +
             '</div>' +
             recapShell +
+            // [PT.1] The two passive-time lists, BELOW the goals card and below
+            // the recap (Decision E). Filled two-phase by dashRefreshPassive for
+            // the same reason the focused tile is: the reader is async and a
+            // synchronous render must not await it. Gated on the SAME `scope` as
+            // the focused tile and the streak - with tracking off the engine
+            // legitimately measures nothing, and an empty card would read as a
+            // failure the user did not have.
+            (scope ? '<div class="pp-insights-card dash-passive" data-dash-passive></div>' : '') +
           '</div>' +
         '</div>' +
       '</div>';
@@ -1672,6 +1680,7 @@
     dashRefreshFocused(panel, scope);
     if (scope) dashRefreshStreak(panel, scope);
     if (scope) dashRefreshWeek(panel, scope);
+    if (scope) dashRefreshPassive(panel, scope);
     if (period === "evening" && scope) dashRefreshRecap(panel, scope, d);
 
     // [1.0.20 F1] Reconcile the first paint against the FRESH stored boundary.
@@ -1689,6 +1698,105 @@
   // what makes the strip's completed-today count tick and the completed row leave
   // the list WITHOUT a reload. The Tasks panel gets the same courtesy the Tasks
   // tab already pays the Dashboard (D8 F3), since both hold the same task.
+  // [PT.1] TIME ON TASKS and TIME ON OTHER SITES - today, by site.
+  //
+  // N IS 5 PER LIST, AND THE VOID SHAPES ARE WHY. [1.8.6] measured the right
+  // column's dead space at three content shapes: 277px (5 goals / 8 due), 16px
+  // (5 goals / 1 due) and 461px (1 goal / 10 due). This card is a title, two
+  // sub-headings and up to ten rows; at ~26px a row plus the card's own chrome
+  // it lands near 360px, which fills the 277 and 461 shapes without running the
+  // column far past the left one, and OVERSHOOTS the 16px shape - where the
+  // right column simply becomes the taller of the two. That is the correct
+  // trade: 1218303707651534 ruled FILL, not cap, and a column that leads by a
+  // little at one content shape is a better outcome than a permanently short
+  // list. Neither list scrolls; a scroller inside a column that is already the
+  // page's scroll container is the [1.8.6] mistake.
+  //
+  // THE HIDDEN ROWS ARE STILL COUNTED. Only 5 sites are listed, so the visible
+  // rows do NOT sum to the section's own total - pt_more_sites says how many
+  // are missing rather than letting the arithmetic look wrong.
+  //
+  // NO FAVICON, NO IMAGE ELEMENT, ON ANY DOMAIN ROW - Decision C, and it is an
+  // invariant rather than a preference: a favicon service would receive the
+  // user's browsing history one domain at a time. The rows are built from the
+  // SAME markup as Insights' site rows (.insights-task-row with a name, a bar
+  // and a duration), which carry none for exactly this reason. There is no
+  // element here that could later be pointed at a lookup.
+  function dashPassiveRowsHtml(rows, nameOf, maxMs) {
+    var top = rows.slice(0, DASH_PASSIVE_N);
+    var out = top.map(function (r) {
+      var pct = maxMs > 0 ? Math.round((r.ms / maxMs) * 100) : 0;
+      return '<div class="insights-task-row">' +
+          '<span class="insights-task-name">' + escapeHtml(nameOf(r)) + '</span>' +
+          '<span class="insights-task-bar"><span class="insights-task-bar-fill" style="width:' + pct + '%"></span></span>' +
+          '<span class="insights-task-dur">' + fmtDurationHM(r.ms) + '</span>' +
+        '</div>';
+    }).join("");
+    if (rows.length > DASH_PASSIVE_N) {
+      out += '<div class="insights-task-row dash-passive-more">' +
+          '<span class="insights-task-name">' + th("pt_more_sites", { count: rows.length - DASH_PASSIVE_N }) + '</span>' +
+        '</div>';
+    }
+    return out;
+  }
+  var DASH_PASSIVE_N = 5;
+
+  // AN EMPTY SECTION IS ABSENT, NOT "0m" - the badge rule. A user with every
+  // minute on tasks has no "other sites" to read about, and a zero row would
+  // invite them to wonder what it means. The TASKS half is the exception and
+  // says why it is empty, because "no task was active" is actionable where "no
+  // other sites" is not.
+  function dashPassiveHtml(split) {
+    if (!split || !(split.totalMs > 0)) return '';
+    var maxMs = Math.max(
+      split.tasks.length ? split.tasks[0].ms : 0,
+      split.sites.length ? split.sites[0].ms : 0);
+
+    var tasksBody = split.tasks.length
+      ? dashPassiveRowsHtml(split.tasks, function (r) {
+          var ws = Storage.getActiveWorkspace(data);
+          var task = ws ? Storage.getTaskById(ws, r.taskId) : null;
+          // A ROW WHOSE TASK CANNOT BE RESOLVED IS NAMED, NOT DROPPED.
+          // insightsTopTasksHtml returns early on an unresolvable task, which is
+          // right for a top-N chart and wrong here: this list has to SUM to the
+          // section total, so a dropped row would leave the arithmetic short by
+          // exactly the time a deleted task held. The export already has the word.
+          return task ? task.name : t("export_task_deleted");
+        }, maxMs)
+      : '<div class="insights-empty">' + th("pt_no_time_on_tasks") + '</div>';
+
+    var sitesBlock = split.sites.length
+      ? '<div class="pp-dash-card-title dash-passive-sub">' + th("pt_time_on_other_sites") + '</div>' +
+        '<div class="insights-task-list">' +
+          dashPassiveRowsHtml(split.sites, function (r) { return r.domain; }, maxMs) +
+        '</div>'
+      : '';
+
+    return '<div class="pp-dash-card-title">' + th("pt_today_by_site_title") + '</div>' +
+      '<div class="pp-dash-card-title dash-passive-sub">' + th("pt_time_on_tasks") + '</div>' +
+      '<div class="insights-task-list">' + tasksBody + '</div>' +
+      sitesBlock;
+  }
+
+  // Two-phase, like dashRefreshFocused: render the shell synchronously, fill it
+  // when the async reader answers. The token guard is the same one the Insights
+  // board uses - a second render while this read is in flight must win.
+  var dashPassiveToken = 0;
+  async function dashRefreshPassive(panel, scope) {
+    var host = panel && panel.querySelector("[data-dash-passive]");
+    if (!host) return;
+    var token = ++dashPassiveToken;
+    var split;
+    try {
+      split = await Tracking.todayTasksAndSitesForScope(scope.workspaceId);
+    } catch (err) {
+      console.error("[LaunchPad] Dashboard: passive-time read failed", err);
+      return;
+    }
+    if (token !== dashPassiveToken) return;
+    host.innerHTML = dashPassiveHtml(split);
+  }
+
   function dashRepaintAfterMutation(panel) {
     renderDashboardTab(panel, data);
     var tasksPanel = document.getElementById("tab-tasks");

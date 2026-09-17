@@ -1281,6 +1281,108 @@
     return { baseMs: baseMs, openSince: openSince };
   }
 
+  // [PT.1] TODAY, SPLIT INTO THE TASKED HALF AND THE UNTASKED-BY-DOMAIN HALF.
+  //
+  // WHY THIS IS A NEW READER AND NOT A COMPOSITION OF THE THREE THAT EXIST.
+  // The Dashboard needs two lists that SUM to today's total (PLAN Decision A).
+  // The settled aggregates cannot produce them, for two independent reasons,
+  // and both were measured rather than assumed:
+  //
+  //   1. THE CROSS-TAB IS NOT STORED. emptyDay carries byDomain, byTag and
+  //      byTask as three INDEPENDENT flat maps. rollupSessionInto adds every
+  //      segment to byDomain unconditionally and to byTask only when the
+  //      session had an activeTaskId - so a domain visited both with and
+  //      without a task active carries BOTH kinds of time under one number, and
+  //      nothing in the aggregate says how much of each. "byDomain minus
+  //      byTask" is therefore not computable per domain, only in total.
+  //
+  //   2. THE THREE READERS DO NOT RECONCILE WITH EACH OTHER ON TODAY.
+  //      focusedRangeForScope overrides today with focusedTodayForScope, which
+  //      is aggregated days PLUS closed-but-unrolled sessions PLUS the open
+  //      session's elapsed share. byTaskForScope and byDomainForScope read the
+  //      aggregates ONLY. So while any session is open or awaiting rollup - the
+  //      normal state of a live Dashboard - the rollups are SHORT of the total
+  //      they would have to reconcile against.
+  //
+  // SO THIS READS THE RAW SESSIONS, which is sound for TODAY specifically:
+  // pruning only drops sessions older than RETENTION_DAYS, so every one of
+  // today's survives whether or not it has been rolled up, and each carries the
+  // domain AND the activeTaskId that the aggregate flattens apart. The same
+  // three terms focusedTodayForScope sums are summed here, in one pass, with
+  // each segment landing in exactly one of the two halves.
+  //
+  // THE ARITHMETIC IS TRUE BY CONSTRUCTION, NOT BY ASSERTION. Every segment is
+  // added to totalMs and to exactly one of taskedMs / untaskedMs, in the same
+  // statement, so the sections cannot drift the way [1.8.4]'s export did before
+  // it grew its synthetic "(no task)" row. The gate still asserts it, because a
+  // construction that is true today is a construction someone can edit.
+  //
+  // ONE DERIVATION, ONE READER: any later consumer of "untasked time today"
+  // calls this rather than re-subtracting, which is the rule that stopped the
+  // today's-three picker and the goal-completion defect from recurring.
+  //
+  // Returns { tasks: [{workspaceId, taskId, ms}], sites: [{workspaceId, domain, ms}],
+  //           taskedMs, untaskedMs, totalMs }, both arrays sorted longest first.
+  async function todayTasksAndSitesForScope(workspaceId) {
+    var combined = (workspaceId == null);
+    var store = await readStore();
+    var today = localDayKey();
+    var now = Date.now();
+
+    var tasks = {}, sites = {};
+    var taskedMs = 0, untaskedMs = 0, totalMs = 0;
+
+    // One segment lands in one half. Written as a single function so there is
+    // no second place for the split rule to be stated differently.
+    function credit(session, ms) {
+      if (!(ms > 0)) return;
+      totalMs += ms;
+      if (session.activeTaskId) {
+        var tk = session.workspaceId + "\u0000" + session.activeTaskId;
+        if (!tasks[tk]) tasks[tk] = { workspaceId: session.workspaceId, taskId: session.activeTaskId, ms: 0 };
+        tasks[tk].ms += ms;
+        taskedMs += ms;
+      } else if (session.domain) {
+        var dk = session.workspaceId + "\u0000" + session.domain;
+        if (!sites[dk]) sites[dk] = { workspaceId: session.workspaceId, domain: session.domain, ms: 0 };
+        sites[dk].ms += ms;
+        untaskedMs += ms;
+      } else {
+        // A session with neither is not representable in either list. It cannot
+        // occur - computeDesired only opens a session on a trackable domain -
+        // but counting it into totalMs while listing it nowhere would break the
+        // sum silently, which is the one failure this reader exists to prevent.
+        // So it is counted into NEITHER, and the gate's reconciliation row is
+        // what would catch the day that changes.
+        totalMs -= ms;
+      }
+    }
+
+    function eachTodaySegment(session, end) {
+      if (!session) return;
+      if (!combined && session.workspaceId !== workspaceId) return;
+      splitAcrossLocalDays(session.start, end).forEach(function (seg) {
+        if (seg.dayKey === today) credit(session, seg.ms);
+      });
+    }
+
+    // EVERY session, aggregated or not - the aggregate is DERIVED from these,
+    // so walking the sessions counts each segment exactly once and walking both
+    // would double it. Today's are never pruned.
+    (store.sessions || []).forEach(function (s) { eachTodaySegment(s, s.end || 0); });
+
+    // The open session's elapsed share, the third of focusedTodayForScope's
+    // three terms, attributed by its OWN activeTaskId rather than to a default.
+    if (store.open) eachTodaySegment(store.open, now);
+
+    var byMs = function (a, b) { return b.ms - a.ms; };
+    return {
+      tasks: Object.keys(tasks).map(function (k) { return tasks[k]; }).sort(byMs),
+      sites: Object.keys(sites).map(function (k) { return sites[k]; }).sort(byMs),
+      taskedMs: taskedMs, untaskedMs: untaskedMs, totalMs: totalMs
+    };
+  }
+
   function focusedTodayForWorkspace(workspaceId) {
     return focusedTodayForScope(workspaceId || null);
   }
@@ -1740,6 +1842,9 @@
     byTagForScope: byTagForScope,
     byTaskForScope: byTaskForScope,
     byDomainForScope: byDomainForScope,
+    // [PT.1] Today's two halves, from one pass over the raw sessions - see the
+    // function for why the settled aggregates cannot produce them.
+    todayTasksAndSitesForScope: todayTasksAndSitesForScope,
     // [2.0] Day Recap "Longest session" line — scope+window-bounded max, settled-only.
     longestSessionForScope: longestSessionForScope,
     // [1.8.5] Best-focus-hours grid, plus what it had to leave out.

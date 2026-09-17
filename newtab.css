@@ -11316,6 +11316,40 @@ html.has-bg.bg-light .ins-heat-cell { background: rgba(0, 0, 0, 0.07); }
 
 /* Top tasks — rows inside a pp-insights-card, so ink inherits the card's ink
    (white on dark, #222 on light via the shared override below). */
+/* ----- [PT.1] Today, by site: the two passive-time lists ----- */
+
+/* THE CARD DELIBERATELY DECLARES NO INK OF ITS OWN. It is a .pp-insights-card
+   inside .dash-mod, so it inherits the light-ground token block already written
+   for that pair (html.has-bg.bg-light .dash-mod .pp-insights-card), and its rows
+   are .insights-task-row, which carries its own bg-light override. Copying the
+   ink from the node it sits beside is the rule; declaring a colour here would
+   create a third place for the light branch to be got wrong. */
+
+/* The two sub-headings sit INSIDE one card, under its title, so they need less
+   weight than the card title above them and a seam above rather than below. */
+/* NO COLOUR DECLARATION HERE, AND THE FIRST VERSION OF THIS RULE IS WHY.
+   .pp-dash-card-title sets no colour of its own - it INHERITS and applies
+   opacity 0.7. Naming --ink-meta here therefore dimmed the text twice, once by
+   the token and again by the inherited opacity, and pixel-contrast measured the
+   result at 3.96 / 3.97 / 2.73 against a 4.5 text floor on the three grounds:
+   under floor everywhere, and worst on light. The sub-heading now inherits
+   exactly what the card title above it inherits and differs by WEIGHT alone,
+   which is the rule this project keeps relearning - copy the ink from the node
+   you sit next to rather than declaring a second opinion about it. */
+.dash-passive-sub {
+  margin-top: var(--space-4);
+  font-weight: 500;
+}
+.dash-passive-sub:first-of-type { margin-top: var(--space-2); }
+
+/* The overflow row is a count, not a site: no bar, no duration, and it spans
+   the grid so it does not leave two empty cells behind. */
+.dash-passive-more {
+  grid-template-columns: 1fr;
+  color: var(--ink-meta);
+  font-size: var(--fs-12);
+}
+
 .insights-task-list {
   display: flex;
   flex-direction: column;
