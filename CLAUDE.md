@@ -189,6 +189,12 @@ function isProAccessibleLevel(level) {
   - Flag persists at top-level `data.__devProOverride`. Does not touch real license/trial state and triggers no Dodo network calls.
   - Supersedes the old manual `chrome.storage.local` trial-arming workaround for entering Pro in dev.
 
+- **THE THREE ON-DEMAND INSTRUMENTS, which are NOT gates and are NOT run by `build.sh`.** Each answers a question the per-build gates cannot, each needs a browser, and each has been rebuilt from scratch at least once because a round left it in a scratchpad. **Reach for one before writing a new harness.**
+  - **`tools/sweep-ink.mjs` — the whole-product ink sweep.** Enumerates EVERY text node on every surface, on five grounds including a light photograph, and measures all of them, so the denominator is visible and the finding is whatever turns up. Its first run found 43 light-ground failures across 22 classes on a brief that named 3. Use it for any round touching ink, colour tokens or a wallpaper branch. `node --experimental-websocket tools/sweep-ink.mjs --out sweep.json`, then `--report` / `--split`. **Run `node tools/sweep-ink.mjs --self-test` if you change it** — that file's header explains why, and BUGS.md **P31** is the entry.
+  - **`tools/pixel-contrast.mjs` — composited contrast for ONE node you already suspect.** Sees what CSS cannot: text-shadow, `backdrop-filter`, a photograph behind 85%-opaque glass, a hairline that never reaches its declared alpha. `sweep-ink` is built on it.
+  - **`tools/seed-fixture.mjs` — the fixture seeder.** `--profile busy-messy` is the realistic one. Never hand-roll seeding, and never hand-roll a browser launch: every harness builds its command line from `tools/browser-launch.mjs`, which is the single place the off-screen position (**I30**), the MAX_PATH refusal (**I31**) and the extension-loading flags (**I6**) live.
+  - **Name an instrument for what it does, never `check-*`.** `tools/check-mutation-boot.mjs` fails the build for any `tools/check-*.mjs` that `build.sh` does not run, so a minutes-long browser instrument under that name reads as an unwired gate and gets wired in to make the build green. BUGS.md **P31**.
+
 ---
 
 ## What to Always Do
