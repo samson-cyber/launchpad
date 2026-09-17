@@ -419,6 +419,21 @@ export function floorFor(fontPx, fontWeight) {
 // =========================================================================
 export const rowKey = (r) => `${r.cls} ${r.elId} ${r.tag} ${r.text}`;
 
+// THE FORMATTER IS EXPORTED BECAUSE THE FORMATTER IS WHAT LIED. A node need not
+// exist on every ground — `#rc-tip-dismiss` is a dismissable tip, on screen for
+// the dark grounds and gone by the light ones — and the first version of the
+// display read its missing light reading as `r.sl ? r.sl.ratio : 0` and printed
+// **light 0.00**, a fabricated zero indistinguishable from a measured contrast
+// of zero, which is the worst number this file could emit. AN ABSENT READING IS
+// NEVER A NUMBER. Kept at module scope, and under test, because a helper buried
+// inside the reporter is a helper nothing can assert about: the mutant that
+// restored the zero escaped every other row until this moved out here.
+export const fmtRatio = (row) =>
+  (row && row.ratio !== null && row.ratio !== undefined ? row.ratio.toFixed(2) : "-");
+
+// Whichever ground actually has a reading, for the descriptive line.
+export const anyRow = (r) => r.sl || r.pl || r.nn || r.sd || null;
+
 export function dedupeByGround(rows) {
   const out = new Map();                       // ground -> key -> row
   for (const r of rows) {
@@ -538,6 +553,16 @@ function split(file) {
   }
 
   const { per, cat } = classify(d.rows);
+
+  // A NODE NEED NOT EXIST ON EVERY GROUND, and assuming it does printed a
+  // number nobody measured. `#rc-tip-dismiss` is a dismissable tip: it was on
+  // screen for the two dark grounds and gone by the light ones, so it has no
+  // solid-light and no photo-light row at all. The first version of this
+  // display read its light ratio as `r.sl ? r.sl.ratio : 0` and printed
+  // **light 0.00** — a fabricated zero that reads exactly like a measured
+  // contrast of zero, which is the worst number this file could emit — and
+  // then crashed on the ink/bg line below it. An absent reading is "-", never
+  // a number, and the representative row is whichever ground actually has one.
   const show = (title, list) => {
     const by = new Map();
     for (const r of list) {
@@ -547,11 +572,14 @@ function split(file) {
     }
     console.log(`\n${title}  -  ${list.length} nodes in ${by.size} classes`);
     for (const [kk, l] of [...by.entries()].sort((a, b) => b[1].length - a[1].length)) {
-      const f = l.map((r) => (r.sl && r.sl.ratio !== null ? r.sl.ratio : (r.pl && r.pl.ratio !== null ? r.pl.ratio : 0)));
-      const dk = l.map((r) => (r.nn && r.nn.ratio !== null ? r.nn.ratio.toFixed(1) : "-"));
-      console.log(`  ${String(l.length).padStart(2)}x ${kk.slice(0, 40).padEnd(42)} light ${f.map((n) => n.toFixed(2)).join(" ").slice(0, 34).padEnd(34)} (dark ${dk.slice(0, 4).join(" ")})`);
-      const s = l[0].sl || l[0].pl;
-      console.log(`     ink=${JSON.stringify(s.ink)} bg=${JSON.stringify(s.bg)} declared=${s.color}  eg "${l.map((r) => (r.sl || r.pl).text).slice(0, 2).join('" / "')}"`);
+      const f = l.map((r) => fmtRatio(r.sl && r.sl.ratio !== null ? r.sl : r.pl));
+      const dk = l.map((r) => fmtRatio(r.nn));
+      console.log(`  ${String(l.length).padStart(2)}x ${kk.slice(0, 40).padEnd(42)} light ${f.join(" ").slice(0, 34).padEnd(34)} (dark ${dk.slice(0, 4).join(" ")})`);
+      const s = anyRow(l[0]);
+      if (!s) { console.log("     no reading on any ground — nothing to describe"); continue; }
+      const seen = ["none", "solid-dark", "solid-light", "photo-light"].filter((g) => l[0][{ none: "nn", "solid-dark": "sd", "solid-light": "sl", "photo-light": "pl" }[g]]);
+      console.log(`     ink=${JSON.stringify(s.ink)} bg=${JSON.stringify(s.bg)} declared=${s.color}  seen on grounds [${seen.join(",")}]`);
+      console.log(`     eg "${l.map((r) => (anyRow(r) || { text: "?" }).text).slice(0, 2).join('" / "')}"`);
     }
   };
 
@@ -691,6 +719,27 @@ function selfTest() {
   const placed = [...cat.lightOnly, ...cat.both, ...cat.photoOnly, ...cat.darkOnly].map((r) => r.cls);
   chk("a node that clears its floor everywhere is in NO category", !placed.includes("clean"), placed.join(","));
 
+  // A NODE THAT DOES NOT EXIST ON EVERY GROUND, which every synthetic row
+  // above quietly assumed away. `#rc-tip-dismiss` is a dismissable tip: it was
+  // on screen for the two dark grounds and gone by the light ones, so it has
+  // no light reading at all. The display read that as `0.00` — a fabricated
+  // zero that looks exactly like a measured contrast of zero — and then threw
+  // on the line after it. THE POPULATION IN A TEST IS ITSELF AN ASSUMPTION;
+  // this is the row that stops this one being made again.
+  const partial = classify([...rows, ...node("partialdark", { none: 2.0, "solid-dark": 2.1 })]);
+  const dop = partial.cat.darkOnly.find((r) => r.cls === "partialdark");
+  chk("a node seen only on dark grounds classifies as DARK-ONLY", !!dop);
+  chk("...and has no light-ground row that could be printed as a zero", !!dop && !dop.sl && !dop.pl);
+  // AND THE FORMATTER, which is the half that actually lied. Classifying it
+  // correctly while rendering it as 0.00 is still a fabricated measurement.
+  chk("an absent reading formats as \"-\", never as a number",
+    fmtRatio(undefined) === "-" && fmtRatio(null) === "-" && fmtRatio({ ratio: null }) === "-",
+    [fmtRatio(undefined), fmtRatio(null), fmtRatio({ ratio: null })].join(" "));
+  chk("a REAL zero still formats as 0.00 (the fix must not hide a true reading)",
+    fmtRatio({ ratio: 0 }) === "0.00", fmtRatio({ ratio: 0 }));
+  chk("anyRow falls back to a ground that has a reading", 
+    !!dop && anyRow(dop) === dop.nn && anyRow({ sl: null, pl: null, nn: null, sd: null }) === null);
+
   // --- THE DEPENDENCY. measure() is this harness's arithmetic, and its own
   // self-test carries the negative control that matters (an element forced to
   // its own backdrop must report NO measurement rather than a comfortable
@@ -704,7 +753,7 @@ function selfTest() {
     pc.status === 0, pc.status === 0 ? "" : (pc.stdout || "").trim().split("\n").slice(-3).join(" | "));
 
   // --- Anti-vacuity on the suite itself.
-  const EXPECTED = 24;
+  const EXPECTED = 29;
   if (pass + fail < EXPECTED) {
     console.log(`\n  FAIL  the self-test ran only ${pass + fail} assertions, fewer than the ${EXPECTED} it should`);
     fail++;
