@@ -3398,6 +3398,17 @@ html.has-bg:not(.bg-light) #rc-search-input::placeholder {
 }
 /* ===== Empty Group Helper Text ===== */
 
+/* [ink] BARE TEXT ON THE WALLPAPER - 980420c's territory, and it stays.
+   Measured 1.52 to 4.80 depending on the ground, under the floor on most of
+   them. It sits directly on the wallpaper with no surface behind it, which is
+   the case 980420c ruled on three separate occasions and got right every time:
+   the 4.5 floor assumes small type on a FLAT ground, these labels are over a
+   photograph where the backdrop varies behind every stroke, and the text-shadow
+   below is the mitigation the instrument cannot see.
+   NOTED, because it is the honest half: that reasoning covers the PHOTO
+   grounds and not the flat solids, where this reads 2.24 with no shadow at all.
+   Raised in the round's report as a question rather than settled here, because
+   changing Home's bare-text layer is exactly the decision 980420c reserved. */
 .empty-group-hint {
   grid-column: 1 / -1;
   text-align: center;
@@ -4259,9 +4270,15 @@ html:not(.has-bg) .nrd-skip {
   flex-wrap: wrap;
 }
 
+/* [ink] IT IS A LINK, SO IT IS TEXT. Rate LaunchPad is an <a href> to the store
+   listing with a visible label, not an ornament, so the 4.5 floor applies and
+   opacity 0.6 put it at 3.43 - 3.93 on the dark grounds. The dimming goes to
+   0.85 - what .tab takes on the light branch, and the value this sheet now uses
+   wherever a self-dimmed element needed more presence - and :hover still steps
+   it to 1, so the interaction still reads. */
 #sb-rate {
   color: #f4b400;
-  opacity: 0.6;
+  opacity: 0.85;
 }
 
 #sb-rate:hover {
@@ -4294,9 +4311,16 @@ html.has-bg:not(.bg-light) .sb-group-icon {
   color: var(--ink-chrome);
 }
 
+/* THE COUNT NOW TAKES THE INK ITS GROUP NAME TAKES. --ink-meta on the tinted
+   pill measured 3.11 - 3.66 across the four groups on every dark ground and
+   3.55 - 4.29 on light, against a 4.5 floor, so it failed on all of them. It
+   was also checked against the 3:1 NON-TEXT floor before being fixed, in case
+   a count badge could be reclassified as a graphic: 3.11 is under that too, so
+   the question did not arise. It is a number the user reads, and it now reads
+   like one. */
 html.has-bg:not(.bg-light) .sb-group-count {
   background: var(--surface-fill);
-  color: var(--ink-meta);
+  color: var(--ink-primary);
 }
 
 html.has-bg:not(.bg-light) .sb-group-expand-chevron {
@@ -5605,9 +5629,11 @@ html.bg-light .sb-group-icon {
   color: var(--text-secondary);
 }
 
+/* The light half of the same fix: --text-primary, which is what .sb-group-name
+   beside it already takes on this branch. */
 html.bg-light .sb-group-count {
   background: rgba(0, 0, 0, 0.05);
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 html.bg-light .sb-group-expand-chevron {
@@ -5622,9 +5648,33 @@ html.bg-light .sidebar-drag-handle:hover {
   color: rgba(0, 0, 0, 0.5);
 }
 
+/* THE AMBER CANNOT BE SAVED ON A LIGHT GROUND, AND THE ARITHMETIC IS WHY.
+   #d97706 at 0.5 measured 1.69, which is the worst reading in the whole
+   fail-everywhere set. Darkening it does not reach the floor either: the
+   darkest amber this sheet carries anywhere is .tt-trash-days-amber's #b6820c,
+   and that computes 3.39 against pure white at full opacity. There is no step
+   of amber that clears 4.5 on a pale ground, so the colour is not the thing to
+   adjust.
+   On light it therefore takes what every other sidebar label takes, at full
+   strength. The item keeps its amber on the dark grounds, where it both works
+   and is legible; on a light wallpaper it reads as an ordinary sidebar entry.
+   That is a visible change to a brand-coloured item and it is called out in the
+   report rather than buried here. */
 html.bg-light #sb-rate {
   color: #d97706;
-  opacity: 0.5;
+  opacity: 1;
+}
+
+/* ONLY THE WORDS GO DARK, NOT THE STAR. The first version of this fix set the
+   colour on the anchor, and the computed-style diff showed it reaching the SVG
+   too - the star inherits currentColor - so the item lost its amber entirely on
+   a light wallpaper. That is more than the floor asks for: the icon is a
+   GRAPHIC at a 3:1 floor, and #d97706 at full opacity computes 3.39 against
+   white, which clears it. The label is text at 4.5 and no amber can clear that,
+   so the split is exactly where the two floors differ. The item still reads as
+   the amber one; only its sentence is legible now. */
+html.bg-light #sb-rate .sb-label {
+  color: var(--text-primary);
 }
 
 html.bg-light #sb-rate:hover {
@@ -6958,6 +7008,18 @@ html.has-bg .pro-warning {
   margin-top: var(--space-3);
 }
 
+/* [ink] RECLASSIFIED, NOT FIXED, AND THE MEASUREMENT WAS OF THIS RULE.
+   The light-ground sweep reported "Cancel subscription" and "Reactivate" under
+   the floor on every ground (2.68 - 4.45) and the round that filed it read that
+   as a destructive action being illegible. It is not: the sweep's fixture has
+   dev-Pro on and no real subscription, so both buttons were DISABLED, and what
+   was measured is this 0.5 - the declared ink is #202124, which clears
+   comfortably at full strength.
+   An inactive control is explicitly exempt from the contrast minimum (WCAG 2.1
+   SC 1.4.3), and for a reason that applies exactly here: dimming is how a
+   disabled control says it is disabled, and darkening it back to the floor
+   would make "you cannot press this" invisible. The ENABLED state is what has
+   to clear 4.5, and it does. */
 .pro-sub-actions .settings-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -7427,8 +7489,14 @@ html.has-bg .settings-btn:hover {
   background: rgba(255, 255, 255, 0.15);
 }
 
+/* [ink] Remove is a DESTRUCTIVE ACTION and it was under the floor on every
+   ground: 4.26 and 4.43 on the dark ones with #ff6b6b, 4.10 on a light solid
+   with #d93025. All three are near-misses rather than disasters, which is
+   exactly how a destructive control stays wrong for a year.
+   #ff8a8a is a lighter step of the same red and is already in this sheet on the
+   license-error note, so the dark branch takes a sibling. */
 html.has-bg .settings-btn-danger {
-  color: #ff6b6b;
+  color: #ff8a8a;
   border-color: rgba(255, 107, 107, 0.3);
 }
 
@@ -7546,8 +7614,20 @@ html.bg-light .settings-btn:hover {
   background: rgba(0, 0, 0, 0.06);
 }
 
+/* THE LIGHT BRANCH IS THE ONE PLACE THIS ROUND INTRODUCES A VALUE THE SHEET DID
+   NOT ALREADY CARRY, and it is said plainly rather than slipped in. #d93025 is
+   the sheet's light-ground danger red in fourteen places, and it is TUNED FOR
+   PURE WHITE: on white it computes 4.77, but the settings plate is 244 rather
+   than 255, which brings it to 4.34 declared and 4.10 measured. No darker red
+   exists anywhere in this stylesheet to borrow, so borrowing was not an option
+   and rounding 4.10 up to "passes" was not either. #b3261e computes 5.95 on the
+   same plate.
+   ONLY THE LABEL MOVES. The border keeps rgba(217, 48, 37, 0.3) and the hover
+   tint keeps its own red, because those are non-text at a 3:1 floor and already
+   clear it - so the button's colour identity is unchanged and only the word
+   gets darker. */
 html.bg-light .settings-btn-danger {
-  color: #d93025;
+  color: #b3261e;
   border-color: rgba(217, 48, 37, 0.3);
 }
 
@@ -7704,8 +7784,10 @@ html.bg-light .pro-tag-color-swatch:hover {
   border-color: rgba(0, 0, 0, 0.45);
 }
 
+/* The light half: 0.66 is --ink-secondary's light value, the one every light
+   ink block in this sheet carries. Was 0.45, which measured 1.50. */
 html.bg-light .pro-tag-delete {
-  color: rgba(0, 0, 0, 0.45);
+  color: rgba(0, 0, 0, 0.66);
 }
 
 html.bg-light #pro-settings-privacy-link {
@@ -8749,11 +8831,30 @@ html.has-bg .pro-tags-trash-toggle { color: #8ab4f8; }
    #15539b light) and needs no rule of its own to switch. */
 html.has-bg.bg-light .pro-tags-trash-toggle { color: var(--sat-accent-ink); }
 
+/* [ink] AN ICON-ONLY CONTROL STILL HAS A FLOOR, and this one missed even the
+   lenient version. The button carries aria-label="Delete tag", so the glyph is
+   a GRAPHIC at the 3:1 non-text floor rather than text at 4.5 - and it read
+   2.90 to 2.95 on the dark grounds and 1.50 on a light solid, under both.
+   --ink-chrome is the ramp's dimmest role and it is not enough for something
+   you click; --ink-secondary takes it to 4.27 - 4.32 on the dark grounds.
+   THE LIGHT GROUND IS NOT SOLVED BY THIS AND SHOULD NOT BE CLAIMED AS SOLVED.
+   It moves 1.50 -> 1.84 and stops there, and the reason is the glyph rather
+   than the colour: U+1F5D1 renders here as a HAIRLINE OUTLINE in Arial - 165
+   non-white pixels in a 40px box, most of them anti-aliased fringe - and a
+   one-pixel stroke never reaches its declared alpha. (It does respond to
+   `color`: painted red it gives [255,129,129] and blue [129,129,255], so this
+   is a thin monochrome glyph, not a colour emoji the instrument cannot see.)
+   The same sRGB asymmetry the opacity family showed applies to anti-aliasing:
+   a partial-alpha stroke keeps most of its contrast on a dark ground and loses
+   most of it on a light one, so no value of `color` clears the floor here.
+   What would is a heavier mark - an inline SVG like every other icon in this
+   product uses - which is markup rather than a colour, and is therefore filed
+   rather than done in a stylesheet round. */
 .pro-tag-delete {
   flex-shrink: 0;
   background: transparent;
   border: none;
-  color: var(--ink-chrome);
+  color: var(--ink-secondary);
   cursor: pointer;
   padding: var(--space-1);
   border-radius:var(--radius-sm);
@@ -10929,12 +11030,19 @@ html.has-bg.bg-light .pro-preview-banner-text {
      browser's own bottom chrome sits over it. */
   padding-bottom: var(--space-7);
 }
+/* [ink] "1 of 6" IS INFORMATION, AND opacity: 0.6 IS WHY IT WAS UNREADABLE ON
+   EVERY GROUND - 3.68 to 3.75 on the dark ones, 2.25 on a light solid. It is
+   the same opacity trap the light-ground sweep named: an element that dims
+   itself has no per-ground value to switch, so it is equally wrong everywhere
+   rather than wrong in one branch.
+   The ramp already has a role for "secondary text on a card" and it is keyed to
+   the ground, so the count takes that instead of a number of its own. */
 .insights-badge-count {
   font-size: var(--fs-11);
   font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
-  opacity: 0.6;
+  color: var(--ink-secondary);
   margin-inline-start: var(--space-1-5);
 }
 /* .insights-soon is GONE, not fixed. It was banked in the cockpit round as
@@ -12495,7 +12603,20 @@ body.sat-card-open #content {
 
 .tt-trash-days-neutral { color: var(--ink-chrome); }
 .tt-trash-days-amber { color: #e6b23e; }
+/* [ink] THE RED COUNTDOWN IS THE ONE BAND WITH NO LIGHT OVERRIDE, and it shows:
+   amber has html.has-bg.bg-light .tt-trash-days-amber and neutral has one too,
+   so on a light wallpaper red alone kept its dark-branch value and measured
+   3.07. It was also under the floor on every dark ground (4.21 - 4.48), so this
+   is not a light-branch miss - the value was simply never checked.
+   It now takes the pair the danger BUTTON takes, which is the only other place
+   in this sheet that says "this destroys something": #ff8a8a on dark (already
+   in the sheet, on the license-error note) and #b3261e on light. One danger red
+   per ground instead of three near-misses. "1 day left" is the last warning
+   before a task is gone for good; it should not be the faintest row in the
+   list. */
 .tt-trash-days-red { color: #f2564f; }
+html.has-bg:not(.bg-light) .tt-trash-days-red { color: #ff8a8a; }
+html.has-bg.bg-light .tt-trash-days-red { color: #b3261e; }
 
 /* Actions revealed on row hover/focus (always visible on touch via focus-within
    is unnecessary here; keyboard focus on a button also reveals them). The
@@ -13385,6 +13506,13 @@ html.has-bg.bg-light .session-picker-empty { color: var(--text-hint); }
   transition: background 0.12s, color 0.12s, border-color 0.12s, opacity 0.12s;
 }
 .tt-prio-pill .tt-prio-flag { font-size: var(--fs-11); line-height: 1; }
+/* [ink] RULED FAINT, AND THE READING IS RECORDED SO THE NEXT SWEEP DOES NOT
+   RE-OPEN IT. At rest the unset pill measures 2.39 - 2.97, under the floor on
+   every ground. That is the RESTING state of an affordance that is not offering
+   information yet - it says "no priority set" - and the row's own hover takes it
+   to opacity 1, which is the state [2.0 ink] measured when it chose 0.62 for the
+   flag (6.66 on dark). A control that reaches full strength the moment the
+   pointer arrives is not the same case as text that is permanently dim. */
 .tt-prio-pill.tt-prio-none { opacity: 0.55; }
 .tt-task-row:hover .tt-prio-pill.tt-prio-none { opacity: 1; }
 .tt-prio-pill.tt-prio-none:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
@@ -17930,6 +18058,14 @@ html.has-bg.bg-light .nb-trash-card {
   box-shadow: none;
 }
 
+/* [ink] RULED FAINT. "New note" measures 1.95 - 5.16 across the grounds and is
+   under the floor on most of them, because .note-ghost carries opacity 0.55.
+   That is the ghost being a ghost: it is the create affordance, deliberately
+   half-there so it reads as an empty slot rather than as a note. ced66b4
+   already drew the line for this element - a FOCUSED ghost stops being faded,
+   because a focus ring at half strength is a broken control - and left the
+   resting state alone on purpose. This is that same decision, re-confirmed
+   with numbers rather than reversed without them. */
 .note-ghost-label {
   font-size: var(--fs-13);
   font-weight: 500;
@@ -19183,6 +19319,18 @@ html.has-bg.bg-light #home-greeting.is-arriving { color: rgba(0, 0, 0, 0.95); }
   cursor: pointer;
 }
 
+/* [ink] BARE TEXT ON THE WALLPAPER - 980420c's territory, and it stays.
+   The sweep measured the date at 1.66 to 4.19, under the floor on every ground.
+   It sits DIRECTLY ON THE WALLPAPER: the backdrop sampled under it is the body
+   colour itself, with no card, no frost and no surface of any kind between.
+   That is precisely the case 980420c reserved, on evidence - Samson looked at
+   the frosted-surface fix on a real bright photograph and rejected it, and the
+   commit records three separate occasions where the number said fail and the
+   eye said fine.
+   The same honest caveat as .empty-group-hint applies: that reasoning is about
+   a varying photographic ground and a load-bearing shadow, and it does not
+   cover the flat solids, where this reads 3.40 to 3.84. Reported as a question
+   rather than settled here. */
 .home-greeting-date {
   pointer-events: none;
   cursor: default;
