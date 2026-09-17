@@ -171,6 +171,26 @@ Run when the task touched: storage, backup/export, migration logic, or the `data
   **AND THE HELPER'S OWN GUARD WAS REMOVED, WHICH IS THE COUNTER-INTUITIVE HALF.** `csvGuard` is idempotent, so leaving it in `push()` was harmless — and would have made the gate lie. With two guard sites, a mutation that removes the serialiser's guard still passes on the four dimension blocks while every meta row goes out raw: a partial failure scored as a pass. **One guard site is what makes a mutation test mean what it says.**
 
   **The assertion that replaced it is a PROPERTY OF THE OUTPUT, not a list of fields.** The pre-existing checks pinned `csvGuard` as a function and passed throughout the defect, because the defect was never in the guard — it was in which cells reached it. The gate now parses what `buildCsv` actually produced back into cells and requires that not one begins with a formula lead, which holds regardless of call site, column count, or what a later row type remembers. A guard whose gate enumerates the fields it protects has the same defect as the guard did. `3ce24c4`.
+- **E11. A LIST ONLY A BUILD READS IS A LIST NO BUILD READ, and this is E7 one scope up - five instances, four of them found by an artifact rather than by a check.** E7 is about a literal list inside the product failing to know about a new entity. This is the same shape in the TOOLING: a hand-maintained list that only `build.sh` consults, so nothing exercises it until somebody packages a release.
+
+  1. `importers.js` was referenced by `newtab.html` and missing from the packaging **allowlist**. The zip would have shipped a dead `<script src>` and every import path broken, while dev kept working because the unpacked tree has the file. Caught by the first build in 132 commits.
+  2. `quickadd.js`, same list, same shape, caught by TD.2's build.
+  3. `side-panel.html` was declared by `side_panel.default_path`, a manifest key the shared `enumerateManifest` reader did not know, so the source gate called it unreferenced. The reader gained the key rather than the file being excused into `EXPECTED_UNREFERENCED`, which would have hidden the gap.
+  4. `check-sync-slice.mjs` shipped in `250cb05` with 33 assertions and was never added to **`build.sh`'s RUNNER list**. Green by nobody for a full round, found by accident while extending that same gate.
+  5. `check-i18n-census.mjs`, the same omission, live at the same moment - found by the check written for instance 4, on its first run.
+
+  **THE ALLOWLIST AND THE RUNNER LIST ARE TWO DIFFERENT LISTS**, which is why fixing instances 1-3 did nothing for instances 4-5. Each of the first four was fixed by adding the missing entry, and none of those fixes made the next instance impossible, because the answer always arrived from a BUILD rather than from a CHECK.
+
+  **The fix is `check-mutation-boot`'s WIRING section** (`000a756`): every `tools/check-*.mjs` on disk must appear in `build.sh`'s runner list, and every `tools/*.mjs` `build.sh` names must exist - failing in both directions, naming the file. The gates are DISCOVERED by scanning `tools/`, never enumerated, or the checker for the hardcoded-enumeration class would itself be one.
+
+  **What it deliberately cannot see: a gate that IS wired in, runs, and asserts nothing.** A file of zero assertions exits 0 and passes. That is **P2**'s job, per gate, from inside. Presence and substance are two claims and only the first is checked here.
+
+- **E12. A RENAMED PROPERTY IS NOT MIGRATED UNTIL EVERY CONSUMER FOLLOWS IT, and the reader left behind renders nothing rather than throwing.** An i18n round migrated `INSIGHTS_BADGES` entries from `title` to `titleKey` and did not follow the property to `showBadgeSplash`, which still reads `meta.title`. `escapeHtml(undefined)` returns `""`, so the one-shot "achievement unlocked" card has been painting an icon, an eyebrow, **a blank line** and a description - for every badge, since the rename. Demonstrated per badge: all six render `""` before and their real names after.
+
+  **THE FAILURE MODE IS THE QUIET ONE, and it is why this is worth a rule.** A consumer reading a property that no longer exists does not throw, does not log, and does not fail a gate - it renders the empty string, and an empty string in a card that still has an icon and a description reads as a layout quirk rather than as a defect. This is **E8**'s sibling: E8 is a filter on a field that never existed, this is a read of a field that stopped existing, and both are `undefined` behaving like a plausible value.
+
+  **So a property rename is a SWEEP, not an edit**: grep the old name across every file before committing, and read each hit rather than counting them. The rename that caused this touched a data table and its four obvious renderers; the fifth consumer was in a different feature area and nobody looked. Same instinct as the museum rule's inverse - that rule forbids a field with no reader, and this is a reader with no field.
+
 ### Section F: Asana Workflow Hygiene
 
 Run before moving any task to Needs Review.
@@ -374,6 +394,16 @@ Console-based verification fully satisfies these gates when the snippet exercise
 
   **AN ESCAPE HATCH EXISTS AND IS FOR HUMANS ONLY.** `ONSCREEN=1` (or `--on-screen` on the seeder) puts the window back where it can be watched. Never set it from a script; the one case it is for is a person debugging a harness, where a window nobody can see is not much help.
 
+
+- **I32. A STALE BROWSER ON THE SAME PROFILE DIRECTORY MAKES THE NEXT LAUNCH A NO-OP, and the harness then blames the port.** Edge HANDS OFF to the already-running instance: the new process exits 0 having done nothing, the new `--remote-debugging-port` is never opened, and the harness reports *"CDP never came up"* about a browser that is perfectly healthy - on the OLD port, serving the OLD build.
+
+  **THIS IS I25'S OPPOSITE SYMPTOM FROM THE SAME CAUSE, and the pair is worth holding together.** I25 is a stale browser on the same PORT, where you silently attach to the previous run and everything appears to work while nothing you measure is yours. This is a stale browser on the same PROFILE, where you attach to nothing and conclude the environment is broken. **I25 already prescribes a unique profile directory, but for a different reason** - the EBUSY that `taskkill` guarantees by returning before Windows releases the profile's handles. The handoff is a second, independent reason for the same defence: **a unique port is worthless without a unique profile**, because the flag that would have opened your port belongs to a process that immediately exited.
+
+  It cost five runs across one round, and the diagnosis was slowed by a genuine second cause layered on top: 40 orphaned browsers from the failed attempts made a fresh profile take longer to come up than the 30-second poll, which presents identically and is not the same thing. Teardown BY COMMAND LINE matching the scratch-profile prefix, never by image name (**I6**).
+
+- **I33. `/json/new` REQUIRES PUT, AND WITH GET IT ANSWERS 200 WITH PLAIN TEXT.** The body is `Using unsafe HTTP verb GET`, not JSON - so a helper that `json()`s the response throws a PARSE error, which a retry loop swallows as "not ready yet". 180 attempts later the harness blames the debugging port, which was open and answering correctly the entire time.
+
+  **THE GENERAL RULE IS WORTH MORE THAN THE ENDPOINT: A RETRY LOOP MUST SURFACE ITS LAST ERROR, NEVER A GUESS AT ONE.** The message cost more than the bug. `throw new Error("CDP port never opened")` is a conclusion the loop is not entitled to draw - it knows only that its attempts failed, and it knows exactly HOW each one failed. Carry the last exception's message into the timeout text and the parse error identifies itself on the first read. Every waiter in this repo's harnesses now does.
 
 ### Section J: Verification Snippet Anti-Patterns
 
@@ -614,6 +644,12 @@ Run before trusting any grep- or ripgrep-based search or audit over the reposito
   **The failure direction is the dangerous one.** A misaligned scanner does not report an error; it reports FEWER violations, silently, and a green run reads exactly like a clean tree. Every count this scanner produces is therefore a lower bound.
 
   **The rule when a gate newly flags something you did not touch: check attribution before editing the copy.** Two commands settle it — `git diff <file>` for the flagged line (this one showed zero hits), then re-run the gate on a tree with only that file reverted to HEAD. If the violation vanishes, your edit surfaced a latent defect rather than creating one, which is worth fixing and worth reporting as pre-existing rather than quietly folding into the round. Same family as **M6**: an instrument whose reading depends on content it was not built to parse. `2026-09-09`.
+
+- **M9. A REAL NUL BYTE IN A SOURCE FILE MAKES GIT CLASSIFY IT AS BINARY - NO DIFF, NO BLAME, NO REVIEW.** `tools/check-i18n-census.mjs` was committed with **four real NUL bytes** where a template-hole marker should have carried an escape. `git diff` reported `Bin 0 -> 23430 bytes` and showed nothing else: a 23 KB gate file went into history with no reviewable content at all.
+
+  **THIS IS THE THIRD FACE OF THE SAME CHARACTER, AND THE THREE ARE GENUINELY DIFFERENT PROBLEMS.** **M1** is that a file carrying a NUL goes invisible to ripgrep, so you cannot FIND it. **M3** is that a carrier - heredoc, writer, template literal - can WRITE one while you are documenting it. This one is that git will not SHOW you a file that has one, and it is the only member of the family that defeats REVIEW rather than SEARCH. Same class as the `tracking.js` NUL that rode into 2.0.1 unexamined.
+
+  **THE TELL IS THE DIFFSTAT, AND READING IT BEFORE PUSHING IS THE WHOLE DEFENCE.** `Bin` where a text file should be, or a byte count where a line count belongs. It costs two seconds, and it is the only place this announces itself - by the time anyone notices the file is unreviewable, it is already in history and every later diff of it is unreviewable too. **Build the character rather than typing it** (`chr(0)`) and assert its absence before writing, which is M3's construction rule applied to the ARTEFACT rather than to the edit.
 
 ### Section N: Global Listeners and Anchored Popovers
 

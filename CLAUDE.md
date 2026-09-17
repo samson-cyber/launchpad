@@ -54,7 +54,7 @@ Earlier releases: v2.0.0 submitted 2026-08-14 (the Pro launch; confirmed live â€
 
 - **Samson Stephens** (alias CyberSam) â€” solo developer, based in Bali, Indonesia
 - GitHub: `github.com/samson-cyber/launchpad`
-- Contact: `info.skewed@gmail.com`
+- Contact: `support@mylaunchpad.me` *(ruled 2026-09-16. This line read `info.skewed@gmail.com` until then - a personal address that predates the product having a domain. The support address is the one the store listing and the privacy policy carry, and it is the one a user would ever see.)*
 - Buy Me a Coffee: `buymeacoffee.com/cybersamwise`
 
 Background as Amazon seller and Shopify user. This informs product design and target audience.
