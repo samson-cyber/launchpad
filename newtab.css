@@ -17950,7 +17950,10 @@ html.has-bg.bg-light .notes-trash-action:hover { background: rgba(0, 0, 0, 0.07)
    with the element, so the ring is painted at just over half strength whatever
    blue it is. Fixing it means deciding whether a focused placeholder stops
    being faded, which is a different decision from this one and is filed rather
-   than folded in. */
+   than folded in.
+
+   FILED, THEN RULED, AND THE RULING IS BELOW at .note-ghost:focus-visible
+   (Asana 1218571108735856): a focused placeholder stops being faded. */
 .note-card:focus-visible {
   outline: 2px solid var(--sat-accent, #4a90e2);
   outline-offset: 3px;
@@ -17963,6 +17966,48 @@ html.has-bg.bg-light .notes-trash-action:hover { background: rgba(0, 0, 0, 0.07)
 .note-swatch:focus-visible {
   outline: 2px solid var(--sat-accent, #4a90e2);
   outline-offset: 2px;
+}
+
+/* A FOCUSED PLACEHOLDER STOPS BEING FADED, and the value is 1 rather than 0.9
+   for a measured reason rather than a tidy one.
+
+   opacity applies to an element's OUTLINE as well as its content, so the rule
+   above painted the ghost's ring at 0.55 strength whatever colour it named -
+   which is why the accent round could not rescue it by choosing a better blue,
+   and said so instead of rounding it up.
+
+   0.9 IS THE PRECEDENT AND 0.9 IS NOT ENOUGH. :hover uses 0.9, so it is the
+   obvious value to reach for. But the ring's best reading across the four real
+   grounds was 3.11:1, and 0.9 of that is 2.8:1 - still under the 3:1 non-text
+   floor on the ground where it was already doing best. A value chosen to match
+   a neighbour would have left the defect in place and looked like a fix.
+
+   ONLY THE RING NEEDS THIS, but opacity cannot be applied to an outline alone,
+   so the whole element goes to 1 while focused. That is the intended reading
+   anyway: the one create affordance on this surface, while a keyboard user has
+   it, is not a suggestion. :hover is untouched and still reads 0.9.
+
+   MEASURED FROM THE SCREEN, non-text floor 3:1, before -> after:
+                    none          image         dark          light
+     ghost ring    3.11 -> 6.81  3.17 -> 6.94  3.49 -> 9.22  2.06 -> 3.91
+
+   THE LIGHT GROUND IS THE ONE THAT WAS ACTUALLY FAILING, at 2.06, and it is
+   the one with the least margin afterwards at 3.91 - the accent is a light
+   blue and a light ground is where it has least to work with. If the accent
+   ever moves lighter again, this is the reading to re-take first.
+
+   THESE NUMBERS DO NOT REPRODUCE THE FOUR IN THE COMMENT ABOVE (2.19 / 2.13 /
+   3.11 / 2.13) AND ARE NOT MEANT TO. That round built its grounds differently
+   and measured a different accent; --sat-accent resolves to rgb(138,180,248)
+   here. An absolute ink number is only comparable within one instrument and one
+   session, which is why the before column was re-measured rather than quoted.
+
+   THE DARK AND LIGHT GROUNDS ARE COLOUR BACKGROUNDS, NOT IMAGES, and a harness
+   that gets this wrong measures nothing: applyBackground derives bg-light /
+   bg-dark ONLY for a "color:" value, so a light PHOTO lands as bg-image with no
+   luminance class and the html.bg-light branch is never exercised. */
+.note-ghost:focus-visible {
+  opacity: 1;
 }
 
 /* The hover trash is revealed on hover; it must also appear on keyboard focus,
