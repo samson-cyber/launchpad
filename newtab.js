@@ -650,17 +650,13 @@
 
     dueBellRepaint();
 
-    showUndoToast(t("bell_completed_undo", { name: name }), async function () {
-      try {
-        await Storage.reactivateTask(data, taskId, ws ? ws.id : undefined);
-      } catch (err) {
-        console.error("[LaunchPad] Due bell: undo (reactivate) failed", err);
-        return;
-      }
-      // The task is due again, so the bell returns on its own - the count comes
-      // from the reader, which now counts it. Nothing here re-adds a row.
-      dueBellRepaint();
-    });
+    // [row-undo] EXTRACTED. This was inline until the row needed the same
+    // mechanism; the write now lives in showCompletionUndoToast and the bell
+    // keeps only what is its own - the repaint. The task is due again, so the
+    // bell returns on its own: the count comes from the reader, which now
+    // counts it, and nothing here re-adds a row.
+    showCompletionUndoToast(taskId, ws ? ws.id : undefined,
+      t("bell_completed_undo", { name: name }), dueBellRepaint);
   }
 
   async function dueBellGoToTask(taskId) {
@@ -6820,6 +6816,43 @@
   // (panel._completingCount), so one completion's settle never destroys another
   // completing row mid-animation. Trade-off: with overlapping completes, an
   // early finisher's row holds its transient state until the last one settles.
+  // ===== THE ONE COMPLETION UNDO =====
+  //
+  // ONE FUNCTION WIRES reactivateTask TO A TOAST, AND IT HAS THREE CALLERS: the
+  // bell, the row checkbox, and the context menu's toggle-complete. That is the
+  // whole point of this round. DB.2 built the undo INLINE in the bell's handler
+  // because the row had none to reuse - the brief said "reuse the row's undo"
+  // and the row's undo did not exist - so the bell became SAFER THAN THE
+  // CHECKBOX IT WAS MEANT TO MIRROR. DB.2's own comment names that asymmetry and
+  // leaves it; this closes it, and closes it by extraction rather than by
+  // writing the same thing a second time.
+  //
+  // WHY reactivateTask AND NOT A STORED PRE-STATE. storage.js documents it as
+  // completeTask's SYMMETRIC INVERSE: it flips completed and completedAt, and
+  // re-opens a parent goal that completing had auto-completed. completeTask has
+  // no recurring branch at all - generation happens in the sweep - so re-opening
+  // restores exactly what completing wrote and nothing more.
+  //
+  // THE MESSAGE IS THE CALLER'S. The bell names the task; the row says where the
+  // task went ("Moved to Completed") or that it is done. Those sentences already
+  // shipped and are not changed by adding a button to the toast that carries
+  // them - this round adds recovery, not new copy.
+  //
+  // onUndone is the caller's repaint: the bell re-counts, the row re-renders the
+  // Tasks tab. The WRITE is shared; what each surface has to redraw afterwards
+  // is not, and pretending otherwise would put a panel lookup in here.
+  function showCompletionUndoToast(taskId, workspaceId, message, onUndone) {
+    showUndoToast(message, async function () {
+      try {
+        await Storage.reactivateTask(data, taskId, workspaceId);
+      } catch (err) {
+        console.error("[LaunchPad] Completion undo (reactivate) failed", err);
+        return;
+      }
+      if (typeof onUndone === "function") onUndone();
+    });
+  }
+
   function runTaskCompletionCelebration(panel, row, result) {
     panel._completingCount = (panel._completingCount || 0) + 1;
     var autoGoalId = (result && result.goalAutoCompleted && result.autoCompletedGoal) ? result.autoCompletedGoal.id : null;
@@ -6850,12 +6883,34 @@
     row.classList.add("tt-completing");
 
     setTimeout(function () {
+      // [row-undo] THE SAME UNDO THE BELL HAS, on the same writer, through the
+      // one helper. The sentence is unchanged - only a button joins it.
+      //
+      // THE TOAST'S CLOCK STARTS HERE, AFTER THE DWELL, and that is why the
+      // dwell does not need shortening. showUndoToast sets its own 5s timer
+      // when it is CALLED, and this call already sits inside the dwell's
+      // setTimeout - so the button is live from t=1500ms to t=6500ms, five
+      // full seconds of reach rather than the 3.5 it would have had if the
+      // toast had gone up with the click. Measured rather than reasoned: the
+      // round asserts the button is hittable for at least four seconds after
+      // it appears.
+      //
+      // THE CELEBRATION STILL PLAYS. It is the doctrine's one-shot recognition
+      // and undo does not remove it; the toast that follows gains a button.
+      var undoTaskId = task ? task.id : null;
+      var undoRepaint = function () {
+        var p = document.getElementById("tab-tasks");
+        if (p) renderTasksTab(p, data);
+        renderInsightsPanelEager();
+      };
       if (leavesView) {
-        showToast(t("run_moved_to_completed"));
+        if (undoTaskId) showCompletionUndoToast(undoTaskId, undefined, t("run_moved_to_completed"), undoRepaint);
+        else showToast(t("run_moved_to_completed"));
         row.classList.add("tt-completing-leave"); // ~300ms fade/slide out
         setTimeout(settle, TASK_COMPLETE_LEAVE_MS);
       } else {
-        showToast(t("run_task_completed"));
+        if (undoTaskId) showCompletionUndoToast(undoTaskId, undefined, t("run_task_completed"), undoRepaint);
+        else showToast(t("run_task_completed"));
         settle();
       }
     }, TASK_COMPLETE_DWELL_MS);
@@ -9506,6 +9561,19 @@
           else ctxCompleteRes = await Storage.completeTask(data, taskId);
         }
         if (panel) renderTasksTab(panel, data);
+        // [row-undo] THE THIRD CALLER. This path has never had an undo either,
+        // and it completes the same task through the same writer as the row -
+        // so it gets the same recovery. Only on the COMPLETING branch: undoing
+        // a re-open is just completing again, which the menu already offers.
+        // No celebration here, so the toast goes up immediately and its five
+        // seconds start at the click.
+        if (ctxCompleteRes) {
+          showCompletionUndoToast(taskId, ws2 ? ws2.id : undefined, t("run_task_completed"), function () {
+            var p2 = document.getElementById("tab-tasks");
+            if (p2) renderTasksTab(p2, data);
+            renderInsightsPanelEager();
+          });
+        }
         // [1.0.24 item 3 / 1.0.22 D10] auto-goal completion via this path too.
         if (ctxCompleteRes && ctxCompleteRes.goalAutoCompleted && ctxCompleteRes.autoCompletedGoal) {
           celebrateGoalCompletion(ctxCompleteRes.autoCompletedGoal.id);
