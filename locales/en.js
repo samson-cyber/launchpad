@@ -3955,10 +3955,6 @@ I18n.register("en", {
       "message": "Start next session",
       "sense": "action.notification.session.focus-interval"
     },
-    "pt_today_by_site_title": {
-      "description": "Heading over the Dashboard's two passive-time lists. NAMES THE SCOPE IN THE HEADING so the two sections beneath inherit it and neither has to repeat it: today, and by site. ENGINE-MEASURED TIME ON WEB PAGES, today only - not wall clock, not session length. The distinction is the whole reason this section exists: a focus session that ran for ten minutes on a PDF records nothing here, and a user who does not know that reads the number as a broken timer. The word SITE is load-bearing and may not be dropped in translation - the boundary being invisible is what produces both failures this feature was opened about.",
-      "message": "Today, by site"
-    },
     "pt_time_on_tasks": {
       "description": "Sub-heading of the first list: the part of today's site time that had a task active. ENGINE-MEASURED TIME ON WEB PAGES, today only - not wall clock, not session length. The distinction is the whole reason this section exists: a focus session that ran for ten minutes on a PDF records nothing here, and a user who does not know that reads the number as a broken timer. Its peer is pt_time_on_other_sites and the two SUM to the total - they are not overlapping views of one quantity. Do not translate as 'focused', which this product reserves for all engine-measured time and which therefore applies to BOTH lists.",
       "message": "Time on tasks"
@@ -6123,5 +6119,31 @@ I18n.register("en", {
     "bell_completed_undo": {
       "description": "The undo toast after completing a task from the bell. {name} is the task. UNDO IS MANDATORY here per the ruling: snooze and complete sit adjacent on a compact control and mean opposite things, so a mis-tap must be recoverable in one action from the same place. The toast's button is undo_undo.",
       "message": "{name} completed"
+    }
+  });
+
+// [PT.3] The zero case, and the hero's label. pt_focused_today_by_site
+// REPLACES pt_today_by_site_title (decision H); the old key is removed in the
+// same commit so there is no second heading left for a later round to revive.
+I18n.register("en", {
+    "pt_focused_today_by_site": {
+      "description": "ENGINE-MEASURED TIME ON WEB PAGES. Not wall clock, not session length. REPLACES pt_today_by_site_title, and the change is decision H. The old heading read 'Today, by site' directly beneath the Dashboard hero's 'Focused today' and its number - two labels for ONE quantity, with nothing saying so. The two lists under this heading SUM to the hero's figure exactly (PT.1 reconciled them to the millisecond), so the heading now borrows the hero's own words and adds the axis. A reader who sees 'Focused today 2h30m' and then 'Focused today, by site' cannot take them for two different measurements. The words 'Focused today' must match common_focused_today exactly, in every language - if that key is retranslated this one moves with it or the pairing is lost. The word SITE is load-bearing and may not be dropped: the invisible boundary is what produced both failures this feature was opened about.",
+      "message": "Focused today, by site"
+    },
+    "pt_zero_not_on_a_page": {
+      "description": "ENGINE-MEASURED TIME ON WEB PAGES. Not wall clock, not session length. Sits under the active-task card's 'Focused today' line WHEN a session is running and the engine has recorded nothing for it. Says what the zero means: the time was real, it simply was not on a web page. The register is the horizon caption's - it reports what the data can and cannot say, and it is NOT an error or an apology. IT DOES NOT GUESS WHERE THE TIME WENT. A tracking-off period is byte-identical in storage to an idle period and to time in a PDF, a native app or another browser (PT.1's Q3), so naming any one of them would be a claim the data cannot support. 'Not on a web page' is the whole of what is known. Absent when the figure is non-zero; absent when no session is running.",
+      "message": "No time on a web page yet. This page and other apps aren't counted."
+    },
+    "pt_tracking_off_pill": {
+      "description": "Replaces the active-task card's 'Focused today' FIGURE when tracking is switched off for this workspace. NOT a zero: a zero is a statement about the user's day, and the truth is that nothing was measured. The same rule the Dashboard hero already follows by rendering nothing at all - this surface cannot go absent, because the card around it is about the task rather than about time, so it says the state instead. Names the switch in the words the Settings row uses so the user can find it.",
+      "message": "Not tracking"
+    },
+    "pt_tracking_off_pill_title": {
+      "description": "Tooltip on pt_tracking_off_pill, naming where the switch is. Settings → Privacy → Track time on sites is the free panel's row added in PT.2; the wording matches that row's label exactly so the user searches for the words they are shown.",
+      "message": "Time on sites is switched off for this workspace. Settings › Privacy › Track time on sites."
+    },
+    "pt_tracking_off_hero_combined": {
+      "description": "Replaces the Dashboard hero's figure in the 'all workspaces' scope when NO workspace is tracking. In the single-workspace scope the hero renders nothing at all (dashFocusedScope returns null), which is the better answer and is unchanged; the combined scope cannot use it, because 'all workspaces' with SOME tracking is a real figure and the hero has to stay. So the figure is replaced only when every workspace is off, and it says the state rather than 0m.",
+      "message": "Not tracking"
     }
   });

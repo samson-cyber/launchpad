@@ -1106,6 +1106,17 @@
   // standalone bar — same reader, same two-phase fill, same staleness token; only
   // the element it lands in moved. The em-dash placeholder is unchanged: it is the
   // "not read yet" state, distinct from a measured 0m.
+  // Is ANY workspace tracking? Only used by the combined scope, and only to
+  // tell "nothing measured anywhere" from "nothing measured yet". Reads the
+  // same per-workspace helper the Settings row writes through.
+  function dashAnyWorkspaceTracking(d) {
+    var list = (d && d.workspaces) || [];
+    for (var i = 0; i < list.length; i++) {
+      if (Storage.isTrackingEnabled(list[i])) return true;
+    }
+    return false;
+  }
+
   async function dashRefreshFocused(panel, scope) {
     if (!panel || !scope) return;
     if (typeof Tracking === "undefined" || !Tracking.focusedTodayForWorkspace) return;
@@ -1127,6 +1138,20 @@
     if (!el) return;
     var open = r.openSince ? Math.max(0, Date.now() - r.openSince) : 0;
     var focusedMs = r.baseMs + open;
+
+    // [PT.3] THE COMBINED SCOPE'S ZERO. In the single-workspace scope the hero
+    // never gets here with tracking off - dashFocusedScope returns null and the
+    // whole figure is absent, which is the better answer and is unchanged. The
+    // COMBINED branch returns before that check, and it has to: "all
+    // workspaces" with SOME of them tracking is a real number and the hero must
+    // stay. So the figure is replaced only when NO workspace is tracking, which
+    // is the one case where the 0m would mean "off" rather than "none".
+    if (scope.mode === "combined" && !dashAnyWorkspaceTracking(data)) {
+      el.textContent = t("pt_tracking_off_hero_combined");
+      el.setAttribute("title", t("pt_tracking_off_pill_title"));
+      return;                       // no ring sweep: there is no figure to encircle
+    }
+    el.removeAttribute("title");
     el.textContent = fmtDurationHM(focusedMs);
 
     // [1.7.2] THE RING RIDES THIS SAME READ. One reader, one staleness token,
@@ -2099,7 +2124,14 @@
         '</div>'
       : '';
 
-    return '<div class="pp-dash-card-title">' + th("pt_today_by_site_title") + '</div>' +
+    // [PT.3 / decision H] THE HEADING NAMES THE HERO'S OWN FIGURE.
+    // It read "Today, by site" directly beneath the hero's "Focused today" and
+    // its number - two labels for ONE quantity, with nothing saying so. The two
+    // lists below SUM to that figure exactly (PT.1 reconciled them to the
+    // millisecond), so the heading borrows the hero's words and adds the axis.
+    // The hero's NUMBER is untouched; only this label moved, because it is the
+    // newer and the more specific of the two and the hero is on every profile.
+    return '<div class="pp-dash-card-title">' + th("pt_focused_today_by_site") + '</div>' +
       '<div class="pp-dash-card-title dash-passive-sub">' + th("pt_time_on_tasks") + '</div>' +
       '<div class="insights-task-list">' + tasksBody + '</div>' +
       sitesBlock;
@@ -18856,13 +18888,108 @@
       escapeHtml(txt) + '</div>';
   }
 
+  // ===== [PT.3] THE ZERO CASE, AND THE OPT-OUT'S ZERO =====
+  //
+  // TWO DIFFERENT ZEROS SAT ON THIS LINE AND NEITHER SAID WHAT IT MEANT.
+  //
+  //   THE OPT-OUT'S ZERO. With tracking switched off for this workspace the
+  //   engine measures nothing, and the line read "0:00 Focused today" - which
+  //   tells the user they did nothing when the truth is that nothing was
+  //   measured. That is the badge rule (a zero is a statement about the user;
+  //   absence is a statement about the data), and the Dashboard hero already
+  //   obeys it by rendering nothing at all when dashFocusedScope returns null.
+  //   THIS surface cannot go absent: the card around it is about the TASK, not
+  //   about time, and it has to stay up. So the FIGURE is replaced by the
+  //   state. Until now the only signal was that satTrackingIndicatorHtml
+  //   returned "" - the small Tracking/Ready word vanished - which reads as
+  //   "nothing is happening", never as "you turned this off".
+  //
+  //   THE RUNNING-SESSION ZERO, the 2026-09-09 case. A session runs for ten
+  //   minutes, the card says "10m worked", and this line says 0:00 - because
+  //   the ten minutes were on the new tab, or a PDF, or another app. Both
+  //   numbers are correct and the surface was silent about why they disagree.
+  //
+  // WHAT THE SENTENCE MAY NOT DO IS GUESS. PT.1's Q3 established that a
+  // tracking-off period is BYTE-IDENTICAL in storage to an idle period and to
+  // time spent off the web, so nothing here can name which one happened.
+  //
+  // AND ONE READING THAT LOOKS AVAILABLE IS NOT. focusedTrackableDomain() would
+  // answer "is the current tab attributable" - but while the user is looking at
+  // this card the active tab IS the new tab page, which domainOf() rejects by
+  // construction. It would answer "not trackable" every single time it was
+  // asked here, so it is evidence about the act of looking rather than about
+  // the ten minutes. It is deliberately not consulted.
+  //
+  // So the sentence says the one thing that IS known: no time landed on a web
+  // page, and the two nearest causes the user can check themselves. The
+  // register is the horizon caption's family - it reports what the data can and
+  // cannot say, and it is not an error and not an apology.
+
+  // Tracking off for the workspace that owns the active task. Read through the
+  // same per-workspace helper the Settings row writes through, so the surface
+  // and the switch cannot disagree.
+  function satTrackingOff() {
+    var res = Storage.resolveActiveTask(data);
+    if (!res || res.stale) return false;
+    return !Storage.isTrackingEnabled(res.workspace);
+  }
+
+  // The figure, or the state that replaces it.
+  function satFocusedFigureHtml() {
+    if (satTrackingOff()) {
+      return '<span class="sat-time">' +
+          '<span class="sat-time-off" title="' + th("pt_tracking_off_pill_title") + '">' +
+            th("pt_tracking_off_pill") +
+          '</span>' +
+        '</span>';
+    }
+    return '<span class="sat-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</span>';
+  }
+
+  // The zero-case sentence. Present ONLY when a session is running and the
+  // engine has recorded nothing for this task; absent when the figure is
+  // non-zero, absent when nothing is running, and absent when tracking is off -
+  // that last one has its own sentence above and two at once would be noise.
+  // THE CONDITION IS THE WALL CLOCK MOVING WHILE THE ENGINE DOES NOT, and the
+  // first version of this got it backwards in a way worth recording. It asked
+  // for an OPEN TRACKING SPAN (satReadout.openSince) plus a zero figure - which
+  // is very nearly a contradiction, because satLiveMs() is baseMs + (now -
+  // openSince) and an open span makes it non-zero within a second. The sentence
+  // would have shipped almost unreachable: a P2 vacuity in the feature rather
+  // than in a test.
+  //
+  // The 2026-09-09 case has NO open span, and that is the whole point of it: a
+  // session ran ten minutes on the new tab, so the engine opened nothing and
+  // the stopwatch counted anyway. The gap between the two clocks IS the thing
+  // the user cannot see, so the gap is what the sentence keys on.
+  var ZERO_CASE_AFTER_MS = 60000;   // one minute of wall clock before it speaks
+
+  function satZeroCaseHtml() {
+    if (satTrackingOff()) return "";
+    var res = Storage.resolveActiveTask(data);
+    if (!res || res.stale) return "";
+    // Not in the first seconds after activation: "no time on a web page yet"
+    // two seconds in is a statement about nothing, and it would flicker on
+    // every activation. One minute of wall clock is the floor.
+    if (satActiveElapsedMs() < ZERO_CASE_AFTER_MS) return "";
+    if (satReadout.taskId !== res.task.id) return "";
+    if (satLiveMs() > 0) return "";
+    return '<div class="sat-zero-note">' + th("pt_zero_not_on_a_page") + '</div>';
+  }
+
   function satHeadlineHtml(paused) {
-    return '<div class="sat-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</div>' +
-      '<div class="sat-time-label">' +
-        '<span class="sat-time-label-text">' +
-          (paused ? th("sat_paused") : th("common_focused_today")) + '</span>' +
-        satTrackingIndicatorHtml(paused) +
-      '</div>' +
+    // [PT.3] The figure may be replaced by the tracking-off state; the zero-case
+    // sentence rides underneath the label rather than beside the number.
+    return '<div class="sat-time">' + (satTrackingOff()
+        ? '<span class="sat-time-off" title="' + th("pt_tracking_off_pill_title") + '">' + th("pt_tracking_off_pill") + '</span>'
+        : escapeHtml(satFmtLong(satLiveMs()))) + '</div>' +
+      (satTrackingOff() ? '' :
+        '<div class="sat-time-label">' +
+          '<span class="sat-time-label-text">' +
+            (paused ? th("sat_paused") : th("common_focused_today")) + '</span>' +
+          satTrackingIndicatorHtml(paused) +
+        '</div>') +
+      satZeroCaseHtml() +
       satSinceHtml() +
       satWindowLineHtml() +
       satLifetimeLineHtml();
@@ -18929,12 +19056,14 @@
       // figure.
       satWorkedLineHtml() +
       '<div class="sat-today">' +
-        '<span class="sat-time">' + escapeHtml(satFmtLong(satLiveMs())) + '</span>' +
-        '<span class="sat-time-label">' +
-          '<span class="sat-time-label-text">' + th("common_focused_today") + '</span>' +
-          satTrackingIndicatorHtml(paused) +
-        '</span>' +
+        satFocusedFigureHtml() +
+        (satTrackingOff() ? '' :
+          '<span class="sat-time-label">' +
+            '<span class="sat-time-label-text">' + th("common_focused_today") + '</span>' +
+            satTrackingIndicatorHtml(paused) +
+          '</span>') +
       '</div>' +
+      satZeroCaseHtml() +
       satWindowLineHtml() +
       satLifetimeLineHtml();
   }
@@ -19197,6 +19326,21 @@
   // carrying a running count. A line that acquires a moving number has to join
   // the tick in the same change; the exemption note outliving the static line is
   // how a surface ends up frozen while its twin ticks beside it.
+  // Add or remove the zero-case sentence to match the current reading. Lives
+  // beside satZeroCaseHtml, which decides; this one only reconciles the DOM.
+  function satSyncZeroNote(container) {
+    if (!container) return;
+    var host = container.querySelector(".sat-today") || container.querySelector(".sat-time-label");
+    if (!host || !host.parentNode) return;
+    var existing = container.querySelector(".sat-zero-note");
+    var wanted = satZeroCaseHtml();
+    if (!wanted) { if (existing && existing.parentNode) existing.parentNode.removeChild(existing); return; }
+    if (existing) return;                     // already saying it; nothing moves
+    var tmp = document.createElement("div");
+    tmp.innerHTML = wanted;
+    host.parentNode.insertBefore(tmp.firstChild, host.nextSibling);
+  }
+
   function satPaintTime() {
     var container = $("#active-task-pill");
     if (!container) return;
@@ -19226,7 +19370,16 @@
     var pillTime = container.querySelector(".sat-pill-time");
     if (pillTime) pillTime.textContent = focusedText;
     var big = container.querySelector(".sat-time");
-    if (big) big.textContent = focusedText;
+    // The tracking-off state OWNS this node when it is present - writing the
+    // figure over it would put "0:00" back where the state was deliberately put.
+    if (big && !big.querySelector(".sat-time-off")) big.textContent = focusedText;
+    // [PT.3] THE ZERO-CASE SENTENCE IS A TICKING SURFACE TOO, and missing that
+    // is what made it look unreachable. The card is built synchronously, but
+    // satReadout is filled by an async read that lands afterwards and only
+    // repaints text - so the sentence computed at build time was computed
+    // against an empty readout every single time, and nothing ever revisited
+    // it. It is maintained here, on the same shared read as every other figure.
+    satSyncZeroNote(container);
     // [2.0 timing] The ACTIVE task's row in the Tasks tab rides this same paint —
     // one 1s text write, no second timer, no re-render (A1). Queried from the
     // document rather than the pill container because the row lives in another

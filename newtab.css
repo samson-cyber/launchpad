@@ -4702,6 +4702,32 @@ html.bg-light { --sat-amber: #8a6d09; }
    on-card standard holds, on a line whose whole job is to be trusted with a
    number. 0.52 measures 4.72 and is still quieter than the .sat-since line above
    it (0.55), which is the hierarchy this line wanted. */
+/* [PT.3] THE ZERO CASE'S SENTENCE, and the state that replaces the figure.
+   Both declare their own ink on BOTH frames, per the note in the bg-light block
+   below: these are JS-rendered, so the static ink gate cannot see them, and a
+   new text rule with no colour is how this surface lost its ink twice. */
+.sat-zero-note {
+  margin-top: 3px;
+  font-size: var(--fs-11);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ink-chrome);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* "Not tracking" stands where a 26px figure stood, and must NOT read as one: it
+   is a STATE, not a measurement, and setting it at the figure's size would make
+   the absence of data look like a large result. It takes the label tier's size
+   and the figure's colour - visible, but not a number. */
+.sat-time-off {
+  font-size: var(--fs-13);
+  font-weight: 500;
+  letter-spacing: normal;
+  font-variant-numeric: normal;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
 .sat-window {
   margin-top: 3px;
   font-size: var(--fs-11);
@@ -5471,6 +5497,12 @@ html.bg-light .sat-worked { color: var(--text-primary); }
    cannot see them. The armed dot follows its text. */
 html.bg-light .sat-live,
 html.bg-light .sat-window { color: var(--text-secondary); text-shadow: none; }
+/* [PT.3] The two new nodes on the light frame. The sentence joins the quiet
+   tier with .sat-window; the state joins the PRIMARY tier with .sat-time,
+   because it stands in the figure's place and must read as strongly as the
+   number it replaced. Both listed explicitly rather than inherited. */
+html.bg-light .sat-zero-note { color: var(--text-secondary); text-shadow: none; }
+html.bg-light .sat-time-off { color: var(--text-primary); text-shadow: none; }
 html.bg-light .sat-lifetime { color: var(--text-primary); text-shadow: none; }
 html.bg-light .sat-live-dot { background: var(--text-secondary); }
 html.bg-light .sat-live.is-live,

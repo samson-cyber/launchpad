@@ -308,6 +308,13 @@ function boot(src) {
       // HERO and which is demoted is the whole change; asserting it by regex on
       // the source would pass on markup that never renders.
       extractFn(src.nt, "satSinceHtml"),
+      // [PT.3] The figure can be replaced by a tracking-off state and a
+      // zero-case sentence can ride under the label, so both headline builders
+      // now depend on these three.
+      extractDecl(src.nt, "ZERO_CASE_AFTER_MS"),
+      extractFn(src.nt, "satTrackingOff"),
+      extractFn(src.nt, "satFocusedFigureHtml"),
+      extractFn(src.nt, "satZeroCaseHtml"),
       extractFn(src.nt, "satHeadlineHtml"),
       extractFn(src.nt, "satIdleHeadlineHtml"),
       // [2.0] The worked clock's builders, executed rather than pattern-matched:
@@ -749,9 +756,15 @@ await (async () => {
         !/satLiveMs/.test(extractFn(SRC.nt, "satRowLiveState")) && !/satLiveMs/.test(extractFn(SRC.nt, "satActiveElapsedMs")));
       check("stopwatch: ...and no surface sums the two",
         !/satActiveElapsedMs\(\)\s*\+\s*satLiveMs/.test(SRC.nt) && !/satLiveMs\(\)\s*\+\s*satActiveElapsedMs/.test(SRC.nt));
+      // [PT.3] satIdleHeadlineHtml delegates the figure to satFocusedFigureHtml
+      // so the tracking-off state can replace it. The PROPERTY is unchanged and
+      // is what this row was always for: Focused today comes from the engine
+      // reader and from nothing else. Asserted through whichever function holds
+      // the call, so a later move does not silently drop the check.
       check("stopwatch: FOCUSED TODAY still comes from the ENGINE, untouched",
         /satFmtLong\(satLiveMs\(\)\)/.test(extractFn(SRC.nt, "satHeadlineHtml")) &&
-        /satFmtLong\(satLiveMs\(\)\)/.test(extractFn(SRC.nt, "satIdleHeadlineHtml")));
+        /satFmtLong\(satLiveMs\(\)\)/.test(
+          extractFn(SRC.nt, "satIdleHeadlineHtml") + extractFn(SRC.nt, "satFocusedFigureHtml")));
 
       // ── THE HERO SWAP, EXECUTED ───────────────────────────────────────────
       //
