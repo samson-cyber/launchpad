@@ -1045,7 +1045,22 @@
     var f;
     try {
       f = new Intl.NumberFormat(undefined, {
-        style: "unit", unit: unit, unitDisplay: "narrow"
+        style: "unit", unit: unit, unitDisplay: "narrow",
+        // [2.2.0] A DURATION IS A MEASUREMENT, NOT A TALLY. Intl groups
+        // thousands by default, so a year at three hours a day rendered
+        // "1,095h" where it had always read "1095h". 240d1b4 found this with a
+        // 79,212-value sweep and recorded it as the ONE divergence class
+        // between the old letter-concatenation and the new formatter, at
+        // firstDivergeHours=1000; the note below it said the number half had
+        // "landed rather than regressed" and left the taste question open.
+        // Ruled: suppressed. "1,095h" reads as a count of things and "1095h"
+        // reads as a quantity, the way a clock does - nobody writes 1,095:23.
+        //
+        // THIS SWITCHES OFF GROUPING, NOT LOCALISATION, and the gate asserts
+        // the difference rather than trusting it: fr-FR and de-DE still get
+        // their own unit spacing and their own decimal separator with this
+        // flag set. Only the thousands separator goes.
+        useGrouping: false
       });
     } catch (e) {
       f = { format: function (n) { return n + DUR_UNIT_LETTER[unit]; } };

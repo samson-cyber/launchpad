@@ -156,6 +156,17 @@ if ! node tools/check-since-format.mjs; then
   exit 1
 fi
 
+# Duration-format gate: 240d1b4's 79,212-value sweep, committed. It swept old
+# against new to prove the Intl move was safe, found exactly one divergence
+# class (Intl groups thousands, so 1000h+ read "1,000h"), and then went with the
+# round because it lived in a scratchpad. This is that sweep with the boundary
+# as an assertion, plus the rows that stop useGrouping:false being mistaken for
+# "turn localisation off". ~0.2s.
+if ! node tools/check-duration-format.mjs; then
+  echo "ERROR: duration-format gate failed — a duration is grouping its thousands, or localisation regressed." >&2
+  exit 1
+fi
+
 # Trial-copy gate: the trial countdown headline and the license-control gating.
 # Both are QA findings from the 2.0.0 pass — a plural boundary and a destructive
 # button offered to users who cannot use it. Cheap to keep honest, embarrassing
