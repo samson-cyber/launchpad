@@ -3224,8 +3224,28 @@ html.has-bg:not(.bg-light) .group-more-btn:hover {
    already uses. */
 html.has-bg.bg-light .group-header {
   --ink-primary: rgba(0, 0, 0, 0.87);
-  --ink-meta: rgba(0, 0, 0, 0.56);
-  --ink-chrome: rgba(0, 0, 0, 0.46);
+  /* ---- THE LIGHT-GROUND INK RAMP, AND THESE TWO TOKENS ARE THE WHOLE OF IT ----
+
+     0.70 / 0.64, NOT 0.56 / 0.46. The weaker pair is the ORIGINAL GUESS and it
+     does not clear the text floor on a light ground: measured from the screen
+     on has-bg bg-light #f5f5f5, --ink-meta reads 4.14:1 and --ink-chrome 3.17:1.
+     3.17 is not a near-miss.
+
+     THE CORRECTED PAIR WAS ALREADY IN THIS FILE, twice. OT.1 raised
+     #open-tabs-panel to 0.70 / 0.64 and recorded that its sibling panel was
+     outside that round; the follow-up did #bookmarks-panel and recorded the
+     numbers above. Neither round could reach the other five light-ground blocks,
+     so five copies of the guess survived - and every element reading
+     var(--ink-meta) or var(--ink-chrome) inside them was under the floor by
+     construction, on the Dashboard, on Insights, on the free live card and on a
+     Home group header.
+
+     This is the same finding a third time, applied to the remainder. No new
+     value is introduced: the two panels have shipped these exact numbers since
+     OT.1, and the point is that a reader comparing any two light surfaces
+     should not find two answers to one question. */
+  --ink-meta: rgba(0, 0, 0, 0.70);
+  --ink-chrome: rgba(0, 0, 0, 0.64);
 }
 
 /* THE GROUP NAME WAS MISSED WHEN ITS SIBLINGS WERE DONE, and it is the only
@@ -4452,11 +4472,17 @@ html.bg-light { --sat-amber: #8a6d09; }
   color: var(--text-secondary, rgba(255, 255, 255, 0.75));
 }
 
+/* --sat-accent-ink, not --sat-accent, and the distinction is the one
+   tokens.css already draws. --sat-accent is the FILL pair b808db3 established
+   for graphical fills at a 3:1 floor; this "+" is a glyph, read as text, and on
+   a light ground the fill value measures 4.47:1 against 4.5. The ink pair
+   (#8ab4f8 / #15539b) is the same family one step darker on light and switches
+   by itself. */
 .sat-pill-plus {
   flex-shrink: 0;
   font-size: 16px;
   line-height: 1;
-  color: var(--sat-accent);
+  color: var(--sat-accent-ink);
 }
 
 /* --- Card mode: the always-open docked card (active + expanded) --- */
@@ -7450,9 +7476,12 @@ html.bg-light .settings-header span {
   color: var(--text-primary);
 }
 
+/* Both close glyphs measured 2.62 on the light plate, the same --text-hint
+   miss as the headings above, and they take the same replacement. The hover
+   rule below still steps them to --text-primary, so the interaction reads. */
 html.bg-light #settings-close,
 html.bg-light #pro-settings-close {
-  color: var(--text-hint);
+  color: var(--text-secondary);
 }
 
 html.bg-light #settings-close:hover,
@@ -7464,8 +7493,15 @@ html.bg-light .settings-section + .settings-section {
   border-top-color: rgba(0, 0, 0, 0.08);
 }
 
+/* --text-secondary, NOT --text-hint, AND IT NOW MATCHES ITS OWN NEIGHBOUR.
+   --text-hint is #9aa0a6, a grey tuned for a hint ON A WHITE PAGE at body size;
+   on the white-tinted settings plate at --fs-11 and weight 600 it measures
+   2.53 - 2.58:1 across the five section headings, against a 4.5 floor. The
+   row labels immediately beneath them already take --text-secondary on this
+   exact ground and clear it comfortably, so the heading now takes what its
+   label takes. Five headings, one class, one value - and no new one. */
 html.bg-light .settings-section-title {
-  color: var(--text-hint);
+  color: var(--text-secondary);
 }
 
 html.bg-light .settings-label {
@@ -7535,8 +7571,10 @@ html.bg-light .settings-privacy {
 
 /* Pro Settings — section-specific */
 
+/* The same swap as .settings-section-title above, for the same reason and to
+   the same value: 2.50 / 2.62 on the light plate. */
 html.bg-light .pro-section-subtitle {
-  color: var(--text-hint);
+  color: var(--text-secondary);
 }
 
 html.bg-light .pro-sub-line {
@@ -8704,7 +8742,12 @@ html.has-bg.bg-light .pro-tag-restore { color: var(--accent); border-color: rgba
 }
 
 html.has-bg .pro-tags-trash-toggle { color: #8ab4f8; }
-html.has-bg.bg-light .pro-tags-trash-toggle { color: var(--accent); }
+/* --sat-accent-ink, not --accent. This is INK, and the two tokens are already
+   separated for exactly this: --accent is #1a73e8, tuned as a light-ground
+   FILL, and as text on the white-tinted panel it measures 4.46:1 against a 4.5
+   floor. --sat-accent-ink is the ground-keyed INK pair (#8ab4f8 dark /
+   #15539b light) and needs no rule of its own to switch. */
+html.has-bg.bg-light .pro-tags-trash-toggle { color: var(--sat-accent-ink); }
 
 .pro-tag-delete {
   flex-shrink: 0;
@@ -9278,17 +9321,19 @@ html.has-bg.bg-light .workspace-readonly-banner {
   line-height: 1.4;
 }
 
-/* Light-wallpaper luminance overrides */
-html.has-bg.bg-light .tab-cta-trial {
-  color: #b8860b;
-  border-color: rgba(184, 134, 11, 0.5);
-  text-shadow: none;
-}
+/* THE CTA'S LIGHT-WALLPAPER OVERRIDES ARE WITHDRAWN, for the same reason the
+   bell's were: BOTH ASSUMED A PALE BAR, and the bar is no longer pale.
 
-html.has-bg.bg-light .tab-cta-pro {
-  color: #1e6fc9;
-  border-color: rgba(30, 111, 201, 0.5);
-}
+   #b8860b and #1e6fc9 are dark-on-light colours, chosen when a light wallpaper
+   made this bar wash out to rgb(137,137,137). The light-ground sweep gives the
+   bar one appearance on every tab - rgba(38,38,38,0.88) - so a dark-on-light
+   colour is now dark-on-dark: measured, "Pro" in #1e6fc9 read 2.05:1 on the
+   new bar, having read 1.45:1 on the old one. It was under the floor either
+   way; the fix was never a better blue.
+
+   The base rules already carry the right ink for a dark pill (#ffd66e and
+   --pro-ink-accent, 6.7:1 on this bar), which is what every other element in
+   the bar now uses. Nothing replaces these blocks - the absence IS the fix. */
 
 html.has-bg.bg-light #upgrade-popover {
   background: rgba(255, 255, 255, 0.95);
@@ -10772,8 +10817,10 @@ html.has-bg.bg-light .pp-bar-today {
 html.has-bg.bg-light .dash-mod .pp-insights-card {
   --ink-primary: rgba(0, 0, 0, 0.87);
   --ink-secondary: rgba(0, 0, 0, 0.66);
-  --ink-meta: rgba(0, 0, 0, 0.56);
-  --ink-chrome: rgba(0, 0, 0, 0.46);
+  /* 0.70 / 0.64 - the measured light-ground pair. The note sits on
+     html.has-bg.bg-light .group-header, the first block to carry it. */
+  --ink-meta: rgba(0, 0, 0, 0.70);
+  --ink-chrome: rgba(0, 0, 0, 0.64);
   --ink-hint: rgba(0, 0, 0, 0.38);
   --surface-line: rgba(0, 0, 0, 0.14);
   --surface-fill: rgba(0, 0, 0, 0.06);
@@ -10799,8 +10846,10 @@ html.has-bg.bg-light .dash-hero-region {
   text-shadow: none;
   --ink-primary: rgba(0, 0, 0, 0.87);
   --ink-secondary: rgba(0, 0, 0, 0.66);
-  --ink-meta: rgba(0, 0, 0, 0.56);
-  --ink-chrome: rgba(0, 0, 0, 0.46);
+  /* 0.70 / 0.64 - the measured light-ground pair. The note sits on
+     html.has-bg.bg-light .group-header, the first block to carry it. */
+  --ink-meta: rgba(0, 0, 0, 0.70);
+  --ink-chrome: rgba(0, 0, 0, 0.64);
   --ink-hint: rgba(0, 0, 0, 0.38);
 }
 
@@ -11091,8 +11140,10 @@ html.has-bg.bg-light .insights-export-btn { color: var(--text-primary); }
 html.has-bg.bg-light .insights-tab .pp-insights-card {
   --ink-primary: rgba(0, 0, 0, 0.87);
   --ink-secondary: rgba(0, 0, 0, 0.66);
-  --ink-meta: rgba(0, 0, 0, 0.56);
-  --ink-chrome: rgba(0, 0, 0, 0.46);
+  /* 0.70 / 0.64 - the measured light-ground pair. The note sits on
+     html.has-bg.bg-light .group-header, the first block to carry it. */
+  --ink-meta: rgba(0, 0, 0, 0.70);
+  --ink-chrome: rgba(0, 0, 0, 0.64);
   --ink-hint: rgba(0, 0, 0, 0.38);
 }
 
@@ -11375,8 +11426,10 @@ html.has-bg.bg-light .ins-heat-cell { background: rgba(0, 0, 0, 0.07); }
 html.has-bg.bg-light .dash-free-live .pp-insights-card {
   --ink-primary: rgba(0, 0, 0, 0.87);
   --ink-secondary: rgba(0, 0, 0, 0.66);
-  --ink-meta: rgba(0, 0, 0, 0.56);
-  --ink-chrome: rgba(0, 0, 0, 0.46);
+  /* 0.70 / 0.64 - the measured light-ground pair. The note sits on
+     html.has-bg.bg-light .group-header, the first block to carry it. */
+  --ink-meta: rgba(0, 0, 0, 0.70);
+  --ink-chrome: rgba(0, 0, 0, 0.64);
   --ink-hint: rgba(0, 0, 0, 0.38);
   --surface-line: rgba(0, 0, 0, 0.14);
   --surface-fill: rgba(0, 0, 0, 0.06);
@@ -11514,27 +11567,22 @@ html.has-bg.bg-light .due-bell-list {
   --ink-secondary: rgba(0, 0, 0, 0.66);
   --surface-line: rgba(0, 0, 0, 0.14);
 }
-/* THE LIGHT GROUND, AND THE BELL DIVERGES FROM ITS NEIGHBOURS HERE ON PURPOSE.
+/* THE BELL'S LIGHT-GROUND OVERRIDE IS WITHDRAWN, AND THE REASONING THAT PUT IT
+   HERE IS KEPT, because the reasoning was sound and the premise under it moved.
 
-   Copying .tab was the right method and it landed on a wrong neighbour. The tab
-   bar keeps its dark tint on every ground, so .tab uses #fff with a shadow and
-   no bg-light override - and MEASURED ON A LIGHT WALLPAPER THE TAB LABELS
-   THEMSELVES READ 2.51 AND 2.67 against a 4.5 text floor. That is a
-   pre-existing defect in shipped chrome, reported rather than fixed here: all
-   four labels changing appearance is a visible product change and belongs to
-   its own task, not to a bell round.
+   DB.1 wrote: "no white can clear the floor on this bar: rgba(30,30,30,0.5)
+   over #eceff3 composites near rgb(133,133,133), against which even pure white
+   reaches only ~3.7:1. Dark ink can". Every number in that was right. It was
+   right about the bar DB.1 measured - the PALE one Home shows - and the bell
+   is also rendered on the near-opaque dark bar the three Pro tabs show, which
+   DB.1 had no reason to look at because the rule that creates it was scoped to
+   .is-compact and sat 2400 lines away. On that bar the black bell measured
+   1.90 (glyph) and 1.88 (count).
 
-   The bell may not inherit it. The arithmetic says no white can clear the floor
-   on this bar: rgba(30,30,30,0.5) over #eceff3 composites near rgb(133,133,133),
-   against which even pure white reaches only ~3.7:1. Dark ink can - the same
-   backdrop against black is ~5.7:1 - which is why the first attempt at black
-   failed too: 0.66 alpha was not dark enough and measured 3.62. At 0.87, with
-   the shadow off (a dark shadow under dark text only muddies it), it clears. */
-html.has-bg.bg-light .due-bell {
-  color: rgba(0, 0, 0, 0.87);
-  text-shadow: none;
-  opacity: 1;
-}
+   The light-ground sweep removed the scope, so there is now ONE bar on a light
+   wallpaper - rgba(38,38,38,0.88) - and on it white ink is correct, which is
+   what .tab has always said. The bell keeps no colour of its own here; it takes
+   the bar's opacity alongside .tab in the block that sets it. */
 
 /* The go-to-task landing mark. A static tint, NOT a flash: the doctrine bans
    animation on this feature and a pulsing row would be the same demand the
@@ -13924,25 +13972,101 @@ html.has-bg.bg-light .tasks-tab {
   text-shadow: none;
 }
 
-/* [Polish] Compact Pro-tab nav pill on light wallpapers. The base pill
+/* [Polish] The nav pill on light wallpapers. The base pill
    (rgba(30,30,30,0.5) + white tab text at 0.7 opacity) washes out to a pale
-   grey pill with faint text on a light page. Scoped to #content-header.is-compact
-   so ONLY the Pro-tab compact band is affected — the Home hero nav (shared
-   #tab-bar) is deliberately untouched (out of scope). A near-opaque dark pill
-   keeps the dark-pill identity + the white active-tab highlight legible, and the
-   inactive tabs get a firmer resting opacity. */
-html.has-bg.bg-light #content-header.is-compact #tab-bar {
+   grey pill with faint text on a light page. A near-opaque dark pill keeps the
+   dark-pill identity + the white active-tab highlight legible, and the inactive
+   tabs get a firmer resting opacity.
+
+   THE #content-header.is-compact SCOPE IS REMOVED, AND THAT IS THIS ROUND'S
+   CENTRAL FIX. The comment this replaces said the Home hero nav was
+   "deliberately untouched (out of scope)" - which left ONE ELEMENT WITH TWO
+   BACKDROPS ON ONE WALLPAPER. Measured on has-bg bg-light #f5f5f5:
+
+       tab labels, Home (expanded header)   2.38  2.42  2.43  2.54
+       tab labels, the three Pro tabs       7.53  7.68  7.68  5.63
+
+   Same white ink, same bar, same wallpaper; the only difference is which tab is
+   open. That is not a Home problem and a Pro-tab problem, it is one surface
+   whose ground silently changes under it - and the reason DB.1 and PT.2 each
+   found "the light branch is under-measured" without finding this: measure the
+   bar on any Pro tab and it passes.
+
+   THE BELL IS THE PROOF THAT SCOPING IT WAS THE ERROR, because the same split
+   broke a later round in the opposite direction. DB.1 measured the bell on the
+   PALE bar, correctly concluded no white could clear 4.5 there, and flipped it
+   to black - with no .is-compact scope, so the black went onto the DARK bar
+   too, where it reads 1.90 and 1.88. A defect shipped by a round that measured
+   carefully; it just measured one of the two grounds this element has.
+
+   With one bar there is one answer, and it is the answer .tab already gives:
+   white ink on a dark pill, on every tab and every wallpaper. The bell's
+   light-ground override is withdrawn below rather than re-tuned. */
+html.has-bg.bg-light #tab-bar {
   background: rgba(38, 38, 38, 0.88);
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.22);
 }
 
-html.has-bg.bg-light #content-header.is-compact .tab {
+/* The bell joins its neighbours here instead of carrying a private value: it
+   sits in this bar, so it takes this bar's resting and active opacity. */
+html.has-bg.bg-light .tab,
+html.has-bg.bg-light .due-bell {
   opacity: 0.85;
 }
 
-html.has-bg.bg-light #content-header.is-compact .tab:hover,
-html.has-bg.bg-light #content-header.is-compact .tab.active {
+html.has-bg.bg-light .tab:hover,
+html.has-bg.bg-light .tab.active,
+html.has-bg.bg-light .due-bell:hover {
   opacity: 1;
+}
+
+/* ===== THE SELF-DIMMED ROWS, AND WHY THE LIGHT BRANCH NEVER REACHED THEM =====
+
+   THE SECOND CAUSE THIS SWEEP FOUND, and it is a different shape from every
+   ink bug before it. The nodes below do not name a colour. They inherit one
+   and fade themselves with `opacity`, at 0.5 / 0.55 / 0.62 / 0.7. An element
+   that dims itself that way has NO PER-GROUND TOKEN TO SWITCH, so no
+   html.bg-light rule has ever reached it and none could - which is exactly why
+   eight ink rounds walked past them.
+
+   OPACITY IS SYMMETRIC AND CONTRAST IS NOT. That is the whole defect. Inherited
+   ink is near-white on the dark branch and near-black on the light one, and the
+   sRGB ramp is compressed at the dark end: 55% of white on a dark card keeps
+   most of its contrast, while 55% of black on a white card throws most of it
+   away. One declaration, two very different results:
+
+       .tt-completed-date   0.5    dark 4.8   light 2.82
+       .tt-deleted-kind     0.5    dark 5.1   light 3.09 / 3.21
+       .tt-completed-kind   0.55   dark 5.7   light 3.56
+       .tt-recurring-hint   0.62   dark 6.5   light 3.86 - 4.14
+       .dash-recap-label    0.7    dark 6.3   light 3.51 - 3.56
+       .ins-heat-daylabel   0.7    dark 7.5   light 3.76 / 3.86
+       .ins-heat-hour       0.7    dark 7.9   light 4.38
+       .ins-wk-delta        0.7    dark 6.6   light 2.90 (the arrow glyph)
+
+   0.7 IS ALREADY THE CORRECTED VALUE ON THREE OF THEM, which is the part worth
+   keeping. [1.8.5] found 0.6 measured 4.24 on light and raised the heatmap
+   family to 0.7 - the right diagnosis, applied as ONE value across BOTH
+   grounds. That is the same opt-out in a gentler form: a single number cannot
+   be right on two grounds whose ramps differ, and 0.7 lands at 4.38 here.
+
+   So the light branch gets its own value and the dark branch is untouched,
+   which preserves [1.8.5]'s intent exactly rather than overruling it. The
+   value is 0.85 - not a new one: it is what .tab takes on this same branch,
+   set a few hundred lines up for the same reason. Said once, for all of them,
+   because eight hand-picked numbers is how this drifted in the first place. */
+html.has-bg.bg-light .tt-recurring-hint,
+html.has-bg.bg-light .tt-deleted-kind,
+html.has-bg.bg-light .tt-completed-kind,
+html.has-bg.bg-light .tt-completed-date,
+html.has-bg.bg-light .dash-recap-label,
+html.has-bg.bg-light .ins-heat-daylabel,
+html.has-bg.bg-light .ins-heat-hour,
+html.has-bg.bg-light .ins-heat-note,
+html.has-bg.bg-light .ins-wk-delta,
+html.has-bg.bg-light .ins-wk-span,
+html.has-bg.bg-light .ins-wk-noprior {
+  opacity: 0.85;
 }
 
 /* [Tasks v3] Dark scrollbar thumb on light wallpapers, where the light thumb
@@ -13994,8 +14118,17 @@ html.has-bg.bg-light .tt-deleted-row:hover {
   background: rgba(0, 0, 0, 0.05);
 }
 
+/* 0.72, NOT 0.5. The countdown is the one row in the self-dimmed block above
+   that names a COLOUR rather than an opacity, so it is fixed here, in the rule
+   that already exists, instead of gaining a second one. 0.5 measured 3.42 and
+   3.47 on the light plate; 0.72 is what .tt-task-worked and .tt-due-pill
+   already take on this same branch.
+
+   (A duplicate rule was written 50 lines earlier first, and lost: same
+   specificity, and this one comes later in the file. The sweep caught it
+   because the number did not move.) */
 html.has-bg.bg-light .tt-trash-days-neutral {
-  color: rgba(0, 0, 0, 0.5);
+  color: rgba(0, 0, 0, 0.72);
 }
 
 html.has-bg.bg-light .tt-trash-days-amber {
