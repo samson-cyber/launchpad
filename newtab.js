@@ -383,6 +383,7 @@
   function isProAccessibleLevel(level) { return ProAccess.isProAccessibleLevel(level); }
 
   function bindTabBar() {
+    bindDueBell();
     var bar = $("#tab-bar");
     if (!bar) return;
     bar.addEventListener("click", function (e) {
@@ -391,6 +392,194 @@
       var id = btn.getAttribute("data-tab");
       if (!id) return;
       setActiveTab(id);
+    });
+  }
+
+  // ===== [DB.1] THE DUE-WORK BELL =====
+  //
+  // ONE READER, AND THIS RENDERS IT. Storage.getDueWork answers what is due -
+  // due today, overdue, and recurring instances generated today - already
+  // grouped by kind and already carrying the per-task snooze in localDayKey
+  // space. G2's dueRemindersToSend calls THE SAME function and filters the SAME
+  // `snoozed` flag, so a snooze written here is honoured by the 09:00 reminder
+  // BY CONSTRUCTION rather than by two implementations that happen to agree.
+  // Nothing in this block computes due-ness, reads dueAt, or re-derives a day
+  // key; doing any of those would be the second implementation the spec forbids.
+  //
+  // THE COUNT IS counts.unsnoozed, AND IT IS ONE NUMBER. Overdue and due-today
+  // are not distinguished outside (PLAN decision C): overdue is the more urgent
+  // fact and urgency is exactly what the bell must not carry. The LIST groups
+  // them, because that is information rather than pressure.
+  //
+  // ABSENT, NOT EMPTY (decision B). Zero unsnoozed work means the button carries
+  // .hidden. Not a zero, not a greyed bell. A zero is a statement about the
+  // user; absence is a statement about the data.
+  //
+  // NOT ON THE POPUP OR THE SIDE PANEL, and this is deliberate rather than
+  // unfinished: companion.html and side-panel.html render from storage in their
+  // own contexts, and a snooze written there needs this same writer plus their
+  // own re-render path. DB.2 decides whether they get one. DO NOT "complete"
+  // this by copying the markup into either surface.
+  //
+  // FREE USERS NEVER SEE IT. Tasks are Pro; the preview is a picture.
+  var dueBellOpen = false;
+
+  function dueBellCount(d) {
+    if (!isProAccessibleLevel(currentAccessLevel())) return 0;
+    try { return Storage.getDueWork(d).counts.unsnoozed; }
+    catch (err) { console.error("[LaunchPad] Due bell: read failed", err); return 0; }
+  }
+
+  function renderDueBell(d) {
+    var bell = document.getElementById("due-bell");
+    if (!bell) return;
+    var n = dueBellCount(d);
+    if (!n) {
+      bell.classList.add("hidden");
+      bell.setAttribute("aria-expanded", "false");
+      closeDueBellList();
+      return;
+    }
+    bell.classList.remove("hidden");
+    bell.setAttribute("aria-label", t("bell_due_work_label", { count: n }));
+    var countEl = bell.querySelector(".due-bell-count");
+    if (countEl) countEl.textContent = String(n);
+  }
+
+  // The list. Rows carry the task name, its goal if it has one, and the two
+  // non-destructive actions. COMPLETION IS NOT HERE - it is DB.2, and it needs
+  // the row's confirm, the recurring second confirm and undo before it can be.
+  function dueBellListHtml(d) {
+    var work = Storage.getDueWork(d);
+    var ws = Storage.getActiveWorkspace(d);
+    var live = work.items.filter(function (it) { return !it.snoozed; });
+    var GROUPS = [
+      { kind: "overdue",   key: "bell_group_overdue" },
+      { kind: "today",     key: "bell_group_today" },
+      { kind: "recurring", key: "bell_group_recurring" }
+    ];
+    var body = GROUPS.map(function (g) {
+      var rows = live.filter(function (it) { return it.kind === g.kind; });
+      if (!rows.length) return "";                 // absent, never an empty group
+      return '<div class="due-bell-group">' + th(g.key) + '</div>' +
+        rows.map(function (it) {
+          var task = ws ? Storage.getTaskById(ws, it.taskId) : null;
+          var goal = (task && task.goalId && ws) ? Storage.getGoalById(ws, task.goalId) : null;
+          return '<div class="due-bell-row" data-bell-task="' + escapeHtml(it.taskId) + '">' +
+              '<div class="due-bell-main">' +
+                '<span class="due-bell-name">' + escapeHtml(it.name) + '</span>' +
+                (goal ? '<span class="due-bell-goal">' + escapeHtml(goal.name) + '</span>' : '') +
+              '</div>' +
+              '<div class="due-bell-acts">' +
+                '<button type="button" class="due-bell-act" data-bell-act="snooze">' + th("bell_snooze") + '</button>' +
+                '<button type="button" class="due-bell-act" data-bell-act="goto">' + th("bell_go_to_task") + '</button>' +
+              '</div>' +
+            '</div>';
+        }).join("");
+    }).join("");
+    return '<div class="due-bell-title">' + th("bell_due_work_title") + '</div>' + body;
+  }
+
+  function closeDueBellList() {
+    var el = document.getElementById("due-bell-list");
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+    var bell = document.getElementById("due-bell");
+    if (bell) bell.setAttribute("aria-expanded", "false");
+    dueBellOpen = false;
+  }
+
+  function openDueBellList() {
+    var bell = document.getElementById("due-bell");
+    if (!bell || bell.classList.contains("hidden")) return;
+    closeDueBellList();
+    var el = document.createElement("div");
+    el.id = "due-bell-list";
+    el.className = "due-bell-list";
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-label", t("bell_due_work_title"));
+    el.innerHTML = dueBellListHtml(data);
+    document.body.appendChild(el);
+    var r = bell.getBoundingClientRect();
+    el.style.top = Math.round(r.bottom + 8) + "px";
+    // Anchored under the bell, clamped into the viewport - the bar is centred
+    // and moves with the sidebar, so a fixed offset would drift off-screen.
+    var w = el.getBoundingClientRect().width;
+    el.style.left = Math.round(Math.max(8, Math.min(window.innerWidth - w - 8, r.left))) + "px";
+    bell.setAttribute("aria-expanded", "true");
+    dueBellOpen = true;
+  }
+
+  async function dueBellSnooze(taskId) {
+    var ws = Storage.getActiveWorkspace(data);
+    var task = ws ? Storage.getTaskById(ws, taskId) : null;
+    // THE SAME WRITER G2 READS. snoozeDueWork owns the { taskId: localDayKey }
+    // record and its own saveAll; this must never write data.dueWorkSnoozes
+    // itself, or the key shape would have two authors.
+    await Storage.snoozeDueWork(data, taskId, Date.now());
+    if (task) showToast(t("bell_snoozed_until_tomorrow", { name: task.name }));
+    renderDueBell(data);
+    if (dueBellOpen) {
+      var el = document.getElementById("due-bell-list");
+      var bell = document.getElementById("due-bell");
+      if (el && bell && !bell.classList.contains("hidden")) el.innerHTML = dueBellListHtml(data);
+      else closeDueBellList();
+    }
+    // The Dashboard's due list is NOT filtered by the snooze (decision D) - the
+    // bell is a signal, not a filter - but the board still repaints so nothing
+    // stale is left behind by the write.
+    var dashPanel = document.getElementById("tab-dashboard");
+    if (dashPanel && !dashPanel.classList.contains("hidden")) renderDashboardTab(dashPanel, data);
+  }
+
+  async function dueBellGoToTask(taskId) {
+    var ws = Storage.getActiveWorkspace(data);
+    var task = ws ? Storage.getTaskById(ws, taskId) : null;
+    closeDueBellList();
+    // A task under a COLLAPSED goal renders no row at all (goalCardHtml omits
+    // the body), so the goal is expanded FIRST and through its own writer.
+    if (task && task.goalId) {
+      try { await Storage.updateGoalCollapsed(data, task.goalId, false); } catch (err) {}
+    }
+    setActiveTab("tasks");
+    var panel = document.getElementById("tab-tasks");
+    if (panel) renderTasksTab(panel, data);
+    // After the render, not before it: the row does not exist until the panel
+    // has been rebuilt with the goal expanded.
+    setTimeout(function () {
+      var row = document.querySelector('.tt-task-row[data-task-id="' + taskId + '"]');
+      if (!row) return;
+      if (row.scrollIntoView) row.scrollIntoView({ block: "center" });
+      row.classList.add("is-bell-target");
+      setTimeout(function () { row.classList.remove("is-bell-target"); }, 1600);
+    }, 60);
+  }
+
+  function bindDueBell() {
+    var bell = document.getElementById("due-bell");
+    if (!bell) return;
+    bell.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (dueBellOpen) closeDueBellList(); else openDueBellList();
+    });
+    document.addEventListener("click", function (e) {
+      if (!dueBellOpen) return;
+      var el = document.getElementById("due-bell-list");
+      if (el && el.contains(e.target)) return;
+      if (bell.contains(e.target)) return;
+      closeDueBellList();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && dueBellOpen) closeDueBellList();
+    });
+    document.addEventListener("click", function (e) {
+      var act = e.target.closest ? e.target.closest("[data-bell-act]") : null;
+      if (!act) return;
+      var row = act.closest("[data-bell-task]");
+      var taskId = row && row.getAttribute("data-bell-task");
+      if (!taskId) return;
+      e.stopPropagation();
+      if (act.getAttribute("data-bell-act") === "snooze") dueBellSnooze(taskId);
+      else dueBellGoToTask(taskId);
     });
   }
 
@@ -9973,6 +10162,10 @@
   var CHECK_PRO_SVG = '<svg class="tab-cta-pro-check" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
 
   function applyCtaState(d) {
+    // [DB.1] The bell repaints with the bar's other conditional chrome: the
+    // same calls that can change the CTA (access level, workspace switch, a
+    // task write) are the ones that can change what is due.
+    renderDueBell(d);
     var cta = $("#tab-cta");
     if (!cta) return;
     var labelEl = cta.querySelector(".tab-cta-label");

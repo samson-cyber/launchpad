@@ -11316,6 +11316,138 @@ html.has-bg.bg-light .ins-heat-cell { background: rgba(0, 0, 0, 0.07); }
 
 /* Top tasks — rows inside a pp-insights-card, so ink inherits the card's ink
    (white on dark, #222 on light via the shared override below). */
+/* ===== [DB.1] The due-work bell ===== */
+
+/* THE DOCTRINE IS IN THIS BLOCK, AND IT IS ASSERTED RATHER THAN DESCRIBED.
+   A bell is the most nag-shaped element this product has built, and it
+   survives only by reporting what exists instead of urging action:
+
+     NO RED anywhere. The ink is --ink-secondary, the same neutral the tab
+       labels use. No danger token, no accent, no warning colour.
+     NO ANIMATION on any selector in this block - no transition, no keyframes,
+       no transform. A gate asserts this, the way [1.12.4] asserted the running-
+       animations list, because "quiet" is a property that erodes one commit at
+       a time.
+     THE COUNT DOES NOT GROW. font-size is fixed at --fs-12 whatever the number,
+       so nine items and ninety look the same weight. A badge that swells with
+       the backlog is a demand.
+     ABSENT AT ZERO is enforced in JS, not by an opacity here - .hidden removes
+       it from the layout entirely. */
+.due-bell {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  margin-inline-start: 4px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  /* THE TABS BESIDE IT ARE THE ONLY CORRECT SOURCE FOR THIS INK, and the first
+     version of this rule got it wrong in both halves. The tab bar keeps its
+     dark tint (rgba(30,30,30,0.5) + blur) on EVERY ground, so .tab uses #fff
+     with a shadow and carries NO html.bg-light override at all. I gave the bell
+     --ink-secondary plus a bg-light flip to black, and pixel-contrast measured
+     the count at 3.62 on a light wallpaper against a 4.5 floor - black text on
+     a bar that had stayed dark. Ninth instance of the class eight ink rounds
+     have each found, arriving from the inverse direction. */
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  opacity: 0.7;
+  font: inherit;
+  font-size: var(--fs-12);
+  cursor: pointer;
+}
+.due-bell.hidden { display: none; }
+.due-bell:hover { opacity: 1; background: var(--surface-fill); }
+.due-bell:focus-visible { outline: 2px solid var(--sat-accent, #4a90e2); outline-offset: 2px; }
+
+/* Fixed size, whatever the count. See the block above. */
+.due-bell-count { font-size: var(--fs-12); font-variant-numeric: tabular-nums; }
+
+/* The list. A floater by the tier system, body-mounted and positioned in JS
+   because the tab bar is centred and moves with the sidebar. */
+.due-bell-list {
+  position: fixed;
+  z-index: 9100;
+  width: 320px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--pro-frost-floater-bg);
+  backdrop-filter: var(--pro-frost-floater-blur);
+  -webkit-backdrop-filter: var(--pro-frost-floater-blur);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  color: var(--ink-primary);
+}
+.due-bell-title { font-size: var(--fs-13); font-weight: 600; margin-bottom: var(--space-2); }
+.due-bell-group {
+  font-size: var(--fs-12);
+  color: var(--ink-secondary);
+  margin-top: var(--space-3);
+  margin-bottom: var(--space-1);
+}
+.due-bell-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--surface-line);
+}
+.due-bell-main { min-width: 0; display: flex; flex-direction: column; }
+.due-bell-name { font-size: var(--fs-13); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.due-bell-goal { font-size: var(--fs-12); color: var(--ink-secondary); }
+.due-bell-acts { display: flex; gap: var(--space-2); flex-shrink: 0; }
+.due-bell-act {
+  border: 0;
+  background: transparent;
+  padding: 2px 4px;
+  color: var(--ink-secondary);
+  font: inherit;
+  font-size: var(--fs-12);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.due-bell-act:hover { color: var(--ink-primary); }
+.due-bell-act:focus-visible { outline: 2px solid var(--sat-accent, #4a90e2); outline-offset: 2px; }
+
+/* Light-ground ink, the same token block its neighbours carry. The floater is
+   white-tinted under html.bg-light, so the dark-frost defaults above would be
+   white text on a white plate - the defect eight ink rounds have each found. */
+html.has-bg.bg-light .due-bell-list {
+  --ink-primary: rgba(0, 0, 0, 0.87);
+  --ink-secondary: rgba(0, 0, 0, 0.66);
+  --surface-line: rgba(0, 0, 0, 0.14);
+}
+/* THE LIGHT GROUND, AND THE BELL DIVERGES FROM ITS NEIGHBOURS HERE ON PURPOSE.
+
+   Copying .tab was the right method and it landed on a wrong neighbour. The tab
+   bar keeps its dark tint on every ground, so .tab uses #fff with a shadow and
+   no bg-light override - and MEASURED ON A LIGHT WALLPAPER THE TAB LABELS
+   THEMSELVES READ 2.51 AND 2.67 against a 4.5 text floor. That is a
+   pre-existing defect in shipped chrome, reported rather than fixed here: all
+   four labels changing appearance is a visible product change and belongs to
+   its own task, not to a bell round.
+
+   The bell may not inherit it. The arithmetic says no white can clear the floor
+   on this bar: rgba(30,30,30,0.5) over #eceff3 composites near rgb(133,133,133),
+   against which even pure white reaches only ~3.7:1. Dark ink can - the same
+   backdrop against black is ~5.7:1 - which is why the first attempt at black
+   failed too: 0.66 alpha was not dark enough and measured 3.62. At 0.87, with
+   the shadow off (a dark shadow under dark text only muddies it), it clears. */
+html.has-bg.bg-light .due-bell {
+  color: rgba(0, 0, 0, 0.87);
+  text-shadow: none;
+  opacity: 1;
+}
+
+/* The go-to-task landing mark. A static tint, NOT a flash: the doctrine bans
+   animation on this feature and a pulsing row would be the same demand the
+   bell refuses. Removed on a timer by the handler. */
+.tt-task-row.is-bell-target { background: var(--surface-fill); }
+
 /* ----- [PT.1] Today, by site: the two passive-time lists ----- */
 
 /* THE CARD DELIBERATELY DECLARES NO INK OF ITS OWN. It is a .pp-insights-card

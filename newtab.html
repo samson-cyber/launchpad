@@ -164,6 +164,23 @@
         <button data-i18n-aria-label="tabbar_upgrade_to_pro" id="tab-cta" class="tab-cta hidden" type="button" aria-label="Upgrade to Pro">
           <span class="tab-cta-label"></span>
         </button>
+        <!-- [DB.1] THE DUE-WORK BELL. In the TAB BAR, which is the surface the
+             spec named, and NOT beside the active-task pill despite the spec
+             assuming they are adjacent - measured, they are not. The pill is
+             position:fixed at the viewport top-right and the bar is centred, so
+             there is 451px between them at the pill's widest state. "Beside the
+             pill" has no stable anchor either: the pill is 280px as a card, 240px
+             slim (up to 300 by its own clamp), and display:none entirely for free
+             users, so a bell offset past it would overlap one state, float away
+             from another, and be anchored to nothing in the third.
+
+             ABSENT, NOT EMPTY: .hidden unless getDueWork reports unsnoozed work.
+             The count is rendered by renderDueBell; nothing here is a placeholder
+             to be "filled in" with a zero. -->
+        <button id="due-bell" class="due-bell hidden" type="button" aria-haspopup="true" aria-expanded="false">
+          <span class="due-bell-glyph" aria-hidden="true">○</span>
+          <span class="due-bell-count"></span>
+        </button>
       </nav>
     </div>
 

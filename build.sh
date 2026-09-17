@@ -416,6 +416,15 @@ fi
 # What it earns: the allowlist is an allowlist (a settings key not named in it
 # cannot travel), the licence VERDICT never syncs while the KEY does, and each
 # of the three ruled exclusions turns it RED if somebody "completes" the list.
+# [DB.1] THE BELL'S DOCTRINE. A count, neutral ink, quiet - no animation, no
+# red, no growing badge. Those are conditions the spec admitted the bell on,
+# and conditions in a comment erode one commit at a time. Same shape as
+# [1.12.4]'s running-animations assertion.
+if ! node tools/check-bell-doctrine.mjs; then
+  echo 'ERROR: the due-work bell broke its doctrine - animation, red, or a growing count.' >&2
+  exit 1
+fi
+
 if ! node tools/check-sync-slice.mjs; then
   echo 'ERROR: sync slice gate failed - something leaves this machine that should not, or a synced setting stopped travelling.' >&2
   exit 1

@@ -6045,5 +6045,37 @@ I18n.register("en", {
     "import_group_window": {
       "description": "The name of a group LaunchPad creates during an import. It becomes a REAL GROUP in the user's sidebar and they can rename it, so it is seed content rather than a label. Used for a saved browser window that carries no title. {count} is the window's position, counting from 1.",
       "message": "Window {count}"
-    }
+    },
+    "bell_due_work_label": {
+      "description": "Accessible name of the due-work bell in the tab bar. {count} is how many items are due and not snoozed. THE BELL REPORTS WHAT EXISTS, IT DOES NOT URGE. No exclamation, no deadline language, no second person imperative about being late. The bell is ABSENT when the count is zero, so this string never renders a zero and a translation must not add an 'all clear' form.",
+      "message": "Due work: {count}"
+    },
+    "bell_due_work_title": {
+      "description": "Title of the list that opens from the bell. Names the SCOPE rather than making a claim about the user: what is due, not what they have failed to do. THE BELL REPORTS WHAT EXISTS, IT DOES NOT URGE. No exclamation, no deadline language, no second person imperative about being late. ",
+      "message": "Due work"
+    },
+    "bell_group_overdue": {
+      "description": "Group heading inside the bell's list for tasks whose due date has passed. The list groups them; the COUNT OUTSIDE does not distinguish them, because overdue is the more urgent fact and urgency is what the bell must not carry. Neutral noun, never 'late' or 'missed'.",
+      "message": "Overdue"
+    },
+    "bell_group_today": {
+      "description": "Group heading inside the bell's list for tasks due today that are not recurring instances.",
+      "message": "Due today"
+    },
+    "bell_group_recurring": {
+      "description": "Group heading inside the bell's list for recurring instances generated for today. Kept separate from Due today because a repeating item is a different kind of commitment and completing one does not finish it for good.",
+      "message": "Recurring"
+    },
+    "bell_snooze": {
+      "description": "The lighter of the bell's two actions: hide this row until tomorrow. The task is NOT changed and still appears on the Dashboard's due list - the bell is a signal, not a filter. Returns on its own tomorrow if still undone, so a translation must not imply permanence.",
+      "message": "Snooze"
+    },
+    "bell_go_to_task": {
+      "description": "The bell's other action: open the Tasks tab with this task's row in view, expanding its goal if it has one. Navigation only; nothing is written.",
+      "message": "Go to task"
+    },
+    "bell_snoozed_until_tomorrow": {
+      "description": "Toast after a snooze. Says what happened and when it ends, so 'snooze' is not a word the user has to guess the duration of. {name} is the task.",
+      "message": "{name} snoozed until tomorrow"
+    },
   });
