@@ -2170,7 +2170,8 @@ var Storage = (function () {
     // {host, mode} object, and indexOf would miss the object form entirely -
     // which would let the same host be added twice with two different modes.
     if (findBlockEntryIndex(data, entry) !== -1) {
-      return { ok: false, err: "duplicate", message: entry + " is already on the list" };
+      return { ok: false, err: "duplicate",
+               message: I18n.t("block_already_on_list", { site: entry }) };
     }
     list.push(entry);
     await saveAll(data);
@@ -8080,7 +8081,7 @@ var Storage = (function () {
   // on failure (matching the createTag duplicate-name return pattern).
   function validateRecurringPattern(frequency, daysOfWeek, dayOfMonth) {
     if (VALID_RECURRING_FREQUENCIES.indexOf(frequency) === -1) {
-      return { err: "invalid_frequency", message: "frequency must be 'daily', 'weekly', or 'monthly'." };
+      return { err: "invalid_frequency", message: I18n.t("recur_invalid_frequency") };
     }
     if (frequency === "weekly") {
       if (!Array.isArray(daysOfWeek) || daysOfWeek.length === 0) {

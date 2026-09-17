@@ -3785,6 +3785,10 @@ I18n.register("en", {
 // and a string list cannot show that on its own.
 // =========================================================================
 I18n.register("en", {
+    "block_already_on_list": {
+      "description": "Inline error under the focus-blocking input when the typed site is already blocked. {site} is the NORMALISED host the writer resolved, not the raw text the user typed, so it may differ from what is still in the input. The third of the three inline errors from the same writer; the other two are block_enter_a_site and block_not_a_site.",
+      "message": "{site} is already on the list"
+    },
     "block_enter_a_site": {
       "description": "Inline error under the focus-blocking input when nothing was typed.",
       "message": "Enter a site to block."
@@ -3912,6 +3916,11 @@ I18n.register("en", {
       "message": "Unexpected response from Dodo (status {status}).",
       "sense": "error.license"
     },
+    "license_network_error": {
+      "description": "Shown when the fetch to the licence host never completed at all - offline, DNS, a blocked host. Vendor name untranslated, as above. THIS IS THE ONE THE USER ACTUALLY SEES ON A DEAD NETWORK: before this key existed the popover rendered the browser's own raw fetch message ('Failed to fetch'), which names nothing the user can act on. The raw message is still carried on the result object for the console; this sentence is what reaches the screen.",
+      "message": "Network error contacting Dodo.",
+      "sense": "error.license"
+    },
     "notes_empty_trash_confirm": {
       "description": "SENTENCE of the empty-notes-trash confirm. Its title is empty_empty_the_notes_trash and its button is empty_empty_trash; the three are ONE dialog. DESTRUCTIVE AND IRREVERSIBLE - the sentence says so, and a translation that drops 'This cannot be undone' removes the only warning the user gets.",
       "message": "",
@@ -3953,6 +3962,10 @@ I18n.register("en", {
     "recur_invalid_day_of_week": {
       "description": "Inline error for a malformed day-of-week list. UNREACHABLE through the UI, which offers seven checkboxes - it can only appear from an import or a restore. The wording names a FIELD rather than a control and reads as developer text; that is preserved verbatim here because this round may not change what a user sees, and is worth rewriting on its own.",
       "message": "daysOfWeek values must be integers 0-6."
+    },
+    "recur_invalid_frequency": {
+      "description": "Inline error when the recurrence frequency is none of daily/weekly/monthly. UNREACHABLE through the UI, which offers exactly those three, and equally unreachable through quick-add, whose parser emits only those three - so it can only appear from an import or a restore. Like recur_invalid_day_of_week it names a FIELD and reads as developer text; preserved verbatim for the same reason, because a migration may not change what a user sees. The three sibling branches of the same validator were migrated earlier and this one was simply missed.",
+      "message": "frequency must be 'daily', 'weekly', or 'monthly'."
     },
     "recur_weekly_requires_days": {
       "description": "Inline error in the New Recurring modal when the weekly frequency is chosen and no day is ticked. The only one of the three pattern errors a user can reach through the UI.",

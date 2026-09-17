@@ -65,7 +65,9 @@ var LicenseClient = (function () {
         status: 0,
         networkError: true,
         raw: null,
-        errorMessage: (err && err.message) || 'Network error contacting Dodo.'
+        // THE BROWSER'S OWN MESSAGE, kept for the console and for nothing else.
+        // It is deliberately no longer the text a user sees - see classifyError.
+        errorMessage: (err && err.message) || null
       };
     }
     var raw = null;
@@ -80,7 +82,14 @@ var LicenseClient = (function () {
   // network / unknown. The caller decides what each bucket means for state.
   function classifyError(httpResult) {
     if (httpResult.networkError) {
-      return { error: 'network', message: httpResult.errorMessage || 'Network error contacting Dodo.' };
+      // ALWAYS the catalogue sentence, NEVER httpResult.errorMessage. That
+      // field holds the browser's raw fetch error, and this `message` is
+      // rendered verbatim by showLicenseError in the Apply-licence popover -
+      // so until this changed, a user with no network read "Failed to fetch".
+      // The fallback beside it was very nearly dead code, because err.message
+      // is populated on essentially every fetch rejection. The raw text is
+      // still on the result object for the console.
+      return { error: 'network', message: I18n.t('license_network_error') };
     }
     var raw = httpResult.raw;
     if (raw && typeof raw.error === 'string') {

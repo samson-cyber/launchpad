@@ -289,6 +289,59 @@ const ALLOW = [
   // The classic shape of a string that looks like prose and must not move.
   { why: "a Chrome error message this code MATCHES, not emits", re: /^No last-focused window$/ },
 
+  // --- THE LAST TWELVE (Asana 1218570830287300) ---
+  // c04eba2 left twelve survivors in the three files it did not own. Three of
+  // them were user-facing and are now catalogue keys; these eight were READ AT
+  // THEIR CALL SITES and ruled not user-facing prose. The reason is the whole
+  // point of the entry - "we looked at it" is what separates this list from
+  // silence, and the next audit must be able to re-check the ruling rather
+  // than re-derive it.
+  //
+  // THE TEST APPLIED WAS "CAN IT REACH A SINK A USER READS", traced rather
+  // than guessed. Two of these looked like near-misses and were not: the
+  // reportWriteFailure labels DO travel out of storage.js on the onWriteFail
+  // hook, and the page's handler renders t("storage_full_change_not_saved")
+  // or t("storage_write_failed") - `where` is never rendered.
+  {
+    why: "storage.js setTodaysThree: a suffix on an id inside a console.warn list. " +
+         "The whole array is joined into one console line and reaches no DOM sink",
+    re: /^ \(not a string\)$|^\(not a string\)$/
+  },
+  {
+    why: "storage.js setTodaysThree: the sibling of the above, same console.warn",
+    re: /^ \(no live task\)$|^\(no live task\)$/
+  },
+  {
+    why: "storage.js reportWriteFailure label. It reaches console.error AND the " +
+         "onWriteFail hook as info.where - and newtab.js's handler renders two " +
+         "catalogue keys and never info.where. Traced, not assumed",
+    re: /^getAll backfill$/
+  },
+  {
+    why: "storage.js reportWriteFailure label - see getAll backfill",
+    re: /^getAll migration$/
+  },
+  {
+    why: "license.js: the SEAT LABEL sent to Dodo at activation and stored as " +
+         "data.pro.instanceName. LaunchPad renders it nowhere (the only two " +
+         "references are the write and a snapshot). Translating it would make " +
+         "one seat show a different name depending on which machine activated " +
+         "it, against a vendor dashboard we do not localise",
+    re: /^LaunchPad on (?:Browser)?$/
+  },
+  {
+    why: "background.js: a DOWNLOADS FOLDER PATH, not a sentence. Ruled already. " +
+         "Translating it would scatter a user's backups across per-locale " +
+         "folders and orphan everything already written to this one",
+    re: /^LaunchPad Backups\/$/
+  },
+  {
+    why: "background.js: the chrome.offscreen.createDocument justification. It is " +
+         "an API ARGUMENT consumed by the platform, developer-facing by " +
+         "specification, and never rendered by this product",
+    re: /^Play the Focus session chime when a work or break phase ends/
+  },
+
   // --- SELECTORS passed to querySelector ---
   { why: "querySelector selector", re: /^\.(?:tt-task-row|pro-tag-row|group)\[data-/ },
   { why: "querySelector selector tail", re: /^"?\]\s*\.(?:tt-task-name|tt-prio-pill|pro-tag-delete|group-name)$/ },
@@ -385,38 +438,45 @@ console.log("\n  strings tokenized: " + tokensSeen + "  (floor " + TOKEN_FLOOR +
 console.log("  ruled not-prose by an allowlist entry: " + rows.filter((r) => r.allowed).length);
 
 // ---------------------------------------------------------------- the verdict
-// A CENSUS THAT ALWAYS FAILS IS NOT A GATE. The migration finished newtab.js,
-// importers.js, companion.js and tracking.js; background.js, storage.js and
-// license.js were owned by a parallel session and are still to do. So the gate
-// fails on a file that is SUPPOSED to be clean, and holds the rest at a pinned
-// count - which means the remainder cannot quietly grow either, and the day
-// those three files are migrated this block is deleted rather than edited.
+// A CENSUS THAT ALWAYS FAILS IS NOT A GATE. It was written while a parallel
+// session held background.js, storage.js and license.js, so it failed only on
+// a file that was SUPPOSED to be clean and held those three at a pinned count -
+// "and the day those three files are migrated this block is deleted rather
+// than edited."
+//
+// THAT DAY IS 2026-09-17 (Asana 1218570830287300). The last twelve were read at
+// their call sites: three were user-facing and are now catalogue keys, eight
+// are in ALLOW above with a written reason each, and the twelfth was the same
+// sentence twice. THE PIN TABLE IS GONE rather than set to zero, because a pin
+// of zero and no pin at all differ in exactly one way that matters - a pinned
+// file is one somebody is still expected to finish, and nobody is.
+//
+// EVERY SHIPPED FILE IS NOW HELD AT ZERO. A new hardcoded sentence anywhere in
+// the product fails this gate and names its file and line.
 const OWNED_CLEAN = ["newtab.js", "importers.js", "companion.js", "tracking.js",
                      "bookmarks.js", "quickadd.js", "gate.js", "pro-access.js",
-                     "i18n.js", "i18n-dom.js", "offscreen.js"];
-const REMAINING = { "background.js": 2, "storage.js": 6, "license.js": 4 };
+                     "i18n.js", "i18n-dom.js", "offscreen.js",
+                     "background.js", "storage.js", "license.js"];
+
+// ANTI-VACUITY (P2). OWNED_CLEAN is a hand-written list, and a file that drops
+// off it silently stops being checked - which is how a gate goes quiet without
+// going green-by-nobody. Every file this census SCANS must be on it.
+const unheld = FILES.filter((f) => !OWNED_CLEAN.includes(f));
+if (unheld.length) {
+  console.log("\nI18N CENSUS: BROKEN — " + unheld.length + " scanned file(s) are held at no count:");
+  for (const f of unheld) console.log("    " + f);
+  console.log("    Add them to OWNED_CLEAN, or stop scanning them. A scanned file");
+  console.log("    that is held by nothing can accumulate survivors and still pass.");
+  process.exit(2);
+}
 
 const regressions = survivors.filter((s) => OWNED_CLEAN.includes(s.file));
-const overs = Object.entries(REMAINING)
-  .filter(([f, n]) => (perFile[f] || 0) > n)
-  .map(([f, n]) => `${f}: ${perFile[f]} survivors, pinned at ${n}`);
-const unders = Object.entries(REMAINING)
-  .filter(([f, n]) => (perFile[f] || 0) < n)
-  .map(([f, n]) => `${f}: ${perFile[f] || 0} survivors, pinned at ${n} — migrated? lower the pin`);
-
 if (regressions.length) {
   console.log("\nI18N CENSUS: FAIL — " + regressions.length +
-              " new hardcoded string(s) in a file that was migrated to zero:");
+              " new hardcoded string(s) in a file that is held at zero:");
   for (const r of regressions) console.log("    " + r.file + ":" + r.line + "  " + JSON.stringify(r.text));
   process.exit(1);
 }
-if (overs.length) {
-  console.log("\nI18N CENSUS: FAIL — a file still awaiting migration grew:");
-  for (const o of overs) console.log("    " + o);
-  process.exit(1);
-}
-for (const u of unders) console.log("\n  NOTE  " + u);
-console.log("\nI18N CENSUS: PASS — the migrated files are at zero; " +
-            survivors.length + " survivor(s) remain in " +
-            Object.keys(REMAINING).length + " file(s) owned elsewhere.");
+console.log("\nI18N CENSUS: PASS — every shipped file is at zero (" +
+            FILES.length + " file(s) scanned, all held).");
 process.exit(0);
