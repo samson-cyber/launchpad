@@ -6079,3 +6079,29 @@ I18n.register("en", {
       "message": "{name} snoozed until tomorrow"
     },
   });
+
+// [1.16.1] DB.2 - completion from the bell. The recurring second confirm and
+// the undo toast are BUILT here, not reused: the task row has neither. See the
+// premise-audit note in newtab.js beside dueBellComplete.
+I18n.register("en", {
+    "bell_complete": {
+      "description": "The bell row's third action: completes the task. LAST of the three on purpose - the ruling requires the destructive act to be the harder one to reach, and snooze, the lighter act, is first. Its row-side equivalent is the checkbox, which has no label at all.",
+      "message": "Complete"
+    },
+    "bell_recurring_confirm_title": {
+      "description": "Title of the second confirmation shown when the task being completed from the bell is a RECURRING INSTANCE. Only recurring instances get this dialog; an ordinary task completes with no confirm, exactly as it does from the row.",
+      "message": "Complete this recurring task?"
+    },
+    "bell_recurring_confirm_body": {
+      "description": "Body of the recurring second confirmation. {name} is the task. It must say plainly that the task REPEATS and that completing it closes only today's instance - the whole point of the second confirm is that a user might believe they are finishing the series for good. The second sentence names snooze, which stays available at this moment per the ruling.",
+      "message": "{name} repeats. Completing it closes today's instance; the next one arrives on its schedule. To set it aside for today instead, snooze it."
+    },
+    "bell_recurring_confirm_action": {
+      "description": "The primary button on the recurring second confirmation. Names the act rather than saying 'OK', so the button reads as what it does when read alone.",
+      "message": "Complete today's"
+    },
+    "bell_completed_undo": {
+      "description": "The undo toast after completing a task from the bell. {name} is the task. UNDO IS MANDATORY here per the ruling: snooze and complete sit adjacent on a compact control and mean opposite things, so a mis-tap must be recoverable in one action from the same place. The toast's button is undo_undo.",
+      "message": "{name} completed"
+    }
+  });

@@ -415,11 +415,26 @@
   // .hidden. Not a zero, not a greyed bell. A zero is a statement about the
   // user; absence is a statement about the data.
   //
-  // NOT ON THE POPUP OR THE SIDE PANEL, and this is deliberate rather than
-  // unfinished: companion.html and side-panel.html render from storage in their
-  // own contexts, and a snooze written there needs this same writer plus their
-  // own re-render path. DB.2 decides whether they get one. DO NOT "complete"
+  // NOT ON THE POPUP OR THE SIDE PANEL. DB.1 left this open; DB.2 RULED IT, and
+  // the answer is absent on both, for two different reasons. DO NOT "complete"
   // this by copying the markup into either surface.
+  //
+  //   THE SIDE PANEL ALREADY IS THE BELL. side-panel.js mounts the companion
+  //   with { showDueList: true }, and that list is Storage.getDueWork's items
+  //   with the snoozed ones filtered out - the same reader, the same filter,
+  //   the same definition of due. A bell above it would be a count of the rows
+  //   immediately below it. The bell exists because the new tab page had no
+  //   signal; the panel is the signal.
+  //
+  //   THE POPUP HAS NO DUE DATA AND NO ROOM. companion-popup.js mounts with {},
+  //   so showDueList is false and nothing due is read there at all; a bell would
+  //   mean adding the read purely to render a count. side-panel.js's own note
+  //   says why the panel got the list and the popup did not - a panel has height
+  //   and a popup does not - and that reasoning is unchanged by this round.
+  //
+  // If either surface ever wants one, the blocker is not the markup: it is that
+  // a snooze or a completion written there needs this file's writers plus a
+  // re-render path in that context, and the companion deliberately owns neither.
   //
   // FREE USERS NEVER SEE IT. Tasks are Pro; the preview is a picture.
   var dueBellOpen = false;
@@ -446,9 +461,9 @@
     if (countEl) countEl.textContent = String(n);
   }
 
-  // The list. Rows carry the task name, its goal if it has one, and the two
-  // non-destructive actions. COMPLETION IS NOT HERE - it is DB.2, and it needs
-  // the row's confirm, the recurring second confirm and undo before it can be.
+  // The list. Rows carry the task name, its goal if it has one, and the three
+  // actions. Completion arrived in DB.2 - see dueBellComplete for what DB.1's
+  // note above assumed existed and did not.
   function dueBellListHtml(d) {
     var work = Storage.getDueWork(d);
     var ws = Storage.getActiveWorkspace(d);
@@ -470,9 +485,17 @@
                 '<span class="due-bell-name">' + escapeHtml(it.name) + '</span>' +
                 (goal ? '<span class="due-bell-goal">' + escapeHtml(goal.name) + '</span>' : '') +
               '</div>' +
+              // ORDER IS THE PROTECTION. The ruling's point 4: the destructive
+              // action must not be the easy one. Snooze is the lighter act and
+              // comes first; complete is last, furthest from where a thumb
+              // lands after reading the name. An ordinary task gets no confirm
+              // - exactly as it gets none from the row - so placement and undo
+              // are the whole of its safety net, which is what the ruling said
+              // they would have to be.
               '<div class="due-bell-acts">' +
                 '<button type="button" class="due-bell-act" data-bell-act="snooze">' + th("bell_snooze") + '</button>' +
                 '<button type="button" class="due-bell-act" data-bell-act="goto">' + th("bell_go_to_task") + '</button>' +
+                '<button type="button" class="due-bell-act due-bell-act-complete" data-bell-act="complete">' + th("bell_complete") + '</button>' +
               '</div>' +
             '</div>';
         }).join("");
@@ -531,6 +554,115 @@
     if (dashPanel && !dashPanel.classList.contains("hidden")) renderDashboardTab(dashPanel, data);
   }
 
+  // Repaint every surface a completion or its undo changes. One helper, because
+  // the two directions must touch exactly the same set: an undo that repainted
+  // less than the completion would leave a stale panel behind that only a
+  // reload would clear.
+  //
+  // THE PILL IS IN THE SET AND THE ACTIVE TASK IS DELIBERATELY NOT CLEARED.
+  // satComplete clears it, because there the user pressed Done ON the pill and
+  // meant to stop. Completing a row in a list is not that, and clearing would
+  // make undo asymmetric - reactivateTask can restore the task but nothing here
+  // should re-arm a focus session the user never asked for. Storage already
+  // models the in-between: resolveActiveTask returns
+  // { stale: true, reason: "task-completed" } and the widget renders it. So the
+  // pill shows its stale state, and on undo the task is open again and
+  // resolveActiveTask stops being stale by itself. The inverse is true without
+  // anything here having to invert it.
+  function dueBellRepaint() {
+    renderDueBell(data);
+    if (dueBellOpen) {
+      var el = document.getElementById("due-bell-list");
+      var bell = document.getElementById("due-bell");
+      // Absent at zero closes the list with it - there is no list of nothing.
+      if (el && bell && !bell.classList.contains("hidden")) el.innerHTML = dueBellListHtml(data);
+      else closeDueBellList();
+    }
+    var tasksPanel = document.getElementById("tab-tasks");
+    if (tasksPanel && !tasksPanel.classList.contains("hidden")) renderTasksTab(tasksPanel, data);
+    var dashPanel = document.getElementById("tab-dashboard");
+    if (dashPanel && !dashPanel.classList.contains("hidden")) renderDashboardTab(dashPanel, data);
+    renderActiveTaskWidget();
+  }
+
+  // COMPLETION FROM THE BELL.
+  //
+  // THE PREMISE AUDIT OVERTURNED THE BRIEF, and this comment is the correction.
+  // The round was told the bell would REUSE the row's confirm, the row's
+  // recurring second confirm and the row's undo, building none of them. Two of
+  // those three do not exist:
+  //
+  //   THE ROW HAS NO CONFIRM on an ordinary task - the checkbox handler goes
+  //   straight to Storage.completeTask. The brief allowed for this.
+  //   THE ROW HAS NO RECURRING SECOND CONFIRM. Nowhere in the product does one
+  //   exist; the ruling invented the requirement and DB.1's note assumed it had
+  //   been met.
+  //   THE ROW HAS NO UNDO ON COMPLETION. It shows a plain toast - "Moved to
+  //   Completed" - with no undo button. showUndoToast exists but is wired to
+  //   DELETE, never to completion.
+  //
+  // The ruling said an unsurfaceable undo is a blocking finding. It is not
+  // surfaceable, because there is nothing to surface - but it is BUILDABLE from
+  // pieces the storage layer already documents, and the requirement behind the
+  // ruling (one action, same place, recovers a mis-tap) is met in full. So it
+  // is built here rather than the round stopping on the word "reuse".
+  //
+  // THE UNDO MECHANISM IS A RE-OPEN, and that is storage's own answer rather
+  // than a choice made here: reactivateTask is documented as the "symmetric
+  // inverse" of completeTask and flips an auto-completed parent goal back too.
+  // Not a stored pre-state, not a soft-delete. completeTask has no recurring
+  // branch at all - generation happens in the sweep - so re-opening restores
+  // exactly what completing wrote and nothing else.
+  //
+  // THE CONSEQUENCE WORTH NAMING: the bell is now SAFER THAN THE ROW. A mis-tap
+  // here is recoverable; the same mis-tap on the Tasks tab checkbox is not.
+  // That asymmetry is reported rather than fixed - the row belongs to the Tasks
+  // tab and giving it an undo is a visible change to a shipped surface.
+  async function dueBellComplete(taskId) {
+    var ws = Storage.getActiveWorkspace(data);
+    var task = ws ? Storage.getTaskById(ws, taskId) : null;
+    if (!task) return;
+    var name = task.name;
+
+    // THE SECOND CONFIRM, and only for a recurring instance. The flag comes off
+    // the task the reader named, not off a re-derivation of recurrence here.
+    if (task.isRecurringInstance) {
+      var ok = await confirmModal({
+        title: t("bell_recurring_confirm_title"),
+        message: t("bell_recurring_confirm_body", { name: name }),
+        confirmLabel: t("bell_recurring_confirm_action")
+        // NOT `dangerous`. Completing a task is not destruction, and the red
+        // treatment that flag carries is the one thing the bell's doctrine
+        // forbids outright. The deliberateness comes from the dialog existing.
+      });
+      if (!ok) return;
+    }
+
+    try {
+      // THE SAME WRITER THE ROW USES. Ruling point 1: a bell that set
+      // completed = true itself would be a second completion path, and would
+      // drift from the first the moment either changed.
+      await Storage.completeTask(data, taskId, ws ? ws.id : undefined);
+    } catch (err) {
+      console.error("[LaunchPad] Due bell: complete failed", err);
+      return;
+    }
+
+    dueBellRepaint();
+
+    showUndoToast(t("bell_completed_undo", { name: name }), async function () {
+      try {
+        await Storage.reactivateTask(data, taskId, ws ? ws.id : undefined);
+      } catch (err) {
+        console.error("[LaunchPad] Due bell: undo (reactivate) failed", err);
+        return;
+      }
+      // The task is due again, so the bell returns on its own - the count comes
+      // from the reader, which now counts it. Nothing here re-adds a row.
+      dueBellRepaint();
+    });
+  }
+
   async function dueBellGoToTask(taskId) {
     var ws = Storage.getActiveWorkspace(data);
     var task = ws ? Storage.getTaskById(ws, taskId) : null;
@@ -578,8 +710,15 @@
       var taskId = row && row.getAttribute("data-bell-task");
       if (!taskId) return;
       e.stopPropagation();
-      if (act.getAttribute("data-bell-act") === "snooze") dueBellSnooze(taskId);
-      else dueBellGoToTask(taskId);
+      // EXPLICIT, NOT AN ELSE. With two actions this read `=== "snooze" ? … :
+      // goto`, so ANY unrecognised data-bell-act ran go-to-task. Adding a third
+      // is what made that visible: "complete" would have silently opened the
+      // Tasks tab instead. A dispatcher whose default branch is a real action
+      // cannot be extended safely, so the default is now nothing.
+      var which = act.getAttribute("data-bell-act");
+      if (which === "snooze") dueBellSnooze(taskId);
+      else if (which === "goto") dueBellGoToTask(taskId);
+      else if (which === "complete") dueBellComplete(taskId);
     });
   }
 

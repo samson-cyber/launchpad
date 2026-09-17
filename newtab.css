@@ -11388,18 +11388,29 @@ html.has-bg.bg-light .ins-heat-cell { background: rgba(0, 0, 0, 0.07); }
   margin-top: var(--space-3);
   margin-bottom: var(--space-1);
 }
+/* [1.16.1 / DB.2] THE ROW STACKS NOW, AND THE FRAME IS WHY.
+   With two actions the name and the actions shared a line and it fitted. A
+   third pushed the name column down to about eleven characters - "Send the
+   q..." - which is not a task name, it is a hint that one exists. The
+   measurement passed at that width (the actions were still reachable and the
+   name still ellipsised); looking at it is what failed it.
+   So the name gets the full width and the actions get their own line beneath,
+   right-aligned. The list keeps its 320px: widening it to buy one line back
+   would have bought about twenty characters and made the dropdown a panel. */
 .due-bell-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
   padding: var(--space-2) 0;
   border-top: 1px solid var(--surface-line);
 }
 .due-bell-main { min-width: 0; display: flex; flex-direction: column; }
 .due-bell-name { font-size: var(--fs-13); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .due-bell-goal { font-size: var(--fs-12); color: var(--ink-secondary); }
-.due-bell-acts { display: flex; gap: var(--space-2); flex-shrink: 0; }
+/* Right-aligned on their own line: the name is what the eye reads first, and
+   the actions answer it rather than competing with it. */
+.due-bell-acts { display: flex; gap: var(--space-2); flex-shrink: 0; justify-content: flex-end; }
 .due-bell-act {
   border: 0;
   background: transparent;
@@ -11412,6 +11423,21 @@ html.has-bg.bg-light .ins-heat-cell { background: rgba(0, 0, 0, 0.07); }
 }
 .due-bell-act:hover { color: var(--ink-primary); }
 .due-bell-act:focus-visible { outline: 2px solid var(--sat-accent, #4a90e2); outline-offset: 2px; }
+/* [1.16.1 / DB.2] COMPLETE IS SET APART WITHOUT BEING SHOUTED AT.
+   The ruling wants the destructive action to be the deliberate one; the bell's
+   doctrine forbids the usual way of signalling that, which is red. So the
+   separation is STRUCTURAL: a hairline before it and a wider hit target, which
+   make it a distinct thing to aim at rather than the next word in a row of
+   three. Same ink as its neighbours - deliberately, because a different colour
+   here is exactly the escalation the gate refuses.
+   The hairline is the list's own --surface-line, so it flips with the
+   bg-light override below and needs no light-ground rule of its own. */
+.due-bell-act-complete {
+  margin-left: var(--space-1);
+  padding-left: var(--space-2);
+  padding-right: var(--space-2);
+  border-left: 1px solid var(--surface-line);
+}
 
 /* Light-ground ink, the same token block its neighbours carry. The floater is
    white-tinted under html.bg-light, so the dark-frost defaults above would be
