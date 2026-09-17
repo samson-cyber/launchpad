@@ -9495,40 +9495,106 @@ html.has-bg.bg-light #upgrade-popover .up-license-error {
   align-self: stretch;
 }
 
+/* ===== THE PREVIEW BANNER IS A DIVIDER, AND IT HAS TO LOOK LIKE ONE =====
+
+   WHAT IT SEPARATES, which is the whole reason this matters. On the FREE
+   DASHBOARD the order is: the user's REAL data (PT.2's live card), then this
+   banner, then a DEMO BOARD full of invented figures - "Good afternoon",
+   "2h18m Focused today", "Ship the Q3 report". Two boards that look alike, one
+   true and one not, and this band is the only thing that says which is which.
+   Framed on a light wallpaper before this change, it was a near-white strip
+   between two near-white cards and said nothing at all.
+
+   ON TASKS AND INSIGHTS THERE IS NOTHING ABOVE IT, so the same element is a
+   header there and a divider only on the Dashboard. That is why the treatment
+   is a BAND with a rule on top rather than a separator line: a band reads
+   correctly in both positions, a divider line above nothing reads as an edge.
+
+   WHY THE ACCENT AND NOT RED. Samson asked for "a semi-translucent red colour
+   or something", and red is the one colour this cannot be: the guide reserves
+   it for urgent and errors, and this is a CONVERSION SURFACE - the single place
+   the product invites an upgrade. Framing that invitation as a warning works
+   against the thing it exists to do. The accent already means "this is the
+   upgrade": it paints the CTA inside this very banner, so tinting the band with
+   it reads as continuous with the button rather than as an alert.
+
+   THE TINT IS A WASH OVER THE CARD TIER, NOT A FILL. A fill would compete with
+   the CTA sitting on it; a wash over the same frost the cards use keeps the
+   band in the product's material system while giving it a colour of its own.
+   color-mix against --sat-accent-ink is ground-keyed by construction (#8ab4f8
+   on dark, #15539b on light), so one declaration covers every wallpaper instead
+   of a light override that can drift - and 16% is the alpha .tt-prio-pill
+   already uses for the same kind of accent wash.
+
+   NOTE FOR THE DOCS: CLAUDE.md records this banner as deliberately OUTSIDE the
+   frost-tier system, "not part of the tier system and stays literal". That was
+   true of the old rgba(30,30,30,0.6) and is no longer true. Called out in the
+   round's report rather than changed silently.
+
+   HEIGHT IS PART OF THE FIX AND NOT DECORATION. 38px with 8px padding is a
+   strip; 48px with 12px is a bar the eye stops at. */
 .pro-preview-banner {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-3);
   flex-shrink: 0;
-  padding: var(--space-2) 20px;
-  min-height: 38px;
-  background: rgba(30, 30, 30, 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  color: #fff;
+  padding: var(--space-3) 20px;
+  min-height: 48px;
+  background-color: var(--pro-frost-card-bg);
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--sat-accent-ink) 16%, transparent),
+    color-mix(in srgb, var(--sat-accent-ink) 16%, transparent));
+  backdrop-filter: var(--pro-frost-card-blur);
+  -webkit-backdrop-filter: var(--pro-frost-card-blur);
+  /* The rule that makes it a boundary. 2px in the accent on top, the surface's
+     own hairline underneath - so the band is anchored to what is above it and
+     released into what is below, which is the direction the reading goes. */
+  border-top: 2px solid var(--sat-accent-ink);
+  border-bottom: 1px solid var(--surface-line);
+  color: var(--ink-primary);
   font-size: var(--fs-13);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-  opacity: 0.92;
   z-index: 1;
 }
 
+/* THE BAND'S OWN opacity: 0.92 IS GONE, and the text's 0.9 with it. Dimming a
+   whole element dims its ink too, which is the trap the light-ground sweep
+   named - and here it was being applied to the one message a free user is
+   meant to read. Weight is carried by the surface now, not by fading. */
 .pro-preview-banner-text {
-  opacity: 0.9;
+  color: var(--ink-primary);
 }
 
+/* --sat-accent-ink, NOT --pro-ink-accent, AND THIS WAS THE WORST READING ON THE
+   SURFACE. --pro-ink-accent is #6fb1ff, a single value tuned for dark frost;
+   on the white-tinted light banner "Start free trial" measured 1.84:1. It is
+   the ONLY control a preview surface is allowed to carry, so it was the one
+   thing here that had to be legible and the one thing that was not.
+   --sat-accent-ink is the ground-keyed pair and needs no override to switch.
+   The resting opacity goes too; hover now changes the underline rather than the
+   alpha, so the affordance still answers the pointer without the resting state
+   having to sit under the floor to leave room for it. */
 .pro-preview-banner-cta {
-  color: var(--pro-ink-accent);
+  color: var(--sat-accent-ink);
   text-decoration: underline;
+  text-underline-offset: 2px;
   font-weight: 500;
-  opacity: 0.85;
-  transition: opacity 0.15s;
+  transition: text-decoration-thickness 0.15s;
   cursor: pointer;
 }
 
 .pro-preview-banner-cta:hover {
-  opacity: 1;
+  text-decoration-thickness: 2px;
+}
+
+/* The band keeps the Card tier, so on a light wallpaper it flips white-tinted
+   with every other card - which means its ink has to flip too. Restated for
+   this subtree, the same way .pp-insights-card and .group-header already do it,
+   rather than left to fall through to the white --ink-primary and vanish. */
+html.has-bg.bg-light .pro-preview-banner {
+  --ink-primary: rgba(0, 0, 0, 0.87);
+  --ink-meta: rgba(0, 0, 0, 0.70);
+  --surface-line: rgba(0, 0, 0, 0.14);
 }
 
 /* [teaser mode (TRIAL_CTA_ENABLED = false)] Inert variant of the preview-banner CTA — no live trial
@@ -10957,7 +11023,12 @@ html.has-bg.bg-light .dash-hero-region {
 /* Row two's modules sit on .pp-insights-card, which the rule below already
    covers; only the band needed its own entry. */
 
-html.has-bg.bg-light .pro-preview-banner,
+/* .pro-preview-banner IS NO LONGER IN THIS LIST, and its absence is the fix
+   rather than an omission. This rule paints the cards white-tinted on a light
+   wallpaper, which is right for a card and was exactly wrong for the banner:
+   it made the divider the same colour as the two boards it was supposed to be
+   dividing. The band now carries its own ground-keyed tint and needs no light
+   override at all. */
 html.has-bg.bg-light .pp-dash-card,
 html.has-bg.bg-light .pp-goal-card,
 html.has-bg.bg-light .pp-insights-card,
@@ -10986,9 +11057,10 @@ html.has-bg.bg-light .pp-axis {
   stroke: rgba(0, 0, 0, 0.25);
 }
 
-html.has-bg.bg-light .pro-preview-banner-text {
-  color: #333;
-}
+/* Retired with the band's light override: .pro-preview-banner-text now takes
+   --ink-primary, which the light ink blocks already key to the ground, so a
+   hardcoded #333 here would only be a second answer to a settled question.
+   The banner restates the ink tokens for its own subtree below. */
 
 /* ===== [1.0.22] Insights tab (live Achievements) ===== */
 .insights-tab {
