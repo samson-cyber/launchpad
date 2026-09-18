@@ -4407,17 +4407,30 @@ html.bg-light { --sat-amber: #8a6d09; }
    cluster. */
 
 /* --- Shared surface (both modes) --- */
+/* ===== [H2b] THE PILL IS A SMALL TILE =====================================
+
+   IT SITS ON THE WALLPAPER, NOT ON A TILE, and that is the whole reason its
+   own frost is its ground. Every other surface this arc has redrawn composites
+   over a panel; this one composites over a photograph, so the hero pair does
+   here what the floater frost used to - and H1a's bg-light alphas apply to it
+   for free, because they are declared on the tokens rather than on the tiles.
+
+   16px, NOT --tile's 20px. A full tile is 20; this is a small one, and a
+   radius tuned for a 2x2 bento cell reads as a lozenge at 40px tall. Stated as
+   a number with its reason rather than borrowed from a token that means
+   something else. */
 #active-task-pill {
   position: fixed;
   top: 10px;
   inset-inline-end: 14px;
   z-index: 1500;               /* above content (z 2); below menus/modals */
-  background: var(--pro-frost-floater-bg);
-  backdrop-filter: var(--pro-frost-floater-blur);
-  -webkit-backdrop-filter: var(--pro-frost-floater-blur);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
-  color: #fff;                 /* dark frost by default; bg-light flips it dark */
+  background: linear-gradient(160deg, var(--tile-hero), var(--tile-hero-2));
+  backdrop-filter: blur(var(--frost)) saturate(130%);
+  -webkit-backdrop-filter: blur(var(--frost)) saturate(130%);
+  border: 1px solid var(--tile-line);
+  box-shadow: inset 0 1px 0 var(--tile-line), 0 2px 10px rgba(0, 0, 0, 0.25);
+  border-radius: 16px;
+  color: var(--ink);
   font: inherit;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -4425,10 +4438,13 @@ html.bg-light { --sat-amber: #8a6d09; }
 
 /* --- Pill mode: empty or minimized. The .sat-pill-face button fills it.
    ~15% of canvas, clamped so it neither shrinks to a sliver nor dominates. --- */
-#active-task-pill:not(.is-card) {
+#active-task-pill:not(.is-card):not(.is-dot) {
   width: clamp(160px, 15vw, 300px);
   height: 40px;
-  border-radius: 20px;
+  border-radius: 16px;
+  /* The face and the hide control sit side by side; the face takes the room. */
+  display: flex;
+  align-items: center;
 }
 #active-task-pill:not(.is-card):hover { border-color: rgba(255, 255, 255, 0.28); }
 
@@ -4436,7 +4452,11 @@ html.bg-light { --sat-amber: #8a6d09; }
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  width: 100%;
+  /* [H2b] SHARES THE ROW. width:100% took the whole pill and pushed the hide
+     chevron past the rounded edge onto the wallpaper - visible in the frame as
+     a stray glyph sitting outside the box. */
+  flex: 1 1 auto;
+  min-width: 0;
   height: 100%;
   padding: 0 var(--space-3);
   background: none;
@@ -4523,7 +4543,7 @@ html.bg-light { --sat-amber: #8a6d09; }
 #active-task-pill.is-card {
   width: 280px;
   max-width: calc(100vw - 28px);
-  border-radius:var(--radius-xl);
+  border-radius: 16px;
   padding: var(--space-1);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
   z-index: 9000;              /* the expanded surface, like v2's panel */
@@ -21827,3 +21847,190 @@ html.has-bg.bg-light .tasks-split .habit-month { color: var(--ink-mute); }
 @media (prefers-reduced-motion: reduce) {
   html.has-bg .tasks-split .tt-task-options { transition: none; }
 }
+
+
+/* ===== [H2b] THE HIDE OPTION AND THE DOT =================================
+
+   card -> slim -> hidden, and back in one click. The dot is 28px of the action
+   colour in the corner: small enough to stop being furniture, large enough to
+   hit, and NOT display:none, because a control the user turned off has to
+   leave a way to turn it on. */
+#active-task-pill.is-dot {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--radius-circle);
+  background: linear-gradient(160deg, var(--action), var(--action-2));
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.sat-dot {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  cursor: pointer;
+}
+.sat-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The slim face's own chevron. A sibling of the face, so the face stays one
+   button; sized to the same 22px as the card's so the two read as one control
+   in two places. */
+.sat-pill-hide {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-inline-end: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-meta);
+  font-size: var(--fs-13);
+  line-height: 1;
+  cursor: pointer;
+}
+.sat-pill-hide:hover { background: var(--tile-fill); color: var(--ink); }
+.sat-pill-hide:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ===== [H2b] THE CONIC RING ==============================================
+
+   The arc is drawn by a conic gradient and the hole by a radial mask, so the
+   whole dial is one element instead of two SVG circles in their own coordinate
+   system. --ring-frac is what satPaintTime writes, once a second.
+
+   THE FILL IS THE action COLOUR, which is the board's call and also the one
+   that survives the measurement: the ring has to read against the hero tile it
+   sits on at 3:1, which is the non-text floor for a graphical object. */
+.sat-pomo-ring {
+  position: relative;
+  width: 104px;
+  height: 104px;
+  display: block;
+}
+
+.sat-pomo-ring-track,
+.sat-pomo-ring-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-circle);
+  /* A 7px ring: keep the middle, drop the centre. Both halves are stated
+     because -webkit- is still required on WebKit for mask-composite. */
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 7px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 7px));
+}
+
+.sat-pomo-ring-track { background: rgba(255, 255, 255, 0.14); }
+
+.sat-pomo-ring-fill {
+  --ring-frac: 0;
+  background: conic-gradient(var(--action) calc(var(--ring-frac) * 360deg), transparent 0);
+  /* From 12 o'clock, like the SVG it replaces. */
+  transform: rotate(0deg);
+  transition: none;
+}
+
+/* ===== [H2b] PAUSED IS AMBER ON THE RING, AND NOWHERE ELSE NEW ===========
+
+   THE SPEC ASKED FOR RING AND CHIP; check-bg-queue's FINDING 5 asks for ONE
+   amber signal per surface and counts them. The gate wins, and the ring is the
+   half that stays.
+
+   THE RING IS NOT DECORATION - it is the "is this running" indicator, so a
+   paused countdown whose ring stayed orange would be the surface claiming a
+   live session. Scoped to .is-card because that is the only state a ring exists
+   in, which also leaves the SLIM pill at exactly one amber rule (the glyph),
+   which is what FINDING 5 measures.
+
+   THE CHIP DOES NOT TAKE IT. The WORK chip says which MODE; whether tracking is
+   paused is not a fact about it, and the glyph and the ring already carry that.
+   A second amber here would be inflation of exactly the kind [1.9.4] recorded. */
+#active-task-pill.is-card.is-paused .sat-pomo-ring-fill {
+  background: conic-gradient(var(--sat-amber) calc(var(--ring-frac) * 360deg), transparent 0);
+}
+
+/* ===== [H2b] THE WORK CHIP RIDES THE SESSION, IN THE action TINT =========
+   WM.1's rule is unchanged - it renders in WORK only, and says nothing in
+   Casual. What changes is the colour: it is the same orange the running ring
+   and the dot use, so "a session is on" is one colour across the surface. */
+.sat-mode-chip {
+  background: var(--action-tint);
+  color: var(--action);
+}
+
+
+/* ===== [H2b] THE PILL IS A TILE ON EVERY GROUND ==========================
+
+   The 53 html.bg-light rules above were written when this surface was floater
+   frost, which turns white-tinted on a light wallpaper - their own comment says
+   so. It is the hero tint now, and H1a ruled that a tint RISES to 94% on a
+   light ground rather than lightening, so the pill is dark on all three. Those
+   rules were painting --text-primary onto it: measured at 2.41 for the eyebrow,
+   2.19 for the chevron and 1.37 for the WORK chip.
+
+   Scoped under the id so it outranks every one of them, and kept in the two
+   tiers the card already reads in rather than flattened to a single colour. */
+html.bg-light #active-task-pill {
+  color: var(--ink);
+  border-color: var(--tile-line);
+}
+
+html.bg-light #active-task-pill .sat-name,
+html.bg-light #active-task-pill .sat-time,
+html.bg-light #active-task-pill .sat-hero-time,
+html.bg-light #active-task-pill .sat-worked,
+html.bg-light #active-task-pill .sat-time-off,
+html.bg-light #active-task-pill .sat-lifetime,
+html.bg-light #active-task-pill .sat-pomo-time,
+html.bg-light #active-task-pill .sat-pill-time,
+html.bg-light #active-task-pill .sat-pill-name { color: var(--ink); }
+
+html.bg-light #active-task-pill .sat-eyebrow,
+html.bg-light #active-task-pill .sat-goal,
+html.bg-light #active-task-pill .sat-time-label,
+html.bg-light #active-task-pill .sat-hero-label,
+html.bg-light #active-task-pill .sat-since,
+html.bg-light #active-task-pill .sat-foreign,
+html.bg-light #active-task-pill .sat-live,
+html.bg-light #active-task-pill .sat-window,
+html.bg-light #active-task-pill .sat-zero-note,
+html.bg-light #active-task-pill .sat-pill-empty,
+html.bg-light #active-task-pill .sat-pill-label,
+html.bg-light #active-task-pill .sat-card-min,
+html.bg-light #active-task-pill .sat-pill-hide { color: var(--ink-meta); }
+
+/* THE WORK CHIP NEEDED MORE THAN A SCOPE. --action as ink on --action-tint over
+   the hero pair measured 4.88 on the dark ground and 4.49 on a photograph -
+   under the floor on the one that matters most, and by a margin too small to
+   call a rounding. The fill stays the action tint, which is what makes it read
+   as the session's colour; the INK is lifted to the light end of the same
+   orange so the chip is still orange-on-orange and still legible. */
+.sat-mode-chip { color: #ffc09a; }
+
+/* AND ON THE LIGHT GROUND TOO. html.bg-light .sat-mode-chip sets #202124 - the
+   54th rule written for a pill that used to turn white - and it measured the
+   chip at 1.37 against the dark tile it now sits on. Same scope, same ink as
+   the other two grounds, because the chip does not change with the wallpaper
+   any more than the tile under it does. */
+html.bg-light #active-task-pill .sat-mode-chip { color: #ffc09a; }
+
+/* ===== [H2b] THE NUMERAL INSIDE THE RING =================================
+
+   A REGRESSION THIS ROUND CAUSED, caught in the frame rather than in a number.
+   .sat-expanded-pomo.is-work .sat-pomo-time paints the countdown in
+   --sat-accent, and that was RIGHT while the ring was also --sat-accent: one
+   colour, ring and numeral, saying the same thing. The ring is --action now, so
+   the two disagree - a blue number inside an orange ring - and every contrast
+   reading stayed clean throughout, because legibility was never the problem.
+
+   THE RING KEEPS THE COLOUR AND THE NUMERAL GOES NEUTRAL, rather than both
+   turning orange. The .is-work highlight exists to say "this is the stretch
+   that counts"; the ring now says it, and a second orange inside it would be
+   the same sentence twice at the cost of the numeral's legibility against it. */
+#active-task-pill .sat-expanded-pomo.is-work .sat-pomo-time { color: var(--ink); }

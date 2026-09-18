@@ -6177,6 +6177,26 @@ var Storage = (function () {
     return true;
   }
 
+  // [H2b] THE PILL'S THIRD STATE. card -> slim -> hidden, and the first two are
+  // the boolean above. A SIBLING FLAG rather than widening that one to an enum:
+  // isActiveTaskCardMinimized reads it as !!value, so a string "hidden" would be
+  // seen as "minimized" by every existing reader through an accident of
+  // truthiness rather than a decision. Two booleans say what they mean, and the
+  // pair has a defined meaning for all four combinations - hidden wins, because
+  // a hidden pill is not showing a card either way.
+  function isActiveTaskPillHidden(data) {
+    return !!(data && data.activeTaskPillHidden);
+  }
+
+  async function setActiveTaskPillHidden(data, hidden) {
+    if (!data) return false;
+    var next = !!hidden;
+    if (!!data.activeTaskPillHidden === next) return false;
+    data.activeTaskPillHidden = next;
+    await saveAll(data);
+    return true;
+  }
+
   // ===== Due-date hierarchy checks ([1.0.13]) =====
   //
   // Pure, read-only conflict checks that sit IN FRONT OF updateTaskDueAt /
@@ -10555,6 +10575,8 @@ var Storage = (function () {
     resolveActiveTask: resolveActiveTask,
     isActiveTaskCardMinimized: isActiveTaskCardMinimized,
     setActiveTaskCardMinimized: setActiveTaskCardMinimized,
+    isActiveTaskPillHidden: isActiveTaskPillHidden,
+    setActiveTaskPillHidden: setActiveTaskPillHidden,
     // [1.0.18] Pomodoro phase state (rides data.activeTask.pomodoroState).
     emptyPomodoroState: emptyPomodoroState,
     hydratePomodoroState: hydratePomodoroState,

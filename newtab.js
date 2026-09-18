@@ -20300,7 +20300,9 @@
       var fill = container.querySelector(".sat-pomo-ring-fill");
       if (fill) {
         var frac = pomo.totalMs > 0 ? Math.max(0, Math.min(1, remaining / pomo.totalMs)) : 0;
-        fill.style.strokeDashoffset = String(SAT_POMO_RING_C * (1 - frac));
+        // [H2b] The conic ring reads one number and CSS turns it into degrees.
+        // Same value the dash offset encoded, said forwards instead of inverted.
+        fill.style.setProperty("--ring-frac", frac.toFixed(4));
       }
       // [2.0 timing] The takeover now keeps Focused today beneath the ring, so
       // this branch can no longer return early — .sat-time IS in the DOM during a
@@ -20309,7 +20311,13 @@
     }
     var focusedText = satFmtLong(satLiveMs());
     var pillTime = container.querySelector(".sat-pill-time");
-    if (pillTime) pillTime.textContent = focusedText;
+    // [H2b] NOT IF IT IS ALSO THE PHASE COUNTDOWN. The slim pill's countdown
+    // span carries BOTH classes - sat-pomo-time so this function ticks it,
+    // sat-pill-time for its styling - so this line was overwriting the phase
+    // time with Focused today one tick after every render, and the WM.5
+    // countdown showed 0:00. The branch above has already written the right
+    // value into it; this one must leave it alone.
+    if (pillTime && !pillTime.classList.contains("sat-pomo-time")) pillTime.textContent = focusedText;
     var big = container.querySelector(".sat-time");
     // The tracking-off state OWNS this node when it is present - writing the
     // figure over it would put "0:00" back where the state was deliberately put.
@@ -20746,6 +20754,17 @@
       'aria-label="' + th("sat_focus_blocking_is_on") + '">●</span>';
   }
 
+  // [H2b] THE SECOND TAP. The card's chevron collapses to slim; this one - the
+  // same glyph, on the slim face - hides to the dot. It is a sibling of the
+  // face rather than inside it, because the face is ONE button with its own
+  // act ("restore" or "pick") and nesting a second control inside it would make
+  // the whole face ambiguous. The delegated handler routes on the innermost
+  // data-sat-act, which is what lets these two coexist.
+  function satPillHideBtnHtml() {
+    return '<button type="button" class="sat-pill-hide" data-sat-act="hide" ' +
+      'title="' + th("sat_minimize") + '" aria-label="' + th("sat_minimize_active_task_card") + '">⌄</button>';
+  }
+
   function satPillFaceHtml(res, paused) {
     var inner;
     if (!res) {
@@ -20864,7 +20883,7 @@
         '<span class="sat-eyebrow">' + th("common_active_task") + '</span>' +
         satWorkModeChipHtml() +
         '<button type="button" class="sat-card-min" data-sat-act="minimize" ' +
-          'title="' + th("sat_minimize") + '" aria-label="' + th("sat_minimize_active_task_card") + '">⌃</button>' +
+          'title="' + th("sat_minimize") + '" aria-label="' + th("sat_minimize_active_task_card") + '">⌄</button>' +
       '</div>' +
       '<div class="sat-name" title="' + escapeHtml(res.task.name) + '">' + escapeHtml(res.task.name) + '</div>' +
       (res.goal ? '<div class="sat-goal" title="' + escapeHtml(res.goal.name) + '">' + escapeHtml(res.goal.name) + '</div>' : '') +
@@ -20957,12 +20976,18 @@
           head +
           '<div class="sat-pomo">' +
             '<div class="sat-pomo-ring-wrap">' +
-              '<svg class="sat-pomo-ring" viewBox="0 0 100 100" width="104" height="104" aria-hidden="true">' +
-                '<circle class="sat-pomo-ring-track" cx="50" cy="50" r="' + SAT_POMO_RING_R + '"></circle>' +
-                '<circle class="sat-pomo-ring-fill" cx="50" cy="50" r="' + SAT_POMO_RING_R + '" ' +
-                  'stroke-dasharray="' + SAT_POMO_RING_C.toFixed(2) + '" ' +
-                  'stroke-dashoffset="' + offset.toFixed(2) + '"></circle>' +
-              '</svg>' +
+              // [H2b] A CONIC RING, not two SVG circles. The board draws the
+              // running state as a filled arc in the action colour, and a conic
+              // gradient behind a ring-shaped mask is that arc without a second
+              // coordinate system inside the tile. The class name is unchanged
+              // on purpose: satPaintTime finds the fill by .sat-pomo-ring-fill
+              // and the .is-work highlight already targets it, so neither has to
+              // learn a new selector - only what to set on it.
+              '<div class="sat-pomo-ring" aria-hidden="true">' +
+                '<div class="sat-pomo-ring-track"></div>' +
+                '<div class="sat-pomo-ring-fill" style="--ring-frac: ' +
+                  (SAT_POMO_RING_C > 0 ? (1 - (offset / SAT_POMO_RING_C)).toFixed(4) : "0") + '"></div>' +
+              '</div>' +
               '<div class="sat-pomo-center">' +
                 '<span class="sat-pomo-time">' + escapeHtml(satFmtLong(remaining)) + '</span>' +
                 '<span class="sat-pomo-phase">' + escapeHtml(phaseLabel) + '</span>' +
@@ -21090,6 +21115,27 @@
     }
     pill.classList.remove("hidden");
 
+    // [H2b] THE HIDDEN STATE, and it is checked before anything is resolved
+    // because it is the one state that renders the same whatever the task is.
+    // A 28px action dot in the corner: the smallest thing that can still be
+    // clicked back. It is NOT display:none - a control the user turned off has
+    // to leave a way to turn it on, and a dot is that way.
+    if (Storage.isActiveTaskPillHidden(data)) {
+      pill.classList.remove("is-card", "is-empty", "is-paused");
+      pill.classList.add("is-dot");
+      document.body.classList.remove("sat-card-open");
+      pill.removeAttribute("role");
+      pill.setAttribute("title", t("common_active_task"));
+      pill.setAttribute("aria-label", t("common_active_task"));
+      pill.innerHTML = '<button type="button" class="sat-dot" data-sat-act="unhide" ' +
+        'title="' + th("common_active_task") + '" aria-label="' + th("common_active_task") + '"></button>';
+      satStopTick();
+      satUpdateTabTitle();
+      closeSatSwitchMenu();
+      return;
+    }
+    pill.classList.remove("is-dot");
+
     var resolved = Storage.resolveActiveTask(data);
 
     // Self-heal (item 7). resolveActiveTask reports a task completed or deleted
@@ -21137,7 +21183,12 @@
     } else {
       pill.removeAttribute("role");
       pill.removeAttribute("aria-label");
-      pill.innerHTML = satPillFaceHtml(res, paused);
+      // [H2b] The hide control is a SIBLING of the face, never inside it: the
+      // face is one button with one act, and a control nested in it would make
+      // every click ambiguous. Not rendered in the empty state - there is
+      // nothing to hide from, and a user with no active task who hid the pill
+      // would have removed their only route to picking one.
+      pill.innerHTML = satPillFaceHtml(res, paused) + (res ? satPillHideBtnHtml() : "");
     }
 
     if (res) {
@@ -21163,6 +21214,19 @@
   // tab's onChanged repaints the widget (cross-tab sync); computeDesired ignores
   // the flag, so it is inert to the engine. Any open Switch dropdown is closed —
   // it anchored to a button that is about to be replaced.
+  // [H2b] hide / unhide. Same shape as satSetMinimized directly below: write
+  // through the per-field updater, then eager-render, because our own writes are
+  // provenance-tagged and nothing else will repaint this tab.
+  async function satSetHidden(hidden) {
+    closeSatSwitchMenu();
+    try {
+      await Storage.setActiveTaskPillHidden(data, hidden);
+    } catch (err) {
+      console.error("[LaunchPad] Active task: hide toggle failed", err);
+    }
+    renderActiveTaskWidget();
+  }
+
   async function satSetMinimized(minimized) {
     closeSatSwitchMenu();
     try {
@@ -21637,6 +21701,12 @@
       if (act === "switch" || act === "pick") { openSatSwitchMenu(actBtn); return; }
       if (act === "minimize") { await satSetMinimized(true); return; }
       if (act === "restore") { await satSetMinimized(false); return; }
+      // [H2b] The third state. "hide" is the slim face's own chevron; "unhide"
+      // is the dot. Restoring goes back to SLIM rather than to the card, because
+      // slim is the state it was hidden FROM - coming back bigger than it left
+      // would be the surface arguing with the choice the user just reversed.
+      if (act === "hide") { await satSetHidden(true); return; }
+      if (act === "unhide") { await satSetHidden(false); return; }
       if (act === "pause") { await satSetPaused(true); return; }
       if (act === "resume") { await satSetPaused(false); return; }
       if (act === "goto-workspace") {
