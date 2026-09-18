@@ -22906,3 +22906,228 @@ html.has-bg.bg-light #active-task-pill .sat-focus-hint { color: var(--ink-meta);
    this is the pill agreeing with itself rather than a new choice. */
 #active-task-pill .sat-live,
 #active-task-pill .sat-window { color: var(--ink-meta); }
+
+/* =========================================================================
+   [FIX-4] THE PILL IS ONE TILE IN EVERY STATE
+
+   Samson: "when you start a task, you open the cluster glass to the back to
+   what it was before... everything should live on the same build... so it
+   doesn't jolt into another frame."
+
+   THE PREMISE WAS HALF RIGHT, AND MEASURING IT CHANGED THE WORK. The pill's
+   own surface is ALREADY one surface: eight states measured live, and seven of
+   them return the identical background rgba(38,30,34,0.6), the identical
+   backdrop-filter blur(14px) saturate(1.3) and the identical 16px radius. It is
+   also ONE NODE - tagging the element and reading the tag back after every
+   transition proves nothing is ever remounted. FIX-3's frost was never lost.
+
+   What actually differs, and what this round fixes:
+
+     1. THE BOX-SHADOW. Slim and empty carry an inset hairline and a 10px
+        ambient shadow; the card swaps both for `0 8px 28px rgba(0,0,0,0.35)`.
+        A heavier shadow IS a different box to the eye, whatever the fill says.
+     2. NOTHING ANIMATES. width 209 -> 280 and height 40 -> 496, with
+        `transition: border-color, box-shadow` and nothing on the geometry. The
+        change is a hard cut. That is the jolt.
+     3. THE FILLS ON TOP. The running card had ELEVEN elements painting their
+        own background, six of them .sat-btn at 6% white. Six translucent fills
+        stacked on glass read as an opaque panel - which is the "near-black"
+        the frame shows even though the glass beneath is unchanged.
+   ========================================================================= */
+
+/* ---- 1. ONE SHADOW, LIKE THE ONE FILL ---------------------------------- */
+
+/* The card's heavier drop shadow goes. Every state now carries the slim pill's
+   own pair - the inset hairline that the tile component uses everywhere, and
+   one ambient shadow - so the surface reads the same whatever is inside it.
+   The dot keeps its own: it is a 28px control, not a surface. */
+#active-task-pill.is-card,
+#active-task-pill.is-picking {
+  box-shadow: inset 0 1px 0 var(--tile-line), 0 2px 10px rgba(0, 0, 0, 0.25);
+}
+
+/* ---- 2. THE GEOMETRY ANIMATES ------------------------------------------
+
+   interpolate-size + a transition on height is what lets a content-sized box
+   animate at all: without it `height: auto` is not an interpolable value and
+   the tile jumps. Chromium has shipped it since 129 and this build is 137+.
+
+   200ms ease-out, per the ruling. The existing border-color and box-shadow
+   transitions are kept and given the same duration, so a state change is one
+   movement rather than a 150ms colour fade under a 200ms resize. */
+:root { interpolate-size: allow-keywords; }
+#active-task-pill {
+  transition: width 200ms ease-out, height 200ms ease-out,
+              border-color 200ms ease-out, box-shadow 200ms ease-out;
+}
+/* AND NOTHING MOVES FOR A USER WHO ASKED FOR THAT. The change still happens -
+   it is the animation that is removed, not the state. */
+@media (prefers-reduced-motion: reduce) {
+  #active-task-pill { transition: none; }
+}
+
+/* ---- 3. THE RING AT 72px ------------------------------------------------
+
+   104px was a hero tile's ring on a 280px pill. The conic gradient and its mask
+   are sized off the wrap, so the whole ring follows one number; the countdown
+   inside it steps down with it. */
+/* THREE ELEMENTS CARRY THE 104, NOT ONE. .sat-pomo-ring-wrap is the box, but
+   H2b's .sat-pomo-ring restates it, and the track and the fill are inset:0
+   against THAT. Sizing only the wrap left a 72px box with a 104px dial drawn
+   out of it - which the frame would have shown and the "inner surfaces" read
+   did: both ring halves still measured 104 wide inside a 72 wide parent. The
+   mask's 7px stroke comes down with them, or a 72px dial wears a ring sized for
+   one half again as large. */
+#active-task-pill .sat-pomo-ring-wrap,
+#active-task-pill .sat-pomo-ring { width: 72px; height: 72px; }
+#active-task-pill .sat-pomo-ring-track,
+#active-task-pill .sat-pomo-ring-fill {
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 5px));
+}
+#active-task-pill .sat-pomo-time { font-size: var(--fs-15); }
+#active-task-pill .sat-pomo-phase { font-size: var(--fs-10); }
+#active-task-pill .sat-pomo { margin-top: var(--space-1); }
+
+/* ---- 4. THE CLUSTER: ONE PRIMARY, THEN LINKS ---------------------------
+
+   The primary is the only filled control left on the card, which is what makes
+   it read as the primary. Full width, the action tint, the action's own ink -
+   the same pairing H1a proved holds at 7.5:1 on every ground.
+
+   THE RESUME STATE IS NOT AMBER, AND THE FIRST DRAFT MADE IT AMBER ON A FALSE
+   PREMISE. The comment here claimed the ring's amber and the primary's "never
+   render at once, because a paused phase freezes the countdown the ring is
+   drawing". THE FRAME SHOWED BOTH AT ONCE - an amber ring above an amber
+   Resume, which is exactly the two-signal inflation [1.9.4]'s FINDING 5 counts.
+
+   check-bg-queue asserts "the Resume button is no longer tinted amber" and it
+   PASSED, because it tests for a rule on .sat-btn-resume and this control is
+   .sat-primary.is-resume. The rename walked straight past a gate written for
+   the defect. The gate is widened in the same commit; the ruling stands and the
+   primary keeps the action colour in both states. The word and the glyph carry
+   which state it is, which is what [1.9.4] left them to do. */
+#active-task-pill .sat-primary {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: 9px 0;
+  border: 0;
+  border-radius: var(--inner);
+  background: var(--action);
+  color: var(--ink-on-action);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  font-weight: 600;
+  cursor: pointer;
+}
+#active-task-pill .sat-primary:hover { filter: brightness(1.06); }
+/* No amber here - see above. The one amber on a paused card is the hero label,
+   plus the ring, which H2b scoped to .is-card for its own reason. */
+#active-task-pill .sat-primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* THE LINKS CARRY NO FILL AT ALL, which is the whole point of the compaction:
+   three actions that used to be three 6%-white boxes are now three words. They
+   keep their labels and their titles verbatim - [2.0 pill clarity] ruled that
+   each action wears its consequence, and that ruling is about the WORDS. */
+#active-task-pill .sat-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  flex-wrap: wrap;
+}
+#active-task-pill .sat-link {
+  border: 0;
+  background: none;
+  padding: 2px 0;
+  color: var(--ink-meta);
+  font-family: var(--font-sans);
+  font-size: var(--fs-11);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--tile-line);
+}
+#active-task-pill .sat-link:hover { color: var(--ink); text-decoration-color: currentColor; }
+#active-task-pill .sat-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+html.bg-light #active-task-pill .sat-link,
+html.has-bg.bg-light #active-task-pill .sat-link { color: var(--ink-meta); }
+html.bg-light #active-task-pill .sat-link:hover,
+html.has-bg.bg-light #active-task-pill .sat-link:hover { color: var(--ink); }
+
+/* The swap glyph, now in the head beside the chevron. Sized to the chevron so
+   the two read as one pair of controls rather than two arrivals. */
+#active-task-pill .sat-card-swap {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-meta);
+  font-size: var(--fs-13);
+  line-height: 1;
+  cursor: pointer;
+}
+#active-task-pill .sat-card-swap:hover { background: var(--tile-fill); color: var(--ink); }
+#active-task-pill .sat-card-swap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+html.bg-light #active-task-pill .sat-card-swap,
+html.has-bg.bg-light #active-task-pill .sat-card-swap { color: var(--ink-meta); }
+html.bg-light #active-task-pill .sat-card-swap:hover,
+html.has-bg.bg-light #active-task-pill .sat-card-swap:hover { background: var(--tile-fill); color: var(--ink); }
+
+/* ---- 5. THE TAG IS TEXT ------------------------------------------------
+
+   .tt-tag-pill.is-plain is the Tasks row's own form and already exists; what it
+   needs here is the pill's ink rather than the row's. It was the ONE fully
+   opaque element inside the pill - a solid rgb(74,144,226) block on a surface
+   whose job is to be glass. */
+#active-task-pill .tt-tag-pill.is-plain,
+html.bg-light #active-task-pill .tt-tag-pill.is-plain,
+html.has-bg.bg-light #active-task-pill .tt-tag-pill.is-plain {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ink-meta);
+  font-size: var(--fs-11);
+}
+#active-task-pill .tt-tag-more,
+html.bg-light #active-task-pill .tt-tag-more,
+html.has-bg.bg-light #active-task-pill .tt-tag-more {
+  background: none;
+  color: var(--ink-meta);
+  font-size: var(--fs-11);
+}
+
+/* ---- 6. FOUR NODES THE PER-STATE SWEEP FOUND ---------------------------
+
+   FIX-3 swept the CARD state on three grounds and found it clean. This round
+   swept FIVE states on three grounds - 207 readings - because a class that only
+   renders on the empty pill or the slim one is invisible to a sweep taken with
+   a task loaded. Four nodes had been under the floor the whole time:
+
+     .sat-pill-empty   2.41 dark, 2.55 photo   --text-secondary, a light-panel token
+     .sat-pill-plus    1.61 light              --sat-accent-ink, tuned for a card
+     .sat-pill-glyph   2.73 light              --sat-accent, same
+     .sat-pill-label   4.46 dark               --ink-chrome, the faint tier again
+
+   All four are the same shape as the two FIX-3 already corrected: tokens picked
+   when this surface was a floater at 92%, now sitting on glass at 60%. They
+   take the pill's own two tiers, which is what every other node on it uses. */
+#active-task-pill .sat-pill-empty { color: var(--ink); }
+#active-task-pill .sat-pill-label { color: var(--ink-meta); }
+#active-task-pill .sat-pill-plus,
+#active-task-pill .sat-pill-glyph { color: var(--action-soft); }
+html.bg-light #active-task-pill .sat-pill-empty,
+html.has-bg.bg-light #active-task-pill .sat-pill-empty { color: var(--ink); }
+html.bg-light #active-task-pill .sat-pill-label,
+html.has-bg.bg-light #active-task-pill .sat-pill-label { color: var(--ink-meta); }
+html.bg-light #active-task-pill .sat-pill-plus,
+html.bg-light #active-task-pill .sat-pill-glyph,
+html.has-bg.bg-light #active-task-pill .sat-pill-plus,
+html.has-bg.bg-light #active-task-pill .sat-pill-glyph { color: var(--action-soft); }

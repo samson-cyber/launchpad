@@ -366,11 +366,12 @@ const eq = (name, got, want) => check(name, JSON.stringify(got) === JSON.stringi
 
 // The action row's markup, sliced from satCardHtml once and reused.
 const CARD = extractFn(SRC.nt, "satCardHtml");
-const ACTIONS = (() => {
-  const i = CARD.indexOf("var actionsRow =");
-  const j = CARD.indexOf("];", i) === -1 ? CARD.indexOf("'</div>';", i) : CARD.indexOf("'</div>';", i);
-  return CARD.slice(i, j + 9);
-})();
+// [FIX-4] THE WHOLE BUILDER, not one named variable. The cluster used to be a
+// single `var actionsRow`; it is now a primary pill plus a satLinksRow helper,
+// with the swap glyph in the head. Slicing on a variable name made this gate
+// depend on how the markup happens to be assembled rather than on what it says,
+// and that is what broke. The builder is the honest denominator.
+const ACTIONS = CARD;
 
 await (async () => {
 
@@ -393,10 +394,19 @@ await (async () => {
   const completeBtn = resolveCopy(btn("complete"));
   const cancelBtn = resolveCopy(btn("cancel"));
 
-  check("trap: the action row still carries all four controls",
-    ["complete", "cancel", "pause", "switch"].every((a) => ACTIONS.includes(`data-sat-act="${a}"`)) ||
-    (["complete", "cancel", "switch"].every((a) => ACTIONS.includes(`data-sat-act="${a}"`)) && CARD.includes("pauseBtn")),
+  // [FIX-4] ALL FOUR, ANYWHERE ON THE CARD. They were one row; they are now a
+  // primary (pause/resume), two links (complete/cancel) and a head glyph
+  // (switch). What this gate is for is that none of them quietly vanished in a
+  // rearrangement, and that property does not care which row they sit in.
+  check("trap: the card still carries all four controls",
+    ["complete", "cancel", "switch"].every((a) => ACTIONS.includes(`data-sat-act="${a}"`)) &&
+    /data-sat-act="(pause|resume)"/.test(ACTIONS),
     ACTIONS.slice(0, 120));
+  // AND PAUSE AND RESUME ARE THE SAME CONTROL IN TWO STATES, never two controls
+  // rendered at once - which is what "one primary" means and what would
+  // otherwise be an easy thing to lose.
+  check("trap: pause and resume are one control in two states, never both at once",
+    /paused\s*\?[\s\S]{0,400}data-sat-act="resume"[\s\S]{0,400}:[\s\S]{0,400}data-sat-act="pause"/.test(CARD));
 
   // THE LOAD-BEARING PAIR. The word on the button and the act it fires.
   check("trap: the COMPLETE control says Complete", /Complete<\/button>|>✓ Complete/.test(completeBtn), completeBtn.slice(0, 200));
@@ -405,8 +415,19 @@ await (async () => {
   check("trap: the SET-DOWN control is LABELED, not a bare glyph",
     /End for now<\/button>/.test(cancelBtn) && !/^[^>]*>×</.test(cancelBtn), cancelBtn.slice(0, 200));
   check("trap: ...and it fires cancel, never complete", cancelBtn.includes('data-sat-act="cancel"') && !cancelBtn.includes('data-sat-act="complete"'));
-  check("trap: the two live side by side at equal dignity in the primary row",
-    /sat-actions-primary[\s\S]*data-sat-act="complete"[\s\S]*data-sat-act="cancel"[\s\S]*sat-actions-session/.test(ACTIONS));
+  // [FIX-4] EQUAL DIGNITY, RE-ANCHORED. It was "both inside .sat-actions-primary
+  // and before .sat-actions-session"; it is now "both inside .sat-links, both
+  // carrying the same .sat-link class, adjacent". Same property, and the class
+  // equality half is new: a Complete that quietly took a heavier class than End
+  // for now would have passed the old form.
+  check("trap: the two consequence-bearing actions are PEERS - one row, one class",
+    /sat-links[\s\S]{0,600}class="sat-link" data-sat-act="complete"[\s\S]{0,400}class="sat-link" data-sat-act="cancel"/.test(ACTIONS),
+    ACTIONS.slice(ACTIONS.indexOf("sat-links"), ACTIONS.indexOf("sat-links") + 200));
+  // NEITHER IS THE PRIMARY. The one filled control on the card is pause/resume;
+  // a destructive action promoted to the action pill would be exactly the trap
+  // this gate was written for, wearing a new coat.
+  check("trap: neither Complete nor End for now is the filled primary",
+    !/class="sat-primary[^"]*" data-sat-act="(complete|cancel)"/.test(ACTIONS));
   check("trap: Complete's tooltip states the consequence AND the recovery",
     /moves to Completed/i.test(completeBtn) && /(uncheck|reopen)/i.test(completeBtn), completeBtn.slice(0, 260));
   check("trap: End-for-now's tooltip says the task SURVIVES",
@@ -441,8 +462,13 @@ await (async () => {
     const sw = btn("switch");
     check("trap: the glyph-only control carries BOTH a title and an aria-label",
       /title="[^"]+"/.test(sw) && /aria-label="[^"]+"/.test(sw), sw.slice(0, 160));
-    check("trap: Pause keeps its word (it is the loud recovery control when paused)",
-      /▶ Resume<\/button>/.test(resolveCopy(CARD)) && /⏸ Pause<\/button>/.test(resolveCopy(CARD)));
+    // [FIX-4] THE WORDS, WITHOUT THE GLYPH PREFIX. The control is a full-width
+    // primary now rather than one of four buttons sharing a 280px row, so the
+    // glyph that disambiguated it in a crowd is gone and the word is the whole
+    // label. The property - Pause and Resume are WORDS, never bare glyphs - is
+    // what this line has always been for, and it is asserted more directly.
+    check("trap: Pause and Resume keep their words (the loud recovery control when paused)",
+      /Resume<\/button>/.test(resolveCopy(CARD)) && /Pause<\/button>/.test(resolveCopy(CARD)));
   }
 
   // ================= 2. LIVENESS: the claim follows the engine ==============

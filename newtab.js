@@ -20941,10 +20941,10 @@
   // CHIP is gone — its state is absorbed into the control (D2), not duplicated.
   // ===== [1.2.0 R3 / C9] The pill's Focus row =====
   //
-  // A DEDICATED row, not another button in the shared actionsRow: that row already
-  // carries four controls (Done / Pause / x / Switch) across all three card
-  // states, and blocking is a mode rather than an action on the task. The
-  // sat-pomo-start-row / sat-pomo-stop-row precedent is the same shape.
+  // A DEDICATED row, not another control in the cluster beneath it: blocking is a
+  // MODE rather than an action on the task, which is why it survived [FIX-4]'s
+  // compaction unchanged while the four actions around it became one primary and
+  // a row of links.
   //
   // THE LABEL IS THE TEACHING SURFACE, so the row renders in ALL THREE card
   // states and whether or not any sites are listed. With an empty block list it
@@ -20983,7 +20983,12 @@
     var tagIds = Array.isArray(res.task.tagIds) ? res.task.tagIds : [];
     var tagHtml = "";
     if (tagIds.length >= 1) {
-      tagHtml = tagPillHtml(res.workspace, tagIds[0]);
+      // [FIX-4] PLAIN, NOT A COLOURED FILL. tagPillHtml already takes the option
+      // - it is the same one the Tasks row takes, and for the same reason: a
+      // solid tag colour is the only opaque block on a surface whose whole job
+      // is to be glass, and it was measured as the one element on the running
+      // card painting a fully opaque background.
+      tagHtml = tagPillHtml(res.workspace, tagIds[0], { plain: true });
       if (tagIds.length > 1) {
         tagHtml += '<span class="tt-tag-more" title="' + tagIds.length + ' tags">+' + (tagIds.length - 1) + '</span>';
       }
@@ -21003,10 +21008,18 @@
 
     // Shared header (eyebrow + minimize, name, goal, tags, foreign note) — used by
     // both the normal card and the [1.0.18] pomodoro-running card.
+    //
+    // [FIX-4] THE SWAP GLYPH MOVES UP HERE, beside the chevron. It is the one
+    // action with no consequence for the task at all - the [2.0 pill clarity]
+    // note on the action row says so in as many words - and the head is where
+    // this surface already keeps its no-consequence controls. That leaves the
+    // row below it for the actions that DO something.
     var head =
       '<div class="sat-card-head">' +
         '<span class="sat-eyebrow">' + th("common_active_task") + '</span>' +
         satWorkModeChipHtml() +
+        '<button type="button" class="sat-card-swap" data-sat-act="switch" ' +
+          'title="' + th("sat_switch_active_task") + '" aria-label="' + th("sat_switch_active_task") + '">⇄</button>' +
         '<button type="button" class="sat-card-min" data-sat-act="minimize" ' +
           'title="' + th("sat_minimize") + '" aria-label="' + th("sat_minimize_active_task_card") + '">⌄</button>' +
       '</div>' +
@@ -21015,99 +21028,74 @@
       (tagHtml ? '<div class="sat-tags">' + tagHtml + '</div>' : '') +
       foreignHtml;
 
-    // D2/D4: one Pause/Resume toggle. Copy is GLOBAL, never per-task. When paused
-    // it is the loud amber recovery control. [A2] The action row is SHARED by the
-    // normal and running-phase cards so Pause stays available during a phase (P3).
-    var pauseBtn = paused
-      ? '<button type="button" class="sat-btn sat-btn-resume" data-sat-act="resume" title="' + th("sat_resume_tracking_2") + '">' + th("sat_resume") + '</button>'
-      : '<button type="button" class="sat-btn" data-sat-act="pause" title="' + th("sat_pause_tracking") + '">' + th("sat_pause") + '</button>';
+    // ===== [FIX-4] THE CONTROL CLUSTER, COMPACTED =========================
+    //
+    // SIX CONTROLS ON A 280px SURFACE was the finding. Measured on the running
+    // card before this round: eleven elements inside the pill painted a
+    // background of their own, six of them .sat-btn at 6% white. Stacked on
+    // glass, six translucent fills read as an opaque panel - which is what made
+    // the card look like a different, darker box than the empty pill, even
+    // though the pill's own background is identical in both (measured: the same
+    // rgba(38,30,34,0.6) and blur(14px) in every state but the dot).
+    //
+    // So the fix for "it jolts into another frame" is mostly SUBTRACTION.
+    //
+    //   the swap glyph   -> the head, above
+    //   Pause / Resume   -> ONE primary, an action pill, full width
+    //   Complete, End for now, Stop -> text links in one row
+    //   the blocking toggle -> unchanged
+    //
+    // STOP IS A LINK RATHER THAN THE PRIMARY, and the brief did not say where to
+    // put it - it lists Stop among the six and names Pause as the one primary.
+    // A running session still has to be stoppable, so it joins the links, where
+    // it reads as a peer of the other two session-ending actions. It renders
+    // only while a phase is running, so the row is two links at rest.
+    //
+    // EVERY LABEL AND EVERY act= IS UNCHANGED. [2.0 pill clarity] ruled that
+    // each action wears its consequence - Complete ends the task, End for now
+    // stops tracking and keeps it - and that ruling is about the WORDS, which
+    // this round does not touch. Only their weight and arrangement move.
+    var primaryBtn = paused
+      ? '<button type="button" class="sat-primary is-resume" data-sat-act="resume" title="' + th("sat_resume_tracking_2") + '">' + th("sat_resume") + '</button>'
+      : '<button type="button" class="sat-primary" data-sat-act="pause" title="' + th("sat_pause_tracking") + '">' + th("sat_pause") + '</button>';
 
-    // [2.0 pill clarity] EVERY ACTION WEARS ITS CONSEQUENCE.
-    //
-    // The trap this replaces: "✓ Done" permanently completed the task, while
-    // "done for this session — stop working, the task stays open" hid behind an
-    // unlabeled ×. A user finishing a work stretch tapped Done and closed a task
-    // they meant to keep. Samson's own framing is the spec: you either have a
-    // focus session that tracks the task, or you complete the task — and the
-    // missing middle, SET IT DOWN WITHOUT FINISHING, deserves a real name.
-    //
-    // So the two consequence-bearing actions are labeled, side by side, at equal
-    // dignity, and each says what it does to the TASK:
-    //   Complete    -> the task ends. It moves to Completed.
-    //   End for now -> tracking stops. The task stays open.
-    // No confirmation dialog on either: the label is the fix, and friction on an
-    // action the user meant is a worse tax than the one it prevents.
-    //
-    // COMPLETE IS RECOVERABLE, and that is why a label is sufficient rather than
-    // a dialog. Verified, not assumed: the Tasks tab's row checkbox unchecks a
-    // completed task straight back to open through Storage.reactivateTask (the
-    // `if (!willComplete)` branch of the row's change handler), and the Completed
-    // box keeps the row reachable. The tooltip says so in as many words.
-    //
-    // LAYOUT, and the trade it makes. The card is 280px; four labeled controls do
-    // not fit on one row and would truncate. Hierarchy per the brief: the two
-    // destructive-or-final actions get the labels and the first row; the two
-    // NON-destructive session controls take the second row, where Pause keeps its
-    // label (it is the [1.0.17] loud amber recovery control when paused —
-    // demoting Resume to a bare glyph would weaken the one state that most needs
-    // to be obvious) and Switch, the only action with no consequence for the task
-    // at all, stays a compact glyph WITH a tooltip and an aria-label.
-    var actionsRow =
-      '<div class="sat-actions">' +
-        '<div class="sat-actions-primary">' +
-          '<button type="button" class="sat-btn sat-btn-complete" data-sat-act="complete" ' +
-            'title="' + th("sat_complete_the_task_it_moves_to") + '">' +
-            th("sat_complete") + '</button>' +
-          '<button type="button" class="sat-btn sat-btn-setdown" data-sat-act="cancel" ' +
-            'title="' + th("sat_stop_tracking_for_now_the_task") + '">' +
-            th("sat_end_for_now") + '</button>' +
-        '</div>' +
-        '<div class="sat-actions-session">' +
-          pauseBtn +
-          '<button type="button" class="sat-btn sat-btn-icon" data-sat-act="switch" ' +
-            'title="' + th("sat_switch_active_task") + '" aria-label="' + th("sat_switch_active_task") + '">⇄</button>' +
-        '</div>' +
-      '</div>';
+    function satLinksRow(running) {
+      return '<div class="sat-links">' +
+          '<button type="button" class="sat-link" data-sat-act="complete" ' +
+            'title="' + th("sat_complete_the_task_it_moves_to") + '">' + th("sat_complete") + '</button>' +
+          '<button type="button" class="sat-link" data-sat-act="cancel" ' +
+            'title="' + th("sat_stop_tracking_for_now_the_task") + '">' + th("sat_end_for_now") + '</button>' +
+          (running
+            ? '<button type="button" class="sat-link" data-sat-act="pomo-stop" ' +
+                'title="' + th("sat_stop_focus_session") + '">' + th("sat_stop") + '</button>'
+            : '') +
+        '</div>';
+    }
 
-    // [A2] Focus session RUNNING: ring + countdown + phase label + Stop, PLUS the
-    // shared action row. Stop clears the phase and returns to the elapsed view;
-    // Switch gates through the reset-confirm modal (in satActivate); Complete /
-    // Cancel act immediately — the phase dies with the task.
+    // [A2] Focus session RUNNING: the ring carries the countdown and the phase;
+    // the primary and the links sit beneath it. Stop moved into the links, so
+    // .sat-pomo-stop-row is gone with its button.
     var pomo = satRunningPomo();
     if (pomo) {
       var remaining = satPomoRemainingMs(pomo);
       var frac = pomo.totalMs > 0 ? Math.max(0, Math.min(1, remaining / pomo.totalMs)) : 0;
       var offset = SAT_POMO_RING_C * (1 - frac);
       // [E3] The ring center reads FOCUS during a work phase (the protagonist,
-      // per E2's copy direction); break phases keep their phase label. The CSS
-      // uppercases. Phase text labels elsewhere (pill eyebrow) stay Work/Break.
+      // per E2's copy direction); break phases keep their phase label.
       var phaseLabel = pomo.phase === "work" ? "Focus" : (SAT_POMO_PHASE_LABEL[pomo.phase] || "Focus");
-      // [2.0 timing] TWO NUMBERS, ONE SYSTEM. The takeover used to replace the
-      // headline outright, so starting a focus session made today's total vanish
-      // — the user traded the number they are accumulating for the number
-      // counting down. Now the ring stays the hero and Focused today sits
-      // beneath it, quieter (CSS shrinks it under .sat-expanded-pomo) but
-      // present: this session above, today below.
-      //
-      // It is the SAME satHeadlineHtml the idle card uses, deliberately — a
-      // second copy of the headline markup is how the two drift apart. Only its
-      // scale changes, and only in CSS.
-      //
-      // .is-work is the highlight: accent emphasis while a WORK phase runs.
-      // Break phases deliberately do NOT take it — the accent means "this is the
-      // stretch that counts", and a break is the product telling you to stop.
+      // [2.0 timing] TWO NUMBERS, ONE SYSTEM - the ring is this session, the
+      // headline beneath it is today. The SAME satHeadlineHtml the idle card
+      // uses; only its scale changes, and only in CSS.
       var pomoWork = pomo.phase === "work";
       return '<div class="sat-expanded sat-expanded-pomo' + (pomoWork ? ' is-work' : '') + '">' +
           head +
           '<div class="sat-pomo">' +
             '<div class="sat-pomo-ring-wrap">' +
-              // [H2b] A CONIC RING, not two SVG circles. The board draws the
-              // running state as a filled arc in the action colour, and a conic
-              // gradient behind a ring-shaped mask is that arc without a second
-              // coordinate system inside the tile. The class name is unchanged
-              // on purpose: satPaintTime finds the fill by .sat-pomo-ring-fill
-              // and the .is-work highlight already targets it, so neither has to
-              // learn a new selector - only what to set on it.
+              // [H2b] A conic ring behind a radial mask, not two SVG circles.
+              // The class names are unchanged: satPaintTime finds the fill by
+              // .sat-pomo-ring-fill and the .is-work highlight already targets
+              // it. [FIX-4] shrinks the wrap to 72px in CSS - it is a pill, not
+              // a hero tile - and nothing here has to know that.
               '<div class="sat-pomo-ring" aria-hidden="true">' +
                 '<div class="sat-pomo-ring-track"></div>' +
                 '<div class="sat-pomo-ring-fill" style="--ring-frac: ' +
@@ -21118,17 +21106,11 @@
                 '<span class="sat-pomo-phase">' + escapeHtml(phaseLabel) + '</span>' +
               '</div>' +
             '</div>' +
-            '<div class="sat-pomo-stop-row">' +
-              '<button type="button" class="sat-btn sat-btn-pomo-stop" data-sat-act="pomo-stop" title="' + th("sat_stop_focus_session") + '">' + th("sat_stop") + '</button>' +
-            '</div>' +
           '</div>' +
-          // Today's total, kept in view under the countdown. Paused cannot be
-          // true here in practice (a pause freezes the phase), but the flag is
-          // passed through rather than hard-coded false so this call site can
-          // never be the one that disagrees with the others.
           '<div class="sat-pomo-today">' + satHeadlineHtml(paused) + '</div>' +
           satFocusRowHtml() +
-          actionsRow +
+          primaryBtn +
+          satLinksRow(true) +
         '</div>';
     }
 
@@ -21176,7 +21158,8 @@
             '</div>' +
           '</div>' +
           satFocusRowHtml() +
-          actionsRow +
+          primaryBtn +
+          satLinksRow(false) +
         '</div>';
     }
 
@@ -21200,7 +21183,8 @@
         '</div>' +
         (satPomoDurOpen ? satPomoDurChipsHtml(workMin) : "") +
         satFocusRowHtml() +
-        actionsRow +
+        primaryBtn +
+        satLinksRow(false) +
       '</div>';
   }
 
@@ -21223,6 +21207,62 @@
 
   // Repaint the surface as pill or card per state. Called from render(),
   // applyAccessLevelUI(), and every activate/cancel/complete/minimize path.
+  // ===== [FIX-4] THE TILE GROWS; IT DOES NOT CUT ===========================
+  //
+  // A TRANSITION ON `height` IS NOT ENOUGH, AND THE MEASUREMENT IS WHY. The
+  // first attempt declared `transition: height 200ms` plus
+  // `interpolate-size: allow-keywords`, both of which this build supports -
+  // CSS.supports returns true for both and the computed transition-property
+  // reads back correctly. It still cut, sampled at 50ms intervals: 439 straight
+  // to 417 on the first frame after the click.
+  //
+  // The reason is that the pill has no DECLARED height in its card states. Its
+  // used height is content-driven, so swapping the innerHTML changes what the
+  // box renders at without changing the COMPUTED VALUE of `height`, which stays
+  // `auto` throughout. A transition fires on a computed-value change and there
+  // is none. interpolate-size unlocks `auto` <-> length; it does not make
+  // `auto` -> `auto` an animation.
+  //
+  // So: FLIP, measured once per render. Read the height before the swap, read it
+  // after, pin the old value, force a reflow, release to the new one. The
+  // inline height is removed when the transition ends, so a ticking countdown
+  // that reflows the card is never trapped at a stale height.
+  var satResizeTimer = null;
+
+  function satSwapContent(pill, html) {
+    var reduce = false;
+    try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
+    // FIRST PAINT HAS NOTHING TO GROW FROM, and neither does a hidden pill: a
+    // tile animating up from nought on page load is a jolt of its own.
+    var first = !pill.firstChild;
+    if (reduce || first) {
+      pill.style.height = "";
+      pill.innerHTML = html;
+      return;
+    }
+
+    var from = pill.getBoundingClientRect().height;
+    pill.style.height = "";
+    pill.innerHTML = html;
+    var to = pill.getBoundingClientRect().height;
+    if (Math.abs(to - from) < 2) return;           // nothing to animate
+
+    if (satResizeTimer) { clearTimeout(satResizeTimer); satResizeTimer = null; }
+    pill.style.transition = "none";
+    pill.style.height = from + "px";
+    // Force the pinned height to be observed before the release, or the browser
+    // coalesces the two writes and there is nothing to animate FROM.
+    void pill.offsetHeight;
+    pill.style.transition = "";
+    pill.style.height = to + "px";
+    // Cleared on a timer rather than on transitionend: transitionend does not
+    // fire if the element is re-rendered mid-flight, and a pill stuck at a fixed
+    // height is a worse failure than a slightly early release.
+    satResizeTimer = setTimeout(function () {
+      pill.style.height = "";
+      satResizeTimer = null;
+    }, 240);
+  }
   function renderActiveTaskWidget() {
     var pill = $("#active-task-pill");
     if (!pill) return;
@@ -21232,6 +21272,7 @@
       pill.classList.add("hidden");
       pill.classList.remove("is-card", "is-empty", "is-paused");
       document.body.classList.remove("sat-card-open");
+      pill.style.height = "";
       pill.innerHTML = "";
       satStopTick();
       satUpdateTabTitle();   // [1.0.18] restore the page title if a trial lapsed mid-phase
@@ -21252,6 +21293,7 @@
       pill.removeAttribute("role");
       pill.setAttribute("title", t("common_active_task"));
       pill.setAttribute("aria-label", t("common_active_task"));
+      pill.style.height = "";
       pill.innerHTML = '<button type="button" class="sat-dot" data-sat-act="unhide" ' +
         'title="' + th("common_active_task") + '" aria-label="' + th("common_active_task") + '"></button>';
       satStopTick();
@@ -21312,7 +21354,7 @@
       // also means a re-render REBUILDS it instead of destroying it - an
       // innerHTML rewrite with a body-appended popover open would simply have
       // left the popover orphaned beside a pill that no longer knows about it.
-      pill.innerHTML = satCardHtml(res, paused) + satPickerHtml();
+      satSwapContent(pill, satCardHtml(res, paused) + satPickerHtml());
     } else {
       pill.removeAttribute("role");
       pill.removeAttribute("aria-label");
@@ -21321,7 +21363,7 @@
       // every click ambiguous. Not rendered in the empty state - there is
       // nothing to hide from, and a user with no active task who hid the pill
       // would have removed their only route to picking one.
-      pill.innerHTML = satPillFaceHtml(res, paused) + (res ? satPillHideBtnHtml() : "") + satPickerHtml();
+      satSwapContent(pill, satPillFaceHtml(res, paused) + (res ? satPillHideBtnHtml() : "") + satPickerHtml());
     }
 
     if (res) {

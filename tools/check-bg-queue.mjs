@@ -1278,8 +1278,22 @@ async function runSuite(ctx, store, stats, listeners) {
       check("[1.9.4] ...on the hero LABEL, not on either numeral",
         cardAmber.length === 1 && /sat-hero-label/.test(cardAmber[0]) &&
         !/sat-hero-time|sat-time\b/.test(cardAmber[0]), JSON.stringify(cardAmber));
-      check("[1.9.4] the Resume button is no longer tinted amber",
-        !/\.sat-btn-resume\s*\{/.test(NC));
+      // [FIX-4] WIDENED, BECAUSE A RENAME WALKED PAST IT. This tested for a rule
+      // on .sat-btn-resume. FIX-4 rebuilt the control as .sat-primary.is-resume
+      // and gave it --sat-amber; the gate passed, and the frame showed an amber
+      // Resume under an amber ring - the two-signal inflation this finding exists
+      // to count. The class name was never the property. The assertion now looks
+      // for the amber token in ANY rule whose selector mentions resume, under
+      // whatever name the control is given next.
+      // COMMENTS STRIPPED FIRST. The first draft of this matched [^{}]*resume
+      // [^{}]*\{ against the raw sheet and hit a COMMENT that mentions Resume
+      // sitting above an unrelated amber rule - a false failure, which is the
+      // other half of the damage a loose negative assertion does. Strip the
+      // comments and the match is a selector.
+      const NC_BARE = NC.replace(/\/\*[\s\S]*?\*\//g, '');
+      const resumeAmber = (NC_BARE.match(/[^{}]*resume[^{}]*\{[^}]*--sat-amber[^}]*\}/gi) || []);
+      check("[1.9.4] no rule tints the Resume affordance amber, whatever it is called",
+        resumeAmber.length === 0, JSON.stringify(resumeAmber).slice(0, 300));
       const slim = (NC.match(/#active-task-pill\.is-paused[^{]*\{[^}]*--sat-amber[^}]*\}/g) || []);
       check("[1.9.4] the SLIM pill carries exactly one amber rule, on the glyph",
         slim.length === 1 && /sat-pill-glyph/.test(slim[0]) &&
