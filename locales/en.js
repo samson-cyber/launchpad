@@ -1554,9 +1554,9 @@ I18n.register("en", {
     "message": "Daily avg",
     "description": "Text sink in insightsStripHtml(). Rendered with t()."
   },
-  "insights_preview_history": {
+  "preview_example_data": {
     "message": "Preview - example data",
-    "description": "Row-one caption on the Insights PREVIEW, where the horizon caption sits on the real board. Names the data as an example so the preview cannot be mistaken for the user's own history. Rendered with th()."
+    "description": "THE SELF-LABEL ON EVERY DEMO CARD, on all three free-preview surfaces - Tasks, Dashboard and Insights. It was insights_preview_history and it labelled one row on one surface; it is renamed because the key now names what it IS rather than where it happened to sit. The sentence must stay short enough to ride on a card title's own line beside the title. Rendered with th()."
   },
   "insights_preview_best_day": {
     "message": "best day",
@@ -2748,9 +2748,9 @@ I18n.register("en", {
     "message": "Custom",
     "description": "Markup label in insightsRangeSelectorHtml(). Rendered with th()."
   },
-  "insights_deep_work_last_30_days": {
-    "message": "Deep Work · last 30 days",
-    "description": "Markup label in renderInsightsPreview(). Rendered with th()."
+  "insights_deep_work": {
+    "message": "Deep Work",
+    "description": "The Insights hero card title, on the live board and on the free preview alike. IT CARRIES NO RANGE: the card names its window once, on the label beneath the figure, because that is where a reader looking at the numeral actually is. Replaced insights_deep_work_last_30_days (preview) and insights_deep_work_range (board), both of which spelled the range into the title and were retired with this change rather than left as orphans a later round could revive. Rendered with th()."
   },
   "insights_from": {
     "message": "From",
@@ -3574,10 +3574,7 @@ I18n.register("en", {
       "description": "Body of the modal shown when a task's due date falls after its goal's deadline. One sentence with three values rather than four fragments, so a translation can put the dates where its grammar needs them.",
       "message": "This task’s due date ({taskDate}) is after {goalName} deadline ({goalDate}). Extend the goal deadline to match?"
     },
-    "insights_deep_work_range": {
-      "description": "Insights hero card title. {range} is the selected window, e.g. 'last 7 days'.",
-      "message": "Deep Work · {range}"
-    },
+
     "insights_history_starts": {
       "description": "Note under the Insights range selector naming the first day with any recorded history. {date} is already formatted by the locale date formatter. Rendered ONLY when the profile has focus time somewhere in the retention window; a profile with none gets insights_history_none instead, because on an empty profile this date is the retention boundary rather than anything the data supports.",
       "message": "History starts {date}"

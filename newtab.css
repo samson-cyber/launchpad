@@ -10660,6 +10660,54 @@ html.has-bg.bg-light .dash-recap-value {
   margin-bottom: var(--space-3);
 }
 
+/* ===== [preview-labels] "Preview - example data", on every demo card =====
+
+   THE LABEL DECLARES NO COLOUR AND NO OPACITY, and that is the whole rule.
+   It inherits the ink of the node it sits beside and differs by WEIGHT, which is
+   what .dash-passive-sub's comment already argues at length after a token plus
+   an inherited opacity measured 2.73:1. Inheriting also gets the loudness right
+   for free without a second rule per site: inside a card title (opacity 0.7) the
+   label is exactly as quiet as the title it rides on, and in the goal header and
+   the Dashboard hero - the two places where a demo figure sits beside a real one
+   - it reads at full strength.
+
+   A ROW, NOT A LINE. Seven block labels would add seven rows of height to the
+   Insights preview for a sentence that is chrome; the title row already has the
+   space at its right end. `baseline`, not `center`, so a 600-weight title and a
+   400-weight label sit on one line rather than on two optical ones. */
+.pp-demo-titled {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+/* ONE PLACE NEEDS THE TITLE TO GROW, AND EXACTLY ONE. .dash-three-head wraps
+   its title in a SPAN that is a flex item, so without flex-grow the label hugged
+   the title instead of sitting at the card edge like every other card's.
+   `flex: 1 1 auto` on .pp-demo-titled itself looked like the tidy fix and was
+   NOT: .notes-panel-title is a flex item of a COLUMN, where flex-grow is
+   vertical - the title stretched to fill the notes column and pushed the stack
+   down far enough to cut two notes off the frame. Caught by looking at the
+   frame; nothing about the rule reads wrong on its own. */
+.dash-three-head .pp-demo-titled { flex: 1 1 auto; }
+.pp-demo-label {
+  /* fs-12 AND WEIGHT 400, which makes "differs by weight alone" literally true
+     rather than nearly true. At fs-11 the label measured 4.48:1 in the notes
+     column on a light ground while the title beside it read 5.68 - same ink,
+     same opacity, thinner strokes, and anti-aliasing takes the difference. A
+     400 beside a 600 at the same size is unambiguously the quieter of the two
+     and reaches its declared alpha. */
+  font-size: var(--fs-12);
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+/* The preview range row is a <p> holding only the label, so it needs the
+   nowrap and nothing else; .insights-range-static keeps the row's other end. */
+.ins-row-range-preview .insights-range-note { margin-inline-start: auto; }
+
 
 
 
@@ -11053,8 +11101,60 @@ html.has-bg.bg-light .pp-badge-sub {
   text-shadow: none;
 }
 
+/* [insights-rhythm] THE PREVIEW'S FILTER CHIPS WERE WHITE ON WHITE, and the bar
+   they sit on is white-tinted by the rule above - so on a light wallpaper the
+   Tasks preview opened with an EMPTY WHITE STRIP where Priority / Tag / Status /
+   Sort by creation date should be. .pp-filter-chip declares color:#fff and had no
+   light branch at all. Pre-existing and fixed here for the same reason as the
+   hero numeral below: it is inside renderProPreview, which this round owns, and
+   this round is the one that framed it. The fill and hairline flip with it, or a
+   white-on-white chip becomes a dark-on-white chip with an invisible outline. */
+html.has-bg.bg-light .pp-filter-chip,
+html.has-bg.bg-light .pp-sort-dropdown {
+  color: #222;
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
 html.has-bg.bg-light .pp-axis {
   stroke: rgba(0, 0, 0, 0.25);
+}
+
+/* [insights-rhythm] THE ONE NODE THE CENSUS NAMES, AND IT IS THE DOUBLE-STEP
+   AGAIN. docs/design-pack/surfaces-measured.md records exactly one Insights node
+   under the floor on a light ground and none on the other two. It is the chart's
+   axis sub-label - "20 Aug" at the left of the bars and "today" at the right -
+   and re-measured on the busy fixture it reads 3.29:1 and 3.33:1 against a 4.5
+   floor. (Two instances of one class; the census counted one. Both are stated
+   rather than the smaller number repeated.)
+
+   THE FILL WAS ALREADY FIXED AND THAT IS WHY IT LOOKED FINE. The group rule
+   above flips these labels from #fff to #222 on the light branch - but each
+   class keeps its OWN `opacity` from its base rule, 0.75 on .pp-axis-label and
+   0.55 on .pp-axis-label-sub, so the light branch is stepped TWICE: once by the
+   colour that was chosen for this ground and again by an alpha that was chosen
+   for the other one. #222 at 0.55 over the card composites to rgb(141,141,141).
+   That is the failure .dash-passive-sub's comment names and the one the project
+   keeps relearning: ink is stepped ONCE.
+
+   SO THE STEP MOVES INTO THE COLOUR, FOR BOTH TIERS, and the tiering survives:
+   #3c4043 reads 10.4:1 and #5f6368 reads 6.0:1, so the sub-label is still
+   visibly quieter than the label above it, and both clear the floor with room.
+   Two Google-grey values the sheet already carries in fourteen other places, not
+   new colours.
+
+   .pp-axis-label IS INCLUDED THOUGH IT PASSED, at 4.77:1 - which is 0.27 of
+   margin on a node whose alpha the round is changing underneath it. Leaving the
+   sibling on a double-step while fixing this one would have left the pair
+   measuring 4.77 and 6.0, with the SUB-label darker than the label. The tier is
+   the thing being preserved, so both ends of it move. */
+html.has-bg.bg-light .pp-axis-label {
+  fill: #3c4043;
+  opacity: 1;
+}
+html.has-bg.bg-light .pp-axis-label-sub {
+  fill: #5f6368;
+  opacity: 1;
 }
 
 /* Retired with the band's light override: .pro-preview-banner-text now takes
@@ -11183,10 +11283,6 @@ html.has-bg.bg-light .pp-axis {
   border-radius: var(--radius-lg);
   padding: var(--space-2) var(--space-3);
 }
-.ins-row-range .insights-range-note {
-  flex: 0 1 auto;
-  margin-inline-start: auto;
-}
 
 /* [1.8.6] THE IDLE RANGE PILL, and the two ways a first attempt at this rule
    got it wrong, because both are the kind that measure fine on one branch.
@@ -11220,8 +11316,32 @@ html.has-bg:not(.bg-light) .insights-range-seg .seg-btn:not(.active) {
    fixed here. Inheriting the board's resolved ink and stepping it back with
    opacity is the pattern every other label on this board already uses, and it
    is correct in all three branches rather than in one. */
+/* [insights-rhythm] THE AUTO MARGIN LIVES HERE NOW, AND IT HAD NEVER APPLIED.
+   [1.8.6] wrote `flex: 0 1 auto; margin-inline-start: auto` in a SECOND rule of
+   this exact selector forty lines above, with the comment "Auto margin pulls the
+   caption and the button together on the right of the pills". It did not: this
+   rule is later in the file at the same specificity, so its `margin: 0`
+   shorthand reset the auto margin every time, `justify-content: space-between`
+   took over, and the row shipped as three items with a 331px hole on either side
+   of the caption - measured on the live board at 1440 before this change:
+   pills 96-439, caption 770-930, Export CSV 1261-1326.
+
+   SO "EXPORT CSV IS NOT IN THE RANGE BAR" WAS HALF TRUE AND THE HALF MATTERS.
+   The button has been INSIDE the bar's box since [1.8.6] - the bar spans
+   84-1338 and the button sits at 1261-1326. What was not true was the grouping:
+   a caption stranded in the middle of an otherwise empty bar reads as a third
+   thing floating in a gap rather than as the pair that belongs to the pills.
+   Restoring the margin puts the caption and the button together at the right,
+   which is what [1.8.6] wrote down and never got.
+
+   AND IT IS ONE RULE NOW, not two. The file already carries a note about this
+   selector being split across two same-specificity blocks and the wrong one
+   winning; splitting it a second time is how that happened twice. */
 .ins-row-range .insights-range-note {
+  flex: 0 1 auto;
   margin: 0;
+  /* AFTER the shorthand, never before: `margin: 0` resets it. */
+  margin-inline-start: auto;
   color: inherit;
   /* [1.8.6] 0.8, NOT THE 0.7 SET IN [1.8.5]. The bar is Card tier at 0.85 alpha,
      so 15% of the wallpaper still reaches through it: on the bright ground the
@@ -11317,7 +11437,23 @@ html.has-bg.bg-light .insights-export-btn { color: var(--text-primary); }
    declaration beats the board root's inherited #222 - so on the white-tinted
    card the hero numeral measured 1.02:1, white on white. The four-frame
    measurement caught it; nothing on screen would have. */
-html.has-bg.bg-light .insights-tab .pp-insights-card {
+/* [insights-rhythm] AND THE PREVIEW NEEDED IT TOO, WHICH IS THE POINT OF THE
+   PREVIEW DOCTRINE AND THE PLACE IT WAS MISSED. [1.8.1] fixed the live board
+   and scoped the fix to .insights-tab; the free preview draws THE SAME .ins-hero
+   with THE SAME .dash-hero-num inside .pro-preview-content, so it kept the bug
+   the comment above describes. Framed on a light wallpaper, the preview's "32h"
+   - the one number the Insights preview exists to show - is white on white and
+   simply is not there. It was invisible on master and it is fixed here rather
+   than filed, because it is inside this round's own region and this round is the
+   one that looked.
+
+   FOUND BY VIEWING THE FRAME, NOT BY MEASURING. The light-ground sweep runs the
+   PRO board, where [1.8.1]'s block applies and the numeral reads 15.97:1; the
+   preview is a different subtree and no sweep was pointed at it. Same token
+   block, no new values - the preview borrows the live board's fix exactly as it
+   borrows the live board's classes. */
+html.has-bg.bg-light .insights-tab .pp-insights-card,
+html.has-bg.bg-light .pro-preview-content .pp-insights-card {
   --ink-primary: rgba(0, 0, 0, 0.87);
   --ink-secondary: rgba(0, 0, 0, 0.66);
   /* 0.70 / 0.64 - the measured light-ground pair. The note sits on

@@ -2581,6 +2581,41 @@
     '</div>';
   }
 
+  // ===== [preview-labels] EVERY DEMO CARD SAYS IT IS A DEMO =====
+  //
+  // RULED 2026-09-18. Until this round exactly ONE node across three preview
+  // surfaces said the data was invented - the Insights range row's caption -
+  // and the design pack's own frames are the argument for the rest. On the free
+  // Dashboard the user's REAL "Focused today" figure sits directly above a DEMO
+  // hero printing a DIFFERENT "Focused today", and nothing between them says
+  // which is which. The banner names the SURFACE; a card met on its own, four
+  // hundred pixels down a scroll, carries no banner, so the card has to name
+  // itself.
+  //
+  // ONE FUNCTION, SO THE SEVENTH CARD CANNOT BE FORGOTTEN. The label is emitted
+  // in exactly one place and every demo card calls it; a second spelling of the
+  // same sentence would also break the one-key-one-sentence rule the catalogue
+  // keeps.
+  //
+  // NO COLOUR AND NO OPACITY OF ITS OWN, which is the rule this project keeps
+  // relearning - .dash-passive-sub's comment in the stylesheet is the last time
+  // it was learnt the hard way, at 2.73:1. The label INHERITS the ink of the
+  // node it sits beside and differs by WEIGHT alone. That also gives it the
+  // right loudness for free: inside a card title (opacity 0.7) it is as quiet as
+  // the title, and in the goal header and the Dashboard hero - the two places
+  // where a demo figure sits next to a real one - it reads at full strength,
+  // because those are the two the user is most able to mistake.
+  function previewLabelHtml() {
+    return '<span class="pp-demo-label">' + th("preview_example_data") + '</span>';
+  }
+
+  // A card title with the label on its own row rather than on a line of its own:
+  // a block label under every title would add seven rows of height to the
+  // Insights preview for a sentence that is chrome, not content.
+  function previewCardTitleHtml(titleHtml) {
+    return '<div class="pp-dash-card-title pp-demo-titled">' + titleHtml + previewLabelHtml() + '</div>';
+  }
+
   function priorityClass(p) {
     if (p === "urgent") return "pp-prio pp-prio-urgent";
     if (p === "high")   return "pp-prio pp-prio-high";
@@ -2617,6 +2652,7 @@
               renderTagPill(g.tag) +
             '</div>' +
             '<div class="pp-goal-header-right">' +
+              previewLabelHtml() +
               '<span class="pp-goal-deadline">' + th(g.deadlineKey) + '</span>' +
               '<button class="pp-icon-btn" type="button" disabled aria-label="' + th("tasks_goal_options") + '">' + THREE_DOT_SM_SVG + '</button>' +
             '</div>' +
@@ -2726,6 +2762,12 @@
             '<div class="dash-hero-num">' + escapeHtml(D.focusedToday) + '</div>' +
           '</div>' +
           '<div class="dash-hero-label">' + th("common_focused_today") + '</div>' +
+          // [preview-labels] THE ONE THE RULING NAMES. On the free Dashboard the
+          // user's own "Focused today, by site" card renders LIVE directly above
+          // this hero, which prints an invented "Focused today" of its own. Two
+          // figures, one true, same words, one screen. The banner between them
+          // names the surface below it; this names the number.
+          previewLabelHtml() +
         '</div>' +
         '<div class="dash-hero-counts">' +
           '<div class="dash-hero-count">' +
@@ -2778,12 +2820,16 @@
         '<div class="pp-insights-card">' +
           '<div class="dash-three">' +
             '<div class="dash-three-head">' +
-              '<span class="pp-dash-card-title">' + th("dash_todays_three") + '</span>' +
+              '<span class="pp-dash-card-title pp-demo-titled">' + th("dash_todays_three") + previewLabelHtml() + '</span>' +
             '</div>' +
             '<div class="dash-three-list">' +
               D.three.map(function (r) { return previewRowHtml(r, "dash-three-row"); }).join("") +
             '</div>' +
           '</div>' +
+          // ONE LABEL PER CARD, NOT PER TITLE. This card holds two headings -
+          // Today's three and Due today - inside ONE frosted surface, so the
+          // label above covers both. Labelling this one too put the same
+          // sentence twice in one card, which was measured and then removed.
           '<div class="pp-dash-card-title dash-due-title">' + th("dashboard_due_today") + '</div>' +
           '<div class="dash-due-list">' +
             D.due.map(function (r) { return previewRowHtml(r); }).join("") +
@@ -2794,7 +2840,7 @@
     var goals =
       '<div class="dash-mod dash-goals">' +
         '<div class="pp-insights-card">' +
-          '<div class="pp-dash-card-title">' + th("dashboard_goals") + '</div>' +
+          previewCardTitleHtml(th("dashboard_goals")) +
           '<div class="insights-task-list">' +
             D.goals.map(function (g) {
               return '<div class="insights-task-row">' +
@@ -2990,10 +3036,15 @@
 
     return '<div class="ins-row-range ins-row-range-preview">' +
         '<span class="insights-range-static">' + th("insights_last_30_days") + '</span>' +
-        '<p class="insights-range-note">' + th("insights_preview_history") + '</p>' +
+        '<p class="insights-range-note">' + previewLabelHtml() + '</p>' +
       '</div>' +
       '<div class="pp-insights-card ins-hero">' +
-        '<div class="pp-dash-card-title">' + th("insights_deep_work_last_30_days") + '</div>' +
+        // [insights-rhythm] THE RANGE IS NAMED ONCE PER CARD. The title read
+        // "Deep Work \u00b7 last 30 days" with "last 30 days" printed again
+        // beneath the numeral, in a card whose whole job is one figure. The
+        // range stays on the FIGURE, because that is the label a reader needs
+        // where they are actually looking; the eyebrow keeps the subject.
+        previewCardTitleHtml(th("insights_deep_work")) +
         '<div class="ins-hero-head">' +
           '<div class="ins-hero-lead">' +
             '<span class="dash-hero-num">32h</span>' +
@@ -3014,30 +3065,30 @@
       '</div>' +
       '<div class="ins-peers">' +
         '<div class="pp-insights-card ins-peer">' +
-          '<div class="pp-dash-card-title">' + th("insights_time_by_tag_last_30_days") + '</div>' +
+          previewCardTitleHtml(th("insights_time_by_tag_last_30_days")) +
           '<div class="pp-donut-row">' + donutSvg + '<div class="pp-donut-legend">' + donutLegend + '</div></div>' +
         '</div>' +
         '<div class="pp-insights-card ins-peer">' +
-          '<div class="pp-dash-card-title">' + th("insights_preview_by_site") + '</div>' +
+          previewCardTitleHtml(th("insights_preview_by_site")) +
           '<div class="insights-task-list insights-site-list">' + demoRowsHtml(DEMO_PREVIEW_SITES) + '</div>' +
         '</div>' +
         '<div class="pp-insights-card ins-peer">' +
-          '<div class="pp-dash-card-title">' + th("insights_preview_top_tasks") + '</div>' +
+          previewCardTitleHtml(th("insights_preview_top_tasks")) +
           '<div class="insights-task-list">' + demoRowsHtml(DEMO_PREVIEW_TASKS) + '</div>' +
         '</div>' +
       '</div>' +
       '<div class="ins-row3">' +
         '<div class="pp-insights-card ins-heat-card">' +
-          '<div class="pp-dash-card-title">' + th("insights_heat_title") + '</div>' +
+          previewCardTitleHtml(th("insights_heat_title")) +
           heatHtml +
         '</div>' +
         '<div class="pp-insights-card ins-weekly">' +
-          '<div class="pp-dash-card-title">' + th("insights_wk_title") + '</div>' +
+          previewCardTitleHtml(th("insights_wk_title")) +
           wkHtml +
         '</div>' +
       '</div>' +
       '<div class="pp-insights-card">' +
-        '<div class="pp-dash-card-title">' + th("insights_achievements") + '</div>' +
+        previewCardTitleHtml(th("insights_achievements")) +
         '<div class="pp-badge-grid">' + badgesHtml + '</div>' +
       '</div>';
   }
@@ -3297,7 +3348,27 @@
     var trackingShell = scope
       ? '<div class="ins-row-range">' + insightsRangeSelectorHtml(rangeDays) + '</div>' +
         '<div class="pp-insights-card ins-hero">' +
-          '<div class="pp-dash-card-title">' + th("insights_deep_work_range", { range: rangeLabel }) + '</div>' +
+          // [insights-rhythm] ONE NAMING OF THE RANGE PER CARD. This title said
+          // "Deep Work \u00b7 last 30 days" and insightsStripHtml printed "last
+          // 30 days" again directly beneath the numeral, 56px lower - the same
+          // window named twice inside one card whose whole job is one figure.
+          //
+          // THE FIGURE KEEPS THE RANGE, NOT THE EYEBROW, and [1.8.6]'s own
+          // reasoning is why: "at --fs-12 beneath a display numeral the number
+          // is what gets read". The label that travels with the number is the
+          // one a reader actually uses; an eyebrow two tiers up is the one they
+          // scroll past. The three PEER cards keep the range in their titles
+          // because a list has no figure to hang it on - they name it once too.
+          //
+          // THE BOARD STILL NAMES THE RANGE SEVEN TIMES at the 30-day preset,
+          // counted from the DOM on the busy fixture rather than estimated: five
+          // visible (the active pill, this card's lead label, three peer titles)
+          // and two aria-labels (the trend chart, the donut). It was EIGHT before
+          // this line changed. Whether a board should name its window seven times
+          // is a surface-wide question for the canvas, not a rhythm fix; what
+          // this round removes is the one repetition that happened INSIDE a
+          // single card, where the two namings are 56px apart.
+          '<div class="pp-dash-card-title">' + th("insights_deep_work") + '</div>' +
           '<div class="ins-hero-head" data-ins-strip></div>' +
           '<div class="ins-hero-chart" data-ins-deepwork></div>' +
         '</div>' +
@@ -4314,10 +4385,23 @@
   // rather than the first thing they see.
   //
   // THE PREVIEW BENEATH IS UNTOUCHED, and that is an assertion rather than an
-  // intention: renderProPreview's markup is byte-identical to what it produced
-  // before this round, and the round's verification compares the rendered subtree
-  // against master's whole preview. The live card is a SIBLING above it, never a
-  // wrapper around it, so the comparison has something whole to compare.
+  // intention. THE ASSERTION HAS CHANGED SHAPE TWICE NOW, and each time for a
+  // reason worth keeping, because the invariant it protects has not changed at
+  // all: whatever renderProPreview draws, THIS function does not touch it.
+  //
+  //   PT.2 wrote it as byte-identity - renderProPreview's markup matched what it
+  //     produced before that round, compared against master's whole preview.
+  //   9c42b0d kept it: the banner round moved only newtab.css, so the markup
+  //     claim survived untouched.
+  //   [preview-labels] BREAKS LITERAL BYTE-IDENTITY ON PURPOSE - every demo card
+  //     gains a previewLabelHtml() span - so the assertion is now: the preview
+  //     subtree WITH THOSE SPANS REMOVED is byte-identical to master's, i.e. the
+  //     change is purely additive and nothing was removed, re-ordered or
+  //     re-nested. That is the property the round can actually claim, and it is
+  //     stronger than "looks the same" because it is a diff of two strings.
+  //
+  // The live card is a SIBLING above the preview, never a wrapper around it, so
+  // the comparison has something whole to compare.
   function renderFreeDashboard(panel, d) {
     // The same gate the Pro card uses - null scope means tracking is off for this
     // workspace, and the card is then ABSENT rather than empty (the badge rule).
@@ -4952,8 +5036,17 @@
     // click that could never do anything. Cards render through the SAME
     // component in its preview variant, so the preview stays the promise
     // without being operable.
+    // [preview-labels] THE COLUMN SAYS SO TOO, and the reason is a misreading
+    // this round had to correct rather than a leak it had to fix. The design
+    // pack read this column as "the user's REAL notes beside a demo board". It
+    // is not and never was - it is NOTES_DEMO through the same card renderer.
+    // What made the frame unreadable is that tools/fixture-profiles.js seeds its
+    // twelve real notes with the SAME FIVE OPENING STRINGS as NOTES_DEMO, so a
+    // demo column and a real one are indistinguishable by eye on the fixture the
+    // whole audit was shot on. A column that cannot be told apart by looking is
+    // exactly the column that has to say which it is.
     return '<aside class="notes-panel notes-panel-preview" aria-label="' + th("notes_notes_preview") + '">' +
-        '<div class="notes-panel-title">' + th("notes_notes_2") + '</div>' +
+        '<div class="notes-panel-title pp-demo-titled">' + th("notes_notes_2") + previewLabelHtml() + '</div>' +
         '<div class="notes-stack">' +
           NOTES_DEMO.map(function (n) { return noteCardHtml(resolveDemoNote(n), { preview: true }); }).join("") +
         '</div>' +
