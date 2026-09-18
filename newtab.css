@@ -6556,7 +6556,13 @@ html.has-bg #restore-empty {
   position: fixed;
   top: 0;
   inset-inline-start: 260px;
-  width: 320px;
+  /* [H1c] THREE COLUMNS DO NOT FIT IN 320px, and that is the whole reason this
+     number changes. The old panel was a narrow drawer holding one column of 22
+     rows, 1052px tall and overflowing its viewport by two; the other 44 lived
+     in a second drawer 2029px tall. One surface of tiles needs the width the
+     tiles are laid out in, and it clamps to the viewport so a small window gets
+     fewer columns rather than a horizontal scrollbar. */
+  width: min(1040px, calc(100vw - 280px));
   max-width: calc(100vw - 280px);
   height: 100%;
   background: var(--bg-card);
@@ -20318,3 +20324,288 @@ html.bg-light .sat-chain-count { color: var(--text-primary); text-shadow: none; 
    no transition, transform or animation on a tile, so there is nothing for a
    prefers-reduced-motion branch to switch off. The round that adds hover
    behaviour adds the branch with it. */
+
+/* ===== [H1c] ONE SETTINGS PANEL, AS TILES ================================
+
+   THE INK MODEL. This panel is var(--bg-card) and the tiles are the H0 frost
+   component on top of it, so a row's ink is the TILE's, not the panel's. The
+   tint tiles (violet, rose, green) are 82% gradients and the list tiles are a
+   flat 72%; both are dark on every ground, and the light-wallpaper branch is
+   H1a's business in tokens.css rather than a second set of colours here.
+
+   A NAMING COLLISION WORTH STATING, because it will mislead a grep. The token
+   --tile-blocking is VIOLET and it dresses the FOCUS SESSIONS tile; the
+   BLOCKING tile is rose, which is --tile-overdue. The tokens were named for
+   board 8's Dashboard tiles, where the violet one happened to be blocking. The
+   names are H0's and are not renamed here - the subject-to-tint mapping is the
+   board's, and it is written out in the markup's data-set-tile attributes. */
+
+/* THREE REAL COLUMNS, NOT A GRID, and the frame is why. A grid row is as tall
+   as its tallest cell: Focus sessions is ~620px against Look's ~280, so the
+   first row was 620 and Look sat above 340px of nothing. Columns that each pack
+   their own tiles have no such coupling - and they are what the brief describes,
+   with the subjects named per column rather than left to reflow. */
+.settings-tiles {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  overflow-y: auto;
+}
+
+.set-col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Narrow: the columns wrap rather than squeezing. The subject grouping survives
+   because each column keeps its own tiles together. */
+@media (max-width: 1100px) { .settings-tiles { flex-wrap: wrap; } .set-col { flex: 1 1 320px; } }
+@media (max-width: 760px)  { .set-col { flex: 1 1 100%; } }
+
+.set-tile {
+  /* A settings tile is as tall as its rows. The component's default is
+     space-between, which would push the last row to the bottom of whatever
+     height the row happened to be. */
+  justify-content: flex-start;
+  gap: var(--space-2);
+
+  /* AND EXACTLY AS WIDE AS ITS COLUMN. Without this a tile sizes to its own
+     content: measured at 270 and 267 for Look and Wallpaper, which under-fill,
+     and 403 for Workspaces, which put its right edge 76px past the column and
+     54px past the panel. box-sizing is stated rather than assumed because the
+     padding is the tile component's and the width is this rule's. */
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* The one child with a min-content wider than a column: the workspace row's
+   name. It must give way rather than set the width of the tile around it. */
+.set-tile .pws-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.set-tile-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  margin: 0;
+}
+
+/* THE Pro CHIP. It says what the tile is, and it stays legible when the tile
+   is locked - a chip that dimmed with the rows it labels would leave the user
+   unable to read WHY they are locked. */
+.set-pro-chip {
+  flex: 0 0 auto;
+  padding: 1px var(--space-1-5);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-10);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  text-shadow: none;
+}
+
+.set-rows { display: flex; flex-direction: column; gap: var(--space-1-5); }
+
+/* ---- THE BLOCKS THAT PREDATE THE COLUMN ---------------------------------
+   The workspace list, the tag form and the blocked-site row were laid out for
+   a 320px drawer that gave them the whole panel. In a column a third that wide
+   a flex row with no min-width:0 will not shrink below its content, so the
+   frame showed "Track" and "Add workspace" clipped at the tile's edge while
+   every contrast number on that tile read clean. This lets them wrap and
+   shrink; it changes none of their own styling. */
+.set-tile .pro-workspace-list,
+.set-tile .pro-tags-list,
+.set-tile .focus-block-list { width: 100%; min-width: 0; }
+
+.set-tile .pro-workspace-row,
+.set-tile .focus-block-row,
+.set-tile .focus-block-add-row,
+.set-tile .pro-tag-create-form,
+.set-tile .pro-workspace-add-row { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+
+/* A text field sized for the old drawer is wider than the column it is in now. */
+.set-tile input[type="text"],
+.set-tile .pro-tag-name-input,
+.set-tile .focus-block-input,
+.set-tile #pro-license-input { min-width: 0; max-width: 100%; flex: 1 1 8em; }
+
+/* Nothing may paint outside its tile. A clipped control is a defect; a control
+   drawn over the tile next to it is a worse one. */
+.set-tile { overflow: hidden; }
+
+/* EVERY ROW IS THE SAME SHAPE: a label on the start edge, its control on the
+   end edge. SR.1 measured six seams where two rows touched at zero gap, which
+   is what made the old panel read as a wall rather than as grouped rows; one
+   gap token on the column is what stops that recurring. */
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 28px;
+}
+
+.set-row-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+}
+
+.set-row-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-12);
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+/* ---- FAMILY 1: THE TOGGLE ------------------------------------------------
+   The whole row is the <label>, so the click target is the row rather than a
+   14px box - and the checkbox stays a real checkbox, which is what keeps every
+   existing change handler and the keyboard behaviour untouched. */
+.set-row-toggle { cursor: pointer; }
+.set-row-toggle input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+.set-toggle {
+  flex: 0 0 auto;
+  position: relative;
+  width: 34px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid var(--tile-line);
+  transition: background-color 0.15s;
+}
+.set-toggle::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  inset-inline-start: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+.set-row-toggle input:checked + .set-toggle { background: var(--accent); }
+.set-row-toggle input:checked + .set-toggle::after { transform: translateX(14px); }
+.set-row-toggle input:focus-visible + .set-toggle {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---- FAMILY 2: THE SEGMENTED PILL ---------------------------------------
+   .settings-segmented / .seg-btn, unchanged. Only the layout is said here;
+   271b31b is the reason the INK is measured on every tint rather than assumed
+   from the settings panel, where the same control already clears the floor. */
+.set-seg { flex: 0 0 auto; }
+.set-seg-wrap { flex-wrap: wrap; width: 100%; }
+.set-seg-wrap .seg-btn { flex: 1 1 auto; }
+
+/* ---- FAMILY 3: THE STEPPER ----------------------------------------------
+   .pomo-setting-input's shape - tabular figures, spinner hidden, ArrowUp and
+   ArrowDown still stepping. Declared here rather than borrowed because that
+   class carries a settings-PANEL ink branch and these sit on a tile. */
+.set-stepper-wrap {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.set-stepper {
+  width: 4.5em;
+  padding: var(--space-1) var(--space-1-5);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-12);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+}
+.set-stepper::-webkit-outer-spin-button,
+.set-stepper::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.set-stepper:focus { outline: none; border-color: var(--accent); }
+
+/* ---- THE LIGHT GROUND, AND THE ONLY PLACE THESE TILES NEED ONE -----------
+   On a light wallpaper the PANEL turns light, and the shipped rules for both
+   of these controls turn their ink dark to suit it:
+
+       html.bg-light .seg-btn            -> var(--text-secondary)
+       html.bg-light .pomo-setting-input -> the same
+
+   The TILES do not turn light. H1a ruled the tints rise to 94% instead, so a
+   tile is the same dark colour on every ground - which means a control on one
+   needs the tile's ink on every ground too. Measured before this rule existed:
+   segmented OFF at 2.31 on a list tile and 1.83 on violet, stepper digits at
+   1.38. Scoped to the settings tiles rather than fixing .seg-btn globally: the
+   control measures correctly everywhere it sits on an actual panel. */
+html.bg-light .set-tile .seg-btn { color: var(--ink-meta); }
+html.bg-light .set-tile .seg-btn:hover { color: var(--ink); }
+html.bg-light .set-tile .seg-btn.active { color: var(--ink); }
+html.bg-light .set-stepper { color: var(--ink); }
+.set-stepper:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---- THE LOCK -----------------------------------------------------------
+   A locked tile is READABLE and not operable. Not hidden, and not so faint it
+   reads as broken: the rows keep their ink and lose their affordance, which is
+   the difference between "you cannot have this yet" and "this is missing". */
+.set-tile.is-locked .set-rows { opacity: 0.55; }
+/* A Pro ROW inside a free tile. The per-workspace wallpaper row has been gated
+   this way since before this round - it sets .is-locked on itself - and the old
+   panel had a rule for it. Without one the control is simply dead: disabled,
+   full strength, with nothing saying why. */
+.set-row.is-locked { opacity: 0.55; }
+.set-tile.is-locked .set-rows * { cursor: default; }
+.set-tile.is-locked .set-row-toggle { pointer-events: none; }
+
+/* ---- SEARCH -------------------------------------------------------------- */
+.settings-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-inline: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--icon-bg);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--fs-12);
+}
+.settings-search:focus { outline: none; border-color: var(--accent); }
+.set-row-filtered, .set-tile-filtered { display: none; }
+.settings-no-matches {
+  margin: 0;
+  padding: var(--space-3);
+  font-size: var(--fs-12);
+  color: var(--text-secondary);
+}
+
+/* ---- THE ONE GROUND THAT INVERTS ----------------------------------------
+   With a light wallpaper the PANEL turns light while the tiles stay dark
+   frost, so the search field and the no-matches line follow the panel and the
+   tiles' own ink does not move. */
+html.has-bg.bg-light .settings-search {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.18);
+  color: rgba(0, 0, 0, 0.87);
+}
+html.has-bg.bg-light .settings-no-matches { color: rgba(0, 0, 0, 0.62); }

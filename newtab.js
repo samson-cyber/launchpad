@@ -807,10 +807,16 @@
     });
   }
 
-  function applySidebarProEntryVisibility(hasPro) {
-    var entry = $("#sb-pro-settings");
-    if (!entry) return;
-    entry.classList.toggle("hidden", !hasPro);
+  // [H1c] KEPT AS A NO-OP RATHER THAN DELETED, and the reason is the thing it
+  // used to do. It hid the Pro Settings sidebar entry from anyone without Pro,
+  // which is why a free user had never seen the Pro surface at all. There is
+  // one Settings entry now and it is never hidden; the gating moved onto the
+  // ROWS (applySettingsProGate). The function survives because three callers
+  // pass it a tier and one of them is the access-level sweep - removing it
+  // would mean editing those call sites for no behaviour, and a no-op that
+  // explains itself is cheaper to read than a deletion that does not.
+  function applySidebarProEntryVisibility(_hasPro) {
+    /* the sidebar no longer has a Pro-only entry to show or hide */
   }
 
   function applyAccessLevelUI() {
@@ -820,6 +826,11 @@
     var hasPro = isProAccessibleLevel(level);
     applyTabAccessLevel(level);
     applySidebarProEntryVisibility(hasPro);
+    // [H1c] THE ROW GATE RE-APPLIES ON EVERY ACCESS CHANGE, not only when the
+    // panel is opened. A trial lapsing - or LP.devPro flipping - while Settings
+    // is already on screen has to lock or unlock the Pro tiles in place, which
+    // is the same reason renderActiveTaskWidget sits two lines below.
+    applySettingsProGate();
     // [1.0.16] D9 — the widget is Pro-gated on the same signal as every other
     // Pro entry point, so a trial lapsing mid-session hides it without reload.
     renderActiveTaskWidget();
@@ -11582,11 +11593,9 @@
   var DAY_MS_LOCAL = 24 * 60 * 60 * 1000;
 
   function bindProSettings() {
-    safeOn("#sb-pro-settings", "click", function (e) {
-      e.stopPropagation();
-      openPanel("pro-settings");
-    });
-    safeOn("#pro-settings-close", "click", function () { closeProSettingsPanel(); });
+    // [H1c] NO SIDEBAR ENTRY AND NO CLOSE BUTTON OF ITS OWN. Both belonged to
+    // the second panel, and there is one panel now. The Pro rows live in the
+    // Settings panel and open with it.
     safeOn("#pro-license-apply", "click", handleLicenseApply);
     safeOn("#pro-license-clear", "click", handleLicenseClear);
     safeOn("#pro-license-check", "click", handleLicenseCheckNow);
@@ -11724,16 +11733,22 @@
     //
     // Writing first and playing second, so a play that is blocked still leaves
     // the setting saved.
-    safeOn("#pomo-sound-options", "change", async function (e) {
-      var el = e.target;
-      if (!el || el.name !== "pomo-sound") return;
+    // [H1c] A SEGMENTED PILL, NOT FOUR RADIOS - so the event is a click on a
+    // button rather than a change on an input, and the value is a data
+    // attribute rather than input.value. The write, the re-render and the
+    // preview are the same three lines they were.
+    safeOn("#pomo-sound-options", "click", async function (e) {
+      var btn = e.target.closest && e.target.closest(".seg-btn");
+      if (!btn || btn.disabled) return;
+      var value = btn.getAttribute("data-value");
+      if (!value) return;
       try {
-        await Storage.setPomodoroSound(data, el.value);
+        await Storage.setPomodoroSound(data, value);
       } catch (err) {
         console.error("[LaunchPad] Focus session: save sound failed", err);
       }
       renderProPomodoroSettings();
-      satPlayPomodoroSound(el.value);        // 'none' returns immediately
+      satPlayPomodoroSound(value);           // 'none' returns immediately
     });
 
     bindProTagsControls();
@@ -12255,8 +12270,13 @@
     // [1.0.18 B-2] Reflect the chime selection. s.sound is already whitelist-
     // coerced by the reader, so a legacy/garbage stored id lands on "none" here
     // and the picker always shows exactly one checked radio.
-    $$("#pomo-sound-options input[name='pomo-sound']").forEach(function (radio) {
-      radio.checked = (radio.value === s.sound);
+    // A BUTTON HAS NO .checked AND NO .value. This loop was written for four
+    // <input type="radio"> and kept running against the segmented pill that
+    // replaced them, so nothing was ever painted as selected - the write landed
+    // and the control did not show it. Found by a contrast measurement that
+    // could not locate a .seg-btn.active to measure.
+    $$("#pomo-sound-options .seg-btn").forEach(function (btn) {
+      btn.classList.toggle("active", btn.getAttribute("data-value") === s.sound);
     });
   }
 
@@ -12762,6 +12782,10 @@
     $$(".mode-preset-btn").forEach(function (b) {
       var on = (b.getAttribute("data-preset-mode") === proPresetMode);
       b.classList.toggle("is-on", on);
+      // [H1c] AND .active, because it is a member of the segmented family now.
+      // is-on is kept rather than swapped: the pre-H1c rules still read it, and
+      // removing it is a tidy that belongs with them rather than here.
+      b.classList.toggle("active", on);
       b.setAttribute("aria-pressed", on ? "true" : "false");
     });
     box.checked = preset.chain;
@@ -12774,7 +12798,7 @@
   }
 
   function bindModePresets() {
-    safeOn("#pro-settings-panel", "click", function (e) {
+    safeOn("#settings-panel", "click", function (e) {
       var btn = e.target.closest && e.target.closest(".mode-preset-btn");
       if (!btn) return;
       proPresetMode = (btn.getAttribute("data-preset-mode") === "casual") ? "casual" : "work";
@@ -14390,7 +14414,6 @@
   // outside this registry.
   var SIDEBAR_PANEL_CHAIN = [
     { name: "settings",         selector: "#settings-panel",     open: function () { openSettingsPanel(); },     close: function (opts) { closeSettingsPanel(opts); } },
-    { name: "pro-settings",     selector: "#pro-settings-panel", open: function () { openProSettingsPanel(); },  close: function (opts) { closeProSettingsPanel(opts); } },
     { name: "restore-session",  selector: "#restore-dropdown",   open: function () { openRestoreDropdown(); },   close: function (opts) { closeRestoreDropdown(opts); } },
     // [1.4.1] Named sessions joins the chain, so it is mutually exclusive with
     // every other sidebar-locking surface exactly as Restore Session is.
@@ -15906,12 +15929,99 @@
     // [1.3.0 R2] Re-read on EVERY open, which is how a permission revoked at
     // chrome://extensions since last time gets noticed and said out loud.
     renderAutoBackupSection();
+
+    // [H1c] EVERYTHING THE SECOND PANEL USED TO RENDER ON ITS OWN OPEN.
+    // It runs for EVERY user, not only a Pro one: the Pro tiles render locked
+    // rather than hidden, and a locked row still has to show the value it is
+    // locked at. Rendering them only for Pro would leave a free user looking at
+    // empty tiles, which reads as broken rather than as locked.
+    proTagsTrashRevealed = false;
+    renderProSubscriptionSection();
+    renderProLicenseSection();
+    renderProTagsSection();
+    renderNotesDefaultColorSection();
+    renderProWorkspaceList();
+    renderProAnalyticsToggle();
+    renderProPomodoroSettings();
+    renderFocusBlockingSection();
+
+    applySettingsProGate();
+    settingsSearchApply("");
+  }
+
+  // ===== [H1c] THE PRO GATE, ON THE ROW =====================================
+  //
+  // THE OLD GATE WAS THE WHOLE PANEL AND IT WAS `hidden`. A free user's Pro
+  // Settings sidebar entry carried `hidden` outright, so the entire Pro surface
+  // was invisible - which meant the product never showed what Pro was to the
+  // only audience that needs telling. The tiles now render for everyone with
+  // their rows disabled and a Pro chip on the tile head.
+  //
+  // THE Pro TILE ITSELF IS NOT GATED, deliberately. Its rows are how a free or
+  // expired user buys Pro and how anyone re-enters a licence key; locking them
+  // would lock the door from the inside, which is the defect "the licence key
+  // is unreachable on expiry" already was.
+  function applySettingsProGate() {
+    var hasPro = (typeof ProAccess !== "undefined" && data)
+      ? isProAccessibleLevel(ProAccess.getProAccessLevel(data))
+      : false;
+    $$("#settings-panel [data-set-pro]").forEach(function (tile) {
+      tile.classList.toggle("is-locked", !hasPro);
+      // TAG NAMES RATHER THAN A SELECTOR STRING. A comma-separated selector
+      // reads to check-i18n-census as four words of prose, which is a fair
+      // reading of a string whose use it cannot see; this needs no allowlist
+      // entry and selects exactly the same nodes.
+      var LOCKABLE = ["INPUT", "BUTTON", "SELECT", "TEXTAREA"];
+      $$("*", tile).forEach(function (el) {
+        if (LOCKABLE.indexOf(el.tagName) === -1) return;
+        // The tile head's own chip is not a control.
+        if (el.closest(".set-tile-head")) return;
+        el.disabled = !hasPro;
+      });
+    });
+  }
+
+  // ===== [H1c] SEARCH, over row LABELS ======================================
+  //
+  // It filters ROWS and then hides a tile with nothing left, so the result
+  // reads as a shorter panel rather than as a grid of empty boxes. Matching is
+  // on the label's rendered text, which is what the user is looking at - not on
+  // an id or a catalogue key, neither of which they have ever seen.
+  function settingsSearchApply(q) {
+    var panel = $("#settings-panel");
+    if (!panel) return;
+    var needle = String(q || "").trim().toLowerCase();
+    var shown = 0;
+    $$(".set-tile", panel).forEach(function (tile) {
+      var rows = $$("[data-set-row]", tile);
+      var live = 0;
+      rows.forEach(function (row) {
+        var hay = (row.textContent || "").toLowerCase();
+        var hit = !needle || hay.indexOf(needle) !== -1;
+        row.classList.toggle("set-row-filtered", !hit);
+        if (hit) live++;
+      });
+      // A tile with no rows at all (none today, but a future tile might be all
+      // rendered content) is left alone rather than hidden by an empty count.
+      var hide = needle && rows.length > 0 && live === 0;
+      tile.classList.toggle("set-tile-filtered", !!hide);
+      if (!hide) shown++;
+    });
+    var none = $("#settings-no-matches");
+    if (none) none.classList.toggle("hidden", !(needle && shown === 0));
   }
 
   function closeSettingsPanel(opts) {
     var panel = $("#settings-panel");
     if (!panel || panel.classList.contains("hidden")) return;
     panel.classList.add("hidden");
+
+    // [H1c] The tag popovers belonged to the second panel's close. They are in
+    // this one now, and a popover left mounted over a hidden panel is the
+    // anchored-popover drift the rest of this file is careful about.
+    closeTagPalettePopover();
+    clearPendingTagDelete();
+    closeTagCreateForm();
 
     // [1.0.11.12] silent close — see closeProSettingsPanel for rationale.
     if (opts && opts.silent) return;
@@ -24820,6 +24930,7 @@
 
     // Settings panel events
     safeOn("#settings-close", "click", function () { closeSettingsPanel(); });
+    safeOn("#settings-search", "input", function (e) { settingsSearchApply(e.target.value); });
     safeOn("#settings-icon-size", "click", function (e) {
       var btn = e.target.closest(".seg-btn");
       if (!btn) return;
@@ -24877,7 +24988,12 @@
     });
 
     safeOn("#settings-wall-dim", "input", async function (e) {
-      var v = e.target.value;
+      // [H1c] THE CONTROL NOW SPEAKS PERCENT AND STORAGE STILL SPEAKS RATIO.
+      // The slider was 0-0.6 in 0.05; a stepper showing "0.35" is not a thing a
+      // user reads, so the field is 0-60 in 5s and the ratio is derived here.
+      // setWallDim still clamps, and the read-back below still writes what is
+      // STORED rather than what was typed.
+      var v = (parseFloat(e.target.value) || 0) / 100;
       applyWallDim(v);                       // live, before the await
       await Storage.setWallDim(data, v);
       // Re-read: setWallDim clamps and refuses, so the control and the overlay
@@ -24886,7 +25002,7 @@
       applyWallDim(stored);
       var out = document.getElementById("settings-wall-dim-value");
       if (out) out.textContent = Math.round(stored * 100) + "%";
-      e.target.value = String(stored);
+      e.target.value = String(Math.round(stored * 100));
     });
 
     safeOn("#settings-text-size", "click", async function (e) {
@@ -25450,9 +25566,6 @@
       if (!e.target.closest("#settings-panel") && !e.target.closest("#sb-settings")) {
         closeSettingsPanel();
       }
-      if (!e.target.closest("#pro-settings-panel") && !e.target.closest("#sb-pro-settings")) {
-        closeProSettingsPanel();
-      }
     });
 
     // Escape key
@@ -25460,7 +25573,6 @@
       if (e.key === "Escape") {
         closeModal(); hideMenu(); hideGroupMenu(); hideDeleteDialog();
         closeBgModal(); closeRcFilterMenu(); closeDomainPanel(); closeSettingsPanel();
-        closeProSettingsPanel();
         closeHistoryOverlay(); closeRestoreDropdown();
         // [1.4.1] The twin joins its pair. ONE PRESS CLOSES BOTH the row menu and
         // the flyout, because closeSessionsDropdown dismisses the menu before its

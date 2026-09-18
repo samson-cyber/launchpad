@@ -484,24 +484,37 @@ await (async () => {
     // list fails on a change that did not touch the structure at all. What this
     // row must have is a settings-label reading "Text Size" followed by the
     // segmented control - not a particular spelling of the opening tag.
-    const rowRe = /<label[^>]*class="settings-label"[^>]*>Text Size<\/label>\s*<div[^>]*class="settings-segmented"[^>]*id="settings-text-size"[^>]*>/;
+    // [H1c] The row is a .set-row in the Look tile now, and its label is a
+     // <span> rather than a <label>: a row holding a three-button segmented
+     // control has no single control for a <label for> to point at, which is
+     // why the association moved to the row. Same three parts, same order.
+    const rowRe = /<span[^>]*class="set-row-label"[^>]*>Text Size<\/span>\s*<div[^>]*class="settings-segmented set-seg"[^>]*id="settings-text-size"[^>]*>/;
     check("wiring: the row exists, labelled and wired to #settings-text-size", rowRe.test(html));
     check("wiring: it carries exactly the three tiers as seg-btns",
       ["small", "medium", "large"].every((v) => new RegExp(`id="settings-text-size"[\\s\\S]{0,400}data-value="${v}"`).test(html)));
     // Beside Icon Size, inside Appearance, and BEFORE the wallpaper row — the
     // locked placement.
-    const appearance = html.slice(html.indexOf(">Appearance<"), html.indexOf(">Data<"));
-    check("wiring: it lives in the Appearance section", appearance.includes('id="settings-text-size"'));
+    // [H1c] The section is a TILE now. The slice runs from the Look tile's
+    // marker to the next tile's, which is a tighter bound than the old
+    // Appearance-to-Data span - that one ran across three sections.
+    const look = html.slice(html.indexOf('data-set-tile="look"'), html.indexOf('data-set-tile="wallpaper"'));
+    check("wiring: it lives in the Appearance section", look.includes('id="settings-text-size"'));
+    // THE THIRD ANCHOR CHANGED MEANING AND IS RESTATED RATHER THAN DROPPED.
+    // It read "before the wallpaper row"; the wallpaper is its own tile now, so
+    // "before" within a section no longer says anything about it. What the rule
+    // was protecting is the ORDER of the three appearance segmenteds, and that
+    // is asserted directly - and that the wallpaper follows in the next tile.
     check("wiring: ...directly beside Icon Size",
-      appearance.indexOf('id="settings-icon-size"') < appearance.indexOf('id="settings-text-size"') &&
-      appearance.indexOf('id="settings-text-size"') < appearance.indexOf("settings-wallpaper-row"));
+      look.indexOf('id="settings-icon-size"') < look.indexOf('id="settings-text-size"') &&
+      look.indexOf('id="settings-text-size"') < look.indexOf('id="settings-layout"') &&
+      html.indexOf('data-set-tile="look"') < html.indexOf('id="settings-wallpaper-rotate"'));
     // GROUP A RESOLUTION (2026-09-01 assertion audit). The exact class= equality
     // here is APPROPRIATE, not over-specification: "reuses the row's own classes,
     // no new markup surface" means VERBATIM, so a second class appearing is
     // precisely what this exists to catch. Do not loosen it to "has this class".
     // The count of 1 is load-bearing too — there must be exactly one Text Size row.
     check("wiring: it reuses the icon-size row's own classes — no new markup surface",
-      (html.match(/<div[^>]*class="settings-row"[^>]*>\s*<label[^>]*class="settings-label"[^>]*>Text Size/) || []).length === 1);
+      (html.match(/<div[^>]*class="set-row"[^>]*>\s*<span[^>]*class="set-row-label"[^>]*>Text Size/) || []).length === 1);
     // FREE, NEVER GATED. Neither the row nor its handler may sit behind Pro.
     check("wiring: the row is NOT inside any pro-gated container",
       !/pro-(only|gated|locked)[\s\S]{0,600}id="settings-text-size"/.test(html) &&
@@ -555,7 +568,7 @@ await (async () => {
   // O1: the row introduces no new painted surface — it reuses the icon-size
   // row's classes verbatim, which the static ink gate already walks.
   check("ink: the row's classes all already exist in the sheet",
-    ["settings-row", "settings-label", "settings-segmented", "seg-btn"].every((c) => new RegExp(`\\.${c}[ ,{:]`).test(SRC.css)));
+    ["set-row", "set-row-label", "settings-segmented", "seg-btn"].every((c) => new RegExp(`\\.${c}[ ,{:]`).test(SRC.css)));
   check("ink: no new class was invented for it",
     !/class="[^"]*text-size[^"]*"/.test(SRC.html));
 

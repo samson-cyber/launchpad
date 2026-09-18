@@ -54,7 +54,11 @@ const repoRoot = process.argv[2] || process.cwd();
 
 // Wallpaper-backed containers whose surface darkens under html.has-bg. Add to
 // this list when a new such panel ships.
-const PANELS = ["pro-settings-panel"];
+//
+// [H1c] pro-settings-panel -> settings-panel. The two panels merged, and this
+// list named the one that went. The property is unchanged and now covers MORE
+// than it did: every row that used to be in the Pro panel is in this one.
+const PANELS = ["settings-panel"];
 
 // ---- CSS: collect selectors that declare `color` ----------------------------
 function rulesWithColor(css) {
@@ -194,6 +198,36 @@ function hasWallpaperInk(node) {
   return chain(node).some((n) => hasBgInk.some((parts) => selectorMatches(parts, n)));
 }
 
+// ---- [H1c] THE TILE EXEMPTION ----------------------------------------------
+//
+// Selectors that declare `color` WITHOUT an html.has-bg prefix. These are the
+// unconditional inks - the ones that are the same on every ground.
+const plainInk = rulesWithColor(css)
+  .flatMap((s) => s.split(","))
+  .map((s) => s.trim())
+  .filter((s) => !/^html\./.test(s))
+  .map((s) => compounds(s).map(compoundKeys))
+  .filter((parts) => parts.length);
+
+// THE BOUND IS THE TILE, and it is the whole point. chain() runs to the panel
+// root, and the panel declares a colour of its own - so "anything on the chain"
+// let the PANEL's ink vouch for a TILE's, which is precisely the thing that must
+// not happen: the panel flips with the wallpaper and the tile does not. Only the
+// span from the node up to and including its tile is allowed to answer.
+function tileInkFor(node) {
+  const ch = chain(node);
+  const i = ch.findIndex((n) => n.classes && n.classes.includes("tile"));
+  if (i === -1) return null;                  // not on a tile at all
+  return ch.slice(0, i + 1);                  // node .. tile inclusive
+}
+
+function inkIsSettled(node) {
+  if (hasWallpaperInk(node)) return true;
+  const within = tileInkFor(node);
+  if (!within) return false;
+  return within.some((n) => plainInk.some((parts) => selectorMatches(parts, n)));
+}
+
 const rows = [];
 for (const panelId of PANELS) {
   const root = parseHtml(html);
@@ -212,7 +246,7 @@ for (const panelId of PANELS) {
       // Glyph-only nodes (▶ and friends) carry no reading load; they are styled
       // by their own button rules and were never part of this bug class.
       if (t && /[a-z0-9]/i.test(t)) {
-        rows.push({ panel: panelId, text: t.slice(0, 44), hidden: h, ok: hasWallpaperInk(n),
+        rows.push({ panel: panelId, text: t.slice(0, 44), hidden: h, ok: inkIsSettled(n),
                     where: n.tag + (n.classes.length ? "." + n.classes.join(".") : "") });
       }
     }
