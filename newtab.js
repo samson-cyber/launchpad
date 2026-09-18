@@ -19657,11 +19657,10 @@
   // make each invalidate the other's guard mid-paint.
   var satTaskWindow = { taskId: null, ms: 0 };
   var satWindowToken = 0;
-  var satSwitchMenuEl = null;
-  var satSwitchOutsideHandler = null;
-  var satSwitchEscapeHandler = null;
-  var satSwitchScrollHandler = null;
-  var satSwitchResizeHandler = null;
+  // [FIX-3] The picker's state. Five module vars became three: the menu element
+  // is gone because the picker is the pill's own markup now, and the scroll and
+  // resize close-handlers are gone with it - a child of the pill cannot drift
+  // away from the pill. See satPickerHtml.
   var satHealing = false;
 
   function satHasPro() {
@@ -21297,6 +21296,9 @@
     pill.classList.toggle("is-card", showCard);
     pill.classList.toggle("is-empty", !res);
     pill.classList.toggle("is-paused", paused);
+    // [FIX-3] The picker grows the pill downward and lifts it above the page, so
+    // the state is on the pill rather than on a separate element.
+    pill.classList.toggle("is-picking", satPickerOpen);
     // Reserve room in the Tasks-tab header (via body class) ONLY while the card
     // is expanded, so its top-right + New / Templates cluster slides clear of the
     // card. The slim pill/empty states sit above the cluster and release it.
@@ -21305,7 +21307,12 @@
     if (showCard) {
       pill.setAttribute("role", "region");
       pill.setAttribute("aria-label", t("common_active_task"));
-      pill.innerHTML = satCardHtml(res, paused);
+      // [FIX-3] The picker is part of the pill's markup, which is what makes it
+      // ONE surface. Rendering it here rather than appending it from the handler
+      // also means a re-render REBUILDS it instead of destroying it - an
+      // innerHTML rewrite with a body-appended popover open would simply have
+      // left the popover orphaned beside a pill that no longer knows about it.
+      pill.innerHTML = satCardHtml(res, paused) + satPickerHtml();
     } else {
       pill.removeAttribute("role");
       pill.removeAttribute("aria-label");
@@ -21314,7 +21321,7 @@
       // every click ambiguous. Not rendered in the empty state - there is
       // nothing to hide from, and a user with no active task who hid the pill
       // would have removed their only route to picking one.
-      pill.innerHTML = satPillFaceHtml(res, paused) + (res ? satPillHideBtnHtml() : "");
+      pill.innerHTML = satPillFaceHtml(res, paused) + (res ? satPillHideBtnHtml() : "") + satPickerHtml();
     }
 
     if (res) {
@@ -21616,28 +21623,6 @@
   // #sidebar. Of the whole surface, only THIS keeps the scroll-close behavior —
   // the card itself is furniture and stays put.
 
-  function closeSatSwitchMenu() {
-    if (!satSwitchMenuEl) return;
-    if (satSwitchOutsideHandler) {
-      document.removeEventListener("click", satSwitchOutsideHandler, true);
-      satSwitchOutsideHandler = null;
-    }
-    if (satSwitchEscapeHandler) {
-      document.removeEventListener("keydown", satSwitchEscapeHandler);
-      satSwitchEscapeHandler = null;
-    }
-    if (satSwitchScrollHandler) {
-      window.removeEventListener("scroll", satSwitchScrollHandler, true);
-      satSwitchScrollHandler = null;
-    }
-    if (satSwitchResizeHandler) {
-      window.removeEventListener("resize", satSwitchResizeHandler);
-      satSwitchResizeHandler = null;
-    }
-    if (satSwitchMenuEl.parentNode) satSwitchMenuEl.parentNode.removeChild(satSwitchMenuEl);
-    satSwitchMenuEl = null;
-  }
-
   // Renders the whole list from (query, collapse-state). Both the search input
   // and a workspace header toggle route through this one function — the
   // alternative (mutating rows in place for a toggle, regenerating for a
@@ -21710,89 +21695,88 @@
     return html;
   }
 
-  function openSatSwitchMenu(anchorEl) {
-    closeSatSwitchMenu();
+  // ===== [FIX-3] THE PICKER OPENS INSIDE THE PILL ==========================
+  //
+  // IT WAS A SECOND BOX, AND THAT IS WHAT SAMSON SAW. openSatSwitchMenu built a
+  // body-appended .tt-context-menu, positioned fixed off a one-time rect beside
+  // the pill: menu-tier frost (near-black at 95%) against the pill's tint, a
+  // 10px radius against the pill's 16px, its own border and its own shadow. Two
+  // surfaces, and the second one looked like a context menu because it was one.
+  //
+  // IT IS NOW PART OF THE PILL'S OWN MARKUP, rendered by renderActiveTaskWidget
+  // from a module flag rather than appended by the handler. That is the change
+  // that makes it one surface, and it also removes a whole class of defect for
+  // free: a body-appended popover positioned off a rect DRIFTS when anything
+  // scrolls or resizes, which is why the old one carried a scroll-close handler,
+  // a resize-close handler, and a contains() guard on the scroll handler to stop
+  // the list's OWN scroll slamming it shut (bug 1217092237076418). A child of
+  // the pill moves with the pill. All three go.
+  //
+  // WHAT STAYS: Escape closes it, an outside click closes it, and the search
+  // box repaints only the LIST so typing does not rebuild the pill under the
+  // caret.
+  var satPickerOpen = false;
+  var satPickerQuery = "";
+  var satPickerCollapsed = {};
+  var satPickerOutsideHandler = null;
+  var satPickerEscapeHandler = null;
 
-    var menu = document.createElement("div");
-    menu.className = "tt-context-menu sat-switch-menu";
-    menu.innerHTML =
-      '<input type="text" class="sat-switch-search" placeholder="' + th("sat_search_tasks_in_all_workspaces") + '" ' +
-        'autocomplete="off" spellcheck="false" aria-label="' + th("sat_search_tasks") + '">' +
-      '<div class="sat-switch-list">' + satSwitchListHtml("", {}) + '</div>';
-    document.body.appendChild(menu);
-    satSwitchMenuEl = menu;
+  function satPickerHtml() {
+    if (!satPickerOpen) return "";
+    return '<div class="sat-picker" role="group" aria-label="' + th("sat_switch_active_task") + '">' +
+        '<input type="text" class="sat-switch-search" placeholder="' + th("sat_search_tasks_in_all_workspaces") + '" ' +
+          'autocomplete="off" spellcheck="false" value="' + escapeHtml(satPickerQuery) + '" ' +
+          'aria-label="' + th("sat_search_tasks") + '">' +
+        '<div class="sat-switch-list">' + satSwitchListHtml(satPickerQuery, satPickerCollapsed) + '</div>' +
+      '</div>';
+  }
 
-    var rect = anchorEl.getBoundingClientRect();
-    var w = menu.offsetWidth;
-    var h = menu.offsetHeight;
-    var px = Math.min(rect.right + 6, window.innerWidth - w - 8);
-    var py = Math.max(8, Math.min(rect.top, window.innerHeight - h - 8));
-    menu.style.left = Math.max(8, px) + "px";
-    menu.style.top = py + "px";
+  // Repaint the LIST only. A full render would rebuild the input and drop the
+  // caret on every keystroke, which is the reason this is not simply a
+  // renderActiveTaskWidget() call.
+  function satPickerRepaint() {
+    var list = document.querySelector("#active-task-pill .sat-switch-list");
+    if (list) list.innerHTML = satSwitchListHtml(satPickerQuery, satPickerCollapsed);
+  }
 
-    var listEl = menu.querySelector(".sat-switch-list");
-    var searchEl = menu.querySelector(".sat-switch-search");
-    // Per-open, DOM-only: which workspaces the user has toggled shut. Not
-    // persisted — the dropdown is transient and D5 specifies the default fresh
-    // each time.
-    var collapsedWs = {};
-    var repaint = function () {
-      listEl.innerHTML = satSwitchListHtml(searchEl.value, collapsedWs);
+  function openSatSwitchMenu() {
+    if (satPickerOpen) { closeSatSwitchMenu(); return; }
+    satPickerOpen = true;
+    satPickerQuery = "";
+    satPickerCollapsed = {};
+    renderActiveTaskWidget();
+
+    var pill = document.getElementById("active-task-pill");
+    var search = pill && pill.querySelector(".sat-switch-search");
+    if (search) search.focus();
+
+    // THE OUTSIDE CLICK IS NOW "OUTSIDE THE PILL", not "outside the menu", and
+    // that is the whole simplification: the picker has no coordinates of its
+    // own to be outside of.
+    satPickerOutsideHandler = function (e) {
+      var p = document.getElementById("active-task-pill");
+      if (p && !p.contains(e.target)) closeSatSwitchMenu();
     };
+    setTimeout(function () { document.addEventListener("click", satPickerOutsideHandler, true); }, 0);
 
-    searchEl.addEventListener("input", repaint);
-    searchEl.focus();
+    satPickerEscapeHandler = function (e) { if (e.key === "Escape") closeSatSwitchMenu(); };
+    document.addEventListener("keydown", satPickerEscapeHandler);
+  }
 
-    menu.addEventListener("click", async function (e) {
-      var hdr = e.target.closest && e.target.closest(".sat-ws-header");
-      if (hdr) {
-        var wsId = hdr.getAttribute("data-sat-ws");
-        collapsedWs[wsId] = hdr.getAttribute("aria-expanded") === "true";
-        repaint();
-        return;
-      }
-      var row = e.target.closest && e.target.closest(".sat-switch-task");
-      if (!row) return;
-      var taskId = row.getAttribute("data-sat-task");
-      var taskWs = row.getAttribute("data-sat-task-ws");
-      closeSatSwitchMenu();
-      await satActivate(taskId, taskWs);
-    });
-
-    satSwitchOutsideHandler = function (e) {
-      if (!menu.contains(e.target)) closeSatSwitchMenu();
-    };
-    setTimeout(function () {
-      document.addEventListener("click", satSwitchOutsideHandler, true);
-    }, 0);
-
-    satSwitchEscapeHandler = function (e) {
-      if (e.key === "Escape") closeSatSwitchMenu();
-    };
-    document.addEventListener("keydown", satSwitchEscapeHandler);
-
-    // v3 scroll-close: the menu is position:fixed off a one-time rect, so any
-    // scroll of an ancestor region drifts it. Same rationale as the Tasks-tab
-    // popovers. But this is a CAPTURE-phase window listener, so it also receives
-    // the menu's OWN list scroll — scroll doesn't bubble, yet capture still reaches
-    // ancestors from any scrollable descendant. Unscoped, the first wheel/drag tick
-    // on .sat-switch-list slammed the menu shut before it could move: the "list
-    // won't scroll" bug (1217092237076418). Ignore scrolls that originate inside
-    // the menu; still close on any ancestor/page scroll. Mirrors the contains()
-    // guard in satSwitchOutsideHandler above.
-    satSwitchScrollHandler = function (e) {
-      if (e && e.target && menu.contains(e.target)) return;
-      closeSatSwitchMenu();
-    };
-    window.addEventListener("scroll", satSwitchScrollHandler, true);
-
-    // Same drift-close rationale for viewport resize (DevTools toggle, window
-    // resize, zoom): the menu is position:fixed at open-time coords, so a resize
-    // that reflows the anchor widget leaves it orphaned mid-screen. Close rather
-    // than reposition — matches the transient picker intent (bug 1217092468273137).
-    // Paired teardown in closeSatSwitchMenu.
-    satSwitchResizeHandler = function () { closeSatSwitchMenu(); };
-    window.addEventListener("resize", satSwitchResizeHandler);
+  function closeSatSwitchMenu() {
+    if (satPickerOutsideHandler) {
+      document.removeEventListener("click", satPickerOutsideHandler, true);
+      satPickerOutsideHandler = null;
+    }
+    if (satPickerEscapeHandler) {
+      document.removeEventListener("keydown", satPickerEscapeHandler);
+      satPickerEscapeHandler = null;
+    }
+    if (!satPickerOpen) return;
+    satPickerOpen = false;
+    satPickerQuery = "";
+    satPickerCollapsed = {};
+    renderActiveTaskWidget();
   }
 
   function bindActiveTaskWidget() {
@@ -21805,6 +21789,25 @@
     // (minimized) or "pick" (empty). Anything else on the card is inert — the card
     // is furniture, not a popover, so a background click does nothing.
     pill.addEventListener("click", async function (e) {
+      // [FIX-3] THE PICKER'S OWN ROWS, on the pill's existing delegated listener
+      // rather than on a listener bound to a menu element that no longer exists.
+      // They are checked BEFORE data-sat-act because a workspace header and a
+      // task row carry neither.
+      var hdr = e.target.closest && e.target.closest(".sat-ws-header");
+      if (hdr) {
+        var wsId = hdr.getAttribute("data-sat-ws");
+        satPickerCollapsed[wsId] = hdr.getAttribute("aria-expanded") === "true";
+        satPickerRepaint();
+        return;
+      }
+      var prow = e.target.closest && e.target.closest(".sat-switch-task");
+      if (prow) {
+        var pTaskId = prow.getAttribute("data-sat-task");
+        var pTaskWs = prow.getAttribute("data-sat-task-ws");
+        closeSatSwitchMenu();
+        await satActivate(pTaskId, pTaskWs);
+        return;
+      }
       var actBtn = e.target.closest && e.target.closest("[data-sat-act]");
       if (!actBtn) return;
       var act = actBtn.getAttribute("data-sat-act");
@@ -21824,7 +21827,11 @@
       if (act === "pomo-stop") { await satPomoStop(); return; }
       if (act === "pomo-duration") { satPomoDurOpen = !satPomoDurOpen; renderActiveTaskWidget(); return; }
       if (act === "pomo-dur-pick") { await satPomoSetWorkMin(parseInt(actBtn.getAttribute("data-min"), 10)); return; }
-      if (act === "switch" || act === "pick") { openSatSwitchMenu(actBtn); return; }
+      // [FIX-3] No anchor argument: the picker is a child of the pill, so it
+      // has nowhere to be anchored TO. It also toggles now - the control that
+      // opens it is still on screen once it is open, and a second click on it
+      // closing it is what every other disclosure on this surface does.
+      if (act === "switch" || act === "pick") { openSatSwitchMenu(); return; }
       if (act === "minimize") { await satSetMinimized(true); return; }
       if (act === "restore") { await satSetMinimized(false); return; }
       // [H2b] The third state. "hide" is the slim face's own chevron; "unhide"
@@ -21840,6 +21847,15 @@
         if (r2 && !r2.stale) await switchWorkspace(r2.workspace.id);
         return;
       }
+    });
+
+    // [FIX-3] The picker's search box. Repaints the LIST only - a full render
+    // would rebuild the input and drop the caret on every keystroke.
+    pill.addEventListener("input", function (e) {
+      var t = e.target;
+      if (!t || !t.classList || !t.classList.contains("sat-switch-search")) return;
+      satPickerQuery = t.value;
+      satPickerRepaint();
     });
 
     // [A2 D10] The custom focus-length input fires "change" (not click), so it
