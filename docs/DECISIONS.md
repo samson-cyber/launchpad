@@ -4093,6 +4093,45 @@ before — a half-migrated product needs both.
 tiles. **Keeps:** Floater and Menu unchanged — modals, popovers and context
 menus are not tiles and are not part of this family.
 
+> **AMENDED 2026-09-18 (H1a) — THE PER-GROUND RULE THIS ENTRY DEFERRED.**
+> Appended rather than rewritten, per this log's own rule: the entry above
+> stated the family and left the light ground open, and this is the answer
+> arriving, not a reversal.
+>
+> H0 measured every tile kind on all three grounds and found **five of six under
+> the 4.5 floor on a light wallpaper** — the alpha, not the ink: 82% over
+> `#2a2a2a` composites near black, 82% over `#f5f5f5` composites two to three
+> times lighter, and `--ink-mute` has nowhere left to go.
+>
+> **Ruling 1 on the H0 REVIEW: the ALPHAS rise on a light ground.** Not the
+> inks. The frost exists so the WALLPAPER reads through, and on a light SOLID
+> there is no wallpaper to read through — there is a colour. Darkening the inks
+> would make a tile two different things on two grounds and would leave the
+> photo case unchanged, which is the case 82% was tuned for.
+>
+> **The measured alphas, under `html.bg-light` only:**
+>
+> | tile | alpha | eyebrow before | after | dark | photo |
+> | --- | --- | --- | --- | --- | --- |
+> | hero | 0.82 → **0.94** | 3.46 UNDER | **5.09** | 5.69 | 4.75 |
+> | overdue | 0.82 → **0.94** | 3.92 UNDER | **5.12** | 5.93 | 4.88 |
+> | goals | 0.82 → **0.94** | 3.44 UNDER | **4.79** | 5.97 | 4.74 |
+> | blocking | 0.82 → **0.94** | 3.50 UNDER | **5.00** | 6.03 | 4.86 |
+> | list | 0.72 → **0.90** | 2.91 UNDER | **5.27** | 6.29 | 4.52 |
+> | action | opaque, unchanged | 7.53 | 7.53 | 7.53 | 7.53 |
+>
+> The dark and photo columns are **unchanged**, which is the proof the rule is
+> scoped: `html.bg-image` keeps 82% because there the wallpaper IS the point and
+> every tile already cleared (4.52–7.53). Raising it there would buy contrast
+> nobody needs by spending the thing the language is built on.
+>
+> **The list tile rises to 0.90 rather than 0.94** so it stays the faintest tile
+> on this ground too — its job is to let the eye rest on the rows, and matching
+> the tints would lose that distinction.
+>
+> The tints still read as their colours at the higher alpha: checked on a light
+> frame, rose, green and violet are each unmistakably themselves.
+
 ---
 
 ## 2026-09-18 — Space Grotesk, product-wide, shipped in the extension

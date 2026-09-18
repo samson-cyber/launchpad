@@ -370,16 +370,14 @@ html.text-size-large {
    and it passes because it is NOT frosted glass - it is opaque orange, so no
    wallpaper reaches it.
 
-   THIS IS LEFT AS A FINDING RATHER THAN FIXED HERE, deliberately. The two
-   candidate fixes - raise the tile alphas under html.bg-light so a tile
-   composites as dark as it does on the default ground, or darken the inks -
-   are both DESIGN decisions about how much wallpaper shows through, and a
-   foundations round inventing them would be the canvas being overruled by
-   whoever happened to be holding the instrument.
-
-   IT IS BLOCKING FOR THE FIRST SURFACE THAT ADOPTS A TILE, and harmless until
-   then: no shipped rule reads any of this yet, so the defect has no reach. The
-   Dashboard round cannot close over it.
+   RESOLVED 2026-09-18 BY RULING 1 ON THE H0 REVIEW, and the rule is at the end
+   of this block. Samson ruled the ALPHAS rise on a light ground rather than the
+   inks darken, and the reasoning is what settles it: the frost exists so the
+   WALLPAPER reads through, and on a light SOLID there is no wallpaper to read
+   through - there is a colour. Seeing #f5f5f5 through a rose tile is not a
+   feature. Darkening the inks instead would make a tile two different things on
+   two grounds, and would leave the PHOTO case unchanged - which is the case the
+   82% was tuned for in the first place.
 
    ---------------------------------------------------------------------------
    WHAT IS DELIBERATELY ABSENT.
@@ -505,6 +503,39 @@ html.text-size-large {
   --meta-size: var(--fs-12);   --meta-lh: 18px;  --meta-weight: 500;   /* 13px at medium */
   --eyebrow-size: var(--fs-11);--eyebrow-lh: 16px; --eyebrow-weight: 600;/* 12px at medium */
   --hint-size: var(--fs-10);   --hint-lh: 14px;  --hint-weight: 600;   /* 11px at medium */
+}
+
+/* ===========================================================================
+   [H1a] THE LIGHT-GROUND TILE ALPHAS. Ruling 1 on the H0 REVIEW.
+
+   A tint at 82% over #2a2a2a composites near black. The same tint at 82% over
+   #f5f5f5 composites two to three times lighter, and --ink-mute has nowhere
+   left to go - H0 measured five of the six tile kinds under the 4.5 floor on a
+   light wallpaper. The alphas rise here so each tint reads at strength on the
+   ground that has no photograph to show through it.
+
+   ONLY THE TINTS MOVE. The inks are untouched, so a tile is the same colour on
+   every ground and only its opacity differs. --action and --action-2 are NOT
+   here: the action tile is opaque already and measured 7.53 on all three.
+
+   THE PHOTO GROUND IS DELIBERATELY NOT INCLUDED. html.bg-image keeps 82%,
+   because there the wallpaper IS the point and H0 measured every tile clear on
+   it (4.52 to 7.53). Raising the alpha there would buy contrast nobody needs by
+   spending the thing the language is built on.
+   =========================================================================== */
+html.bg-light {
+  --tile-hero: rgba(38, 30, 34, 0.94);
+  --tile-hero-2: rgba(26, 21, 24, 0.94);
+  --tile-overdue: rgba(90, 47, 42, 0.94);
+  --tile-overdue-2: rgba(61, 31, 28, 0.94);
+  --tile-goals: rgba(47, 74, 58, 0.94);
+  --tile-goals-2: rgba(30, 51, 40, 0.94);
+  --tile-blocking: rgba(59, 47, 74, 0.94);
+  --tile-blocking-2: rgba(38, 32, 58, 0.94);
+  /* The list tile is the one at 72%, and it rises to 90% rather than 94% so it
+     stays the FAINTEST tile on this ground too - its job is to let the eye rest
+     on the rows, and matching the tints would lose that distinction. */
+  --tile-list: rgba(20, 18, 20, 0.90);
 }
 
 /* ===========================================================================
