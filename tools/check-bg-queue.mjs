@@ -396,6 +396,43 @@ async function runSuite(ctx, store, stats, listeners) {
       stats.dataSets === afterSweep, `dataSets moved by ${stats.dataSets - afterSweep}`);
   }
 
+  // ===== [FIX-6] THE PILL-STATE SWEEP ======================================
+  //
+  // The active-task pill was removed and its two UI-state fields go with it.
+  // Fourth sweep of this shape; the assertions are the third's, because the
+  // failure modes do not change: the keys must GO, the write must happen ONCE,
+  // and the load after that must write NOTHING.
+  //
+  // TOP-LEVEL KEYS THIS TIME, not settings.*, and that is why this is not just
+  // another entry in the focus-sound block: dropPillState deletes from `data`
+  // itself, so a careless implementation could take a live sibling with it.
+  // activeTask is asserted to SURVIVE for exactly that reason - it is not pill
+  // state, and WM.1's mode stamp and WM.4's friction escalation both read it.
+  {
+    await seed(ctx, store);
+    store.data.activeTaskCardMinimized = true;
+    store.data.activeTaskPillHidden = true;
+    store.data.activeTask = { taskId: "t-keep", workspaceId: "w1", startedAt: 1000, mode: "work" };
+
+    const beforePill = stats.dataSets;
+    await ctx.Storage.getAll();
+    check("[FIX-6] the pill's two UI-state keys are swept off a profile that carried them",
+      !("activeTaskCardMinimized" in store.data) && !("activeTaskPillHidden" in store.data),
+      `top-level keys now: ${Object.keys(store.data).filter((k) => /^activeTask/.test(k)).join(",")}`);
+    check("[FIX-6] and activeTask SURVIVES - it is not pill state (WM.1's stamp, WM.4's friction)",
+      !!store.data.activeTask && store.data.activeTask.taskId === "t-keep" &&
+      store.data.activeTask.mode === "work",
+      JSON.stringify(store.data.activeTask));
+    check("[FIX-6] the sweep WROTE once - a profile carrying the keys is a change",
+      stats.dataSets > beforePill, `dataSets moved by ${stats.dataSets - beforePill}`);
+
+    const afterPill = stats.dataSets;
+    await ctx.Storage.getAll();
+    await ctx.Storage.getAll();
+    check("[FIX-6] IDEMPOTENT: two further loads find nothing to do and write nothing",
+      stats.dataSets === afterPill, `dataSets moved by ${stats.dataSets - afterPill}`);
+  }
+
   // ===== [NB.2] THE NOTEBOOKS SWEEP ========================================
   //
   // ensureNotebooksArrays backfills ws.notebooks on a profile that predates the
@@ -1270,35 +1307,17 @@ async function runSuite(ctx, store, stats, listeners) {
     check("[1.9.4] ...and beside the pause control while a session runs",
       /data-cmp-act="open"/.test(CJ) && /function actionsHtml\(st\)/.test(CJ));
 
-    // FINDING 5. ONE amber signal per surface.
-    {
-      const cardAmber = (NC.match(/\.sat-expanded\.is-paused[^{]*\{[^}]*--sat-amber[^}]*\}/g) || []);
-      check("[1.9.4] the pill's paused CARD carries exactly one amber rule",
-        cardAmber.length === 1, JSON.stringify(cardAmber));
-      check("[1.9.4] ...on the hero LABEL, not on either numeral",
-        cardAmber.length === 1 && /sat-hero-label/.test(cardAmber[0]) &&
-        !/sat-hero-time|sat-time\b/.test(cardAmber[0]), JSON.stringify(cardAmber));
-      // [FIX-4] WIDENED, BECAUSE A RENAME WALKED PAST IT. This tested for a rule
-      // on .sat-btn-resume. FIX-4 rebuilt the control as .sat-primary.is-resume
-      // and gave it --sat-amber; the gate passed, and the frame showed an amber
-      // Resume under an amber ring - the two-signal inflation this finding exists
-      // to count. The class name was never the property. The assertion now looks
-      // for the amber token in ANY rule whose selector mentions resume, under
-      // whatever name the control is given next.
-      // COMMENTS STRIPPED FIRST. The first draft of this matched [^{}]*resume
-      // [^{}]*\{ against the raw sheet and hit a COMMENT that mentions Resume
-      // sitting above an unrelated amber rule - a false failure, which is the
-      // other half of the damage a loose negative assertion does. Strip the
-      // comments and the match is a selector.
-      const NC_BARE = NC.replace(/\/\*[\s\S]*?\*\//g, '');
-      const resumeAmber = (NC_BARE.match(/[^{}]*resume[^{}]*\{[^}]*--sat-amber[^}]*\}/gi) || []);
-      check("[1.9.4] no rule tints the Resume affordance amber, whatever it is called",
-        resumeAmber.length === 0, JSON.stringify(resumeAmber).slice(0, 300));
-      const slim = (NC.match(/#active-task-pill\.is-paused[^{]*\{[^}]*--sat-amber[^}]*\}/g) || []);
-      check("[1.9.4] the SLIM pill carries exactly one amber rule, on the glyph",
-        slim.length === 1 && /sat-pill-glyph/.test(slim[0]) &&
-        !/sat-pill-time/.test(slim[0]), JSON.stringify(slim));
-      check("[1.9.4] the popup's numeral is not amber",
+    // [FIX-6] FINDING 5's PILL ROWS ARE RETIRED WITH THE PILL. They counted
+    // amber rules on .sat-expanded.is-paused and on #active-task-pill.is-paused,
+    // and asserted no rule tinted a Resume control amber under any name. All
+    // three selectors are gone from the sheet, so all three rows could only
+    // ever pass from here on - which is the vacuity cbc799c rules against.
+    //
+    // THE FINDING ITSELF IS NOT RETIRED, and the row below is the half that
+    // still has a surface: the popup and the side panel share companion.js,
+    // which renders the paused state, and ONE amber signal per surface is
+    // exactly as binding there as it was on the pill.
+    {      check("[1.9.4] the popup's numeral is not amber",
         !/cmp-hero[^}]*\{[^}]*--sat-amber/.test(CC) && !/\.cmp-sub[^}]*--sat-amber/.test(CC));
     }
 
@@ -1425,6 +1444,22 @@ const SEEDS = [
       file: "storage.js",
       find: "        delete focus[FOCUS_SOUND_SETTING_KEYS[i]];\n        changed = true;",
       replace: "        changed = false;",
+    }],
+  },
+  {
+    name: "[FIX-6] the pill-state sweep stops deleting (the dangling keys ride every backup)",
+    seeds: [{
+      file: "storage.js",
+      find: "        delete data[PILL_STATE_KEYS[i]];\n        changed = true;",
+      replace: "        changed = false;",
+    }],
+  },
+  {
+    name: "[FIX-6] the pill-state sweep reports changed unconditionally (a warm blob writes forever)",
+    seeds: [{
+      file: "storage.js",
+      find: "    if (!data || typeof data !== \"object\") return false;\n    var changed = false;\n    for (var i = 0; i < PILL_STATE_KEYS.length; i++) {",
+      replace: "    if (!data || typeof data !== \"object\") return false;\n    var changed = true;\n    for (var i = 0; i < PILL_STATE_KEYS.length; i++) {",
     }],
   },
   {

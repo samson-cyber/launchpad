@@ -129,8 +129,20 @@ try {
 // The locked ramp (Samson, 2026-08-11). Restated here ON PURPOSE: this is the
 // spec side of the assertion, and a suite that reads the table out of the sheet
 // it is checking would agree with any sheet at all.
+//
+// [FIX-6] --fs-8 IS RETIRED FROM THE TABLE, AND THIS IS A SPEC CHANGE RATHER
+// THAN A GATE REPAIR - which is why it is stated here rather than done quietly.
+// Its only consumer in the whole product was .sat-pomo-phase, the 9px label
+// inside the pill's ring. With the pill removed the token had no user, and the
+// row forty lines below - "every token defined is actually used" - fails on a
+// dead token by design.
+//
+// The alternative was to keep the step and exempt it, which would have blunted
+// the one row that stops tokens accumulating; the other alternative was to
+// invent a 9px node to feed it, which is gaming a gate. Retiring the step is
+// the honest third option, and it is REVERSIBLE IN ONE LINE here plus three in
+// tokens.css the moment a surface wants 8/9/10 again.
 const LOCKED = [
-  ["--fs-8",    8,    9,    10],
   ["--fs-9",    9,    10,   11],
   ["--fs-10",   10,   11,   12],
   ["--fs-11",   11,   12,   13],
@@ -618,18 +630,21 @@ const SEEDS = [
   // THE LOAD-BEARING SEED. Small must be today's sizing; break one value and the
   // naming invariant has to catch it.
   // [1218320168124333] REPOINTED. [1.7.1] put the DISPLAY ramp at the top of
-  // each tier block, so --fs-8 is no longer the first declaration after the
-  // selector and these three anchors stopped matching. The tiers themselves are
-  // unchanged; only the line the anchor grabs has moved.
+  // each tier block, so the first declaration after the selector moved and
+  // these anchors stopped matching. The tiers themselves are unchanged.
+  // [FIX-6] REPOINTED AGAIN, ONTO --fs-9. --fs-8 was retired with the pill (see
+  // the LOCKED table above), so every anchor naming it would now MISS — and a
+  // seed whose anchor misses seeds nothing while the suite still reports its
+  // name, which is the quiet way a mutation set stops testing anything.
   { name: "SMALL IS NOT IDENTICAL — one token in the small block is bumped",
-    file: "css", from: "  --fs-8: 8px;\n  --fs-9: 9px;\n  --fs-10: 10px;\n  --fs-11: 11px;",
-    to:            "  --fs-8: 8px;\n  --fs-9: 9px;\n  --fs-10: 10px;\n  --fs-11: 12px;" },
+    file: "css", from: "  --fs-9: 9px;\n  --fs-10: 10px;\n  --fs-11: 11px;",
+    to:            "  --fs-9: 9px;\n  --fs-10: 10px;\n  --fs-11: 12px;" },
   { name: "SMALL IS NOT IDENTICAL — the whole small block is the medium ramp",
-    file: "css", from: "  --display-3: 21px;\n  --fs-8: 8px;", to: "  --display-3: 21px;\n  --fs-8: 9px;" },
+    file: "css", from: "  --display-3: 21px;\n  --fs-9: 9px;", to: "  --display-3: 21px;\n  --fs-9: 10px;" },
   { name: "medium stops bumping — the default tier is just small again",
-    file: "css", from: ":root {\n  --fs-8: 9px;\n  --fs-9: 10px;", to: ":root {\n  --fs-8: 8px;\n  --fs-9: 9px;" },
+    file: "css", from: ":root {\n  --fs-9: 10px;\n  --fs-10: 11px;", to: ":root {\n  --fs-9: 9px;\n  --fs-10: 10px;" },
   { name: "the ramp inverts — large pushes a 14px token past the untouched 16px tier",
-    file: "css", from: "  --display-3: 27px;\n  --fs-8: 10px;", to: "  --display-3: 27px;\n  --fs-8: 18px;" },
+    file: "css", from: "  --display-3: 27px;\n  --fs-9: 11px;", to: "  --display-3: 27px;\n  --fs-9: 18px;" },
   // [1.11.3d] THE CLAMP EXEMPTION, SEEDED BOTH WAYS. The first proves the
   // widening did not open a hole: drop the greeting's clamp floor under the
   // untouched tier and the assertion must still fail. The second proves the

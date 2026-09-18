@@ -807,9 +807,12 @@ await (async () => {
 // a different class, on 16 live elements — turning a false pass into a false
 // failure, which is the other half of the damage the audit exists to prevent.
 //
-// Written here rather than shared with check-pill-clarity's twin: every gate in
-// tools/ is standalone and imports only node builtins, so a shared helper would
-// introduce the suite's first cross-gate dependency for six lines.
+// Written here rather than shared: every gate in tools/ is standalone and
+// imports only node builtins, so a shared helper would introduce the suite's
+// first cross-gate dependency for six lines. (It had a twin in
+// check-pill-clarity, which retired with the pill on 2026-09-19 — the
+// duplication outlived the file it was duplicated from, which is the outcome
+// "every gate is standalone" is for.)
 const hasClassToken = (src, name) => {
   const re = /class="([^"]*)"/g;
   let m;
@@ -849,8 +852,12 @@ const hasClassToken = (src, name) => {
   // [H1a] dashHeroBlockingHtml RETURNED A .dash-hero-stat and the bento has no
   // such thing, so the wrapper had no caller left. The derivation is what the
   // assertion was ever about, and it survives as dashBlockingWord - still ONE
-  // place deriving the three words from the pill's own tri-state.
-  check("render: the blocking tile REUSES the pill's tri-state derivation, from one place",
+  // place deriving the three words from Storage.focusArmState's tri-state.
+  // [FIX-6] That tri-state used to be described as "the pill's", because the
+  // pill's blocking row was where it was first rendered. The pill is gone and
+  // the reader is not: the side panel renders the same three words from the
+  // same function, which is why "from ONE place" is the property that matters.
+  check("render: the blocking tile REUSES the shared tri-state derivation, from one place",
     /Storage\.focusArmState\(d\)/.test(extractFn(SRC.nt, "dashBlockingWord")) &&
     (render.match(/dashBlockingWord\(d\)/g) || []).length === 1 &&
     !/armState === "off"/.test(render));

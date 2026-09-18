@@ -1839,6 +1839,10 @@ I18n.register("en", {
     "message": "Paused",
     "description": "Toolbar popup eyebrow when tracking is globally paused. The numeral freezes with it. Rendered with t()."
   },
+  "companion_start_focus": {
+    "message": "▶ Focus · {minutes} min",
+    "description": "Side-panel button that starts a focus session on the active task. {minutes} is the current workspace mode's session length - the same value Pro Settings edits and startPomodoroPhase stamps, so the button names the length it would actually use. SIDE PANEL ONLY: the toolbar popup deliberately has no session controls, and companion.js states why. Rendered with t()."
+  },
   "companion_focused_today": {
     "message": "Focused today",
     "description": "Toolbar popup label under the SECONDARY numeral - the engine's figure, time actually seen on a trackable site. [1.9.4] CORRECTION: this description previously read 'the same focused-today figure the pill and the card lead with, not a wall-clock counter', which was FALSE in both halves - the [2.0] hero swap made the card lead with the activation stopwatch, and that stopwatch is precisely a wall-clock. The popup was built to that false description and led with a number that is honestly zero whenever the engine has seen no trackable time, which is what Samson found. Rendered with t()."
@@ -2298,34 +2302,6 @@ I18n.register("en", {
     "message": "Right-click to manage",
     "description": "Attribute label in recurringRowHtml(). Rendered with th()."
   },
-  "sat_change_focus_length": {
-    "message": "Change focus length",
-    "description": "Attribute label in satCardHtml(). Rendered with th()."
-  },
-  "sat_complete_the_task_it_moves_to": {
-    "message": "Complete the task. It moves to Completed, and you can uncheck it in Tasks to reopen it.",
-    "description": "Attribute label in satCardHtml(). Rendered with th()."
-  },
-  "sat_custom": {
-    "message": "Custom",
-    "description": "Attribute label in satPomoDurChipsHtml(). Rendered with th()."
-  },
-  "sat_focus_blocking_is_on": {
-    "message": "Focus blocking is on",
-    "description": "Manual focus blocking is armed. ONE key for three sinks: the focus pill's title AND aria-label - one element, one message, which is what the i18n-dom contract says - and the context line on the blocking gate page. Replaces sat_focus_blocking_is_on_2, an auto-suffixed duplicate that sat on the same span as this one."
-  },
-  "sat_hide_task_list": {
-    "message": "Hide the task list",
-    "description": "Tooltip and aria-label on the active-task pill's LIST fold control while the list is showing. Its opposite is sat_show_task_list. The visible text of the same control is sat_more_tasks, which is a count rather than an instruction - the count says what is there, the label says what the click does."
-  },
-  "sat_minimize": {
-    "message": "Minimize",
-    "description": "Attribute label in satCardHtml(). Rendered with th()."
-  },
-  "sat_minimize_active_task_card": {
-    "message": "Minimize active task card",
-    "description": "Attribute label in satCardHtml(). Rendered with th()."
-  },
   "sat_pause_tracking": {
     "message": "Pause tracking",
     "description": "Attribute label in satCardHtml(). Rendered with th()."
@@ -2333,30 +2309,6 @@ I18n.register("en", {
   "sat_resume_tracking": {
     "message": "Resume tracking",
     "description": "Attribute label in satPillFaceHtml(). Rendered with th()."
-  },
-  "sat_resume_tracking_2": {
-    "message": "Resume tracking",
-    "description": "Attribute label in satCardHtml(). Rendered with th()."
-  },
-  "sat_search_tasks": {
-    "message": "Search tasks",
-    "description": "Attribute label in openSatSwitchMenu(). Rendered with th()."
-  },
-  "sat_search_tasks_in_all_workspaces": {
-    "message": "Search tasks in all workspaces",
-    "description": "Attribute label in openSatSwitchMenu(). Rendered with th()."
-  },
-  "sat_start_a_focus_session": {
-    "message": "Start a focus session",
-    "description": "Attribute label in satCardHtml(). Rendered with th()."
-  },
-  "sat_start_the_next_focus_session": {
-    "message": "Start the next focus session",
-    "description": "Attribute label in satCardHtml(). Rendered with th()."
-  },
-  "sat_stop_focus_session": {
-    "message": "Stop focus session",
-    "description": "Attribute label in satCardHtml(). Rendered with th()."
   },
   "sat_stop_tracking_for_now_the_task": {
     "message": "Stop tracking for now. The task stays open and keeps its time.",
@@ -2980,15 +2932,11 @@ I18n.register("en", {
   },
   "sat_focus_session": {
     "message": "▶ Focus session",
-    "description": "Markup label in satCardHtml(). Rendered with th()."
+    "description": "Side-panel button that stops the running focus session. Was the pill's; the pill was removed 2026-09-19 and the session controls moved to the side panel, which companion.js's sessionControlsHtml renders. Rendered with t()."
   },
   "sat_no_active_task": {
     "message": "No active task",
     "description": "Markup label in satPillFaceHtml(). Rendered with th()."
-  },
-  "sat_no_goal": {
-    "message": "No goal",
-    "description": "Markup label in satSwitchListHtml(). Rendered with th()."
   },
   "sat_no_sites_listed": {
     "message": "no sites listed",
@@ -3002,21 +2950,9 @@ I18n.register("en", {
     "message": "▶ Resume",
     "description": "Markup label in satCardHtml(). Rendered with th()."
   },
-  "sat_show_task_list": {
-    "message": "Show the task list",
-    "description": "Tooltip and aria-label on the active-task pill's LIST fold control while the list is folded to one line during a focus session. Its opposite is sat_hide_task_list."
-  },
-  "sat_start_next_session": {
-    "message": "▶ Start next session",
-    "description": "Markup label in satCardHtml(). Rendered with th()."
-  },
   "sat_stop": {
     "message": "■ Stop",
     "description": "Markup label in satCardHtml(). Rendered with th()."
-  },
-  "sat_worked_on_this_task": {
-    "message": "worked on this task",
-    "description": "Markup label in satWorkedLineHtml(). Rendered with th()."
   },
   "sessions_delete_permanently": {
     "message": "Delete permanently",
@@ -3342,10 +3278,6 @@ I18n.register("en", {
     "message": "Restore All ({count})",
     "description": "Button that reopens every tab in a saved session. {count} is the tab count. NOT a plural: a parenthesised numeral with no noun to inflect."
   },
-  "sat_window_tracked_time_title": {
-    "message": "Tracked time for this task over the last {days} days. The engine keeps no more history than that.",
-    "description": "Tooltip on the active-task time window. {days} is the retention window in days (7 or 30)."
-  },
   "sessions_assign_to_task": {
     "message": "Assign a session to {taskName}",
     "description": "Title of the session picker. {taskName} is the user's task title."
@@ -3507,11 +3439,6 @@ I18n.register("en", {
 // the preview's keys rather than getting copies.
 // =========================================================================
 I18n.register("en", {
-    "common_active_task": {
-      "description": "The eyebrow naming the task focus is currently running on. ONE key for three sites that each had their own: the focus pill label (satPillFaceHtml), the card eyebrow (satCardHtml) and the widget's aria-label (renderActiveTaskWidget). Replaces sat_active_task and active_active_task.",
-      "message": "Active task",
-      "sense": "label.state.focus"
-    },
     "common_empty_note": {
       "description": "Stand-in name for a note with no content yet. ONE key for three sites: the note card, the notes trash row and the note context menu. Replaces note_empty_note and notes_empty_note.",
       "message": "Empty note",
@@ -3682,60 +3609,10 @@ I18n.register("en", {
       "description": "Body of the modal shown when a recurring INSTANCE is dragged onto a goal. One message, not three fragments: the question depends on the explanation before it and a translation may need to reorder them.",
       "message": "This is an instance of a recurring task. Move the whole template into this goal (future instances will belong to it), or move just this occurrence?"
     },
-    "sat_active": {
-      "description": "TRACKING is running. Not the task STATUS filter option with the same word (tasks_status_active) and not freq_active.",
-      "message": "Active",
-      "sense": "state.tracking"
-    },
-    "sat_complete": {
-      "description": "Focus-card button that finishes the running task. The tick is part of the label rather than a separate icon element.",
-      "message": "✓ Complete",
-      "sense": "action.task"
-    },
     "sat_end_for_now": {
       "description": "Focus-card button that stops tracking WITHOUT completing the task. The wording is deliberately not 'Cancel' or 'Stop': nothing is discarded.",
       "message": "End for now",
       "sense": "action.task"
-    },
-    "sat_goal_fallback": {
-      "description": "Stand-in heading in the task switcher for a group whose goal cannot be resolved. A rare fallback, not the ordinary word for a goal.",
-      "message": "Goal",
-      "sense": "placeholder.name"
-    },
-    "sat_no_open_tasks_yet": {
-      "description": "Task-switcher empty state when there is no query and nothing to show. A different sentence from sat_no_tasks_match, not its substitution.",
-      "message": "No open tasks yet"
-    },
-    "sat_no_tasks_match": {
-      "description": "Task-switcher empty state while a SEARCH QUERY is present.",
-      "message": "No tasks match"
-    },
-    "sat_paused": {
-      "description": "TRACKING is paused - the stopwatch is stopped. Not recurring_paused, which describes a recurring TEMPLATE that has been switched off, and not a paused task. Used by the headline, the idle headline and the focus pill.",
-      "message": "Paused",
-      "sense": "state.tracking"
-    },
-    "sat_pomo_duration_minutes": {
-      "description": "Focus-card button showing the current pomodoro length; the caret marks it as a menu. 'min' is the abbreviation for minutes.",
-      "message": "{minutes} min ▾"
-    },
-    "sat_pomo_phase_focus": {
-      "description": "Fallback name for the pomodoro WORK phase on the focus pill, used when the phase has no mapped label. Not gate_focus, which is the blocking gate page.",
-      "message": "Focus",
-      "sense": "phase.pomodoro"
-    },
-    "sat_pomo_session_done_cycle": {
-      "description": "Shown when a pomodoro interval finishes. SENSE OF 'SESSION': a focus interval, NOT a saved set of tabs and NOT a browser session.",
-      "message": "Session done · cycle {position} of {total}",
-      "sense": "label.session.focus-interval"
-    },
-    "sat_switch_to_workspace": {
-      "description": "Button beside sat_this_task_is_in_workspace that moves to that workspace.",
-      "message": "Switch to {workspace}"
-    },
-    "sat_this_task_is_in_workspace": {
-      "description": "Shown on the focus card when the running task belongs to a DIFFERENT workspace from the one on screen.",
-      "message": "This task is in {workspace}"
     },
     "sessions_on_task_name": {
       "description": "Tail of the session row naming the task a session is attached to, after a separator glyph. Reads as '... 5 tabs · on Write the report'.",
@@ -4563,11 +4440,6 @@ I18n.register("en", {
       "message": "Focus rules on in this workspace.",
       "sense": "tooltip.explanation"
     },
-    "wsmode_pill_work_title": {
-      "description": "Tooltip and accessible name of the WORK chip on the active-task pill. ONE key for one element, per the i18n-dom contract. There is no Casual equivalent: the chip is absent in Casual.",
-      "message": "This workspace is in Work mode.",
-      "sense": "tooltip.state"
-    },
     "wsmode_now_work": {
       "description": "Toast after flipping a workspace to Work. Names the workspace, because the flip is per workspace and a user may hold several.",
       "message": "{workspaceName} is in Work mode.",
@@ -5077,11 +4949,6 @@ I18n.register("en", {
       "description": "Toast after restoring a backup written in the older envelope. Sibling of backup_restored - see that key for why the two are separate.",
       "message": "Backup restored (older format).",
       "sense": "toast.confirmation"
-    },
-    "sat_pick_an_active_task": {
-      "description": "Tooltip on the active-task pill while nothing is active, naming what clicking it will do. Distinct from sat_no_active_task, which is the visible EMPTY-STATE text rather than a tooltip inviting an action.",
-      "message": "Pick an active task",
-      "sense": "tooltip.action"
     },
     "task_complete_with_goal": {
       "description": "Toast after completing a task that finished its parent goal too, announcing both. {name} is the task and {goalName} the goal, both quoted in the English. Its simpler sibling is task_complete_plain, which renders when no goal was finished - two keys rather than one with an optional clause, because a trailing optional clause is exactly what a translator cannot reorder.",
@@ -5843,10 +5710,6 @@ I18n.register("en", {
       "description": "Tour bubble pointing at the Insights tab. A list of four things and then the point - that none of it has to be logged by hand.",
       "message": "Deep work, tags, sites, top tasks. Measured automatically."
     },
-    "tour_active_task": {
-      "description": "Tour bubble pointing at the active-task pill. The semicolon joins the action to its consequence.",
-      "message": "Start a focus session here; blocking arms itself while you work."
-    },
     "tip_add_shortcut": {
       "description": "Step 1 of the first-run tip strip.",
       "message": "Add your first shortcut"
@@ -5895,10 +5758,6 @@ I18n.register("en", {
       "description": "Shown in place of a shortcut variant's distinguishing detail when two variants resolve to the same address and nothing separates them. Lower case: it sits where a URL fragment would.",
       "message": "same address"
     },
-    "sat_title_recording": {
-      "description": "Tooltip on the active-task time while it is recording. Present tense and plain: the number is moving.",
-      "message": "Recording time for this task right now."
-    },
     "sat_title_lifetime": {
       "description": "Tooltip on a task's lifetime total, explaining that it outlives the daily aggregates it was built from. No final stop: it is a short tooltip label.",
       "message": "Total focused time recorded for this task, kept beyond the day aggregates it came from"
@@ -5914,30 +5773,6 @@ I18n.register("en", {
     "sat_title_worked": {
       "description": "Tooltip on the worked total - time the task has been the active one, pauses excluded. No final stop.",
       "message": "Total time this task has been active, pauses excluded"
-    },
-    "sat_active_since": {
-      "description": "The active-task pill's line: how much, and since when. {duration} is an already-formatted count and {since} an already-formatted time. The middot separates two facts rather than joining clauses.",
-      "message": "Active {duration} · since {since}"
-    },
-    "sat_more_tasks": {
-      "description": "Visible text on the active-task pill's folded LIST zone, counting the open tasks OTHER than the active one across every workspace - the same rows the list shows when it is unfolded. {count} is that number. No '=0' form: the fold only renders while a focus session runs, and with nothing else open the line would be offering to show an empty list, so the zero case is handled by the list itself rather than by a word here.",
-      "message": "",
-      "plural": {
-        "one": "1 more task",
-        "other": "{count} more tasks"
-      }
-    },
-    "sat_last_days": {
-      "description": "The task time chip's window line. {duration} is an already-formatted duration and {count} the number of days.",
-      "message": "",
-      "plural": {
-        "one": "{duration} · last day",
-        "other": "{duration} · last {count} days"
-      }
-    },
-    "sat_restore_card": {
-      "description": "Tooltip on the control that brings a dismissed active-task card back. Its no-task sibling is the existing sat_pick_an_active_task.",
-      "message": "Restore active task card"
     },
     "focusblock_state_off": {
       "description": "The focus-blocking status line when blocking is off. 'Focus blocking:' is a label; siblings focusblock_state_auto, focusblock_state_on.",
@@ -6173,10 +6008,6 @@ I18n.register("en", {
     "pt_focused_today_by_site": {
       "description": "ENGINE-MEASURED TIME ON WEB PAGES. Not wall clock, not session length. REPLACES pt_today_by_site_title, and the change is decision H. The old heading read 'Today, by site' directly beneath the Dashboard hero's 'Focused today' and its number - two labels for ONE quantity, with nothing saying so. The two lists under this heading SUM to the hero's figure exactly (PT.1 reconciled them to the millisecond), so the heading now borrows the hero's own words and adds the axis. A reader who sees 'Focused today 2h30m' and then 'Focused today, by site' cannot take them for two different measurements. The words 'Focused today' must match common_focused_today exactly, in every language - if that key is retranslated this one moves with it or the pairing is lost. The word SITE is load-bearing and may not be dropped: the invisible boundary is what produced both failures this feature was opened about.",
       "message": "Focused today, by site"
-    },
-    "pt_zero_not_on_a_page": {
-      "description": "ENGINE-MEASURED TIME ON WEB PAGES. Not wall clock, not session length. Sits under the active-task card's 'Focused today' line WHEN a session is running and the engine has recorded nothing for it. Says what the zero means: the time was real, it simply was not on a web page. The register is the horizon caption's - it reports what the data can and cannot say, and it is NOT an error or an apology. IT DOES NOT GUESS WHERE THE TIME WENT. A tracking-off period is byte-identical in storage to an idle period and to time in a PDF, a native app or another browser (PT.1's Q3), so naming any one of them would be a claim the data cannot support. 'Not on a web page' is the whole of what is known. Absent when the figure is non-zero; absent when no session is running.",
-      "message": "No time on a web page yet. This page and other apps aren't counted."
     },
     "pt_tracking_off_pill": {
       "description": "Replaces the active-task card's 'Focused today' FIGURE when tracking is switched off for this workspace. NOT a zero: a zero is a statement about the user's day, and the truth is that nothing was measured. The same rule the Dashboard hero already follows by rendering nothing at all - this surface cannot go absent, because the card around it is about the task rather than about time, so it says the state instead. Names the switch in the words the Settings row uses so the user can find it.",

@@ -4252,3 +4252,95 @@ the most expensive thing anyone learned from this rule and it outlives it.
 on this one point. `[1.10.12]`'s cascade finding — a transition declared inside
 a state rule animates IN and snaps OUT — is untouched and still governs the
 sidebar push that rule now animates alone.
+
+## 2026-09-19 — The active-task pill is REMOVED, and where each of its jobs now lives
+
+**Decision (Samson):** the active-task pill is deleted from the product. His
+words: *"I think we should remove it entirely. We'll work to add the focus
+session somewhere else later on."*
+
+**Why.** Six rounds — `[1.9.x]`, `[1.10.x]`, H2b, FIX-3, FIX-4, FIX-5 — and the
+same finding each time: 300px is too narrow for what the pill was asked to
+hold, and every version read as busy. The canvas drew four zones cleanly
+because a board has less content than the real thing. Home is the locked,
+minimal surface; a permanent widget that keeps needing a redesign is not
+minimal.
+
+**Where each job went, and this list is the decision rather than a summary of
+it.** The round's census walked every caller rather than trusting the brief,
+and found three jobs with NO other home — the brief said there was one.
+
+| The pill did | It now lives |
+| --- | --- |
+| show the active task, its clocks | the Tasks row, the Dashboard, the side panel and the popup |
+| the ring and the phase countdown | the companion (popup **and** side panel), which renders it as its hero |
+| **start a focus session** | **the side panel** — new, see below |
+| **stop a focus session** | **the side panel** — new |
+| **arm blocking manually** | **the side panel** — new |
+| pause / resume tracking | the side panel, the popup, the Tasks row's menu, the keyboard command |
+| Complete | the Tasks row's menu, the Dashboard's Up Next |
+| **End for now** | **the Tasks row's menu** — re-homed, see below |
+| pick / switch the active task | the Tasks tab, the Dashboard, the row's context menu, the bell |
+| WM.5's 10-second chaining countdown | the Dashboard's hero tile |
+| the WORK mode chip (WM.1) | the Dashboard's mode segment, the side panel |
+| the stale-record self-heal | `satHealActiveTask`, called from the page's own render |
+
+**THE BRIEF'S PREMISE WAS WRONG ON ONE POINT AND THE CENSUS IS WHY THIS ENTRY
+EXISTS.** "Every job it did has a home; the one that does not — see your active
+task from Home without a click — is a future spec." Measured against the source:
+`Storage.startPomodoroPhase` had exactly TWO callers in the shipped product, the
+service worker's auto-advance and the pill; `Storage.stopPomodoro` the same; and
+the manual blocking arm was pill-only. The side panel and the popup are ONE
+module mounted twice, whose entire action set was `open` and `pause`/`resume` —
+its own note rules session controls off the TOOLBAR POPUP by name. Removing the
+pill as briefed would have left Pro's headline feature with no way to begin.
+
+**RULED:** the session controls go to the SIDE PANEL, opt-in per mount, so
+companion.js's ruling about the popup is preserved exactly rather than reversed.
+The popup is unchanged, byte for byte, because a surface that does not ask for
+them renders as it did before.
+
+**Still deliberately absent from both:** Complete and End for now. finding 3's
+reasoning is untouched — destructive-adjacent, no undo, and a surface dismissed
+by clicking away — and it gives the test the new placement passes: they live
+where the board is visible and the consequence legible, which is the Tasks tab.
+
+**The one job with no home, and it is the one the brief named:** seeing your
+active task from Home without a click. That is a future spec with a design
+behind it (Asana 1218638663767309), not a leftover.
+
+**What this supersedes, by name.** None of these are deleted; each was right
+about the surface it was written for, and that surface is gone:
+
+- 2026-08-08 — Pill honesty: FOCUSED TODAY becomes the headline
+- 2026-08-10 — Pill redesign: FOCUSED TODAY is the headline, ACTIVE a timestamp
+- 2026-08-11 — The pill-clarity arc: consequence-labeled actions
+- 2026-08-13 — The stopwatch's two surfaces share one clock edge
+- 2026-08-13 — The hero swap: the activation stopwatch leads the idle card
+- 2026-08-13 — The liveness indicator's holding word: Active → Ready
+- 2026-08-14 — The per-task worked clock
+- 2026-09-10 — The content column moves with the docked active-task card
+- 2026-09-19 — The active-task pill NEVER pushes Home (FIX-5, one day old)
+
+and in the code, the `[1.0.16]`, `[1.0.17]`, `[2.0 pill clarity]`, `[1.10.11]`,
+`[1.10.12]` and `[1.12.x]` notes that reference it.
+
+**WM.1's mode stamp and WM.4's friction are NOT superseded.** The stamp on the
+active-task record and the session id are not pill state; they are read by the
+engine and by the blocking gate, and they stay. Only the CHIP that displayed the
+mode was the pill's, and its other home was already built.
+
+**Two gates retire with the surface they check** (cbc799c's rule: a gate about a
+surface that no longer exists is DELETED, not floored at zero): `check-pill-
+clarity` (332 assertions) and `check-since-format` (19, whose entire subject was
+`satActiveSinceText`). `check-bg-queue` loses FINDING 5's four pill rows and
+gains four for the new storage sweep; `check-pro-celebration`'s tour goes from
+four anchored steps to three.
+
+**One spec change, stated rather than done quietly:** `--fs-8` is retired from
+the locked type ramp. Its only consumer in the product was `.sat-pomo-phase`,
+the 9px label inside the pill's ring, and `check-text-size` asserts that every
+defined token is used. Reversible in four lines if a surface wants 8/9/10 again.
+
+**Measured:** newtab.js 27,659 → 26,267 lines; newtab.css 23,683 → 21,054; 43
+`sat*` functions removed and 30 kept, because those 30 were never the pill's.

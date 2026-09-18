@@ -51,12 +51,14 @@ Stays: every writer, every storage key. The per-workspace tracking toggle and th
 Measured: the control families on each tint — the segmented pill on rose and violet and green, since 271b31b found .seg-btn under floor on the floater. SR.1's 66 controls accounted for: each one's new tile named, or its removal ruled.
 Files: newtab.js Settings + Pro Settings regions (they merge), newtab.css likewise, newtab.html's two panels become one.
 
-### The pill — V2-PillZones (supersedes V2-Pill, 2026-09-19)
-**H2b, FIX-2, FIX-3 and FIX-4 built this surface as MODES — list, or card, or running — and Samson rejected each. FIX-5 replaces the architecture, against board V2-PillZones.** ONE 300px pill, FOUR ZONES that reveal, the LIST IS THE FLOOR. `HEAD` always: the task name or "No active task", the state dot, the chevron. `FOCUS` while a session runs: a 56px conic ring with the phase inside, Pause/Resume as the one filled primary and Stop as an outline beside it. `TASK` while a task is active: the stopwatch and its unit word, the stamp and the worked clock on one meta line, the engine line under it, the blocking row, Complete and End for now as links. `LIST` ALWAYS beneath: the workspace tree, folded to one line ("22 more tasks") while a session runs. Zones are separated by a 1px `--tile-rule` and each is padded 12px 16px. The element carries `.tile` with three overrides: 16px radius, FIX-3's `rgba(38,30,34,0.60)` frost at `blur(14px)` (0.90 on a light ground), and padding 0 because the zones carry it. `max-height: 60vh`, the list scrolling inside itself. The slim face and the 28px dot both survive, one click apart. **The pill never pushes Home — `[1.10.11]`'s reserve is deleted (DECISIONS, 2026-09-19).**
-Stays: position fixed top-right; every reader and writer; the mode stamp; the bar-to-pill clearance DB.1 measured.
-Measured: the ring's fill against its own tile at 3:1; the chip; every state on three grounds — the pill sits on the wallpaper, not a tile, so its own frost is the ground.
-Files: newtab.js pill region, newtab.css pill region.
-
+### The pill — REMOVED 2026-09-19
+**The active-task pill is deleted from the product.** Six rounds could not make
+it read as clean at 300px; Home is the minimal surface and a permanent widget
+that keeps needing a redesign is not minimal. See DECISIONS, 2026-09-19, for
+where each of its jobs now lives — including the three the removal round's
+census found had no other home (start a session, stop a session, arm blocking),
+which moved to the side panel. A focus surface on Home is a future spec
+(Asana 1218638663767309), not a leftover.
 ### Insights — V2-Insights (after the 2026-09-18 fix)
 Changes: bento. Hero 2×2 with the figure in the gradient; hours/day 2×2 with bars filling the tile; time-by-tag 2×1 green with a 112px donut and a legend; by-site and top-tasks as list tiles; this-week violet; heatmap as a 3-wide list tile with cells in `action` alphas; achievements rose. Range selector as a segmented pill; Export beside the history caption.
 Stays: every chart's data path; the heatmap's geometry (fixed-basis labels); the unearned badges deliberately faint (1292ef4).

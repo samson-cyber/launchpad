@@ -55,6 +55,14 @@ var Companion = (function () {
 
   async function readState(opts) {
     var wantDue = !!(opts && opts.showDueList);
+    // [FIX-6] OPT-IN, THE SAME SHAPE showDueList TAKES, AND THE POPUP DOES NOT
+    // PASS IT. The omission note above actionsHtml is a RULING about the
+    // TOOLBAR POPUP - "nobody mid-page reaches for the toolbar to configure a
+    // Pomodoro" - and it still holds for the popup. The SIDE PANEL is a
+    // different surface: persistent, 420px, and the place a user works from.
+    // It is also, since the pill was removed, the only surface that can START
+    // a focus session at all.
+    var wantControls = !!(opts && opts.showSessionControls);
     var data = await Storage.getAll();
     var level = ProAccess.getProAccessLevel(data);
     var pro = ProAccess.isProAccessibleLevel(level);
@@ -106,6 +114,23 @@ var Companion = (function () {
       // headline. It was not a resolution bug: fmtDuration already prints
       // seconds. It was the wrong quantity.
       activeMs: res ? Storage.activeElapsedMs(data) : 0,
+      // [FIX-6] THE SESSION CONTROLS' STATE, present only when the mount asked
+      // for them - exactly as st.due is. A surface that did not ask renders
+      // byte-identically to before, which is what keeps the popup's ruling
+      // intact by construction rather than by a second code path.
+      controls: wantControls ? {
+        running: !!pomo,
+        // The length a start would use: the CURRENT workspace mode's preset,
+        // which is the same value startPomodoroPhase stamps and the same one
+        // Pro Settings edits. Reading the global durations here would show a
+        // number the session would not use ([WM.5]).
+        workMin: Storage.pomodoroConfigForMode(data,
+          Storage.getWorkspaceMode(Storage.getActiveWorkspace(data))).workMin,
+        // "off" | "manual" | "auto" - the tri-state the pill's row showed, from
+        // the same reader, so the two surfaces cannot disagree about it.
+        arm: Storage.focusArmState(data),
+        noSites: Storage.getBlockList(data).length === 0
+      } : null,
       // The stopwatch ticks from a fixed origin rather than being incremented,
       // so a tick that fires late cannot drift. Frozen while paused, exactly as
       // Storage.activeElapsedMs computes it.
@@ -379,9 +404,64 @@ var Companion = (function () {
   // What is left is the question this popup exists to answer - "what am I
   // doing, and can I stop the clock without leaving this page" - which is
   // exactly what Samson asked for.
+  //
+  // ===== [FIX-6] AND THE SIDE PANEL NOW ASKS FOR MORE, BECAUSE THE PILL IS
+  // GONE AND IT WAS THE ONLY PLACE A SESSION COULD BE STARTED. =============
+  //
+  // THE OMISSION ABOVE IS NOT REVERSED; ITS SCOPE IS NAMED. Every word of it
+  // is about the TOOLBAR POPUP - a surface you open, glance at and dismiss by
+  // clicking away. The side panel is the opposite: it is pinned open beside
+  // the page you are working on. "Nobody mid-page reaches for the toolbar to
+  // configure a Pomodoro" is true and says nothing about a panel that is
+  // already on screen.
+  //
+  // WHAT THE CENSUS FOUND, which is why this is here at all: Storage
+  // .startPomodoroPhase had exactly TWO callers in the shipped product - the
+  // service worker's auto-advance, and the pill. Removing the pill without
+  // this block would have left Pro's headline feature with no way to begin.
+  // Storage.stopPomodoro was the same, and the MANUAL blocking arm was
+  // pill-only too (Settings owns the block list and the AUTO arm, not this).
+  //
+  // STILL ABSENT, and still for finding 3's reasons: Complete and End for now
+  // (destructive-adjacent, no undo, and this surface is dismissed by clicking
+  // away), and switching task (it needs the list this panel declined).
+  function sessionControlsHtml(st) {
+    var c = st.controls;
+    if (!c) return "";
+    // NO ACTIVE TASK, NO SESSION CONTROLS. A focus session is a session ON
+    // something; startPomodoroPhase stamps the active task's record, and a
+    // Start button with nothing to start against would be a control that
+    // cannot act - which this codebase rules is worse than an absent one.
+    if (!st.task) return "";
+    var armOn = c.arm !== "off";
+    var armLabel = c.arm === "off" ? t("focusblock_state_off")
+                 : c.arm === "auto" ? t("focusblock_state_auto")
+                 : t("focusblock_state_on");
+    var armTitle = armOn ? t("focusblock_turn_off") : t("focusblock_turn_on");
+    return '<div class="cmp-session">' +
+        '<div class="cmp-session-row">' +
+          (c.running
+            ? '<button type="button" class="cmp-btn cmp-btn-stop" data-cmp-act="pomo-stop">' +
+                esc(t("sat_stop")) + '</button>'
+            : '<button type="button" class="cmp-btn cmp-btn-primary" data-cmp-act="pomo-start">' +
+                esc(t("companion_start_focus", { minutes: c.workMin })) + '</button>') +
+        '</div>' +
+        '<div class="cmp-block-row' + (armOn ? ' is-on' : '') + '">' +
+          '<button type="button" class="cmp-block-toggle" data-cmp-act="focus-arm" ' +
+            'role="switch" aria-checked="' + (armOn ? 'true' : 'false') + '" ' +
+            'title="' + esc(armTitle) + '" aria-label="' + esc(armTitle) + '">' +
+            '<span class="cmp-block-knob" aria-hidden="true"></span>' +
+          '</button>' +
+          '<span class="cmp-block-label">' + esc(armLabel) + '</span>' +
+          (c.noSites ? '<span class="cmp-block-hint">' + esc(t("sat_no_sites_listed")) + '</span>' : '') +
+        '</div>' +
+      '</div>';
+  }
+
   function actionsHtml(st) {
     var pauseLabel = st.paused ? t("companion_resume") : t("companion_pause");
-    return '<div class="cmp-actions">' +
+    return sessionControlsHtml(st) +
+      '<div class="cmp-actions">' +
         '<button type="button" class="cmp-btn cmp-btn-primary" data-cmp-act="' +
           (st.paused ? "resume" : "pause") + '">' + esc(pauseLabel) + '</button>' +
         '<button type="button" class="cmp-btn cmp-btn-route" data-cmp-act="open">' +
@@ -402,6 +482,7 @@ var Companion = (function () {
     // rendered before this round - asserted byte-for-byte in the verification,
     // not argued from the shape of this default.
     var showDueList = !!options.showDueList;
+    var showSessionControls = !!options.showSessionControls;
     var state = null;
     var timer = null;
     var stopped = false;
@@ -446,7 +527,7 @@ var Companion = (function () {
 
     async function render() {
       if (stopped) return;
-      state = await readState({ showDueList: showDueList });
+      state = await readState({ showDueList: showDueList, showSessionControls: showSessionControls });
       state.readAt = Date.now();
       container.innerHTML = viewHtml(state, state.readAt);
       container.setAttribute("data-cmp-state", state.pro
@@ -480,6 +561,43 @@ var Companion = (function () {
         await chrome.tabs.create({ url: chrome.runtime.getURL("newtab.html") });
         // The popup is done once it has handed off to a full page.
         if (typeof window !== "undefined" && window.close) window.close();
+        return;
+      }
+      // [FIX-6] THE THREE ACTS THE PILL USED TO OWN. Each goes through the
+      // SAME Storage writer the pill called, re-reading `data` at the point of
+      // write for the reason the note above gives: a second write path for any
+      // of these would break the phase accounting invisibly from here.
+      if (action === "pomo-start") {
+        try {
+          var fs1 = await Storage.getAll();
+          await Storage.startPomodoroPhase(fs1, null);
+        } catch (err) {
+          console.error("[LaunchPad] Companion: focus session start failed", err);
+        }
+        await render();
+        return;
+      }
+      if (action === "pomo-stop") {
+        try {
+          var fs2 = await Storage.getAll();
+          await Storage.stopPomodoro(fs2);
+        } catch (err) {
+          console.error("[LaunchPad] Companion: focus session stop failed", err);
+        }
+        await render();
+        return;
+      }
+      if (action === "focus-arm") {
+        try {
+          var fs3 = await Storage.getAll();
+          // ADDITIVE, exactly as the pill's row was: the control owns the
+          // MANUAL arm only, so a tap is always "flip my manual arm" and never
+          // a fight with the auto path.
+          await Storage.setFocusArmed(fs3, !Storage.isFocusManuallyArmed(fs3));
+        } catch (err) {
+          console.error("[LaunchPad] Companion: blocking arm toggle failed", err);
+        }
+        await render();
         return;
       }
       if (action === "pause" || action === "resume") {

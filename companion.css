@@ -266,6 +266,74 @@
 .cmp-btn-primary { background: rgba(255, 255, 255, 0.14); }
 .cmp-btn-primary:hover { background: rgba(255, 255, 255, 0.22); }
 
+/* ===== [FIX-6] THE SESSION CONTROLS, SIDE PANEL ONLY =====================
+
+   The active-task pill was removed and it was the only surface that could
+   START a focus session. These render only when the mount asks for them, so
+   the toolbar popup is untouched - its omission was a ruling, not an
+   oversight.
+
+   THEY TAKE THE PANEL'S OWN LANGUAGE, not the pill's. This surface is not a
+   tile on a wallpaper: companion.css has no --tile-* tokens and deliberately
+   does not load newtab.css, so the rules here are built from the same
+   rgba(255,255,255,a) family every other .cmp- control uses. Copying the
+   pill's tokens here would have resolved to nothing, which is the mistake the
+   --accent note four rules above already records. */
+.cmp-session {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+.cmp-session-row { display: flex; gap: var(--space-2); }
+.cmp-btn-stop { background: rgba(255, 255, 255, 0.08); }
+.cmp-btn-stop:hover { background: rgba(255, 255, 255, 0.16); }
+
+/* The blocking arm. A switch and its state word, which is the form the pill's
+   row used and the form [1.2.0 R3 / C9] ruled: the LABEL is the teaching
+   surface, so it says off / on / on (auto) rather than leaving the knob to
+   carry the meaning alone. */
+.cmp-block-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: var(--fs-12);
+}
+.cmp-block-toggle {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 17px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+.cmp-block-knob {
+  display: block;
+  width: 11px;
+  height: 11px;
+  margin-inline-start: 2px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.72);
+  transition: margin-inline-start 0.12s, background-color 0.12s;
+}
+.cmp-block-row.is-on .cmp-block-toggle {
+  background: rgba(255, 255, 255, 0.30);
+  border-color: rgba(255, 255, 255, 0.42);
+}
+.cmp-block-row.is-on .cmp-block-knob {
+  margin-inline-start: 15px;
+  background: #fff;
+}
+.cmp-block-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cmp-block-label { color: #fff; }
+/* The hint is quieter than the label but not the faintest thing here: it is a
+   statement of fact a user acts on ("you armed blocking and listed nothing"),
+   so it takes the same tier the due-list's own secondary text does. */
+.cmp-block-hint { color: rgba(255, 255, 255, 0.60); }
+
 .cmp-empty-row {
   display: flex;
   align-items: center;

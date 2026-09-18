@@ -148,13 +148,11 @@ if ! node tools/check-insights-readers.mjs; then
   exit 1
 fi
 
-# Since-format gate: the pill's "Active since" line. Small surface, but it is the
-# honesty fix the [1.2.3] round shipped — a broken today/older branch puts a
-# misleading timestamp on the flagship Pro surface. ~0.1s.
-if ! node tools/check-since-format.mjs; then
-  echo "ERROR: since-format gate failed — the pill's 'Active since' line has regressed." >&2
-  exit 1
-fi
+# [FIX-6] THE SINCE-FORMAT GATE IS RETIRED, with the line it checked. Its whole
+# subject was satActiveSinceText - the pill's "Active since …" sentence - and the
+# pill is gone. Per cbc799c: a gate about a surface that no longer exists is
+# DELETED, not floored at zero, because a suite that asserts nothing still costs
+# a reader's time and still reports PASS.
 
 # Duration-format gate: 240d1b4's 79,212-value sweep, committed. It swept old
 # against new to prove the Intl move was safe, found exactly one divergence
@@ -250,10 +248,11 @@ fi
 # round removed. Also holds the indicator's truthfulness against the engine's own
 # open session rather than mere activation, and the "last 30 days" copy against
 # the calendar-month lie. ~0.2s. `--mutate` re-boots it against 23 seeded defects.
-if ! node tools/check-pill-clarity.mjs; then
-  echo "ERROR: pill-clarity gate failed — an action label, the tracking claim, the reserve or the window copy has regressed." >&2
-  exit 1
-fi
+# [FIX-6] THE PILL-CLARITY GATE IS RETIRED, with the pill. 332 assertions about
+# a surface that no longer exists. What it protected that OUTLIVES the pill is
+# not lost: satComplete / satCancel's label-to-consequence binding moved to the
+# Tasks row's context menu and is covered there, and the reserve it asserted was
+# already deleted by FIX-5.
 
 # L1 serialization gate: every background `data` writer must stay inside the
 # enqueueBgData FIFO. Regressions here are SILENT DATA LOSS — one writer's blob

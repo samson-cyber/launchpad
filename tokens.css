@@ -145,7 +145,7 @@
      can be amended rather than the tree bent to it.
      ================================================================== */
 
-  /* Display sizes, above the --fs-8..--fs-15 ramp. These are the one group
+  /* Display sizes, above the --fs-9..--fs-15 ramp. These are the one group
      taken FROM the guide rather than from measurement, because they are
      forward-looking: [1.7] Dashboard and [1.8] Insights need them and no
      current rule uses 56px. Weight 500 is the guide's, and the tree has no
@@ -254,7 +254,6 @@
 /* MEDIUM — the default tier, and the product change: an install that has never
    touched the setting reads one notch larger than v1.0.5 did. */
 :root {
-  --fs-8: 9px;
   --fs-9: 10px;
   --fs-10: 11px;
   --fs-11: 12px;
@@ -279,7 +278,6 @@ html.text-size-small {
   --dash-ring-size: 60px;
   --display-2: 32px;
   --display-3: 21px;
-  --fs-8: 8px;
   --fs-9: 9px;
   --fs-10: 10px;
   --fs-11: 11px;
@@ -299,7 +297,6 @@ html.text-size-large {
   --dash-ring-size: 84px;
   --display-2: 40px;
   --display-3: 27px;
-  --fs-8: 10px;
   --fs-9: 11px;
   --fs-10: 12px;
   --fs-11: 13px;

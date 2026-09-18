@@ -50,7 +50,12 @@
     }
   })();
 
-  var view = Companion.mount(root, { showDueList: true });
+  // [FIX-6] THE SIDE PANEL ASKS FOR THE SESSION CONTROLS; THE POPUP DOES NOT.
+  // companion.js's own note rules them out of the TOOLBAR popup - a surface you
+  // glance at and dismiss - and that ruling stands. This panel is pinned open
+  // beside the work, and since the active-task pill was removed it is the only
+  // surface in the product that can start a focus session at all.
+  var view = Companion.mount(root, { showDueList: true, showSessionControls: true });
 
   // [1.9.4] THE DRIVE HANDLE, for the reason the popup shell states: a harness
   // must drive the view THIS FILE mounted, not one of its own, because two

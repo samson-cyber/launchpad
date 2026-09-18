@@ -205,15 +205,22 @@ ok("checkRightClickTip itself is untouched", !body("checkRightClickTip").include
 ok("a throw in the celebration cannot mute the others",
   /catch[\s\S]{0,200}proOnboardingBusy = false/.test(IB));
 
-console.log("TOUR — four anchored steps, every exit completes");
+// [FIX-6] THREE STEPS, NOT FOUR. The pill's step is gone with the pill, and
+// the count is asserted rather than loosened to ">= 3": the property this row
+// has always had is that the tour is a KNOWN set of steps, each anchored to
+// markup that exists. A tour that silently gained or lost one is exactly what
+// it was written to catch.
+console.log("TOUR — three anchored steps, every exit completes");
 const stepsSrc = NT.slice(NT.indexOf("var PRO_TOUR_STEPS = ["), NT.indexOf("];", NT.indexOf("var PRO_TOUR_STEPS = [")));
-for (const sel of ['data-tab="tasks"', 'data-tab="dashboard"', 'data-tab="insights"', "#active-task-pill"]) {
+const TOUR_ANCHORS = ['data-tab="tasks"', 'data-tab="dashboard"', 'data-tab="insights"'];
+for (const sel of TOUR_ANCHORS) {
   ok(`step anchored to ${sel}`, stepsSrc.includes(sel));
 }
-eq("exactly four steps", (stepsSrc.match(/\{ sel:/g) || []).length, 4);
+eq("exactly three steps", (stepsSrc.match(/\{ sel:/g) || []).length, 3);
+ok("and the removed pill is not among them", !stepsSrc.includes("active-task-pill"));
 // Every anchor must actually exist in the shipped markup, or a step points at
-// nothing. This is the check that catches a renamed tab or a moved pill.
-for (const sel of ['data-tab="tasks"', 'data-tab="dashboard"', 'data-tab="insights"', 'id="active-task-pill"']) {
+// nothing. This is the check that catches a renamed tab.
+for (const sel of TOUR_ANCHORS) {
   ok(`anchor ${sel} exists in newtab.html`, HTML.includes(sel));
 }
 const tour = body("endProTour");
@@ -234,9 +241,10 @@ ok("Skip on every step but the last", render.includes("data-pro-tour-skip"));
 ok("Done on the last step",
   /last \? th\("common_done"\) : th\("protour_next"\)/.test(render));
 ok("an off-screen anchor is skipped, not pointed at", render.includes("isTourAnchorVisible"));
-// offsetParent is null for EVERY position:fixed element, and #active-task-pill is
-// fixed — so an offsetParent-based visibility test silently drops the pill step
-// and the tour of four becomes a tour of three. Found at runtime; pinned here.
+// offsetParent is null for EVERY position:fixed element. The step that proved
+// this was the pill's - fixed, so an offsetParent-based test silently dropped
+// it and the tour of four became a tour of three. That step is gone; the trap
+// is not, and the next fixed anchor would hit it exactly the same way.
 ok("anchor visibility is measured by RECT, not offsetParent",
   !body("isTourAnchorVisible").includes("offsetParent") &&
   body("isTourAnchorVisible").includes("getBoundingClientRect"));

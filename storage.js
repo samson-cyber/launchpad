@@ -2992,6 +2992,7 @@ var Storage = (function () {
         var accentDropped = dropAccentSetting(existing);
         var clockDropped = dropClockSettings(existing);
         var soundDropped = dropFocusSoundSettings(existing);
+        var pillStateDropped = dropPillState(existing);
         var presetsSeeded = ensureModePresets(existing);
         var attachmentsPruned = pruneAttachments(existing);
         // [1.14.4 / G7] isHabit, normalised across every workspace.
@@ -3007,7 +3008,7 @@ var Storage = (function () {
         var strandedUnswept = existing[STRANDED_SWEEP_MARKER] !== true;
         var strandedReleased = sweepStrandedTasks(existing);
         if (patched || trackingSeeded || focusSeeded || notesSeeded || notebooksSeeded || sessionsSeeded ||
-            accentDropped || clockDropped || soundDropped || presetsSeeded || attachmentsPruned ||
+            accentDropped || clockDropped || soundDropped || pillStateDropped || presetsSeeded || attachmentsPruned ||
             homeNoteDropped || iconsMerged || habitFlagsSeeded || strandedUnswept) {
           // [1.10.3] THE BACKFILL WRITE GETS ITS OWN try/catch, AND THIS IS A
           // CORRECTNESS FIX RATHER THAN TIDYING. It used to sit inside this
@@ -6157,44 +6158,42 @@ var Storage = (function () {
   // Active-task CARD minimize preference ([1.0.16] DIRECTION v3). A pure UI
   // preference at the top level of `data`; DEFAULT false = the card is expanded.
   //
-  // Deliberately a plain `data` field, NOT part of the activeTask object: the
-  // engine's computeDesired derives a session only from activeTask.taskId,
-  // workspace, enabled and paused, so flipping this flag re-fires the storage
-  // watcher but yields the SAME desired session — no boundary, no thrash. (It
-  // rides `data` precisely so a foreign tab's onChanged repaints the widget and
-  // the minimize/restore syncs cross-tab, same as every other data change.)
-  // No-op when unchanged so an unconditional call cannot emit a spurious event.
-  function isActiveTaskCardMinimized(data) {
-    return !!(data && data.activeTaskCardMinimized);
-  }
+  // [FIX-6] THE PILL'S TWO UI-STATE FIELDS WERE REMOVED WITH THE PILL, and this
+  // is the sweep that keeps a profile which set them from carrying two dangling
+  // flags. Fourth of these now - [1.10.8] accent, [1.11.3c] the clock lines,
+  // [1.13.0 E6] the focus sounds, and these - and the reason has not changed: a
+  // key naming a surface that does not exist would otherwise sit in the blob
+  // forever and ride inside every backup envelope, where a later reader finds a
+  // preference with nothing behind it.
+  //
+  // TOP-LEVEL KEYS, NOT settings.*, which is the one thing that differs from the
+  // three before it. activeTaskCardMinimized and activeTaskPillHidden were
+  // deliberately plain `data` fields rather than settings or part of the
+  // activeTask record - the note that is being deleted with them explains why:
+  // they rode `data` so a foreign tab's onChanged repainted the widget.
+  //
+  // WHAT IS NOT SWEPT, and it matters: activeTask itself, its mode STAMP and its
+  // session id all stay. Those are not pill state - WM.1's stamp and WM.4's
+  // friction escalation read them, and the side panel and the Tasks row render
+  // from them.
+  //
+  // IDEMPOTENT BY CONSTRUCTION, which the backfill caller requires: it reports
+  // changed only when at least one key is actually present, so the write happens
+  // once and the next load finds nothing to do. A sweep that returned true
+  // unconditionally would make a warm blob write on every single load, which is
+  // what the BG QUEUE gate's warm-fixture assertion exists to catch.
+  var PILL_STATE_KEYS = ["activeTaskCardMinimized", "activeTaskPillHidden"];
 
-  async function setActiveTaskCardMinimized(data, minimized) {
-    if (!data) return false;
-    var next = !!minimized;
-    if (!!data.activeTaskCardMinimized === next) return false;
-    data.activeTaskCardMinimized = next;
-    await saveAll(data);
-    return true;
-  }
-
-  // [H2b] THE PILL'S THIRD STATE. card -> slim -> hidden, and the first two are
-  // the boolean above. A SIBLING FLAG rather than widening that one to an enum:
-  // isActiveTaskCardMinimized reads it as !!value, so a string "hidden" would be
-  // seen as "minimized" by every existing reader through an accident of
-  // truthiness rather than a decision. Two booleans say what they mean, and the
-  // pair has a defined meaning for all four combinations - hidden wins, because
-  // a hidden pill is not showing a card either way.
-  function isActiveTaskPillHidden(data) {
-    return !!(data && data.activeTaskPillHidden);
-  }
-
-  async function setActiveTaskPillHidden(data, hidden) {
-    if (!data) return false;
-    var next = !!hidden;
-    if (!!data.activeTaskPillHidden === next) return false;
-    data.activeTaskPillHidden = next;
-    await saveAll(data);
-    return true;
+  function dropPillState(data) {
+    if (!data || typeof data !== "object") return false;
+    var changed = false;
+    for (var i = 0; i < PILL_STATE_KEYS.length; i++) {
+      if (Object.prototype.hasOwnProperty.call(data, PILL_STATE_KEYS[i])) {
+        delete data[PILL_STATE_KEYS[i]];
+        changed = true;
+      }
+    }
+    return changed;
   }
 
   // ===== Due-date hierarchy checks ([1.0.13]) =====
@@ -10573,10 +10572,7 @@ var Storage = (function () {
     bankWorkedTime: bankWorkedTime,
     taskWorkedMs: taskWorkedMs,
     resolveActiveTask: resolveActiveTask,
-    isActiveTaskCardMinimized: isActiveTaskCardMinimized,
-    setActiveTaskCardMinimized: setActiveTaskCardMinimized,
-    isActiveTaskPillHidden: isActiveTaskPillHidden,
-    setActiveTaskPillHidden: setActiveTaskPillHidden,
+    dropPillState: dropPillState,
     // [1.0.18] Pomodoro phase state (rides data.activeTask.pomodoroState).
     emptyPomodoroState: emptyPomodoroState,
     hydratePomodoroState: hydratePomodoroState,
