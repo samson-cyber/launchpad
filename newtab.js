@@ -16616,7 +16616,28 @@
         if (LOCKABLE.indexOf(el.tagName) === -1) return;
         // The tile head's own chip is not a control.
         if (el.closest(".set-tile-head")) return;
-        el.disabled = !hasPro;
+        // [H2e] THE GATE LOCKS; IT DOES NOT UNLOCK WHAT IT DID NOT LOCK.
+        // `el.disabled = !hasPro` is symmetric and the two directions are
+        // not: a control can be disabled for a reason that has nothing to do
+        // with Pro, and for a Pro user that assignment CLEARED it. Two in
+        // this tile were - the "Add workspace" placeholder, disabled in the
+        // markup behind a "Coming in v1.0.6" title, and #pro-tag-create-save,
+        // disabled until a name is typed. The placeholder became a live
+        // button that does nothing at all, which is the anti-pattern this
+        // codebase states in its own words: a control that cannot do anything
+        // is worse than an absent one, because it reads as broken rather than
+        // as locked.
+        //
+        // Marking what it locked is what makes the pair asymmetric, and it is
+        // why this is not "remember the baseline once": Save's lock is
+        // DYNAMIC, so a baseline captured on the first gate run would freeze
+        // it at whatever that run happened to see.
+        if (!hasPro) {
+          if (!el.disabled) { el.disabled = true; el.setAttribute("data-pro-locked", ""); }
+        } else if (el.hasAttribute("data-pro-locked")) {
+          el.disabled = false;
+          el.removeAttribute("data-pro-locked");
+        }
       });
     });
   }
