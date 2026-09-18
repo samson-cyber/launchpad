@@ -511,8 +511,31 @@ for (const cls of ["tt-tag-pill", "pp-tag-pill", "tag-pill", "sb-ws-chip", "pws-
     check("progress: the two copies sit on OPPOSITE sides of the ink range",
       (L(baseInk[1]) > 0.5) !== (L(fillInk[1]) > 0.5), `${baseInk[1]} / ${fillInk[1]}`);
   }
-  check("progress: the markup still emits both copies",
-    /tt-progress-pct-base/.test(SRC.nt) && /tt-progress-pct-fill/.test(SRC.nt));
+  // ===== RETIRED 2026-09-18 (H1b), AND THE ROW IS INVERTED RATHER THAN DELETED
+  //
+  // THE DUAL-LAYER PERCENTAGE IS GONE FROM THE GOAL HEADER. Canvas board 5 puts
+  // a 120x4 track in the header row beside a "2 of 5" count, so there is nowhere
+  // for a percentage to sit and nothing for it to say that the count does not
+  // say in words. goalCardHtml emits neither copy now.
+  //
+  // THIS ROW ASSERTED THE OPPOSITE AND WOULD SIMPLY HAVE BEEN DELETED, which is
+  // the move that leaves a hole: nothing would then stop a later round
+  // reviving half the mechanism - one copy, one static ink - which is the exact
+  // straddle bug the block above exists for. So it is inverted. The new markup
+  // is asserted positively AND the old is asserted absent.
+  //
+  // THE CSS AND THE TWO MUTANTS BELOW STAY, and the consequence is stated rather
+  // than left to be discovered: the four CSS rows in this block now guard a rule
+  // set that nothing renders. They are not coverage of anything shipping. They
+  // are kept because H4 owns the v1 token sweep - the round that can see whether
+  // any other surface still reads .tt-progress-pct - and a face round deleting
+  // rules out from under a gate is how a sweep loses its subject.
+  check("progress: the goal header emits a track and a fill",
+    /tt-progress-bar tile-track/.test(SRC.nt) && /tt-progress-fill/.test(SRC.nt));
+  check("progress: and NO percentage copy - the dual-layer clip contract is retired",
+    !/tt-progress-pct/.test(SRC.nt.replace(/\/\/[^\n]*/g, "")));
+  check("progress: the count says it in words instead, through the catalogue",
+    /tt-progress-text/.test(SRC.nt) && /common_of/.test(SRC.nt));
   check("progress: the fill still CLIPS its copy (the reveal mechanism)",
     /[\n}]\s*\.tt-progress-fill \{[^}]*overflow: hidden;/.test(SRC.css));
 }
@@ -542,8 +565,12 @@ check("due icon: sized in em, so the existing font-size rules still own its size
 // ---- CSS: the ring that a dark ink cannot carry ---------------------------
 check("css: .pp-tag-pill no longer paints a dark ring under a dark ink",
   /\.pp-tag-pill \{[^}]*text-shadow: none;/.test(SRC.css));
+// ANCHORED 2026-09-18 (H1b). .tasks-split .tt-tag-pill now exists - the Tasks
+// row paints tags as text on a tile - and an unanchored open on ".tt-tag-pill {"
+// would have re-targeted that longer rule the moment this one was deleted.
+// check-mutation-boot's own WIRING section names the class and the remedy.
 check("css: .tt-tag-pill is unchanged in that respect",
-  /\.tt-tag-pill \{[^}]*text-shadow: none;/.test(SRC.css));
+  /[\n}]\s*\.tt-tag-pill \{[^}]*text-shadow: none;/.test(SRC.css));
 // The retired placeholder, deleted rather than "fixed" — see the CSS note.
 check("css: the dead .insights-soon rules are gone", !/\n\.insights-soon \{/.test(SRC.css));
 check("css: ...and nothing renders the class", !/insights-soon/.test(SRC.nt.replace(/\/\/[^\n]*/g, "")));
@@ -627,6 +654,12 @@ const SEEDS = [
   // thing that makes it correct is the dual-layer clip, and collapsing it to one
   // static ink is the failure mode a future "simplification" would reach for.
   // No single ink clears both halves of the bar, which is why this must fail.
+  // [H1b] The goal header re-grows a percentage copy. The inverted row above
+  // must catch it, or a later round can revive half the retired mechanism with
+  // nothing to say so.
+  { name: "progress: a percentage copy comes back into the goal header",
+    file: "nt", from: "'<span class=\"tt-progress-text\">' + doneCount",
+    to: "'<span class=\"tt-progress-pct\">' + pct + '%</span><span class=\"tt-progress-text\">' + doneCount" },
   { name: "progress: dual-layer collapsed to one static ink (the classic straddle bug)",
     file: "css", from: ".tt-progress-pct-fill {\n  width: 100cqw;\n  color: rgba(0, 0, 0, 0.82);\n}",
     to: ".tt-progress-pct-fill {\n  width: 100cqw;\n  color: rgba(255, 255, 255, 0.92);\n}" },

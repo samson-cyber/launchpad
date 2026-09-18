@@ -633,7 +633,8 @@ await (async () => {
         /\.(tt-task-main|tt-time-chip|tt-task-live|tt-active-badge)[^{]*\{[^}]*(display: none|visibility: hidden|opacity: 0(\.0*)?;)/.test(cssCode);
       check("chips: NOTHING hover-gates or hides the readouts at rest", !gated);
       check("chips: ...and the cluster itself is not opacity-dimmed (O2)",
-        !/\.tt-task-main \{[^}]*opacity:/.test(cssCode));
+        // ANCHORED (H1b): .tasks-split .tt-task-main now exists.
+        !/[\n}]\s*\.tt-task-main \{[^}]*opacity:/.test(cssCode));
     }
   }
 
@@ -961,12 +962,16 @@ await (async () => {
       check("stopwatch: the paint reads the shared state, not a second derivation",
         /var liveState = satRowLiveState\(stopwatch\);/.test(paintFn));
       check("stopwatch: the unit word is NOT dimmed — size and weight subordinate it, not opacity",
-        !/\.tt-live-unit \{[^}]*opacity:/.test(SRC.css) &&
-        /\.tt-live-unit \{[^}]*font-size: var\(--fs-10\)/.test(SRC.css));
+        // ANCHORED (H1b): html.has-bg.bg-light .tasks-split .tt-live-unit now
+        // exists - the Tasks row carries the live stopwatch on a tile, which
+        // needs its own light-branch ink - and an unanchored open on
+        // ".tt-live-unit {" would re-target it the moment the base rule went.
+        !/[\n}]\s*\.tt-live-unit \{[^}]*opacity:/.test(SRC.css) &&
+        /[\n}]\s*\.tt-live-unit \{[^}]*font-size: var\(--fs-10\)/.test(SRC.css));
       // The work highlight has to follow the TICK, because the row is not
       // re-rendered when a phase starts.
       check("stopwatch: the row's bar intensifies from the tick's own class, via :has()",
-        /\.tt-task-row\.is-active-task:has\(\.tt-task-live\.is-work\)::after \{/.test(SRC.css) &&
+        /[\n}]\s*\.tt-task-row\.is-active-task:has\(\.tt-task-live\.is-work\)::after \{/.test(SRC.css) &&
         /el\.classList\.toggle\("is-work", liveState\.work\)/.test(extractFn(SRC.nt, "satPaintTime")));
       check("stopwatch: ...and the figure itself takes a tint while a work phase runs",
         /\.tt-task-live\.is-work \.tt-live-val \{/.test(SRC.css));
@@ -1002,11 +1007,13 @@ await (async () => {
       JSON.stringify(["focusblock_state_off", "focusblock_state_on", "focusblock_state_auto"].map(function (k) { return CATALOGUE.t(k); })));
     // The highlight, and the three-way collision it had to avoid.
     check("highlight: the accent bar is ::after — not a border (priority owns it), not an outline (paused), not a box-shadow (drag lift)",
-      /\.tt-task-row\.is-active-task::after \{/.test(SRC.css) &&
-      !/\.tt-task-row\.is-active-task \{[^}]*(border-left|outline|box-shadow)/.test(SRC.css));
+      // ANCHORED (H1b): .tasks-split .tt-task-row now exists, and an unanchored
+      // open would drift to it.
+      /[\n}]\s*\.tt-task-row\.is-active-task::after \{/.test(SRC.css) &&
+      !/[\n}]\s*\.tt-task-row\.is-active-task \{[^}]*(border-left|outline|box-shadow)/.test(SRC.css));
     check("highlight: ...with a row tint, and a hover state that still reads as hover",
-      /\.tt-task-row\.is-active-task \{[^}]*background: color-mix\(in srgb, var\(--sat-accent-ink\) 10%/.test(SRC.css) &&
-      /\.tt-task-row\.is-active-task:hover \{[^}]*16%/.test(SRC.css));
+      /[\n}]\s*\.tt-task-row\.is-active-task \{[^}]*background: color-mix\(in srgb, var\(--sat-accent-ink\) 10%/.test(SRC.css) &&
+      /[\n}]\s*\.tt-task-row\.is-active-task:hover \{[^}]*16%/.test(SRC.css));
     check("highlight: every part of it derives from a THEME TOKEN, never a literal colour",
       (SRC.css.match(/\.tt-(task-row\.is-active-task[^{]*|active-badge|task-live) \{[^}]*\}/g) || [])
         .every((b) => !/#[0-9a-f]{3,6}/i.test(b)));
@@ -1080,7 +1087,7 @@ await (async () => {
     const cssCode = SRC.css.replace(/\/\*[\s\S]*?\*\//g, "");
     check("overlap: the old header-only reserve is GONE — the two would have compounded to 600px",
       !/body\.sat-card-open \.tasks-header-right \{/.test(cssCode) &&
-      !/\.tasks-header-right \{[^}]*margin-inline-end: 300px/.test(cssCode));
+      !/[\n}]\s*\.tasks-header-right \{[^}]*margin-inline-end: 300px/.test(cssCode));
   }
   check("overlap: released in the stacked layout, where a right gutter is dead space",
     /@media \(max-width: 720px\) \{\s*body\.sat-card-open #content \{ padding-inline-end: 0; \}/.test(SRC.css));

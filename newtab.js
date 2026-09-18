@@ -6429,10 +6429,24 @@
   // Auto-tag pill / standalone tag pills resolve through Storage.getTagById,
   // which returns null for archived tags so deleted-tag IDs render as
   // nothing rather than a broken pill.
-  function tagPillHtml(workspace, tagId) {
+  // [H1b] TAGS ARE PLAIN TEXT ON THE TASKS TAB (ruled 2026-09-18), AND THAT HAS
+  // TO HAPPEN HERE RATHER THAN IN THE STYLESHEET. The fill and its ink are an
+  // INLINE style attribute - tagTextColorFor picks the ink from the tag's own
+  // colour - and an inline style beats every selector in the sheet, so
+  // `.tt-tag-pill { background: none }` was written, shipped, and measured with
+  // the pill still painting: the ink sweep read bg=[74,144,226] on five nodes
+  // that the CSS said had no background at all.
+  //
+  // THE CALLER DECIDES, because the same function feeds surfaces that keep the
+  // pill. `plain` is opt-IN: every existing call site is unchanged, and only the
+  // task row passes it.
+  function tagPillHtml(workspace, tagId, opts) {
     if (!tagId) return "";
     var tag = Storage.getTagById(workspace, tagId);
     if (!tag) return "";
+    if (opts && opts.plain) {
+      return '<span class="tt-tag-pill is-plain">' + escapeHtml(tag.name) + '</span>';
+    }
     return '<span class="tt-tag-pill" style="background:' + escapeHtml(tag.color) + ';color:' + tagTextColorFor(tag.color) + '">' +
       escapeHtml(tag.name) +
     '</span>';
@@ -6578,39 +6592,130 @@
   }
   function tasksSelectedAttr(a, b) { return a === b ? " selected" : ""; }
 
-  function tasksHeaderHtml() {
-    // [1.0.12] Priority + Tag are multi-select popover buttons (the [1.0.10]
-    // scaffold used single <select>s; multi-select needs a checkbox popover —
-    // see openTaskFilterPopover). Status + Sort stay native <select>s; their
-    // current value is reflected via `selected` so re-renders preserve state.
+  // ===== [H1b] THE TOP OF THE TAB =====
+  //
+  // FOUR EQUAL BUTTONS BECOME ONE ACTION, ONE MENU AND ONE LINK. The v1 header
+  // put New Goal / New Task / New Recurring / New Tag side by side at identical
+  // weight, which is four things to read before the one you almost always want.
+  // Canvas board 5 makes New task the single --action pill; Goal, Recurring and
+  // Tag move behind a neutral "New" menu; Templates is a text link. Nothing is
+  // removed - every one of the four still reaches the same modal it did.
+  //
+  // THE STATUS SELECT BECOMES A SEGMENTED PAIR, AND ITS THIRD OPTION IS RETIRED
+  // BECAUSE IT NEVER DID ANYTHING. taskMatchesFilters does not read
+  // taskFilterState.status at all; the only thing status drives is
+  // showActiveSections, which is `status !== "completed"`. So "All" and
+  // "Active" rendered BYTE-IDENTICAL output, and the board's two segments lose
+  // nothing. Stated rather than assumed: it is the kind of removal that looks
+  // like a feature going.
+  //
+  // THE PRIORITY AND TAG FILTERS STAY, and the board does not draw them. They
+  // are real multi-select popovers over real data, and the ruling names what the
+  // top HAS rather than what it must not have - deleting two working filters on
+  // that reading would be the round overruling the product. They sit after the
+  // segment, in the same quiet register as the sort.
+  function tasksHeaderHtml(counts) {
     var fs = taskFilterState;
+    var completedN = counts && typeof counts.completed === "number" ? counts.completed : 0;
+    function seg(value, label) {
+      var on = (value === "completed") ? (fs.status === "completed") : (fs.status !== "completed");
+      return '<button type="button" class="tt2-seg-btn' + (on ? ' is-on' : '') + '"' +
+        ' data-status="' + value + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + label + '</button>';
+    }
     return '<header class="tasks-header">' +
-        '<div class="tasks-header-left">' +
+        '<div class="tasks-header-top">' +
           '<h1 class="tasks-title">' + th('tasks_header_title') + '</h1>' +
-          '<div class="tasks-filter-bar" role="toolbar" aria-label="' + th('tasks_filter_bar_aria') + '">' +
-            '<button type="button" class="tasks-filter tasks-filter-multi' + (fs.priorities.length ? ' is-active' : '') + '" data-filter="priority" aria-haspopup="true">' + escapeHtml(priorityFilterLabel()) + '</button>' +
-            '<button type="button" class="tasks-filter tasks-filter-multi' + (fs.tagIds.length ? ' is-active' : '') + '" data-filter="tag" aria-haspopup="true">' + escapeHtml(tagFilterLabel()) + '</button>' +
-            '<select class="tasks-filter" data-filter="status" aria-label="' + th('tasks_filter_status_aria') + '">' +
-              '<option value="active"' + tasksSelectedAttr(fs.status, "active") + '>' + th('tasks_status_active') + '</option>' +
-              '<option value="completed"' + tasksSelectedAttr(fs.status, "completed") + '>' + th('tasks_status_completed') + '</option>' +
-              '<option value="all"' + tasksSelectedAttr(fs.status, "all") + '>' + th('tasks_status_all') + '</option>' +
-            '</select>' +
-            '<select class="tasks-filter" data-filter="sort" aria-label="' + th('tasks_filter_sort_aria') + '">' +
-              '<option value="created"' + tasksSelectedAttr(fs.sort, "created") + '>' + th('tasks_sort_created') + '</option>' +
-              '<option value="due"' + tasksSelectedAttr(fs.sort, "due") + '>' + th('tasks_sort_due') + '</option>' +
-              '<option value="priority"' + tasksSelectedAttr(fs.sort, "priority") + '>' + th('tasks_sort_priority') + '</option>' +
-              '<option value="name"' + tasksSelectedAttr(fs.sort, "name") + '>' + th('tasks_sort_name') + '</option>' +
-            '</select>' +
+          '<div class="tasks-header-right">' +
+            '<button class="tt2-action tasks-action" data-action="new-task" type="button">' + th('new_new_task') + '</button>' +
+            '<button class="tt2-newmenu" data-action="new-more" type="button" aria-haspopup="menu">' +
+              th('tasks_new_menu') + '<span class="tt2-caret" aria-hidden="true">' + CHEVRON_DOWN_SVG + '</span></button>' +
+            '<a class="tasks-templates-link" data-action="templates" href="#">' + th('tasks_action_templates') + '</a>' +
           '</div>' +
         '</div>' +
-        '<div class="tasks-header-right">' +
-          '<button class="tasks-action" data-action="new-goal" type="button">' + th('tasks_action_new_goal') + '</button>' +
-          '<button class="tasks-action" data-action="new-task" type="button">' + th('tasks_action_new_task') + '</button>' +
-          '<button class="tasks-action" data-action="new-recurring" type="button">' + th('tasks_action_new_recurring') + '</button>' +
-          '<button class="tasks-action" data-action="new-tag" type="button">' + th('tasks_action_new_tag') + '</button>' +
-          '<a class="tasks-templates-link" data-action="templates" href="#">' + th('tasks_action_templates') + '</a>' +
+        '<div class="tasks-filter-bar" role="toolbar" aria-label="' + th('tasks_filter_bar_aria') + '">' +
+          '<div class="tt2-seg" role="group" aria-label="' + th('tasks_filter_status_aria') + '">' +
+            seg("active", th('tasks_status_active')) +
+            seg("completed", th('tasks_status_completed') +
+              (completedN ? ' <span class="tt2-seg-count">' + completedN + '</span>' : '')) +
+          '</div>' +
+          '<button type="button" class="tasks-filter tasks-filter-multi' + (fs.priorities.length ? ' is-active' : '') + '" data-filter="priority" aria-haspopup="true">' + escapeHtml(priorityFilterLabel()) + '</button>' +
+          '<button type="button" class="tasks-filter tasks-filter-multi' + (fs.tagIds.length ? ' is-active' : '') + '" data-filter="tag" aria-haspopup="true">' + escapeHtml(tagFilterLabel()) + '</button>' +
+          '<span class="tt2-filter-spacer"></span>' +
+          '<select class="tasks-filter tt2-sort" data-filter="sort" aria-label="' + th('tasks_filter_sort_aria') + '">' +
+            '<option value="created"' + tasksSelectedAttr(fs.sort, "created") + '>' + th('tasks_sort_created') + '</option>' +
+            '<option value="due"' + tasksSelectedAttr(fs.sort, "due") + '>' + th('tasks_sort_due') + '</option>' +
+            '<option value="priority"' + tasksSelectedAttr(fs.sort, "priority") + '>' + th('tasks_sort_priority') + '</option>' +
+            '<option value="name"' + tasksSelectedAttr(fs.sort, "name") + '>' + th('tasks_sort_name') + '</option>' +
+          '</select>' +
         '</div>' +
       '</header>';
+  }
+
+  // The "New" menu. It mounts through mountTasksPopover, which owns the single
+  // open-menu slot and its outside-click and Escape handlers - so this cannot be
+  // open at the same time as a task or goal context menu, and neither of them
+  // had to learn about it.
+  function openTasksNewMenu(anchorEl) {
+    closeGoalContextMenu();
+    var menu = document.createElement("div");
+    menu.className = "tt-context-menu";
+    menu.innerHTML =
+      '<button type="button" class="tt-ctx-item" data-new="goal">' + th("tasks_new_goal") + '</button>' +
+      '<button type="button" class="tt-ctx-item" data-new="recurring">' + th("tasks_recurring") + '</button>' +
+      // data-action="new-tag" IS ON THIS ITEM ON PURPOSE, and without it the tag
+      // palette would open and shut in the same tick. The document-level guard
+      // at the bottom of this file keeps a REGISTRY OF ANCHORS that may open the
+      // create popover, and its own comment records [1.1.6] hitting exactly this
+      // - the click that opens the popover counting as an outside click. The
+      // menu item is a new anchor, so it joins the registry by carrying the
+      // attribute the registry matches on. closest() starts at the element
+      // itself, so it still matches after the menu is detached.
+      '<button type="button" class="tt-ctx-item" data-new="tag" data-action="new-tag">' + th("tasks_tag") + '</button>';
+    menu.addEventListener("click", function (e) {
+      var btn = e.target && e.target.closest && e.target.closest(".tt-ctx-item");
+      if (!btn) return;
+      var kind = btn.getAttribute("data-new");
+      closeGoalContextMenu();
+      // The SAME three openers the four v1 buttons called, reached from a menu
+      // instead of from a row of equals. openStandaloneTagCreate wants an
+      // anchor element and the menu item is about to be detached, so it takes
+      // the New button - which is where the palette should appear from anyway.
+      if (kind === "goal") openNewGoalModal();
+      else if (kind === "recurring") openRecurringModal(null);
+      else if (kind === "tag") openStandaloneTagCreate(anchorEl);
+    });
+    mountTasksPopover(menu, anchorEl);
+  }
+
+  // ===== [H1b] THE THREE COUNT TILES =====
+  //
+  // FROM COUNTS renderTasksTab HAS ALREADY READ. Every number here is a filter
+  // over an array the render is holding anyway - no new reader, no second pass
+  // over storage, nothing async. That is the whole of "from existing counts":
+  // if these tiles disagreed with the lists below them it would be because the
+  // lists changed, not because a second source answered differently.
+  //
+  // A ZERO IS NOT AN ABSENCE HERE, and the distinction is worth stating because
+  // the doctrine says absent-not-zero. That rule is about a MEASURED quantity
+  // whose zero cannot be told from "not measured" - the tracking figures. A
+  // count of overdue tasks is exact: zero overdue is a fact, and a good one. So
+  // the tile renders its zero and simply has no sub-line to offer.
+  function tasksCountTilesHtml(o) {
+    function tile(kind, eyebrow, n, sub) {
+      return '<div class="tile tile--' + kind + ' tt2-count">' +
+          '<div class="tile-eyebrow">' + eyebrow + '</div>' +
+          '<div class="tt2-count-num">' + n + '</div>' +
+          (sub ? '<div class="tt2-count-sub">' + sub + '</div>' : '<div class="tt2-count-sub"></div>') +
+        '</div>';
+    }
+    return '<div class="tt2-counts">' +
+        tile("overdue", th("goal_overdue"), o.overdue,
+          o.overdueOldest ? th("tasks_tile_overdue_oldest", { name: o.overdueOldest }) : "") +
+        tile("goals", th("dashboard_goals"), o.goals,
+          th("tasks_tile_goals_sub", { complete: o.goalsComplete, open: o.openTasks })) +
+        tile("blocking", th("tasks_recurring"), o.recurring,
+          o.recurringNext ? th("tasks_tile_recurring_next", { name: o.recurringNext }) : "") +
+      '</div>';
   }
 
   // Single child task row — read-only name + working checkbox. [1.0.12] adds
@@ -6644,7 +6749,7 @@
     var tagIds = Array.isArray(task.tagIds) ? task.tagIds : [];
     var tagHtml = "";
     if (tagIds.length >= 1) {
-      tagHtml = tagPillHtml(workspace, tagIds[0]);
+      tagHtml = tagPillHtml(workspace, tagIds[0], { plain: true });
       if (tagIds.length > 1) {
         tagHtml += '<span class="tt-tag-more" title="' + tagIds.length + ' tags">+' + (tagIds.length - 1) + '</span>';
       }
@@ -6679,14 +6784,24 @@
     var isActiveTask = satIsActiveTaskRow(workspace, task);
     var activeCls = isActiveTask ? " is-active-task" : "";
     var rowPaused = isActiveTask && Storage.isTrackingPaused(data);
-    var playAct = !isActiveTask ? "activate" : (rowPaused ? "resume" : "pause");
-    var playTitle = playAct === "activate" ? t("task_play_start")
-      : (playAct === "pause" ? t("sat_pause_tracking") : t("sat_resume_tracking"));
-    var playGlyph = playAct === "activate" ? "▷" : (playAct === "pause" ? "⏸" : "▶");
-    var playHtml = '<button type="button" class="tt-task-play' + (rowPaused ? ' is-paused' : '') +
-      '" data-task-id="' + escapeHtml(task.id) + '" data-play-act="' + playAct +
-      '" aria-label="' + escapeHtml(playTitle) + '" title="' + escapeHtml(playTitle) + '"' +
-      (isActiveTask ? ' aria-pressed="true"' : '') + '>' + playGlyph + '</button>';
+    // [H1b] THE PLAY GLYPH HAS LEFT THE RESTING ROW (ruled 2026-09-18). It was
+    // the row's second always-visible control and the board's row has one: the
+    // checkbox. Starting a session moves to the hover menu, which is the SAME
+    // menu the right-click opens and which has carried "Make active" since
+    // [1.0.16] - so the destination existed before this round and nothing new
+    // had to be built for it.
+    //
+    // WHAT DID HAVE TO BE BUILT is the active row's other two states. The glyph
+    // was a three-way toggle - activate / pause / resume - and only the first of
+    // the three was in the menu. openTaskContextMenu now carries pause and
+    // resume in the slot "Make active" occupies on every other row, through the
+    // same satSetPaused the glyph called. Removing the glyph without that would
+    // have taken pause off this surface entirely.
+    //
+    // THE HANDLER STAYS, and that is deliberate rather than an oversight: the
+    // .tt-task-play branch in bindTasksTabEvents costs nothing, and the class is
+    // gone from the row, so it is dead by construction rather than by promise.
+    // The round that sweeps v1 out of the Tasks region removes both together.
 
     // [Polish step 8] Paused-active reads at ROW level, not just glyph level.
     // Driven by the SAME rowPaused above that routes the glyph's three states —
@@ -6695,9 +6810,16 @@
     // because a single boolean produces both.
     var pausedRowCls = rowPaused ? " is-paused" : "";
     return '<li class="tt-task-row' + completedCls + activeCls + pausedRowCls + (prioCls ? ' ' + prioCls : '') + '" data-task-id="' + escapeHtml(task.id) + '">' +
+      // [H1b] THE SPINE IS AN ELEMENT NOW, NOT A BORDER. v1 drew priority as
+      // border-inline-start on the row itself, which pins it to the row's own
+      // edge - and the row now sits inside a list tile with its own padding, so
+      // the colour landed on the tile's inner edge rather than beside the task.
+      // Board 5 draws a 3px x 16px rounded bar as the row's first child. The
+      // priority CLASS is unchanged, so every reader and the context menu's
+      // popover still see what they saw.
+      '<span class="tt2-spine" aria-hidden="true"></span>' +
       '<span class="tt-task-handle" aria-hidden="true" title="' + th("task_drag_to_reorder") + '">⠇</span>' +
       '<input type="checkbox" class="tt-task-check" data-task-id="' + escapeHtml(task.id) + '"' + checked + ' aria-label="' + th("task_toggle_task_complete") + '">' +
-      playHtml +
       // [2.0 timing] The name and its time readouts are ONE cluster now, so both
       // numbers sit beside the task they describe instead of at the far right of
       // the row. See .tt-task-main — the name shrinks and truncates, the readouts
@@ -6760,24 +6882,28 @@
         // It is rendered on EVERY row, not injected on hover, because a control
         // that does not exist cannot be tabbed to. Hover and focus reveal the same
         // element - the .note-trash precedent exactly.
-        taskOptionsPillHtml(task) +
+        // [H1b] MOVED OUT OF THIS CLUSTER to the row's end - see below.
       '</span>' +
+      // [2026-09-18] PRIORITY IS THE SPINE, NOT A CHIP (2edf6bf). The per-row
+      // trash went with it. Both stay gone.
+      //
+      // [H1b] .tt-task-controls IS KEPT, AND KEEPING IT IS LOAD-BEARING RATHER
+      // THAN INERTIA. 2edf6bf re-anchored the context menu's Priority popover to
+      // this element precisely because the pill it used to anchor to was being
+      // removed, and its comment spells out what a null anchor costs: an item
+      // that is present, clickable and silently does nothing. Renaming this
+      // wrapper would have reproduced that bug one round later. The class stays;
+      // only its contents and its styling change.
       '<div class="tt-task-controls">' +
-        // [2026-09-18] PRIORITY IS THE SPINE, NOT A CHIP. The row already
-        // carries priority as a 3px border-inline-start colour (.tt-task-row
-        // .tt-prio-* in newtab.css); the coloured pill beside the date said the
-        // same thing a second time, in the loudest way on the row, on 21 of the
-        // 23 rows this fixture renders. The spine stays. Priority is still SET
-        // and READ through the context menu, whose Priority item opens the same
-        // popover with the current level marked and Clear beneath it.
-        //
-        // AND THE PER-ROW TRASH GOES. Twenty-three delete targets in one 808px
-        // frame, for an action already in the context menu that reaches the SAME
-        // writer the trash reached, so nothing about deleting a task changed
-        // except how many ways there are to do it by accident.
         '<span class="tt-task-slot tt-slot-date">' + dueDatePillHtml(task) + '</span>' +
         '<span class="tt-task-slot tt-slot-tags">' + tagHtml + '</span>' +
       '</div>' +
+      // [H1b] THE OPTIONS BUTTON IS THE ROW'S LAST ELEMENT NOW, after the meta
+      // rather than pinned inside the name cluster. v1 took it out of flow
+      // (position:absolute) so it would cost the name no width; board 5 gives it
+      // a fixed 14px slot at the row's end, which costs the same nothing and is
+      // where the eye looks for it.
+      taskOptionsPillHtml(task) +
     '</li>';
   }
 
@@ -6903,17 +7029,35 @@
     var bodyHtml = isCollapsed ? "" :
       '<ul class="tt-goal-tasks">' + tasksListHtml + '</ul>' + addTaskBlockHtml;
 
-    return '<article class="tt-goal-card' + (isCompleted ? ' is-completed' : '') + (dimmed ? ' tt-goal-dimmed' : '') + '" data-goal-id="' + escapeHtml(goal.id) + '" data-collapsed="' + (isCollapsed ? "true" : "false") + '">' +
+    // [H1b] THE GOAL IS A LIST TILE, AND ITS HEADER IS ONE ROW.
+    //
+    // THE SLUG CHIP GOES (ruled). tagPillHtml(workspace, goal.autoTagId) painted
+    // the goal's auto-tag - "ship-q3-report" beside "Ship the Q3 report" - a
+    // machine spelling of the name it sits next to, on every goal, in a coloured
+    // fill. The tag itself is untouched: it is still created, still attached to
+    // the goal's tasks, still filterable from the tag filter above, and still
+    // shown on the ROWS as text. Only the header's echo of the name goes.
+    //
+    // THE PROGRESS BAR MOVES INTO THE HEADER ROW, which is the change that lets
+    // the tile be a list. v1 gave progress its own full-width row under the
+    // header with the percentage written inside the fill twice (a base copy and
+    // a clipped copy, so the number stays legible as the fill passes under it).
+    // Board 5 puts a 120px track in the header beside a "2 of 5" count, so the
+    // percentage text has nowhere to go and nothing to do - the count says it in
+    // words. Both .tt-progress-pct spans go with it.
+    return '<article class="tt-goal-card tile tile--list' + (isCompleted ? ' is-completed' : '') + (dimmed ? ' tt-goal-dimmed' : '') + '" data-goal-id="' + escapeHtml(goal.id) + '" data-collapsed="' + (isCollapsed ? "true" : "false") + '">' +
       '<header class="tt-goal-header">' +
-        '<div class="tt-goal-header-left">' +
-          '<span class="tt-goal-chevron" aria-label="' + th("goal_toggle_goal_collapse") + '">' + CHEVRON_RIGHT_SVG + '</span>' +
-          '<span class="tt-goal-name" data-goal-id="' + escapeHtml(goal.id) + '">' + escapeHtml(goal.name) + '</span>' +
-          tagPillHtml(workspace, goal.autoTagId) +
-        '</div>' +
-        '<div class="tt-goal-header-right">' +
+        '<span class="tt-goal-chevron" aria-label="' + th("goal_toggle_goal_collapse") + '">' + CHEVRON_RIGHT_SVG + '</span>' +
+        '<span class="tt-goal-name" data-goal-id="' + escapeHtml(goal.id) + '">' + escapeHtml(goal.name) + '</span>' +
+        '<span class="tt-goal-header-right">' +
           deadlineHtml +
+          '<span class="tt-progress-bar tile-track" role="img" aria-label="' +
+            escapeHtml(t("goal_progress_aria", { done: doneCount, total: totalCount })) + '">' +
+            '<span class="tt-progress-fill" style="width:' + pct + '%"></span>' +
+          '</span>' +
+          '<span class="tt-progress-text">' + doneCount + ' ' + th("common_of") + ' ' + totalCount + '</span>' +
           menuBtnHtml +
-        '</div>' +
+        '</span>' +
       '</header>' +
       // [1.14.2 / G4 amendment A] THE GOAL'S TOOLS, ON THE HEADER. This is the
       // whole of the "organic" feeling the amendment describes: opening a goal
@@ -6925,15 +7069,6 @@
       // ABSENT WITH NOTHING ATTACHED. attachRowHtml returns "" and no rail, no
       // placeholder and no "0 resources" is painted.
       attachRowHtml("goal", goal.id) +
-      '<div class="tt-goal-progress">' +
-        '<div class="tt-progress-bar">' +
-          '<span class="tt-progress-pct tt-progress-pct-base" aria-hidden="true">' + pct + '%</span>' +
-          '<div class="tt-progress-fill" style="width:' + pct + '%">' +
-            '<span class="tt-progress-pct tt-progress-pct-fill" aria-hidden="true">' + pct + '%</span>' +
-          '</div>' +
-        '</div>' +
-        '<span class="tt-progress-text">' + doneCount + ' of ' + totalCount + ' task' + (totalCount === 1 ? "" : "s") + ' complete</span>' +
-      '</div>' +
       bodyHtml +
     '</article>';
   }
@@ -7642,6 +7777,41 @@
       return (a.createdAt || 0) - (b.createdAt || 0);
     });
 
+    // ===== [H1b] THE THREE COUNT TILES' NUMBERS =====
+    //
+    // EVERY FIGURE IS A FILTER OVER AN ARRAY THIS FUNCTION ALREADY HOLDS.
+    // allActiveTasks, activeGoals, completedGoals and recurringTemplates are
+    // read above for the lists; the tiles add no read, no await and no second
+    // source. A tile and the list beneath it cannot disagree, because they are
+    // the same array counted twice.
+    //
+    // OVERDUE USES isOverdue ON dueAt, which is the same predicate the goal
+    // header's own overdue badge uses. Completed tasks are excluded by
+    // construction - getActiveTasks returns only the open ones.
+    var overdueTasks = allActiveTasks.filter(function (t) { return isOverdue(t.dueAt); });
+    // The OLDEST overdue task, not the newest: the sub-line is there to name the
+    // one that has been waiting longest, which is the only one of the four a
+    // single line can usefully name.
+    var oldestOverdue = overdueTasks.slice().sort(function (a, b) {
+      return (a.dueAt || 0) - (b.dueAt || 0);
+    })[0];
+    // The NEXT recurring template to materialise. nextScheduledAt is the
+    // template's own field, maintained by the sweep that ran at the top of this
+    // render, so this is the same clock the list below it uses.
+    var nextRecurring = recurringTemplates.slice().filter(function (r) {
+      return typeof r.nextScheduledAt === "number";
+    }).sort(function (a, b) { return a.nextScheduledAt - b.nextScheduledAt; })[0];
+    var tasksCounts = {
+      overdue: overdueTasks.length,
+      overdueOldest: oldestOverdue ? escapeHtml(oldestOverdue.name) : "",
+      goals: activeGoals.length,
+      goalsComplete: completedGoals.length,
+      openTasks: allActiveTasks.length,
+      recurring: recurringTemplates.length,
+      recurringNext: nextRecurring ? escapeHtml(nextRecurring.name) : "",
+      completed: allCompletedTasks.length
+    };
+
     var activeGoalsHtml = activeGoals.length
       ? activeGoals.map(function (g) { return goalCardHtml(workspace, g, allTasksForGoals); }).join("")
       : '<div class="tt-empty-state">' + th("tasks_no_active_goals_create_your_first") + '</div>';
@@ -7748,11 +7918,22 @@
     // concession on the tasks side is a CSS override turning its width:100% into
     // a flex item. Measured before building: squeezed to 80% the tasks body
     // reports zero horizontal overflow and zero escaping children.
+    // [H1b] THE COUNT TILES LEAD THE BODY, not the header, and that is a
+    // scrolling decision rather than a layout one. .tasks-header is FIXED chrome
+    // ([Tasks v3]) and .tasks-body is the scroller; three 100px tiles pinned
+    // above a list would cost a fifth of the viewport on every scroll. They
+    // scroll away with the content they count.
+    //
+    // THE NOTES COLUMN IS ALREADY THE FOURTH COLUMN. .tasks-split has been a
+    // two-child flex row since [1.1.1] - the tasks column and the notes column -
+    // so board 5's fourth column needs no new structure here, only the tile face
+    // and a fixed 300px measure in the stylesheet.
     panel.innerHTML =
       '<div class="tasks-split">' +
         '<div class="tasks-tab" data-tab="tasks">' +
-          tasksHeaderHtml() +
+          tasksHeaderHtml(tasksCounts) +
           '<div class="tasks-body">' +
+            tasksCountTilesHtml(tasksCounts) +
             activeGoalsSectionHtml +
             standaloneSectionHtml +
             recurringSectionHtml +
@@ -7862,6 +8043,10 @@
       if (filterSel) {
         var kind = filterSel.getAttribute("data-filter");
         if (kind === "status") {
+          // [H1b] STATUS IS NO LONGER A SELECT - see the .tt2-seg-btn branch in
+          // the click listener. This arm is unreachable from the shipped markup
+          // and is kept only so a stale cached panel cannot fall through to
+          // nothing; it will go with the v1 sweep.
           taskFilterState.status = filterSel.value;
           renderTasksTab(panel, data);
         } else if (kind === "sort") {
@@ -7930,6 +8115,28 @@
           });
         }
         renderTasksTab(panel, data);
+        return;
+      }
+
+      // [H1b] THE SEGMENTED STATUS CONTROL. Two buttons where a <select> was,
+      // writing the SAME taskFilterState.status the select wrote, so every
+      // reader downstream is untouched.
+      var segBtn = target.closest && target.closest(".tt2-seg-btn");
+      if (segBtn) {
+        var segVal = segBtn.getAttribute("data-status") || "active";
+        if (taskFilterState.status !== segVal) {
+          taskFilterState.status = segVal;
+          renderTasksTab(panel, data);
+        }
+        return;
+      }
+
+      // [H1b] The "New" menu, holding Goal / Recurring / Tag.
+      var newMoreBtn = target.closest && target.closest('[data-action="new-more"]');
+      if (newMoreBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        openTasksNewMenu(newMoreBtn);
         return;
       }
 
@@ -9921,9 +10128,35 @@
     // focus on) and on the already-active one (setActiveTask is idempotent, but
     // offering a no-op reads as broken).
     var isActiveTask = satIsActiveTaskRow(workspace, task);
+    // [H1b] THE ROW'S PLAY GLYPH ENDED HERE, ALL THREE OF ITS STATES.
+    //
+    // The glyph was a three-way toggle and only ONE of the three was already on
+    // this menu. Make active covered a non-active row; the active row's pause
+    // and resume existed nowhere else on the Tasks tab. Moving the glyph into
+    // the menu without them would have removed pause from this surface while the
+    // report said the action had "moved" - which is the shape of claim the
+    // verification methodology exists to catch.
+    //
+    // SAME WRITER, NOT A SECOND ONE: satSetPaused is what .tt-task-play called,
+    // and it writes the GLOBAL data.trackingPaused flag. There is no per-task
+    // pause and this does not invent one - it is the pill's own control reached
+    // from the task it is timing.
     var makeActiveHtml = (!task.completed && !isActiveTask)
       ? '<button type="button" class="tt-ctx-item" data-action="make-active">' + th("task_make_active") + '</button>'
       : "";
+    // THE ATTRIBUTE AND THE LABEL ARE CHOSEN SEPARATELY, and the first version
+    // of this chose both in one ternary - splicing `'resume-tracking">' + th(...)`
+    // into the markup. check-i18n-sites read that as a [concat-text] site and
+    // was right to: a user-visible string concatenated onto a fragment of an
+    // attribute is exactly the shape that hides copy from the census.
+    var pauseHtml = "";
+    if (isActiveTask && !task.completed) {
+      var isPaused = Storage.isTrackingPaused(data);
+      var pauseAct = isPaused ? "resume-tracking" : "pause-tracking";
+      var pauseLabel = isPaused ? th("sat_resume_tracking") : th("sat_pause_tracking");
+      pauseHtml = '<button type="button" class="tt-ctx-item" data-action="' + pauseAct + '">' +
+        pauseLabel + '</button>';
+    }
     // [1.14.2 / G4] ONE ENTRY FOR THREE KINDS, replacing [1.4.2]'s two.
     //
     // Those two were "Attach session to this task" / "Change session" plus a
@@ -9945,6 +10178,7 @@
     menu.innerHTML =
       ctxEntityHeaderHtml("Task", task.name) +
       makeActiveHtml +
+      pauseHtml +
       '<button type="button" class="tt-ctx-item" data-action="edit">' + th("task_edit") + '</button>' +
       // [1.4.4] Priority OPENS THE SHIPPED CONTROL rather than restating it. The
       // row flag pill already owns the four levels, the active marker and Clear;
@@ -9979,6 +10213,10 @@
       if (action === "make-active") {
         var mws = Storage.getActiveWorkspace(data);
         if (mws) await satActivate(taskId, mws.id);
+      } else if (action === "pause-tracking") {
+        satSetPaused(true);
+      } else if (action === "resume-tracking") {
+        satSetPaused(false);
       } else if (action === "edit") {
         // Inline rename on the live row's name span — same affordance as
         // clicking the name directly (startTaskNameEdit).

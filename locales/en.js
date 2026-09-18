@@ -1079,21 +1079,33 @@ I18n.register("en", {
 // is a MARKUP sink and is read with th(), never t().
 // ======================================================================
 I18n.register("en", {
-  "tasks_action_new_goal": {
-    "message": "+ New Goal",
-    "description": "Tasks tab header action. The leading + is part of the label."
+  "tasks_new_goal": {
+    "message": "Goal",
+    "description": "The Goal item in the Tasks tab's New menu. Replaced tasks_action_new_goal (\"+ New Goal\"): the plus belonged to a row of four equal buttons that H1b collapsed into one action plus this menu, and a menu item names the thing while the menu it sits in already says New. The Recurring and Tag items reuse tasks_recurring and tasks_tag rather than taking keys of their own. Rendered with th()."
   },
-  "tasks_action_new_recurring": {
-    "message": "+ New Recurring",
-    "description": "Tasks tab header action. The leading + is part of the label."
+  "tasks_new_menu": {
+    "message": "New",
+    "description": "The Tasks tab's secondary create button, which opens a menu of Goal / Recurring / Tag. A chevron sits beside it in the markup, so the word is the whole label. It took the slot of tasks_action_new_task (\"+ New Task\"), retired because the primary create button now renders new_new_task (\"New task\"), which is the string the rest of the product already uses for the same act. Rendered with th()."
   },
-  "tasks_action_new_tag": {
-    "message": "+ New Tag",
-    "description": "Tasks tab header action. The leading + is part of the label."
+  "tasks_tile_overdue_oldest": {
+    "message": "{name} is oldest",
+    "description": "Sub-line on the Tasks tab's OVERDUE count tile, naming the overdue task whose due date is furthest in the past. Absent entirely when nothing is overdue, rather than saying so. {name} is a task name, already escaped by the caller. Rendered with th()."
   },
-  "tasks_action_new_task": {
-    "message": "+ New Task",
-    "description": "Tasks tab header action. The leading + is part of the label."
+  "tasks_tile_goals_sub": {
+    "message": "{complete} complete · {open} open tasks",
+    "description": "Sub-line on the Tasks tab's GOALS count tile. {complete} is the number of completed goals in this workspace, {open} the number of open tasks across it. Rendered with th()."
+  },
+  "tasks_tile_recurring_next": {
+    "message": "{name} next",
+    "description": "Sub-line on the Tasks tab's RECURRING count tile, naming the template due to materialise soonest. Absent when no template carries a next date. {name} is a template name, already escaped by the caller. Rendered with th()."
+  },
+  "goal_progress_aria": {
+    "message": "{done} of {total} tasks complete",
+    "description": "Accessible name for the goal header's progress bar. H1b moved the bar into the header row and dropped the percentage that used to be written inside the fill, so this carries what a screen reader would otherwise have lost - and it says tasks, which the visible \"2 of 5\" beside it cannot. Rendered through t() into an aria-label."
+  },
+  "common_of": {
+    "message": "of",
+    "description": "The word between two numbers in the goal header's progress count - \"2 of 5\". Its own key rather than a literal because the two numbers are placed by the markup and a translation may need a different word, or a different order, between them. Rendered with th()."
   },
   "tasks_action_templates": {
     "message": "Templates",
@@ -1131,10 +1143,7 @@ I18n.register("en", {
     "message": "Active",
     "description": "Task STATUS filter option. Not the history panel's 'All'-style filter, and not an active-task indicator."
   },
-  "tasks_status_all": {
-    "message": "All",
-    "description": "Task STATUS filter option. A DIFFERENT filter from the history panel's 'All' (history_all); the two must not share a key."
-  },
+
   "tasks_status_completed": {
     "message": "Completed",
     "sense": "option.filter",

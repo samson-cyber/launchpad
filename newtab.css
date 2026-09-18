@@ -20998,3 +20998,832 @@ html.has-bg.bg-light .dash-tile-toggle.is-on .dash-toggle-knob {
 html.has-bg.bg-light .dash-tile-toggle.is-on .dash-toggle-label {
   color: var(--ink);
 }
+
+/* ===========================================================================
+   [H1b] TASKS, AS TILES. Canvas board 5 (V2-Tasks); the 2026-09-18 DECISIONS
+   entries are the authority; tokens.css holds every value.
+
+   WHY THIS IS ONE APPENDED BLOCK RATHER THAN EDITS SPREAD THROUGH THE FILE.
+   The Tasks region is not contiguous - its rules run from 5356 to past 15400
+   with the Dashboard, Insights and Settings regions interleaved - and two other
+   sessions are in this stylesheet's Dashboard and Settings regions right now.
+   A surgical rewrite in place would touch a hundred separated hunks and collide
+   with both. This block is ONE hunk, it is LATER in the file than every v1 rule
+   it overrides, and EVERY SELECTOR IS SCOPED UNDER .tasks-split, so nothing
+   here can reach a surface this round does not own. The v1 rules it supersedes
+   are left standing for H4's token sweep, which the handoff spec already
+   schedules - and which is the round that can see whether anything else still
+   reads them.
+
+   EVERY BASE SELECTOR OPENS `html.has-bg .tasks-split`, AND THE REASON IS THE
+   FIRST REAL FINDING OF ADOPTING .tile ON A SURFACE THAT ALREADY HAS v1 RULES.
+   `.tasks-split .tt-goal-card` is (0,2,0). v1 carries
+   `html.has-bg.bg-light .tt-goal-card { background: rgba(0,0,0,0.035) }` at
+   (0,3,1), which outranks it - so on a light wallpaper the goal tile did not
+   paint at all and --ink (near-white) sat on the wallpaper. MEASURED, not
+   reasoned: tools/sweep-ink.mjs read .tt-task-name at 1.08:1 against
+   bg=[246,246,246] on 14 nodes, where master reads them fine.
+
+   .tile ITSELF CANNOT WIN THAT CONTEST EITHER - it is (0,1,0) - which is worth
+   recording for the surfaces that adopt it next: a v1 element that carries a
+   `html.has-bg[.bg-light] .foo` rule needs that rule removed or out-specified,
+   and H0 could not have found this because no surface used .tile yet.
+   `html.has-bg ` in front makes every base rule (0,3,1) and later in the file,
+   which wins ties. html.has-bg is present on every painted state - both
+   branches of applyBackground add it - so the only frame this does not cover is
+   the pre-paint boot, where v1's rules apply and html.bg-booting suppresses
+   transitions anyway.
+
+   THE INK RULE IS THE TILE'S, NOT THE PANEL'S. Everything here inherits --ink
+   and --ink-mute from .tile, which are ground-independent by construction: a
+   tile is the same colour on every wallpaper and only its alpha moves (H1a).
+   That is why this block carries almost no html.bg-light branch - the two that
+   exist are for nodes that are NOT on a tile.
+   =========================================================================== */
+
+/* ---- THE PAGE INSET. 36px 56px, the --page pair. v1 used 28px horizontal on
+   the header and the body separately; the tiles need the wider gutter the
+   board draws, and the two must move together or the header stops lining up
+   with the first tile under it. ---- */
+html.has-bg .tasks-split .tasks-header { padding: 0 56px; gap: var(--space-3); flex-direction: column; align-items: stretch; }
+html.has-bg .tasks-split .tasks-tab { padding-top: 36px; gap: var(--space-4); text-shadow: none; }
+html.has-bg .tasks-split .tasks-body { padding: 0 56px 40px; gap: var(--gap); }
+
+html.has-bg .tasks-split .tasks-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+/* The title keeps its shadow: it is the one node on this surface that sits on
+   the WALLPAPER rather than on a tile, so 980420c's rule still applies to it
+   and to nothing else here. */
+html.has-bg .tasks-split .tasks-title {
+  /* --display-3, NOT --title-size, AND THE GATE IS RIGHT ABOUT IT.
+     tokens.css states --title-size as a hard 26px and does not redefine it in
+     the small or large text-size tiers, so a font-size naming it would be a
+     heading that ignores the setting - which is the exact defect
+     check-text-size exists for, and it caught this on the first run.
+     --display-3 is 21 / 24 / 27 across the three tiers. The board drew 26; the
+     ramp's nearest rung is 24 at the default, and the ramp wins, because the
+     handoff spec puts every measurable value on the code's side of the line. */
+  font-size: var(--display-3);
+  line-height: var(--title-lh);
+  font-weight: var(--title-weight);
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+  margin: 0;
+}
+html.has-bg .tasks-split .tasks-header-right { display: flex; align-items: center; gap: 10px; }
+
+/* THE ONE ACTION. Opaque orange with dark ink, the .tile--action contract in a
+   button: "the one thing to do" has to win against any wallpaper. */
+html.has-bg .tasks-split .tt2-action {
+  border: 0;
+  background: var(--action);
+  color: var(--ink-on-action);
+  border-radius: var(--pill);
+  padding: 9px 18px;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-weight: 700;
+  cursor: pointer;
+}
+html.has-bg .tasks-split .tt2-action:hover { background: var(--action-soft); }
+html.has-bg .tasks-split .tt2-newmenu {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--tile-line);
+  background: rgba(20, 18, 20, 0.5);
+  color: var(--ink);
+  border-radius: var(--pill);
+  padding: 8px 12px 8px 14px;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-weight: 600;
+  cursor: pointer;
+}
+html.has-bg .tasks-split .tt2-newmenu:hover { background: rgba(20, 18, 20, 0.72); }
+html.has-bg .tasks-split .tt2-caret { display: inline-flex; opacity: 0.7; }
+html.has-bg .tasks-split .tasks-templates-link {
+  font-size: var(--fs-12);
+  color: var(--ink-mute);
+  text-decoration: none;
+  margin-inline-start: 6px;
+}
+html.has-bg .tasks-split .tasks-templates-link:hover { color: var(--ink); text-decoration: underline; }
+
+/* ---- THE FILTER ROW ---- */
+html.has-bg .tasks-split .tasks-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: var(--fs-12);
+  color: var(--ink-mute);
+  flex-wrap: wrap;
+}
+html.has-bg .tasks-split .tt2-filter-spacer { flex: 1; }
+html.has-bg .tasks-split .tt2-seg { display: flex; align-items: center; gap: 16px; }
+/* THE SEGMENT IS AN UNDERLINE, NOT A PILL, and that is board 5 rather than a
+   liberty taken: a filled segmented control here would be a second filled thing
+   on a row whose only fill is the action button two lines above. The active
+   segment takes --action on its rule and --ink on its label; the idle one keeps
+   --ink-mute, which is the same contrast relationship .seg-btn carries. */
+html.has-bg .tasks-split .tt2-seg-btn {
+  border: 0;
+  background: none;
+  padding: 0 0 3px;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-weight: 400;
+  color: var(--ink-mute);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+html.has-bg .tasks-split .tt2-seg-btn:hover { color: var(--ink); }
+html.has-bg .tasks-split .tt2-seg-btn.is-on {
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom-color: var(--action);
+}
+/* The ground-scoped twin, same values. .ws-dd-mode-opt.is-on's bg-light rule
+   outranks this one at (0,4,1), so without it the selected segment would lose
+   its ink on a light wallpaper - which is the state a segmented control exists
+   to show. */
+html.has-bg.bg-light .tasks-split .tt2-seg-btn.is-on {
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom-color: var(--action);
+}
+html.has-bg .tasks-split .tt2-seg-count { font-variant-numeric: tabular-nums; }
+html.has-bg .tasks-split .tt2-seg-btn:focus-visible,
+html.has-bg .tasks-split .tt2-action:focus-visible,
+html.has-bg .tasks-split .tt2-newmenu:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
+}
+/* The two multi-select filters and the sort keep their popovers and their
+   values; only their chrome joins the row. */
+html.has-bg .tasks-split .tasks-filter-bar .tasks-filter {
+  border: 0;
+  background: none;
+  color: var(--ink-mute);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  padding: 0;
+  cursor: pointer;
+}
+html.has-bg .tasks-split .tasks-filter-bar .tasks-filter:hover { color: var(--ink); }
+html.has-bg .tasks-split .tasks-filter-bar .tasks-filter.is-active { color: var(--action); }
+/* THE GROUND-SCOPED TWINS. check-button-specificity's whole subject is a state
+   modifier that a ground rule outranks: html.has-bg.bg-light already carries
+   rules for .tasks-filter-multi.is-active and for .nb-chip, at (0,4,1) against
+   these (0,4,0), so on a light wallpaper the state would simply not apply. The
+   values are IDENTICAL to the unscoped forms above - a tile is the same colour
+   on every ground and only its alpha moves (H1a) - so these exist to win a
+   specificity contest, not to say anything different. */
+html.has-bg.bg-light .tasks-split .tasks-filter-bar .tasks-filter.is-active { color: var(--action); }
+html.has-bg .tasks-split .tt2-sort { color: var(--ink-mute); }
+html.has-bg .tasks-split .tt2-sort option { color: #202124; }
+
+/* ===== THE HEADER AND FILTER ROWS ARE ON THE WALLPAPER, NOT ON A TILE =====
+
+   Everything inside a tile inherits ground-independent ink and needs no branch.
+   These do not: the title, the New menu, Templates, the segment and the two
+   filters sit directly on the wallpaper above the first tile, so --ink and
+   --ink-mute - which are near-white by design - are white on white the moment
+   the wallpaper is light. Measured before this rule: the ON segment 1.07:1, the
+   idle segment 2.21, its count 2.31, Templates 2.24, the two filters 2.18 and
+   2.24, the New pill 3.19. Seven nodes, one cause, one branch.
+
+   --text-primary AND NOT A STEPPED ALPHA, for the reason the Insights round
+   recorded when it hit this: these nodes differ from each other by WEIGHT and
+   by the action underline, so an alpha step here would be a second dimming on
+   top of a token already chosen for a light page. The quiet ones are quiet
+   because they are 400 beside a 600, not because they are faded. */
+/* ...AND ON THE DARK GROUNDS THEY ARE NOT TILE INK EITHER. --ink-mute is the
+   quiet ink FOR A TILE; on the navy preset (#1e3a5f) these same seven nodes
+   measured 3.67-3.97, because a warm mid-grey chosen to sit on a near-black
+   tile has nowhere to go on a mid-blue wallpaper. Bare text on the wallpaper is
+   white with the shadow - the idiom every other such node in this file uses,
+   and the one .tasks-title above already follows. */
+html.has-bg .tasks-split .tasks-filter-bar .tasks-filter,
+html.has-bg .tasks-split .tasks-templates-link,
+html.has-bg .tasks-split .tt2-seg-btn,
+html.has-bg .tasks-split .tt2-seg-count,
+html.has-bg .tasks-split .tt2-sort {
+  color: rgba(255, 255, 255, 0.82);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+html.has-bg .tasks-split .tt2-seg-btn.is-on,
+html.has-bg .tasks-split .tasks-filter-bar .tasks-filter:hover { color: #fff; }
+
+html.has-bg.bg-light .tasks-split .tasks-filter-bar .tasks-filter,
+html.has-bg.bg-light .tasks-split .tasks-templates-link,
+html.has-bg.bg-light .tasks-split .tt2-seg-btn,
+html.has-bg.bg-light .tasks-split .tt2-seg-count,
+html.has-bg.bg-light .tasks-split .tt2-sort {
+  color: var(--text-primary);
+  text-shadow: none;
+}
+html.has-bg.bg-light .tasks-split .tt2-seg-btn.is-on { color: var(--text-primary); }
+/* The New pill keeps its dark fill on every ground - it is a control, not text
+   on the page - so it needs a ground that its near-white ink can sit on. The
+   0.5 alpha let the light wallpaper through and took the label to 3.19. */
+html.has-bg.bg-light .tasks-split .tt2-newmenu {
+  background: rgba(20, 18, 20, 0.86);
+  border-color: rgba(0, 0, 0, 0.16);
+}
+
+/* ---- THE THREE COUNT TILES ---- */
+html.has-bg .tasks-split .tt2-counts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--gap);
+}
+html.has-bg .tasks-split .tt2-count { gap: 6px; }
+html.has-bg .tasks-split .tt2-count .tile-eyebrow { letter-spacing: 0.02em; text-transform: uppercase; }
+/* THE COUNT NUMERAL IS --display-2 (36px), AND IT IS NEITHER THE BOARD'S 48px
+   NOR THE DESIGN SYSTEM'S --count-size (56px). Both were tried and both are
+   refused, for two different reasons that are worth writing down.
+
+   --count-size IS A HARD LITERAL with no small/large tier, so check-text-size
+   refuses it as a font-size - the same finding H0 recorded when it corrected
+   the sub-16px styles into ramp aliases, arriving now at the large end. A user
+   who asks for larger type would have got a count that did not move.
+
+   --display-1 IS 56px AND IS SPOKEN FOR. The [1.7.1] invariant, asserted twice
+   in check-today-cockpit, is that --display-1 appears EXACTLY ONCE in this
+   stylesheet, on .dash-hero-num. A count tile is not the product's hero
+   numeral, and quietly making it one would have turned that gate red.
+
+   So --display-2: 32 / 36 / 40 across the tiers, which is a count that scales
+   and is visibly below the hero it must not compete with. */
+html.has-bg .tasks-split .tt2-count-num {
+  font-size: var(--display-2);
+  line-height: var(--count-lh);
+  font-weight: var(--count-weight);
+  letter-spacing: var(--count-track);
+  font-variant-numeric: tabular-nums;
+}
+/* The sub-line takes the tile's own eyebrow ink at a step down, so it belongs
+   to its tint without being a second eyebrow. An EMPTY sub-line still renders
+   its box: three tiles in a row whose numerals sit at different heights because
+   one has nothing to say beneath it is worse than one quiet gap. */
+html.has-bg .tasks-split .tt2-count-sub {
+  font-size: var(--fs-11);
+  line-height: var(--eyebrow-lh);
+  /* NO SECOND STEP. --eyebrow-ink is already the tint's lifted ink; opacity 0.8
+     on top of it measured 3.77-3.85 on the tints, which is .dash-passive-sub's
+     lesson arriving in a new place - ink is stepped ONCE. It differs from the
+     eyebrow by weight and by case, not by alpha. */
+  color: var(--eyebrow-ink);
+  min-height: var(--eyebrow-lh);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- THE SECTION HEADS. They sit on the wallpaper between tiles, so they keep
+   a shadow the tiles do not need. ---- */
+/* THE SECTION IS A GROUPING, NOT A SURFACE. v1 gave it a card of its own, which
+   on a light wallpaper framed the dark tiles inside a white panel - a container
+   for containers. The tiles are the surfaces now; the section is a heading and a
+   gap. Seen in the light frame, not in a number. */
+html.has-bg .tasks-split .tt-section {
+  gap: var(--gap);
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+html.has-bg.bg-light .tasks-split .tt-section { background: none; border: 0; box-shadow: none; }
+
+/* ===== THE LAST OF THE CLASS: v1's LIGHT INKS ON A TILE THAT IS NEVER LIGHT
+
+   Five nodes carry an `html.has-bg.bg-light` colour chosen for v1's white card -
+   the active row's live stopwatch (#15539b), the worked clock and the
+   attachment chip (rgba(0,0,0,0.72)). The tile is a DARK surface on every
+   ground, including the light one, so those inks now sit on near-black: 1.31 to
+   1.88 measured. They are only visible with an active task and an attachment,
+   which is why they surfaced on the last sweep rather than the first.
+
+   THIS IS THE SAME FINDING AS THE SPECIFICITY ONE, ARRIVING FROM THE OTHER END.
+   v1's light branch exists because v1's cards went white on a light wallpaper.
+   A tile does not. Every surface that adopts .tile will meet this, and the rule
+   is simple enough to state once: a v1 `bg-light` INK rule is wrong inside a
+   tile, exactly as a v1 `bg-light` BACKGROUND rule is. */
+html.has-bg.bg-light .tasks-split .tt-live-val,
+html.has-bg.bg-light .tasks-split .tt-live-unit { color: var(--action-soft); }
+html.has-bg.bg-light .tasks-split .tt-worked-val,
+html.has-bg.bg-light .tasks-split .tt-worked-unit,
+html.has-bg.bg-light .tasks-split .attach-chip-name { color: var(--ink-mute); }
+/* THE SECTION HEADS ARE THE ONE THING HERE THAT IS NOT ON A TILE, so they are
+   the one thing that needs the three-ground treatment. Written as a flat #fff
+   first and measured at 1.26:1 on a light wallpaper - white on white, the
+   failure this stylesheet has now found on five surfaces. The light branch
+   takes --text-primary and drops the shadow, which is what every other
+   bare-on-wallpaper heading in this file does. */
+html.has-bg .tasks-split .tt-section-title {
+  font-size: var(--fs-11);
+  line-height: var(--eyebrow-lh);
+  font-weight: var(--eyebrow-weight);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #fff;
+  opacity: 1;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+html.has-bg.bg-light .tasks-split .tt-section-title {
+  color: var(--text-primary);
+  text-shadow: none;
+}
+html.has-bg .tasks-split .tt-goal-list { display: flex; flex-direction: column; gap: var(--gap); }
+
+/* ---- THE GOAL, AS A LIST TILE ----------------------------------------------
+
+   .tile and .tile--list carry the frost, the radius, the hairline and the
+   inset highlight; everything v1 declared for the card's own surface is
+   overridden to nothing here rather than deleted upstream, because deleting it
+   would reach rules the Completed and Deleted boxes also use. */
+/* ===== --ink-mute DOES NOT CLEAR 4.5 ON --tile-list, AND THIS IS THE ROUND
+   THAT FOUND IT =====
+
+   H0 measured the EYEBROW ink on each tint, which is what the frost DECISIONS
+   entry asks for. It did not measure --ink-mute on the list tile, because no
+   surface had a list tile with meta text on it yet. This one does - every time
+   chip, tag, date, progress count and completed name on the Tasks tab - and
+   tools/sweep-ink.mjs reads them at 3.33 to 4.46 against the list tile's
+   composited [43,41,43], on both the dark and the light branch.
+
+   THE COLOUR IS NOT THE WHOLE STORY, which is why the fix is a bigger step than
+   the arithmetic suggests. #a89c93 on that ground computes 5.37:1; it MEASURES
+   3.3-4.5, because this is 12px text at weight 400 and anti-aliasing never lets
+   a thin stroke reach its declared value. The instrument is right and the
+   calculator is optimistic - the same gap pixel-contrast.mjs's own header
+   records.
+
+   SCOPED, NOT PUSHED INTO tokens.css, for two reasons. The token layer is H0's
+   and H1a's, and two other sessions are rendering tiles right now - a global
+   change to --ink-mute would land under both of them mid-round. And the finding
+   is specific: it is about MUTE ON THE LIST TILE, not about the token. #cfc5bc
+   computes 8.72:1 there and is still visibly the quiet ink beside --ink.
+   REPORTED for H2/H4 to take into the token layer with the other surfaces'
+   evidence beside it. */
+html.has-bg .tasks-split .tile--list,
+html.has-bg .tasks-split .tt-goal-card,
+html.has-bg .tasks-split .tt-standalone-list,
+html.has-bg .tasks-split .tt-recurring-list,
+html.has-bg .tasks-split .tt-box,
+html.has-bg .tasks-split > .notes-panel { --ink-mute: #cfc5bc; }
+
+html.has-bg .tasks-split .tt-goal-card {
+  background: var(--tile-list);
+  border: 1px solid var(--tile-line);
+  box-shadow: inset 0 1px 0 var(--tile-line);
+  border-radius: var(--tile);
+  padding: 20px 26px;
+  margin: 0;
+  color: var(--ink);
+  text-shadow: none;
+}
+html.has-bg .tasks-split .tt-goal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 0;
+  border: 0;
+}
+html.has-bg .tasks-split .tt-goal-name {
+  font-size: var(--fs-15);
+  font-weight: 600;
+  color: var(--ink);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html.has-bg .tasks-split .tt-goal-chevron { color: var(--ink-mute); display: inline-flex; flex: none; }
+html.has-bg .tasks-split .tt-goal-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+}
+html.has-bg .tasks-split .tt-goal-deadline { font-size: var(--fs-11); color: var(--ink-mute); }
+/* THE PROGRESS BAR IS 120x4 IN THE HEADER ROW. .tile-track is the token's own
+   name for the ground behind a fill, so the track needs no colour of its own. */
+html.has-bg .tasks-split .tt-progress-bar {
+  display: inline-block;
+  position: relative;
+  width: 120px;
+  height: 4px;
+  border-radius: 2px;
+  flex: none;
+  overflow: hidden;
+  border: 0;
+}
+html.has-bg .tasks-split .tt-progress-fill {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--action), var(--action-soft));
+}
+html.has-bg .tasks-split .tt-progress-text {
+  font-size: var(--fs-11);
+  color: var(--ink-mute);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+html.has-bg .tasks-split .tt-goal-menu-btn { color: var(--ink-mute); opacity: 0.7; }
+html.has-bg .tasks-split .tt-goal-menu-btn:hover { opacity: 1; color: var(--ink); }
+html.has-bg .tasks-split .tt-goal-tasks { margin: 0; padding: 0; list-style: none; }
+/* "+ Add task" at --ink-faint: it is the faintest thing that is still text,
+   which is the token's whole definition, and it was one of H0's thirteen
+   light-ground crossings. On a tile it is no longer on the wallpaper at all. */
+html.has-bg .tasks-split .tt-goal-add-task {
+  background: none;
+  border: 0;
+  padding: 10px 0 0;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  /* --ink-mute, NOT --ink-faint. The token's own definition is "the faintest
+     text that is still text", and on the list tile it measured 2.43:1, which is
+     not text on any reading. It is the goal tile's one affordance; it is quiet
+     because it is 400 at the bottom of a list, not because it is faded. */
+  color: var(--ink-mute);
+  cursor: pointer;
+}
+html.has-bg .tasks-split .tt-goal-add-task:hover { color: var(--ink); }
+
+/* ---- THE ROW --------------------------------------------------------------
+
+   spine | handle | checkbox | name | duration | date | tag | options
+
+   The handle and the options button are HOVER-ONLY and both are still rendered
+   on every row, because a control that does not exist cannot be tabbed to -
+   .note-trash's precedent, which .tt-task-options already followed. */
+html.has-bg .tasks-split .tt-task-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--tile-rule);
+  font-size: var(--fs-13);
+  color: var(--ink);
+  background: none;
+  border-radius: 0;
+}
+html.has-bg .tasks-split .tt-task-row:last-child { border-bottom: 0; }
+/* THE HOVER ROW pulls 8px out of the tile's padding on both sides so the wash
+   reads as a band across the row rather than as a box inside it - board 5's
+   negative margin, which is also what keeps the spine's x unchanged. */
+html.has-bg .tasks-split .tt-task-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+  margin: 0 -8px;
+  padding-inline: 8px;
+  border-radius: 8px;
+}
+html.bg-light .tasks-split .tt-task-row:hover { background: rgba(255, 255, 255, 0.05); }
+
+/* THE SPINE. v1 painted priority as border-inline-start on the row, which is
+   the row's own edge - and the row now sits inside a tile with 26px of padding,
+   so the colour landed on the tile's inner wall instead of beside the task.
+   It is a 3px x 16px rounded bar as the row's first child now. The v1 border is
+   zeroed above; the four .tt-prio-* classes are untouched and still carry the
+   colour, so every reader and the priority popover see exactly what they saw. */
+html.has-bg .tasks-split .tt2-spine {
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  flex: none;
+  background: transparent;
+}
+html.has-bg .tasks-split .tt-task-row.tt-prio-urgent .tt2-spine { background: var(--prio-urgent); }
+html.has-bg .tasks-split .tt-task-row.tt-prio-high   .tt2-spine { background: var(--prio-high); }
+html.has-bg .tasks-split .tt-task-row.tt-prio-medium .tt2-spine { background: var(--prio-medium); }
+html.has-bg .tasks-split .tt-task-row.tt-prio-low    .tt2-spine { background: var(--prio-low); }
+/* The four priority values are ground-independent by design - the spine is the
+   product's one priority signal and it is the same colour on every wallpaper -
+   but a longer bg-light selector elsewhere in the sheet still outranks these,
+   so they take the ground-scoped form with the same values. */
+html.has-bg.bg-light .tasks-split .tt-task-row.tt-prio-urgent .tt2-spine { background: var(--prio-urgent); }
+html.has-bg.bg-light .tasks-split .tt-task-row.tt-prio-high   .tt2-spine { background: var(--prio-high); }
+html.has-bg.bg-light .tasks-split .tt-task-row.tt-prio-medium .tt2-spine { background: var(--prio-medium); }
+html.has-bg.bg-light .tasks-split .tt-task-row.tt-prio-low    .tt2-spine { background: var(--prio-low); }
+/* AND THE PRIORITY POPOVER'S SWATCHES TAKE THE SAME TREATMENT, because the four
+   rules above are what put them over the line. check-button-specificity matches
+   a state modifier against every longer rule that sets the same property, and
+   .tt-prio-swatch.tt-prio-urgent (0,2,0) had nothing outranking it until this
+   round wrote a bg-light selector naming .tt-prio-urgent. The swatches are the
+   Tasks row's own priority control - the popover the context menu opens - so
+   they are in this round's reach, and the four colours are the same on every
+   ground for the same reason the spine's are. */
+html.has-bg.bg-light .tt-prio-swatch.tt-prio-urgent { background: var(--prio-urgent); }
+html.has-bg.bg-light .tt-prio-swatch.tt-prio-high   { background: var(--prio-high); }
+html.has-bg.bg-light .tt-prio-swatch.tt-prio-medium { background: var(--prio-medium); }
+html.has-bg.bg-light .tt-prio-swatch.tt-prio-low    { background: var(--prio-low); }
+
+/* THE DRAG HANDLE, FUNCTIONAL AND HOVER-ONLY. It keeps its width at rest so the
+   row does not shift 14px sideways under the pointer - the reveal is opacity,
+   never display. Sortable's `handle: ".tt-task-handle"` is unchanged, so what
+   this styles is the same element that starts the drag. */
+html.has-bg .tasks-split .tt-task-handle {
+  flex: none;
+  width: 10px;
+  color: var(--ink-mute);
+  opacity: 0;
+  cursor: grab;
+  transition: opacity 0.12s ease;
+}
+html.has-bg .tasks-split .tt-task-row:hover .tt-task-handle,
+html.has-bg .tasks-split .tt-task-row:focus-within .tt-task-handle { opacity: 0.6; }
+html.has-bg .tasks-split .tt-task-handle:hover { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  html.has-bg .tasks-split .tt-task-handle { transition: none; }
+}
+
+html.has-bg .tasks-split .tt-task-check {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--check);
+  accent-color: var(--action);
+}
+html.has-bg .tasks-split .tt-task-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  position: static;
+}
+html.has-bg .tasks-split .tt-task-name {
+  color: var(--ink);
+  font-size: var(--fs-13);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html.has-bg .tasks-split .tt-task-row.is-completed .tt-task-name {
+  text-decoration: line-through;
+  color: var(--ink-mute);
+}
+
+/* THE META. v1 made this a two-column GRID with a divider, so date and tag sat
+   in fixed columns at the row's far right. Board 5 packs them beside the name
+   as text. The CLASS IS KEPT - the context menu's Priority popover anchors to
+   it, and 2edf6bf's comment records what a null anchor costs: an item that is
+   present, clickable and silently does nothing. */
+html.has-bg .tasks-split .tt-task-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  margin-inline-start: auto;
+  padding: 0;
+  border: 0;
+}
+html.has-bg .tasks-split .tt-task-slot { min-width: 0; justify-content: flex-end; }
+html.has-bg .tasks-split .tt-slot-tags { justify-content: flex-end; min-width: 56px; }
+
+/* THE DATE READS AS TEXT AND IS STILL A CONTROL. Board 5 draws a date, not a
+   button, and the ruling says the resting row has one clickable thing - but the
+   pill is the only way to SET a due date from this surface, and deleting a
+   writer's entry point is not a re-skin. So its chrome goes and its behaviour
+   stays, and the empty state (a task with no date) is revealed on hover with
+   the handle and the kebab rather than sitting on every row at rest. */
+html.has-bg .tasks-split .tt-due-pill {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  font-size: var(--fs-11);
+  color: var(--ink-mute);
+  white-space: nowrap;
+  cursor: pointer;
+}
+html.has-bg .tasks-split .tt-due-pill:hover { color: var(--ink); }
+html.has-bg .tasks-split .tt-due-pill .tt-due-icon { display: none; }
+html.has-bg .tasks-split .tt-due-pill.tt-due-none { opacity: 0; transition: opacity 0.12s ease; }
+html.has-bg .tasks-split .tt-due-pill.tt-due-none .tt-due-icon { display: inline-flex; }
+html.has-bg .tasks-split .tt-task-row:hover .tt-due-pill.tt-due-none,
+html.has-bg .tasks-split .tt-task-row:focus-within .tt-due-pill.tt-due-none,
+html.has-bg .tasks-split .tt-due-pill.tt-due-none:focus-visible { opacity: 0.7; }
+@media (prefers-reduced-motion: reduce) {
+  html.has-bg .tasks-split .tt-due-pill.tt-due-none { transition: none; }
+}
+
+/* TAGS AS TEXT (ruled): --ink-mute, no fill, no border. The row's only colour
+   is the spine. tagPillHtml still resolves the tag through Storage.getTagById,
+   so an archived tag still renders as nothing rather than as a broken chip. */
+html.has-bg .tasks-split .tt-tag-pill.is-plain {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ink-mute);
+  font-size: var(--fs-11);
+  font-weight: 400;
+  border-radius: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html.has-bg .tasks-split .tt-tag-more { color: var(--ink-mute); font-size: var(--fs-11); font-weight: 400; }
+
+/* THE TIME CHIP. H0's sweep found EIGHT of these crossing the floor on a light
+   solid - 5.2-5.9 down to 3.8-4.4 - when Space Grotesk's lighter strokes landed.
+   The cause was never the colour: rgba(255,255,255,0.65) and its bg-light
+   partner rgba(0,0,0,0.65) are ALPHAS OVER WHATEVER IS BEHIND, and what is
+   behind changed. On a tile it is --ink-mute, which is a resolved colour keyed
+   to the tile rather than to the wallpaper, so the light branch has nothing
+   left to do. */
+html.has-bg .tasks-split .tt-time-chip,
+html.has-bg .tasks-split .tt-worked-chip {
+  color: var(--ink-mute);
+  font-size: var(--fs-11);
+}
+html.has-bg.bg-light .tasks-split .tt-time-chip,
+html.has-bg.bg-light .tasks-split .tt-worked-chip { color: var(--ink-mute); }
+
+/* THE OPTIONS BUTTON is in flow now, at the row's end, in a fixed 14px slot -
+   so it costs the name the same nothing position:absolute cost it, without the
+   positioning context. */
+html.has-bg .tasks-split .tt-task-options {
+  position: static;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  color: var(--ink-mute);
+  opacity: 0;
+  padding: 0;
+}
+html.has-bg .tasks-split .tt-task-row:hover .tt-task-options,
+html.has-bg .tasks-split .tt-task-row:focus-within .tt-task-options,
+html.has-bg .tasks-split .tt-task-options:focus-visible { opacity: 1; background: none; }
+html.has-bg .tasks-split .tt-task-options:hover { color: var(--ink); background: none; }
+
+html.has-bg .tasks-split .tt-task-empty,
+html.has-bg .tasks-split .tt-empty-state {
+  color: var(--ink-faint);
+  font-size: var(--fs-12);
+  background: none;
+  border: 0;
+  padding: 10px 0;
+  text-shadow: none;
+}
+
+/* ---- THE STANDALONE AND RECURRING LISTS get the same tile the goals do, so a
+   section is a tile whatever it holds. ---- */
+html.has-bg .tasks-split .tt-standalone-list,
+html.has-bg .tasks-split .tt-recurring-list {
+  background: var(--tile-list);
+  border: 1px solid var(--tile-line);
+  box-shadow: inset 0 1px 0 var(--tile-line);
+  border-radius: var(--tile);
+  padding: 20px 26px;
+  margin: 0;
+  list-style: none;
+  color: var(--ink);
+  text-shadow: none;
+}
+
+/* ---- THE ARCHIVE BOXES. The 320px cap on .tt-box-body is NOT touched: it is
+   the deliberate behaviour surfaces-measured.md records, and this round is a
+   face change. Only the surface joins the language. ---- */
+html.has-bg .tasks-split .tt-trash-row { gap: var(--gap); }
+html.has-bg .tasks-split .tt-box {
+  background: var(--tile-list);
+  border: 1px solid var(--tile-line);
+  box-shadow: inset 0 1px 0 var(--tile-line);
+  border-radius: var(--tile);
+  padding: 20px 26px;
+  color: var(--ink);
+  text-shadow: none;
+}
+html.has-bg .tasks-split .tt-completed-name,
+html.has-bg .tasks-split .tt-deleted-name { color: var(--ink); }
+/* The completed date reads 3.20 at the mute on the box tile - the box is a
+   darker ground than the goal tile and 11px text has less stroke to give. It
+   takes --ink; the archive is a list of things already done, and its dates are
+   the only thing on those rows that is information. */
+html.has-bg .tasks-split .tt-completed-date { color: var(--ink); }
+/* The kind markers are single glyphs at --fs-10, and a one-character stroke
+   never reaches its declared alpha - 3.43 to 3.86 at the mute. They take --ink;
+   what distinguishes them from the name beside them is size, not weight. */
+html.has-bg .tasks-split .tt-completed-kind,
+html.has-bg .tasks-split .tt-deleted-kind { color: var(--ink); }
+/* .tt-trash-days was two of H0's thirteen crossings, for the same reason the
+   time chips were: --ink-chrome is an alpha, and the ground under it moved. The
+   NEUTRAL band takes the tile's own mute; amber and red keep their own values,
+   which are colours rather than alphas and were never part of the drift. */
+html.has-bg .tasks-split .tt-trash-days-neutral { color: var(--ink-mute); }
+
+/* ---- THE NOTES COLUMN, THE FOURTH COLUMN ---------------------------------- */
+html.has-bg .tasks-split > .notes-panel {
+  flex: 0 0 300px;
+  width: 300px;
+  max-width: 300px;
+  background: var(--tile-list);
+  border: 1px solid var(--tile-line);
+  box-shadow: inset 0 1px 0 var(--tile-line);
+  border-radius: var(--tile);
+  padding: 20px 22px;
+  margin-inline-start: var(--gap);
+  margin-block: 36px 40px;
+  color: var(--ink);
+  text-shadow: none;
+  backdrop-filter: blur(var(--frost)) saturate(130%);
+  -webkit-backdrop-filter: blur(var(--frost)) saturate(130%);
+}
+html.has-bg .tasks-split > .notes-panel .notes-panel-title {
+  font-size: var(--fs-11);
+  line-height: var(--eyebrow-lh);
+  font-weight: var(--eyebrow-weight);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  opacity: 1;
+}
+/* THE NOTEBOOK CHIP STRIP IN THE ACTION TINT (ruled). The selected chip is the
+   only place on this surface other than the New button where --action reaches a
+   label, and it is the design system's own pairing: --action-tint behind
+   --action, at 16% - the alpha .tt-prio-pill already uses for the same kind of
+   wash. An unselected chip takes --tile-fill, which is the same token the
+   progress track uses, so the strip has two states and no third colour. */
+html.has-bg .tasks-split > .notes-panel .nb-chip {
+  font-size: var(--fs-10);
+  padding: 4px 10px;
+  border-radius: var(--pill);
+  background: var(--tile-fill);
+  border: 0;
+  color: var(--ink-mute);
+}
+html.has-bg .tasks-split > .notes-panel .nb-chip.is-active,
+html.has-bg .tasks-split > .notes-panel .nb-chip[aria-current="true"] {
+  background: var(--action-tint);
+  color: var(--action);
+  font-weight: 600;
+}
+html.has-bg.bg-light .tasks-split > .notes-panel .nb-chip.is-active,
+html.has-bg.bg-light .tasks-split > .notes-panel .nb-chip[aria-current="true"] {
+  background: var(--action-tint);
+  color: var(--action);
+  font-weight: 600;
+}
+/* PAPER COLOURS UNCHANGED (ruled). The card's radius joins the ramp - --inner,
+   12px, which is the radius of anything sitting inside a tile - and nothing
+   else about a note moves. */
+html.has-bg .tasks-split > .notes-panel .note-card { border-radius: var(--inner); }
+
+/* ---- THE HABIT GRID'S CELLS TAKE --action AT THE THREE ALPHAS -------------
+
+   The handoff spec's line for this surface is that the recurring section's
+   habit grid keeps its geometry and its cells take `action` at the three
+   alphas. The three STEPS are unchanged - 1.00 done, 0.66 open, 0.30 skipped,
+   the three meanings [1.14.4 / G] argued for and the fourth it rejected - and
+   only the hue they are cut from moves, from --accent to --action.
+
+   ONE DECLARATION, NOT THREE, and that is the point of the existing shape: the
+   grid already funnels every step through --habit-ink, and it already carries
+   a three-rule ground pattern because raw --accent measured 3.63:1 on the dark
+   panel. --action (#ff8a3d) is a bright warm orange chosen to carry dark ink at
+   full strength, so it does NOT need the toward-white lift --accent needed -
+   which is why the wallpaper branch is flattened here rather than copied. The
+   fills are graphical, so the floor is 3:1; measured in this round's sweep.
+
+   THE HAIRLINE IS LEFT ALONE. It is the 'this day could have happened and did
+   not' mark, it is not a fill, and its three ground values were measured for
+   the frost behind it - which this round does not change. */
+html.has-bg .tasks-split .habit-grid,
+html.has-bg .tasks-split .habit-grid,
+html.has-bg.bg-light .tasks-split .habit-grid { --habit-ink: var(--action); }
+/* AND THE GRID'S WEEKDAY AND MONTH LABELS TAKE THE TILE'S INK. They were
+   --text-secondary (#5f6368), a grey chosen for a white page, and the recurring
+   list is a dark tile now on EVERY ground - so they measured 1.96-2.12 on the
+   light branch where master read 3.44-4.29 on its white card. This is the
+   round's own regression and it is fixed rather than reported: a label that got
+   worse because this round moved the surface under it is this round's. */
+html.has-bg .tasks-split .habit-dow,
+html.has-bg .tasks-split .habit-month,
+html.has-bg.bg-light .tasks-split .habit-dow,
+html.has-bg.bg-light .tasks-split .habit-month { color: var(--ink-mute); }
+
+/* ---- HOVER AND FOCUS HAVE A TRANSITION; REDUCED MOTION TURNS IT OFF. The
+   .tile component deliberately declared no motion branch because it had no
+   motion; this block adds two opacity fades, so it adds the branch with them,
+   which is the rule that comment set. ---- */
+@media (prefers-reduced-motion: reduce) {
+  html.has-bg .tasks-split .tt-task-options { transition: none; }
+}
