@@ -7,6 +7,12 @@
   <!-- [1.2.0 R2 / PLAN C5] Own stylesheet, deliberately NOT newtab.css: this is a
        full page, not a frosted panel over a wallpaper, so the has-bg surface model
        does not apply here. extension_pages CSP forbids inline script and style. -->
+  <!-- [H2d] tokens.css FIRST, exactly as newtab.html links it. The v2 token
+       set and Space Grotesk's @font-face both live in that file, so one link
+       does both jobs; a second copy of either in gate.css is precisely the
+       drift [1.9.1] split the token layer out to prevent. It is in build.sh's
+       zip allowlist already, so nothing about packaging changes. -->
+  <link rel="stylesheet" href="tokens.css">
   <link rel="stylesheet" href="gate.css">
 </head>
 <body>
@@ -35,10 +41,10 @@
          there is one decision in front of the user at a time. -->
     <div class="gate-friction hidden" id="gate-friction">
       <div class="gate-ring-wrap">
-        <svg class="gate-ring" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-          <circle class="gate-ring-track" cx="50" cy="50" r="45" vector-effect="non-scaling-stroke"></circle>
-          <circle class="gate-ring-fill" cx="50" cy="50" r="45" vector-effect="non-scaling-stroke" id="gate-ring-fill"></circle>
-        </svg>
+        <!-- [H2d] The ring is a conic gradient now rather than an SVG stroke.
+             gate.js writes --ring-pct on this element and CSS does the rest;
+             aria-hidden because the number beside it is the actual readout. -->
+        <div class="gate-ring" id="gate-ring" aria-hidden="true"></div>
         <span class="gate-ring-num" id="gate-ring-num"></span>
       </div>
       <p class="gate-friction-line" id="gate-friction-line" role="status"></p>

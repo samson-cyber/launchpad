@@ -2,13 +2,45 @@
  *
  * F3=b's requirement is GENTLE. This page meets a user mid-impulse; it is not a
  * security warning and must not dress like one. Deliberately absent: red, alert
- * iconography, exclamation marks, anything that reads as an error state. The
- * palette is the product's own calm dark neutral, the type is quiet, and the
- * two actions carry equal visual weight so neither is a trap.
+ * iconography, exclamation marks, anything that reads as an error state.
  *
- * Standalone stylesheet — no newtab.css, no has-bg surface model (this is a full
- * page, not a panel over a wallpaper). Ink is browser-measured; ratios in the
- * R2 IMPLEMENTATION comment.
+ * [H2d] THE PAGE IS NOW A TILE, AND THE TINT CARRIES THE MEANING.
+ *
+ * The v2 ruling (docs/SPECS/v2-handoff-spec.md, V2-Gate) is that a blocked page
+ * is a ROSE page: the blocked states take the overdue tint, the host takes
+ * --action-soft, the reason takes the rose-lifted ink, the actions are pills
+ * with the primary in --action, and the inert state takes the hero tint. That
+ * is the same vocabulary every other v2 surface speaks, so a user who has seen
+ * the Dashboard's overdue tile already knows what this colour means.
+ *
+ * ROSE IS NOT RED, AND THE DISTINCTION IS THE WHOLE OF F3=b SURVIVING THIS
+ * ROUND. --tile-overdue is rgba(90,47,42,0.82) - a desaturated warm brown-rose
+ * at tile alpha, not an alert. There is still no pulse, no exclamation, no
+ * iconography, and no state in which the way out disappears from under the
+ * user. What changed is that the page now says "this is the blocked one" in the
+ * product's own colour language instead of being a neutral dark panel that
+ * could be any page.
+ *
+ * TWO NOTES ON WHAT THIS FILE CAN AND CANNOT DO.
+ *
+ * 1. IT STILL HAS NO has-bg SURFACE MODEL, and that is unchanged doctrine
+ *    (WM.2 measured four identical readings). This is a full page, not a panel
+ *    over a wallpaper: body is an opaque #1e1e1e and the tile composites over
+ *    THAT, not over a photograph. So there is exactly ONE ground here and every
+ *    ratio in this round is a single number rather than three.
+ *
+ * 2. THE TILE IS DELIBERATELY NOT BACKDROP-FILTERED. newtab.css's .tile carries
+ *    blur(18px) saturate(130%) because it sits over a wallpaper and has
+ *    something to blur. Here there is nothing behind the tile but a flat
+ *    colour, so the filter would cost a compositor layer to produce an
+ *    identical pixel. The 82% alpha is kept because it is what makes the tint
+ *    the colour it is - the ground reads through by 18% and that is the shade
+ *    the instrument measured.
+ *
+ * TOKENS COME FROM tokens.css, WHICH gate.html NOW LINKS. The alternative was
+ * copying a dozen values into this file, which is the exact drift tokens.css
+ * was split out to prevent ([1.9.1]'s own header says so). The link also brings
+ * Space Grotesk's @font-face, since it lives in that file - one line, both jobs.
  */
 
 * { box-sizing: border-box; }
@@ -19,18 +51,51 @@ html, body {
 }
 
 body {
+  /* The ground the tile composites over. One colour, no wallpaper, no class. */
   background: #1e1e1e;
-  color: #f1f3f4;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--ink);
+  font-family: var(--font-sans);
   display: grid;
   place-items: center;
   padding: 24px;
 }
 
+/* ===== THE TILE ============================================================
+ *
+ * The shared shape is newtab.css's .tile, restated rather than imported
+ * because this page cannot load newtab.css. What is restated is only the
+ * SHAPE - radius, border, inset highlight, padding, ink - and every value is a
+ * token, so the two cannot drift to different numbers.
+ *
+ * The gradient is the modifier's business, below. The default here is the
+ * BLOCKED case because that is what this page is for; the inert state asks for
+ * the hero tint explicitly. */
 .gate {
   width: 100%;
   max-width: 460px;
   text-align: center;
+
+  border-radius: var(--tile);
+  border: 1px solid var(--tile-line);
+  box-shadow: inset 0 1px 0 var(--tile-line);
+  padding: var(--tile-pad) var(--tile-pad-x);
+
+  background: linear-gradient(160deg, var(--tile-overdue), var(--tile-overdue-2));
+  --gate-eyebrow-ink: var(--ink-on-overdue);
+  --gate-reason-ink: var(--ink-on-overdue);
+  --gate-host-ink: var(--action-soft);
+}
+
+/* THE INERT STATE IS NOT A BLOCKED STATE AND MUST NOT WEAR ITS COLOUR.
+ * Nothing is holding the user here; a rose tile would be the page contradicting
+ * its own sentence, which is the defect WM.3 fixed in the copy and would be
+ * reintroduced in the paint. Hero tint, achromatic inks, no accent on the host
+ * - the host is not blocked, so it is not the thing to look at. */
+.gate.is-inert {
+  background: linear-gradient(160deg, var(--tile-hero), var(--tile-hero-2));
+  --gate-eyebrow-ink: var(--ink-mute);
+  --gate-reason-ink: var(--ink-mute);
+  --gate-host-ink: var(--ink);
 }
 
 .gate-eyebrow {
@@ -39,7 +104,7 @@ body {
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #9aa0a6;
+  color: var(--gate-eyebrow-ink);
 }
 
 .gate-headline {
@@ -47,19 +112,22 @@ body {
   font-size: 26px;
   font-weight: 600;
   line-height: 1.3;
-  color: #f1f3f4;
+  color: var(--ink);
 }
 
+/* THE HOST, IN --action-soft. It is the one coloured run on the page and it is
+ * the subject of the sentence. The v2 ink rule is "colour on the tile, never on
+ * the words", and this is its one stated exception on this surface: the host is
+ * a name being pointed at, not prose. */
 .gate-domain {
-  /* The one accent on the page: a soft green that reads as "focus", not "stop". */
-  color: #8ed9a8;
+  color: var(--gate-host-ink);
 }
 
 .gate-context {
   margin: 0 0 28px;
   font-size: 15px;
   line-height: 1.5;
-  color: #c9cdd1;
+  color: var(--gate-reason-ink);
   min-height: 23px;   /* reserved: the line fills in after the state round-trip,
                          and the buttons must not jump when it does */
 }
@@ -71,48 +139,103 @@ body {
   flex-wrap: wrap;
 }
 
+/* ===== THE ACTIONS, AS PILLS ===============================================
+ *
+ * THE HIERARCHY IS THE ONE THIS FILE ALREADY HAD, RESKINNED - NOT A NEW ONE.
+ * .gate-btn has always been the ordinary control (snooze, continue) and
+ * .gate-btn-quiet the heavier, quieter one (end the session). v2 keeps that
+ * split exactly and paints the ordinary one in --action.
+ *
+ * THIS SUPERSEDES ONE LINE OF THIS FILE'S ORIGINAL HEADER, and it is corrected
+ * rather than left to rot: the R2 header said "the two actions carry equal
+ * visual weight so neither is a trap". They no longer carry equal weight - the
+ * snooze is an orange pill and the end control is a hairline one. The reasoning
+ * that line protected still holds and is what decides WHICH is which: the calm
+ * default is to take five more minutes, not to dismantle a session, so the calm
+ * default is the one that gets the colour. Nothing is hidden and nothing is
+ * disabled; the quiet control is a full-contrast, full-size, adjacent pill. */
 .gate-btn {
   appearance: none;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.08);
-  color: #f1f3f4;
+  border: 1px solid transparent;
+  background: var(--action);
+  color: var(--ink-on-action);
   font: inherit;
   font-size: 14px;
-  padding: 10px 18px;
-  border-radius: 8px;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: var(--pill);
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
+  transition: filter 0.12s, background 0.12s, border-color 0.12s;
 }
 
-.gate-btn:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.32); }
-.gate-btn:focus-visible { outline: 2px solid #8ed9a8; outline-offset: 2px; }
-.gate-btn:disabled { opacity: 0.5; cursor: default; }
+.gate-btn:hover { filter: brightness(1.08); }
+.gate-btn:focus-visible { outline: 2px solid var(--action-soft); outline-offset: 2px; }
 
-/* The end control is the heavier decision, so it reads quieter — the calm
-   default is to take five more minutes, not to dismantle the session. */
+/* A CONTROL THAT CANNOT ACT YET DOES NOT WEAR THE ACTION COLOUR, and this
+ * replaces an `opacity: 0.5` that MEASURED AT 3.08:1 against the 4.5 floor.
+ *
+ * O11 is the entry: opacity is symmetric and contrast is not. Half-fading an
+ * orange pill with dark ink on it fades the ink toward the tile and the tile
+ * toward the ink at the same time, and "5 more minutes" - the label telling the
+ * user what the countdown is FOR - became the least legible run on the page at
+ * the moment they were reading it. Dimming is not a neutral way to say
+ * "not yet".
+ *
+ * So the disabled pill takes the QUIET treatment instead, which is a value a
+ * sibling on this same page already carries and already measures at 12.27:1.
+ * It reads as unavailable because it is hairline rather than filled, and the
+ * ACTION COLOUR ARRIVING is then the signal that the wait is over - which the
+ * old version had no way to say, because a dim orange and a bright orange are
+ * the same colour at different strengths.
+ *
+ * The countdown itself is carried by the ring and by "Snoozing in 9s" beside
+ * it, both at full contrast. The button was never the thing that reported the
+ * wait; it was only ever the thing that ends it. */
+.gate-btn:disabled {
+  background: none;
+  border-color: var(--tile-line);
+  color: var(--ink);
+  font-weight: 500;
+  cursor: default;
+  filter: none;
+}
+
+/* The end control is the heavier decision, so it reads quieter - a hairline
+   pill on the tile rather than a filled one. Still a pill, still the same
+   size, still adjacent: quieter is not smaller and not hidden. */
 .gate-btn-quiet {
   background: none;
-  border-color: rgba(255, 255, 255, 0.14);
-  color: #c9cdd1;
+  border-color: var(--tile-line);
+  color: var(--ink);
+  font-weight: 500;
 }
 
-.gate-btn-quiet:hover { background: rgba(255, 255, 255, 0.06); color: #f1f3f4; }
+.gate-btn-quiet:hover { background: var(--tile-fill); filter: none; }
 
 .gate-footnote {
   margin: 22px 0 0;
   font-size: 12.5px;
   line-height: 1.5;
-  color: #9aa0a6;
+  color: var(--ink-mute);
   min-height: 19px;   /* reserved for the same reason as .gate-context */
 }
 
 /* ===== [WM.4] The friction countdown =====
  *
- * THE DASHBOARD RING'S GEOMETRY, NOT ITS STYLESHEET. newtab.css cannot be
- * loaded here - this file's own header says why - so the radius, the viewBox and
- * the non-scaling stroke come across in gate.js and the colours are declared
- * fresh in the gate's green. A gate that suddenly painted the product blue would
- * be a different page wearing this one's clothes.
+ * [H2d] THE RING IS NOW A CONIC, NOT AN SVG STROKE, per the v2 ruling.
+ *
+ * WHAT THAT CHANGES, AND WHAT IT DOES NOT. The sweep still starts at twelve
+ * o'clock, still runs full-to-empty as the wait runs down, and is still driven
+ * by one number from gate.js. What goes is the SVG element, its 100-unit
+ * viewBox, its r=45, its non-scaling stroke and the rotate(-90deg) that a
+ * stroke needs to start at the top - a conic gradient starts there already.
+ *
+ * A STALE COMMENT DIED HERE AND IS WORTH RECORDING. The WM.4 note in gate.js
+ * said "tools/check-focus-decision.mjs asserts the radius here matches
+ * newtab.js's DASH_RING_R, so the geometry cannot drift". No such assertion
+ * exists in any gate - DASH_RING_R appears in newtab.js and in that comment and
+ * nowhere else. The geometry was never protected, so nothing broke when it
+ * changed; the claim was simply false and had been since it was written.
  *
  * AND IT IS STILL F3=b's GENTLE PAGE. The ring reports time. There is no pulse,
  * no red, and no state in which a control disappears from under the user - the
@@ -130,23 +253,20 @@ body {
   height: 72px;
 }
 
+/* --ring-pct is written by gate.js, 1 at the start of the wait and 0 at its
+   end. The mask cuts the disc into a 6px annulus - the same stroke width the
+   SVG carried - so the track is the remaining sweep rather than a second
+   element. */
 .gate-ring {
   width: 72px;
   height: 72px;
-  transform: rotate(-90deg);   /* start the sweep at twelve o'clock */
-}
-
-.gate-ring-track,
-.gate-ring-fill {
-  fill: none;
-  stroke-width: 6;
-  stroke-linecap: round;
-}
-
-.gate-ring-track { stroke: rgba(255, 255, 255, 0.14); }
-.gate-ring-fill {
-  stroke: #8ed9a8;
-  transition: stroke-dashoffset 0.2s linear;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--action) calc(var(--ring-pct, 1) * 360deg),
+    var(--tile-fill) 0
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 6px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 6px));
 }
 
 .gate-ring-num {
@@ -157,7 +277,7 @@ body {
   justify-content: center;
   font-size: 20px;
   font-weight: 600;
-  color: #f1f3f4;
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
@@ -165,7 +285,7 @@ body {
   margin: 0;
   font-size: 15px;
   line-height: 1.5;
-  color: #c9cdd1;
+  color: var(--ink);
   min-height: 23px;
 }
 
@@ -180,21 +300,21 @@ body {
 .gate-commit-label {
   font-size: 13px;
   line-height: 1.5;
-  color: #c9cdd1;
+  color: var(--ink);
 }
 
 .gate-commit-input {
   appearance: none;
   width: 100%;
   padding: 9px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #f1f3f4;
+  border: 1px solid var(--tile-line);
+  border-radius: var(--inner);
+  background: var(--tile-fill);
+  color: var(--ink);
   font: inherit;
   font-size: 14px;
 }
 
-.gate-commit-input:focus-visible { outline: 2px solid #8ed9a8; outline-offset: 2px; }
+.gate-commit-input:focus-visible { outline: 2px solid var(--action-soft); outline-offset: 2px; }
 
 .hidden { display: none !important; }

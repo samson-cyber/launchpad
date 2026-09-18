@@ -31,6 +31,10 @@
   var endBtn = $("gate-end");
   var continueBtn = $("gate-continue");
   var headlineEl = document.querySelector(".gate-headline");
+  // [H2d] The tile itself. Its tint is the page's one statement about whether
+  // anything is actually blocking the user, so it is toggled in render() beside
+  // the sentence that says the same thing in words.
+  var gateEl = document.querySelector(".gate");
 
   var actionsEl = document.querySelector(".gate-actions");
   // The headline's trailing text node, captured before anything rewrites it, so
@@ -163,6 +167,9 @@
     // snooze this very countdown is waiting to write.
     if (frictionPlan) return;
     actionsEl.textContent = "";
+    // [H2d] Rose unless the page is about to say nothing is blocked. Cleared
+    // first so the blocked branches never have to remember to.
+    gateEl.classList.remove("is-inert");
     if (!st || !st.ok) {
       // The worker did not answer. Leave both real controls in place with the
       // generic label: failing to reach the worker is not evidence that the
@@ -184,6 +191,10 @@
       // the rule as live - three statements, two of them false, on one page.
       // Caught by looking at the rendered frame rather than at the code.
       setHeadlineTail(" " + I18n.t("gate_is_not_blocked"));
+      // THE TINT IS PART OF THE SENTENCE. An inert gate wearing the overdue
+      // rose would contradict its own headline in paint - the same defect WM.3
+      // fixed in the copy, reintroduced in the colour. Hero tint, no accent.
+      gateEl.classList.add("is-inert");
       // Snoozing something that is not blocking you is meaningless, so the
       // whole blocked-page vocabulary goes and one plain way onward remains.
       show(continueBtn);
@@ -286,7 +297,7 @@
   // and a way out that works at every instant.
   var frictionEl = $("gate-friction");
   var frictionLine = $("gate-friction-line");
-  var ringFill = $("gate-ring-fill");
+  var ringEl = $("gate-ring");
   var ringNum = $("gate-ring-num");
   var commitEl = $("gate-commit");
   var commitLabel = $("gate-commit-label");
@@ -294,18 +305,19 @@
   var frictionCancel = $("gate-friction-cancel");
   var frictionGo = $("gate-friction-go");
 
-  // The Dashboard ring's own geometry. ITS CSS CANNOT BE SHARED - gate.css is a
-  // standalone sheet with no newtab.css and no has-bg surface model, by its own
-  // header - so what is shared is the part that makes it that ring: a 100-unit
-  // viewBox, r=45, a non-scaling stroke, and a sweep by stroke-dashoffset from
-  // full circumference to zero. The two colours are the gate's own green,
-  // because --sat-accent is the product blue and this page is not that page.
-  // tools/check-focus-decision.mjs asserts the radius here matches newtab.js's
-  // DASH_RING_R, so the geometry cannot drift even though the sheets are apart.
-  var RING_R = 45;
-  var RING_C = 2 * Math.PI * RING_R;
-  ringFill.setAttribute("stroke-dasharray", RING_C.toFixed(2));
-  ringFill.setAttribute("stroke-dashoffset", "0");
+  // [H2d] THE RING IS A CONIC AND THE GEOMETRY LEFT THIS FILE ENTIRELY. What
+  // used to be here - r=45, a circumference, a stroke-dasharray and an initial
+  // offset - was the arithmetic an SVG stroke needs to be swept. A conic
+  // gradient is swept by one number between 1 and 0, so that number is all
+  // gate.js computes and gate.css owns every dimension.
+  //
+  // THE COMMENT THAT STOOD HERE CLAIMED A GATE THIS GEOMETRY DID NOT HAVE. It
+  // said check-focus-decision.mjs asserts the radius matches newtab.js's
+  // DASH_RING_R "so the geometry cannot drift". No such assertion exists in any
+  // tool - DASH_RING_R occurs in newtab.js and in that sentence and nowhere
+  // else - so the geometry was never protected and nothing failed when it
+  // changed. Recorded rather than silently dropped: a comment asserting a guard
+  // that does not exist is worse than no comment, because it is read as one.
 
   var frictionTimer = null;
   var frictionPlan = null;
@@ -325,9 +337,9 @@
     var secs = Math.ceil(leftMs / 1000);
     var total = frictionPlan ? frictionPlan.delayMs : 1;
     ringNum.textContent = secs > 0 ? String(secs) : "";
-    // Sweeps from full to empty as the wait runs down. Offset 0 is a whole
-    // ring; RING_C is none of it.
-    ringFill.setAttribute("stroke-dashoffset", (RING_C * (1 - (leftMs / total))).toFixed(2));
+    // Sweeps from full to empty as the wait runs down. 1 is a whole ring, 0 is
+    // none of it; the conic and its mask turn that into an annulus.
+    ringEl.style.setProperty("--ring-pct", (leftMs / total).toFixed(4));
     frictionLine.textContent = secs > 0
       ? I18n.t("gate_friction_counting", { seconds: secs })
       : I18n.t("gate_friction_ready");
