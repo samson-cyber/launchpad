@@ -30,11 +30,12 @@ Every frame below was viewed before it was listed, and every floating element st
 - **`insights-photo.png`** — the same over the photograph.
 - **`insights-light.png`** — the same white-tinted. One node under floor on this ground, none on the other two.
 
-### The gate — `gate-{session,inert}.png`
-**One ground, three states — and only two of the three were reachable.** `gate.css` has no `has-bg` model (WM.2 measured four identical readings), so the axis that moves is state, not ground.
+### The gate — `gate-{session,schedule,inert}.png`
+**One ground, three states, all three now present.** `gate.css` has no `has-bg` model (WM.2 measured four identical readings), so the axis that moves is state, not ground. *(The schedule frame was missing from this pack's first version and is described under the correction below.)*
 - **`gate-session.png`** — "youtube.com is blocked", reason *"Blocked during your focus session: less than a minute focused on Wireframe the shortened flow"*, controls **5 more minutes / End focus session**, footnote *"Blocking youtube.com and its subdomains."* Reached by navigating a real tab to a real blocked domain and letting the worker's intercept redirect it.
 - **`gate-inert.png`** — "This site is not blocked", *"Focus blocking is not on right now."*, a single **Go to LaunchPad**. This is `gate_reason_none`, and opening the page directly is one of its two documented routes.
-- **A schedule-blocked gate is NOT in this pack.** See *What is not here* below.
+- **`gate-schedule.png`** — "news.ycombinator.com is blocked", reason *"Blocked because news.ycombinator.com is on your schedule right now."*, and **one** control: **5 more minutes**. Reached the same way, by a real navigation the worker redirected, **with no session running at all**. The footnote reads *"Blocking news.ycombinator.com and its subdomains."*
+  - **It correctly does NOT offer "End focus session"** — there is no session to end. Two further buttons exist in the DOM (`#gate-friction-cancel` "Never mind", `#gate-friction-go`) and both measure 0x0 and are unpainted: they are WM.4 friction controls, and friction is not engaged here. A `textContent` scrape of `.gate-actions button` reports three; only one is on screen. **The painted set is the one this line describes.**
 
 ### The popup — `popup-states.png`
 360px, one ground (Chrome paints it over browser chrome, never over the wallpaper). Five states stacked top to bottom:
@@ -68,7 +69,13 @@ Photo ground. The tab bar at count 9, the list open over it with Overdue and Due
 
 ## What is not here, and why
 
-**A schedule-blocked gate.** Three attempts, three different hosts, and the answer turned out to be about the product rather than the harness: with no session running, `Storage.focusBlockingActive(data)` is **false**, and with it false the intercept never fires — so a per-entry `mode: "schedule"` window never blocks on its own. The window itself persisted correctly (`{host, mode:"schedule", windows:[{days:[0-6], start:"12:00", end:"16:00"}]}`) and `blockingEntryHolds` still returned false at 13:34. Either schedule mode narrows *when* blocking applies within an already-active session, or something is wrong; **that is a question for the audit, not a gap in the pack.**
+**~~A schedule-blocked gate.~~ CORRECTED 2026-09-18 — it is here now, and the original entry was wrong.** This section used to say a schedule "never blocks on its own", blame `focusBlockingActive` being false with no session, and hand the question to the audit. **That was a defect in this harness, not in the product**, and the correction is kept in place rather than quietly deleted because the shape recurs.
+
+**What was actually wrong:** the harness seeded the schedule correctly and **never set the workspace to Work mode**. Every workspace defaults to Casual, and `blockingReasonActive` refuses the schedule reason on a Casual workspace *by ruling* — the 2026-09-01 decision that scheduled blocking follows the current workspace. So the navigation was let through, correctly, and the pack read a working feature as a broken one. The intercept has **no** session-only pre-gate: it calls `Storage.blockingMatchFor`, which evaluates all three reasons.
+
+**The fix to the harness was one line** (`await Storage.saveAll(d)` after `setWorkspaceMode`, which is mutate-only — BUGS **I34**, the same trap this pack hit three times while seeding). With the workspace actually in Work mode the gate appears on the first navigation, with no session, which is `gate-schedule.png`.
+
+**The lesson, and it is the one worth carrying:** *a fixture that cannot produce a state is not evidence the state is unreachable.* The pack asserted a product conclusion from a harness that never checked its own preconditions. The replacement harness asserts all five before it navigates — Pro level, workspace mode, the stored entry shape, the normalised window, and `blockingReasonFor` already answering `"schedule"` — and refuses to capture anything if one is false. Full account on Asana 1218615823718601.
 
 **The friction countdown mid-ring and the typed-sentence state.** Not attempted. Both sit behind the commitment toggle plus a snooze, and the gate's own `render` refuses to repaint while friction is up.
 

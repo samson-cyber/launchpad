@@ -54,11 +54,22 @@ function readSubject(file) {
 // so the sibling queue suite can drive them; this suite only needs the exports.
 function fakeChrome() {
   const listeners = {};
+  // [PT.1] The transport layer needs two things the pure layers never did: a
+  // storage the worker can actually READ (the intercept does its own get, it is
+  // not handed `data`), and a record of the redirect it issues. Both default to
+  // empty, so every pre-existing row sees byte-identical behaviour.
+  const updates = [];
+  const store = {};
   const cap = (name) => ({ addListener: (fn) => { (listeners[name] = listeners[name] || []).push(fn); }, removeListener() {} });
   const chrome = {
     storage: {
       local: {
-        async get(k) { return {}; },
+        async get(k) {
+          const keys = Array.isArray(k) ? k : (typeof k === "string" ? [k] : Object.keys(k || {}));
+          const out = {};
+          for (const key of keys) if (store[key] !== undefined) out[key] = store[key];
+          return out;
+        },
         async set() {},
         async remove() {},
         async getBytesInUse() { return 0; },
@@ -87,7 +98,9 @@ function fakeChrome() {
       onSuspend: cap("runtime.onSuspend"),
     },
     tabs: {
-      query: async () => [], get: async () => ({}), update: async () => ({}), remove: async () => {},
+      query: async () => [], get: async () => ({}),
+      update: async (id, props) => { updates.push({ id, props }); return {}; },
+      remove: async () => {},
       create: async () => ({}), sendMessage: async () => ({}),
       onUpdated: cap("tabs.onUpdated"), onRemoved: cap("tabs.onRemoved"),
       onActivated: cap("tabs.onActivated"), onCreated: cap("tabs.onCreated"),
@@ -118,7 +131,7 @@ function fakeChrome() {
     topSites: { get: async () => [] },
     search: { query() {} },
   };
-  return { chrome, listeners };
+  return { chrome, listeners, updates, store };
 }
 
 // Load the subject. `seeds` is a list of {file, find, replace, expect} applied
@@ -140,7 +153,7 @@ function boot(seeds = []) {
     sources[s.file] = src.split(s.find).join(s.replace);
   }
 
-  const { chrome, listeners } = fakeChrome();
+  const { chrome, listeners, updates, store } = fakeChrome();
   const ctx = {
     chrome,
     console: { log() {}, warn() {}, error() {}, info() {} },
@@ -161,7 +174,7 @@ function boot(seeds = []) {
   ctx.self = ctx; ctx.globalThis = ctx; ctx.window = undefined;
   vm.createContext(ctx);
   vm.runInContext(sources["background.js"], ctx, { filename: "background.js" });
-  return { ctx, listeners };
+  return { ctx, listeners, updates, store };
 }
 
 function requireExports(ctx) {
@@ -1030,6 +1043,21 @@ const SEEDS = [
     seeds: [{ file: "storage.js", find: '    if (!rec || typeof rec !== "object") return null;', replace: '    if (!rec || typeof rec !== "object") return 0;' }],
   },
   {
+    // [PT.1] THE BUG REPORT, AS A MUTANT. Asana 1218615823718601 reported that a
+    // schedule never fires without a session, and named the shape: a session-only
+    // pre-gate in front of the three-reason reader. The code does not have one -
+    // but nothing PROVED that, because no row drove the transport. This seed puts
+    // the described defect in, so the claim is answerable by running the suite.
+    // It escapes every layer above 7, which is exactly why layer 7 exists.
+    name: "[PT.1] a session-only pre-gate in front of the reader",
+    note: "the reported defect: schedules and budgets would never fire without a session",
+    seeds: [{
+      file: "background.js",
+      find: "    var match = focusInterceptMatch(data, host, ctx);",
+      replace: "    if (!Storage.focusBlockingActive(data)) return;\n    var match = focusInterceptMatch(data, host, ctx);",
+    }],
+  },
+  {
     // [WM.3] WM.2's TWO SEEDS RETIRE HERE, AND THIS IS THEM DOING THEIR JOB
     // RATHER THAN BEING DELETED. They guarded "schedule and budget are REFUSED,
     // not merely unreachable" by forcing each branch live before it was built -
@@ -1048,7 +1076,129 @@ const SEEDS = [
   },
 ];
 
-function runMutations() {
+// ===== LAYER 7 [PT.1]: THE TRANSPORT, DRIVEN =================================
+//
+// WHY THIS LAYER EXISTS, and it is the whole point of the round that added it.
+// Every layer above calls focusInterceptDecision(data, host) - the PURE
+// decision, handed its snapshot. Nothing above drives the listener background.js
+// actually registers, so nothing above could see a defect that lives BETWEEN the
+// listener and the reader: a pre-gate, a bail, a dropped frameId. The decision
+// can be perfect and the user still walk straight in.
+//
+// That is not hypothetical. A bug report on 2026-09-18 said exactly this had
+// happened - a schedule with no session running never blocked - and the suite
+// could not answer it, because no row asserted that a navigation REDIRECTS. The
+// answer turned out to be no defect, but the suite's inability to say so is the
+// gap these rows close. The seeded mutation below is that exact defect.
+//
+// THE CLOCK IS THE REAL ONE HERE. The layers above pass an explicit nowMs; the
+// transport cannot, because the intercept calls Date.now() itself. So the
+// windows are built AROUND the moment the suite runs and the day set is all
+// seven, which makes both the plain and the wrapped branch correct at any hour -
+// including the runs that straddle local midnight.
+async function runTransport(bootRes) {
+  const { ctx, listeners, updates, store } = bootRes;
+  const rows = [];
+  const check = (name, pass, detail = "") => rows.push({ name, pass: !!pass, detail });
+
+  const nowMin = (() => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); })();
+  const hhmm = (m) => { const x = ((m % 1440) + 1440) % 1440; return String(Math.floor(x / 60)).padStart(2, "0") + ":" + String(x % 60).padStart(2, "0"); };
+  const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
+  const OPEN = [{ days: ALL_DAYS, start: hhmm(nowMin - 60), end: hhmm(nowMin + 60) }];
+  const SHUT = [{ days: ALL_DAYS, start: hhmm(nowMin + 120), end: hhmm(nowMin + 240) }];
+
+  // Fixture self-verification (Q7): the windows must be what they claim before a
+  // single row leans on them, or "no gate" is unreadable.
+  const S = ctx.Storage;
+  check("fixture: the OPEN window is open right now",
+    S.blockingEntryHolds({}, { mode: "schedule", windows: OPEN }, {}, Date.now()) === true);
+  check("fixture: the SHUT window is not",
+    S.blockingEntryHolds({}, { mode: "schedule", windows: SHUT }, {}, Date.now()) === false);
+
+  // Drive the listener the extension actually registers, exactly as Chrome does.
+  const fire = async (data, url) => {
+    updates.length = 0;
+    store.data = data;
+    const l = listeners["webNavigation.onBeforeNavigate"] || [];
+    for (const fn of l) fn({ frameId: 0, tabId: 42, url: url || "https://www.youtube.com/watch?v=1" });
+    await new Promise((r) => setTimeout(r, 60));
+    return updates.map((u) => String((u.props && u.props.url) || ""));
+  };
+  const gated = (u) => u.length === 1 && u[0].indexOf("gate.html") !== -1;
+
+  check("the listener is registered at all",
+    (listeners["webNavigation.onBeforeNavigate"] || []).length === 1);
+
+  const sched = (windows) => ({ host: "youtube.com", mode: "schedule", windows: windows });
+
+  // THE CASE THE BUG REPORT WAS ABOUT, and the one a schedule exists for.
+  check("NO SESSION + a schedule inside its window GATES a real navigation",
+    gated(await fire(buildData(ctx, { workspaceMode: "work", blockList: [sched(OPEN)] }))));
+  check("...and the redirect names the entry it matched",
+    String((await fire(buildData(ctx, { workspaceMode: "work", blockList: [sched(OPEN)] })))[0] || "").indexOf("entry=youtube.com") !== -1);
+  check("NO SESSION + the window SHUT does not gate",
+    (await fire(buildData(ctx, { workspaceMode: "work", blockList: [sched(SHUT)] }))).length === 0);
+  check("a CASUAL workspace does not gate on a schedule, inside the window",
+    (await fire(buildData(ctx, { workspaceMode: "casual", blockList: [sched(OPEN)] }))).length === 0);
+
+  // A budget, with no session either - the other reason that must not need one.
+  //
+  // THE FIGURES ARRIVE THROUGH STORAGE, not through `data`, and only this layer
+  // exercises that: the intercept reads focus_budget_today in the SAME get as
+  // `data`, so a budget row here proves the second key is actually read. The
+  // layers above hand ctx.budgetToday in by hand and cannot.
+  const BUDGET = { host: "youtube.com", mode: "budget", limitMin: 30 };
+  const figures = (ms) => ({ day: S.localDayKey(Date.now()), byWorkspace: { main: { "youtube.com": ms } } });
+  const fireBudget = async (data, ms) => {
+    store.focus_budget_today = figures(ms);
+    const u = await fire(data);
+    delete store.focus_budget_today;
+    return u;
+  };
+  check("NO SESSION + a budget already MET gates",
+    gated(await fireBudget(buildData(ctx, { workspaceMode: "casual", blockList: [BUDGET] }), 31 * 60000)));
+  check("NO SESSION + a budget NOT met does not gate",
+    (await fireBudget(buildData(ctx, { workspaceMode: "casual", blockList: [BUDGET] }), 5 * 60000)).length === 0);
+  check("a budget with NO figures read does not gate - not-told is not zero",
+    (await fire(buildData(ctx, { workspaceMode: "casual", blockList: [BUDGET] }))).length === 0);
+
+  // A session still gates, unchanged - the regression guard on the fix.
+  check("a running WORK session still gates, with no schedule anywhere",
+    gated(await fire(buildData(ctx, { phase: "work", blockList: ["youtube.com"] }))));
+  check("a manual arm still gates",
+    gated(await fire(buildData(ctx, { armed: true, blockList: ["youtube.com"] }))));
+  check("nothing armed and no schedule does not gate",
+    (await fire(buildData(ctx, { blockList: ["youtube.com"] }))).length === 0);
+
+  // The transport's own rules, which only this layer can reach.
+  check("a SUBFRAME navigation is ignored", await (async () => {
+    updates.length = 0;
+    store.data = buildData(ctx, { workspaceMode: "work", blockList: [sched(OPEN)] });
+    for (const fn of (listeners["webNavigation.onBeforeNavigate"] || [])) fn({ frameId: 1, tabId: 42, url: "https://www.youtube.com/" });
+    await new Promise((r) => setTimeout(r, 60));
+    return updates.length === 0;
+  })());
+  check("a non-http scheme never reaches the reader",
+    (await fire(buildData(ctx, { workspaceMode: "work", blockList: [sched(OPEN)] }), "chrome://extensions")).length === 0);
+  check("the never-block list wins over an open schedule",
+    (await fire(buildData(ctx, { workspaceMode: "work", blockList: [{ host: "mylaunchpad.me", mode: "schedule", windows: OPEN }] }),
+      "https://mylaunchpad.me/account")).length === 0);
+  check("an EXPIRED profile is not gated by an open schedule",
+    (await fire(buildData(ctx, { pro: "expired", workspaceMode: "work", blockList: [sched(OPEN)], expectLevel: "expired" }))).length === 0);
+
+  // SAME-DOCUMENT routes. An SPA gated on entry must stay gated as it routes.
+  for (const ev of ["webNavigation.onHistoryStateUpdated", "webNavigation.onReferenceFragmentUpdated"]) {
+    updates.length = 0;
+    store.data = buildData(ctx, { workspaceMode: "work", blockList: [sched(OPEN)] });
+    for (const fn of (listeners[ev] || [])) fn({ frameId: 0, tabId: 42, url: "https://www.youtube.com/feed/trending" });
+    await new Promise((r) => setTimeout(r, 60));
+    check(ev.split(".")[1] + " gates on a schedule too", gated(updates.map((u) => String(u.props.url))));
+  }
+
+  return rows;
+}
+
+async function runMutations() {
   console.log("\nFOCUS DECISION — MUTATION SEEDING\n");
   console.log("  Each seed removes exactly ONE guard and leaves the rest of the chain running.");
   console.log("  ANCHOR-MISS / ANCHOR-AMBIGUOUS are reported separately from ESCAPED (BUGS.md Q2):");
@@ -1057,7 +1207,8 @@ function runMutations() {
   const results = [];
   for (const m of SEEDS) {
     let ctx;
-    try { ({ ctx } = boot(m.seeds)); }
+    let bootRes;
+    try { bootRes = boot(m.seeds); ctx = bootRes.ctx; }
     catch (err) {
       if (err.anchor) { results.push({ name: m.name, status: "ANCHOR-" + err.anchor, detail: err.message }); continue; }
       results.push({ name: m.name, status: "SUBJECT-BROKEN", detail: err.message });
@@ -1066,7 +1217,7 @@ function runMutations() {
     try { requireExports(ctx); }
     catch (err) { results.push({ name: m.name, status: "SUBJECT-BROKEN", detail: err.message }); continue; }
 
-    const rows = runSuite(ctx);
+    const rows = runSuite(ctx).concat(await runTransport(bootRes));
     const failed = rows.filter((r) => !r.pass);
     results.push({
       name: m.name,
@@ -1101,15 +1252,16 @@ function runMutations() {
 
 // ---------------------------------------------------------------- entry
 let ctx;
-try { ({ ctx } = boot()); requireExports(ctx); }
+let BOOT;
+try { BOOT = boot(); ctx = BOOT.ctx; requireExports(ctx); }
 catch (err) {
   console.log("FOCUS DECISION: SUBJECT DID NOT LOAD — " + (err && err.message));
   process.exit(2);
 }
 
-if (MUTATE) { runMutations(); }
+if (MUTATE) { await runMutations(); }
 else {
-  const rows = runSuite(ctx);
+  const rows = runSuite(ctx).concat(await runTransport(BOOT));
   let pass = 0, fail = 0;
   console.log("\nFOCUS DECISION — [1.2.0] block/allow chain\n");
   for (const r of rows) {
@@ -1118,7 +1270,7 @@ else {
   }
   // Anti-vacuity floor (BUGS.md P2). The recorded suite ran 35 checks; this one
   // must never quietly shrink below that.
-  const MIN = 35;
+  const MIN = 48;   // [PT.1] raised with layer 7; the recorded suite was 35
   if (rows.length < MIN) {
     console.log(`\nFOCUS DECISION: FAIL — only ${rows.length} assertions ran (expected >= ${MIN}); the suite is broken, not clean.\n`);
     process.exit(1);
