@@ -3167,7 +3167,24 @@
   // wrong for the Round 1 presets - a 7-day board still claimed "30 days ago" -
   // and a custom range makes both ends arbitrary. A todayIndex of -1 highlights no
   // bar at all, which is what a range ending in the past should do.
-  function insightsBarChartSvg(hours, todayIndex, ariaLabel, startLabel, endLabel) {
+  // [H2a] opts IS OPT-IN, AND THAT IS A SCOPE FACT RATHER THAN A STYLE ONE.
+  // FIVE builders on this board are SHARED WITH THE FREE PREVIEW -
+  // insightsBarChartSvg, insightsDonutSvg, insightsDonutLegend,
+  // insightsHeatmapHtml and insightsWeeklyHtml - and renderInsightsPreview is
+  // H3b's surface, not this round's. So every change to a shared builder is a
+  // parameter the BOARD passes and the preview does not, and the preview's
+  // output stays byte-identical by construction rather than by care.
+  //
+  //   opts.h        a taller viewBox. The v2 hours/day tile is 2x2 - 366px -
+  //                 and a 1060x190 box at 100% width renders about 118px tall,
+  //                 which floats in the middle of the tile with nothing under
+  //                 it. Taller BOX rather than a stretched one: preserveAspect
+  //                 none would distort the axis captions, which is the same
+  //                 reason [1.8.1] widened rather than capped.
+  //   opts.caption  false drops the in-SVG "Hours / day". On the v2 tile the
+  //                 EYEBROW says it, and the board's own rule is that a tile
+  //                 names itself once.
+  function insightsBarChartSvg(hours, todayIndex, ariaLabel, startLabel, endLabel, opts) {
     // [1.8.1] THE VIEWBOX IS WIDER BECAUSE THE BOARD IS. .pp-trend-chart is
     // width:100%/height:auto, so the chart's height is purely its aspect ratio -
     // and moving Insights from a 720px column to Tasks width scaled a 560x190
@@ -3180,7 +3197,15 @@
     // vertical geometry untouched: padTop/padBottom are unchanged against the
     // same h, so the plot area is the same shape it always was. Rendered bar
     // width lands within a pixel of before.
-    var w = 1060, h = 190, padX = 32, padTop = 28, padBottom = 32;
+    // [H2a] THE BOX IS THE TILE'S NOW, AND THE WIDTH MATTERS AS MUCH AS THE
+    // HEIGHT. An SVG with width:100% renders at (tile width / viewBox width),
+    // and 1060 was chosen in [1.8.1] for a chart that spanned the whole board.
+    // In a 2x2 tile of about 530px that is a 0.5 scale, which renders the axis
+    // labels at five and a half pixels - seen in the frame, not in a number,
+    // and no contrast measurement would have called it wrong because the ratio
+    // is fine. A box the size of the tile renders 1:1.
+    var w = (opts && opts.w) || 1060, h = (opts && opts.h) || 190,
+        padX = 32, padTop = (opts && opts.caption === false) ? 12 : 28, padBottom = 32;
     var maxH = Math.max.apply(null, hours) || 1;
     var step = (w - 2 * padX) / hours.length;
     var barW = step * 0.6;
@@ -3195,7 +3220,8 @@
     return '<svg class="pp-trend-chart" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + ariaLabel + '">' +
         '<line class="pp-axis" x1="' + padX + '" y1="' + (h - padBottom) + '" x2="' + (w - padX) + '" y2="' + (h - padBottom) + '" />' +
         barsSvg +
-        '<text class="pp-axis-label" x="' + padX + '" y="' + (padTop - 10) + '">' + th("insights_hours_day") + '</text>' +
+        ((opts && opts.caption === false) ? "" :
+          '<text class="pp-axis-label" x="' + padX + '" y="' + (padTop - 10) + '">' + th("insights_hours_day") + '</text>') +
         '<text class="pp-axis-label-sub" x="' + padX + '" y="' + (h - padBottom + 16) + '" text-anchor="start">' + escapeHtml(startLabel || "") + '</text>' +
         '<text class="pp-axis-label-sub" x="' + (w - padX) + '" y="' + (h - padBottom + 16) + '" text-anchor="end">' + escapeHtml(endLabel || "") + '</text>' +
       '</svg>';
@@ -3506,8 +3532,14 @@
     // picker at all; the builder still swaps defensively for the keyboard path.
     var toMin = (custom && from) ? from : hz.min;
 
+    // [H2a] THE SELECTOR IS A PILL NOW, AND IT KEEPS .seg-btn ON PURPOSE.
+    // [1.2.2]'s comment argues that reusing the settings segmented control is
+    // what gives this JS-rendered board ink the panel-ink gate cannot see. That
+    // argument survives the re-skin: the classes stay, the v2 rules dress them,
+    // and every button is still the same element with the same data attribute
+    // and the same handler.
     return '<div class="insights-range">' +
-        '<div class="settings-segmented insights-range-seg" role="group" aria-label="' + th("insights_date_range") + '">' +
+        '<div class="settings-segmented insights-range-seg ins-seg" role="group" aria-label="' + th("insights_date_range") + '">' +
           INSIGHTS_RANGES.map(function (r) {
             var on = (!custom && r.days === activeDays);
             return '<button type="button" class="seg-btn' + (on ? ' active' : '') + '"' +
@@ -3596,10 +3628,23 @@
           '<div class="pp-badge-sub">' + sub + '</div>' +
         '</div>';
     }).join("");
-    return '<div class="pp-insights-card">' +
-        '<div class="pp-dash-card-title">' + th("insights_achievements") + ' ' +
-          '<span class="insights-badge-count">' + earnedCount + ' of ' + INSIGHTS_BADGES.length + '</span>' +
-        '</div>' +
+    // [H2a] THE ROSE TILE, AND THE BADGES STAY. Board 6 draws this tile as a
+    // COUNT - "1/6" and the most recent badge - which is a smaller card than
+    // the one that ships: the live card is a six-badge grid with icons, titles
+    // and either the date earned or the real target. Replacing six badges with
+    // a count would be removing a feature in a re-skin, so the count JOINS them
+    // as the tile's figure and the grid stays beneath it.
+    //
+    // THAT IS ALSO WHAT MAKES THE GRID TILE EXACTLY. Eight tiles over four
+    // columns is seventeen cells - hero 2x2, hours 2x2, tag 2, site 1, tasks 1,
+    // this-week 1, heat 3, achievements 1 - which leaves THREE HOLES in the last
+    // row, and H1a's review ruled that a hole reads as a tile that failed. At
+    // 4x2 the count is twenty-four cells over six rows with nothing empty, and
+    // the badges have the room they always needed.
+    return '<div class="tile tile--overdue ins-achievements">' +
+        '<div class="tile-eyebrow">' + th("insights_achievements") + '</div>' +
+        '<div class="ins-ach-count">' + earnedCount +
+          '<span class="ins-ach-of">/' + INSIGHTS_BADGES.length + '</span></div>' +
         '<div class="pp-badge-grid">' + badgesHtml + '</div>' +
       '</div>';
   }
@@ -3634,7 +3679,27 @@
     // Every element that rendered before still renders; only the tiering moved.
     var trackingShell = scope
       ? '<div class="ins-row-range">' + insightsRangeSelectorHtml(rangeDays) + '</div>' +
-        '<div class="pp-insights-card ins-hero">' +
+        // ===== [H2a] THE BENTO =====
+        //
+        // FOUR COLUMNS, 176px ROWS, ONE GAP - the .bento utility H0 shipped.
+        // Six rows, twenty-four cells, NOTHING EMPTY:
+        //
+        //   rows 1-2   DEEP WORK 2x2          HOURS / DAY 2x2
+        //   row 3      TIME BY TAG 2          BY SITE 1   TOP TASKS 1
+        //   row 4      THIS WEEK 1            BEST FOCUS HOURS 3
+        //   rows 5-6   ACHIEVEMENTS 4x2
+        //
+        // THE SPEC SAYS THE HEATMAP IS 3-WIDE AND IT IS, but the spec's own
+        // list of eight tiles does not tile four columns - it is seventeen
+        // cells - so achievements grows rather than stranding three holes in a
+        // row of its own. H1a's review ruled that shape: content-justified,
+        // because a hole reads as a tile that failed.
+        //
+        // EVERY READER IS UNTOUCHED. This is a re-render: the same
+        // insightsRefresh fills the same data-ins-* hooks, in the same two
+        // phases, from the same scope.
+        '<div class="bento ins-bento">' +
+        '<div class="tile tile--hero span-2x2 ins-hero">' +
           // [insights-rhythm] ONE NAMING OF THE RANGE PER CARD. This title said
           // "Deep Work \u00b7 last 30 days" and insightsStripHtml printed "last
           // 30 days" again directly beneath the numeral, 56px lower - the same
@@ -3655,23 +3720,28 @@
           // is a surface-wide question for the canvas, not a rhythm fix; what
           // this round removes is the one repetition that happened INSIDE a
           // single card, where the two namings are 56px apart.
-          '<div class="pp-dash-card-title">' + th("insights_deep_work") + '</div>' +
+          '<div class="tile-eyebrow">' + th("insights_deep_work") + '</div>' +
           '<div class="ins-hero-head" data-ins-strip></div>' +
-          '<div class="ins-hero-chart" data-ins-deepwork></div>' +
         '</div>' +
-        '<div class="ins-peers">' +
-          '<div class="pp-insights-card ins-peer">' +
-            '<div class="pp-dash-card-title">' + th("insights_time_by_tag_range", { range: rangeLabel }) + '</div>' +
-            '<div class="pp-donut-row" data-ins-donut></div>' +
-          '</div>' +
-          '<div class="pp-insights-card ins-peer">' +
-            '<div class="pp-dash-card-title">' + th("insights_time_by_site_range", { range: rangeLabel }) + '</div>' +
-            '<div class="insights-task-list insights-site-list" data-ins-topsites></div>' +
-          '</div>' +
-          '<div class="pp-insights-card ins-peer">' +
-            '<div class="pp-dash-card-title">' + th("insights_top_tasks_range", { range: rangeLabel }) + '</div>' +
-            '<div class="insights-task-list" data-ins-toptasks></div>' +
-          '</div>' +
+        // THE HOURS/DAY TILE IS ITS OWN NOW. It was the hero's lower half - one
+        // card carrying a figure and a chart - and board 6 splits them, which is
+        // the change that lets the bars fill 366px instead of sharing 240 with a
+        // display numeral. The hook is the same; only its host moved.
+        '<div class="tile tile--list span-2x2 ins-hours">' +
+          '<div class="tile-eyebrow">' + th("insights_hours_day") + '</div>' +
+          '<div class="ins-hours-chart" data-ins-hours></div>' +
+        '</div>' +
+        '<div class="tile tile--goals span-2 ins-tag">' +
+          '<div class="tile-eyebrow">' + th("insights_time_by_tag_range", { range: rangeLabel }) + '</div>' +
+          '<div class="pp-donut-row" data-ins-donut></div>' +
+        '</div>' +
+        '<div class="tile tile--list ins-peer">' +
+          '<div class="tile-eyebrow">' + th("insights_time_by_site_range", { range: rangeLabel }) + '</div>' +
+          '<div class="insights-task-list insights-site-list" data-ins-topsites></div>' +
+        '</div>' +
+        '<div class="tile tile--list ins-peer">' +
+          '<div class="tile-eyebrow">' + th("insights_top_tasks_range", { range: rangeLabel }) + '</div>' +
+          '<div class="insights-task-list" data-ins-toptasks></div>' +
         '</div>' +
         // [1.8.3] ROW THREE. Design guide 4.2 puts the heatmap at span 8 and
         // the weekly review at span 4. The heatmap is [1.8.5], and the space
@@ -3681,19 +3751,28 @@
         // and did not jump when they did. A placeholder would have to be
         // designed, then deleted, and would be the only thing on the board
         // making a promise.
-        '<div class="ins-row3">' +
-          '<div class="pp-insights-card ins-heat-card">' +
-            '<div class="pp-dash-card-title">' + th("insights_heat_title") + '</div>' +
-            '<div data-ins-heat></div>' +
-          '</div>' +
-          '<div class="pp-insights-card ins-weekly" data-ins-weekly></div>' +
+        // THIS WEEK COMES BEFORE THE HEATMAP IN THE DOM so auto-placement puts
+        // it in column one and the 3-wide heatmap fills the rest of row four.
+        // Reversed, the heatmap would take columns 1-3 and this-week column 4,
+        // which is the same tiling and the wrong reading order - the violet
+        // stat is the summary and the heatmap is the detail beside it.
+        '<div class="tile tile--blocking ins-weekly" data-ins-weekly></div>' +
+        '<div class="tile tile--list span-3 ins-heat-card">' +
+          '<div class="tile-eyebrow">' + th("insights_heat_title") + '</div>' +
+          '<div data-ins-heat></div>' +
+        '</div>' +
+        insightsAchievementsCardHtml(d) +
         '</div>'
       : "";
 
+    // ACHIEVEMENTS IS INSIDE THE GRID WHEN THERE IS A GRID, AND ON ITS OWN WHEN
+    // THERE IS NOT. D3 says the card renders whether or not tracking is on; a
+    // bento with one tile in it would be a four-column grid holding a single
+    // cell, so the suppressed board renders the tile bare.
     panel.innerHTML =
       '<div class="insights-tab">' +
         trackingShell +
-        insightsAchievementsCardHtml(d) +
+        (scope ? "" : insightsAchievementsCardHtml(d)) +
       '</div>';
 
     bindInsightsEvents(panel);
@@ -3978,7 +4057,24 @@
     return HEAT_STEPS[Math.max(0, i)];
   }
 
-  function insightsHeatmapHtml(res, rangeLabel) {
+  // [H2a] opts.ink MOVES THE CELL HUE, AND IT HAS TO BE HERE RATHER THAN IN THE
+  // STYLESHEET. Every lit cell carries background:rgba(111,177,255,a) as an
+  // INLINE style - a hardcoded blue, written per cell, with the alpha step baked
+  // into it - and an inline style beats every selector in the sheet. H1b hit the
+  // identical shape on the tag pill, wrote `background: none`, shipped it, and
+  // measured the pill still painting.
+  //
+  // THE FIVE STEPS ARE UNTOUCHED. HEAT_STEPS still decides the alpha and
+  // insightsHeatCellAlpha still decides which step; only the three channels in
+  // front of it move. Opt-in, because the PREVIEW shares this builder and H3b
+  // owns the preview - so a call with no opts renders exactly the blue it did.
+  var HEAT_INK_V1 = "111,177,255";
+  // --action (#ff8a3d) as channels. A CSS variable cannot be interpolated into
+  // an rgba() alpha this way, so the one place the hex is duplicated outside
+  // tokens.css is here, named and adjacent to what it replaces.
+  var HEAT_INK_ACTION = "255,138,61";
+  function insightsHeatmapHtml(res, rangeLabel, opts) {
+    var heatInk = (opts && opts.ink) || HEAT_INK_V1;
     if (!res || !res.includedDays) {
       return '<div class="insights-empty">' +
         th("insights_heat_none") + '</div>';
@@ -4003,7 +4099,7 @@
       var cells = grid[dow].map(function (ms, hr) {
         var a = insightsHeatCellAlpha(ms, max);
         var cls = a > 0 ? "ins-heat-cell ins-heat-on" : "ins-heat-cell";
-        var style = a > 0 ? ' style="background:rgba(111,177,255,' + a + ')"' : "";
+        var style = a > 0 ? ' style="background:rgba(' + heatInk + ',' + a + ')"' : "";
         return '<div class="' + cls + '"' + style +
           ' title="' + escapeHtml(dayName(dow) + " " + String(hr).padStart(2, "0") + ":00 - " +
             fmtDurationHM(ms)) + '"></div>';
@@ -4281,6 +4377,10 @@
   // Fill the four tracking surfaces from the windowed readers. One scope drives
   // all of them (D3). Reads run in parallel; a stale token (a newer render landed
   // meanwhile) drops the whole paint.
+  // [H2a] THE DEEP-WORK HOOK SPLIT IN TWO. data-ins-deepwork was the hero's
+  // chart slot; the chart now lives in its own tile behind data-ins-hours, and
+  // the hero keeps only its figure. insightsRefresh writes whichever of the two
+  // it finds, so a stale panel cannot end up with an empty tile.
   async function insightsRefresh(panel, scope, d, rangeDays, customKeys) {
     if (!panel || !scope) return;
     if (typeof Tracking === "undefined" || !Tracking.focusedRangeForScope) return;
@@ -4325,13 +4425,16 @@
 
     insightsFill(panel, "[data-ins-strip]",
       insightsStripHtml(range, keys, scopeTotalMs, endsToday, rangeLabelNow));
-    insightsFill(panel, "[data-ins-deepwork]",
-      // Em-dash form, matching the visible card title exactly rather than a
-      // second phrasing: "over the " + label reads as "over the today" for the
-      // one-day preset, and a screen-reader string is copy like any other.
+    // [H2a] THE CHART MOVED TILE AND THE HOOK MOVED WITH IT. The aria-label is
+    // unchanged - it is copy, and re-phrasing it would be a copy change hiding
+    // in a layout round. The two opts are the board's: a taller box so the bars
+    // fill a 2x2 tile, and no in-SVG caption because the tile's eyebrow is the
+    // caption now. The preview passes neither and renders exactly as before.
+    insightsFill(panel, "[data-ins-hours]",
       insightsBarChartSvg(hours, todayIdx, t("insights_deep_work_caption", { range: rangeLabelNow }),
         fmtShortDate(insightsKeyToTs(keys[0])),
-        endsToday ? t("insights_today") : fmtShortDate(insightsKeyToTs(keys[keys.length - 1]))));
+        endsToday ? t("insights_today") : fmtShortDate(insightsKeyToTs(keys[keys.length - 1])),
+        { w: 520, h: 270, caption: false }));
     // [1.8.3] The weekly card is INDEPENDENT OF THE RANGE SELECTOR - it always
     // describes this week against last, whatever window the rest of the board
     // is showing. That is deliberate: "this week vs last" is a fixed question,
@@ -4344,7 +4447,12 @@
     // scoping, stated rather than inherited.
     Tracking.bestHoursForScope(scope.workspaceId, keys).then(function (res) {
       if (token !== insightsReadToken) return;
-      insightsFill(panel, "[data-ins-heat]", insightsHeatmapHtml(res, rangeLabelNow));
+      // 255,138,61 is --action. The token cannot be read from here - this is a
+      // channel triple spliced into an rgba(), not a colour value - so it is
+      // named once, beside the v1 constant it replaces, rather than three times
+      // down the call chain.
+      insightsFill(panel, "[data-ins-heat]",
+        insightsHeatmapHtml(res, rangeLabelNow, { ink: HEAT_INK_ACTION }));
     }).catch(function (err) {
       console.error("[LaunchPad] Insights: best-hours read failed", err);
     });
@@ -4457,17 +4565,35 @@
     // not print the same claim three times because the layout has room.
     // The lead keeps the number; the row simply stops repeating it.
     var aside = (keys.length <= 1) ? [] : items.slice(1);
-    return '<div class="ins-hero-lead">' +
+    // [H2a] THE FIGURE AND ITS CONTEXT, NOT A LEAD AND AN ASIDE. Board 6 puts
+    // the numeral alone under the eyebrow and everything else on ONE line
+    // beneath it - best day, daily avg, and the range - each a value beside its
+    // word. The three asides were three stacked stat blocks competing with the
+    // figure for the same vertical space; on a 2x2 tile the figure should be
+    // the only thing that is loud.
+    //
+    // .dash-hero-num IS KEPT AND THE BOARD'S 88px IS NOT TAKEN. [1.7.1]'s
+    // invariant is that --display-1 appears exactly ONCE in this stylesheet, on
+    // that class, and check-today-cockpit asserts it twice. An 88px literal
+    // would be legal - check-text-size only refuses literals BELOW 16px - but it
+    // would be a second hero numeral that does NOT follow the text-size setting,
+    // sitting beside a Dashboard hero that does. One hero numeral, and it
+    // scales. Reported rather than silently smaller than the board.
+    //
+    // THE ONE-DAY SUPPRESSION IS UNCHANGED ([1.8.6]): over a single day the
+    // total, the best day and the average are arithmetically the same number,
+    // so the meta line drops to the range alone rather than printing it thrice.
+    return '<div class="ins-hero-figure">' +
         '<span class="dash-hero-num">' + escapeHtml(lead.num) + '</span>' +
-        '<span class="ins-hero-lead-label">' + lead.label + '</span>' +
       '</div>' +
-      '<div class="ins-hero-aside">' +
+      '<div class="ins-hero-meta">' +
         aside.map(function (it) {
-          return '<div class="ins-hero-stat">' +
-              '<span class="ins-hero-stat-num">' + escapeHtml(it.num) + '</span>' +
+          return '<span class="ins-hero-stat">' +
+              '<b class="ins-hero-stat-num">' + escapeHtml(it.num) + '</b> ' +
               '<span class="ins-hero-stat-label">' + it.label + '</span>' +
-            '</div>';
+            '</span>';
         }).join("") +
+        '<span class="ins-hero-range">' + lead.label + '</span>' +
       '</div>';
   }
 

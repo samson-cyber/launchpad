@@ -22034,3 +22034,556 @@ html.bg-light #active-task-pill .sat-mode-chip { color: #ffc09a; }
    that counts"; the ring now says it, and a second orange inside it would be
    the same sentence twice at the cost of the numeral's legibility against it. */
 #active-task-pill .sat-expanded-pomo.is-work .sat-pomo-time { color: var(--ink); }
+
+/* ===========================================================================
+   [H2a] INSIGHTS, AS A BENTO. Canvas board 6 (V2-Insights); tokens.css holds
+   every value; the 2026-09-18 DECISIONS entries are the authority.
+
+   EVERY BASE SELECTOR OPENS html.has-bg, WHICH IS H1b'S FIRST TILE FINDING
+   APPLIED RATHER THAN REDISCOVERED. A bare `.insights-tab .tile` is (0,2,0) and
+   v1 carries `html.has-bg.bg-light .insights-tab .pp-insights-card` at (0,4,1),
+   so on a light wallpaper the tile would lose its own background and its ink
+   would sit on the wallpaper. H1b measured that as .tt-task-name at 1.08:1;
+   this block never let it happen, and the runtime pass asserts each tile PAINTS
+   on the light ground rather than trusting the selector.
+
+   AND H1b'S SECOND FINDING IS WHY THE [1.8.1] TOKEN BLOCK IS NEUTRALISED BELOW:
+   v1's bg-light INK rules were written for cards that go white, and a tile never
+   does.
+
+   ONE APPENDED BLOCK, scoped under .insights-tab, for the reason H1b's was: the
+   Insights region is not contiguous, four other sessions are in this stylesheet,
+   and one hunk at the end is the only shape that cannot collide. H4's sweep
+   retires what this supersedes.
+   =========================================================================== */
+
+html.has-bg .insights-tab {
+  padding: 36px 56px;
+  gap: var(--gap);
+  display: flex;
+  flex-direction: column;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  text-shadow: none;
+}
+
+/* ---- ROW ONE: THE SEGMENTED PILL AND THE META LINE ------------------------
+
+   v1 drew this row as a frosted BAR - Card tier, its own surface, with the
+   caption and the export button inside it. Board 6 has no bar: the pill is the
+   only object, and the caption and Export sit as bare text on the wallpaper
+   opposite it. That is also what lets the first TILE be the first surface the
+   eye meets, which is the whole grammar of a bento. */
+html.has-bg .insights-tab .ins-row-range {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-radius: 0;
+  padding: 0;
+}
+html.has-bg .insights-tab .insights-range { margin: 0; }
+
+/* THE PILL. A track at menu weight with the segments inside it, which is board
+   6's own construction: rgba(20,18,20,0.5) behind a 1px --tile-line, radius
+   pill, 2px of padding so the active segment's own pill sits inside the track
+   with a hairline of the track showing round it. */
+html.has-bg .insights-tab .ins-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  width: auto;
+  background: rgba(20, 18, 20, 0.5);
+  border: 1px solid var(--tile-line);
+  border-radius: var(--pill);
+  box-shadow: none;
+}
+html.has-bg .insights-tab .ins-seg .seg-btn {
+  flex: 0 0 auto;
+  border: 0;
+  background: none;
+  border-radius: var(--pill);
+  padding: 6px 14px;
+  font-family: var(--font-sans);
+  font-size: var(--fs-11);
+  font-weight: 600;
+  color: var(--ink-mute);
+  box-shadow: none;
+}
+html.has-bg .insights-tab .ins-seg .seg-btn:hover { color: var(--ink); }
+/* THE ACTIVE SEGMENT IS THE ACTION TINT, not a fill: --action-tint behind
+   --action is the pairing the design system publishes, and the same one H1b's
+   notebook strip uses. A solid orange segment would be a second action on a
+   board whose only action is Export. */
+html.has-bg .insights-tab .ins-seg .seg-btn.active {
+  background: var(--action-tint);
+  color: var(--action);
+  box-shadow: none;
+}
+/* ===== THE PILL IS ON THE WALLPAPER, SO H1a'S ALPHA RULE DOES NOT REACH IT
+
+   H1a raised every TILE tint to 94% under html.bg-light because a tint at 82%
+   over #f5f5f5 composites two to three times lighter. The pill's track is not a
+   tile - it is rgba(20,18,20,0.5) on the wallpaper - and at 50% over a light
+   ground it composited to [132,131,132], a mid grey on which BOTH inks failed:
+   the idle segments at 1.39 and the active one at 1.49. Same mechanism, same
+   remedy, one ground: the track goes opaque enough to be its own surface. */
+html.has-bg.bg-light .insights-tab .ins-seg {
+  background: rgba(20, 18, 20, 0.92);
+  border-color: rgba(0, 0, 0, 0.16);
+}
+html.has-bg.bg-light .insights-tab .ins-seg .seg-btn.active {
+  background: var(--action-tint);
+  color: var(--action);
+}
+html.has-bg .insights-tab .ins-seg .seg-btn:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
+}
+
+/* THE META LINE IS ON THE WALLPAPER, so it takes the wallpaper treatment - white
+   with the shadow - and not --ink-mute, which is a TILE ink. H1b measured that
+   exact substitution at 1.07-3.19 on a light wallpaper and 3.67-3.97 on the navy
+   preset; the same nodes here would read the same way. */
+html.has-bg .insights-tab .insights-range-note,
+html.has-bg .insights-tab .insights-export-btn {
+  margin: 0;
+  flex: 0 1 auto;
+  font-size: var(--fs-11);
+  color: rgba(255, 255, 255, 0.82);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+  opacity: 1;
+}
+html.has-bg.bg-light .insights-tab .insights-range-note,
+html.has-bg.bg-light .insights-tab .insights-export-btn {
+  color: var(--text-primary);
+  text-shadow: none;
+}
+/* EXPORT IS THE BOARD'S ONE ACTION and takes --action, which is the one place
+   colour reaches a word on this surface. It keeps its underline: on a
+   wallpaper, colour alone is not an affordance. */
+html.has-bg .insights-tab .insights-export-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-inline-start: 10px;
+  font-family: var(--font-sans);
+  color: var(--action);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+/* ===== ORANGE ON A WHITE WALLPAPER CANNOT CLEAR 4.5, AND THAT IS ARITHMETIC
+   RATHER THAN A CHOICE =====================================================
+
+   --action (#ff8a3d) on the light preset measured 2.15:1. This is 1292ef4's
+   finding arriving for a different hue: it established that no step of amber
+   reaches the text floor on a pale ground, so the colour was never the thing to
+   adjust - and resolved it by letting the WORDS go dark while the amber glyph
+   beside them kept the call-out.
+
+   Export has no glyph, so on this one ground it is a dark underlined link. The
+   underline is what carries the affordance and it never depended on the colour;
+   text-underline-offset and the hover step are unchanged. The action colour
+   survives everywhere the ground can hold it.
+
+   THE PILL'S ACTIVE SEGMENT KEEPS ITS ORANGE because it is not on the wallpaper
+   - it sits on the track above, which is now opaque - so the same hue clears
+   comfortably three lines up. */
+html.has-bg.bg-light .insights-tab .insights-export-btn { color: var(--text-primary); }
+html.has-bg .insights-tab .insights-export-btn:hover { color: var(--action-soft); }
+/* The caption and the button are ONE meta line at the row's right end. */
+html.has-bg .insights-tab .insights-range-note { margin-inline-start: auto; }
+/* The custom date fields drop below the row when the Custom segment is on. */
+html.has-bg .insights-tab .insights-range-custom { flex: 1 0 100%; margin: 0; justify-content: flex-start; }
+html.has-bg .insights-tab .insights-range-field-label { color: var(--ink-mute); font-size: var(--fs-11); }
+
+/* ---- THE GRID ------------------------------------------------------------ */
+/* ===== H1b'S THIRD FINDING, MEASURED ON THE SECOND SURFACE - AND IT IS NOT
+   ONLY THE LIST TILE =====================================================
+
+   H1b measured --ink-mute at 12px/400 on --tile-list at 3.3-4.5 and lifted it
+   to #cfc5bc scoped to Tasks, asking the next surface to measure its own. This
+   one did, with tools/sweep-ink.mjs against a master baseline on the same
+   fixture, and the answer is WORSE than the finding as stated: the shortfall is
+   on EVERY TINT, not only on the faint list tile.
+
+     --ink-mute (#a89c93) at 12px/400, measured on the dark default
+       .pp-donut-legend-hrs   on --tile-goals      3.40 - 3.61
+       .ins-wk-label          on --tile-blocking   3.02 - 3.11
+       .ins-hero-stat-label   on --tile-hero       3.24 - 3.28
+       .insights-task-dur     on --tile-list       4.35 - 4.49
+       .ins-heat-daylabel     on --tile-list       4.03
+
+   THE TINTS ARE WORSE THAN THE LIST TILE, which is the opposite of what the
+   finding's wording implies - and it follows from the numbers rather than
+   contradicting them: a tint is a COLOUR at 82%, so it composites lighter than
+   the near-black list tile at 72%, and a warm mid-grey has less room on it.
+
+   #cfc5bc, THE SAME VALUE H1b CHOSE, deliberately: two surfaces agreeing on one
+   replacement is the evidence H4 needs to lift the token, and two surfaces
+   picking two different local greys would be worth much less. Scoped here for
+   the same reason it was scoped there - the token layer is H0's, and three
+   other H2 sessions are rendering tiles as this is written. */
+html.has-bg .insights-tab .tile { --ink-mute: #cfc5bc; }
+
+html.has-bg .insights-tab .ins-bento { align-content: start; }
+
+/* ===== v1's SPANS WERE WRITTEN FOR A TWELVE-COLUMN ROW, AND THIS GRID HAS
+   FOUR. A FOURTH INSTANCE OF H1b'S CLASS, in a new form =====================
+
+   [1.8.5] gave .ins-heat-card `grid-column: span 8` and .ins-weekly `span 4`
+   for .ins-row3, a repeat(12) grid, and argued the 8/4 split on measured cell
+   width. Both rules are still in the sheet and both still match. In a
+   four-column bento they mean span EIGHT and span FOUR: the violet this-week
+   tile claimed the whole of row four on its own and pushed the heatmap onto a
+   row of its own, which is how twenty-four cells became a grid with holes.
+
+   MEASURED, not spotted: the runtime pass reads every tile's computed
+   grid-column and multiplies the spans out, and it returned eight cells where
+   it wanted twenty-four. The same assertion is what proves the fix.
+
+   H1b's three findings are about INK and BACKGROUND rules surviving into a
+   tile. This is the same defect in the LAYOUT layer, and it is worth naming
+   separately because no ink measurement can see it - a tile with the wrong span
+   is perfectly legible and completely wrong. */
+html.has-bg .insights-tab .ins-bento .ins-weekly { grid-column: span 1; }
+html.has-bg .insights-tab .ins-bento .ins-heat-card { grid-column: span 3; }
+
+/* ---- THE HERO, 2x2 -------------------------------------------------------
+
+   THE FIGURE TAKES THE ACTION GRADIENT AS ITS INK, which is board 6's signature
+   and the one place on this board where a numeral is not achromatic. It is a
+   background-clip:text fill, so `color` is transparent and a fallback matters:
+   without one, a browser that does not support the clip paints nothing at all.
+   The declaration order below gives it --ink first and only then makes it
+   transparent, so the fallback is the ink rather than the void.
+
+   AND IT IS STILL .dash-hero-num AT --display-1. The [1.7.1] invariant holds -
+   --display-1 is referenced once in this stylesheet and check-today-cockpit
+   asserts it twice - so the board's 88px is not taken. Reported, not smuggled. */
+html.has-bg .insights-tab .ins-hero { justify-content: space-between; }
+html.has-bg .insights-tab .ins-hero-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  align-items: flex-start;
+}
+html.has-bg .insights-tab .ins-hero-figure { min-width: 0; }
+html.has-bg .insights-tab .ins-hero-figure .dash-hero-num {
+  color: var(--ink);
+  background-image: linear-gradient(90deg, var(--action-soft), var(--action));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.04em;
+}
+html.has-bg .insights-tab .ins-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) 28px;
+  font-size: var(--fs-12);
+  color: var(--ink-mute);
+}
+html.has-bg .insights-tab .ins-hero-stat-num { color: var(--ink); font-weight: 600; }
+html.has-bg .insights-tab .ins-hero-stat,
+html.has-bg .insights-tab .ins-hero-range { white-space: nowrap; }
+
+/* ---- HOURS / DAY, 2x2. The bars fill the tile. ---------------------------- */
+html.has-bg .insights-tab .ins-hours { justify-content: flex-start; }
+html.has-bg .insights-tab .ins-hours-chart {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  margin-top: var(--space-3);
+}
+/* width:100%, height:auto - the aspect ratio is the BOX's now, and the box was
+   sized to the tile above. height:100% with the default preserveAspectRatio
+   letterboxes instead, which is the other half of why the labels were tiny. */
+html.has-bg .insights-tab .ins-hours-chart .pp-trend-chart { width: 100%; height: auto; }
+/* THE BARS TAKE THE ACTION GRADIENT, vertically - board 6 draws every bar as
+   #ffb37a to #ff8a3d top to bottom. An SVG rect cannot carry a CSS gradient, so
+   this is a fill on a defined gradient... which the shared builder does not
+   emit. The honest alternative, and the one taken: a flat --action fill with
+   TODAY at --action-soft, which keeps the one distinction the chart actually
+   makes (which bar is today) and does not ask the preview's builder to grow a
+   <defs>. Reported as the one board detail this surface does not reproduce. */
+html.has-bg .insights-tab .pp-bar { fill: var(--action); }
+html.has-bg .insights-tab .pp-bar-today { fill: var(--action-soft); }
+html.has-bg .insights-tab .pp-axis { stroke: var(--tile-line); }
+html.has-bg .insights-tab .pp-axis-label-sub {
+  fill: var(--ink-mute);
+  opacity: 1;
+}
+html.has-bg.bg-light .insights-tab .pp-axis-label-sub { fill: var(--ink-mute); opacity: 1; }
+
+/* ---- TIME BY TAG, green, span 2 ------------------------------------------ */
+html.has-bg .insights-tab .ins-tag { justify-content: flex-start; }
+html.has-bg .insights-tab .ins-tag { overflow: hidden; }
+html.has-bg .insights-tab .ins-tag .pp-donut-row {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-top: var(--space-2);
+  min-height: 0;
+}
+html.has-bg .insights-tab .pp-donut { width: 112px; height: 112px; flex: none; }
+html.has-bg .insights-tab .pp-donut-center { fill: var(--ink); }
+/* THE LEGEND SCROLLS INSIDE THE TILE, and this is a REAL-DATA finding rather
+   than a layout preference. Board 6 draws four legend rows because its demo
+   profile has four tags; the busy fixture has SEVEN, and seven rows of 19px do
+   not fit the 112px the donut leaves them - the seventh was clipped mid-word in
+   the frame, which is worse than a scrollbar because nothing says there is
+   more. The tile keeps its one-row height; the list gives way. */
+html.has-bg .insights-tab .pp-donut-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  font-size: var(--fs-12);
+  scrollbar-width: thin;
+  scrollbar-color: var(--tile-fill) transparent;
+}
+html.has-bg .insights-tab .pp-donut-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-mute);
+}
+html.has-bg .insights-tab .pp-donut-legend-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+html.has-bg .insights-tab .pp-donut-legend-name {
+  color: var(--ink);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* ===== AT fs-11 ON A TINT, THE MUTE HAS RUN OUT OF ROOM =====================
+
+   #cfc5bc cleared every fs-12 node on every tint, and left exactly four short:
+   .ins-wk-label at 4.41-4.49 on the violet and .pp-donut-legend-hrs at 4.38 on
+   the green, all of them fs-11. The tints are the lightest grounds on the board
+   - a colour at 82% composites lighter than the near-black list tile - and one
+   font-size step down is the difference between 5.1 and 4.4.
+
+   THEY TAKE --ink AND ARE QUIET BY WEIGHT, which is the answer this project
+   keeps arriving at rather than a third grey. Each of these sits beside a value
+   that is --ink at 600; at 400 the pair still reads as label and figure, and
+   nothing on the tile is under the floor.
+
+   REPORTED AS TWO NUMBERS, NOT ONE, because H4 needs both: #cfc5bc is where two
+   surfaces agree for fs-12 on a tile, and fs-11 on a TINT needs more than any
+   mute can give. */
+html.has-bg .insights-tab .pp-donut-legend-hrs {
+  color: var(--ink);
+  font-weight: 400;
+  margin-inline-start: auto;
+}
+
+/* ---- THE TWO LIST TILES -------------------------------------------------- */
+/* SAME FINDING, SAME FIX, on the two list tiles: the readers return six rows
+   and a 176px tile holds four. Clipped, the fifth and sixth were half-visible
+   at the tile's edge - a list that looks broken rather than one that scrolls. */
+html.has-bg .insights-tab .ins-peer { justify-content: flex-start; overflow: hidden; }
+html.has-bg .insights-tab .insights-task-list {
+  margin-top: var(--space-2);
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--tile-fill) transparent;
+}
+/* The bar behind each row goes. Board 6 draws these as a name and a value on one
+   line - a list, not a chart - and the proportional bar was saying a second time
+   what the durations beside it already say, in the one place on this board where
+   a bar means something else (the hours tile). */
+html.has-bg .insights-tab .insights-task-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 3px 0;
+  font-size: var(--fs-12);
+}
+html.has-bg .insights-tab .insights-task-bar { display: none; }
+html.has-bg .insights-tab .insights-task-name {
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+html.has-bg .insights-tab .insights-task-dur { color: var(--ink-mute); flex: none; }
+
+/* ---- THIS WEEK VS LAST, violet ------------------------------------------- */
+html.has-bg .insights-tab .ins-weekly { justify-content: flex-start; gap: 2px; overflow: hidden; }
+/* opacity: 1, AND v1's 0.7 IS WHY. .ins-wk-span carries opacity 0.7 from
+   [1.8.5], chosen against a dark card; on the violet tile it stepped
+   --eyebrow-ink a second time and measured 3.90. Ink is stepped once - the
+   eyebrow ink IS the step. */
+html.has-bg .insights-tab .ins-wk-span {
+  opacity: 1;
+  margin: 0 0 var(--space-2);
+  font-size: var(--fs-11);
+  line-height: var(--eyebrow-lh);
+  font-weight: var(--eyebrow-weight);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--eyebrow-ink);
+}
+html.has-bg .insights-tab .ins-wk-rows { margin-top: var(--space-2); }
+html.has-bg .insights-tab .ins-wk-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--fs-11);
+  padding: 1px 0;
+}
+html.has-bg .insights-tab .ins-wk-label { color: var(--ink); font-weight: 400; }
+html.has-bg .insights-tab .ins-wk-now { color: var(--ink); font-weight: 600; }
+html.has-bg .insights-tab .ins-wk-delta,
+html.has-bg .insights-tab .ins-wk-arrow,
+html.has-bg .insights-tab .ins-wk-mag { color: var(--eyebrow-ink); opacity: 1; }
+html.has-bg.bg-light .insights-tab .ins-wk-delta,
+html.has-bg.bg-light .insights-tab .ins-wk-arrow,
+html.has-bg.bg-light .insights-tab .ins-wk-mag { color: var(--eyebrow-ink); }
+html.has-bg .insights-tab .ins-wk-tops { margin-top: var(--space-2); }
+html.has-bg .insights-tab .ins-wk-top {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--fs-11);
+  min-width: 0;
+}
+html.has-bg .insights-tab .ins-wk-top-name {
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html.has-bg .insights-tab .ins-wk-noprior { margin: 0; font-size: var(--fs-11); color: var(--ink-mute); }
+
+/* ---- BEST FOCUS HOURS, span 3. The cells take --action at the five steps. -- */
+html.has-bg .insights-tab .ins-heat-card { justify-content: flex-start; }
+/* THE CELL FILL IS NOT HERE, AND THAT IS THE SECOND INLINE-STYLE FINDING OF
+   THIS ARC. insightsHeatmapHtml writes background:rgba(111,177,255,a) as an
+   INLINE style on every lit cell - a hardcoded blue, per cell, built in JS - and
+   an inline style beats every selector in this sheet. H1b hit the identical
+   shape on the tag pill and measured it still painting after the CSS said it had
+   no background. So the hue moves in the BUILDER, opt-in, because the preview
+   shares it; only the empty cell's hairline is a stylesheet matter. */
+html.has-bg .insights-tab .ins-heat-cell { background: var(--tile-fill); }
+html.has-bg.bg-light .insights-tab .ins-heat-cell { background: var(--tile-fill); }
+html.has-bg .insights-tab .ins-heat-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+html.has-bg .insights-tab .ins-heat-daylabel,
+html.has-bg .insights-tab .ins-heat-hour,
+html.has-bg .insights-tab .ins-heat-note {
+  color: var(--ink-mute);
+  opacity: 1;
+}
+
+/* ---- ACHIEVEMENTS, rose, 4 wide and 2 tall ------------------------------- */
+html.has-bg .insights-tab .ins-achievements {
+  grid-column: 1 / -1;
+  grid-row: span 2;
+  justify-content: flex-start;
+}
+html.has-bg .insights-tab .ins-ach-count {
+  font-size: var(--display-2);
+  line-height: var(--count-lh);
+  font-weight: var(--count-weight);
+  letter-spacing: var(--count-track);
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
+}
+html.has-bg .insights-tab .ins-ach-of { font-size: var(--fs-15); color: var(--eyebrow-ink); }
+html.has-bg .insights-tab .ins-achievements .pp-badge-grid {
+  margin-top: var(--space-3);
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--gap);
+  flex: 1;
+  min-height: 0;
+}
+html.has-bg .insights-tab .ins-achievements .pp-badge {
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: center;
+}
+html.has-bg .insights-tab .ins-achievements .pp-badge-icon { color: var(--eyebrow-ink); }
+html.has-bg .insights-tab .ins-achievements .pp-badge-title {
+  color: var(--ink);
+  font-size: var(--fs-12);
+  font-weight: 600;
+}
+/* TWO INHERITED OPACITIES, MULTIPLYING. .pp-badge-sub carries opacity 0.7 and
+   .pp-badge-locked carries 0.55 on the PARENT, so a locked sub-line was being
+   stepped three times - the token, then 0.7, then 0.55 - and measured 1.55
+   against master's 1.88 on the same nodes. Making a node that is ruled
+   deliberately faint FAINTER is not honouring the ruling, it is drifting past
+   it. Both opacities go; the step lives in the colour, once. */
+html.has-bg .insights-tab .ins-achievements .pp-badge-sub {
+  color: var(--ink-mute);
+  font-size: var(--fs-11);
+  opacity: 1;
+}
+/* THE UNEARNED BADGES STAY DELIBERATELY FAINT (1292ef4 ruled it, and this round
+   does not reopen it). The ruling was about the DIM, not about the value it is
+   dim against, so the step is re-expressed on the tile rather than carried over
+   as an alpha tuned for a card. */
+html.has-bg .insights-tab .ins-achievements .pp-badge-locked { opacity: 1; color: var(--ink-faint); }
+html.has-bg .insights-tab .ins-achievements .pp-badge-locked .pp-badge-title,
+html.has-bg .insights-tab .ins-achievements .pp-badge-locked .pp-badge-sub,
+html.has-bg .insights-tab .ins-achievements .pp-badge-locked .pp-badge-icon {
+  color: var(--ink-faint);
+  opacity: 1;
+}
+
+/* ---- THE EMPTY STATES sit on a tile, so they take the tile's faintest ink. - */
+html.has-bg .insights-tab .insights-empty {
+  color: var(--ink-mute);
+  font-size: var(--fs-12);
+  background: none;
+  border: 0;
+  padding: var(--space-2) 0;
+}
+
+/* ===== H1b FINDING 2, APPLIED RATHER THAN REDISCOVERED ======================
+
+   [1.8.1] put a light-branch INK TOKEN BLOCK on html.has-bg.bg-light
+   .insights-tab .pp-insights-card - --ink-primary through --ink-hint all
+   redefined to BLACK alphas - because a v1 card went white on a light
+   wallpaper. A tile never does. Left standing, every tile on this board would
+   paint near-black ink on a near-black tile the moment the wallpaper went light,
+   which is exactly the 1.31-1.88 readings H1b measured on the Tasks row.
+
+   The block cannot be deleted - the FREE PREVIEW still renders
+   .pp-insights-card and H3b owns it - so the tokens are restored to the tile's
+   own values inside a tile. Same values as :root's, on purpose: a tile is the
+   same colour on every ground and only its alpha moves (H1a). */
+html.has-bg.bg-light .insights-tab .tile {
+  --ink-primary: var(--ink);
+  --ink-secondary: var(--ink-mute);
+  --ink-meta: var(--ink-mute);
+  --ink-chrome: var(--ink-mute);
+  --ink-hint: var(--ink-faint);
+}
