@@ -1660,18 +1660,18 @@
       '</div>';
   }
 
-  // Right region. The pill's tri-state, READ rather than reimplemented, so the
-  // band can never disagree with the pill — including its honest reading that a
+  // THE PILL'S TRI-STATE, READ RATHER THAN REIMPLEMENTED, so the Dashboard can
+  // never disagree with the pill - including the pill's honest reading that a
   // PAUSED work phase is "off". The wording is the pill's too.
-  function dashHeroBlockingHtml(d) {
+  //
+  // [H1a] THIS WAS dashHeroBlockingHtml, WHICH RETURNED A .dash-hero-stat. The
+  // bento puts this reading on a tile of its own, so that wrapper had no caller
+  // left and the markup was the only part that had to go. What it was actually
+  // FOR - one derivation of the three words, in one place - survives here.
+  function dashBlockingWord(d) {
     var armState = Storage.focusArmState(d);
-    return '<div class="dash-hero-stat">' +
-        '<div class="dash-hero-stat-num">' +
-          (armState === "off" ? th("dash_blocking_off")
-            : (armState === "auto" ? th("dash_blocking_on_auto") : th("dash_blocking_on"))) +
-        '</div>' +
-        '<div class="dash-hero-stat-label">' + th("dash_focus_blocking") + '</div>' +
-      '</div>';
+    return armState === "off" ? th("dash_blocking_off")
+      : (armState === "auto" ? th("dash_blocking_on_auto") : th("dash_blocking_on"));
   }
 
   // ----- Module 2: goals progress -----
@@ -1877,36 +1877,53 @@
       '</div>';
   }
 
-  // Due-today + overdue, earliest first so overdue leads naturally. Overdue is
-  // visually distinct but CALM — the existing .dash-meta-due.is-overdue chip,
-  // reused, rather than a red row: a backlog the user already knows about does not
-  // need to be shouted at every time they open a tab.
+  // [H1a] ONE DEFINITION OF DUE. The list is built from Storage.getDueWork -
+  // the SAME reader the bell calls at newtab.js:444 and :468 and the side panel
+  // calls twice more - rather than from its own Storage.tasksDueByDay read.
   //
-  // `dueOpen` comes from the render's single read so this list and the header
-  // above it are literally the same array. The fallback keeps the builder
-  // callable on its own — it is the identical pure read, one tick later.
-  function dashDueListHtml(ws, dueOpen) {
-    var todayUtc = dashboardTodayAsUtcDay();
-    var due = dueOpen || Storage.tasksDueByDay(ws, todayUtc);
-    if (!due.length) return '<div class="dash-note">' + th("dash_nothing_due_today") + '</div>';
+  // WHAT THAT ACTUALLY CHANGES, because the honest answer is "less than it
+  // sounds": getDueWork is BUILT ON tasksDueByDay (storage.js:9761), so the set
+  // was already identical. What moves is ownership. Overdue-ness is now the
+  // reader's `kind` field instead of a utcDay comparison recomputed here, and
+  // the snooze state arrives as data instead of being invisible to this surface.
+  // Two surfaces that agreed by coincidence now agree by construction.
+  //
+  // SNOOZED ROWS STILL APPEAR HERE, and that is DB.1 decision D standing rather
+  // than an oversight: the bell is a signal and this is the board, so snoozing
+  // silences the bell without hiding the work. So this list's length and the
+  // bell's badge CAN legitimately differ - the bell counts `unsnoozed`, the
+  // board counts `total`. They are two questions, and one reader now answers
+  // both.
+  //
+  // `dueItems` comes from the render's single read so this list, the tile head
+  // and the up-next tile are literally the same array. The fallback keeps the
+  // builder callable on its own - the identical read, one tick later.
+  function dashDueListHtml(ws, dueItems, d) {
+    var items = dueItems || Storage.getDueWork(d || data).items;
+    if (!items.length) return '<div class="dash-note">' + th("dash_nothing_due_today") + '</div>';
 
-    var shown = due.slice(0, DASH_DUE_MAX);
-    var overflow = due.length - shown.length;
-    return shown.map(function (t) {
-      var overdue = Storage.utcDay(t.dueAt) < todayUtc;
+    var shown = items.slice(0, DASH_DUE_MAX);
+    var overflow = items.length - shown.length;
+    return shown.map(function (it) {
       // [1.7.1] Priority as the SHIPPED left border, via the same helper the
       // Tasks tab uses, so the two surfaces cannot drift on what "high" looks
       // like. The border is reserved transparent on every row (see the CSS) so
       // prioritised and unprioritised rows stay aligned.
-      var prio = taskPriorityClass(t.priority);
-      return '<div class="dash-due-row' + (prio ? " " + prio : "") + '">' +
-          '<input type="checkbox" class="tt-task-check dash-due-check" data-task-id="' + escapeHtml(t.id) + '" ' +
-            'aria-label="' + th("dash_due_complete_task_aria", { taskName: t.name }) + '">' +
-          '<span class="dash-due-name">' + escapeHtml(t.name) + '</span>' +
-          (overdue ? '<span class="dash-meta-due is-overdue">' + th("dash_overdue") + '</span>' : '') +
+      //
+      // RESOLVED FOR ITS PRIORITY ONLY, and null-safe: the reader carries the
+      // name and the due stamp itself, so an unresolvable row still renders
+      // correctly and simply loses its priority stripe.
+      var task = Storage.getTaskById(ws, it.taskId);
+      var prio = task ? taskPriorityClass(task.priority) : "";
+      return '<div class="dash-due-row' + (prio ? " " + prio : "") +
+          (it.snoozed ? " is-snoozed" : "") + '">' +
+          '<input type="checkbox" class="tt-task-check dash-due-check" data-task-id="' + escapeHtml(it.taskId) + '" ' +
+            'aria-label="' + th("dash_due_complete_task_aria", { taskName: it.name }) + '">' +
+          '<span class="dash-due-name">' + escapeHtml(it.name) + '</span>' +
+          (it.kind === "overdue" ? '<span class="dash-meta-due is-overdue">' + th("dash_overdue") + '</span>' : '') +
         '</div>';
     }).join("") + (overflow > 0
-      // Counted out loud, never silently cut — a list that stops at ten and says
+      // Counted out loud, never silently cut - a list that stops at ten and says
       // nothing reads as "that is all of them".
       ? '<div class="dash-note">' +
           thHtml("dash_more_due_or_overdue_in_tasks", { count: overflow }, {
@@ -1945,6 +1962,157 @@
     return t("clock_good_evening");
   }
 
+  // ===== [H1a] THE DASHBOARD'S TILE CHROME =================================
+  //
+  // Board Sw8-BentoPhoto, with the four controls from board Recommended. These
+  // helpers build the TILE around content the existing helpers already produce:
+  // the focus figure, the counts, the streak, the week, blocking, the goals
+  // gauges and the due list are all unchanged functions called from new places.
+  //
+  // ONE READER MOVED, and it is a ruling rather than a re-render - the due list
+  // now reads Storage.getDueWork, the same reader the bell uses. See
+  // dashDueListHtml for what that changes and what it deliberately does not.
+
+  /** A 1x1 count tile: eyebrow, figure, sub-line. The shape board 8 uses for
+   *  Overdue, Goals and Blocking, which differ only by tint and content. */
+  function dashCountTileHtml(kind, eyebrowKey, figureHtml, subHtml, extraClass) {
+    return '<div class="tile tile--' + kind + ' dash-tile dash-tile-count' +
+        (extraClass ? " " + extraClass : "") + '">' +
+        '<div class="tile-eyebrow">' + th(eyebrowKey) + '</div>' +
+        '<div class="dash-tile-figure">' + figureHtml + '</div>' +
+        (subHtml ? '<div class="dash-tile-sub">' + subHtml + '</div>' : '') +
+      '</div>';
+  }
+
+  // [H1a] THE MODE PAIR, beside the greeting. WM.1's writer, reached through
+  // setWorkspaceModeFromSwitcher so the toast, the dropdown refresh and the pill
+  // repaint all happen exactly as they do from the switcher - one path, not two
+  // that can drift.
+  //
+  // aria-pressed rather than a radiogroup: these are two buttons, one of which
+  // is on, which is how the switcher already renders them.
+  function dashModeChipsHtml(ws) {
+    var mode = Storage.getWorkspaceMode(ws);
+    function chip(value, key) {
+      var on = (mode === value);
+      return '<button type="button" class="dash-mode-chip' + (on ? " is-on" : "") + '"' +
+        ' data-dash-action="set-mode" data-ws-mode="' + value + '"' +
+        ' aria-pressed="' + (on ? "true" : "false") + '">' + th(key) + '</button>';
+    }
+    return '<div class="dash-mode-pair" role="group" aria-label="' + th("wsmode_label") + '">' +
+        chip("work", "wsmode_work") + chip("casual", "wsmode_casual") +
+      '</div>';
+  }
+
+  /** A toggle on a list tile's head. Rendered here rather than in a settings
+   *  panel because these two controls govern the tile they sit on. */
+  function dashTileToggleHtml(action, on, labelKey) {
+    return '<button type="button" class="dash-tile-toggle' + (on ? " is-on" : "") + '"' +
+      ' data-dash-action="' + action + '" aria-pressed="' + (on ? "true" : "false") + '">' +
+      '<span class="dash-toggle-track" aria-hidden="true"><span class="dash-toggle-knob"></span></span>' +
+      '<span class="dash-toggle-label">' + th(labelKey) + '</span>' +
+    '</button>';
+  }
+
+  // [H1a] THE REMINDERS TOGGLE, on the due tile's head. WM.5's writer.
+  //
+  // THE HINT IS THE RULED PART. A due reminder is suppressed outright when the
+  // workspace is not in Work - storage.js returns an empty set before it looks
+  // at a single task - so on Casual this toggle can read ON while nothing will
+  // ever fire. That is the same shape as the schedule editor's mode note, and it
+  // takes the same fix: say the condition where the control is, rather than
+  // after the user has waited for a notification that was never coming.
+  // Rendered only on Casual, because on Work it is not a condition to warn about.
+  function dashRemindersHeadHtml(d, ws) {
+    var on = Storage.getDueRemindersEnabled(d);
+    var casual = Storage.getWorkspaceMode(ws) !== "work";
+    return '<div class="dash-tile-head">' +
+        '<div class="tile-eyebrow">' + th("dashboard_due_today") + '</div>' +
+        dashTileToggleHtml("toggle-reminders", on, "dash_reminders") +
+      '</div>' +
+      (casual ? '<div class="dash-tile-hint">' + th("dash_reminders_work_only") + '</div>' : '');
+  }
+
+  // [H1a] THE TRACKING TOGGLE, on the time tile's head. The PER-WORKSPACE field,
+  // which is the one this tile's content comes from - not the global switch in
+  // Settings, which is a different field with a different writer.
+  // setTrackingEnabled is MUTATE-ONLY (BUGS.md I34), so the caller saves.
+  function dashTrackingHeadHtml(ws) {
+    var on = Storage.isTrackingEnabled(ws);
+    return '<div class="dash-tile-head">' +
+        '<div class="tile-eyebrow">' + th("dash_where_the_time_went") + '</div>' +
+        dashTileToggleHtml("toggle-tracking", on, "dash_tracking") +
+      '</div>';
+  }
+
+  // [H1a] UP NEXT - the action tile, and the only orange thing on the surface.
+  //
+  // IT SUBSUMES THE OLD CENTRE CARD'S THREE VARIANTS rather than replacing
+  // them, and the order is the point:
+  //   1. an ACTIVE task, if one resolves and is not stale - variant A, "pick up
+  //      where you left off", and it keeps variant A's button too. That button
+  //      is data-dash-action="continue" and NOT "lets-go": re-activating an
+  //      already-active task is a no-op write the engine can read as a session
+  //      boundary, which is what satActivate's own comment warns against.
+  //   2. TODAY'S THREE, in the user's own order. Not a new reader - the render
+  //      already reads getTodaysThree - and a pick IS the user's answer to
+  //      "what next", so it outranks anything computed.
+  //   3. dashboardPickSuggestion, the product's existing priority-and-due sort,
+  //      unchanged and still the fallback it always was - variant B.
+  // Only with all three empty does the tile go clear, which is variant C.
+  function dashUpNextHtml(d, ws, pickedThree) {
+    var task = null;
+    var isActive = false;
+
+    var res = Storage.resolveActiveTask(d);
+    if (res && !res.stale && res.task) { task = res.task; isActive = true; }
+
+    for (var i = 0; i < pickedThree.length && !task; i++) {
+      var got = Storage.getTaskById(ws, pickedThree[i]);
+      if (got && !got.completed) task = got;
+    }
+    if (!task) task = dashboardPickSuggestion(ws);
+
+    if (!task) {
+      // ABSENT, NOT EMPTY is the product's rule, and a tile in a bento is the
+      // one place it cannot apply: this is a named cell in a fixed layout, so
+      // removing it would leave a hole the other tiles reflow into. It keeps its
+      // place and says the true thing instead.
+      return '<div class="tile tile--action dash-tile dash-tile-upnext is-clear">' +
+          '<div class="tile-eyebrow">' + th("dash_up_next") + '</div>' +
+          '<div class="dash-upnext-name">' + th("dash_nothing_on_the_list") + '</div>' +
+          '<div class="dash-upnext-foot"><span class="dash-upnext-meta">' +
+            th("dash_add_something_below_when_you_are") + '</span></div>' +
+        '</div>';
+    }
+
+    var goal = task.goalId ? Storage.getGoalById(ws, task.goalId) : null;
+    var meta = [];
+    if (goal) meta.push(escapeHtml(goal.name));
+    var lbl = dashboardDueLabel(task.dueAt);
+    if (lbl) meta.push(escapeHtml(lbl));
+
+    // The active task's button says Resume when the user is globally paused and
+    // Continue otherwise - the pill's own two words, read rather than restated.
+    var btnLabel = isActive
+      ? (Storage.isTrackingPaused(d) ? th("dash_resume") : th("dash_continue"))
+      : th("dash_start");
+    var btnAction = isActive ? "continue" : "lets-go";
+
+    return '<div class="tile tile--action dash-tile dash-tile-upnext' +
+        (isActive ? " is-active" : "") + '">' +
+        '<div class="tile-eyebrow">' +
+          (isActive ? th("dash_pick_up_where_you_left_off") : th("dash_up_next")) +
+        '</div>' +
+        '<div class="dash-upnext-name">' + escapeHtml(task.name) + '</div>' +
+        '<div class="dash-upnext-foot">' +
+          '<span class="dash-upnext-meta">' + meta.join(" \u00b7 ") + '</span>' +
+          '<button type="button" class="dash-upnext-start" data-dash-action="' + btnAction + '"' +
+            ' data-task-id="' + escapeHtml(task.id) + '">' + btnLabel + '</button>' +
+        '</div>' +
+      '</div>';
+  }
+
   function renderDashboardTab(panel, d, periodOverride) {
     if (!panel) return;
     var ws = Storage.getActiveWorkspace(d);
@@ -1955,102 +2123,144 @@
     // cache can be stale.
     var period = periodOverride || dashboardPeriod(Date.now(), Storage.getEndOfDayMinutes(d));
     var scope = dashFocusedScope(d);
-    // ONE read of the open due/overdue set, feeding both the module's header and
-    // its list. The evening header now makes a claim ABOUT this list, and a second
-    // read would be a second chance for the two to disagree.
-    var dueOpen = Storage.tasksDueByDay(ws, dashboardTodayAsUtcDay());
+    // [H1a] ONE READ of the SHARED due reader, feeding the up-next tile, the
+    // due list, the overdue count and (in the evening) the close-out's claim
+    // about how much is still open. This is the round's one reader change: the
+    // Dashboard used to call Storage.tasksDueByDay directly, which was a second
+    // implementation of "what is due" sitting beside the bell's.
+    //
+    // tasksDueByDay IS NOT RETIRED, and the brief's two options were both
+    // impossible for the same reason: getDueWork is BUILT ON tasksDueByDay
+    // (storage.js:9761). It cannot become a thin caller of the thing that calls
+    // it, and it cannot retire while getDueWork needs it. What actually changes
+    // is that the Dashboard stops being a THIRD caller of the primitive and
+    // becomes a second caller of the shared reader. tasksDueByDay now has
+    // exactly one caller in the product - getDueWork itself - which is what
+    // "one definition of due" was always asking for.
+    var dueWork = Storage.getDueWork(d);
+    var dueItems = dueWork.items;
+    var overdueCount = dueWork.counts.overdue;
 
-    // [1.7.3] The picked three lead this module, so the list below shows THE
-    // REST. One read of the pick feeds both the lead block and the subtraction,
-    // so the two can never disagree about what was promoted - and the overflow
-    // count in dashDueListHtml is therefore computed on the remaining set and
-    // stays true.
+    // [1.7.3] The picked three lead the due tile, so the list below shows THE
+    // REST. One read of the pick feeds the lead block, the subtraction and the
+    // up-next tile, so none of the three can disagree about what was promoted -
+    // and the overflow count in dashDueListHtml is therefore computed on the
+    // remaining set and stays true.
     var pickedThree = Storage.getTodaysThree(d);
-    var dueRest = (dueOpen || []).filter(function (t) {
-      return pickedThree.indexOf(t.id) === -1;
+    var dueRest = dueItems.filter(function (it) {
+      return pickedThree.indexOf(it.taskId) === -1;
     });
+
+    // The goals tile's figure, read where every other figure here is read.
+    var goalCount = Storage.goalProgressList(ws).length;
 
     // [2.0] Day Recap: today-scoped recap lines in the evening, unchanged, filled
     // two-phase by dashRefreshRecap and gated on the SAME scope that gates the
-    // focused tile. :empty collapses it when every line suppresses.
+    // focused figure. :empty collapses it when every line suppresses. It now
+    // sits at the foot of the due tile rather than under Goals, because Goals is
+    // a 1x1 count tile and has no room for a second block.
     var recapShell = (period === "evening" && scope) ? '<div class="dash-recap" data-dash-recap></div>' : '';
 
-    // The streak is a TRACKING-derived module, so it obeys the same suppression
-    // rule as the focused tile: with tracking off the engine legitimately measures
-    // nothing, and a "0 day streak" would read as a failure the user did not have.
-    // [1.7.1] Was a .pp-insights-card in the secondary column; it is now a hero
-    // stat on the band's right. The data-dash-streak hook is unchanged, so
+    // The streak is a TRACKING-derived figure, so it obeys the same suppression
+    // rule as the focused numeral: with tracking off the engine legitimately
+    // measures nothing, and a "0 day streak" would read as a failure the user
+    // did not have. The data-dash-streak hook is unchanged, so
     // dashRefreshStreak's two-phase patch still lands.
-    // ONE STRING IS DELIBERATELY NOT RENDERED HERE, and it is the only thing this
-    // round drops: the card's "Focus streak" title (dashboard_focus_streak). The
-    // band has no card titles, and dashStreakBodyHtml already emits its own
-    // "Day streak" label directly beneath the number, so keeping both would print
-    // the same fact twice in adjacent lines. The KEY is untouched and the title
-    // returns the moment the region wants a heading again.
     var streakCard = scope
       ? '<div class="dash-hero-stat" data-dash-streak>' + dashStreakBodyHtml(null) + '</div>'
       : '';
 
     panel.dataset.dashPeriod = period;
-    // [1.7.1] LAYOUT: greeting, then the HERO BAND (span 12, three regions of
-    // four), then row two — Today at span 7 and Goals at span 5. Tasks-width
-    // container rather than the retired 960px measure, so the Dashboard's
-    // content edge aligns with the Tasks tab's.
+    // [H1a] LAYOUT: a BENTO of seven tiles, replacing the hero band and the two
+    // modules of [1.7.1]. The vocabulary is H0's - .tile plus one modifier per
+    // kind - and the placement is .dash-bento's named areas.
     //
-    // WHAT MOVED, and nothing was dropped. The four strip tiles became the
-    // band's left and right regions (see dashHeroFocusHtml and friends); the
-    // pick-up card is unchanged and is now the band's centre; the streak moved
-    // from the secondary column to the band's right, beside focus blocking,
-    // because both are present-state. Due-today and Goals keep their modules and
-    // are now siblings at 7 and 5 rather than nested columns. The recap shell
-    // stays with Goals; the evening band redesign is [1.7.4].
+    // WHAT MOVED, AND NOTHING WAS DROPPED. The hero band's three regions became
+    // the hero tile (the ring, the numeral and four small figures beneath it),
+    // the up-next action tile and the three tint tiles. Due-today and Goals kept
+    // their content and became tiles. The passive time lists, which were a card
+    // hanging under Goals, became a tile of their own with the tracking toggle
+    // on its head. Every data-dash-* hook is unchanged, so all five two-phase
+    // refreshers still land in the same places.
     //
-    // The ring ([1.7.2]) and the this-week strip ([1.7.3]) have RESERVED SPACE
-    // and no placeholder, so the shape can be judged before they fill it.
+    // SEVEN TILES DO NOT TILE FOUR COLUMNS CLEANLY, and this is the one place
+    // the brief's sizes had to give. 2x2 + 2x1 + 1x1 + 1x1 + 1x1 + 2x2 + 2x1 is
+    // fifteen cells; four columns need a multiple of four. Blocking takes the
+    // sixteenth and renders 2x1 rather than 1x1. It is the tile whose text is
+    // longest ("Blocking on, auto"), so the extra width is content-justified -
+    // and a hole in a bento reads as a tile that failed to render.
     panel.innerHTML =
       '<div class="dash-tab" data-period="' + period + '">' +
-        '<div class="dash-greeting">' + escapeHtml(dashGreeting()) + '</div>' +
-        '<div class="dash-hero">' +
-          '<div class="dash-hero-region dash-hero-left">' +
-            dashHeroFocusHtml(scope, Storage.getFocusTargetMin(d)) +
-            dashHeroCountsHtml(d, ws) +
-          '</div>' +
-          '<div class="dash-hero-region dash-hero-centre">' +
-            dashHeadHtml(d, ws, period, dueOpen) +
-          '</div>' +
-          '<div class="dash-hero-region dash-hero-right">' +
-            streakCard +
-            // [1.7.3] The week figure joins the streak as its PEER: both are
-            // present-state readings at --display-3, which is what fills the
-            // region [1.7.1] flagged as the band's weakest third.
-            (scope ? dashWeekHtml() : '') +
-            dashHeroBlockingHtml(d) +
-          '</div>' +
+        '<div class="dash-greeting-row">' +
+          '<div class="dash-greeting">' + escapeHtml(dashGreeting()) + '</div>' +
+          dashModeChipsHtml(ws) +
         '</div>' +
-        '<div class="dash-row2">' +
-          '<div class="dash-mod dash-today">' +
-            '<div class="pp-insights-card">' +
-              dashThreeHtml(ws, pickedThree) +
-              '<div class="pp-dash-card-title dash-due-title">' + th("dashboard_due_today") + '</div>' +
-              '<div class="dash-due-list">' + dashDueListHtml(ws, dueRest) + '</div>' +
-              dashQuickAddHtml() +
+        '<div class="dash-bento">' +
+
+          // HERO. The focus figure keeps dashHeroFocusHtml verbatim - the ring,
+          // the numeral and their suppression rule are unchanged - and the four
+          // small figures beneath it are the band's counts and stats, now peers
+          // in one tile rather than two regions that had to be balanced.
+          '<div class="tile tile--hero dash-tile dash-tile-hero">' +
+            '<div class="tile-eyebrow">' + th("common_focused_today") + '</div>' +
+            (scope ? dashHeroFocusHtml(scope, Storage.getFocusTargetMin(d))
+                   : '<div class="dash-note dash-hero-off">' + th("dash_tracking_off_note") + '</div>') +
+            '<div class="dash-hero-figures">' +
+              dashHeroCountsHtml(d, ws) +
+              streakCard +
+              (scope ? dashWeekHtml() : '') +
             '</div>' +
           '</div>' +
-          '<div class="dash-mod dash-goals">' +
-            '<div class="pp-insights-card">' +
-              '<div class="pp-dash-card-title">' + th("dashboard_goals") + '</div>' +
-              '<div class="insights-task-list">' + dashGoalsHtml(ws) + '</div>' +
-            '</div>' +
+
+          // UP NEXT. The one action tile, and the one orange thing here.
+          (period === "evening"
+            // THE EVENING CLOSE-OUT KEEPS THIS SLOT. dashHeadHtml's evening
+            // branch is the day's summary, and [1.7.4] ruled it button-less:
+            // the outlined primary is reserved for RESUMING, so the evening
+            // may not carry one. Dropping it would have lost the only
+            // past-tense reading on the surface, so the action tile hands the
+            // slot over rather than the content being retired.
+            ? '<div class="tile tile--action dash-tile dash-tile-upnext is-evening">' +
+                dashHeadHtml(d, ws, period, dueItems) +
+              '</div>'
+            : dashUpNextHtml(d, ws, pickedThree)) +
+
+          // THE THREE TINTS. Counts, not lists: each says one number and one
+          // line about it, and the work itself is a tile away.
+          dashCountTileHtml("overdue", "dash_overdue",
+            escapeHtml(String(overdueCount)),
+            overdueCount
+              ? '<button type="button" class="dash-inline-link" data-dash-action="goto-tasks">' + th("dash_tasks_2") + '</button>'
+              : th("dash_nothing_on_the_list")) +
+
+          dashCountTileHtml("goals", "dashboard_goals",
+            escapeHtml(String(goalCount)),
+            '<div class="insights-task-list dash-tile-goals">' + dashGoalsHtml(ws) + '</div>') +
+
+          // BLOCKING reads the pill's tri-state through dashBlockingWord rather
+          // than restating the ternary, so the tile and the pill cannot disagree.
+          dashCountTileHtml("blocking", "dash_focus_blocking",
+            dashBlockingWord(d), "", "dash-tile-wide") +
+
+          // DUE TODAY, the big list tile. The head carries the reminders toggle;
+          // the picked three lead, the rest follow, and quick-add closes it -
+          // all unchanged.
+          '<div class="tile tile--list dash-tile dash-tile-due">' +
+            dashRemindersHeadHtml(d, ws) +
+            dashThreeHtml(ws, pickedThree) +
+            '<div class="dash-due-list">' + dashDueListHtml(ws, dueRest, d) + '</div>' +
+            dashQuickAddHtml() +
             recapShell +
-            // [PT.1] The two passive-time lists, BELOW the goals card and below
-            // the recap (Decision E). Filled two-phase by dashRefreshPassive for
-            // the same reason the focused tile is: the reader is async and a
-            // synchronous render must not await it. Gated on the SAME `scope` as
-            // the focused tile and the streak - with tracking off the engine
-            // legitimately measures nothing, and an empty card would read as a
-            // failure the user did not have.
-            (scope ? '<div class="pp-insights-card dash-passive" data-dash-passive></div>' : '') +
           '</div>' +
+
+          // WHERE THE TIME WENT. The tracking toggle on its head, and the same
+          // data-dash-passive hook dashRefreshPassive already fills two-phase.
+          '<div class="tile tile--list dash-tile dash-tile-time">' +
+            dashTrackingHeadHtml(ws) +
+            (scope ? '<div class="dash-passive" data-dash-passive></div>'
+                   : '<div class="dash-note">' + th("dash_tracking_off_note") + '</div>') +
+          '</div>' +
+
         '</div>' +
       '</div>';
 
@@ -2245,6 +2455,72 @@
         // (which would be a no-op write the engine could read as a boundary).
         if (Storage.isTrackingPaused(data)) await satSetPaused(false);
         setActiveTab("home");
+        return;
+      }
+
+      // ===== [H1a] THE THREE TILE CONTROLS =================================
+      //
+      // Each one reaches the SAME writer its settings-side twin reaches, and
+      // each RE-READS `data` at the point of write (BUGS.md L5) - a control on a
+      // surface that has been open since breakfast is holding a stale bag.
+      //
+      // Two of the three writers are MUTATE-ONLY (BUGS.md I34): they change the
+      // object and return, and the caller pairs them with Storage.saveAll. The
+      // third saves itself. Getting that pairing wrong is a control that looks
+      // like it worked and has written nothing, which is why the round asserts
+      // each one by reading the field back out of storage.
+
+      if (action === "set-mode") {
+        var mode = btn.getAttribute("data-ws-mode");
+        if (!mode) return;
+        // THROUGH THE SWITCHER'S OWN PATH, not through setWorkspaceMode direct.
+        // The switcher's handler carries the toast, the pill repaint and the
+        // dropdown refresh; calling the writer here would be a second path that
+        // sets the field and leaves the rest of the surface saying the old mode.
+        data = await Storage.getAll();
+        var mws = Storage.getActiveWorkspace(data);
+        // Already there: return rather than writing. setWorkspaceMode returns
+        // false on a no-op, so the writer would be harmless - but the switcher
+        // path also toasts, and "Now in Work" for a click that changed nothing
+        // is the surface claiming credit for an event that did not happen.
+        if (!mws || Storage.getWorkspaceMode(mws) === mode) return;
+        await setWorkspaceModeFromSwitcher(mws.id, mode);
+        data = await Storage.getAll();
+        renderDashboardTab(panel, data);
+        return;
+      }
+
+      if (action === "toggle-reminders") {
+        // WM.5's writer, and the one of the three that SAVES ITSELF.
+        data = await Storage.getAll();
+        var wantOn = !Storage.getDueRemindersEnabled(data);
+        try {
+          await Storage.setDueRemindersEnabled(data, wantOn);
+        } catch (err) {
+          console.error("[LaunchPad] Dashboard: reminders toggle failed", err);
+        }
+        data = await Storage.getAll();
+        renderDashboardTab(panel, data);
+        return;
+      }
+
+      if (action === "toggle-tracking") {
+        // THE PER-WORKSPACE FIELD, which is the one this tile's lists come from.
+        // Not the global switch in Settings: that is a different field with a
+        // different writer, and flipping it from here would turn tracking off
+        // for every workspace from a control that names one.
+        data = await Storage.getAll();
+        var tws = Storage.getActiveWorkspace(data);
+        if (!tws) return;
+        try {
+          // Mutate-only - I34. The saveAll is this caller's job.
+          Storage.setTrackingEnabled(data, tws.id, !Storage.isTrackingEnabled(tws));
+          await Storage.saveAll(data);
+        } catch (err) {
+          console.error("[LaunchPad] Dashboard: tracking toggle failed", err);
+        }
+        data = await Storage.getAll();
+        renderDashboardTab(panel, data);
         return;
       }
 

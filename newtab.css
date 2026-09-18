@@ -10269,13 +10269,32 @@ html.has-bg.bg-light .dash-head {
   color: #fff;
 }
 
-/* Overdue is DISTINCT BUT CALM. A backlog the user already knows about does not
-   need to be shouted at every time they open a tab, so it is a chip on the row
-   rather than a red row. Ink-on-fill measures 8.9:1 and the fill is opaque, so it
-   reads the same on every wallpaper — which is why it needs no light override. */
+/* [H1a] OVERDUE IS A WORD, NOT A CHIP. The v2 ink rule is that colour lives on
+   the tile and never on the words, with EXACTLY ONE exception, which tokens.css
+   names outright: "the one coloured text run on any v2 surface is the overdue
+   word, which takes --action". So the fill comes off and the word takes the
+   action colour.
+
+   THE OLD COMMENT'S REASONING NO LONGER HOLDS, AND THAT IS THE COST OF THIS.
+   It read: "Ink-on-fill measures 8.9:1 and the fill is opaque, so it reads the
+   same on every wallpaper - which is why it needs no light override." Removing
+   the fill removes that guarantee: the word now composites against whatever is
+   behind it, which on this surface is a tile and off it is the page. Measured
+   rather than assumed - see the round's report for the three grounds.
+
+   It is still DISTINCT BUT CALM, which was the original rule and survives the
+   change: a backlog the user already knows about does not need to be shouted at
+   every time they open a tab. One coloured word says it without a red row.
+
+   ALL THREE RENDER SITES take this one rule - the picked-three row, the due
+   list, and renderProPreview's demo rows - so there is no site where the chip
+   survives and none where the two spellings could drift. */
 .dash-meta-due.is-overdue {
-  background: rgba(255, 107, 107, 0.9);
-  color: #2a0000;
+  background: none;
+  color: var(--action);
+  font-weight: 600;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 /* The one primary CONTROL on the Dashboard, so it carries the stricter bar the
@@ -20609,3 +20628,373 @@ html.has-bg.bg-light .settings-search {
   color: rgba(0, 0, 0, 0.87);
 }
 html.has-bg.bg-light .settings-no-matches { color: rgba(0, 0, 0, 0.62); }
+/* =========================================================================
+   [H1a] THE DASHBOARD AS A BENTO
+
+   Seven tiles on H0's .tile vocabulary. The old hero band's rules are LEFT IN
+   PLACE and are not dead: renderProPreview still paints the v1 Dashboard as its
+   demo surface, so .dash-hero-region and friends are still reached. That
+   divergence is a finding, not a cleanup this round may make - the preview is
+   another session's region.
+   ========================================================================= */
+
+.dash-greeting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  flex-wrap: wrap;
+}
+
+/* NAMED AREAS RATHER THAN .span-* HELPERS, and the arithmetic is the reason.
+   The seven tiles are 2x2 + 2x1 + 1x1 + 1x1 + 2x1 + 2x2 + 2x1 = sixteen cells,
+   which fills four columns exactly. Auto-placement cannot produce that shape
+   from source order without leaving a hole, so the placement is stated.
+
+   .span-* stays in the shared vocabulary for the surfaces that do flow. */
+.dash-bento {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), 1fr);
+  grid-auto-rows: minmax(var(--row-h), auto);
+  gap: var(--gap);
+  grid-template-areas:
+    "hero hero upnext   upnext"
+    "hero hero overdue  goals"
+    "due  due  blocking blocking"
+    "due  due  time     time";
+}
+
+.dash-tile-hero     { grid-area: hero; }
+.dash-tile-upnext   { grid-area: upnext; }
+.dash-tile-count.tile--overdue  { grid-area: overdue; }
+.dash-tile-count.tile--goals    { grid-area: goals; }
+.dash-tile-count.tile--blocking { grid-area: blocking; }
+.dash-tile-due      { grid-area: due; }
+.dash-tile-time     { grid-area: time; }
+
+/* A tile that holds a list has to be allowed to scroll rather than to grow the
+   row, because the two 2x2 tiles share their rows with two 1x1s each and a
+   long list would drag its neighbours' height with it. The page is the scroll
+   container everywhere else in the product ([1.8.6]); this is the exception the
+   grid forces, and it is scoped to the list body rather than to the tile, so
+   the head and the toggle stay put. */
+.dash-tile {
+  overflow: hidden;
+  gap: var(--gap);
+}
+.dash-tile-due .dash-due-list,
+.dash-tile-time .dash-passive {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* ---- THE HERO TILE ---------------------------------------------------- */
+
+/* THE FIGURE CENTRES IN WHAT IS LEFT, and the first frame is why. With the
+   eyebrow pinned top and the four small figures pinned bottom, the numeral sat
+   directly under the eyebrow and left ~280px of nothing beneath it - which
+   reads as a tile that failed to fill rather than as a tile with room. The
+   tile's own default (space-between) plus auto margins on the middle block
+   splits that space either side of the number, which is what board 8 does. */
+.dash-tile-hero .dash-hero-figure,
+.dash-tile-hero .dash-hero-off { margin: auto 0; }
+
+/* FOUR SMALL FIGURES BENEATH THE BIG ONE, on one row that wraps. They were two
+   separate band regions in [1.7.1] and had to be balanced against each other;
+   as peers in one tile they simply line up. */
+.dash-hero-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--row-gap) var(--gap);
+  align-items: flex-end;
+  margin-top: auto;
+}
+.dash-hero-figures > * { flex: 1 1 auto; min-width: 0; }
+
+.dash-hero-off { margin: auto 0; }
+
+/* ---- THE ACTION TILE -------------------------------------------------- */
+
+.dash-tile-upnext .dash-upnext-name {
+  font-size: var(--display-3);
+  line-height: 1.15;
+  font-weight: 600;
+  /* Two lines, then ellipsis. A task name is free text and a third line would
+     push the button out of a fixed-height tile. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.dash-tile-upnext .dash-upnext-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--row-gap);
+}
+.dash-tile-upnext .dash-upnext-meta {
+  font-size: var(--fs-13);
+  /* --ink-on-action at reduced weight would be the obvious move and it is the
+     wrong one: dimming ink on the one opaque tile is exactly what the H0 round
+     measured at 4.30 and removed. The meta line keeps the tile's own ink. */
+  color: var(--ink-on-action);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-upnext-start {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: var(--inner);
+  padding: 10px 18px;
+  background: var(--ink-on-action);
+  color: var(--action);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  font-weight: 600;
+  cursor: pointer;
+}
+.dash-upnext-start:hover { opacity: 0.88; }
+
+/* The evening close-out borrows the slot, so its own heading and headline have
+   to sit inside a tile rather than inside a card. */
+.dash-tile-upnext.is-evening { justify-content: center; }
+.dash-tile-upnext.is-evening .pp-dash-card-title,
+.dash-tile-upnext.is-evening .dash-headline,
+.dash-tile-upnext.is-evening .dash-evening-label,
+.dash-tile-upnext.is-evening .dash-evening-num { color: var(--ink-on-action); }
+
+/* ---- THE THREE TINT TILES --------------------------------------------- */
+
+/* SAME CORRECTION AS THE HERO. margin-top:auto alone pinned the numeral to the
+   FOOT of the tile, which looks deliberate on Goals - where a list follows it -
+   and looks broken on Overdue, where nothing does. Auto on both sides centres
+   it in whatever the eyebrow and the sub-line leave. */
+.dash-tile-figure {
+  font-size: var(--display-2);
+  line-height: 1.05;
+  font-weight: 600;
+  margin: auto 0;
+}
+.dash-tile-sub {
+  font-size: var(--fs-11);
+  color: var(--ink-mute);
+  min-height: 0;
+  overflow: hidden;
+}
+/* The goals tile carries its gauges in the sub-slot, so that slot is a list
+   rather than a line there - and its numeral sits with the list rather than
+   floating above it. */
+.dash-tile-goals { max-height: 100%; overflow: hidden; }
+.dash-tile-count.tile--goals .dash-tile-figure { margin: 0; }
+/* Blocking's figure is a phrase, not a numeral, so it takes the phrase size. */
+.dash-tile-count.tile--blocking .dash-tile-figure { font-size: var(--display-3); }
+
+/* ---- THE TWO LIST TILES' HEADS ---------------------------------------- */
+
+.dash-tile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--row-gap);
+  flex: 0 0 auto;
+}
+.dash-tile-hint {
+  font-size: var(--fs-11);
+  color: var(--ink-mute);
+  flex: 0 0 auto;
+}
+
+/* ---- THE CONTROLS ------------------------------------------------------ */
+
+/* The mode pair. Two buttons, one of which is on - aria-pressed, not a radio
+   group, because that is how the workspace switcher already renders them.
+
+   IT IS A MENU-TIER FROSTED SURFACE, AND THE MEASUREMENTS FORCED THAT. The
+   first version gave the pair var(--tile-fill), a 6% white wash, and left the
+   chips reading against whatever wallpaper was behind it - the pair is the one
+   part of this surface that does NOT sit on a tile. Measured across the three
+   grounds it failed on five of six readings: the on-chip at 2.43 / 2.72 / 1.51
+   and the off-chip at 4.34 / 5.36 / 2.43. Orange ink on a 16% orange wash can
+   never clear the floor, and ink-mute over a light photograph cannot either.
+
+   The menu tier is the right answer rather than a hand-picked colour: it is the
+   product's existing surface for exactly this - a small, high-opacity control
+   cluster - and CLAUDE.md's frost rule is that menus stay DARK on light
+   wallpapers, which is what makes one set of inks correct on all three
+   grounds. New frosted surfaces take the variables, never a literal rgba. */
+.dash-mode-pair {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--inner);
+  background: var(--pro-frost-menu-bg);
+  backdrop-filter: var(--pro-frost-menu-blur);
+  -webkit-backdrop-filter: var(--pro-frost-menu-blur);
+  border: 1px solid var(--tile-line);
+}
+.dash-mode-chip {
+  border: 0;
+  background: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  color: var(--ink-mute);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  font-weight: 600;
+  cursor: pointer;
+}
+/* THE ON-CHIP TAKES THE ACTION TILE'S OWN PAIRING - an opaque action fill with
+   --ink-on-action - rather than action ink on an action tint. That pairing is
+   the one H0 measured at 7.53 on all three grounds, and it is the only way an
+   orange that IS the state can also be read as text. */
+.dash-mode-chip.is-on {
+  background: var(--action);
+  color: var(--ink-on-action);
+}
+
+.dash-tile-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: none;
+  padding: 4px 0;
+  color: var(--ink-mute);
+  font-family: var(--font-sans);
+  font-size: var(--fs-11);
+  cursor: pointer;
+}
+.dash-toggle-track {
+  width: 32px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--tile-fill);
+  border: 1px solid var(--tile-line);
+  display: inline-block;
+  position: relative;
+  flex: 0 0 auto;
+}
+.dash-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--ink-mute);
+}
+.dash-tile-toggle.is-on .dash-toggle-track { background: var(--action-tint); }
+.dash-tile-toggle.is-on .dash-toggle-knob { left: 16px; background: var(--action); }
+.dash-tile-toggle.is-on .dash-toggle-label { color: var(--ink); }
+
+/* A snoozed row is still ON the board - DB.1 decision D: the bell is a signal,
+   not a filter. It is set back rather than hidden, which is the only visual
+   difference between "silenced" and "gone". */
+.dash-due-row.is-snoozed .dash-due-name { color: var(--ink-faint); }
+
+/* THE INLINE LINK INSIDE A TILE TAKES THE TILE'S OWN INK, UNDERLINED.
+   .dash-inline-link is a v1 class with a light-wallpaper branch that paints it
+   a dark blue - correct when it sat on the page, wrong the moment it sits on a
+   TILE, which stays dark on every ground. Measured 9.52 / 9.89 / 2.01: fine on
+   two grounds and unreadable on the third, from a rule that was right about the
+   page and had never been asked about a tile.
+
+   NOT --action, deliberately. tokens.css rules that the overdue word is the ONE
+   coloured text run on a v2 surface, and a second orange thing on the same
+   board would spend the accent twice. The underline carries the affordance. */
+.dash-bento .dash-inline-link,
+html.has-bg.bg-light .dash-bento .dash-inline-link {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---- NARROW ------------------------------------------------------------ */
+
+/* Two columns, then one. The areas are restated rather than unset, because a
+   grid-template-areas grid that loses its columns and keeps its areas places
+   every tile in row one. */
+@media (max-width: 1100px) {
+  .dash-bento {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-areas:
+      "hero     hero"
+      "upnext   upnext"
+      "overdue  goals"
+      "blocking blocking"
+      "due      due"
+      "time     time";
+  }
+}
+@media (max-width: 720px) {
+  .dash-bento {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "hero" "upnext" "overdue" "goals" "blocking" "due" "time";
+  }
+}
+
+/* ---- THE LIGHT GROUND, FOR THE FOUR CONTROLS -------------------------------
+
+   THE VALUES ARE THE SAME ON PURPOSE, and that is a claim rather than a
+   copy-paste. These four controls sit ON A TILE, and H1a's own rule is that a
+   tile's tint rises to 94% under html.bg-light precisely so it composites as
+   dark there as it does on the default ground. So the ground under these
+   controls does not change, and neither should they.
+
+   THEY ARE WRITTEN OUT ANYWAY, because check-button-specificity is right that
+   they have to be. Every one of them is a (0,2,0) or (0,3,0) state modifier in
+   a sheet that already carries html.has-bg.bg-light rules at (0,4,1); the gate
+   does not model which elements a selector can actually match, and it should
+   not - a state modifier that CAN be outranked by a ground rule is a bug
+   waiting for the day someone adds a matching one. Stating the ground form now
+   costs eight rules and removes the trap.
+
+   The gate's baseline is 19 and it fails the build the moment the count rises,
+   so this is a build-breaking requirement, not a style note. */
+
+/* AND THE OVERDUE WORD, WHICH IS THE ONE THAT WAS ACTUALLY BROKEN.
+
+   Measured on the live page: on a light wallpaper the word rendered #222 on a
+   rgba(0,0,0,0.1) pill and composited at 1.15:1 - not the action colour at all,
+   and far under the floor. The cause is specificity, not colour:
+
+     html.has-bg.bg-light .dash-meta-due   (0,3,1)
+     .dash-meta-due.is-overdue             (0,2,0)
+
+   The ground rule wins on BOTH background and color, so removing the fill in
+   the base rule left the light branch still painting one. This is exactly the
+   class check-button-specificity warns about, arriving as a real defect rather
+   than as a heuristic - and it is the reason the four control rules above are
+   written out even where their values do not change.
+
+   THE VALUES MATCH THE BASE RULE because the word sits on a TILE, and H1a's own
+   alpha rule raises a tile's tint under html.bg-light precisely so it
+   composites as dark there as it does on the default ground. The measured
+   readings agree: the list tile's eyebrow reads 6.23 on dark and 6.50 on
+   light. */
+html.has-bg.bg-light .dash-meta-due.is-overdue {
+  background: none;
+  color: var(--action);
+}
+
+/* THE SAME PAIRING AS THE BASE RULE, and this line is why the ground-scoped
+   forms are not busywork: it shipped as the tint pairing and measured 2.72 on
+   a light wallpaper while the base rule, already corrected to the opaque fill,
+   measured 7.11. A ground override written once and then left behind when its
+   base rule changes is a second source for one value. */
+html.has-bg.bg-light .dash-mode-chip.is-on {
+  background: var(--action);
+  color: var(--ink-on-action);
+}
+html.has-bg.bg-light .dash-tile-toggle.is-on .dash-toggle-track {
+  background: var(--action-tint);
+}
+html.has-bg.bg-light .dash-tile-toggle.is-on .dash-toggle-knob {
+  background: var(--action);
+}
+html.has-bg.bg-light .dash-tile-toggle.is-on .dash-toggle-label {
+  color: var(--ink);
+}

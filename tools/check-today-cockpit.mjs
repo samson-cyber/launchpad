@@ -487,8 +487,14 @@ await (async () => {
   // below drives the REAL dashHeadHtml and the REAL dashDueListHtml off the same
   // fixture and reads both.
   {
-    const head = (d, ws, period) => ctx.dashHeadHtml(d, ws, period, S.tasksDueByDay(ws, TODAY_UTC));
-    const list = (ws) => ctx.dashDueListHtml(ws, S.tasksDueByDay(ws, TODAY_UTC));
+    // [H1a] BOTH BUILDERS NOW DRIVE OFF Storage.getDueWork, which is what the
+    // render hands them. The old harness fed dashDueListHtml raw tasksDueByDay
+    // TASKS; the builder now reads .taskId / .kind / .snoozed off due-work ITEMS,
+    // so the old shape would have kept the emptiness rows green while never
+    // rendering a single overdue row - green on a function it was not calling.
+    const itemsFor = (ws) => S.getDueWork({ workspaces: [ws], activeWorkspaceId: ws.id }).items;
+    const head = (d, ws, period) => ctx.dashHeadHtml(d, ws, period, itemsFor(ws));
+    const list = (ws) => ctx.dashDueListHtml(ws, itemsFor(ws));
     const variantOf = (html) => (html.match(/data-dash-variant="([^"]+)"/) || [])[1] || "";
     const headlineOf = (html) => (html.match(/<div class="dash-headline">([\s\S]*?)<\/div>/) || [])[1] || "";
     const DONE = "Work’s done.";
@@ -627,11 +633,25 @@ await (async () => {
       // assertion therefore checks the derivation rather than the spelling, which
       // is strictly stronger: a second tasksDueByDay call, or a list fed from
       // anything not descended from that one read, still fails (BUGS P20).
-      check("header: the render reads it exactly ONCE and feeds both builders",
-        (renderBody.match(/tasksDueByDay/g) || []).length === 1 &&
-        /dashHeadHtml\(d, ws, period, dueOpen\)/.test(renderBody) &&
-        /dashDueListHtml\(ws, dueRest\)/.test(renderBody) &&
-        /var dueRest\s*=\s*\(dueOpen \|\| \[\]\)\.filter/.test(renderBody));
+      // [H1a] THE READER IS NOW Storage.getDueWork - the SAME one the bell and
+      // the side panel call - and the Dashboard no longer touches the
+      // tasksDueByDay primitive at all. The property is stronger than it was:
+      // the surface reads the due set once AND reads it from the product's one
+      // definition of due, so it cannot disagree with the bell either.
+      check("header: the render reads the due set exactly ONCE and feeds every builder",
+        (renderBody.match(/Storage\.getDueWork\(/g) || []).length === 1 &&
+        !/Storage\.tasksDueByDay\(/.test(renderBody) &&
+        /dashHeadHtml\(d, ws, period, dueItems\)/.test(renderBody) &&
+        /dashDueListHtml\(ws, dueRest, d\)/.test(renderBody) &&
+        /var dueItems = dueWork\.items/.test(renderBody) &&
+        /var dueRest\s*=\s*dueItems\.filter/.test(renderBody));
+      // AND THE DASHBOARD IS NO LONGER A SECOND IMPLEMENTATION. tasksDueByDay
+      // keeps exactly one caller in the product - getDueWork, which is built on
+      // it. It could not become "a thin caller of getDueWork" and it could not
+      // retire, because getDueWork is the thing that calls it.
+      check("due: tasksDueByDay has ONE caller left in the product, and it is getDueWork",
+        !/Storage\.tasksDueByDay\(/.test(SRC.nt) &&
+        (SRC.storage.match(/(?<!function )(?<![.\w])tasksDueByDay\(/g) || []).length === 1);
     }
 
     // --- O1: no new ink surface. The two new lines are .dash-headline inside
@@ -733,10 +753,35 @@ await (async () => {
   // hero band / row-two shape. The PROPERTY each one guards is unchanged:
   // the greeting still leads, the summary still sits above the detail, due-today
   // is still the larger module, and goals and streak still each have a home.
-  check("render: the greeting is the tab's header line, above the band", /dash-greeting[\s\S]*dash-hero[\s\S]*dash-row2/.test(render));
-  check("render: the hero band is full-width, above row two", render.indexOf("dash-hero") < render.indexOf("dash-row2"));
-  check("render: due-today is the PRIMARY module of row two", /dash-today[\s\S]*dashDueListHtml/.test(render));
-  check("render: goals live in row two and the streak moved to the band's right", /dash-goals[\s\S]*dashGoalsHtml/.test(render) && /dash-hero-right[\s\S]*streakCard/.test(render));
+  check("render: the greeting is the tab's header line, above the grid", /dash-greeting[\s\S]*dash-bento/.test(render));
+  check("render: the hero tile leads the grid, above the two list tiles",
+    render.indexOf("dash-tile-hero") < render.indexOf("dash-tile-due") &&
+    render.indexOf("dash-tile-hero") < render.indexOf("dash-tile-time"));
+  check("render: due-today is the larger of the two list tiles and holds the list", /dash-tile-due[\s\S]*dashDueListHtml/.test(render));
+  check("render: goals have a tile of their own and the streak sits in the hero", /dashCountTileHtml\("goals"[\s\S]*dashGoalsHtml/.test(render) && /dash-hero-figures[\s\S]*streakCard/.test(render));
+  // [H1a] THE SEVEN TILES, NAMED. A bento whose cells are placed by
+  // grid-template-areas fails SILENTLY when a tile loses its area class: the
+  // tile lands in row one on top of another and nothing throws. So the render
+  // is asserted to emit all seven area hooks, and the sheet to place each one.
+  {
+    // The three tint tiles name their kind as an ARGUMENT; dashCountTileHtml
+    // composes tile--<kind> from it, so the literal class never appears here.
+    const AREAS = ["dash-tile-hero", "dash-tile-upnext", 'dashCountTileHtml("overdue"',
+                   'dashCountTileHtml("goals"', 'dashCountTileHtml("blocking"',
+                   "dash-tile-due", "dash-tile-time"];
+    check("render: all seven tiles are emitted", AREAS.every((c) => render.includes(c)), AREAS.filter((c) => !render.includes(c)).join(" "));
+    const placed = ["dash-tile-hero", "dash-tile-upnext", "dash-tile-count.tile--overdue",
+                    "dash-tile-count.tile--goals", "dash-tile-count.tile--blocking",
+                    "dash-tile-due", "dash-tile-time"]
+      .filter((sel) => new RegExp("\\." + sel.replace(/\./g, "\\.") + "\\s*\\{[^}]*grid-area:").test(SRC.css));
+    check("layout: every one of the seven is placed by grid-area in the sheet", placed.length === 7, placed.join(" "));
+    // The narrow branches restate the areas rather than unsetting them, which
+    // is the one way a template-areas grid can lose its layout without any
+    // rule looking wrong: drop the columns, keep the areas, and every tile
+    // stacks into row one.
+    check("layout: the two narrow branches each restate the grid's areas",
+      (SRC.css.match(/@media[^{]*\{\s*\.dash-bento\s*\{[^}]*grid-template-areas:/g) || []).length === 2);
+  }
   // [1.7.1] NEW, and it is the round's load-bearing invariant: focused-today is
   // the surface's ONE hero. --display-1 may be referenced exactly once in the
   // whole stylesheet; a second use means something else is competing to be the
@@ -771,14 +816,44 @@ const hasClassToken = (src, name) => {
   while ((m = re.exec(src))) if (m[1].trim().split(/\s+/).includes(name)) return true;
   return false;
 };
-  check("render: the suggestion block is the due module's HEAD, not a card of its own",
-    render.indexOf("dashHeadHtml") < render.indexOf("dashboard_due_today") && !hasClassToken(SRC.nt, "dash-card"));
+  // [H1a] THE SUGGESTION IS NOW THE ACTION TILE, which is the same property
+  // stated on the new shape: it leads the due tile rather than sitting in a
+  // card of its own, and dash-card stays prohibited by exact token.
+  check("render: the suggestion leads the due tile, and is not a card of its own",
+    render.indexOf("dash-tile-upnext") < render.indexOf("dash-tile-due") && !hasClassToken(SRC.nt, "dash-card"));
+  // AND IT SUBSUMES THE OLD CENTRE CARD'S THREE VARIANTS rather than dropping
+  // them. An ACTIVE task outranks a pick, a pick outranks the computed
+  // suggestion, and the active case keeps its own button - "continue", never
+  // "lets-go", because re-activating an already-active task is a no-op write
+  // the engine can read as a session boundary.
+  {
+    const up = extractFn(SRC.nt, "dashUpNextHtml");
+    check("upnext: active task first, then the pick, then the existing suggestion",
+      up.indexOf("resolveActiveTask") < up.indexOf("getTaskById") &&
+      up.indexOf("getTaskById") < up.indexOf("dashboardPickSuggestion"), up.slice(0, 60));
+    check("upnext: the ACTIVE task's button is continue, not a second activation",
+      /isActive \? "continue" : "lets-go"/.test(up));
+    check("upnext: the empty tile keeps its cell rather than disappearing from the grid",
+      /is-clear/.test(up) && /tile--action/.test(up.slice(up.indexOf("is-clear") - 120, up.indexOf("is-clear"))));
+  }
+  // [H1a] THE EVENING CLOSE-OUT KEEPS A SLOT. dashHeadHtml's evening branch is
+  // the only past-tense reading on the surface and [1.7.4] ruled it
+  // button-less; the action tile hands the slot over in the evening rather
+  // than the content being retired.
+  check("render: the evening close-out still renders, in the action tile's slot",
+    /period === "evening"[\s\S]{0,600}dashHeadHtml\(d, ws, period, dueItems\)/.test(render));
   check("render: the streak and focused tile suppress on the SAME scope",
     /if \(scope\) dashRefreshStreak/.test(render) && /var streakCard = scope\s*$/m.test(render));
   check("render: the strip's blocked tile reads focusStats, and 0 renders as 0",
     /Storage\.focusBlockedOnDay\(d, todayKey\)/.test(SRC.nt) && !/focusBlockedOnDay[\s\S]{0,120}\|\| *""/.test(SRC.nt));
-  check("render: the blocking badge REUSES the pill's tri-state derivation",
-    /Storage\.focusArmState\(d\)/.test(SRC.nt.slice(SRC.nt.indexOf("function dashHeroBlockingHtml"), SRC.nt.indexOf("function dashGoalsHtml"))));
+  // [H1a] dashHeroBlockingHtml RETURNED A .dash-hero-stat and the bento has no
+  // such thing, so the wrapper had no caller left. The derivation is what the
+  // assertion was ever about, and it survives as dashBlockingWord - still ONE
+  // place deriving the three words from the pill's own tri-state.
+  check("render: the blocking tile REUSES the pill's tri-state derivation, from one place",
+    /Storage\.focusArmState\(d\)/.test(extractFn(SRC.nt, "dashBlockingWord")) &&
+    (render.match(/dashBlockingWord\(d\)/g) || []).length === 1 &&
+    !/armState === "off"/.test(render));
   check("render: completing the ACTIVE task routes through satComplete, not a second funnel",
     /active\.task\.id === taskId[\s\S]{0,200}await satComplete\(\)/.test(SRC.nt));
   // Caps are fine; SILENT caps are not — a list that stops at N and says nothing

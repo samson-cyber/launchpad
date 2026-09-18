@@ -2492,6 +2492,34 @@ I18n.register("en", {
     "message": "Nothing on the list.",
     "description": "Markup label in dashHeadHtml(). Rendered with th()."
   },
+  "dash_up_next": {
+    "message": "Up next",
+    "description": "Eyebrow on the Dashboard's action tile - the one orange tile on the surface, carrying the single task the user should do now. Takes Today's Three first and falls back to the earliest due item, so the tile is never empty while there is work."
+  },
+  "dash_start": {
+    "message": "Start",
+    "description": "The action tile's button. Makes its task the active task, which is what the pill's own Start does - consequence-labelled per the design guide: it says what the click does, not where it goes."
+  },
+  "dash_where_the_time_went": {
+    "message": "Where the time went",
+    "description": "Eyebrow on the Dashboard's time-by-site list tile. Past tense deliberately: the tile reports what was measured today rather than proposing anything."
+  },
+  "dash_reminders": {
+    "message": "Reminders",
+    "description": "Label on the toggle on the due-today tile's head. Short because it sits beside the tile's own eyebrow, which already says the tile is about what is due; the Pro Settings equivalent (prosettings_due_reminders_toggle) carries the long form and is a different control on a different surface."
+  },
+  "dash_reminders_work_only": {
+    "message": "Fires in Work mode",
+    "description": "Hint beneath the reminders toggle, rendered ONLY when the workspace is in Casual. A reminder fires only in a Work workspace, so on Casual the toggle can read ON while nothing will ever happen - the same shape as the blocking schedule's mode note, and the same fix: say the condition where the control is rather than after the user has waited for a notification that was never coming. Ruled 6bde048; prosettings_due_reminders_note carries the long form."
+  },
+  "dash_tracking": {
+    "message": "Tracking",
+    "description": "Label on the toggle on the time-by-site tile's head. It writes the PER-WORKSPACE tracking field - the same field the Workspaces section writes, and NOT the global switch in Settings, which is a different field with a different writer."
+  },
+  "dash_tracking_off_note": {
+    "message": "Tracking is off for this workspace, so nothing is being measured.",
+    "description": "Stands in for the Dashboard's focus figure and for the time tile's lists when the workspace has tracking off. Says nothing was MEASURED rather than showing a zero - a 0m that means 'not measured' reads as 'you did nothing', which is the nag the doctrine forbids. Same fact in both places, so it is one message."
+  },
   "dash_overdue": {
     "message": "Overdue",
     "description": "Markup label in dashDueListHtml(). Rendered with th()."
