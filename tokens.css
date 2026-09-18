@@ -314,3 +314,251 @@ html.text-size-large {
 
 /* The pill's PAUSED amber. Shared because the popup renders that state too. */
 :root { --sat-amber: #f1c40f; }
+
+/* ===========================================================================
+   [H0] v2 — WARM BENTO. THE TOKEN SET, BESIDE v1 AND NOT OVER IT.
+
+   Ruled 2026-09-18 from the SR.2 canvas; the four DECISIONS entries of that
+   date are the authority and docs/SPECS/v2-handoff-spec.md section 0 is the
+   summary. Every value below is transcribed from the design system's
+   tokens.json (https://claude.ai/artifact/YBuudND828VcaH8KYTUNj6), under the
+   names that file uses, so a later round reading the artifact finds the same
+   words here.
+
+   NOTHING BELOW IS READ BY ANY SHIPPED RULE YET. v1 is untouched above this
+   line and every surface still renders from it; surfaces migrate one round at
+   a time and the v1 set is swept only when the last one has. H0's whole
+   assertion is that the product is byte-identical today except for the face.
+
+   ---------------------------------------------------------------------------
+   WHY THESE ARE AT :root AND NOT PER-GROUND, which is a departure from the
+   brief's expectation and is the design system's doing rather than a shortcut.
+
+   v1's ground branches do not live in this file at all - they are
+   `html.bg-light` / `html.has-bg` rules in newtab.css, and by the design
+   pack's own count only SEVEN of v1's 88 tokens change with the ground.
+
+   And in tokens.json, EVERY colour token carries a `dark` value and nothing
+   else. There is exactly one entry with three values, `ground`, and it is not
+   a token to set: it IS the wallpaper, which the product cannot classify when
+   it is a photograph. That is the point of the tint alphas - a tile is 82%
+   over whatever is behind it (a list tile 72%), so the ground reads THROUGH
+   every tile rather than being switched between by a class.
+
+   So writing `html.bg-light` variants here would mean inventing values the
+   design system does not have. The instrument decides whether any are needed:
+   every `.tile--*` eyebrow is measured on all three grounds in this round, and
+   a token gains a branch when a measurement asks for one, not before.
+
+   -------------------------------------------------------------------------
+   AND THE MEASUREMENT IS NOW ASKING. H0 measured all six kinds on all three
+   grounds. Dark and photograph pass everywhere. ON A LIGHT WALLPAPER FIVE OF
+   THE SIX FAIL:
+
+       kind        dark   photo   LIGHT   floor
+       hero        5.69   4.75    3.46    4.5   UNDER
+       action      7.53   7.53    7.53    4.5   ok
+       overdue     5.93   4.88    3.92    4.5   UNDER
+       goals       5.97   4.74    3.44    4.5   UNDER
+       blocking    6.03   4.86    3.50    4.5   UNDER
+       list        6.29   4.52    2.91    4.5   UNDER
+
+   THE MECHANISM IS THE ALPHA, NOT THE INK. A tint at 82% over #2a2a2a
+   composites near black; the same tint over #f5f5f5 composites two to three
+   times lighter, and --ink-mute has nowhere left to go. The list tile is worst
+   because it is the one at 72%. The action tile is the only one that passes,
+   and it passes because it is NOT frosted glass - it is opaque orange, so no
+   wallpaper reaches it.
+
+   THIS IS LEFT AS A FINDING RATHER THAN FIXED HERE, deliberately. The two
+   candidate fixes - raise the tile alphas under html.bg-light so a tile
+   composites as dark as it does on the default ground, or darken the inks -
+   are both DESIGN decisions about how much wallpaper shows through, and a
+   foundations round inventing them would be the canvas being overruled by
+   whoever happened to be holding the instrument.
+
+   IT IS BLOCKING FOR THE FIRST SURFACE THAT ADOPTS A TILE, and harmless until
+   then: no shipped rule reads any of this yet, so the defect has no reach. The
+   Dashboard round cannot close over it.
+
+   ---------------------------------------------------------------------------
+   WHAT IS DELIBERATELY ABSENT.
+
+   `--prio-urgent` / `-high` / `-medium` / `-low` are in tokens.json and are
+   NOT redeclared here: their v1 values above (#e74c3c, #e67e22, #f1c40f,
+   #5dade2) are byte-identical to the artifact's, so the design system is
+   confirming them unchanged rather than introducing them. Same for `paused`,
+   which is v1's `--sat-amber` - and note v1's is the RICHER definition, since
+   it already carries a bg-light branch (#8a6d09) that tokens.json has no term
+   for. Redeclaring either would create a second source for one value.
+   =========================================================================== */
+
+:root {
+  /* ---- INK. Achromatic by rule: colour lives on the tile, never on the
+     words. The one coloured text run on any v2 surface is the overdue word,
+     which takes --action. ---- */
+  --ink: #f3ede6;                        /* primary text on a tile; warm off-white, not pure white */
+  --ink-mute: #a89c93;                   /* eyebrows, sub-lines, counts, units */
+  --ink-faint: rgba(243, 237, 230, 0.45);/* the faintest text that is still text */
+  --ink-on-action: #1a0d05;              /* text ON the action tile and button; orange takes dark ink */
+
+  /* ---- THE ONE ACTION COLOUR. Never a second action on the same view. ---- */
+  --action: #ff8a3d;
+  --action-soft: #ffb37a;                /* the lighter end of the action gradient */
+  --action-tint: rgba(255, 138, 61, 0.16);/* the Work chip's ground, hover washes */
+  /* --action-2 IS FROM BOARD 8, NOT FROM tokens.json, and it is flagged rather
+     than quietly folded in. The action tile on Sw8-BentoPhoto is
+     linear-gradient(160deg, #ff8a3d, #e06a2a) - an OPAQUE orange with a darker
+     partner - but tokens.json carries no darker end for the action: its
+     --action-soft (#ffb37a) is LIGHTER, and is what the hero figure and the bar
+     fills use. Without this the action tile would have to be flat, which the
+     reference board is not. The board is the ruling reference for layout, so
+     its value is taken and named here; if the design system later publishes an
+     action-2, this is the line to reconcile. */
+  --action-2: #e06a2a;
+
+  /* ---- THE FROST FAMILY. Each pair is a gradient from the tint to its
+     darker partner. 82% everywhere except the list tile at 72%, which is what
+     makes a list read as a place to rest rather than as another card. ---- */
+  --tile-hero: rgba(38, 30, 34, 0.82);
+  --tile-hero-2: rgba(26, 21, 24, 0.82);
+  --tile-overdue: rgba(90, 47, 42, 0.82);
+  --tile-overdue-2: rgba(61, 31, 28, 0.82);
+  --tile-goals: rgba(47, 74, 58, 0.82);
+  --tile-goals-2: rgba(30, 51, 40, 0.82);
+  --tile-blocking: rgba(59, 47, 74, 0.82);
+  --tile-blocking-2: rgba(38, 32, 58, 0.82);
+  --tile-list: rgba(20, 18, 20, 0.72);
+
+  /* ---- TILE FURNITURE ---- */
+  --tile-line: rgba(255, 255, 255, 0.14);/* hairline border AND the inset top highlight */
+  --tile-rule: rgba(255, 255, 255, 0.05);/* a row separator inside a list tile */
+  --tile-fill: rgba(255, 255, 255, 0.06);/* a progress track; a faint wash */
+
+  /* ---- THE LIFTED INKS. A tile's eyebrow takes its own tint raised to text
+     weight. Only the eyebrow: the body on a tinted tile stays --ink. ---- */
+  --ink-on-overdue: #e8a89a;
+  --ink-on-goals: #9ccdb0;
+  --ink-on-blocking: #c0a8e0;
+
+  /* ---- SPACING. Names from tokens.json. --page is a shorthand pair
+     (vertical horizontal) because that is how the artifact states it. ---- */
+  --gap: 14px;                           /* THE grid gap. One value. */
+  --tile-pad: 24px;                      /* tile padding, vertical */
+  --tile-pad-x: 26px;                    /* tile padding, horizontal */
+  --row: 8px;                            /* vertical padding on a list row */
+  --row-gap: 12px;                       /* horizontal gap between a row's parts */
+  --page: 36px 56px;                     /* the page inset around the grid */
+
+  /* ---- RADIUS. Four values and no others on a v2 surface.
+
+     A NAMING NOTE, because this is the one place the artifact's names are
+     genuinely ambiguous in a shared namespace: --tile here is a RADIUS, while
+     --tile-hero and friends above are COLOURS. They are kept as the artifact
+     names them so a reader holding tokens.json finds the same words, and they
+     are grouped under this comment so the shape is legible. Do not read
+     --tile as a fill. ---- */
+  --tile: 20px;                          /* every tile */
+  --inner: 12px;                         /* a button inside a tile */
+  --check: 5px;                          /* a checkbox */
+  --pill: 999px;                         /* chips: Work / Casual, Start */
+
+  /* ---- BLUR. The saturate half is not decoration: a plain blur over a
+     photograph greys it, and 130% brings the photo's own colour back through
+     the tint. Applied as backdrop-filter: blur(var(--frost)) saturate(130%). ---- */
+  --frost: 18px;
+
+  /* ---- GRID ---- */
+  --cols: 4;
+  --row-h: 176px;
+
+  /* ---- TYPE. tokens.json states these as STYLES (a family, a size, a line
+     height, a weight) rather than as flat tokens, so each becomes a small
+     group here under the artifact's own style name. Tracking is carried only
+     where the artifact specifies it - hero and count. ---- */
+  --font-sans: "Space Grotesk", Inter, system-ui, sans-serif;
+
+  --hero-size: 92px;      --hero-lh: 1;     --hero-weight: 600;  --hero-track: -0.04em;
+  --count-size: 56px;     --count-lh: 1.1;  --count-weight: 600; --count-track: -0.03em;
+  --figure-size: 40px;    --figure-lh: 1.2; --figure-weight: 600;
+
+  --title-size: 26px;     --title-lh: 1.2;  --title-weight: 600;
+  --tile-title-size: 24px;--tile-title-lh: 1.2; --tile-title-weight: 600;
+  /* THE SUB-16px SIZES ARE THE SHIPPED RAMP, NOT LITERALS, AND THAT IS A
+     CORRECTION TO THE DESIGN SYSTEM RATHER THAN A TRANSCRIPTION OF IT.
+
+     tokens.json states eyebrow 12px, hint 11px, meta 13px, body 14px as fixed
+     values. Shipped literally they would have silently killed the text-size
+     setting on every v2 surface: small/medium/large is a real preference with
+     three tiers of --fs-* tokens behind it, and a hard 12px does not move when
+     a user who needs larger type asks for it. tools/check-text-size.mjs caught
+     it on the first run - its rule is that no font-size below the floor may be
+     a hard literal, because the setting has to cover all of them.
+
+     So each v2 text style is an ALIAS of the ramp token that equals its
+     specified px AT THE DEFAULT TIER, and it scales with the setting from
+     there. The design system gets the size it asked for; the user keeps the
+     control. Components use the --fs-* token directly, because the gate reads
+     the declaration rather than the resolved value - these aliases are the
+     mapping written down, not a second source. */
+  --body-size: var(--fs-13);   --body-lh: 20px;  --body-weight: 400;   /* 14px at medium */
+  --meta-size: var(--fs-12);   --meta-lh: 18px;  --meta-weight: 500;   /* 13px at medium */
+  --eyebrow-size: var(--fs-11);--eyebrow-lh: 16px; --eyebrow-weight: 600;/* 12px at medium */
+  --hint-size: var(--fs-10);   --hint-lh: 14px;  --hint-weight: 600;   /* 11px at medium */
+}
+
+/* ===========================================================================
+   [H0] SPACE GROTESK, SHIPPED IN THE EXTENSION.
+
+   THE CSP MAKES THIS THE ONLY OPTION, not the preferred one: manifest.json
+   declares `font-src 'self'`, so a face fetched from Google Fonts is refused
+   by the browser. The files live in fonts/ and build.sh's allowlist carries
+   the directory.
+
+   THREE FILES, NOT FOUR, AND THEY ARE SUBSETS RATHER THAN WEIGHTS. Google
+   publishes Space Grotesk as a VARIABLE font: one woff2 per unicode subset,
+   each covering the whole 400-700 axis. So `font-weight: 400 700` below is a
+   RANGE, and every weight the design system asks for - 400, 500, 600, 700 -
+   is interpolated from the axis rather than loaded from its own file.
+   latin 22,288 · latin-ext 18,940 · vietnamese 6,712 = 47,940 bytes.
+
+   ALL THREE SUBSETS SHIP. Notes and task names are free text; a user types
+   what they type, and a fallback seam appearing mid-word on one accented
+   character is a real outcome rather than a hypothetical one. Coverage beyond
+   these three (Cyrillic, Greek, CJK) is not a choice being made here - the
+   face has no glyphs for them and falls back either way.
+
+   The unicode-range values are Google's own, verbatim from the stylesheet the
+   files came from, so the browser downloads nothing it does not need.
+
+   font-display: swap, which for a local file is a formality - there is no
+   network to wait on - but it is the honest declaration: if the face somehow
+   fails to decode, text renders in the fallback rather than not at all.
+   =========================================================================== */
+
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("fonts/space-grotesk-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("fonts/space-grotesk-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("fonts/space-grotesk-vietnamese.woff2") format("woff2");
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}

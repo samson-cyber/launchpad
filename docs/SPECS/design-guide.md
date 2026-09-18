@@ -131,9 +131,68 @@ Rule: the accent is the **only** colour used to mean "this is live or clickable"
 
 No gradient washes on cards or backgrounds. The single existing gradient (the CTA fill on the tab bar) stays; nothing new adopts it.
 
+#### v2 — Warm Bento: one ACTION colour plus a tint per tile kind
+
+> **Added 2026-09-18 (H0). The v1 table above is SUPERSEDED ON A v2 SURFACE and
+> still in force everywhere else.** Surfaces migrate one round at a time; when
+> the last one has, the v1 table and its tokens are swept and this becomes the
+> only table. Until then both are true, each on its own surfaces, and a round
+> has to know which kind of surface it is editing.
+
+| Name | dark | photograph | light | Meaning |
+|---|---|---|---|---|
+| `--action` | `#ff8a3d` | same | same | the ONE thing to do: Up-next tile, Start button, progress fills, the Work chip, the overdue word |
+| `--action-soft` | `#ffb37a` | same | same | the lighter end of the action gradient — the hero figure, bar fills |
+| `--action-2` | `#e06a2a` | same | same | the darker end of the action TILE's gradient. From board 8; `tokens.json` has no term for it |
+| `--tile-overdue` / `-2` | `rgba(90,47,42,.82)` / `rgba(61,31,28,.82)` | same | same | overdue means rose |
+| `--tile-goals` / `-2` | `rgba(47,74,58,.82)` / `rgba(30,51,40,.82)` | same | same | goals means green |
+| `--tile-blocking` / `-2` | `rgba(59,47,74,.82)` / `rgba(38,32,58,.82)` | same | same | blocking means violet |
+| `--tile-hero` / `-2` | `rgba(38,30,34,.82)` / `rgba(26,21,24,.82)` | same | same | nearest the ground; the figure carries the colour, not the tile |
+| `--tile-list` | `rgba(20,18,20,.72)` | same | same | faint, so the eye rests on the rows. The one tile at 72% |
+| `--ink` / `--ink-mute` / `--ink-faint` | `#f3ede6` / `#a89c93` / `rgba(243,237,230,.45)` | same | same | text on a tile. Achromatic BY RULE |
+| `--ink-on-action` | `#1a0d05` | same | same | text on the action tile and button |
+| `--ink-on-overdue` / `-goals` / `-blocking` | `#e8a89a` / `#9ccdb0` / `#c0a8e0` | same | same | a tile's EYEBROW only — its tint lifted to text weight |
+
+**THE THREE COLUMNS ARE IDENTICAL, AND THAT IS THE DESIGN RATHER THAN A GAP IN
+THIS TABLE.** v1 needs per-ground values because its ink sits on surfaces that
+flip with a luminance class. v2's tiles do not flip: every one is a tint at
+**82%** over the wallpaper — a list tile at **72%** — so the ground reads
+*through* the tile instead of being switched between. The design system's
+`tokens.json` carries exactly one entry with three values, `ground`, and it is
+not a token anything sets: it *is* the wallpaper, which the product cannot
+classify when it is a photograph.
+
+So H0 declares the v2 set once at `:root` and adds no `html.bg-light` branch to
+any of it. **A v2 token gains a ground branch when a measurement asks for one,
+not before** — and the measurement is the standing one: every `.tile--*`
+eyebrow, on all three grounds, with `tools/pixel-contrast.mjs`.
+
+**The rule that replaces "one accent":** colour lives on the tile, never on the
+words. Five coloured *surfaces* are allowed; the count of coloured *text* runs
+on any v2 surface stays at one — the overdue word, in `--action`. A tinted
+tile's eyebrow takes its lifted ink; everything else on it is `--ink` or
+`--ink-mute`.
+
+**What v2 keeps from the table above:** tag pills as identifiers; amber for
+paused (`--sat-amber`, and note v1's is the richer definition — it already
+carries the `bg-light` branch `#8a6d09` that `tokens.json` has no term for);
+the priority spine at 3px in the four `--prio-*` colours, which v2 confirms
+byte-identical rather than restating.
+
+
 ### 3.4 Typography
 
-- **Family:** the system UI stack (`system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`). No webfont: the CSP forbids external fonts, bundling one grows the 609 KiB zip for no gain, and the system face is what Google's own new tab uses, which is the handshake Home is keeping. Bonjourr's "custom fonts" praise is real, but it is a B7 option for the user, not a default.
+- **Family — SUPERSEDED 2026-09-18 (H0).** The product now ships **Space Grotesk** in
+  `fonts/`, declared by `@font-face` in `tokens.css`, with `body` on
+  `var(--font-sans)` = `"Space Grotesk", Inter, system-ui, sans-serif`. The reversal is
+  recorded in DECISIONS 2026-09-18 with its cost measured: **47,940 bytes** of woff2,
+  three variable subsets rather than four per-weight files. The CSP half of the old
+  rule was never wrong — `font-src 'self'` genuinely forbids a remote face, which is
+  exactly why the files ship inside the extension. The "for no gain" half is what
+  changed: the v2 display ramp is weight 600 with -0.04em tracking at 92px, and the
+  system stack cannot deliver it. The original rule is kept verbatim below, because a
+  guide that quietly edits itself is not a record:
+  > the system UI stack (`system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`). No webfont: the CSP forbids external fonts, bundling one grows the 609 KiB zip for no gain, and the system face is what Google's own new tab uses, which is the handshake Home is keeping. Bonjourr's "custom fonts" praise is real, but it is a B7 option for the user, not a default.
 - **Weights:** 400, 500, 600. Nothing bolder. Hero numerals at 500, not 700; large type reads heavy on its own.
 - **Numerals:** `font-variant-numeric: tabular-nums` on **every** ticking or comparable number (the pill, the stopwatch, the stat strip, chart axes, the export table). A proportional numeral that jitters as it ticks is the single most common tell of an unpolished timer.
 - **Scale:** the shipped ramp `--fs-8` to `--fs-15` governs everything at or below 15px. Above it, three display sizes and no others:

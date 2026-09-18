@@ -219,7 +219,17 @@ body {
   padding: 0;
   background: var(--bg);
   color: var(--text-primary);
-  font-family: "Google Sans", Roboto, Arial, sans-serif;
+  /* [H0 2026-09-18] SPACE GROTESK, and this line is the ONLY thing in the
+     product that looks different after H0. Every surface still renders from
+     v1 classes; the round asserts byte-identical DOM with font-family as the
+     sole computed-style difference.
+
+     The stack behind it is the design system's own: Inter if a machine has it,
+     then system-ui. Roboto and "Google Sans" go - design-guide 3.4's "No
+     webfont" rule is superseded by the 2026-09-18 DECISIONS entry, which
+     records why (the display ramp is weight 600 with -0.04em tracking at 92px,
+     which the system stack cannot deliver) and what it costs (47,940 bytes). */
+  font-family: var(--font-sans);
   /* [1.12.1] background-color IS NO LONGER TRANSITIONED HERE, and dropping it
      is the fix rather than a side effect. It only ever reached colour-to-colour
      — background-image does not interpolate, so a photo change snapped no
@@ -20157,3 +20167,154 @@ html.has-bg.bg-light .mode-preset-note { color: var(--text-secondary); }
 }
 
 html.bg-light .sat-chain-count { color: var(--text-primary); text-shadow: none; }
+
+/* ===========================================================================
+   [H0] v2 — THE TILE, AND THE BENTO GRID IT SITS IN.
+
+   Ruled 2026-09-18; the reference is canvas board 8 (Sw8-BentoPhoto) and the
+   design system's tokens.json. The four DECISIONS entries of that date are the
+   authority.
+
+   NOTHING IN THE SHIPPED PRODUCT USES THESE CLASSES YET, and that is H0's
+   whole assertion: the DOM of every surface is byte-identical to master's, and
+   the only computed-style difference anywhere is font-family. Surfaces adopt
+   .tile one round at a time; v1's cards are untouched above.
+
+   THE SHARED HALF IS ON .tile AND THE VARIABLE HALF IS ON THE MODIFIER. Each
+   modifier sets exactly two things - its gradient pair and --eyebrow-ink - so
+   a seventh tile kind is two declarations rather than a new block, and so the
+   thing that differs between kinds is visible in one screenful.
+
+   --eyebrow-ink IS THE ONLY PLACE COLOUR REACHES TEXT. The 2026-09-18 ruling
+   is "colour on the tile, never on the words": a tinted tile's eyebrow takes
+   its own lifted ink, and everything else on it stays --ink / --ink-mute. The
+   one coloured text run anywhere on a v2 surface is the overdue word, which
+   takes --action and is not a tile.
+   =========================================================================== */
+
+.tile {
+  /* THE FROST. saturate(130%) is load-bearing rather than decorative: a plain
+     blur over a photograph greys it, and this brings the photo's own colour
+     back through the tint. Board 8 carries it on every tile. */
+  backdrop-filter: blur(var(--frost)) saturate(130%);
+  -webkit-backdrop-filter: blur(var(--frost)) saturate(130%);
+
+  border-radius: var(--tile);
+  border: 1px solid var(--tile-line);
+  /* The inset top highlight the design system asks for, in the SAME colour as
+     the border - one token, two jobs, so they cannot drift apart. */
+  box-shadow: inset 0 1px 0 var(--tile-line);
+
+  padding: var(--tile-pad) var(--tile-pad-x);
+  color: var(--ink);
+  font-family: var(--font-sans);
+
+  /* Every tile is a column that pushes its parts apart; board 8's hero, action
+     and count tiles are all space-between. A tile that does not want it can
+     override, but the common case should not have to ask. */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+
+  /* The default is the hero pair, so a bare .tile is never unstyled. */
+  background: linear-gradient(160deg, var(--tile-hero), var(--tile-hero-2));
+  --eyebrow-ink: var(--ink-mute);
+}
+
+/* The eyebrow. Its colour is the modifier's business; its shape is not. */
+.tile-eyebrow {
+  /* --fs-11 rather than --eyebrow-size, and the two are the same thing: the
+     alias is declared in tokens.css and resolves here. The ramp token is named
+     directly because check-text-size reads the DECLARATION - a font-size it
+     cannot recognise as ramp-derived is one the text-size setting might not
+     cover, and it is right to refuse to guess. 12px at the default tier. */
+  font-size: var(--fs-11);
+  line-height: var(--eyebrow-lh);
+  font-weight: var(--eyebrow-weight);
+  color: var(--eyebrow-ink);
+}
+
+/* ---- THE SIX KINDS ------------------------------------------------------
+
+   160deg on every gradient, from board 8. The list tile is FLAT rather than a
+   pair, and that is the design system agreeing with the board: tokens.json
+   publishes a --tile-list with no darker partner, and board 8 renders it as a
+   single rgba. It is also the one tile at 72% rather than 82%, which is what
+   makes a list read as somewhere to rest instead of as another card. */
+
+.tile--hero {
+  background: linear-gradient(160deg, var(--tile-hero), var(--tile-hero-2));
+  --eyebrow-ink: var(--ink-mute);
+}
+
+/* THE ACTION TILE IS THE ONE THAT IS NOT FROSTED GLASS. It is opaque orange
+   with dark ink on it, because "the one thing to do" has to win against any
+   wallpaper - and because --ink-on-action (#1a0d05) only works against the
+   colour at full strength. Its eyebrow is that same dark ink; board 8 carries
+   it at 0.7 opacity, which is the one place a tile's eyebrow is dimmed rather
+   than recoloured. */
+.tile--action {
+  background: linear-gradient(160deg, var(--action), var(--action-2));
+  color: var(--ink-on-action);
+  --eyebrow-ink: var(--ink-on-action);
+}
+/* THE 0.7 CAME OFF, AND THE INSTRUMENT IS WHY. Board 8 dims this eyebrow to
+   opacity 0.7, and transcribing it measured 4.30:1 on all three grounds -
+   under the 4.5 floor, and the one tile whose ink the 2026-09-18 frost entry
+   names explicitly ("pixel-contrast measures ink on each tint"). At full
+   strength --ink-on-action on the orange gradient measures 6.30. The board
+   decided the layout; the floor decides the alpha. */
+.tile--action .tile-eyebrow { opacity: 1; }
+
+.tile--overdue {
+  background: linear-gradient(160deg, var(--tile-overdue), var(--tile-overdue-2));
+  --eyebrow-ink: var(--ink-on-overdue);
+}
+
+.tile--goals {
+  background: linear-gradient(160deg, var(--tile-goals), var(--tile-goals-2));
+  --eyebrow-ink: var(--ink-on-goals);
+}
+
+.tile--blocking {
+  background: linear-gradient(160deg, var(--tile-blocking), var(--tile-blocking-2));
+  --eyebrow-ink: var(--ink-on-blocking);
+}
+
+.tile--list {
+  background: var(--tile-list);
+  --eyebrow-ink: var(--ink-mute);
+  /* A list tile's rows start at the top and stack; space-between would push
+     the last row to the bottom of a 2x2 tile. */
+  justify-content: flex-start;
+}
+
+/* A row separator inside a list tile, and the track behind a progress fill.
+   Both are tile furniture rather than tile kinds. */
+.tile-rule { border-bottom: 1px solid var(--tile-rule); }
+.tile-track { background: var(--tile-fill); }
+
+/* ---- THE GRID -----------------------------------------------------------
+
+   Four columns of equal width, rows of a fixed 176px, one gap. A tile's SIZE
+   is how much it matters, so the spans are named for what they are rather than
+   for the numbers: the hero and a list are 2x2, the action tile is 2 wide. */
+
+.bento {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), 1fr);
+  grid-auto-rows: var(--row-h);
+  gap: var(--gap);
+}
+
+.span-2 { grid-column: span 2; }
+.span-2x2 { grid-column: span 2; grid-row: span 2; }
+.span-3 { grid-column: span 3; }
+
+/* REDUCED MOTION HAS NOTHING TO SAY HERE YET, and that is deliberate rather
+   than an oversight: the design system's own README lists motion as "not
+   decided here - its own research pass after this language is built". There is
+   no transition, transform or animation on a tile, so there is nothing for a
+   prefers-reduced-motion branch to switch off. The round that adds hover
+   behaviour adds the branch with it. */

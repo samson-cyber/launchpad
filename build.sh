@@ -550,6 +550,27 @@ powershell.exe -NoProfile -Command "
     'assets',
     'icons',
     'lib',
+    # [H0 2026-09-18] SPACE GROTESK SHIPS IN THE ZIP, because it has to: the
+    # manifest's CSP is font-src 'self', so a face fetched from Google Fonts is
+    # refused by the browser rather than merely discouraged. Three woff2 subsets
+    # - latin, latin-ext, vietnamese, one variable file each covering 400-700 -
+    # plus OFL.txt. 52,435 bytes in total.
+    #
+    # A DIRECTORY, like lib and sounds, so a fourth subset added later follows
+    # automatically. That is the lesson PF.2 recorded when lib was renamed and
+    # this array needed no change at all.
+    #
+    # NO CLOSING PARENTHESIS MAY APPEAR IN A COMMENT IN THIS ARRAY, and this
+    # comment does not contain one. The parser locates the block with a
+    # NON-GREEDY match that stops at the first closing parenthesis, so one in
+    # prose ENDS the allowlist early and every entry below it silently
+    # disappears. The first draft of this comment did exactly that and dropped
+    # both fonts and sounds; the SECOND draft, which was a warning about the
+    # trap, contained the character inside the warning and dropped them again.
+    # Same class as the apostrophe trap the parser's own header records - prose
+    # editing the allowlist - which is why that header says an allowlist that
+    # can be edited by prose is not an allowlist.
+    'fonts',
     'sounds'
   )
   \$root = (Get-Location).Path

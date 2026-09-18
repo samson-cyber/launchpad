@@ -72,6 +72,7 @@ import {
   extractRefs,
   isLocal,
   norm,
+  cssUrlRefs,
   readAllowlist,
   expandAllowlist,
   enumerateManifest,
@@ -151,6 +152,30 @@ for (const page of pages) {
     const v = norm(r.value);
     if (!referencedBy.has(v)) referencedBy.set(v, []);
     referencedBy.get(v).push({ page, tag: r.tag, attr: r.attr, raw: r.value });
+  }
+}
+
+// [H0 2026-09-18] AND THEN THE STYLESHEETS THOSE PAGES LINK.
+//
+// A file reached only from CSS was invisible here: fonts/space-grotesk-*.woff2
+// are referenced by an @font-face src in tokens.css and by nothing in any HTML
+// page, so before this the allowlist would have carried three files the gate
+// could not account for. Reading the CSS is the honest fix; an
+// EXPECTED_UNREFERENCED entry per font would have been the gate apologising
+// for its own blind spot.
+//
+// ONLY CSS THE PAGES ALREADY LINK, and one level deep. @import is not followed
+// because this tree has none - if one ever appears, the count below drops and
+// the floor catches it rather than this silently reading less than it claims.
+const cssPages = [...referencedBy.keys()].filter((r) => r.endsWith(".css"));
+let cssRefCount = 0;
+for (const sheet of cssPages) {
+  const abs = path.join(repoRoot, sheet);
+  if (!fs.existsSync(abs)) continue;
+  for (const v of cssUrlRefs(fs.readFileSync(abs, "utf8"))) {
+    cssRefCount++;
+    if (!referencedBy.has(v)) referencedBy.set(v, []);
+    referencedBy.get(v).push({ page: sheet, tag: "css", attr: "url()", raw: v });
   }
 }
 if (referencedBy.size < FLOOR_REFS) {

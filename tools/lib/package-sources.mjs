@@ -87,6 +87,81 @@ export function localRefs(html) {
 }
 
 // ---------------------------------------------------------------------------
+// CSS url() REFERENCES. [H0 2026-09-18]
+//
+// THE GATE COULD NOT SEE A FONT. Before this, "referenced" meant an src or href
+// attribute in an HTML page, so a file reached only from a stylesheet was
+// invisible: adding fonts/ to the allowlist would have made three woff2 files
+// "allowed but never referenced", and the gate would have demanded an
+// EXPECTED_UNREFERENCED entry apologising for each - which is exactly the reflex
+// that list's own header warns against. The files ARE referenced. The reader
+// just could not read the language they are referenced in.
+//
+// SCOPE, KEPT NARROW ON PURPOSE. This reads url() out of CSS that the pages
+// already link. It does NOT read string literals out of JavaScript, for the
+// reason assets/placeholder.svg's entry records: widening to JS would match
+// every URL the product ever mentions, and a matcher that matches everything
+// proves nothing.
+//
+// COMMENTS ARE STRIPPED FIRST. A commented-out url() is not a reference, and a
+// gate that counted one would report a file as referenced when the only thing
+// pointing at it was a note explaining why it is not used.
+// ---------------------------------------------------------------------------
+export const CSS_URL_RE = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s]*))\s*\)/g;
+
+export function stripCssComments(css) {
+  return String(css).replace(/\/\*[\s\S]*?\*\//g, "");
+}
+
+/** Local paths a stylesheet points at. Remote, data: and blob: are dropped by
+  * isLocal - the SAME filter the HTML side uses, so there is one definition of
+  * "local" for both languages rather than two that can drift. A url(#id)
+  * fragment is not a file, and isLocal already refuses it. */
+export function cssUrlRefs(css) {
+  const out = [];
+  const src = stripCssComments(css);
+  let m;
+  CSS_URL_RE.lastIndex = 0;
+  while ((m = CSS_URL_RE.exec(src))) {
+    const v = m[1] !== undefined ? m[1] : m[2] !== undefined ? m[2] : m[3];
+    if (v === undefined || v === "") continue;
+    if (!isLocal(v)) continue;
+    out.push(norm(v));
+  }
+  return out;
+}
+
+// Awkward-but-legal CSS, in the same spirit as PARSER_FIXTURES above: each case
+// is something a naive regex gets wrong.
+export const CSS_FIXTURES = [
+  {
+    name: "quoted, unquoted and single-quoted url() all resolve",
+    css: 'a{background:url("a.png")}b{background:url(b.png)}c{background:url(\'c.png\')}',
+    want: ["a.png", "b.png", "c.png"]
+  },
+  {
+    name: "whitespace inside url() does not break the match",
+    css: '@font-face{src:url( "fonts/x.woff2" ) format("woff2")}',
+    want: ["fonts/x.woff2"]
+  },
+  {
+    name: "remote, data: and fragment urls are not local files",
+    css: 'a{background:url(https://x/y.png)}b{background:url(data:image/png;base64,AA)}c{filter:url(#f)}',
+    want: []
+  },
+  {
+    name: "a commented-out url() is NOT a reference",
+    css: '/* a{background:url(ghost.png)} */ b{background:url(real.png)}',
+    want: ["real.png"]
+  },
+  {
+    name: "a leading ./ is normalised the same way an HTML ref is",
+    css: 'a{background:url(./sub/d.png)}',
+    want: ["sub/d.png"]
+  }
+];
+
+// ---------------------------------------------------------------------------
 // PARSER SELF-TEST. Runs on EVERY gate invocation, not only under a flag: a
 // parser that silently stops matching is exactly the failure this gate cannot
 // survive, and P13 says a check that can quietly become vacuous is not a check.
@@ -184,6 +259,11 @@ export function runParserSelfTest() {
     const got = localRefs(f.html);
     const ok = got.length === f.want.length && got.every((g, i) => g === f.want[i]);
     results.push({ name: f.name, ok, got, want: f.want });
+  }
+  for (const f of CSS_FIXTURES) {
+    const got = cssUrlRefs(f.css);
+    const ok = got.length === f.want.length && got.every((g, i) => g === f.want[i]);
+    results.push({ name: "css: " + f.name, ok, got, want: f.want });
   }
   for (const f of ALLOWLIST_FIXTURES) {
     const r = parseAllowlistText(f.sh);
@@ -306,6 +386,18 @@ export function expandAllowlist(entries, repoRoot) {
 // answer first is "why does this ship at all?", not "how do I make this quiet?".
 // ---------------------------------------------------------------------------
 export const EXPECTED_UNREFERENCED = [
+  {
+    p: "fonts/OFL.txt",
+    reason: "The SIL Open Font License, shipped because the licence REQUIRES it: Space " +
+            "Grotesk is OFL-1.1, and clause 2 says the copyright notice and licence must " +
+            "travel with the font files in any redistribution - which is what putting a " +
+            "woff2 inside a Chrome Web Store zip is. Nothing references it and nothing " +
+            "should: it is a legal artifact, not a resource the product loads. The three " +
+            "space-grotesk-*.woff2 beside it ARE referenced, from the @font-face src in " +
+            "tokens.css, which this gate learned to read in the same commit. Deleting " +
+            "this file would make the build non-compliant while changing nothing a user " +
+            "can see, which is the most dangerous shape of unreferenced file there is.",
+  },
   {
     p: "assets/placeholder.svg",
     reason: "The favicon fallback, referenced ONLY from JavaScript - seven sites in " +

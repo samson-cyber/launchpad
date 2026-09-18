@@ -3995,3 +3995,180 @@ hardcoded name. Recorded because "update the allowlist" was the expected work an
 was that there was none.
 
 **Shipped in:** PF.2 follow-up.
+
+---
+
+# v2 — WARM BENTO. The four doctrine amendments, ruled 2026-09-18
+
+The four entries below were ruled by Samson on 2026-09-18 from the SR.2 canvas
+(board 8, Sw8-BentoPhoto, and the V2-* boards) and the design system that came
+out of it. They are appended, per this log's own rule, and they are written
+**before any product code** so the v2 build inherits them rather than smuggling
+them in one surface at a time.
+
+Each names what it supersedes and what it keeps. The source of record for the
+values is `docs/SPECS/v2-handoff-spec.md` section 0 and the design system's
+`tokens.json`; this log records the decision, not the hex.
+
+---
+
+## 2026-09-18 — One accent becomes one ACTION colour plus a TINT PER TILE KIND
+
+**Context:** v1 has exactly one accent (`#8ab4f8` on dark frames, `#1a73e8` on a
+light solid) and design-guide 3.3 states the rule plainly: the accent is the
+only colour used to mean "this is live or clickable", with tag pills as the one
+sanctioned exception because they are identifiers rather than states. The v2
+canvas puts six tiles on one screen, and a single accent cannot tell an overdue
+count from a goals count from a blocking count.
+
+**Alternatives considered:**
+- **Keep one accent, separate the tiles by position alone.** Rejected on the
+  canvas: three 1x1 count tiles in a row are indistinguishable at a glance, and
+  the whole argument for bento is that size and colour carry weight.
+- **A colour per tile applied to the tile's TEXT.** Rejected, and this is the
+  research warning the ruling takes seriously: a surface with five coloured text
+  runs reads as a dashboard from 2012, and coloured text is the first thing to
+  fail a contrast floor on an unknown wallpaper.
+
+**Outcome:** ONE ACTION COLOUR plus A TINT PER TILE KIND.
+- `action` orange is the one thing to do — the Up-next tile, the Start button,
+  progress fills, the Work chip, the overdue word. Never a second action on the
+  same view.
+- `tile-overdue` rose, `tile-goals` green, `tile-blocking` violet carry meaning
+  on the SURFACE.
+- Text on any tile stays achromatic — `ink`, `ink-mute`. Only a tile's eyebrow
+  takes its own lifted ink (`ink-on-overdue`, `ink-on-goals`, `ink-on-blocking`).
+
+**Reasoning:** stated as the rule it is — **colour lives on the tile, never on
+the words.** That is what keeps the multi-accent warning answered: the number of
+coloured TEXT runs on any surface stays at one (the overdue word, in `action`),
+while the number of coloured SURFACES rises to five. A tile's fill is frosted
+at 82% over the wallpaper and measured with the pixel instrument on all three
+grounds; a coloured glyph on an unknown photograph is the case this product has
+already lost three times.
+
+**Supersedes:** design-guide 3.3's single-accent table, for v2 surfaces only.
+v1's accent rule stays in force on every surface until that surface migrates.
+**Keeps:** tag pills as identifiers; amber for paused, unchanged; the priority
+spine at 3px as the only priority signal; urgent red for destructive confirms.
+
+---
+
+## 2026-09-18 — The frost tier is a FAMILY, not one dark
+
+**Context:** v1's Card tier is one value, `--pro-frost-card-bg` at
+`rgba(30,30,30,0.85)` with a 12px blur, read by 17 rules across `newtab.css`
+and `tokens.css`. Every card on every surface is the same dark. The v2 canvas
+needs a hero that is nearly the ground, three tinted counts, and a list tile
+faint enough that the eye rests on the rows — five different surfaces where v1
+has one.
+
+**Alternatives considered:**
+- **One frost, colour applied as a separate overlay layer.** Rejected: a second
+  translucent layer over a translucent layer makes the wallpaper's contribution
+  unpredictable, and the instrument would be measuring a stack nobody can
+  reason about.
+- **Opaque tinted cards.** Rejected: the photograph is the product's signature
+  and an opaque tile throws it away. The canvas's whole premise is that the
+  wallpaper reads through every tile.
+
+**Outcome:** a FAMILY. `tile-hero`, `tile-list` and the three tints are each a
+GRADIENT PAIR — a tint to its darker partner — at **82% alpha** (`tile-list` at
+**72%**), **18px blur with 130% saturation**, over the wallpaper.
+`--pro-frost-card-bg` is retired in favour of the family.
+
+**Reasoning:** the saturation is the part that is easy to miss and is the reason
+this reads as warm rather than grey. A plain blur over a photograph desaturates
+it; `saturate(130%)` brings the photo's own colour back through the tint, so a
+tile over a beach looks like a tile over a beach rather than a tile over
+concrete. The gradient pair, rather than a flat fill, is what stops a 2x2 tile
+reading as a slab at that size.
+
+**Retirement is staged, not immediate.** `--pro-frost-card-bg` and its 17
+readers stay until the last surface migrates; H0 adds the v2 family BESIDE it.
+A token with no readers is deleted in the sweep that ends the migration, not
+before — a half-migrated product needs both.
+
+**Supersedes:** the three-tier frost constant (Card / Floater / Menu) for v2
+tiles. **Keeps:** Floater and Menu unchanged — modals, popovers and context
+menus are not tiles and are not part of this family.
+
+---
+
+## 2026-09-18 — Space Grotesk, product-wide, shipped in the extension
+
+**Context:** the product renders in `"Google Sans", Roboto, Arial, sans-serif`
+today, and there is no `@font-face` anywhere in the tree. The v2 language is
+built on Space Grotesk — its negative tracking at display sizes and its tabular
+figures are what make the hero numeral and the count tiles read as instruments.
+
+**THIS REVERSES A WRITTEN RULE, and the reversal is the point of recording it.**
+design-guide 3.4 says, verbatim: *"No webfont: the CSP forbids external fonts,
+bundling one grows the 609 KiB zip for no gain, and the system face is what
+Google's own new tab uses, which is the handshake Home is keeping."*
+
+**Alternatives considered:**
+- **Keep the system stack.** Rejected by the canvas: the display ramp is 92px,
+  56px and 40px at weight 600 with `-0.04em` tracking, and the system face at
+  those sizes is the generic look v2 exists to leave behind.
+- **Load it from Google Fonts.** IMPOSSIBLE, not merely rejected. The manifest's
+  CSP is `font-src 'self'` — a remote face is refused by the browser, not by
+  policy preference.
+
+**Outcome:** Space Grotesk ships INSIDE the extension, in `fonts/`, declared by
+`@font-face` in `tokens.css`, with `body`'s family flipped to
+`"Space Grotesk", Inter, system-ui, sans-serif`.
+
+**Reasoning on the "no gain" half of the old rule:** it was true when the only
+gain on offer was taste. It is not true now that the type ramp is load-bearing —
+the design system specifies weight 600 with negative tracking at three display
+sizes, and the system stack cannot deliver it.
+
+**On the cost half, measured rather than asserted:** 47,940 bytes of woff2.
+Against the 609 KiB the old rule weighed it into, that is under 8%.
+
+**AND THERE ARE THREE FILES, NOT FOUR — the premise that there would be one per
+weight does not survive contact with the source.** Google Fonts publishes Space
+Grotesk as a VARIABLE font: one woff2 per unicode subset, each covering the
+whole 400-700 axis. So the three files are subsets, not weights —
+`latin` 22,288 · `latin-ext` 18,940 · `vietnamese` 6,712 — and one `@font-face`
+per subset declares `font-weight: 400 700`. Every weight the design system asks
+for (400/500/600/700) comes from the axis rather than from a separate file.
+All three subsets ship: notes and task names are free text and a user types what
+they type, so a fallback seam mid-word is a real outcome rather than a
+hypothetical one. `fonts/OFL.txt` travels with them.
+
+**Supersedes:** design-guide 3.4's "No webfont" rule, entirely.
+**Keeps:** everything else in 3.4 — tabular numerals on every ticking or
+comparable number, the `--fs-8`..`--fs-15` ramp for everything at or below 15px,
+sentence-case labels, and the text-shadow rule for anything sitting directly on
+wallpaper.
+
+---
+
+## 2026-09-18 — The radius ramp: tile 20, inner 12, pill 999, check 5
+
+**Context:** the 2026-09-01 correction to design-guide 3.5 measured the real
+population at **277 radius declarations across 21 distinct values**, after the
+guide had claimed there were three. v1's card radius is 8px. The v2 tile is
+20px, and at that size the difference is not a detail — it is what makes a tile
+read as a tile rather than as a card.
+
+**Alternatives considered:** keeping 8px and letting the tile's size carry the
+language. Rejected on the canvas: at 176px rows a 2x2 tile with an 8px radius
+reads as a panel, and the bento reference this was ruled against does not look
+like that.
+
+**Outcome:** four values and no others on a v2 surface.
+- `tile` **20px** — every tile.
+- `inner` **12px** — a button inside a tile.
+- `pill` **999px** — chips: Work / Casual, Start.
+- `check` **5px** — a checkbox.
+
+**Reasoning:** the ramp is short on purpose. The 21-value population the 2026-09-01
+correction found is what happens when a radius is chosen per component; four
+named values with a stated use each is the thing that stops it recurring.
+
+**Supersedes:** the 8px card radius, on v2 surfaces. **Keeps:** the existing
+`--radius-*` tokens and their 277 declarations until each surface migrates — the
+same staged retirement the frost family takes, for the same reason.
