@@ -15289,6 +15289,48 @@ html.has-bg.bg-light .tt-tpl-task-remove {
   color: #ff8a8a;
 }
 
+/* [2026-09-18] THE NOTEBOOK PICKER'S CURRENT ROW.
+
+   The row used to ship `disabled`, which is why clicking the notebook a note
+   was already in did nothing at all - a disabled button receives no click. It
+   is a real button now, and the tick is what it gained instead: it marks which
+   notebook the note is in, which the picker never said, and it is the thing the
+   click confirms.
+
+   FLEX, BECAUSE .tt-ctx-item IS display:block AND THE ROW NOW HAS TWO CHILDREN.
+   The name takes the space and ellipsises; the tick never shrinks, so a long
+   notebook name clips rather than pushing the tick out of the row.
+
+   THE TICK'S INK FOLLOWS .tt-ctx-danger'S PATTERN EXACTLY, and that is the
+   point: this menu INVERTS on a light wallpaper (the .tt-context-menu override
+   swaps a near-black surface for a near-white one), so a single colour cannot
+   serve both. Danger already solved this with an explicit pair rather than a
+   token, and a second solution to one problem in one component would be the
+   thing that drifts. Measured on three grounds; see the round's report. */
+.tt-ctx-item.nb-pick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.nb-pick-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nb-pick-tick {
+  flex-shrink: 0;
+  /* BOLD BECAUSE THE GLYPH IS A HAIRLINE. A tick at --fs-13 in weight 400 is a
+     couple of anti-aliased diagonals, and an anti-aliased stroke never reaches
+     its declared colour - which is the whole reason this repo measures ink from
+     the screen instead of computing it. Weight puts real pixels at full
+     strength. Measured, not assumed; see the light-ground note below. */
+  font-weight: 700;
+  color: #8ab4f8;
+}
+
 .tt-ctx-item.tt-ctx-danger:hover {
   background: rgba(208, 2, 27, 0.22);
 }
@@ -15510,6 +15552,27 @@ html.has-bg.bg-light .tt-ctx-item.tt-ctx-danger {
 
 html.has-bg.bg-light .tt-ctx-item.tt-ctx-danger:hover {
   background: rgba(208, 2, 27, 0.12);
+}
+
+/* The menu is near-white here, so the tick takes a strong blue rather than the
+   pale one. Same pair, same two places, as .tt-ctx-danger above.
+
+   AND IT IS NOT --accent, WHICH IS WHAT THIS RULE SAID FIRST. #1a73e8 computes
+   to 4.77:1 on a near-white menu, comfortably over the 4.5 floor on paper. The
+   SCREEN read 3.50. The arithmetic was not wrong about the colour; it was wrong
+   about the pixels, because a thin diagonal glyph is mostly anti-aliased edge
+   and never reaches the colour it declares. That is pixel-contrast.mjs's
+   founding case (a declared 0.46 alpha rendering as 2.84) arriving in a new
+   place, and it is why a computed ratio is never the one that ships.
+
+   #0b57d0 computes to 6.39:1, and with the bold weight above it MEASURES 5.75
+   on a light wallpaper - against 3.50 for the accent. The bold weight is worth
+   0.96 on its own: the same #8ab4f8 on the dark menu went 6.51 -> 7.47 when the
+   weight landed, with no colour change at all. The margin between 6.39 computed
+   and 5.75 measured is what the anti-aliasing costs, and it has to be paid in
+   the declared value. */
+html.has-bg.bg-light .nb-pick-tick {
+  color: #0b57d0;
 }
 
 html.has-bg.bg-light .tt-ctx-header {

@@ -5499,6 +5499,9 @@
   // name from a short list, and raising a dialog over a 208px note to do it
   // would be heavier than the thing it decides. Same .tt-context-menu component,
   // same dismissal lifecycle, so there is no new surface to keep in step.
+  // The tick on the current row. A character rather than an SVG: the rows are
+  // text and it has to sit on the text baseline beside a name.
+  var CHECK_GLYPH = "✓";
   function openNotebookPicker(x, y, noteId) {
     closeNotesMenu();
     var ws = Storage.getActiveWorkspace(data);
@@ -5517,10 +5520,34 @@
       rows += '<div class="tt-ctx-separator"></div>';
       books.forEach(function (b) {
         var here = (note.notebookId === b.id);
-        rows += '<button type="button" class="tt-ctx-item' + (here ? " is-current" : "") + '"' +
-          ' data-nb-pick="' + escapeHtml(b.id) + '"' + (here ? " disabled" : "") + '>' +
-          escapeHtml(b.name) + '</button>';
+        // [2026-09-18] THE CURRENT NOTEBOOK IS TICKED AND CLICKABLE. It shipped
+        // `disabled`, and a disabled button receives NO click event at all - so
+        // the one row a user is most likely to press was the one row that could
+        // not answer. Samson, 2026-09-18: "nothing happens. This should at least
+        // just close the dialog box and tick."
+        //
+        // The tick is not only the answer to that click, it is the information
+        // the picker never carried: opened cold, nothing here said which
+        // notebook the note was already in. aria-current carries the same fact
+        // to a screen reader, which `disabled` never did either.
+        rows += '<button type="button" class="tt-ctx-item nb-pick' + (here ? " is-current" : "") + '"' +
+          ' data-nb-pick="' + escapeHtml(b.id) + '"' + (here ? ' aria-current="true"' : '') + '>' +
+          '<span class="nb-pick-name">' + escapeHtml(b.name) + '</span>' +
+          (here ? '<span class="nb-pick-tick" aria-hidden="true">' + CHECK_GLYPH + '</span>' : '') +
+          '</button>';
       });
+    }
+    // THE EXIT. The picker had an entrance (New notebook) and no way out, so
+    // the only route from inside a notebook back to the standalone stack was
+    // the note's own right-click menu one level up - which does carry
+    // "Remove from notebook" and has since NB.3, so this was a second missing
+    // exit rather than the only one. Same writer either way: setNoteNotebook
+    // with null, by way of notebookRemoveNote, so the note lands at the TOP of
+    // the stack exactly as it does from the menu route.
+    if (note.notebookId) {
+      rows += '<div class="tt-ctx-separator"></div>' +
+        '<button type="button" class="tt-ctx-item" data-nb-pick="__remove">' +
+        th("notebooks_remove_from_notebook") + '</button>';
     }
 
     var menu = document.createElement("div");
@@ -5538,8 +5565,17 @@
       if (!btn) return;
       var pick = btn.getAttribute("data-nb-pick");
       closeNotesMenu();
-      if (pick === "__new") notebookCreateWithNote(noteId);
-      else notebookAddNote(noteId, pick);
+      if (pick === "__new") { notebookCreateWithNote(noteId); return; }
+      if (pick === "__remove") { notebookRemoveNote(noteId); return; }
+      // THE CURRENT NOTEBOOK: CLOSE, AND WRITE NOTHING. The row is a real
+      // button now, so it has to say what it does - and what it does is
+      // confirm. Returning here rather than falling through to
+      // notebookAddNote is deliberate even though that call would be a no-op:
+      // a no-op that reaches a writer is one refactor away from being a write,
+      // and the reason nothing should be written is a fact about this row, not
+      // a property of the writer.
+      if (pick === note.notebookId) return;
+      notebookAddNote(noteId, pick);
     });
 
     setTimeout(function () {
@@ -12446,7 +12482,18 @@
             '<span class="tt-modal-label">' + th("focusblock_to") + '</span>' +
             timeHtml("end", "focusblock_to", win0.end) +
           '</div>' +
-          '<p class="fb-note fb-overnight hidden">' + th("focusblock_overnight_note") + '</p>';
+          '<p class="fb-note fb-overnight hidden">' + th("focusblock_overnight_note") + '</p>' +
+          // [2026-09-18] THE MODE RELATIONSHIP, STATED WHERE THE RULE IS SET.
+          // A schedule is mode-governed (WM.3) and WORKSPACE_MODE_DEFAULT is
+          // "casual", so the default state of a freshly-written schedule is one
+          // that CANNOT FIRE. Measured 2026-09-18 on Samson's own rule
+          // (youtube.com, Mon-Fri 09:00-17:00) under an Asia/Makassar clock:
+          // blockingReasonFor returned "schedule" in Work and null in Casual at
+          // the identical instant. The rule saved correctly both times; nothing
+          // told him which mode he was in. UNCONDITIONAL, not shown only on
+          // Casual: a line that appears when you are already wrong is a warning,
+          // and this is a property of the rule rather than a fault in it.
+          '<p class="fb-note">' + th("focusblock_schedule_mode_note") + '</p>';
       }
       if (mode === "budget") {
         // E1'S COPY LIVES WHERE THE USER SETS ONE, which is here, and it is
@@ -12458,6 +12505,11 @@
             '<input type="number" id="fb-limit" class="fb-limit fb-num" min="1" max="' + Storage.BUDGET_MAX_MIN + '" step="1" inputmode="numeric" value="' +
               (limit === null ? Storage.BUDGET_DEFAULT_MIN : limit) + '">' +
           '</div>' +
+          // The COUNTERPART line. A budget sits outside mode entirely (WM.3:
+          // a mode switch must not silently spend or restore a limit the user
+          // set for themselves), so it says so - otherwise the schedule's note
+          // would imply by its silence here that every rule is mode-governed.
+          '<p class="fb-note">' + th("focusblock_budget_mode_note") + '</p>' +
           '<p class="fb-note">' + th("focusblock_budget_needs_tracking") + '</p>' +
           (tracked ? "" : '<p class="fb-note fb-note-warn">' + th("focusblock_budget_inert") + '</p>');
       }

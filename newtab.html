@@ -149,6 +149,38 @@
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
           </svg>
         </button>
+        <!-- [DB.1] THE DUE-WORK BELL. In the TAB BAR, which is the surface the
+             spec named, and NOT beside the active-task pill despite the spec
+             assuming they are adjacent - measured, they are not. The pill is
+             position:fixed at the viewport top-right and the bar is centred, so
+             there is 451px between them at the pill's widest state. "Beside the
+             pill" has no stable anchor either: the pill is 280px as a card, 240px
+             slim (up to 300 by its own clamp), and display:none entirely for free
+             users, so a bell offset past it would overlap one state, float away
+             from another, and be anchored to nothing in the third.
+
+             IMMEDIATELY AFTER THE TASKS TAB, and this is a 2026-09-18 MOVE from
+             the end of the bar. DB.1 put it last, which is AFTER #tab-cta - and
+             for the only users who can see the bell that is the "Pro" badge,
+             because tab-cta renders State F (check + "Pro") for active and grace
+             and the bell is Pro-gated. So the bell's nearest neighbour was the
+             Pro badge and it read as a billing ornament rather than as work.
+             Samson, 2026-09-18: "Next to pro doesn't really indicate that it's a
+             task that we're looking to do." It is what the bell COUNTS that names
+             it, and that is tasks.
+
+             A SIBLING OF THE TASKS TAB, NOT A CHILD OF IT. "After the Tasks tab
+             label" cannot mean inside that button: a button may not contain a
+             button, and nesting it would also make the bell part of the tab's own
+             click target, so every bell press would switch tabs first.
+
+             ABSENT, NOT EMPTY: .hidden unless getDueWork reports unsnoozed work.
+             The count is rendered by renderDueBell; nothing here is a placeholder
+             to be "filled in" with a zero. -->
+        <button id="due-bell" class="due-bell hidden" type="button" aria-haspopup="true" aria-expanded="false">
+          <span class="due-bell-glyph" aria-hidden="true">○</span>
+          <span class="due-bell-count"></span>
+        </button>
         <button class="tab" type="button" role="tab" data-tab="dashboard" aria-selected="false" aria-controls="tab-dashboard">
           <span data-i18n="tabbar_dashboard" class="tab-label">Dashboard</span>
           <svg class="tab-lock" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -163,23 +195,6 @@
         </button>
         <button data-i18n-aria-label="tabbar_upgrade_to_pro" id="tab-cta" class="tab-cta hidden" type="button" aria-label="Upgrade to Pro">
           <span class="tab-cta-label"></span>
-        </button>
-        <!-- [DB.1] THE DUE-WORK BELL. In the TAB BAR, which is the surface the
-             spec named, and NOT beside the active-task pill despite the spec
-             assuming they are adjacent - measured, they are not. The pill is
-             position:fixed at the viewport top-right and the bar is centred, so
-             there is 451px between them at the pill's widest state. "Beside the
-             pill" has no stable anchor either: the pill is 280px as a card, 240px
-             slim (up to 300 by its own clamp), and display:none entirely for free
-             users, so a bell offset past it would overlap one state, float away
-             from another, and be anchored to nothing in the third.
-
-             ABSENT, NOT EMPTY: .hidden unless getDueWork reports unsnoozed work.
-             The count is rendered by renderDueBell; nothing here is a placeholder
-             to be "filled in" with a zero. -->
-        <button id="due-bell" class="due-bell hidden" type="button" aria-haspopup="true" aria-expanded="false">
-          <span class="due-bell-glyph" aria-hidden="true">○</span>
-          <span class="due-bell-count"></span>
         </button>
       </nav>
     </div>

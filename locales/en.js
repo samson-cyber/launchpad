@@ -4687,6 +4687,16 @@ I18n.register("en", {
       "message": "Ends before it starts, so this window runs overnight.",
       "sense": "note.explanation"
     },
+    "focusblock_schedule_mode_note": {
+      "description": "Shown under the schedule controls, always. A schedule is MODE-GOVERNED (WM.3): blockingReasonActive returns false for schedule unless the current workspace is in Work mode, and WORKSPACE_MODE_DEFAULT is \"casual\" - so a user who sets a schedule and never finds the mode switch has built a rule that can never fire, with nothing on this dialog saying so. Measured 2026-09-18: the same rule returns \"schedule\" in Work and null in Casual at the identical instant. States the condition rather than warning, because Casual is a legitimate state and the schedule is correctly saved either way.",
+      "message": "Runs only when this workspace is in Work mode.",
+      "sense": "note.explanation"
+    },
+    "focusblock_budget_mode_note": {
+      "description": "Shown under the budget controls, always, and it exists to be READ AGAINST the schedule note beside it. A budget deliberately sits OUTSIDE mode (WM.3: a limit the user set for themselves, which a mode switch must not silently spend or restore), so the doomscroll case still works in a Casual workspace. Without this line the schedule note would imply, by its silence here, that every rule is mode-governed.",
+      "message": "Runs in any mode.",
+      "sense": "note.explanation"
+    },
     "focusblock_budget_needs_tracking": {
       "description": "E1's requirement, shown where the user sets a budget. Stated as what the budget needs rather than as what is wrong, because at this moment it is still something they can act on.",
       "message": "A daily budget is spent in measured minutes, so it needs tracking on for this workspace.",
