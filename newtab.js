@@ -6181,17 +6181,6 @@
   // Clickable priority pill on each task row. Colored + labelled when a priority
   // is set; a muted flag-only affordance when null (still a click target so the
   // user can assign one). Opens the priority popover (see openPriorityPillPopover).
-  function priorityPillHtml(task) {
-    var p = task.priority || null;
-    var cls = "tt-prio-pill " + (p ? taskPriorityClass(p) : "tt-prio-none");
-    var label = p ? PRIORITY_LABELS[p] : "";
-    var aria = p ? t("task_priority_set_aria", { priority: label }) : t("task_priority_unset_aria");
-    return '<button type="button" class="' + cls + '" data-task-id="' + escapeHtml(task.id) +
-      '" data-priority="' + (p || "") + '" aria-label="' + escapeHtml(aria) + '" title="' + escapeHtml(aria) + '">' +
-      '<span class="tt-prio-flag" aria-hidden="true">⚑</span>' +
-      (label ? '<span class="tt-prio-pill-label">' + escapeHtml(label) + '</span>' : '') +
-    '</button>';
-  }
 
   // [1.0.13.1] Clickable due-date pill on each task row. Mirrors the priority
   // pill: tinted + labelled (UTC-formatted date) when a due date is set. When
@@ -6487,10 +6476,20 @@
         taskOptionsPillHtml(task) +
       '</span>' +
       '<div class="tt-task-controls">' +
-        '<span class="tt-task-slot tt-slot-priority">' + priorityPillHtml(task) + '</span>' +
+        // [2026-09-18] PRIORITY IS THE SPINE, NOT A CHIP. The row already
+        // carries priority as a 3px border-inline-start colour (.tt-task-row
+        // .tt-prio-* in newtab.css); the coloured pill beside the date said the
+        // same thing a second time, in the loudest way on the row, on 21 of the
+        // 23 rows this fixture renders. The spine stays. Priority is still SET
+        // and READ through the context menu, whose Priority item opens the same
+        // popover with the current level marked and Clear beneath it.
+        //
+        // AND THE PER-ROW TRASH GOES. Twenty-three delete targets in one 808px
+        // frame, for an action already in the context menu that reaches the SAME
+        // writer the trash reached, so nothing about deleting a task changed
+        // except how many ways there are to do it by accident.
         '<span class="tt-task-slot tt-slot-date">' + dueDatePillHtml(task) + '</span>' +
         '<span class="tt-task-slot tt-slot-tags">' + tagHtml + '</span>' +
-        '<button type="button" class="tt-task-slot tt-task-trash" data-task-id="' + escapeHtml(task.id) + '" aria-label="' + th("task_delete_task") + '" title="' + th("task_delete_task") + '">' + TRASH_SM_SVG + '</button>' +
       '</div>' +
     '</li>';
   }
@@ -7707,17 +7706,6 @@
         var dueTaskId = duePill.getAttribute("data-task-id");
         var currentYmd = duePill.getAttribute("data-due") || "";
         if (dueTaskId) openDueDatePillPopover(duePill, dueTaskId, currentYmd);
-        return;
-      }
-
-      // [Tasks] Task-row trash → direct soft-delete + Undo toast (no confirm
-      // modal), per trash-bin.md.
-      var trashBtn = target.closest && target.closest(".tt-task-trash");
-      if (trashBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        var trashTaskId = trashBtn.getAttribute("data-task-id");
-        if (trashTaskId) deleteTaskWithUndo(trashTaskId);
         return;
       }
 
@@ -9714,8 +9702,16 @@
         // the DOM after this menu closes, so the popover lands in exactly the same
         // place it does when the pill is clicked directly. The menu item cannot be
         // the anchor: closeGoalContextMenu has already detached it by now.
+        // RE-ANCHORED 2026-09-18, AND THIS WAS A LATENT NO-OP WAITING TO HAPPEN.
+        // The anchor was the row's own flag pill. Removing that pill above would
+        // have left this item present, clickable, and doing NOTHING, because a
+        // null anchor means the popover never mounts - the same shape as DB.2's
+        // dispatcher whose default branch was a real action. It anchors to
+        // .tt-task-controls now, which every row renders and which occupies the
+        // space the pill did, so the popover lands where it always did.
         var pPanel = document.getElementById("tab-tasks");
-        var pPill = pPanel && pPanel.querySelector('.tt-task-row[data-task-id="' + taskId + '"] .tt-prio-pill');
+        var pRow = pPanel && pPanel.querySelector('.tt-task-row[data-task-id="' + taskId + '"]');
+        var pPill = pRow && (pRow.querySelector('.tt-task-controls') || pRow);
         var pWs = Storage.getActiveWorkspace(data);
         var pTask = pWs && Storage.getTaskById(pWs, taskId);
         if (pPill && pTask) openPriorityPillPopover(pPill, taskId, pTask.priority || null);

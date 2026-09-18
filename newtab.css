@@ -12375,9 +12375,14 @@ html.has-bg.bg-light .pro-celebrate-btn:not(.is-primary):hover { background: rgb
   min-width: 0;
 }
 
+/* [2026-09-18] ON THE RAMP. This was a literal 22px - the only off-ramp
+   font-size on the Tasks board, and the surface's largest type. The guide puts
+   everything above 15px on the three display tokens, and --display-3 (24px at
+   the default tier, 21/27 at small/large) is the one it lands on. It is +2px,
+   which is the one visible size change in this round. */
 .tasks-title {
   margin: 0;
-  font-size: 22px;
+  font-size: var(--display-3);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -12545,6 +12550,40 @@ body.sat-card-open #content {
 }
 
 .tasks-templates-link:hover { opacity: 0.85; }
+
+/* ===== [2026-09-18] THE PHOTOGRAPH BRANCH, WHICH DID NOT EXIST ===========
+
+   THE MECHANISM, and it is the whole of finding 5. applyBackground derives a
+   luminance class for COLOUR wallpapers only, so a photograph gets `bg-image`
+   and NEITHER `bg-light` nor `bg-dark`. Before this rule the Tasks board had
+   not one `html.bg-image` declaration anywhere in the stylesheet, so the
+   ground that measures worst was the one ground nothing addressed.
+
+   MEASURED on a bright synthetic photograph, before: .tasks-title 2.91:1 and
+   .tasks-templates-link 2.03:1, against 14.35 and 9.65 on the dark default.
+   Both sit on .tasks-tab, which is transparent - so this is bare text directly
+   on the wallpaper, permanently.
+
+   SO IT IS THE SHADOW, NOT A SURFACE, AND THAT IS A RULING RATHER THAN A
+   PREFERENCE. 980420c reverted exactly this fix on Home: Samson saw the frost
+   surface on a real bright photograph and rejected it - "weirdly awkwardly
+   highlighted and looks quite messy" - and the entry records the reasoning at
+   three for three. WCAG's 4.5 floor assumes small type on a FLAT ground; a
+   white glyph with a dark halo over a VARYING one has no term in the ratio,
+   and pixel-contrast excludes the shadow from its backdrop sample by design.
+
+   WHICH MEANS THIS WILL NOT MOVE THE NUMBER MUCH, AND IT IS NOT MEANT TO.
+   The mitigation is the halo. Anyone re-measuring these two and finding them
+   still under 4.5 is re-finding what 980420c already ruled on, not a
+   regression - read that entry before reopening it.
+   ====================================================================== */
+html.bg-image .tasks-title {
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+html.bg-image .tasks-templates-link {
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+}
 
 .tasks-body {
   flex: 1;
@@ -12914,15 +12953,19 @@ html.has-bg.bg-light .tt-trash-days-red { color: #b3261e; }
   opacity: 0.78;
 }
 
+/* [2026-09-18] THE WORD, NOT A FILL. The badge was an amber chip - fill,
+   border and amber ink - beside a deadline that already says the date. It is
+   the word in secondary ink now, which is what the goal header needs to carry:
+   the date states the fact, the word names it.
+
+   THIS IS THE TASKS BOARD'S OVERDUE, AND IT IS THE ONLY ONE THIS ROUND OWNS.
+   The Dashboard renders its own, .dash-meta-due.is-overdue, from a different
+   builder with a different class and an opaque red fill - NOT a shared
+   renderer. It is untouched here and belongs to the Dashboard round. */
 .tt-overdue-badge {
   font-size: var(--fs-11);
   font-weight: 600;
-  padding: 2px 7px;
-  border-radius:var(--radius-pill);
-  background: rgba(245, 166, 35, 0.18);
-  border: 1px solid rgba(245, 166, 35, 0.5);
-  color: #f5a623;
-  text-shadow: none;
+  color: var(--ink-secondary);
 }
 
 .tt-goal-progress {
@@ -13185,7 +13228,11 @@ html.has-bg.bg-light .tt-progress-fill {
   flex: 0 0 auto;
   margin-inline-start: auto;
   display: grid;
-  grid-template-columns: 72px 78px 66px 24px;
+  /* [2026-09-18] TWO COLUMNS, not four. The priority chip (72px) and the
+     per-row trash (24px) were removed from taskRowHtml this round; leaving
+     their tracks would have held 96px of empty grid on every row and pushed
+     the date and tag columns off the x they share with the header. */
+  grid-template-columns: 78px 66px;
   align-items: center;
   gap: var(--space-1-5);
   padding-inline-start: var(--space-3);
@@ -13674,22 +13721,24 @@ html.has-bg.bg-light .session-picker-empty { color: var(--text-hint); }
   color: var(--ink-meta);
   white-space: nowrap;
 }
-.tt-task-trash {
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--ink-hint);
-  border-radius:var(--radius-md);
-  cursor: pointer;
-  transition: color 0.12s, background 0.12s;
-}
-.tt-task-row:hover .tt-task-trash { color: var(--ink-meta); }
-.tt-task-trash:hover { color: #ff8a8a; background: rgba(208, 2, 27, 0.16); }
+
+/* ===== DEAD AS OF 2026-09-18, AND KEPT DELIBERATELY =====================
+
+   taskRowHtml no longer renders .tt-prio-pill - priority is the row spine now
+   - so every rule in this block styles an element that does not exist.
+
+   THEY STAY BECAUSE tools/check-chip-ink.mjs READS THEM. That gate matches
+   `.tt-prio-pill.tt-prio-<level>` directly, re-derives each ink against its
+   fill, fails the build if any pair drifts under 4.5, and carries mutation
+   seeds quoting these exact declarations. Deleting the rules would turn a
+   41KB gate into a gate about nothing, and rewriting it is its own task
+   rather than a line item in a removal round.
+
+   So: do not restore the pill to the row on the strength of finding CSS for
+   it here, and do not delete these without taking check-chip-ink.mjs with
+   them. The popover the context menu opens uses .tt-prio-swatch, NOT this,
+   so nothing below is reachable from any surface.
+   ====================================================================== */
 
 /* Clickable priority pill: muted flag-only when unset, tinted + labelled when
    set. flex-shrink:0 so a long task name can't squeeze it away. */
@@ -13931,9 +13980,6 @@ html.has-bg.bg-light .tt-task-play { color: rgba(0, 0, 0, 0.66); }
 /* [Tasks] Controls zone on light wallpapers: dark divider + trash ink. */
 html.has-bg.bg-light .tt-task-controls { border-inline-start-color: rgba(0, 0, 0, 0.2); }
 html.has-bg.bg-light .tt-tag-more { color: rgba(0, 0, 0, 0.55); }
-html.has-bg.bg-light .tt-task-trash { color: rgba(0, 0, 0, 0.38); }
-html.has-bg.bg-light .tt-task-row:hover .tt-task-trash { color: rgba(0, 0, 0, 0.6); }
-html.has-bg.bg-light .tt-task-trash:hover { color: #d0021b; background: rgba(208, 2, 27, 0.1); }
 
 .tt-task-empty {
   list-style: none;
@@ -14543,11 +14589,6 @@ html.has-bg.bg-light .tt-progress-pct-base {
   color: rgba(0, 0, 0, 0.72);
 }
 
-html.has-bg.bg-light .tt-overdue-badge {
-  color: #b8860b;
-  background: rgba(184, 134, 11, 0.1);
-  border-color: rgba(184, 134, 11, 0.4);
-}
 
 html.has-bg.bg-light .tt-recurring-paused {
   background: rgba(0, 0, 0, 0.08);

@@ -2377,10 +2377,6 @@ I18n.register("en", {
     "message": "Group options",
     "description": "Attribute label in renderSidebarGroups(). Rendered with th()."
   },
-  "task_delete_task": {
-    "message": "Delete task",
-    "description": "Attribute label in taskRowHtml(). Rendered with th()."
-  },
   "task_drag_to_reorder": {
     "message": "Drag to reorder",
     "description": "Attribute label in taskRowHtml(). Rendered with th()."
@@ -5673,14 +5669,6 @@ I18n.register("en", {
     "modal_title_new_template": {
       "description": "Title of the template modal when creating. Its edit-side sibling is modal_title_edit_template.",
       "message": "New template"
-    },
-    "task_priority_set_aria": {
-      "description": "Accessible name on a task's priority chip once a priority is set. {priority} is the priority's own label. Two sentences because a screen reader reads state then action; the unset form is task_priority_unset_aria.",
-      "message": "Priority: {priority}. Click to change"
-    },
-    "task_priority_unset_aria": {
-      "description": "Accessible name on a task's priority chip while no priority is set. The set form is task_priority_set_aria.",
-      "message": "Set priority"
     },
     "task_due_set_aria": {
       "description": "Accessible name on a task's due-date chip once a date is set. {date} is an already-formatted date. The unset form is task_due_unset_aria.",

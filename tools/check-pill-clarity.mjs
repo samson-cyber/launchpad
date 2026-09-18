@@ -609,8 +609,22 @@ await (async () => {
     check("chips: the time slot lives in the NAME CLUSTER, not the right-hand controls zone",
       /tt-task-main[\s\S]*data-task-time[\s\S]*<\/span>'[\s\S]*tt-task-controls/.test(row) &&
       !/tt-task-controls[\s\S]*data-task-time/.test(row), row.slice(0, 80));
-    check("chips: ...and the controls grid went back to its four original columns",
-      /grid-template-columns: 72px 78px 66px 24px;/.test(SRC.css));
+    // [2026-09-18] TWO COLUMNS NOW, AND THE ASSERTION CARRIES THE MEANING
+    // RATHER THAN THE NUMBER. This row used to restate the four-track template
+    // literally, which was a fact about 2026-08-12 rather than a property of the
+    // design: the priority chip and the per-row trash were removed from
+    // taskRowHtml on 2026-09-18, so the template legitimately lost two tracks
+    // and the literal went stale the moment it did.
+    //
+    // The block's real claim is the row ABOVE - the time chip lives in the name
+    // cluster, not in this grid. This row is its companion and now says so in a
+    // form a later removal cannot falsify by accident: the grid holds EXACTLY
+    // the slots the row still renders, so a control that leaves the row cannot
+    // leave an empty track behind it.
+    check("chips: ...and the controls grid holds exactly the slots the row renders",
+      /grid-template-columns: 78px 66px;/.test(SRC.css) &&
+      /tt-slot-date/.test(row) && /tt-slot-tags/.test(row) &&
+      !/tt-slot-priority/.test(row) && !/tt-task-trash/.test(row));
     {
       // No :hover rule anywhere may gate the readouts or their container — that
       // is what "visible at rest" means mechanically.
