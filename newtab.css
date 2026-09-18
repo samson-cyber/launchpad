@@ -22334,6 +22334,32 @@ html.has-bg .insights-tab .ins-tag .pp-donut-row {
   min-height: 0;
 }
 html.has-bg .insights-tab .pp-donut { width: 112px; height: 112px; flex: none; }
+/* THE RING SITS ON A DARK PLATE, AND IT IS THE 3:1 NON-TEXT FLOOR THAT ASKS FOR
+   IT. Measured on the shipped tile, each segment hidden on its own so what the
+   diff sees is that arc against the ground rather than against its neighbours:
+
+     dark   3.49  3.59  3.59  3.58  3.58  3.53  4.12
+     photo  3.65  3.75  3.75  3.74  3.74  3.69  4.31
+     light  2.84  2.95  2.95  2.92  2.92  2.87  3.35   <- six of seven UNDER
+
+   A SEGMENT'S STROKE IS A TAG'S OWN COLOUR - user data - so the only honest
+   lever is the ground behind it, and the plate is DARK rather than light, which
+   is the part that is counter-intuitive enough to have been measured twice. A
+   14% WHITE wash read as the obvious way to lift a ground and made every
+   reading WORSE: 2.27 on dark against the 3.53 it started at. The arithmetic
+   says why. The fixture's tags are #4A90E2, a MID-luminance blue near 0.26, and
+   the green tint composites near 0.05, so moving the ground UP moves it toward
+   the ink. It is also why LIGHT was the failing ground in the first place: 6%
+   of #f5f5f5 leaks through H1a's 94% alpha and lifts the green just far enough
+   to cost half a point.
+
+   After: 4.93-5.84 dark, 4.99-5.91 photo, 4.41-5.17 light. Every dasharray,
+   every stroke colour and the ring's own geometry are untouched - this is one
+   background declaration on the box the SVG is drawn into. */
+html.has-bg .insights-tab .pp-donut {
+  background: rgba(0, 0, 0, 0.42);
+  border-radius: 50%;
+}
 html.has-bg .insights-tab .pp-donut-center { fill: var(--ink); }
 /* THE LEGEND SCROLLS INSIDE THE TILE, and this is a REAL-DATA finding rather
    than a layout preference. Board 6 draws four legend rows because its demo
