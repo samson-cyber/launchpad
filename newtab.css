@@ -17278,7 +17278,120 @@ html.has-bg.bg-light .fb-note-warn { color: #6b4a00; }
 }
 
 .fb-times-row .tt-modal-label { flex: 0 0 auto; }
-.fb-times-row input[type="time"] { flex: 0 1 auto; }
+.fb-times-row .fb-time-group { flex: 0 1 auto; }
+
+/* ===== THE EDITOR'S CONTROLS ==============================================
+   Two rules per element, not three, and that is the DIALOG's chain rather than
+   the panel's: the floater is dark frost on every ground except a light
+   wallpaper, where it is white-tinted. .fb-note above states the same thing and
+   is the neighbour these follow. The panel's four-case pattern (documented on
+   .focus-block-mode below) does NOT apply here - there is no ground on which
+   this dialog is a light panel.
+
+   THE MODE AND THE DAY PERIOD reuse .settings-segmented/.seg-btn, and THE DAYS
+   reuse .nb-chip. Both families already carry their own ground branches, so
+   nothing below re-declares a colour for them - only layout. Re-declaring would
+   be the mistake the wallpaper-panel ink note records: copy the ink from the
+   node you sit next to, and here the node already has it. */
+
+.fb-mode-seg { width: 100%; }
+
+.fb-dow-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1-5);
+  margin-top: var(--space-1);
+}
+
+/* A day name is two or three characters, so the chip is sized to the longest
+   rather than to its content - seven chips of different widths read as a
+   ragged row rather than as a week. */
+.fb-dow-chip {
+  min-width: 3.25em;
+  text-align: center;
+  max-width: none;
+}
+
+.fb-time-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* THE PRODUCT'S NUMERIC FIELD, which is .pomo-setting-input's shape: tabular
+   figures so the digits do not shuffle as they change, and the native spinner
+   hidden because Chromium draws it as a light-grey widget that matches nothing
+   around it. ArrowUp/ArrowDown still step the value, so the stepping affordance
+   is the same one the Pomodoro minute fields have had since [1.0.18] - this
+   control is not more keyboard-dependent than the family it joins. */
+.fb-num {
+  width: 3.25em;
+  padding: var(--space-1) var(--space-1-5);
+  border-radius:var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-13);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+}
+
+.fb-num::-webkit-outer-spin-button,
+.fb-num::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.fb-num:focus { outline: none; border-color: var(--accent); }
+.fb-num:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* INHERITS, and this was measured rather than reasoned. Declared with
+   --ink-meta - the secondary-text token - the colon measured 3.49:1 on the dark
+   frost, under the floor, while the digits either side of it measured 16.45:1.
+   A separator inside a number is part of the number, not a caption about it. */
+.fb-time-sep {
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The day-period pair is two short words and must not stretch like the mode
+   control does - .seg-btn is flex:1, which would pull AM and PM to half the
+   dialog each. */
+.fb-ampm { flex: 0 0 auto; }
+.fb-ampm .seg-btn {
+  flex: 0 0 auto;
+  padding-left: var(--space-1-5);
+  padding-right: var(--space-1-5);
+}
+
+/* THE WHITE-TINTED FLOATER. The one ground where this dialog is not dark, and
+   the one where a field declared in white-on-white terms disappears - which is
+   what .fb-note's own neighbour comment was written about. */
+html.has-bg.bg-light .fb-num {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.22);
+  color: rgba(0, 0, 0, 0.87);
+}
+
+/* THE SAME INK AS THE DIGITS, said again because .fb-num says it again. The
+   separator inherits from .fb-time-group, which on this ground is still the
+   dialog's light ink - so inheriting measured 2.41:1 while the fields either
+   side of it measured 12.45:1. Matching a sibling that overrides means
+   overriding too. */
+html.has-bg.bg-light .fb-time-sep { color: rgba(0, 0, 0, 0.87); }
+/* THE INACTIVE SEGMENT, on the one ground it failed. .seg-btn's shipped
+   html.bg-light rule sets var(--text-secondary), which clears the floor on a
+   light PANEL and measured 4.35:1 on the white-tinted FLOATER - this dialog is
+   the first surface to put the control on that tier. Scoped to the two
+   segmented groups in this dialog rather than changing .seg-btn for the
+   settings panel too, which is not this round's surface. The active segment was
+   already 8.95:1 and is untouched. */
+html.has-bg.bg-light .fb-mode-seg .seg-btn,
+html.has-bg.bg-light .fb-ampm .seg-btn {
+  color: rgba(0, 0, 0, 0.78);
+}
 
 .fb-limit {
   width: 7em;

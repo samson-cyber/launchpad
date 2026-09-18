@@ -12194,16 +12194,43 @@
 
   // ===== [WM.3] THE RULE EDITOR =====
   //
-  // IT REUSES THE RECURRING-TASK EDITOR'S CONTROL FAMILY RATHER THAN INVENTING
-  // ONE: openTasksModal for the shell, .tt-modal-dow-row / .tt-modal-dow-toggle
-  // for the days, <input type="time"> for the hours, .tt-modal-error for the
-  // refusal. Those are the controls this product already uses to ask "which days
-  // and at what time", and a second family for the same question would be two
-  // answers to one design decision.
+  // IT USES THE PRODUCT'S OWN CONTROLS. The first version of this editor reused
+  // the RECURRING-TASK editor's family, which was the right instinct and the
+  // wrong family: that one is built from native <select>, native checkboxes and
+  // native <input type="time">, so this dialog inherited all three. A native
+  // time input DRAWS ITSELF, differently on every operating system, and takes
+  // none of this product's tokens - so the one surface that cannot be made to
+  // match the rest of the product is also the one that cannot be measured
+  // against the three grounds. SR.1 recorded the select as having "moved, not
+  // been replaced", which is the same finding one control earlier.
   //
-  // DOW_VALUES IS MONDAY-FIRST, matching that editor exactly - the values are
-  // Date.getDay numbers and the ORDER is the reading order, and the two are
-  // written out together so they cannot fall out of step.
+  // WHAT EACH QUESTION IS ASKED WITH NOW, and each is a family this product
+  // already owns rather than a new one:
+  //   the mode   .settings-segmented / .seg-btn, the control the settings panel
+  //              already uses three times for a three-way choice.
+  //   the days   .nb-chip, the notebook strip's toggle chip. Chosen over
+  //              .tt-tag-pill because that one is a DISPLAY pill - inline-block,
+  //              no hover, no active state, no focus ring - and a day of the
+  //              week is a toggle. .nb-chip is the only toggle chip here.
+  //   the times  a stepper PAIR, hour and minute, on the .pomo-setting-input
+  //              shape - the product's own numeric field, spinners hidden,
+  //              tabular figures. Not a validated text box: the native control
+  //              being replaced could step, and dropping to free text would fix
+  //              the rendering by removing an affordance.
+  //   the budget the same numeric field, which it should always have been.
+  //
+  // THE HOUR FIELD FOLLOWS THE LOCALE, and it does it WITHOUT a catalogue
+  // string. R5.0's finding is that this product formats time against the
+  // browser's own locale (undefined, not a pinned one); so the pair renders
+  // 0-23 where that is the convention and 1-12 plus a day-period segment where
+  // it is not, and the day-period words come from Intl.DateTimeFormat rather
+  // than from English typed into this file. STORAGE IS UNAFFECTED: what is
+  // written is still a 24-hour "HH:MM" string, which is what WM.3's shape says
+  // and what parseClockMinutes reads.
+  //
+  // DOW_VALUES IS MONDAY-FIRST - the values are Date.getDay numbers and the
+  // ORDER is the reading order, and the two are written out together so they
+  // cannot fall out of step.
   function openFocusRuleModal(rec) {
     var DOW_VALUES = [1, 2, 3, 4, 5, 6, 0];
     var names = shortDayNames();
@@ -12212,29 +12239,119 @@
     var limit = Storage.getEntryBudgetMin(rec);
     var tracked = Storage.isTrackingEnabled(Storage.getActiveWorkspace(data));
 
-    function modeOption(v, label) {
-      return '<option value="' + v + '"' + (rec.mode === v ? " selected" : "") + '>' + escapeHtml(label) + '</option>';
+    // THE LOCALE'S OWN CLOCK CONVENTION, asked once. resolvedOptions().hour12
+    // is what the browser would actually use for a formatted time, which is the
+    // same source R5.0 found the rest of the product's dates follow.
+    var fbHour12 = (function () {
+      try { return new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hour12 === true; }
+      catch (e) { return false; }
+    })();
+
+    // The day-period word for a 24-hour hour, TAKEN FROM Intl rather than typed
+    // here. Typing it would put two English strings in this file that the
+    // catalogue does not own, and would be wrong in every locale that does not
+    // use those two letters.
+    function fbDayPeriod(h24) {
+      try {
+        var parts = new Intl.DateTimeFormat(undefined, { hour: "numeric", hour12: true })
+          .formatToParts(new Date(2020, 0, 1, h24, 0, 0));
+        for (var i = 0; i < parts.length; i++) {
+          if (parts[i].type === "dayPeriod") return parts[i].value;
+        }
+      } catch (e) {}
+      return "";
     }
+
+    function fbSplit(hhmm) {
+      var m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ""));
+      if (!m) return { h: 9, m: 0 };
+      var h = parseInt(m[1], 10), mi = parseInt(m[2], 10);
+      if (!(h >= 0 && h <= 23) || !(mi >= 0 && mi <= 59)) return { h: 9, m: 0 };
+      return { h: h, m: mi };
+    }
+    function fbPad(n) { return (n < 10 ? "0" : "") + n; }
+    function fbJoin(h, m) { return fbPad(h) + ":" + fbPad(m); }
+
+    function modeSegHtml() {
+      var opts = [
+        ["session", t("focusblock_mode_session")],
+        ["schedule", t("focusblock_mode_schedule")],
+        ["budget", t("focusblock_mode_budget")]
+      ];
+      return '<div class="settings-segmented fb-mode-seg" role="group" aria-label="' +
+        escapeHtml(t("focusblock_mode_label")) + '">' +
+        opts.map(function (o) {
+          var on = rec.mode === o[0];
+          return '<button type="button" class="seg-btn' + (on ? " active" : "") +
+            '" data-fb-mode="' + o[0] + '" aria-pressed="' + (on ? "true" : "false") + '">' +
+            escapeHtml(o[1]) + '</button>';
+        }).join("") +
+      '</div>';
+    }
+
     function dowHtml() {
       return DOW_VALUES.map(function (v) {
-        var chk = (win0.days || []).indexOf(v) !== -1 ? " checked" : "";
-        return '<label class="tt-modal-dow-toggle">' +
-          '<input type="checkbox" class="fb-dow" value="' + v + '"' + chk + '>' +
-          '<span>' + escapeHtml(names[v]) + '</span>' +
-        '</label>';
+        var on = (win0.days || []).indexOf(v) !== -1;
+        return '<button type="button" class="nb-chip fb-dow-chip' + (on ? " is-active" : "") +
+          '" data-dow="' + v + '" aria-pressed="' + (on ? "true" : "false") + '">' +
+          escapeHtml(names[v]) + '</button>';
       }).join("");
+    }
+
+    // A time is an HOUR FIELD, a separator and a MINUTE FIELD - plus a
+    // day-period segment where the locale uses one. The group carries the
+    // visible label's text as its accessible name; the minute field borrows
+    // common_unit_minutes so the two spin buttons are told apart by a screen
+    // reader. Both are EXISTING keys: this round does not own locales/en.js, and
+    // inventing an "Hours" string here would fail the enforcing i18n gate.
+    function timeHtml(which, labelKey, hhmm) {
+      var v = fbSplit(hhmm);
+      var shown = fbHour12 ? (v.h % 12 === 0 ? 12 : v.h % 12) : v.h;
+      var seg = "";
+      if (fbHour12) {
+        var isPm = v.h >= 12;
+        var am = fbDayPeriod(9), pm = fbDayPeriod(21);
+        seg = '<div class="settings-segmented fb-ampm" role="group">' +
+          '<button type="button" class="seg-btn' + (isPm ? "" : " active") + '" data-ampm="am" aria-pressed="' + (isPm ? "false" : "true") + '">' + escapeHtml(am) + '</button>' +
+          '<button type="button" class="seg-btn' + (isPm ? " active" : "") + '" data-ampm="pm" aria-pressed="' + (isPm ? "true" : "false") + '">' + escapeHtml(pm) + '</button>' +
+        '</div>';
+      }
+      return '<div class="fb-time-group" role="group" aria-label="' + escapeHtml(t(labelKey)) + '" data-fb-time="' + which + '">' +
+          '<input type="number" class="fb-num fb-h" min="' + (fbHour12 ? 1 : 0) + '" max="' + (fbHour12 ? 12 : 23) + '" step="1" inputmode="numeric" aria-label="' + escapeHtml(t(labelKey)) + '" value="' + fbPad(shown) + '">' +
+          '<span class="fb-time-sep" aria-hidden="true">:</span>' +
+          '<input type="number" class="fb-num fb-m" min="0" max="59" step="1" inputmode="numeric" aria-label="' + escapeHtml(t("common_unit_minutes")) + '" value="' + fbPad(v.m) + '">' +
+          seg +
+        '</div>';
+    }
+
+    // Reads one .fb-time-group back as a 24-hour "HH:MM", which is the only
+    // shape storage has ever held. Returns null when the fields do not make a
+    // time, so the caller can refuse with the existing message.
+    function readTime(group) {
+      if (!group) return null;
+      var h = parseInt(group.querySelector(".fb-h").value, 10);
+      var m = parseInt(group.querySelector(".fb-m").value, 10);
+      if (!(m >= 0 && m <= 59)) return null;
+      if (fbHour12) {
+        if (!(h >= 1 && h <= 12)) return null;
+        var pm = !!group.querySelector('[data-ampm="pm"].active');
+        h = (h % 12) + (pm ? 12 : 0);
+      } else if (!(h >= 0 && h <= 23)) {
+        return null;
+      }
+      return fbJoin(h, m);
     }
     function conditionalHtml(mode) {
       if (mode === "schedule") {
         return '<div class="tt-modal-row">' +
             '<label class="tt-modal-label">' + th("focusblock_days") + '</label>' +
-            '<div class="tt-modal-dow-row">' + dowHtml() + '</div>' +
+            '<div class="fb-dow-row">' + dowHtml() + '</div>' +
           '</div>' +
           '<div class="tt-modal-row fb-times-row">' +
-            '<label class="tt-modal-label" for="fb-start">' + th("focusblock_from") + '</label>' +
-            '<input type="time" id="fb-start" class="fb-start tt-recur-time-input" value="' + escapeHtml(win0.start) + '">' +
-            '<label class="tt-modal-label" for="fb-end">' + th("focusblock_to") + '</label>' +
-            '<input type="time" id="fb-end" class="fb-end tt-recur-time-input" value="' + escapeHtml(win0.end) + '">' +
+            '<span class="tt-modal-label">' + th("focusblock_from") + '</span>' +
+            timeHtml("start", "focusblock_from", win0.start) +
+            '<span class="tt-modal-label">' + th("focusblock_to") + '</span>' +
+            timeHtml("end", "focusblock_to", win0.end) +
           '</div>' +
           '<p class="fb-note fb-overnight hidden">' + th("focusblock_overnight_note") + '</p>';
       }
@@ -12245,7 +12362,7 @@
         // something is wrong.
         return '<div class="tt-modal-row">' +
             '<label class="tt-modal-label" for="fb-limit">' + th("focusblock_limit") + '</label>' +
-            '<input type="number" id="fb-limit" class="fb-limit" min="1" max="' + Storage.BUDGET_MAX_MIN + '" step="1" value="' +
+            '<input type="number" id="fb-limit" class="fb-limit fb-num" min="1" max="' + Storage.BUDGET_MAX_MIN + '" step="1" inputmode="numeric" value="' +
               (limit === null ? Storage.BUDGET_DEFAULT_MIN : limit) + '">' +
           '</div>' +
           '<p class="fb-note">' + th("focusblock_budget_needs_tracking") + '</p>' +
@@ -12259,48 +12376,92 @@
       primaryLabel: t("common_save"),
       bodyHtml:
         '<div class="tt-modal-row">' +
-          '<label class="tt-modal-label" for="fb-mode">' + th("focusblock_mode_label") + '</label>' +
-          '<select id="fb-mode" class="fb-mode tt-recur-freq-select">' +
-            modeOption("session", t("focusblock_mode_session")) +
-            modeOption("schedule", t("focusblock_mode_schedule")) +
-            modeOption("budget", t("focusblock_mode_budget")) +
-          '</select>' +
+          '<span class="tt-modal-label">' + th("focusblock_mode_label") + '</span>' +
+          modeSegHtml() +
         '</div>' +
         '<div class="fb-conditional"></div>' +
         '<div class="tt-modal-error hidden" role="alert"></div>',
       onMounted: function (overlay) {
-        var sel = overlay.querySelector(".fb-mode");
+        var seg = overlay.querySelector(".fb-mode-seg");
         var cond = overlay.querySelector(".fb-conditional");
+
+        // ONE HELPER FOR EVERY SEGMENTED GROUP IN THIS DIALOG - the mode and,
+        // where the locale has one, each time's day period. Exactly one button
+        // in a group is active, and aria-pressed is moved with the class so the
+        // two cannot disagree.
+        function segSelect(group, btn) {
+          Array.prototype.forEach.call(group.querySelectorAll(".seg-btn"), function (b) {
+            var on = b === btn;
+            b.classList.toggle("active", on);
+            b.setAttribute("aria-pressed", on ? "true" : "false");
+          });
+        }
+        function segValue(group, attr) {
+          var on = group && group.querySelector(".seg-btn.active");
+          return on ? on.getAttribute(attr) : null;
+        }
+
         function paint() {
-          cond.innerHTML = conditionalHtml(sel.value);
-          var s = cond.querySelector(".fb-start"), e = cond.querySelector(".fb-end");
+          cond.innerHTML = conditionalHtml(segValue(seg, "data-fb-mode") || "session");
+
+          // THE DAY CHIPS. A chip is a button, so the toggle is explicit here
+          // rather than free from a checkbox - which is the trade the round
+          // makes: the control gains tokens and a focus ring, and pays for them
+          // with these four lines.
+          Array.prototype.forEach.call(cond.querySelectorAll(".fb-dow-chip"), function (chip) {
+            chip.addEventListener("click", function () {
+              var on = chip.classList.toggle("is-active");
+              chip.setAttribute("aria-pressed", on ? "true" : "false");
+            });
+          });
+
+          var groups = cond.querySelectorAll(".fb-time-group");
           var note = cond.querySelector(".fb-overnight");
-          if (s && e && note) {
+          if (groups.length === 2 && note) {
             // The one thing about a window a user cannot see from two time
             // fields: that it crosses midnight. Said only when it does.
             var upd = function () {
-              var a = Storage.parseClockMinutes(s.value), b = Storage.parseClockMinutes(e.value);
+              var a = Storage.parseClockMinutes(readTime(groups[0]));
+              var b = Storage.parseClockMinutes(readTime(groups[1]));
               note.classList.toggle("hidden", !(a !== null && b !== null && a > b));
             };
-            s.addEventListener("change", upd);
-            e.addEventListener("change", upd);
+            Array.prototype.forEach.call(cond.querySelectorAll(".fb-num"), function (input) {
+              input.addEventListener("change", upd);
+              input.addEventListener("input", upd);
+            });
+            Array.prototype.forEach.call(cond.querySelectorAll(".fb-ampm"), function (group) {
+              Array.prototype.forEach.call(group.querySelectorAll(".seg-btn"), function (b) {
+                b.addEventListener("click", function () { segSelect(group, b); upd(); });
+              });
+            });
             upd();
           }
         }
-        sel.addEventListener("change", paint);
+
+        Array.prototype.forEach.call(seg.querySelectorAll(".seg-btn"), function (b) {
+          b.addEventListener("click", function () { segSelect(seg, b); paint(); });
+        });
         paint();
       },
       onPrimary: async function (overlay) {
-        var sel = overlay.querySelector(".fb-mode");
         var errorEl = overlay.querySelector(".tt-modal-error");
-        var mode = sel.value;
+        var activeMode = overlay.querySelector(".fb-mode-seg .seg-btn.active");
+        var mode = activeMode ? activeMode.getAttribute("data-fb-mode") : "session";
         try {
           if (mode === "schedule") {
-            var days = Array.prototype.slice.call(overlay.querySelectorAll(".fb-dow:checked"))
-              .map(function (cb) { return parseInt(cb.value, 10); });
+            var days = Array.prototype.slice.call(overlay.querySelectorAll(".fb-dow-chip.is-active"))
+              .map(function (chip) { return parseInt(chip.getAttribute("data-dow"), 10); });
             if (!days.length) { showModalError(errorEl, t("focusblock_schedule_needs_days")); return false; }
-            var start = overlay.querySelector(".fb-start").value;
-            var end = overlay.querySelector(".fb-end").value;
+            var groups = overlay.querySelectorAll(".fb-time-group");
+            var start = readTime(groups[0]);
+            var end = readTime(groups[1]);
+            // readTime returns null for a field pair that is not a time, which
+            // normalizeScheduleWindow would also refuse - but refusing HERE
+            // keeps the null out of the shape rather than relying on the next
+            // function to notice it.
+            if (start === null || end === null) {
+              showModalError(errorEl, t("focusblock_schedule_bad_time")); return false;
+            }
             var win = Storage.normalizeScheduleWindow({ days: days, start: start, end: end });
             if (!win) { showModalError(errorEl, t("focusblock_schedule_bad_time")); return false; }
             await Storage.setBlockedDomainSchedule(data, rec.host, [win]);
