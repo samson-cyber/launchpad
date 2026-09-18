@@ -326,8 +326,14 @@ html.bg-booting *::after {
      the declarations above or this would have gone quietly dead: a transition
      naming a property the sheet no longer sets does not error, it just stops
      animating, and a screenshot of the resting state looks perfect. Verified
-     in a browser rather than assumed - both sampled mid-flight. */
-  transition: margin-inline-start 300ms ease, padding-inline-end 200ms ease;
+     in a browser rather than assumed - both sampled mid-flight.
+
+     [FIX-5] padding-inline-end LEAVES THIS LIST, by that note's own rule. The
+     docked card's reserve is deleted 11,000 lines below and nothing sets that
+     property on #content any more, so naming it here would be exactly the
+     quietly-dead declaration the paragraph above is about. The sidebar's
+     margin push is untouched. */
+  transition: margin-inline-start 300ms ease;
 }
 
 /* [1.10.12] #content carries the page's two push animations - the sidebar's
@@ -12555,13 +12561,32 @@ html.has-bg.bg-light .pro-celebrate-btn:not(.is-primary):hover { background: rgb
    which tripled the mass of the thing snapping.
    The declaration now lives on the base #content rule above, where it survives
    the class going away. */
-body.sat-card-open #content {
-  padding-inline-end: 300px;
-}
+/* [FIX-5] THE RESERVE IS DELETED, AND SO IS body.sat-card-open.
+   RULED 2026-09-18, from Samson's Home frames: THE PILL NEVER PUSHES. It is a
+   fixed overlay and Home's geometry is identical whatever the pill is doing.
 
-@media (max-width: 720px) {
-  body.sat-card-open #content { padding-inline-end: 0; }
-}
+   THE ARGUMENT ABOVE WAS SOUND AND ITS PREMISE STOPPED BEING TRUE. Every note
+   in this block - [1.0.16]'s header reserve, [2.0 pill clarity]'s move to the
+   shared panel root, [1.10.11]'s move to #content, [1.10.12]'s transition
+   placement - reasons correctly about a surface the user OPTS INTO, where
+   300px of lane is "the honest trade for a persistent docked surface, and what
+   the minimize chevron is for". FIX-5 makes the expanded pill the RESTING
+   state: it is what a Pro user sees on every new tab, with or without an
+   active task, because the task list lives in it now. A page that re-centres
+   itself as its resting behaviour is not a trade, it is a layout that moves
+   for no reason the user can see.
+
+   WHAT REPLACES IT IS NOTHING, which is the point. Overlap at narrow widths is
+   handled by the pill getting SMALLER - the slim face and the dot are one
+   click apart and both survive this round - rather than by the page getting
+   narrower. If Home's shortcuts are covered at a given width, the threshold at
+   which the pill slims is what moves.
+
+   THE 150px CENTRING DEFECT [1.10.11] RECORDS CANNOT RECUR, because the rule
+   that caused it is gone rather than corrected. Kept as a comment because the
+   defect it names - a reserve applied to one of two sibling boxes, measured as
+   a page that looked 150px off-centre and survived three rounds of hunting -
+   is the most expensive thing anyone learned from this rule. */
 
 .tasks-action {
   padding: 7px var(--space-3);
@@ -22667,53 +22692,28 @@ html.bg-light #active-task-pill.is-dot {
 
 /* ---- 2. THE EXPAND -----------------------------------------------------
 
-   ONE SURFACE, ONE RADIUS, ONE BORDER. The picker is a child of the pill now
-   (see satPickerHtml), so it inherits all three by construction rather than by
-   a second set of rules kept in step with the first. What is left to say is how
-   the pill SIZES itself once the picker is in it. */
-#active-task-pill.is-picking {
-  /* The card's z-index, because an open picker is an expanded surface whatever
-     state it opened from - including the 40px empty pill, which sits at 1500. */
-  z-index: 9000;
-  /* THE VIEWPORT MINUS THE BAR'S CLEARANCE. top is 10px, so 10 at the foot as
-     well leaves the pill clear of the window edge at any height. Inside this,
-     the list scrolls. */
-  max-height: calc(100vh - 20px);
-}
+   [FIX-5] THIS SECTION'S RULES ARE DELETED AND ITS FINDING IS KEPT.
 
-/* EVERY LAYOUT PROPERTY IS RESTATED AT THE BASE RULE'S WEIGHT, and it took
-   three goes to learn that. #active-task-pill:not(.is-card):not(.is-dot) is
-   (1,2,0); .is-picking on its own is (1,1,0), so the slim pill's own
-   height:40px, display:flex-ROW, align-items:center and clamped width all beat
-   it. The height went first and the picker rendered inside a 40px box. Then
-   flex-direction stayed row, and the frame showed the list spilling out of the
-   glass onto the wallpaper with its rows running off the right edge - DOM
-   containment was true the whole time, which is why the harness was green while
-   the layout was plainly wrong. The assertion now measures the picker's box
-   against the pill's. */
-#active-task-pill.is-picking:not(.is-card):not(.is-dot) {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  height: auto;
-  width: 280px;
-  padding: var(--space-1);
-}
-/* The slim face keeps its own height while the pill around it grows. */
-#active-task-pill.is-picking:not(.is-card) .sat-pill-face { height: 40px; flex: 0 0 auto; }
+   What stood here sized the pill while the PICKER was open - .is-picking, its
+   four restated layout properties, and .sat-picker's hairline. There is no
+   picker any more: the task list is a permanent ZONE, so there is no open
+   state to size for. The rules are gone rather than repointed, because a rule
+   whose state can never be set is worse than an absent one - it reads as
+   live and is not.
 
-.sat-picker {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  /* A hairline, not a box. The picker is a REGION of the pill, and the one
-     thing it needs to say is where the pill's chrome ends and the list begins. */
-  border-top: 1px solid var(--tile-line);
-  margin-top: var(--space-1);
-  padding-top: var(--space-1);
-}
-/* The picker has no width of its own: it is as wide as the pill, which widens
-   to the card's 280px while picking so the two expanded states are one size. */
+   THE FINDING SURVIVES THEM, and it is the one worth carrying forward:
+   #active-task-pill:not(.is-card):not(.is-dot) is (1,2,0), so ANY single-class
+   state added to this element loses to it on every layout property the slim
+   pill declares - height:40px, display:flex-ROW, align-items:center and a
+   clamped width. It took three goes to learn: the height went first and the
+   list rendered inside a 40px box; then flex-direction stayed ROW and the
+   frame showed rows spilling out of the glass onto the wallpaper. DOM
+   containment was true the whole time, which is why the harness was green
+   while the layout was plainly wrong.
+
+   FIX-5's zones sidestep it entirely by living under .is-card, which is the
+   same weight - but the next person to add a state class here should restate
+   every layout property or scope it the same way. */
 
 /* ---- 3. THE SCROLLBAR --------------------------------------------------
 
@@ -23131,3 +23131,553 @@ html.bg-light #active-task-pill .sat-pill-plus,
 html.bg-light #active-task-pill .sat-pill-glyph,
 html.has-bg.bg-light #active-task-pill .sat-pill-plus,
 html.has-bg.bg-light #active-task-pill .sat-pill-glyph { color: var(--action-soft); }
+
+/* =========================================================================
+   [FIX-5] THE PILL IS ONE TILE WITH ZONES - THE LIST IS THE FLOOR
+
+   Samson, after FIX-4: "In all honesty, it looks worse." Three rounds built
+   this surface as MODES - the list, or the card, or the running state - and
+   every transition swapped one layout for another. Canvas board V2-PillZones
+   draws the replacement: ONE 300px pill, four zones that reveal, the list
+   always beneath.
+
+   ONE APPENDED BLOCK, scoped under the id, for the reason H1b's and H2a's were:
+   the pill's rules are spread over four eras of this stylesheet, other sessions
+   are in the same file, and one hunk at the end is the only shape that cannot
+   collide.
+   ========================================================================= */
+
+/* ---- 1. THE COMPONENT, AND THE THREE THINGS THE PILL OVERRIDES ----------
+
+   THE ELEMENT CARRIES .tile NOW, in newtab.html. Samson's frame was right that
+   it did not: every OTHER v2 surface takes the component and this one had been
+   hand-built to look like it, which is how the two drift. What the pill needs
+   on top of it is exactly three overrides, and each is a number the board
+   states rather than a preference:
+
+     the radius   16px, not --tile's 20. A radius tuned for a 2x2 bento cell
+                  reads as a lozenge on a 40px slim pill, and the slim pill and
+                  the zones pill must share one.
+     the frost    FIX-3's rgba(38,30,34,0.60) at blur(14px), not the hero pair
+                  at 82%. This is the one surface in the product that sits on
+                  the WALLPAPER; H1a's light-ground rise applies to it as 0.90.
+                  Both are declared in the FIX-3 block above and unchanged here.
+     the padding  0, because the ZONES carry it. --tile-pad on the tile plus
+                  12px 16px on each zone would double every gutter.
+
+   font-family IS RESTATED AND IT IS NOT A PREFERENCE EITHER. The base rule
+   sets `font: inherit`, which is (1,0,0) and beats .tile's font-family at
+   (0,1,0) - so taking the component would have left the pill in the page font
+   while every tile beside it is in Space Grotesk. A shorthand quietly winning
+   over a longhand is not visible in either rule. */
+#active-task-pill {
+  font-family: var(--font-sans);
+}
+
+#active-task-pill.is-card {
+  /* 300px, from the board. The card was 280 and the picker widened to 280 to
+     match it; one number now, in one place. */
+  width: 300px;
+  max-width: calc(100vw - 28px);
+  /* 60vh, RULED in the FIX-3 review: "floor-to-ceiling is correct to the brief
+     and it is too much pill; the list scrolls inside a shorter tile". That
+     ruling was written for the picker and lands here instead, on the zone that
+     inherited the picker's job. */
+  max-height: 60vh;
+  padding: 0;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  /* .tile is space-between; a pill whose zones are pushed to its two ends is
+     not what a tile of stacked sections wants. */
+  justify-content: flex-start;
+  /* So a zone's own rule stops at the radius instead of cutting the corner. */
+  overflow: hidden;
+}
+
+/* NARROW VIEWPORTS, AND WHAT THIS ROUND DOES NOT DO. The 300px pill plus its
+   14px inset needs 314px before it touches anything; below that it would hang
+   off the edge, so the width clamps. The threshold at which the pill drops to
+   the SLIM face or the dot is a state change rather than a width, so it cannot
+   be written here - it is named in the report as a gap rather than half-built
+   in CSS that cannot reach it. */
+@media (max-width: 900px) {
+  #active-task-pill.is-card { width: min(300px, calc(100vw - 28px)); }
+}
+
+/* ---- 2. THE ZONES ------------------------------------------------------
+
+   A 1px --tile-rule between sections and 12px 16px inside each, from the
+   board. .sat-zone + .sat-zone is what makes the rule a SEPARATOR rather than
+   a border: the first zone never draws one, so the pill's own hairline is not
+   doubled at the top, and a zone that is not rendered takes its rule with it.
+   That is the whole reason nothing has to know which zones exist. */
+#active-task-pill .sat-expanded.sat-zones {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+  border-radius: inherit;
+}
+#active-task-pill .sat-zone {
+  padding: 12px 16px;
+  flex: 0 0 auto;
+}
+#active-task-pill .sat-zone + .sat-zone {
+  border-top: 1px solid var(--tile-rule);
+}
+
+/* ---- 3. THE HEAD ------------------------------------------------------- */
+#active-task-pill .sat-zone-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#active-task-pill .sat-head-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-circle);
+  background: rgba(255, 255, 255, 0.25);
+}
+/* THE ONE NEW SIGNAL ON THIS SURFACE, and it is not amber: the action colour
+   marks a session that is actually running. Paused leaves it neutral, which is
+   the board's own drawing and the honest reading - a live mark over a frozen
+   countdown would claim a session that is not accruing. */
+#active-task-pill .sat-head-dot.is-live { background: var(--action); }
+#active-task-pill .sat-head-main { flex: 1 1 auto; min-width: 0; }
+
+/* The name is ONE line in the head. v1 clamps it to two, which was right on a
+   card whose name was the headline and is wrong in a head that also has to
+   hold a dot, a chip and a chevron on one row. */
+#active-task-pill .sat-zone-head .sat-name {
+  display: block;
+  font-size: var(--fs-13);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+  text-shadow: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* "No active task" IS THE HEAD'S TITLE, not a placeholder whispered in the
+   meta tier - board state 1 draws it at the same 14px/600 in the same ink as a
+   task's name, and the sweep agreed from the other direction: at the meta tier
+   it measured 4.07 on a light photograph. It takes --ink by inheritance and
+   this rule only has to not fight it. */
+#active-task-pill .sat-zone-head .sat-goal {
+  margin-top: 1px;
+  color: var(--ink-meta);
+  text-shadow: none;
+}
+#active-task-pill .sat-zone-head .sat-tags { margin-top: 3px; }
+#active-task-pill .sat-zone-head .sat-card-min { flex: 0 0 auto; }
+html.bg-light #active-task-pill .sat-zone-head .sat-name,
+html.has-bg.bg-light #active-task-pill .sat-zone-head .sat-name { color: var(--ink); }
+html.bg-light #active-task-pill .sat-zone-head .sat-goal,
+html.has-bg.bg-light #active-task-pill .sat-zone-head .sat-goal { color: var(--ink-meta); }
+
+/* ---- 4. THE FOCUS ZONE -------------------------------------------------
+
+   The ring, then a column with the primary and Stop in it. 56px from the
+   board, down from FIX-4's 72 and the original 104 - a ring that was sized for
+   a hero tile and has been coming down one round at a time ever since. The
+   mask's hole comes down with it or a 56px dial wears a ring for a larger
+   one: 5px of stroke, which is what the board's 56/46 pair works out to. */
+/* flex-direction IS RESTATED AND THE FRAME IS WHY. The base .sat-pomo is a
+   COLUMN - it was a ring with a countdown stacked under it - and declaring
+   display:flex without the direction inherits that column, so the first frame
+   showed the ring centred with Pause and Stop underneath it rather than the
+   board's ring-then-column. Nothing measured it: every contrast reading, every
+   zone assertion and every control assertion was green on a layout that was
+   plainly not the drawing. */
+#active-task-pill .sat-zone-focus .sat-pomo {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  margin-top: 0;
+  text-align: start;
+}
+#active-task-pill .sat-pomo-ring-wrap,
+#active-task-pill .sat-pomo-ring { width: 56px; height: 56px; flex: 0 0 auto; }
+#active-task-pill .sat-pomo-ring-track,
+#active-task-pill .sat-pomo-ring-fill {
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 5px));
+}
+#active-task-pill .sat-pomo-time { font-size: var(--fs-12); }
+#active-task-pill .sat-pomo-phase { font-size: var(--fs-8); color: var(--ink-meta); }
+
+#active-task-pill .sat-focus-col {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* The primary stops being full-width here: it shares the row with Stop, which
+   is what the board draws and what a 56px ring leaves room for. FIX-4's
+   full-width form is unchanged wherever it still renders. */
+#active-task-pill .sat-focus-col .sat-primary {
+  display: inline-block;
+  width: auto;
+  flex: 1 1 auto;
+  margin-top: 0;
+  padding: 6px 12px;
+  border-radius: var(--pill);
+  font-size: var(--fs-11);
+  font-weight: 700;
+  text-align: center;
+}
+/* Stop: an OUTLINE, not a fill. It is the second control in the row and the
+   board draws exactly one filled thing per zone - which is also what keeps the
+   primary reading as the primary at 6px of padding. */
+#active-task-pill .sat-secondary {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border: 1px solid var(--tile-line);
+  border-radius: var(--pill);
+  background: none;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--fs-11);
+  cursor: pointer;
+}
+#active-task-pill .sat-secondary:hover { background: var(--tile-fill); }
+#active-task-pill .sat-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+html.bg-light #active-task-pill .sat-secondary,
+html.has-bg.bg-light #active-task-pill .sat-secondary {
+  border-color: var(--tile-line);
+  color: var(--ink);
+}
+/* AND IT IS NOT CENTRED. The base rule centres this block because it used to
+   sit under a 104px ring in the middle of a card. In a zone it is one meta
+   line, left-aligned with everything else in the pill, at the pill's own
+   secondary tier. */
+#active-task-pill .sat-zone-focus .sat-pomo-today {
+  margin-top: 10px;
+  text-align: start;
+}
+#active-task-pill .sat-zone-focus .sat-pomo-today .sat-time,
+#active-task-pill .sat-zone-focus .sat-pomo-today .sat-time-label {
+  display: inline;
+  font-size: var(--fs-10);
+}
+#active-task-pill .sat-zone-focus .sat-pomo-today .sat-time {
+  font-weight: 600;
+  color: var(--ink);
+  text-shadow: none;
+}
+#active-task-pill .sat-zone-focus .sat-pomo-today .sat-time-label {
+  margin-inline-start: 5px;
+  justify-content: flex-start;
+  color: var(--ink-meta);
+  text-shadow: none;
+}
+/* The liveness indicator was a FLEX child of the label and took its gap from
+   the flex; inline, nothing separated it and the frame read "Focused today●
+   Ready". One margin. */
+#active-task-pill .sat-zone-focus .sat-pomo-today .sat-live { margin-inline-start: 6px; }
+
+/* THE SEARCH BOX'S PLACEHOLDER, which no ink instrument can see because a
+   placeholder is not a text node. It was the browser's default grey on a dark
+   fill and the frame showed it barely there. The pill's own meta tier. */
+#active-task-pill .sat-switch-search::placeholder { color: var(--ink-meta); opacity: 1; }
+#active-task-pill .sat-zone-focus .sat-pomo-done { display: block; }
+
+/* ---- 5. THE TASK ZONE --------------------------------------------------
+
+   The board's two lines, and one this round keeps that the board does not
+   draw. Line one is the stopwatch and its unit word; line two is the stamp and
+   the worked clock; line three is the ENGINE family - Focused today, its
+   liveness indicator, the windowed total and the lifetime.
+
+   THE THIRD LINE IS THE ONE ADDITION AND IT IS DELIBERATE. Board state 2 shows
+   two lines, and dropping the engine family to match would delete four shipped
+   readers in a re-skin - the same call H2a made when the board drew
+   achievements as a count and the product ships six badges. The vocabulary law
+   ([2.0 hero swap]) is what decides where it goes: the WALL-CLOCK family reads
+   as one block and the ENGINE family as another, so they are two lines rather
+   than one mixed one. */
+#active-task-pill .sat-task-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+#active-task-pill .sat-task-clocks { flex: 1 1 auto; min-width: 0; }
+
+/* Line one. 20px from the board, down from v1's 26 - a number that was the
+   whole top of a card is one line of a four-zone pill now. A literal, like the
+   26 it replaces and for the same reason: there is no ramp token above
+   --fs-15, and check-text-size allows a literal at or above 16px precisely so
+   a display figure can be stated. */
+#active-task-pill .sat-task-clocks .sat-hero-time {
+  display: inline;
+  margin-top: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-shadow: none;
+}
+#active-task-pill .sat-task-clocks .sat-hero-label {
+  display: inline;
+  margin-inline-start: 5px;
+  font-size: var(--fs-10);
+  text-shadow: none;
+}
+
+/* Line two: the stamp and the worked clock, joined by a middot. The separator
+   is a ::before on the SECOND of the pair, so a task with nothing banked yet
+   renders the stamp alone with no orphan dot - satWorkedLineHtml returns
+   nothing at zero rather than "0m worked", and this follows it. */
+#active-task-pill .sat-wall-meta { margin-top: 3px; }
+#active-task-pill .sat-wall-meta .sat-since,
+#active-task-pill .sat-wall-meta .sat-worked {
+  display: inline;
+  margin-top: 0;
+  font-size: var(--fs-10);
+  color: var(--ink-meta);
+  text-shadow: none;
+}
+#active-task-pill .sat-wall-meta .sat-worked::before {
+  content: "\00b7";
+  margin: 0 5px;
+}
+/* "15mworked on this task" IN THE FRAME. The two spans were block-level
+   siblings with their own spacing; inline, nothing separated them. One
+   margin, and it is on the unit so a value with no unit renders clean. */
+#active-task-pill .sat-worked-unit { margin-inline-start: 4px; }
+
+/* Line three: the engine family, same treatment, same middots. */
+#active-task-pill .sat-task-clocks .sat-today,
+#active-task-pill .sat-task-clocks .sat-window,
+#active-task-pill .sat-task-clocks .sat-lifetime {
+  display: inline;
+  margin-top: 0;
+  font-size: var(--fs-10);
+  color: var(--ink-meta);
+  text-shadow: none;
+}
+#active-task-pill .sat-task-clocks .sat-today .sat-time {
+  font-size: var(--fs-10);
+  font-weight: 600;
+  color: var(--ink);
+  text-shadow: none;
+}
+#active-task-pill .sat-task-clocks .sat-window::before,
+#active-task-pill .sat-task-clocks .sat-lifetime::before {
+  content: "\00b7";
+  margin: 0 5px;
+}
+/* ...EXCEPT THE FIRST ONE ON ITS OWN LINE. In the idle state these follow the
+   Focused-today figure and the middot is doing its job; in a session state the
+   figure is in the FOCUS zone above and the tail opens the line by itself. */
+#active-task-pill .sat-task-meta > :first-child::before { content: none; }
+/* The engine tail in the session states: the same inline meta line the idle
+   card gets, so the two read identically whether a session is running or not. */
+/* --ink, NOT THE META TIER, AND THE SWEEP RULED IT. [PT.3]'s zero-case is a
+   SENTENCE explaining why a number the user is looking at is zero - it is the
+   one line on this surface whose whole job is to be read, and it only renders
+   when something needs explaining. At the meta tier it measured 4.31 on a dark
+   solid ground and 3.04 on a light photograph. It takes the primary ink and
+   stays quiet by being small and rare. */
+/* SCOPED TO THE PILL, NOT TO A ZONE, and that correction came from measuring.
+   satPaintTime maintains this sentence on the LIVE DOM - it is re-inserted
+   every second beside whichever figure is on screen - so a rule scoped to the
+   zone the BUILDER put it in does not reach the one the TICK puts back. It
+   measured 4.31 on a dark solid ground with a zone-scoped rule in the sheet
+   that looked correct and matched nothing. */
+#active-task-pill .sat-zero-note,
+html.bg-light #active-task-pill .sat-zero-note,
+html.has-bg.bg-light #active-task-pill .sat-zero-note {
+  margin-top: 3px;
+  font-size: var(--fs-10);
+  color: var(--ink);
+  text-shadow: none;
+}
+html.bg-light #active-task-pill .sat-task-clocks .sat-hero-time,
+html.has-bg.bg-light #active-task-pill .sat-task-clocks .sat-hero-time { color: var(--ink); }
+html.bg-light #active-task-pill .sat-wall-meta .sat-since,
+html.bg-light #active-task-pill .sat-wall-meta .sat-worked,
+html.bg-light #active-task-pill .sat-task-clocks .sat-today,
+html.bg-light #active-task-pill .sat-task-clocks .sat-window,
+html.bg-light #active-task-pill .sat-task-clocks .sat-lifetime,
+html.has-bg.bg-light #active-task-pill .sat-wall-meta .sat-since,
+html.has-bg.bg-light #active-task-pill .sat-wall-meta .sat-worked,
+html.has-bg.bg-light #active-task-pill .sat-task-clocks .sat-today,
+html.has-bg.bg-light #active-task-pill .sat-task-clocks .sat-window,
+html.has-bg.bg-light #active-task-pill .sat-task-clocks .sat-lifetime { color: var(--ink-meta); }
+
+/* The Focus control: TWO buttons sharing ONE outline, which is how the board's
+   single "Focus - 25 min" pill can keep [A2 D10]'s tappable minutes. The row
+   owns the border and the radius; the buttons inside it own nothing but their
+   own hover, and the hairline between them is the only thing that says there
+   are two. */
+#active-task-pill .sat-task-row .sat-pomo-start-row {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  gap: 0;
+  border: 1px solid var(--tile-line);
+  border-radius: var(--pill);
+  overflow: hidden;
+}
+#active-task-pill .sat-task-row .sat-btn-pomo-start,
+#active-task-pill .sat-task-row .sat-btn-pomo-dur {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+  font-size: var(--fs-11);
+  white-space: nowrap;
+}
+#active-task-pill .sat-task-row .sat-btn-pomo-dur {
+  border-inline-start: 1px solid var(--tile-line);
+  color: var(--ink-meta);
+}
+#active-task-pill .sat-task-row .sat-btn-pomo-start:hover,
+#active-task-pill .sat-task-row .sat-btn-pomo-dur:hover { background: var(--tile-fill); }
+
+/* The blocking row and the links keep their own rules; both lose the margin
+   the card gave them, because the zone's padding is the space now. */
+#active-task-pill .sat-zone-task .sat-focus-row { margin-top: 10px; }
+#active-task-pill .sat-zone-task .sat-links {
+  margin-top: 8px;
+  justify-content: flex-start;
+}
+
+/* ---- 6. THE LIST ZONE --------------------------------------------------
+
+   THE ONLY ZONE THAT GROWS. Everything above it is content-sized; this one
+   takes what is left of the 60vh and scrolls inside itself, which is what
+   makes the pill's height a function of how much there is to say rather than
+   of how many tasks exist. min-height:0 on both is the flexbox requirement
+   that makes an overflowing child actually scroll instead of expanding its
+   parent - the single declaration this layout would silently fail without. */
+#active-task-pill .sat-zone-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+#active-task-pill .sat-zone-list.is-folded { flex: 0 0 auto; }
+
+/* The fold. One line, the count on the left and the chevron on the right - it
+   is a disclosure summary, so it says how much is behind it rather than
+   "Show more". */
+#active-task-pill .sat-list-fold {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-meta);
+  font-family: var(--font-sans);
+  font-size: var(--fs-11);
+  text-align: start;
+  cursor: pointer;
+}
+#active-task-pill .sat-zone-list:not(.is-folded) .sat-list-fold { margin-bottom: 8px; }
+#active-task-pill .sat-list-fold:hover { color: var(--ink); }
+/* THE CHEVRON TAKES --ink, NOT THE META TIER, AND THE SWEEP IS WHY. A glyph is
+   thin strokes that never reach their declared alpha - the same effect H1b and
+   H2a both measured on 12px mute text - and this one came back at 3.12 on a
+   light ground and 2.41 on a light photograph where the word beside it cleared.
+   It is the answer H2a arrived at for exactly this shape: where no mute has
+   room, the node takes --ink and is quiet by WEIGHT instead. The word carries
+   the meaning; the chevron only has to be visible. */
+#active-task-pill .sat-list-chev { color: var(--ink); }
+html.bg-light #active-task-pill .sat-list-chev,
+html.has-bg.bg-light #active-task-pill .sat-list-chev { color: var(--ink); }
+#active-task-pill .sat-list-fold:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+html.bg-light #active-task-pill .sat-list-fold,
+html.has-bg.bg-light #active-task-pill .sat-list-fold { color: var(--ink-meta); }
+
+/* THE ACTIVE ROW IS DIMMED AND DOTTED, NOT TINTED. FIX-3 gave it the action
+   tint, which was right for a picker you opened to change something: the tint
+   said "this is the one you are on". The list is permanent now and sits three
+   inches under a head that already names that task, so the tint was a second
+   answer to a question nobody asked - and a lit row in the action colour reads
+   as the row to press. The board dims it to .45 and swaps its glyph from a
+   play triangle to a dot, which says the same thing in the register of
+   something already running. */
+#active-task-pill .sat-switch-task.is-active,
+html.bg-light #active-task-pill .sat-switch-task.is-active,
+html.has-bg.bg-light #active-task-pill .sat-switch-task.is-active {
+  background: none;
+  opacity: 0.45;
+}
+#active-task-pill .sat-switch-task.is-active .sat-glyph,
+html.bg-light #active-task-pill .sat-switch-task.is-active .sat-glyph,
+html.has-bg.bg-light #active-task-pill .sat-switch-task.is-active .sat-glyph {
+  color: var(--ink-meta);
+}
+
+/* THE LIST'S TWO HEADER TIERS, LIFTED - AND WHAT CHANGED IS HOW OFTEN THEY ARE
+   READ. FIX-3 gave .sat-ws-header and .sat-goal-header --ink-mute when the list
+   was a picker you opened for a second and dismissed. It is the floor of the
+   pill now, on screen on every new tab, and at that duty --ink-mute is not
+   enough: measured 4.43 and 4.42 on a light solid ground and 2.97 and 3.08 on a
+   light photograph. --ink-meta is the tier FIX-3 itself established for this
+   surface, for the reason its own note gives - on a dark pill white-at-60%
+   composites lighter than #a89c93 does. */
+#active-task-pill .sat-ws-header,
+#active-task-pill .sat-goal-header,
+html.bg-light #active-task-pill .sat-ws-header,
+html.bg-light #active-task-pill .sat-goal-header,
+html.has-bg.bg-light #active-task-pill .sat-ws-header,
+html.has-bg.bg-light #active-task-pill .sat-goal-header { color: var(--ink-meta); }
+
+/* ---- 7. THE AMBER TOKEN, REDECLARED ON THIS SURFACE --------------------
+
+   A DEFECT THE INK SWEEP CANNOT SEE, BECAUSE THE THING THAT FAILS IS A FILL.
+   `html.bg-light { --sat-amber: #8a6d09 }` is a dark amber for a panel that
+   turns WHITE on a light wallpaper. This pill does not turn white - FIX-3 and
+   H2b established that it is dark on all three grounds - so on a light
+   wallpaper the paused ring's arc renders in a dark olive on a dark tile.
+   Measured, composited, all the way round the band: 2.50:1 against 3.0, which
+   is the NON-TEXT floor a graphical indicator has to clear.
+
+   IT IS H2b's 54-RULE FINDING, ONE TOKEN FURTHER IN, and it survived that
+   sweep for a reason worth recording: H2b redirected light-branch rules that
+   set COLOUR on text. This one sets a VARIABLE, and its worst victim is a
+   conic-gradient - an object no ink instrument enumerates, because it has no
+   text node. Found by measuring the ring against its own floor, which the
+   spec asked for and nothing had done.
+
+   PRE-EXISTING, AND MEASURED ON MASTER TO SAY SO: the same declaration sits at
+   newtab.css:4396 on b6580f4 and the same 2.50 comes back there.
+
+   REDECLARED ON THE ELEMENT rather than the rule being deleted, because the
+   token is right for every OTHER light-branch surface that does turn white.
+   One declaration fixes three users at once - the ring's arc, the slim pill's
+   paused glyph and the paused hero label - which is the argument for a token
+   working properly rather than three patched rules. */
+html.bg-light #active-task-pill,
+html.has-bg.bg-light #active-task-pill { --sat-amber: #f1c40f; }
+
+/* ---- 7. WHAT THE SLIM FACE AND THE DOT KEEP ----------------------------
+
+   Both states survive this round untouched in behaviour - the chevron in the
+   head folds to slim, a second tap hides to the dot, the dot restores to slim.
+   What changes is that the EMPTY state is no longer one of them: with a task
+   list in the pill there is something to show with nothing active, so board
+   state 1 is the zones pill saying "No active task" over the same list every
+   other state has. The slim empty face is now something the user chose rather
+   than somewhere the product put them. */
+#active-task-pill:not(.is-card):not(.is-dot) {
+  /* The slim pill keeps .tile's frost and border from the component and none
+     of its box: a 40px lozenge is not a column with space-between in it. */
+  padding: 0;
+  justify-content: flex-start;
+}

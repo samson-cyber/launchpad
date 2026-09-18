@@ -4211,3 +4211,44 @@ named values with a stated use each is the thing that stops it recurring.
 **Supersedes:** the 8px card radius, on v2 surfaces. **Keeps:** the existing
 `--radius-*` tokens and their 277 declarations until each surface migrates — the
 same staged retirement the frost family takes, for the same reason.
+
+## 2026-09-19 — The active-task pill NEVER pushes Home, and the docked-card reserve is deleted
+
+**Decision:** `body.sat-card-open #content { padding-inline-end: 300px }` is
+removed, along with the `body.sat-card-open` class that gated it and the
+`padding-inline-end` entry in `#content`'s transition. The pill is a fixed
+overlay and Home's geometry is identical in every state of it.
+
+**What changed underneath the old rule, because it was not wrong when it was
+written.** Every note in that block reasons correctly about a surface the user
+OPTS INTO: `[1.0.16]`'s header reserve, `[2.0 pill clarity]`'s move to the
+shared panel root, `[1.10.11]`'s move from `.tab-panel` to `#content`, and
+`[1.10.12]`'s placement of the transition on the base rule. Its own comment
+calls 300px "the honest trade for a persistent docked surface, and what the
+minimize chevron is for". FIX-5 makes the expanded pill the RESTING state — it
+is what a Pro user sees on every new tab, with or without an active task,
+because the task list lives in it now. A page that re-centres itself as its
+resting behaviour is not a trade; it is a layout that moves for no reason the
+user can see.
+
+**Alternatives considered:** narrowing the reserve to the pill's real width, or
+applying it only when a task is active. Both keep the mechanism and both still
+move Home, which is the thing Samson ruled against after seeing it on his own
+frames. The reserve is a way of making room for a surface that is IN FLOW; this
+one never was.
+
+**What handles narrow viewports instead:** the pill gets smaller, not the page.
+The slim face and the 28px dot both survive, one click apart. If Home's
+shortcuts are covered at some width, the threshold at which the pill slims is
+what moves. Measured at 1388px with a task active: no shortcut is overlapped.
+
+**Kept as a comment where the rule was:** the 150px centring defect
+`[1.10.11]` records. A reserve applied to one of two sibling boxes read as a
+page 150px off-centre and survived three rounds of hunting, because every
+fixture used to chase it had no active task and so never set the class. That is
+the most expensive thing anyone learned from this rule and it outlives it.
+
+**Supersedes:** `[1.0.16]`, `[2.0 pill clarity]`, `[1.10.11]` and `[1.10.12]`
+on this one point. `[1.10.12]`'s cascade finding — a transition declared inside
+a state rule animates IN and snaps OUT — is untouched and still governs the
+sidebar push that rule now animates alone.

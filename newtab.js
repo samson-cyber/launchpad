@@ -19657,10 +19657,9 @@
   // make each invalidate the other's guard mid-paint.
   var satTaskWindow = { taskId: null, ms: 0 };
   var satWindowToken = 0;
-  // [FIX-3] The picker's state. Five module vars became three: the menu element
-  // is gone because the picker is the pill's own markup now, and the scroll and
-  // resize close-handlers are gone with it - a child of the pill cannot drift
-  // away from the pill. See satPickerHtml.
+  // [FIX-5] The picker's state note moved. Three module vars became two and a
+  // page-memory fold flag: there is no open/closed to track any more, because
+  // the list is a zone rather than a disclosure. See satListZoneHtml.
   var satHealing = false;
 
   function satHasPro() {
@@ -20043,7 +20042,19 @@
     return '<div class="sat-zero-note">' + th("pt_zero_not_on_a_page") + '</div>';
   }
 
-  function satHeadlineHtml(paused) {
+  // [FIX-5] compact IS OPT-IN AND IT EXISTS BECAUSE THE FRAME CAUGHT A DOUBLE.
+  // This builder renders the engine figure AND the trailing lines that belong
+  // to the wall-clock family - the stamp, the windowed total, the lifetime.
+  // That was right when it was the whole of a card. In the zones pill the TASK
+  // zone renders the wall clock directly beneath the FOCUS zone, so a running
+  // session printed "since 11:48 pm" twice, three lines apart, and every
+  // contrast reading and every DOM assertion was green through it.
+  //
+  // compact === true keeps the FIGURE AND ITS LABEL and drops the four trailing
+  // lines; the caller that asked for it is already rendering them. Called with
+  // one argument the output is byte-identical, which is what keeps
+  // check-pill-clarity's session-done assertions asserting what they always did.
+  function satHeadlineHtml(paused, compact) {
     // [PT.3] The figure may be replaced by the tracking-off state; the zero-case
     // sentence rides underneath the label rather than beside the number.
     return '<div class="sat-time">' + (satTrackingOff()
@@ -20052,13 +20063,30 @@
       (satTrackingOff() ? '' :
         '<div class="sat-time-label">' +
           '<span class="sat-time-label-text">' +
-            (paused ? th("sat_paused") : th("common_focused_today")) + '</span>' +
+            // [FIX-5] THE COMPACT FORM NEVER SAYS "Paused", AND [1.0.17] IS WHY:
+            // "The pause statement is made ONCE, by the hero's unit word." On a
+            // card this builder WAS the hero, so the word belonged to it. In the
+            // zones pill the TASK zone's stopwatch carries the unit word one
+            // zone below, and the frame showed "0:00 Paused" above "0:04
+            // Paused" - the same statement twice, four lines apart. The
+            // INDICATOR still gets the true flag; it returns nothing at all when
+            // paused, so the surface loses no truth by this.
+            ((paused && !compact) ? th("sat_paused") : th("common_focused_today")) + '</span>' +
           satTrackingIndicatorHtml(paused) +
         '</div>') +
+      // THE ZERO-CASE SENTENCE STAYS EVEN IN THE COMPACT FORM, and the first
+      // draft of compact was wrong to drop it. It explains why THIS FIGURE is
+      // zero, so it belongs beside the figure - and satPaintTime's
+      // satSyncZeroNote MAINTAINS it on the live DOM every second, so dropping
+      // it here did not remove it, it only moved where the tick put it back.
+      // Measured: with compact dropping it, the sentence turned up inside
+      // .sat-pomo-today anyway, which is where it belongs and not where this
+      // builder had left it.
       satZeroCaseHtml() +
-      satSinceHtml() +
-      satWindowLineHtml() +
-      satLifetimeLineHtml();
+      (compact ? '' :
+        satSinceHtml() +
+        satWindowLineHtml() +
+        satLifetimeLineHtml());
   }
 
   // [2.0 hero swap] THE IDLE CARD'S HEADLINE — the activation stopwatch leads.
@@ -20101,11 +20129,42 @@
   // active then; the use sites resolve it per render instead.
   var SAT_ACTIVE_TITLE = "sat_title_active";
 
-  function satIdleHeadlineHtml(paused) {
+  // [FIX-5] THE WALL-CLOCK BLOCK IS ITS OWN BUILDER NOW, and the split is the
+  // TASK zone's requirement rather than a tidy-up. Board V2-PillZones draws that
+  // zone the same in all four states - the stopwatch, its unit word, and one
+  // meta line reading "since 10:50 pm · 30s on this task" - INCLUDING while a
+  // focus session runs, where the engine's Focused-today figure is already
+  // rendered beneath the ring in the FOCUS zone above. Rendering the whole idle
+  // headline there would put Focused today on the pill twice.
+  //
+  // satIdleHeadlineHtml IS COMPOSED FROM IT AND ITS OUTPUT IS UNCHANGED, byte
+  // for byte, which is what keeps check-pill-clarity's hero-swap assertions
+  // asserting live code: that gate EXECUTES this builder and reads the result.
+  // [FIX-5] THE FOUR TRAILING LINES, as their own block. They are what the
+  // compact headline above stops rendering, and the TASK zone renders them
+  // instead - so every reader still paints exactly once on every state, which
+  // is the property the double broke. Same builders, same order, same classes.
+  function satEngineTailHtml() {
+    // WRAPPED, because the separator between these lines is a ::before on each
+    // one and the FIRST of them has nothing to be separated from. The frame
+    // showed the line opening "\u00b7 2h2m \u00b7 last 30 days" - a leading middot with
+    // nothing to its left. One box, and the rule that suppresses the first
+    // child's separator has something to hang off.
+    var tail = satWindowLineHtml() + satLifetimeLineHtml();
+    return tail ? '<div class="sat-task-meta">' + tail + '</div>' : "";
+  }
+
+  function satWallClockHtml(paused) {
     return '<div class="sat-hero-time">' + escapeHtml(satStopwatchText()) + '</div>' +
       '<div class="sat-hero-label" title="' + th(SAT_ACTIVE_TITLE) + '">' +
         (paused ? th("sat_paused") : th("sat_active")) +
       '</div>' +
+      // [FIX-5] ONE META LINE. The stamp and the worked clock are drawn as
+      // "since 10:50 pm - 30s on this task" - one sentence, one line - and two
+      // block siblings cannot be joined by CSS without a box to hold them.
+      // Every class and every ordering check-pill-clarity reads out of this
+      // builder is unchanged; only the wrapper is new.
+      '<div class="sat-wall-meta">' +
       // The stamp alone: the count it used to lead with is the headline above.
       satSinceHtml(false) +
       // [2.0 worked clock] A quiet lifetime line, and it sits HERE — directly
@@ -20121,6 +20180,11 @@
       // second is a terminal summary, and neither is a place to add a fourth
       // figure.
       satWorkedLineHtml() +
+      '</div>';
+  }
+
+  function satIdleHeadlineHtml(paused) {
+    return satWallClockHtml(paused) +
       '<div class="sat-today">' +
         satFocusedFigureHtml() +
         (satTrackingOff() ? '' :
@@ -20979,8 +21043,44 @@
       '</div>';
   }
 
+  // ===== [FIX-5] ONE TILE, FOUR ZONES, AND THE LIST IS THE FLOOR =========
+  //
+  // Samson, after FIX-4: "In all honesty, it looks worse." THREE ROUNDS BUILT
+  // THIS SURFACE AS MODES - you are in the list, or in the card, or in the
+  // running state - and every transition swapped one layout for another. Each
+  // round made the mode it was looking at better and left the swapping intact,
+  // which is why three rounds of real fixes did not answer the complaint.
+  //
+  // The ruling is a different structure, drawn on the canvas as V2-PillZones:
+  //
+  //   HEAD    ALWAYS                  the task name or "No active task", the
+  //                                   state dot, the chevron
+  //   FOCUS   while a session runs    the ring with the phase inside, the mode
+  //                                   chip, Pause/Resume and Stop
+  //   TASK    while a task is active  the clocks, the Focus control, Complete
+  //                                   and End for now
+  //   LIST    ALWAYS BENEATH          the workspace tree, collapsed to one line
+  //                                   while a session runs so it stays one click
+  //                                   away
+  //
+  // NOTHING SWAPS; SECTIONS REVEAL. One element, one width, one frost, one
+  // radius, a 1px --tile-rule between zones. A state change adds or removes a
+  // zone and the pill's height animates to suit - which is the FLIP FIX-4 built
+  // and this round inherits rather than replaces.
+  //
+  // THE BUILDER KEEPS THE NAME satCardHtml AND WHAT IT RETURNS IS NOT A CARD.
+  // check-pill-clarity extracts it BY THAT NAME and runs a third of its
+  // assertions against the result; renaming it would have moved thirty live
+  // assertions off the code they are about, for a word.
+  //
+  // res MAY BE NULL HERE, and that is the structural change. The empty state
+  // used to be the slim pill's business - a 40px face with a plus - because
+  // there was nowhere to put a task list. There is now: board state 1 is the
+  // HEAD saying "No active task" above the same LIST every other state has.
   function satCardHtml(res, paused) {
-    var tagIds = Array.isArray(res.task.tagIds) ? res.task.tagIds : [];
+    var pomo = res ? satRunningPomo() : null;
+    var done = (res && !pomo) ? satSessionComplete() : null;
+    var tagIds = (res && Array.isArray(res.task.tagIds)) ? res.task.tagIds : [];
     var tagHtml = "";
     if (tagIds.length >= 1) {
       // [FIX-4] PLAIN, NOT A COLOURED FILL. tagPillHtml already takes the option
@@ -20997,7 +21097,7 @@
     // D8: a foreign task is shown and fully operable — Complete/Cancel work
     // without switching workspace. The switch is an offer, not a prerequisite.
     var foreignHtml = "";
-    if (res.isForeign) {
+    if (res && res.isForeign) {
       foreignHtml = '<div class="sat-foreign">' +
           th("sat_this_task_is_in_workspace", { workspace: res.workspace.name }) +
           '<button type="button" class="sat-foreign-switch" data-sat-act="goto-workspace">' +
@@ -21014,50 +21114,71 @@
     // note on the action row says so in as many words - and the head is where
     // this surface already keeps its no-consequence controls. That leaves the
     // row below it for the actions that DO something.
+    // ---- THE HEAD ZONE, AND TWO THINGS THAT LEAVE IT ---------------------
+    //
+    // THE EYEBROW GOES. It read "Active task" directly above the task's own
+    // name, which is the surface naming itself twice - the rhythm rule H2a
+    // applied to Insights, arriving here. The dot and the name are the board's
+    // head, and a pill that is always on screen does not need a caption.
+    //
+    // THE SWAP GLYPH GOES, AND THE LIST IS WHY. It opened the picker; the
+    // picker IS the LIST zone now and it is always rendered, so the control's
+    // whole job is done by the thing sitting three inches below it. A control
+    // whose target is permanently visible is furniture. check-pill-clarity
+    // asserted it by name and is re-anchored in the same commit onto the
+    // replacement: the list must render UNCONDITIONALLY. That is the stronger
+    // assertion, because the old one could have passed on a glyph that opened
+    // nothing.
+    //
+    // THE DOT IS THE ONE NEW SIGNAL, and it is the board's: neutral at rest,
+    // the action colour while a work phase actually runs. Not while merely
+    // paused - the board draws state 4's dot neutral, and a "running" mark over
+    // a frozen countdown would be the surface claiming a live session.
     var head =
-      '<div class="sat-card-head">' +
-        '<span class="sat-eyebrow">' + th("common_active_task") + '</span>' +
+      '<div class="sat-zone sat-zone-head">' +
+        '<span class="sat-head-dot' + ((pomo && !paused) ? ' is-live' : '') + '" aria-hidden="true"></span>' +
+        '<div class="sat-head-main">' +
+          (res
+            ? '<div class="sat-name" title="' + escapeHtml(res.task.name) + '">' + escapeHtml(res.task.name) + '</div>'
+            : '<div class="sat-name is-empty">' + th("sat_no_active_task") + '</div>') +
+          ((res && res.goal) ? '<div class="sat-goal" title="' + escapeHtml(res.goal.name) + '">' + escapeHtml(res.goal.name) + '</div>' : '') +
+          (tagHtml ? '<div class="sat-tags">' + tagHtml + '</div>' : '') +
+        '</div>' +
         satWorkModeChipHtml() +
-        '<button type="button" class="sat-card-swap" data-sat-act="switch" ' +
-          'title="' + th("sat_switch_active_task") + '" aria-label="' + th("sat_switch_active_task") + '">⇄</button>' +
         '<button type="button" class="sat-card-min" data-sat-act="minimize" ' +
           'title="' + th("sat_minimize") + '" aria-label="' + th("sat_minimize_active_task_card") + '">⌄</button>' +
       '</div>' +
-      '<div class="sat-name" title="' + escapeHtml(res.task.name) + '">' + escapeHtml(res.task.name) + '</div>' +
-      (res.goal ? '<div class="sat-goal" title="' + escapeHtml(res.goal.name) + '">' + escapeHtml(res.goal.name) + '</div>' : '') +
-      (tagHtml ? '<div class="sat-tags">' + tagHtml + '</div>' : '') +
       foreignHtml;
 
-    // ===== [FIX-4] THE CONTROL CLUSTER, COMPACTED =========================
+    // ===== [FIX-5] THE CONTROLS, PLACED BY ZONE ============================
     //
-    // SIX CONTROLS ON A 280px SURFACE was the finding. Measured on the running
-    // card before this round: eleven elements inside the pill painted a
-    // background of their own, six of them .sat-btn at 6% white. Stacked on
-    // glass, six translucent fills read as an opaque panel - which is what made
-    // the card look like a different, darker box than the empty pill, even
-    // though the pill's own background is identical in both (measured: the same
-    // rgba(38,30,34,0.6) and blur(14px) in every state but the dot).
+    // FIX-4's COMPACTION SURVIVES - one filled primary, the rest as words -
+    // and what the board changes is WHERE each control lives:
     //
-    // So the fix for "it jolts into another frame" is mostly SUBTRACTION.
+    //   Pause / Resume  the FOCUS zone while a session runs, where the ring is
+    //                   the thing being paused. A LINK in the TASK zone
+    //                   otherwise, because the GLOBAL tracking pause ([1.0.17])
+    //                   has to stay reachable with no session on, and a second
+    //                   filled control beside the Focus button would be two
+    //                   loud things arguing about which to press. The board
+    //                   draws no pause at all in state 2; dropping it would
+    //                   have removed a shipped control in a re-skin.
+    //   Stop            beside Pause in the FOCUS zone, as drawn. FIX-4 put it
+    //                   in the links because its brief left it unplaced and
+    //                   said so; the board places it, and a session-ending
+    //                   control belongs with the session.
+    //   Complete,       the TASK zone's links. Word, title and act unchanged -
+    //   End for now     [2.0 pill clarity] ruled the WORDS and this round is
+    //                   about arrangement.
     //
-    //   the swap glyph   -> the head, above
-    //   Pause / Resume   -> ONE primary, an action pill, full width
-    //   Complete, End for now, Stop -> text links in one row
-    //   the blocking toggle -> unchanged
-    //
-    // STOP IS A LINK RATHER THAN THE PRIMARY, and the brief did not say where to
-    // put it - it lists Stop among the six and names Pause as the one primary.
-    // A running session still has to be stoppable, so it joins the links, where
-    // it reads as a peer of the other two session-ending actions. It renders
-    // only while a phase is running, so the row is two links at rest.
-    //
-    // EVERY LABEL AND EVERY act= IS UNCHANGED. [2.0 pill clarity] ruled that
-    // each action wears its consequence - Complete ends the task, End for now
-    // stops tracking and keeps it - and that ruling is about the WORDS, which
-    // this round does not touch. Only their weight and arrangement move.
-    var primaryBtn = paused
-      ? '<button type="button" class="sat-primary is-resume" data-sat-act="resume" title="' + th("sat_resume_tracking_2") + '">' + th("sat_resume") + '</button>'
-      : '<button type="button" class="sat-primary" data-sat-act="pause" title="' + th("sat_pause_tracking") + '">' + th("sat_pause") + '</button>';
+    // ONE TERNARY, TWO PLACES. Pause and Resume stay the same control in two
+    // states, which is what check-pill-clarity asserts and what makes the state
+    // unmistakable; the caller chooses the class and nothing else.
+    function satPauseBtn(cls) {
+      return paused
+        ? '<button type="button" class="' + cls + ' is-resume" data-sat-act="resume" title="' + th("sat_resume_tracking_2") + '">' + th("sat_resume") + '</button>'
+        : '<button type="button" class="' + cls + '" data-sat-act="pause" title="' + th("sat_pause_tracking") + '">' + th("sat_pause") + '</button>';
+    }
 
     function satLinksRow(running) {
       return '<div class="sat-links">' +
@@ -21065,17 +21186,70 @@
             'title="' + th("sat_complete_the_task_it_moves_to") + '">' + th("sat_complete") + '</button>' +
           '<button type="button" class="sat-link" data-sat-act="cancel" ' +
             'title="' + th("sat_stop_tracking_for_now_the_task") + '">' + th("sat_end_for_now") + '</button>' +
-          (running
-            ? '<button type="button" class="sat-link" data-sat-act="pomo-stop" ' +
-                'title="' + th("sat_stop_focus_session") + '">' + th("sat_stop") + '</button>'
-            : '') +
+          (running ? '' : satPauseBtn("sat-link")) +
         '</div>';
     }
 
-    // [A2] Focus session RUNNING: the ring carries the countdown and the phase;
-    // the primary and the links sit beneath it. Stop moved into the links, so
-    // .sat-pomo-stop-row is gone with its button.
-    var pomo = satRunningPomo();
+    // [WM.5] The length this button would START at, which is the CURRENT
+    // workspace's mode preset - the same value startPomodoroPhase will stamp.
+    // Reading the global durations here would show a number the session would
+    // not use.
+    function satWorkMin() {
+      return Storage.pomodoroConfigForMode(data, Storage.getWorkspaceMode(Storage.getActiveWorkspace(data))).workMin;
+    }
+
+    // The board draws ONE outlined pill reading "Focus - 25 min". It is two
+    // controls, and has to stay two: [A2 D10] gave the minutes their own act so
+    // the length is tappable without starting anything. They share one outline
+    // in CSS, which is what the board is actually asking for.
+    function satFocusStartHtml() {
+      return '<div class="sat-pomo-start-row">' +
+          '<button type="button" class="sat-btn sat-btn-pomo-start" data-sat-act="pomo-start" title="' + th("sat_start_a_focus_session") + '">' + th("sat_focus_session") + '</button>' +
+          '<button type="button" class="sat-btn sat-btn-pomo-dur" data-sat-act="pomo-duration" ' +
+            'title="' + th("sat_change_focus_length") + '" aria-expanded="' + (satPomoDurOpen ? 'true' : 'false') + '">' +
+            th("sat_pomo_duration_minutes", { minutes: satWorkMin() }) + '</button>' +
+        '</div>';
+    }
+
+    // ---- THE ASSEMBLER ---------------------------------------------------
+    //
+    // EVERY BRANCH BUILDS ONLY ITS FOCUS ZONE and hands it here. The head and
+    // the list are identical in all of them, and the task zone differs in one
+    // thing - whether the FOCUS zone above it is already carrying the engine's
+    // Focused-today figure. That is the structural claim of this round written
+    // as code rather than asserted in a comment: three branches that used to
+    // return three whole layouts now return one section each.
+    //
+    // taskInner IS THE WHOLE OF THAT DIFFERENCE. satIdleHeadlineHtml is the
+    // wall clock AND the demoted engine line; satWallClockHtml is the wall
+    // clock alone, for the two states where satHeadlineHtml is already
+    // rendering the engine line inside the FOCUS zone. Focused today appears
+    // exactly once on the pill in every state.
+    function satZones(focusZone, taskInner, running, showStart) {
+      return '<div class="sat-expanded sat-zones' + (paused ? ' is-paused' : '') + '">' +
+          head +
+          focusZone +
+          (res
+            ? '<div class="sat-zone sat-zone-task">' +
+                '<div class="sat-task-row">' +
+                  '<div class="sat-task-clocks">' + taskInner + '</div>' +
+                  (showStart ? satFocusStartHtml() : '') +
+                '</div>' +
+                ((showStart && satPomoDurOpen) ? satPomoDurChipsHtml(satWorkMin()) : '') +
+                satFocusRowHtml() +
+                satLinksRow(running) +
+              '</div>'
+            : '') +
+          satListZoneHtml(running) +
+        '</div>';
+    }
+
+    // [A2] Focus session RUNNING: the ring carries the countdown and the phase,
+    // and the primary and Stop sit beside it in a column - the board's shape.
+    // THE MODE CHIP IS NOT REPEATED HERE. The board draws a chip in this
+    // column; WM.1's mode stamp is already in the HEAD, where it renders with
+    // or without a session, and a second WORK chip four lines below the first
+    // would be the two-signal inflation [1.9.4] counts, in a different colour.
     if (pomo) {
       var remaining = satPomoRemainingMs(pomo);
       var frac = pomo.totalMs > 0 ? Math.max(0, Math.min(1, remaining / pomo.totalMs)) : 0;
@@ -21087,15 +21261,16 @@
       // headline beneath it is today. The SAME satHeadlineHtml the idle card
       // uses; only its scale changes, and only in CSS.
       var pomoWork = pomo.phase === "work";
-      return '<div class="sat-expanded sat-expanded-pomo' + (pomoWork ? ' is-work' : '') + '">' +
-          head +
+      var focusRunning =
+        '<div class="sat-zone sat-zone-focus sat-expanded-pomo' + (pomoWork ? ' is-work' : '') + '">' +
           '<div class="sat-pomo">' +
             '<div class="sat-pomo-ring-wrap">' +
               // [H2b] A conic ring behind a radial mask, not two SVG circles.
               // The class names are unchanged: satPaintTime finds the fill by
               // .sat-pomo-ring-fill and the .is-work highlight already targets
-              // it. [FIX-4] shrinks the wrap to 72px in CSS - it is a pill, not
-              // a hero tile - and nothing here has to know that.
+              // it. [FIX-5] takes it to the board's 56px in CSS - FIX-4 had
+              // already brought it down from a hero tile's 104 to 72 - and
+              // nothing here has to know that.
               '<div class="sat-pomo-ring" aria-hidden="true">' +
                 '<div class="sat-pomo-ring-track"></div>' +
                 '<div class="sat-pomo-ring-fill" style="--ring-frac: ' +
@@ -21106,24 +21281,26 @@
                 '<span class="sat-pomo-phase">' + escapeHtml(phaseLabel) + '</span>' +
               '</div>' +
             '</div>' +
+            '<div class="sat-focus-col">' +
+              satPauseBtn("sat-primary") +
+              '<button type="button" class="sat-secondary" data-sat-act="pomo-stop" ' +
+                'title="' + th("sat_stop_focus_session") + '">' + th("sat_stop") + '</button>' +
+            '</div>' +
           '</div>' +
-          '<div class="sat-pomo-today">' + satHeadlineHtml(paused) + '</div>' +
-          satFocusRowHtml() +
-          primaryBtn +
-          satLinksRow(true) +
+          '<div class="sat-pomo-today">' + satHeadlineHtml(paused, true) + '</div>' +
         '</div>';
+      return satZones(focusRunning, satWallClockHtml(paused) + satEngineTailHtml(), true, false);
     }
 
     // [WM.5] ...UNLESS THE SESSION'S MODE CHAINS, which is the 2026-09-01
     // amendment to that rule and the only thing below that is new. See
     // satChainState for why the countdown is page-memory rather than stored.
     // [E1] Session COMPLETE (a break ran to its end): summary + explicit
-    // restart. Work NEVER auto-starts — '▶ Start next session' routes through
-    // the normal start path (pomo-start clears the marker and begins a work
-    // phase), so the long-break cadence math simply continues from cycleCount.
+    // restart. Work NEVER auto-starts - the start button routes through the
+    // normal start path (pomo-start clears the marker and begins a work phase),
+    // so the long-break cadence math simply continues from cycleCount.
     // User Stop and expiry never set the marker, so they land on the plain
-    // card below instead.
-    var done = satSessionComplete();
+    // idle branch below instead.
     if (done) {
       var cadence = Storage.getPomodoroSettings(data).cyclesBeforeLongBreak;
       // [1.0.18 Round E, self-flag 1] Show MODULAR position within the cadence,
@@ -21132,13 +21309,8 @@
       // (reset-hint + long-break math unchanged). Guard cycleCount < 1 -> 1
       // (defensive; the sessionComplete marker encoding requires cycleCount > 0).
       var cyclePos = done.cycleCount < 1 ? 1 : (((done.cycleCount - 1) % cadence) + 1);
-      return '<div class="sat-expanded sat-expanded-pomo' + (paused ? ' is-paused' : '') + '">' +
-          head +
-          // [1.2.3] The session-done card leads with the headline too — this is
-          // the moment the number is most worth seeing, and it is the one
-          // pomodoro branch with no time surface of its own to conflict with (a
-          // RUNNING phase keeps its countdown takeover untouched).
-          satHeadlineHtml(paused) +
+      var focusDone =
+        '<div class="sat-zone sat-zone-focus">' +
           '<div class="sat-pomo sat-pomo-done">' +
             '<div class="sat-pomo-done-msg">' +
               th("sat_pomo_session_done_cycle", { position: cyclePos, total: cadence }) + '</div>' +
@@ -21157,37 +21329,19 @@
                 'title="' + th("sat_start_the_next_focus_session") + '">' + th("sat_start_next_session") + '</button>' +
             '</div>' +
           '</div>' +
-          satFocusRowHtml() +
-          primaryBtn +
-          satLinksRow(false) +
+          // [1.2.3] The session-done zone carries the headline too - this is the
+          // moment the number is most worth seeing, and it is the one pomodoro
+          // branch with no live time surface of its own to conflict with.
+          '<div class="sat-pomo-today">' + satHeadlineHtml(paused, true) + '</div>' +
         '</div>';
+      return satZones(focusDone, satWallClockHtml(paused) + satEngineTailHtml(), false, false);
     }
 
-    // [A2 D9/D10] Not running: dual counters, then the Focus-session start control
-    // with the sticky work length + a tappable duration segment (chips + custom).
-    // [WM.5] The length this button would START at, which is the CURRENT
-    // workspace's mode preset - the same value startPomodoroPhase will stamp.
-    // Reading the global durations here would show a number the session would
-    // not use.
-    var workMin = Storage.pomodoroConfigForMode(data, Storage.getWorkspaceMode(Storage.getActiveWorkspace(data))).workMin;
-    return '<div class="sat-expanded' + (paused ? ' is-paused' : '') + '">' +
-        head +
-        // [2.0 hero swap] The stopwatch leads HERE and only here — the two
-        // branches above keep satHeadlineHtml untouched.
-        satIdleHeadlineHtml(paused) +
-        '<div class="sat-pomo-start-row">' +
-          '<button type="button" class="sat-btn sat-btn-pomo-start" data-sat-act="pomo-start" title="' + th("sat_start_a_focus_session") + '">' + th("sat_focus_session") + '</button>' +
-          '<button type="button" class="sat-btn sat-btn-pomo-dur" data-sat-act="pomo-duration" ' +
-            'title="' + th("sat_change_focus_length") + '" aria-expanded="' + (satPomoDurOpen ? 'true' : 'false') + '">' +
-            th("sat_pomo_duration_minutes", { minutes: workMin }) + '</button>' +
-        '</div>' +
-        (satPomoDurOpen ? satPomoDurChipsHtml(workMin) : "") +
-        satFocusRowHtml() +
-        primaryBtn +
-        satLinksRow(false) +
-      '</div>';
+    // [A2 D9/D10] No session: no FOCUS zone at all. The TASK zone leads with the
+    // full idle headline - the stopwatch hero, its stamp, the worked clock and
+    // the demoted Focused-today line - and carries the Focus-session control.
+    return satZones("", satIdleHeadlineHtml(paused), false, true);
   }
-
   // [A2 D10] Preset focus-length chips + a custom numeric input. Picking persists
   // via setPomodoroWorkMin (sticky — Pro Settings and this button read the same
   // stored value). The active preset is highlighted; a non-preset workMin prefills
@@ -21270,13 +21424,11 @@
     // D9: hidden entirely for free users. No preview stub.
     if (!satHasPro()) {
       pill.classList.add("hidden");
-      pill.classList.remove("is-card", "is-empty", "is-paused");
-      document.body.classList.remove("sat-card-open");
+      pill.classList.remove("is-card", "is-empty", "is-paused", "is-dot");
       pill.style.height = "";
       pill.innerHTML = "";
       satStopTick();
       satUpdateTabTitle();   // [1.0.18] restore the page title if a trial lapsed mid-phase
-      closeSatSwitchMenu();
       return;
     }
     pill.classList.remove("hidden");
@@ -21289,7 +21441,6 @@
     if (Storage.isActiveTaskPillHidden(data)) {
       pill.classList.remove("is-card", "is-empty", "is-paused");
       pill.classList.add("is-dot");
-      document.body.classList.remove("sat-card-open");
       pill.removeAttribute("role");
       pill.setAttribute("title", t("common_active_task"));
       pill.setAttribute("aria-label", t("common_active_task"));
@@ -21298,7 +21449,6 @@
         'title="' + th("common_active_task") + '" aria-label="' + th("common_active_task") + '"></button>';
       satStopTick();
       satUpdateTabTitle();
-      closeSatSwitchMenu();
       return;
     }
     pill.classList.remove("is-dot");
@@ -21306,7 +21456,7 @@
     var resolved = Storage.resolveActiveTask(data);
 
     // Self-heal (item 7). resolveActiveTask reports a task completed or deleted
-    // ANYWHERE — including by another tab — as stale, and the pill drops to its
+    // ANYWHERE - including by another tab - as stale, and the pill drops to its
     // empty state. It also clears the stored record: leaving it would keep the
     // engine attributing focus to a task the UI says isn't active, which is
     // exactly the invisible-state mismatch the paused-flag lesson warns about.
@@ -21325,45 +21475,53 @@
     var res = (resolved && !resolved.stale) ? resolved : null;
     if (!res) satReadout = { taskId: null, baseMs: 0, openSince: null };
 
-    // Three states: the docked CARD (active + expanded — the default), or the
-    // slim PILL (active + minimized, or empty). Only the card nests buttons; the
-    // pill states are a single .sat-pill-face button. The minimize preference is
-    // read fresh each render, so a cross-tab flip lands via the render() path.
-    var showCard = !!res && !Storage.isActiveTaskCardMinimized(data);
-    // [1.0.17] Global manual-pause flag, read fresh each render (a cross-tab flip
-    // lands via the render() path). Shown even in the empty state (BUILD 4) so a
-    // global pause is never invisible.
+    // ===== [FIX-5] TWO STATES, NOT THREE =================================
+    //
+    // It was: the docked CARD (active + expanded), the slim PILL (active +
+    // minimized, OR empty), and the dot. The empty state was slim BECAUSE it
+    // had nothing to show; it has the list now, so the split is no longer
+    // between "has a task" and "has none" but purely between the user's own
+    // minimize preference and its opposite.
+    //
+    //   ZONES    the default - head, then whatever applies, then the list
+    //   SLIM     the user pressed the chevron. H2b's face, unchanged.
+    //   DOT      the user pressed it again. H2b's dot, unchanged.
+    //
+    // THE MINIMIZE PREFERENCE IS READ FRESH EACH RENDER, so a cross-tab flip
+    // lands via the render() path.
+    var showZones = !Storage.isActiveTaskCardMinimized(data);
+    // [1.0.17] Global manual-pause flag, read fresh each render. Shown even in
+    // the empty state (BUILD 4) so a global pause is never invisible.
     var paused = Storage.isTrackingPaused(data);
 
-    pill.classList.toggle("is-card", showCard);
+    pill.classList.toggle("is-card", showZones);
     pill.classList.toggle("is-empty", !res);
     pill.classList.toggle("is-paused", paused);
-    // [FIX-3] The picker grows the pill downward and lifts it above the page, so
-    // the state is on the pill rather than on a separate element.
-    pill.classList.toggle("is-picking", satPickerOpen);
-    // Reserve room in the Tasks-tab header (via body class) ONLY while the card
-    // is expanded, so its top-right + New / Templates cluster slides clear of the
-    // card. The slim pill/empty states sit above the cluster and release it.
-    document.body.classList.toggle("sat-card-open", showCard);
-    pill.setAttribute("title", res ? res.task.name : t("sat_pick_an_active_task"));
-    if (showCard) {
+
+    // [FIX-5] NO body.sat-card-open. [1.10.11]'s 300px reserve on #content is
+    // deleted in this commit: RULED, the pill never pushes Home. It is a fixed
+    // overlay, and the zones structure means the expanded state is now the
+    // DEFAULT rather than something the user opts into - a page that re-centres
+    // itself whenever a task is picked was tolerable as an occasional event and
+    // is not as the resting state.
+    if (showZones) {
       pill.setAttribute("role", "region");
       pill.setAttribute("aria-label", t("common_active_task"));
-      // [FIX-3] The picker is part of the pill's markup, which is what makes it
-      // ONE surface. Rendering it here rather than appending it from the handler
-      // also means a re-render REBUILDS it instead of destroying it - an
-      // innerHTML rewrite with a body-appended popover open would simply have
-      // left the popover orphaned beside a pill that no longer knows about it.
-      satSwapContent(pill, satCardHtml(res, paused) + satPickerHtml());
+      // THE WHOLE PILL CARRIES NO title. It did as a card, where the tooltip
+      // named the active task; on a 300px surface whose head already prints
+      // that name, a tooltip over every zone is a tooltip over the list.
+      pill.removeAttribute("title");
+      satSwapContent(pill, satCardHtml(res, paused));
     } else {
       pill.removeAttribute("role");
       pill.removeAttribute("aria-label");
+      pill.setAttribute("title", res ? res.task.name : t("sat_pick_an_active_task"));
       // [H2b] The hide control is a SIBLING of the face, never inside it: the
       // face is one button with one act, and a control nested in it would make
       // every click ambiguous. Not rendered in the empty state - there is
       // nothing to hide from, and a user with no active task who hid the pill
       // would have removed their only route to picking one.
-      satSwapContent(pill, satPillFaceHtml(res, paused) + (res ? satPillHideBtnHtml() : "") + satPickerHtml());
+      satSwapContent(pill, satPillFaceHtml(res, paused) + (res ? satPillHideBtnHtml() : ""));
     }
 
     if (res) {
@@ -21375,13 +21533,12 @@
       satRefreshReadout(res.task.id);
       satRefreshTaskWindow(res.task.id);
       satStartTick();
-      satMaybeReconcile();   // [A2] render is a reconcile point (D3) — catch a boundary crossed while unpainted
+      satMaybeReconcile();   // [A2] render is a reconcile point (D3) - catch a boundary crossed while unpainted
     } else {
       satStopTick();
       satUpdateTabTitle();   // restore the page title when the widget empties
     }
   }
-
   // ----- Minimize / restore -----
   //
   // The card ↔ pill toggle. Writes data.activeTaskCardMinimized (through saveAll,
@@ -21393,7 +21550,6 @@
   // through the per-field updater, then eager-render, because our own writes are
   // provenance-tagged and nothing else will repaint this tab.
   async function satSetHidden(hidden) {
-    closeSatSwitchMenu();
     try {
       await Storage.setActiveTaskPillHidden(data, hidden);
     } catch (err) {
@@ -21403,7 +21559,6 @@
   }
 
   async function satSetMinimized(minimized) {
-    closeSatSwitchMenu();
     try {
       await Storage.setActiveTaskCardMinimized(data, minimized);
     } catch (err) {
@@ -21423,7 +21578,6 @@
   // reopens one. No engine change (the gate + watcher already exist). Cross-tab
   // via onChanged like every other `data` write. Global, not per-task (D4).
   async function satSetPaused(paused) {
-    closeSatSwitchMenu();
     try {
       await Storage.setTrackingPaused(data, paused);
     } catch (err) {
@@ -21543,7 +21697,6 @@
     // Re-activating the SAME task, or activating with no phase running, is unchanged.
     var cur = Storage.getActiveTask(data);
     if (cur && cur.taskId !== taskId && satRunningPomo()) {
-      closeSatSwitchMenu();
       satConfirmSwitchReset(function () { satActivateNow(taskId, workspaceId); });
       return false;
     }
@@ -21711,9 +21864,13 @@
 
       var rowHtml = function (t) {
         var isActive = t.id === activeId;
+        // [FIX-5] THE ACTIVE ROW IS DIMMED AND DOTTED, which is what the board
+        // draws and what the list being permanent makes necessary: a play glyph
+        // on the row for the task whose clocks are running three zones above it
+        // is an invitation to start something that is already started.
         return '<button type="button" class="sat-switch-task' + (isActive ? " is-active" : "") + '"' +
             ' data-sat-task="' + escapeHtml(t.id) + '" data-sat-task-ws="' + escapeHtml(ws.id) + '">' +
-            '<span class="sat-glyph" aria-hidden="true">' + (isActive ? "▶" : "▷") + '</span>' +
+            '<span class="sat-glyph" aria-hidden="true">' + (isActive ? "●" : "▷") + '</span>' +
             '<span class="sat-switch-task-name">' + escapeHtml(t.name) + '</span>' +
           '</button>';
       };
@@ -21737,35 +21894,82 @@
     return html;
   }
 
-  // ===== [FIX-3] THE PICKER OPENS INSIDE THE PILL ==========================
+  // ===== [FIX-5] THE LIST IS THE FLOOR ====================================
   //
-  // IT WAS A SECOND BOX, AND THAT IS WHAT SAMSON SAW. openSatSwitchMenu built a
-  // body-appended .tt-context-menu, positioned fixed off a one-time rect beside
-  // the pill: menu-tier frost (near-black at 95%) against the pill's tint, a
-  // 10px radius against the pill's 16px, its own border and its own shadow. Two
-  // surfaces, and the second one looked like a context menu because it was one.
+  // FIX-3 moved the picker INSIDE the pill, which was right and did not go far
+  // enough: it was still a disclosure, opened by a glyph and closed by Escape
+  // or an outside click, and every open and close was a mode change. Samson:
+  // "The other tasks should be below it, so you don't have to click back."
   //
-  // IT IS NOW PART OF THE PILL'S OWN MARKUP, rendered by renderActiveTaskWidget
-  // from a module flag rather than appended by the handler. That is the change
-  // that makes it one surface, and it also removes a whole class of defect for
-  // free: a body-appended popover positioned off a rect DRIFTS when anything
-  // scrolls or resizes, which is why the old one carried a scroll-close handler,
-  // a resize-close handler, and a contains() guard on the scroll handler to stop
-  // the list's OWN scroll slamming it shut (bug 1217092237076418). A child of
-  // the pill moves with the pill. All three go.
+  // SO THE LIST IS NOT OPENED ANY MORE. It is the bottom zone of the pill in
+  // every state, including the empty one, and THREE WHOLE MECHANISMS GO WITH
+  // THAT: the satPickerOpen flag, the outside-click handler and the Escape
+  // handler. A region that is always rendered cannot be left open by accident,
+  // cannot be orphaned by a re-render, and has nothing to be outside of.
   //
-  // WHAT STAYS: Escape closes it, an outside click closes it, and the search
-  // box repaints only the LIST so typing does not rebuild the pill under the
-  // caret.
-  var satPickerOpen = false;
+  // WHAT IT KEEPS is the search box repainting only the LIST (a full render
+  // would rebuild the input and drop the caret on every keystroke) and the
+  // per-workspace collapse memory. Both were the picker's and both are still
+  // right.
+  //
+  // ONE LINE WHILE A SESSION RUNS, and this is the board's, not a size
+  // compromise: during a focus session the list is the one zone that is not
+  // about the thing being focused on, so it folds to "8 more tasks" and stays
+  // one click away. The user can open it anyway - satListOpen holds THEIR
+  // choice and null means "follow the rule", which is why starting a session
+  // folds it again for a user who never touched it and leaves it alone for one
+  // who did.
+  //
+  // PAGE MEMORY, NOT STORAGE, like satChainState and satPickerCollapsed. A
+  // fresh tab follows the rule, which is the behaviour worth defaulting to.
   var satPickerQuery = "";
   var satPickerCollapsed = {};
-  var satPickerOutsideHandler = null;
-  var satPickerEscapeHandler = null;
+  var satListOpen = null;
 
-  function satPickerHtml() {
-    if (!satPickerOpen) return "";
-    return '<div class="sat-picker" role="group" aria-label="' + th("sat_switch_active_task") + '">' +
+  function satListIsOpen(running) {
+    return satListOpen === null ? !running : satListOpen;
+  }
+
+  // The number on the folded line. OPEN TASKS EXCEPT THE ACTIVE ONE, across
+  // every workspace, which is exactly what the expanded list below would show:
+  // a count that disagreed with the rows it stands in for would be worse than
+  // no count at all.
+  function satOpenTaskCount() {
+    var res = Storage.resolveActiveTask(data);
+    var activeId = (res && !res.stale) ? res.task.id : null;
+    var n = 0;
+    (data.workspaces || []).forEach(function (ws) {
+      (ws.tasks || []).forEach(function (t) {
+        if (t.deletedAt || t.completed) return;
+        if (t.id === activeId) return;
+        n++;
+      });
+    });
+    return n;
+  }
+
+  function satListFoldHtml(open) {
+    var act = open ? "list-close" : "list-open";
+    var label = open ? t("sat_hide_task_list") : t("sat_show_task_list");
+    return '<button type="button" class="sat-list-fold" data-sat-act="' + act + '" ' +
+        'aria-expanded="' + (open ? 'true' : 'false') + '" ' +
+        'title="' + escapeHtml(label) + '" aria-label="' + escapeHtml(label) + '">' +
+        '<span class="sat-list-fold-text">' + th("sat_more_tasks", { count: satOpenTaskCount() }) + '</span>' +
+        '<span class="sat-list-chev" aria-hidden="true">' + (open ? "\u2303" : "\u2304") + '</span>' +
+      '</button>';
+  }
+
+  function satListZoneHtml(running) {
+    var open = satListIsOpen(running);
+    if (!open) {
+      return '<div class="sat-zone sat-zone-list is-folded">' + satListFoldHtml(false) + '</div>';
+    }
+    // THE FOLD CONTROL ONLY EXISTS WHERE FOLDING IS THE DEFAULT. With no
+    // session running the list is the floor and there is nothing to fold it
+    // back to - a chevron there would offer to hide the zone this whole round
+    // is about.
+    return '<div class="sat-zone sat-zone-list">' +
+        (running ? satListFoldHtml(true) : '') +
         '<input type="text" class="sat-switch-search" placeholder="' + th("sat_search_tasks_in_all_workspaces") + '" ' +
           'autocomplete="off" spellcheck="false" value="' + escapeHtml(satPickerQuery) + '" ' +
           'aria-label="' + th("sat_search_tasks") + '">' +
@@ -21780,47 +21984,6 @@
     var list = document.querySelector("#active-task-pill .sat-switch-list");
     if (list) list.innerHTML = satSwitchListHtml(satPickerQuery, satPickerCollapsed);
   }
-
-  function openSatSwitchMenu() {
-    if (satPickerOpen) { closeSatSwitchMenu(); return; }
-    satPickerOpen = true;
-    satPickerQuery = "";
-    satPickerCollapsed = {};
-    renderActiveTaskWidget();
-
-    var pill = document.getElementById("active-task-pill");
-    var search = pill && pill.querySelector(".sat-switch-search");
-    if (search) search.focus();
-
-    // THE OUTSIDE CLICK IS NOW "OUTSIDE THE PILL", not "outside the menu", and
-    // that is the whole simplification: the picker has no coordinates of its
-    // own to be outside of.
-    satPickerOutsideHandler = function (e) {
-      var p = document.getElementById("active-task-pill");
-      if (p && !p.contains(e.target)) closeSatSwitchMenu();
-    };
-    setTimeout(function () { document.addEventListener("click", satPickerOutsideHandler, true); }, 0);
-
-    satPickerEscapeHandler = function (e) { if (e.key === "Escape") closeSatSwitchMenu(); };
-    document.addEventListener("keydown", satPickerEscapeHandler);
-  }
-
-  function closeSatSwitchMenu() {
-    if (satPickerOutsideHandler) {
-      document.removeEventListener("click", satPickerOutsideHandler, true);
-      satPickerOutsideHandler = null;
-    }
-    if (satPickerEscapeHandler) {
-      document.removeEventListener("keydown", satPickerEscapeHandler);
-      satPickerEscapeHandler = null;
-    }
-    if (!satPickerOpen) return;
-    satPickerOpen = false;
-    satPickerQuery = "";
-    satPickerCollapsed = {};
-    renderActiveTaskWidget();
-  }
-
   function bindActiveTaskWidget() {
     var pill = $("#active-task-pill");
     if (!pill || pill.dataset.satBound === "1") return;
@@ -21846,7 +22009,11 @@
       if (prow) {
         var pTaskId = prow.getAttribute("data-sat-task");
         var pTaskWs = prow.getAttribute("data-sat-task-ws");
-        closeSatSwitchMenu();
+        // [FIX-5] THE QUERY CLEARS, THE ZONE DOES NOT CLOSE. This used to call
+        // closeSatSwitchMenu, whose useful side effect was resetting the search;
+        // the list stays on screen now, so a stale filter would leave the user
+        // looking at three rows of whatever they last typed.
+        satPickerQuery = "";
         await satActivate(pTaskId, pTaskWs);
         return;
       }
@@ -21869,13 +22036,17 @@
       if (act === "pomo-stop") { await satPomoStop(); return; }
       if (act === "pomo-duration") { satPomoDurOpen = !satPomoDurOpen; renderActiveTaskWidget(); return; }
       if (act === "pomo-dur-pick") { await satPomoSetWorkMin(parseInt(actBtn.getAttribute("data-min"), 10)); return; }
-      // [FIX-3] No anchor argument: the picker is a child of the pill, so it
-      // has nowhere to be anchored TO. It also toggles now - the control that
-      // opens it is still on screen once it is open, and a second click on it
-      // closing it is what every other disclosure on this surface does.
-      if (act === "switch" || act === "pick") { openSatSwitchMenu(); return; }
+      // [FIX-5] THE LIST FOLD. Page memory, set explicitly so the user's choice
+      // outranks the running-session default until the page is reloaded.
+      if (act === "list-open") { satListOpen = true; renderActiveTaskWidget(); return; }
+      if (act === "list-close") { satListOpen = false; renderActiveTaskWidget(); return; }
       if (act === "minimize") { await satSetMinimized(true); return; }
-      if (act === "restore") { await satSetMinimized(false); return; }
+      // [FIX-5] "pick" JOINS "restore". Both are the slim face, and the face's
+      // job in both states is now the same: bring the zones back, list and all.
+      // The act names are kept apart because the aria-labels differ - one says
+      // "Restore the active task card", the other "Pick an active task", and
+      // both are still true of what the click does.
+      if (act === "restore" || act === "pick") { await satSetMinimized(false); return; }
       // [H2b] The third state. "hide" is the slim face's own chevron; "unhide"
       // is the dot. Restoring goes back to SLIM rather than to the card, because
       // slim is the state it was hidden FROM - coming back bigger than it left

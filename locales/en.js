@@ -2314,6 +2314,10 @@ I18n.register("en", {
     "message": "Focus blocking is on",
     "description": "Manual focus blocking is armed. ONE key for three sinks: the focus pill's title AND aria-label - one element, one message, which is what the i18n-dom contract says - and the context line on the blocking gate page. Replaces sat_focus_blocking_is_on_2, an auto-suffixed duplicate that sat on the same span as this one."
   },
+  "sat_hide_task_list": {
+    "message": "Hide the task list",
+    "description": "Tooltip and aria-label on the active-task pill's LIST fold control while the list is showing. Its opposite is sat_show_task_list. The visible text of the same control is sat_more_tasks, which is a count rather than an instruction - the count says what is there, the label says what the click does."
+  },
   "sat_minimize": {
     "message": "Minimize",
     "description": "Attribute label in satCardHtml(). Rendered with th()."
@@ -2356,10 +2360,6 @@ I18n.register("en", {
   },
   "sat_stop_tracking_for_now_the_task": {
     "message": "Stop tracking for now. The task stays open and keeps its time.",
-    "description": "Attribute label in satCardHtml(). Rendered with th()."
-  },
-  "sat_switch_active_task": {
-    "message": "Switch active task",
     "description": "Attribute label in satCardHtml(). Rendered with th()."
   },
   "session_options": {
@@ -3001,6 +3001,10 @@ I18n.register("en", {
   "sat_resume": {
     "message": "▶ Resume",
     "description": "Markup label in satCardHtml(). Rendered with th()."
+  },
+  "sat_show_task_list": {
+    "message": "Show the task list",
+    "description": "Tooltip and aria-label on the active-task pill's LIST fold control while the list is folded to one line during a focus session. Its opposite is sat_hide_task_list."
   },
   "sat_start_next_session": {
     "message": "▶ Start next session",
@@ -5914,6 +5918,14 @@ I18n.register("en", {
     "sat_active_since": {
       "description": "The active-task pill's line: how much, and since when. {duration} is an already-formatted count and {since} an already-formatted time. The middot separates two facts rather than joining clauses.",
       "message": "Active {duration} · since {since}"
+    },
+    "sat_more_tasks": {
+      "description": "Visible text on the active-task pill's folded LIST zone, counting the open tasks OTHER than the active one across every workspace - the same rows the list shows when it is unfolded. {count} is that number. No '=0' form: the fold only renders while a focus session runs, and with nothing else open the line would be offering to show an empty list, so the zero case is handled by the list itself rather than by a word here.",
+      "message": "",
+      "plural": {
+        "one": "1 more task",
+        "other": "{count} more tasks"
+      }
     },
     "sat_last_days": {
       "description": "The task time chip's window line. {duration} is an already-formatted duration and {count} the number of days.",

@@ -316,6 +316,10 @@ function boot(src) {
       extractFn(src.nt, "satFocusedFigureHtml"),
       extractFn(src.nt, "satZeroCaseHtml"),
       extractFn(src.nt, "satHeadlineHtml"),
+      // [FIX-5] satIdleHeadlineHtml delegates its wall-clock half to this, so
+      // it must be in scope or every assertion that EXECUTES the idle headline
+      // throws ReferenceError instead of reporting anything.
+      extractFn(src.nt, "satWallClockHtml"),
       extractFn(src.nt, "satIdleHeadlineHtml"),
       // [2.0] The worked clock's builders, executed rather than pattern-matched:
       // the whole question is WHICH number they print and what they call it.
@@ -394,14 +398,25 @@ await (async () => {
   const completeBtn = resolveCopy(btn("complete"));
   const cancelBtn = resolveCopy(btn("cancel"));
 
-  // [FIX-4] ALL FOUR, ANYWHERE ON THE CARD. They were one row; they are now a
-  // primary (pause/resume), two links (complete/cancel) and a head glyph
-  // (switch). What this gate is for is that none of them quietly vanished in a
-  // rearrangement, and that property does not care which row they sit in.
-  check("trap: the card still carries all four controls",
-    ["complete", "cancel", "switch"].every((a) => ACTIONS.includes(`data-sat-act="${a}"`)) &&
+  // [FIX-5] THREE CONTROLS AND A ZONE, WHERE IT USED TO BE FOUR CONTROLS.
+  // The fourth was the swap glyph, and it is not a rearrangement that lost it:
+  // it opened the task picker, and FIX-5 makes the picker a PERMANENT zone of
+  // the pill. A control whose target is always on screen is furniture.
+  //
+  // SO THE ASSERTION FOLLOWS THE JOB RATHER THAN THE GLYPH, and it gets
+  // stronger doing it: the old form passed on the existence of a button, and
+  // would have passed on one that opened nothing. This one requires the list
+  // itself, rendered UNCONDITIONALLY - satListZoneHtml takes no flag that can
+  // suppress it, which is the property "the list is the floor" actually means.
+  check("trap: the card still carries all three controls",
+    ["complete", "cancel"].every((a) => ACTIONS.includes(`data-sat-act="${a}"`)) &&
     /data-sat-act="(pause|resume)"/.test(ACTIONS),
     ACTIONS.slice(0, 120));
+  check("trap: ...and the switch glyph's JOB is done by a list that is always rendered",
+    !ACTIONS.includes('data-sat-act="switch"') &&
+    /satListZoneHtml\(running\)/.test(ACTIONS) &&
+    !/\?\s*satListZoneHtml|satListZoneHtml[\s\S]{0,40}:\s*''/.test(ACTIONS),
+    ACTIONS.slice(ACTIONS.indexOf("satListZoneHtml") - 60, ACTIONS.indexOf("satListZoneHtml") + 60));
   // AND PAUSE AND RESUME ARE THE SAME CONTROL IN TWO STATES, never two controls
   // rendered at once - which is what "one primary" means and what would
   // otherwise be an easy thing to lose.
@@ -437,7 +452,11 @@ await (async () => {
 
   // The other side of the handler: what each act actually reaches.
   {
-    const handler = SRC.nt.slice(SRC.nt.indexOf('if (act === "complete")'), SRC.nt.indexOf('if (act === "switch"'));
+    // [FIX-5] RE-ANCHORED. The end marker was `if (act === "switch"`, which no
+    // longer exists - and indexOf would have returned -1 and silently sliced to
+    // one character from the end of the file, which is a slice that still
+    // passes both regexes below for entirely the wrong reason.
+    const handler = SRC.nt.slice(SRC.nt.indexOf('if (act === "complete")'), SRC.nt.indexOf('if (act === "list-open"'));
     check("trap: act=complete routes to satComplete, act=cancel routes to satCancel",
       /act === "complete"\s*\)\s*\{\s*await satComplete\(\)/.test(handler) &&
       /act === "cancel"\s*\)\s*\{\s*await satCancel\(\)/.test(handler), handler.slice(0, 160));
@@ -459,7 +478,9 @@ await (async () => {
   }
   // Non-destructive controls may be glyphs, but never anonymous ones.
   {
-    const sw = btn("switch");
+    // [FIX-5] THE MINIMIZE CHEVRON IS THE GLYPH-ONLY CONTROL NOW, the swap
+    // having gone with the picker. Same property, same requirement.
+    const sw = btn("minimize");
     check("trap: the glyph-only control carries BOTH a title and an aria-label",
       /title="[^"]+"/.test(sw) && /aria-label="[^"]+"/.test(sw), sw.slice(0, 160));
     // [FIX-4] THE WORDS, WITHOUT THE GLYPH PREFIX. The control is a full-width
@@ -892,7 +913,9 @@ await (async () => {
         // ESCAPED straight through it (Q2: an assertion that matches the wrong
         // rule is not coverage).
         check("hero: its ink is declared on the dark frame and overridden on the light one",
-          /\.sat-hero-time \{[^}]*color: #fff;/.test(SRC.css) &&
+          // ANCHORED (FIX-5): #active-task-pill .sat-task-clocks .sat-hero-time
+          // now exists, and an unanchored open drifts to it.
+          /[\n}]\s*\.sat-hero-time \{[^}]*color: #fff;/.test(SRC.css) &&
           /html\.bg-light \.sat-hero-time,[^{}]*\{ color: var\(--text-primary\)/.test(SRC.css) &&
           /[\n}]\s*\.sat-hero-label \{[^}]*color: rgba\(255, 255, 255/.test(SRC.css) &&
           /html\.bg-light \.sat-hero-label,[^{}]*\{ color: var\(--text-secondary\)/.test(SRC.css));
@@ -1009,7 +1032,8 @@ await (async () => {
 
     // ============= 9. THE FOCUS-ROW OVERFLOW =================================
     check("focus row: it wraps, so the hint takes a second line instead of being cut",
-      /\.sat-focus-row \{[^}]*flex-wrap: wrap;/.test(SRC.css));
+      // ANCHORED (FIX-5): the zone rule .sat-zone-task .sat-focus-row exists now.
+      /[\n}]\s*\.sat-focus-row \{[^}]*flex-wrap: wrap;/.test(SRC.css));
     check("focus row: ...and the hint cannot be squeezed into an ellipsis instead of wrapping",
       /[\n}]\s*\.sat-focus-hint \{[^}]*flex: 0 0 auto;/.test(SRC.css));
     // [1.5.0] ASSERTED THROUGH THE CATALOGUE, NOT AGAINST newtab.js. This used
@@ -1050,8 +1074,42 @@ await (async () => {
   // ================= 7. THE UNIFIED TIMER ===================================
   {
     const card = CARD;
+    // [FIX-5] RE-ANCHORED, AND THE OLD ANCHOR WAS A COMMENT. This opened on
+    // `sat-pomo-stop-row`, which FIX-4 DELETED from the markup - the only place
+    // that string still appeared in this builder was FIX-4's own note saying so.
+    // The assertion was green on a sentence about a row that no longer existed.
+    // It now opens on the ring's wrapper, which is markup, and closes on the
+    // zone that follows the headline, which is also markup.
     check("takeover: FOCUSED TODAY is rendered beneath the ring during a running phase",
-      /sat-pomo-stop-row[\s\S]*?sat-pomo-today">' \+ satHeadlineHtml\(paused\)[\s\S]*?satFocusRowHtml/.test(card));
+      /sat-pomo-ring-wrap[\s\S]*?sat-pomo-today">' \+ satHeadlineHtml\(paused, true\)/.test(card));
+    // [FIX-5] THE COMPACT FORM, AND THE DOUBLE THAT FORCED IT. satHeadlineHtml
+    // renders the engine figure AND the wall-clock trailing lines. In the zones
+    // pill the TASK zone renders the wall clock directly beneath, so a running
+    // session printed the stamp TWICE, three lines apart - caught in a frame,
+    // invisible to every contrast reading and every DOM assertion. Both session
+    // callers now take the compact form and the tail moves to the task zone.
+    check("takeover: ...and the trailing lines render exactly once, in the TASK zone",
+      (card.match(/satHeadlineHtml\(paused, true\)/g) || []).length === 2 &&
+      (card.match(/satEngineTailHtml\(\)/g) || []).length === 2 &&
+      !/satHeadlineHtml\(paused\)(?!,)/.test(card), card.slice(0, 60));
+    {
+      const tail = extractFn(SRC.nt, "satEngineTailHtml");
+      // [FIX-5] TWO BUILDERS, NOT THREE, AND THE MEASUREMENT MOVED THE THIRD.
+      // The zero-case sentence was in this tail until satPaintTime was measured:
+      // satSyncZeroNote MAINTAINS that sentence on the live DOM beside whichever
+      // figure is on screen, every second, so putting it in the tail did not
+      // move it - it only made the builder disagree with the tick. It stays with
+      // satHeadlineHtml's figure, in the compact form too, and this tail is the
+      // two WINDOWED lines that genuinely had nowhere else to go.
+      check("takeover: ...and that tail is the SAME two builders, not a copy of their output",
+        /satWindowLineHtml\(\)/.test(tail) && /satLifetimeLineHtml\(\)/.test(tail) &&
+        !/satZeroCaseHtml\(\)/.test(tail), tail);
+      check("takeover: ...while the zero-case sentence stays with the figure it explains, compact or not",
+        /satZeroCaseHtml\(\) \+\s*[\s\S]{0,40}\(compact \? '' :/.test(extractFn(SRC.nt, "satHeadlineHtml")),
+        extractFn(SRC.nt, "satHeadlineHtml").slice(-400));
+      check("takeover: ...while the IDLE branch still uses the full headline, which carries them itself",
+        /satZones\("", satIdleHeadlineHtml\(paused\), false, true\)/.test(card));
+    }
     // The >= 2 count IS the property: both branches must go through the shared
     // builder rather than one copying it. (Group C, 2026-09-01 audit.)
     //
@@ -1077,7 +1135,8 @@ await (async () => {
     check("takeover: ...through the SAME builder the idle card uses, not a copy",
       (card.match(/satHeadlineHtml\(/g) || []).length >= 2 && !hasClassToken(card, "sat-time"));
     check("takeover: only its SCALE changes, and only in CSS",
-      /\.sat-pomo-today \.sat-time \{[^}]*font-size: var\(--fs-15\)/.test(SRC.css));
+      // ANCHORED (FIX-5): .sat-zone-focus .sat-pomo-today exists now.
+      /[\n}]\s*\.sat-pomo-today \.sat-time \{[^}]*font-size: var\(--fs-15\)/.test(SRC.css));
     check("takeover: the paint no longer returns early, so the kept headline still ticks",
       !/fill\.style\.strokeDashoffset[\s\S]{0,200}\n      return;/.test(extractFn(SRC.nt, "satPaintTime")));
     check("highlight: the ring is emphasised for a WORK phase only",
@@ -1088,61 +1147,65 @@ await (async () => {
       /\.sat-expanded-pomo\.is-work \.sat-pomo-ring-fill \{[^}]*filter: drop-shadow/.test(SRC.css));
   }
 
-  // ================= 3. OVERLAP: the reserve ================================
-  // [2.2.0] LOGICAL SPELLING throughout this block. Same computed value under
-  // the only direction that ships; the regexes have to follow the sheet or
-  // they assert rules that are gone and pass on nothing.
-  check("overlap: the reserve is on the SHARED root (R1), gated on the card being open",
-    /body\.sat-card-open #content \{[^}]*padding-inline-end: 300px;/.test(SRC.css));
-  // [1.10.11] AND IT IS ON #content, NOT .tab-panel. This is not a cosmetic
-  // move. #content-header is a SIBLING of .tab-panel, so a reserve on the panel
-  // narrows the box that centres the clock, the search bar and the grid while
-  // leaving the box that centres the logo and the tab bar at full width - and
-  // two boxes sharing a left edge and differing by 300px have centres 150px
-  // apart. That was a visible 150px disagreement on every Pro profile with an
-  // active task, and it survived three rounds of measurement because every
-  // fixture had no active task and so never set the class.
-  check("overlap: the reserve is NOT back on .tab-panel, which would decentre the panel against the header",
-    !/body\.sat-card-open \.tab-panel \{/.test(SRC.css.replace(/\/\*[\s\S]*?\*\//g, "")));
-  // The compounding trap: two reserves inside one another would throw the header
-  // cluster into the middle of the page.
+  // ================= 3. OVERLAP: THE PILL NEVER PUSHES ======================
+  //
+  // [FIX-5] THIS WHOLE SECTION IS INVERTED, NOT DELETED, and the inversion is
+  // the ruling rather than a loosening. It asserted a 300px reserve on #content
+  // that slid Home's column left whenever the docked card was open. Samson's
+  // Home frames ruled that out on 2026-09-18: THE PILL IS A FIXED OVERLAY AND
+  // HOME DOES NOT MOVE FOR IT.
+  //
+  // THE OLD ROWS WERE RIGHT ABOUT A SURFACE THE USER OPTED INTO. The reserve's
+  // own comment called 300px "the honest trade for a persistent docked surface,
+  // and what the minimize chevron is for". FIX-5 makes the expanded pill the
+  // RESTING state - it is what every Pro new tab opens on, with or without an
+  // active task, because the task list lives in it - and a page that re-centres
+  // itself as its resting behaviour is not a trade.
+  //
+  // THE INVERTED ROWS ARE THE STRONGER SET, which is the test of whether an
+  // inversion is honest. The old ones could all pass while the page still
+  // jumped 150px off centre, because they asserted the rule's SHAPE; these
+  // assert that nothing anywhere sets the property, which is the property the
+  // ruling actually names.
   {
-    // Comments stripped first: the replacement rule's own note QUOTES the deleted
-    // selector to explain why it went, and scanning the prose would report the
-    // documentation as the defect.
     const cssCode = SRC.css.replace(/\/\*[\s\S]*?\*\//g, "");
-    check("overlap: the old header-only reserve is GONE — the two would have compounded to 600px",
+    check("overlap: RULED - no rule reserves a lane for the pill on #content",
+      !/padding-inline-end:\s*300px/.test(cssCode) &&
+      !/#content \{[^}]*padding-inline-end/.test(cssCode),
+      (cssCode.match(/[^\n]*padding-inline-end[^\n]*/g) || []).join(" | ").slice(0, 200));
+    check("overlap: ...and body.sat-card-open is gone from the sheet entirely",
+      !/sat-card-open/.test(cssCode));
+    // COMMENTS STRIPPED, because the replacement note QUOTES the deleted
+    // selector to explain why it went - the same trap FIX-4 hit widening the
+    // amber scan, recorded there and avoided here.
+    check("overlap: ...and the widget no longer toggles the class",
+      !/sat-card-open/.test(SRC.nt.replace(/\/\/[^\n]*/g, "")));
+    // THE DEAD-TRANSITION RULE, from the [2.2.0] note on #content's own
+    // declaration: "a transition naming a property the sheet no longer sets
+    // does not error, it just stops animating". Nothing sets it now, so naming
+    // it would be exactly that.
+    check("overlap: ...and the transition that animated it went with it",
+      !/#content \{[^}]*transition:[^;]*padding-inline-end/.test(cssCode));
+    // The two historical traps stay asserted. Neither rule may come back by
+    // another route - [1.10.11]'s 150px decentring came from the reserve on
+    // .tab-panel, and [1.0.16]'s header reserve would have compounded with it.
+    check("overlap: the reserve is not back on .tab-panel, which decentred the panel against the header",
+      !/body\.sat-card-open \.tab-panel \{/.test(cssCode));
+    check("overlap: the old header-only reserve is still gone",
       !/body\.sat-card-open \.tasks-header-right \{/.test(cssCode) &&
       !/[\n}]\s*\.tasks-header-right \{[^}]*margin-inline-end: 300px/.test(cssCode));
   }
-  check("overlap: released in the stacked layout, where a right gutter is dead space",
-    /@media \(max-width: 720px\) \{\s*body\.sat-card-open #content \{ padding-inline-end: 0; \}/.test(SRC.css));
-  // [1.10.12] THE TRANSITION MUST BE ON THE BASE RULE, NOT IN THE STATE RULE.
-  // This check used to require the opposite, and so held a real defect in place:
-  // a transition declared inside `body.sat-card-open` is only in the computed
-  // style while the class is on, so the column slid open and SNAPPED shut.
-  // Measured: 9 intermediate frames opening, 0 closing. Asserting the base rule
-  // is asserting the thing that actually makes it symmetric.
-  check("overlap: it slides rather than jumping, matching the card's minimize feel",
-    /#content \{[^}]*transition:[^;]*padding-inline-end 200ms/.test(SRC.css));
-  check("overlap: and the transition is NOT declared inside the state rule, which would animate in and jar out",
-    !/body\.sat-card-open #content \{[^}]*transition/.test(SRC.css));
-  check("overlap: the reserve is stilled under prefers-reduced-motion rather than left to play",
-    /@media \(prefers-reduced-motion: reduce\) \{\s*#content \{ transition: none; \}/.test(SRC.css));
-  // The reserve's whole point is clearance, so assert the number as well as the
-  // placement: 300 is the 280px card at right:14 plus breathing room, and a
-  // reserve narrower than the card would put content back under it.
-  // [2.2.0] THIS ROW WAS A DUPLICATE OF THE RESERVE ROW ABOVE - byte-identical
-  // regex, different label - so the dock its label names was never actually
-  // checked, and the 300px reserve could have gone on clearing a card that had
-  // moved. Found while re-spelling the properties; it now asserts what it says.
-  check("overlap: the card is still DOCKED at the inline end, 14px in",
+  // WHAT MAKES "NEVER PUSHES" TRUE rather than merely undeclared: the pill is
+  // out of flow. A fixed overlay at the inline end cannot displace anything
+  // whatever its height, which is why deleting the reserve is a complete answer
+  // and not half of one.
+  check("overlap: the pill is a FIXED overlay, docked at the inline end, 14px in",
+    /#active-task-pill \{[^}]*position: fixed;/.test(SRC.css) &&
     /#active-task-pill \{[^}]*inset-inline-end: 14px;/.test(SRC.css));
-  check("overlap: the reserve still clears the 280px card docked at the inline end",
-    /body\.sat-card-open #content \{[^}]*padding-inline-end: 300px;/.test(SRC.css));
-  check("overlap: the class it keys on is really toggled by the widget",
-    /classList\.toggle\("sat-card-open", showCard\)/.test(SRC.nt));
-
+  // The sidebar's own push is untouched and still stilled under reduced motion;
+  // that rule now covers one transition rather than two.
+  check("overlap: #content's remaining push is stilled under prefers-reduced-motion",
+    /@media \(prefers-reduced-motion: reduce\) \{\s*#content \{ transition: none; \}/.test(SRC.css));
   // ================= O1 ink on every new text surface =======================
   // All of this is JS-rendered, so tools/check-panel-ink.mjs cannot see any of
   // it — these rows are the only thing standing between a new line and the
@@ -1679,7 +1742,7 @@ await (async () => {
     !/html\.bg-light \.sat-worked,[\s\S]{0,120}var\(--text-secondary\)/.test(CSSW));
   check("ink: the unit words take the same ink as their figure, never a lower alpha",
     !/\.tt-worked-unit \{[^}]*(opacity|color)/.test(CSSW) &&
-    !/\.sat-worked-unit \{[^}]*(opacity|color)/.test(CSSW));
+    !/[\n}]\s*\.sat-worked-unit \{[^}]*(opacity|color)/.test(CSSW));
   check("ink: neither readout dims a container (O2: colour, never opacity)",
     !/\.(tt-task-worked|sat-worked) \{[^}]*opacity:/.test(CSSW));
 
