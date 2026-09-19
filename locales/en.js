@@ -6096,3 +6096,33 @@ I18n.register("en", {
       "message": "Import"
     }
   });
+
+// ===== [FIX-9] THE DASHBOARD HERO'S WORKING ZONE =========================
+//
+// The three figures on the working line are NOT new. The active-task pill
+// carried "0:09 active - since 10:50 - 1h39m worked on this task" until
+// FIX-6 removed it and its keys with it; these re-home that readout. Every
+// one of them is wall-clock rather than engine time, which is why none of
+// them may use the word 'focused'.
+I18n.register("en", {
+    "dash_scope_all_workspaces": {
+      "description": "The Dashboard hero figure's label in the combined-analytics scope. Replaces dash_focused_today_all_workspaces, which repeated the tile eyebrow's own 'Focused today' eight lines lower - two labels for one figure. What the repetition was hiding is the SCOPE: with three workspaces, '2h30m focused today' means very different things summed or not, and nothing on the tile said which.",
+      "message": "All workspaces"
+    },
+    "dash_scope_this_workspace": {
+      "description": "Fallback for the same label in the single-workspace scope, used only when the workspace has no name - the label is normally the workspace's OWN name, which is the user's text and is never translated.",
+      "message": "This workspace"
+    },
+    "dash_working_active": {
+      "description": "The unit word after the Dashboard hero's live elapsed figure, as in '0:09 active'. WALL CLOCK, not engine time: this counts from when the task was made active, which is the same family the Tasks row's own 'active' readout belongs to and deliberately the same word. 'Focused' is reserved for engine-measured time and must not be substituted here. Replaced by dash_session_paused while tracking is paused.",
+      "message": "active"
+    },
+    "dash_working_since": {
+      "description": "The timestamp clause on the Dashboard hero's working line. {time} is a locale time, or a short date and time once the activation is older than today - a task left active overnight is a real state and a bare 'since 10:50' the next afternoon is a lie about which 10:50. The count answers 'how long' and this answers 'since when'.",
+      "message": "since {time}"
+    },
+    "dash_working_worked": {
+      "description": "The lifetime clause on the Dashboard hero's working line. {duration} is every minute ever banked against this task plus the activation currently running, so it is a much larger number than the elapsed figure beside it - the words 'worked on this task' are what keep the two from reading as a contradiction and may not be shortened to 'worked'.",
+      "message": "{duration} worked on this task"
+    }
+  });

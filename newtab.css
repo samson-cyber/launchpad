@@ -21392,11 +21392,17 @@ html.has-bg.bg-light #tab-dashboard .dash-chain-cancel { color: var(--ink-mute);
    tile it sits on, and amber on pause is the one signal this surface carries
    for that state - the same rule [1.9.4] FINDING 5 counts.
    ========================================================================= */
+/* [FIX-9] THE RING IS A COLUMN NOW - dial over phase word - because it sits
+   BESIDE the working zone rather than leading the tile with the task name to
+   its right. margin-top went with that: the zone owns the spacing above the
+   whole block, and a margin here would have shown up as the ring sitting one
+   step lower than the name it is paired with. */
 #tab-dashboard .dash-session {
   display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
   align-items: center;
-  gap: 14px;
-  margin-top: 8px;
+  gap: 4px;
 }
 #tab-dashboard .dash-session-ring {
   position: relative;
@@ -21439,7 +21445,9 @@ html.has-bg.bg-light #tab-dashboard .dash-chain-cancel { color: var(--ink-mute);
   color: var(--ink);
 }
 #tab-dashboard .dash-session.is-paused .dash-session-time { color: var(--sat-amber); }
-#tab-dashboard .dash-session-meta { min-width: 0; }
+/* [FIX-9] .dash-session-meta AND .dash-session-task ARE DELETED. The ring no
+   longer prints the task name - the working zone beside it does, once - and a
+   meta column holding a single phase word is a box around nothing. */
 #tab-dashboard .dash-session-phase {
   font-size: var(--fs-11);
   font-weight: 600;
@@ -21447,18 +21455,117 @@ html.has-bg.bg-light #tab-dashboard .dash-chain-cancel { color: var(--ink-mute);
   text-transform: uppercase;
   color: var(--action-soft);
 }
-#tab-dashboard .dash-session-task {
-  margin-top: 2px;
-  font-size: var(--fs-12);
+html.bg-light #tab-dashboard .dash-session-phase,
+html.has-bg.bg-light #tab-dashboard .dash-session-phase { color: var(--action-soft); }
+
+/* =========================================================================
+   [FIX-9] THE WORKING ZONE
+
+   A task being worked on, whether or not a timer is running. It sits at the
+   FOOT of the hero: everything above it is a total for the day and this is the
+   only part of the tile that is true at this second.
+
+   THE RULE ABOVE IT IS WHAT MAKES IT READ AS A DIFFERENT KIND OF THING. The
+   four small figures directly above are all day-totals in the same tier, and
+   without a separator the live line joined the end of that row as a fifth one.
+   ========================================================================= */
+#tab-dashboard .dash-working {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--tile-rule);
+}
+
+/* min-width:0 ON THE BODY, not only on the name. A flex item defaults to
+   min-width:auto, so without this a long task name sets the width of the whole
+   zone and pushes the ring out of the tile rather than ellipsing itself. */
+#tab-dashboard .dash-working-body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+#tab-dashboard .dash-working-name {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  line-height: 1.25;
   color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-html.bg-light #tab-dashboard .dash-session-task,
-html.has-bg.bg-light #tab-dashboard .dash-session-task { color: var(--ink); }
-html.bg-light #tab-dashboard .dash-session-phase,
-html.has-bg.bg-light #tab-dashboard .dash-session-phase { color: var(--action-soft); }
+
+/* --ink-secondary AND NOT --ink-mute, WHICH THE BRIEF NAMED. Measured on a
+   LIGHT PHOTOGRAPH, #a89c93 gives 4.16:1 against a 4.5 text floor, and the
+   meta line directly beneath it - white at 60% - gives 5.12 on the same
+   pixels. That is FIX-3's standing ruling arriving again: on a dark frosted
+   surface a white-alpha token composites LIGHTER than #a89c93, because the
+   alpha lets the tile behind it lift while the hex cannot. White at 70% keeps
+   the goal a real tier between the name (--ink) and the meta line (60%) and
+   clears the floor on all five grounds. */
+#tab-dashboard .dash-working-goal {
+  margin-top: 1px;
+  font-size: var(--fs-12);
+  color: var(--ink-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ONE LINE THAT WRAPS RATHER THAN CLIPS. The three clauses are a sentence and
+   a narrow tile is a real case, so they wrap onto a second line together
+   instead of any one of them being cut in half. */
+#tab-dashboard .dash-working-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-top: 4px;
+  font-size: var(--fs-11);
+  color: var(--ink-meta);
+}
+
+#tab-dashboard .dash-working-clock {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+/* TABULAR, by ruling, and it is not cosmetic: this digit changes every second
+   and proportional figures make the clause after it shuffle sideways on every
+   tick. Same reason the session ring's centre carries it. */
+#tab-dashboard .dash-working-elapsed {
+  font-size: var(--fs-13);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+#tab-dashboard .dash-working-unit {
+  font-size: var(--fs-11);
+  color: var(--ink-meta);
+}
+
+/* PAUSED IS AMBER ON THE FIGURE AND ITS WORD, and on nothing else. The ring
+   beside it already takes amber in the same state, so tinting the name or the
+   goal as well would be the signal inflation [1.9.4] FINDING 5 counts - the
+   state is one fact and it is said in one place per object. */
+#tab-dashboard .dash-working.is-paused .dash-working-elapsed,
+#tab-dashboard .dash-working.is-paused .dash-working-unit {
+  color: var(--sat-amber);
+}
+
+html.bg-light #tab-dashboard .dash-working-name,
+html.has-bg.bg-light #tab-dashboard .dash-working-name,
+html.bg-light #tab-dashboard .dash-working-elapsed,
+html.has-bg.bg-light #tab-dashboard .dash-working-elapsed { color: var(--ink); }
+html.bg-light #tab-dashboard .dash-working-goal,
+html.has-bg.bg-light #tab-dashboard .dash-working-goal { color: var(--ink-mute); }
+html.bg-light #tab-dashboard .dash-working-meta,
+html.has-bg.bg-light #tab-dashboard .dash-working-meta,
+html.bg-light #tab-dashboard .dash-working-unit,
+html.has-bg.bg-light #tab-dashboard .dash-working-unit { color: var(--ink-meta); }
 
 /* =========================================================================
    [FIX-7] THE PLAY GLYPH IS VISIBLE AT REST

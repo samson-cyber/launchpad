@@ -1608,7 +1608,20 @@
   // user never chose, which is the nag the doctrine forbids. The numeral keeps
   // the same size and the same place either way, so the hero does not move
   // depending on whether a target exists; only the ring around it appears.
-  function dashHeroFocusHtml(scope, targetMin) {
+  // [FIX-9] THE LABEL SAYS THE SCOPE, NOT "Focused today" A SECOND TIME.
+  //
+   // The tile eyebrow above already says "Focused today" and this label said it
+  // again eight lines lower - two labels, one figure, nothing between them but
+  // the number they both describe. FIX-7 named the repetition and left it; the
+  // hero gains a whole zone this round, so the rhythm had to be settled before
+  // anything else was added to the tile.
+  //
+  // WHAT REPLACES IT IS THE THING THE REPETITION WAS HIDING. The figure is
+  // scoped - one workspace, or every workspace summed when combined analytics
+  // is on - and nothing on the tile said which. A user with three workspaces
+  // reading "2h30m / Focused today" cannot tell whether that is today in
+  // Studio or today everywhere, and those are very different numbers.
+  function dashHeroFocusHtml(scope, targetMin, ws) {
     // Suppressed exactly as the old tile was (D5): with per-workspace tracking
     // off the reader honestly returns 0, and "0m focused today" would tell the
     // user they did nothing when the truth is nothing was measured.
@@ -1633,11 +1646,14 @@
           ring +
           '<div class="dash-hero-num" data-dash-focused>—</div>' +
         '</div>' +
-        // CASE ONLY. Still HARDCODED English rather than catalogue values, so
-        // they remain in the i18n backlog (the gate's "33 await migration").
+        // THE WORKSPACE NAME IS NOT A CATALOGUE STRING - it is the user's own
+        // text, so it is escaped and never translated. The combined case is,
+        // and falls back to the shipped scope word if a workspace has somehow
+        // no name rather than rendering an empty label.
         '<div class="dash-hero-label">' +
-          (scope.mode === "combined" ? th("dash_focused_today_all_workspaces")
-                                     : th("common_focused_today")) +
+          (scope.mode === "combined"
+            ? th("dash_scope_all_workspaces")
+            : escapeHtml((ws && ws.name) ? ws.name : t("dash_scope_this_workspace"))) +
         '</div>' +
       '</div>';
   }
@@ -1670,15 +1686,17 @@
   // --ring-frac is what the 1s paint writes.
   //
   // NO CONTROLS HERE, by ruling. Stop, Pause and the blocking arm are the side
-  // panel's; this tile answers "what is running", not "change it". The task
-  // NAME is on it because a countdown with no subject is a timer, not a
-  // session - which is the half of Samson's report that a bare ring would
-  // have left unanswered.
-  function dashHeroSessionHtml() {
+  // panel's; this tile answers "what is running", not "change it".
+  //
+  // [FIX-9] THE RING IS A PART NOW, NOT THE WHOLE. It carried the task NAME
+  // because a countdown with no subject is a timer rather than a session - and
+  // that is still true, but the name is the WORKING ZONE's now and a session
+  // cannot run without one. Printing it here as well would put the same string
+  // twice in one tile, inches apart. So the ring keeps the phase word, which is
+  // the one thing it knows that the zone does not.
+  function dashWorkingRingHtml() {
     var pomo = satRunningPomo();
     if (!pomo) return "";
-    var res = Storage.resolveActiveTask(data);
-    if (!res || res.stale) return "";
     var paused = Storage.isTrackingPaused(data);
     var remaining = satPomoRemainingMs(pomo);
     var frac = pomo.totalMs > 0 ? Math.max(0, Math.min(1, remaining / pomo.totalMs)) : 0;
@@ -1693,13 +1711,128 @@
             '<span class="dash-session-time" data-dash-session-time>' + escapeHtml(satFmtLong(remaining)) + '</span>' +
           '</div>' +
         '</div>' +
-        '<div class="dash-session-meta">' +
-          '<div class="dash-session-phase">' +
-            escapeHtml(paused ? t("dash_session_paused") : phaseLabel) + '</div>' +
-          '<div class="dash-session-task" title="' + escapeHtml(res.task.name) + '">' +
+        // [FIX-9] THE LABEL IS THE PHASE WORD IN BOTH STATES NOW. FIX-7 swapped
+        // it to "Paused" because the ring was the only thing on the hero and
+        // something had to say so in words. The zone beside it says exactly that,
+        // in amber, and the frame showed the result: "PAUSED" under the ring in
+        // the ACTION colour and "Paused" in the line in AMBER - one state, said
+        // twice, in two colours. FIX-7's rule survives intact and this is it
+        // applied: the state is said ONCE PER OBJECT. The ring says it by
+        // turning amber, the zone says it in a word, and the label goes back to
+        // the one thing neither of them knows - which phase is paused.
+        '<div class="dash-session-phase">' + escapeHtml(phaseLabel) + '</div>' +
+      '</div>';
+  }
+
+  // ===== [FIX-9] THE WORKING ZONE ==========================================
+  //
+  // Samson, after FIX-7: "There's no focus time still. That can be added to the
+  // dashboard top tile - that'd be a good spot for it. Or at least a
+  // working-on-task timer, some real-time feature that tracks the task getting
+  // worked on at that time."
+  //
+  // THE GAP WAS A STATE, NOT A FIGURE. FIX-7 put the SESSION on the hero, and a
+  // session is the rarer half of the story: a task is active whenever you have
+  // picked one, and a phase runs only while you have also started a timer. The
+  // hero showed nothing at all for the common state, so the board said nothing
+  // about what you were working on for most of the day.
+  //
+  // THIS READOUT IS NOT NEW - IT IS HOMELESS. The pill carried
+  // "0:09 active - since 10:50 - 1h39m worked on this task" until FIX-6 removed
+  // it, and the three figures behind it survived that removal as KEEP functions
+  // because the Tasks row still paints two of them. This gives them a surface
+  // again rather than deriving anything new.
+  //
+  // BENEATH THE FIGURES, by ruling, and it is the right way round: everything
+  // above is a TOTAL for the day and this is the only thing on the tile that is
+  // true right now. A reader scanning down ends on the live line.
+  //
+  // ABSENT WITH NO ACTIVE TASK - the badge rule. The hero is the stats tile it
+  // has always been, unchanged for anyone who has not picked a task.
+  function dashHeroWorkingHtml() {
+    var res = Storage.resolveActiveTask(data);
+    if (!res || res.stale) return "";
+    var paused = Storage.isTrackingPaused(data);
+    var workedMs = Storage.taskWorkedMs(data, res.task);
+    var since = dashWorkingSinceText();
+    // THE SAME >0 GUARD THE ROW'S WORKED CHIP USES. "0m worked" on a task you
+    // started four seconds ago is noise, and taskWorkedMs counts the running
+    // activation, so the clause appears on its own within the first minute.
+    var workedTxt = workedMs > 0 ? fmtDurationHM(workedMs) : "";
+    return '<div class="dash-working' + (paused ? ' is-paused' : '') + '" data-dash-working>' +
+        dashWorkingRingHtml() +
+        '<div class="dash-working-body">' +
+          '<div class="dash-working-name" title="' + escapeHtml(res.task.name) + '">' +
             escapeHtml(res.task.name) + '</div>' +
+          (res.goal
+            ? '<div class="dash-working-goal" title="' + escapeHtml(res.goal.name) + '">' +
+                escapeHtml(res.goal.name) + '</div>'
+            : "") +
+          '<div class="dash-working-meta">' +
+            '<span class="dash-working-clock">' +
+              '<span class="dash-working-elapsed" data-dash-working-elapsed>' +
+                escapeHtml(satStopwatchText()) + '</span>' +
+              '<span class="dash-working-unit" data-dash-working-unit>' +
+                escapeHtml(paused ? t("dash_session_paused") : t("dash_working_active")) + '</span>' +
+            '</span>' +
+            (since ? '<span class="dash-working-since">' +
+                       th("dash_working_since", { time: since }) + '</span>' : "") +
+            (workedTxt ? '<span class="dash-working-worked" data-dash-working-worked>' +
+                           th("dash_working_worked", { duration: workedTxt }) + '</span>' : "") +
+          '</div>' +
         '</div>' +
       '</div>';
+  }
+
+  // "since 10:50 pm", or "12 Sep, 10:50 pm" once the activation is older than
+  // today. RECOVERED from satActiveSinceText, which went with the pill in
+  // FIX-6; the date branch is why it is not a one-liner, and it is load-bearing
+  // - a task left active overnight is a real state and a bare "since 10:50" on
+  // the following afternoon is a lie about which 10:50.
+  //
+  // THE LOCALE IS ICU's DEFAULT (`undefined`), deliberately, and not the
+  // catalogue's: that is the seam this product already sits on for every other
+  // date, and pinning this one surface to "en" would make it the odd one out.
+  function dashWorkingSinceText() {
+    var a = Storage.getActiveTask(data);
+    if (!a || typeof a.startedAt !== "number" || !a.startedAt) return "";
+    var d0 = new Date(a.startedAt);
+    var now = new Date();
+    var isToday = d0.getFullYear() === now.getFullYear() &&
+                  d0.getMonth() === now.getMonth() &&
+                  d0.getDate() === now.getDate();
+    var time;
+    try {
+      time = d0.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    } catch (e) {
+      return "";
+    }
+    return isToday ? time : (fmtShortDate(a.startedAt) + ", " + time);
+  }
+
+  // TEXT ONLY, once a second, on the same tick as the row - and taking the
+  // SAME two strings the row is given rather than re-deriving them. satPaintTime
+  // reads the clock ONCE per pass for exactly this reason: two surfaces that
+  // each call satStopwatchText() inside one paint can straddle a second
+  // boundary and show 1:12 and 1:11, which is the cross-surface drift the
+  // helper's own note warns about. The hero and the Tasks row now cannot be one
+  // second apart even in principle.
+  function dashPaintWorking(stopwatch, workedTxt) {
+    var host = document.querySelector("[data-dash-working]");
+    if (!host) return;
+    var paused = Storage.isTrackingPaused(data);
+    var el = host.querySelector("[data-dash-working-elapsed]");
+    // PAUSED FREEZES THE FIGURE FOR FREE, and this line is what keeps that
+    // honest rather than merely true today: activeElapsedMs deducts the paused
+    // span, so the number is already frozen, and satStartTick stops the tick
+    // entirely while paused with no phase running. Writing it anyway costs one
+    // unchanged string and means a resumed task repaints on the first tick.
+    if (el && stopwatch != null) el.textContent = stopwatch;
+    var unit = host.querySelector("[data-dash-working-unit]");
+    if (unit) unit.textContent = paused ? t("dash_session_paused") : t("dash_working_active");
+    var worked = host.querySelector("[data-dash-working-worked]");
+    if (worked && workedTxt != null) worked.textContent = t("dash_working_worked", { duration: workedTxt });
+    host.classList.toggle("is-paused", paused);
   }
 
   // TEXT AND ONE CUSTOM PROPERTY, once a second. Rebuilding the tile would
@@ -2350,24 +2483,27 @@
           // small figures beneath it are the band's counts and stats, now peers
           // in one tile rather than two regions that had to be balanced.
           '<div class="tile tile--hero dash-tile dash-tile-hero">' +
+            // [FIX-9] THE ONLY "Focused today" ON THE TILE. The figure's own
+            // label says the SCOPE now; see dashHeroFocusHtml.
             '<div class="tile-eyebrow">' + th("common_focused_today") + '</div>' +
-            // [FIX-7] THE RUNNING SESSION LEADS THE TILE. It is the only thing
-            // on this board that is happening RIGHT NOW; everything beneath it
-            // is a total. Absent whenever no phase runs, so the tile is
-            // unchanged for a user who is not in a session.
-            dashHeroSessionHtml() +
             // [FIX-6] ABOVE THE FIGURE, because it is the only thing on this
             // tile that is about to happen rather than about what already has.
             // It renders for ten seconds at a phase boundary and is absent
             // every other moment.
             dashChainHtml() +
-            (scope ? dashHeroFocusHtml(scope, Storage.getFocusTargetMin(d))
+            (scope ? dashHeroFocusHtml(scope, Storage.getFocusTargetMin(d), ws)
                    : '<div class="dash-note dash-hero-off">' + th("dash_tracking_off_note") + '</div>') +
             '<div class="dash-hero-figures">' +
               dashHeroCountsHtml(d, ws) +
               streakCard +
               (scope ? dashWeekHtml() : '') +
             '</div>' +
+            // [FIX-9] AND THE LIVE LINE LAST. FIX-7 put the session at the TOP
+            // of this tile; the zone that replaces it sits at the BOTTOM, by
+            // ruling, because everything above it is a total for the day and
+            // this is the only part that is true at this second. A reader
+            // scanning the tile ends on what they are doing now.
+            dashHeroWorkingHtml() +
           '</div>' +
 
           // UP NEXT. The one action tile, and the one orange thing here.
@@ -20461,6 +20597,10 @@
     // satRowLiveState, not from an engine figure: while a work phase runs the
     // row shows the session wall-clock instead, and writing engine time here
     // would make the row claim engine time for a number that is not.
+    // [FIX-9] The hero's working zone rides the same two strings, after both
+    // have been read, so it cannot disagree with the row about either.
+    dashPaintWorking(stopwatch, workedTxt);
+
     var liveState = satRowLiveState(stopwatch);
     document.querySelectorAll(".tt-task-live").forEach(function (el) {
       var val = el.querySelector(".tt-live-val");
