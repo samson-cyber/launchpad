@@ -22667,3 +22667,209 @@ html.bg-light .tt-modal .session-picker-note,
 html.has-bg.bg-light .tt-modal .session-picker-note { color: var(--ink-meta); }
 html.bg-light .tt-context-menu .tt-ctx-header,
 html.has-bg.bg-light .tt-context-menu .tt-ctx-header { color: var(--ink-mute); }
+/* ===== [H3e] THE BRIGHT-PHOTOGRAPH POPULATION =============================
+
+   A BRIGHT PHOTOGRAPH IS THE ONE GROUND THIS SHEET CANNOT NAME. applyBackground
+   derives the luminance class for COLOUR backgrounds only, so a photo gets
+   `has-bg bg-image` and neither bg-light nor bg-dark, at any brightness. Every
+   html.bg-light rule in this file is therefore unreachable for an image
+   wallpaper - which is why three separate rounds have fixed a light-ground ink
+   bug and left this ground exactly as it was. 4551bdf refused a luminance
+   classifier for images and that refusal stands: a photo's mean says nothing
+   about the region behind any one node.
+
+   MEASURED, not assumed: tools/sweep-ink.mjs over five surfaces on a bright
+   photograph, 449 distinct text nodes, 145 under floor. Each was then walked
+   to the first ancestor that actually PAINTS, because the disposition turns on
+   what the glyph sits on and nothing else.
+
+   THE SPLIT IS THE RULING, AND IT IS NOT NEW - it is 980420c's, applied here:
+
+     ON THE WALLPAPER the WCAG number misreads the case. The backdrop varies
+     behind every stroke and the glyph carries a shadow the instrument excludes
+     from its sample by design, so the ratio has no term for a white glyph with
+     a dark halo over a varying ground. Samson has judged this three times and
+     been right three times. Those nodes are an ACCEPTED KNOWN LIMIT and this
+     round changes none of them. What it does is finish the mitigation: the
+     shadow that ruling calls load-bearing was missing from the sidebar.
+
+     ON A TILE the backdrop is FLAT and the number is measuring precisely what
+     it is calibrated for. There is no halo, no varying ground and no reason to
+     discount it, so a tile node under floor is a defect and is fixed.
+
+   NOTHING HERE GETS A SURFACE. 81fb511 gave Home's bare text a frost plate and
+   Samson rejected it on sight - "weirdly awkwardly highlighted and quite
+   messy". The tiles' 82% is H1a's and is untouched: that ruling says the photo
+   ground keeps 82% because the wallpaper is the point, and raising it would
+   spend the thing the language is built on. Only ink and opacity move.
+   =========================================================================== */
+
+
+/* ---- 1. THE SIDEBAR'S BARE TEXT TAKES THE SHADOW -------------------------
+
+   980420c restored four text-shadows on Home and called them load-bearing:
+   this text sits directly on wallpaper, permanently, and the shadow is the
+   whole mitigation. The sidebar is the same case and never got them - 18 nodes
+   at 1.77 to 3.12 on a bright photograph, bare, with no shadow at all.
+
+   NOT A TRANSITION ARTIFACT, because .sb-label does open at opacity 0 and that
+   is exactly what a mid-fade capture would look like: 20 of the 22 enumerated
+   labels measured at opacity 1, and the two at 0.5 take it from .sb-item, which
+   is a state and not a fade. The population is real.
+
+   0.6 is .shortcut-name's value, the strongest of 980420c's four, chosen
+   because these are the same thing - a 13-14px label alone on a photograph. */
+
+html.bg-image #sidebar .sb-label,
+html.bg-image #sidebar .sb-group-name,
+html.bg-image #sidebar .sb-group-count {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+
+/* ---- 2. THE SELF-DIMMED ROWS, ON THE PHOTO BRANCH ------------------------
+
+   eaa3a69 found this cause and named it: these nodes do not declare a colour.
+   They inherit one and fade themselves with `opacity`, so there is NO
+   PER-GROUND TOKEN TO SWITCH and no html.bg-light rule has ever reached them.
+   It gave them 0.85 on the light branch. The photo branch is the same blind
+   spot one ground over, and it is the ground eaa3a69 could not see.
+
+   THE MECHANISM DIFFERS FROM eaa3a69's, and the difference is worth stating
+   because the fix looking identical is a coincidence. There, the ink flipped
+   near-black and opacity threw contrast away down the compressed end of the
+   sRGB ramp. Here the ink is still near-white and the TILE is the variable: a
+   tint is a colour at 82%, so a bright photograph lifts it and the gap closes
+   from underneath. FIX-1 wrote that sentence two hundred lines up about the
+   violet tile; it is the same sentence.
+
+   MEASURED, EVERY ONE, on a bright photograph against a 4.5 floor:
+       .tt-completed-date      0.5    3.54
+       .tt-deleted-kind        0.5    3.81
+       .due-bell-count         0.7    4.02
+       .tab-label              0.7    4.13
+       .tt-task-name completed 0.7    4.13
+       .ins-hero-stat-label    0.7    4.14
+       .tt-progress-text       0.78   4.15
+       .tt-completed-kind      0.55   4.17
+       .due-bell-glyph         0.7    4.23
+       .pp-dash-card-title     0.7    4.28
+
+   ONLY WHAT MEASURED UNDER IS LISTED, which is a deliberate departure from
+   eaa3a69's "said once, for all of them". Its eleven classes were all under
+   floor on ITS ground; on this one the heatmap family reads 5.71 to 5.98 and
+   .tt-recurring-hint 4.59, so they are already clear and a blanket lift would
+   be changing what nobody measured as broken. Three of its eleven -
+   .dash-recap-label, .ins-wk-delta, .ins-wk-noprior - never came on screen in
+   this fixture and are UNMEASURED here rather than passing.
+
+   THE DARK PHOTOGRAPH IS THE COST, and it is a real one rather than a rounding
+   error. These same nodes read 4.28 to 8.68 there, so nothing is being
+   rescued - the lift only makes an already-clear row less faded. A completed
+   task and an inactive tab therefore recede slightly less on a dark photo than
+   they did. The product cannot tell the two photographs apart (4551bdf), so
+   one branch has to serve both, and a readable row on the bright one is worth
+   more than a marginally softer row on the dark one. .tab.active still goes to
+   1, so the active/resting gap survives at 0.85 against 1. */
+
+html.has-bg.bg-image .tab,
+html.has-bg.bg-image .due-bell,
+html.has-bg.bg-image .tt-deleted-kind,
+html.has-bg.bg-image .tt-completed-kind,
+html.has-bg.bg-image .tt-completed-date,
+html.has-bg.bg-image .tt-progress-text,
+html.has-bg.bg-image .tt-task-row.is-completed .tt-task-name,
+html.has-bg.bg-image .tt-goal-add-task,
+html.has-bg.bg-image .ins-hero-stat-label,
+html.has-bg.bg-image .pp-dash-card-title {
+  opacity: 0.85;
+}
+
+html.has-bg.bg-image .tab:hover,
+html.has-bg.bg-image .tab.active,
+html.has-bg.bg-image .due-bell:hover {
+  opacity: 1;
+}
+
+
+/* ---- 3. TILE INK, STEPPED ONCE -------------------------------------------
+
+   FIX-1's ruling, applied to the rest of the population it found first: on a
+   tint under a bright photograph the dimmer step runs out of room, and the ink
+   steps up while every other property of the line stays exactly as it was.
+   That round did it for .ins-wk-span (4.45) and .ins-ach-of (4.49); these are
+   the same reading on the same grounds.
+
+   THE EYEBROW KEEPS ITS TINT ON EVERY OTHER GROUND. --eyebrow-ink is the one
+   place colour reaches text on a tile, and flattening it everywhere would
+   throw away the tint-to-subject mapping the board is built on. So the step is
+   scoped to the photo branch, where the tint composites light enough that the
+   coloured ink cannot hold: 4.20 to 4.45 across Dashboard, Insights and Tasks.
+
+   #cfc5bc IS NOT A NEW COLOUR. It is where two surfaces already agreed for
+   fs-12 on a tile, recorded a thousand lines up. --ink-mute is what it
+   replaces, and it replaces it only where the mute was measured short. */
+
+html.has-bg.bg-image .tile .tile-eyebrow {
+  color: var(--ink);
+}
+
+/* The action tile is opaque - a solid orange, not a tint - so no photograph
+   reaches it and its dark ink is untouched. It is excluded by name rather than
+   by luck, because the rule above would otherwise put near-white on orange. */
+html.has-bg.bg-image .tile--action .tile-eyebrow {
+  color: var(--ink-on-action);
+}
+
+/* THE DASHBOARD'S GOALS ROWS AND THE TWO LIST-TILE HINTS. --ink-mute at fs-11
+   and fs-13 on a tint, measured 2.72 / 3.02 / 3.59 / 3.66. .insights-task-dur
+   also carried opacity 0.85 on top of the mute - the ink stepped twice, which
+   is the thing FIX-1 named - so the opacity goes and the ink steps once.
+
+   THE TOKEN MOVES, NOT THE CLASSES, AND THE FIRST VERSION OF THIS RULE GOT
+   THAT WRONG. Naming the four classes and giving them #cfc5bc looks equivalent
+   and is not: .insights-task-name and .dash-toggle-label each appear TWICE in
+   this product, once at --ink-mute and once at --ink, and the class rule hit
+   both. The sweep caught it - 12 .insights-task-name nodes on Insights fell
+   from 9.09 to 6.22, still clear but dimmed for no reason, and one
+   .dash-toggle-label from 8.93 to 6.11. Nothing crossed the floor, so only a
+   per-node before-and-after comparison could see it; a count would have called
+   this round a clean win.
+
+   Redefining --ink-mute on the tile is the sheet's own existing pattern -
+   `html.has-bg .insights-tab .tile { --ink-mute: #cfc5bc; }` and the notes
+   panel's line do exactly this - and it is self-limiting: a node already at
+   --ink does not reference the token, so it cannot be touched. */
+html.has-bg.bg-image .dash-tile {
+  --ink-mute: #cfc5bc;
+}
+
+/* The duration is the one node here that was stepped twice. */
+html.has-bg.bg-image .dash-tile .insights-task-dur {
+  opacity: 1;
+}
+
+
+/* ---- [H3e pass 2] TWO STRAGGLERS -----------------------------------------
+
+   .tt2-count-sub is violet ink on the violet tint at fs-11 and measured 4.27.
+   That is FIX-1's sentence exactly - the dimmer step runs out of room first on
+   a tint, because a tint is a colour at 82% and a bright ground lifts it - and
+   FIX-1's answer is the one applied here: the ink steps up, the line keeps
+   every other property. Its sibling .ins-wk-span took --ink at 4.45 for this.
+
+   .search-mode-label is white on a 10% white wash, which is not a surface in
+   any useful sense: at 10% the photograph is what is behind the glyph, so this
+   is Home's bare-text case wearing a tint, and it had no shadow. 2.59 on a
+   bright photograph. It takes part 1's shadow rather than an ink change,
+   because 980420c governs bare text on a photograph and the shadow is what
+   that ruling calls the mitigation. */
+
+html.has-bg.bg-image .tt2-count-sub {
+  color: var(--ink);
+}
+
+html.bg-image .search-mode-label {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
