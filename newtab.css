@@ -14992,6 +14992,30 @@ html.has-bg .tag-create-btn:hover:not(:disabled) {
    wraps to 2x2 rather than squashing below 220px. */
 
 
+/* ===== [H3c] HOME TAKES THE FACE ========================================
+
+   H0 put Space Grotesk on `body` and said that line was "the ONLY thing in the
+   product that looks different". It is - for everything that INHERITS. A
+   <button> does not inherit font-family, and eight of Home's seventeen form
+   controls had never been told to, so they rendered in the UA default.
+
+   Measured on master before this rule: the two demo tiles that are BUTTONS,
+   and their titles and bodies, computed Arial - "Already have bookmarks?" and
+   "Pick a background" in a different face from every word around them. The
+   third demo tile is a <div>, which inherited correctly, and that is what made
+   it look like two odd tiles rather than one missing rule.
+
+   font-family, NOT the `font` shorthand. `font: inherit` would bring size,
+   weight, style and line-height across as well, and every Home text node keeps
+   the size it has. Family only - so this changes exactly one computed property,
+   which is also what makes the byte-identical-DOM claim checkable. */
+button.demo-tile-import,
+button.demo-tile-background,
+.group-collapse-btn,
+.group-more-btn {
+  font-family: inherit;
+}
+
 button.demo-tile-import,
 button.demo-tile-background {
   cursor: pointer;
