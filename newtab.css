@@ -10896,9 +10896,51 @@ html.has-bg.bg-light .due-bell-list {
   flex-direction: column;
   gap: var(--space-2-5);
 }
+/* [FIX-2] THE VALUE SITS IN A FIXED COLUMN, SO EVERY BAR ENDS ON ONE LINE.
+   It was `minmax(0, 1fr) 90px auto`: the value column was AUTO, so its width
+   followed its own text and the bar's right edge moved with it. Measured on
+   busy-messy the spread read 0px - fixture luck, because every goal there is
+   "N of M" with single digits and all five values are the same 39.13px.
+   Widening ONE value to "128 of 256" moved the bars 34.72px, which is the
+   defect in pixels and the reason the column cannot be auto.
+
+   THE WIDTH IS THE WIDEST VALUE THIS ROW CAN ACTUALLY EMIT, measured in the
+   real row at all three text tiers rather than estimated - and it is not
+   "999m", which fmtDurationHM never produces: past 59 minutes it switches to
+   the h+m form. The GOALS rows share this rule with a different shape again,
+   "N of M".
+       "23h 59m"     4.21em   the duration ceiling - a day cannot exceed it
+       "99 of 99"    4.03em   a goal with 99 tasks, all done
+       "9 of 12"     3.42em   an ordinary goal
+       "999m"        2.72em   the yardstick that is narrower than both
+   4.21em is CONSTANT across small/medium/large, which is the argument for em
+   over px: one number holds at every tier. 4.4em leaves a little headroom.
+
+   A FIRST PASS RESERVED 5.4em, for "128 of 256" - a value this product cannot
+   reach - and the frames showed what it cost: on an 1180px viewport the Goals
+   row is ~220px wide, so 14px of that reserve came straight off the name.
+   A LOCALE COULD STILL OUTGROW IT: Intl renders the units, and a locale whose
+   short forms are longer than "h"/"m" would need this raised. One token, one
+   place, and the ellipsis below is the fallback until then.
+
+   A PATHOLOGICAL VALUE ELLIPSISES RATHER THAN MOVING EVERY BAR. That is the
+   trade this rule makes on purpose: one truncated number is a smaller harm
+   than a list that no longer reads as a chart.
+
+   THE BAR TAKES A SHARE OF THE REMAINDER rather than a fixed 90px - but the
+   NAME takes the larger one. The first attempt gave the bar 1.35fr and the
+   frames caught it: the Goals names went from "Ship the Q3 r..." to
+   "Ship th...", which is a regression bought for a bar nobody reads
+   character by character. The hard right edge comes from the VALUE column
+   being fixed and is indifferent to how the rest is split.
+   SHARED WITH INSIGHTS by construction - this
+   is one rule and six callers, four on the Dashboard and two on Insights - so
+   fixing it here fixes both, and scoping a copy to the Dashboard would be the
+   one-fix-in-two-places this codebase has already paid for. */
 .insights-task-row {
+  --dash-row-value: 4.4em;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 90px auto;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) var(--dash-row-value);
   align-items: center;
   gap: var(--space-3);
   font-size: var(--fs-13);
@@ -10929,6 +10971,12 @@ html.has-bg.bg-light .insights-task-bar-fill {
 .insights-task-dur {
   opacity: 0.85;
   font-variant-numeric: tabular-nums;
+  /* [FIX-2] RIGHT-ALIGNED inside its fixed column, so the values line up on
+     their own right edge as well as leaving the bars a constant one. */
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .insights-empty {
   font-size: var(--fs-13);
@@ -19628,14 +19676,92 @@ html.bg-light .set-tile .set-select {
    as peers in one tile they simply line up. */
 
 
+/* [FIX-2] FOUR EQUAL COLUMNS, IN ONE ROW THAT CANNOT WRAP.
+   It was a flex row with `flex-wrap: wrap` and `flex: 1 1 auto`, holding
+   THREE children of unequal width - a group of two counts, the streak and the
+   week - so "This week so far" wrapped onto its own line. And
+   `align-items: flex-end` aligned their BOTTOMS, so a taller child (the
+   streak, which carries an optional note and its own margin) pushed its number
+   up: measured top spread 89.39px at 1440 and 81.00px at 1180.
+
+   A GRID CANNOT WRAP, which is why this is a grid and not a nowrap flex row:
+   four named columns is the layout, and `repeat(4, minmax(0, 1fr))` states it
+   once instead of leaving it to whether the content happens to fit.
+   `align-items: start` levels the TOPS, which is the edge a reader scans. */
 .dash-hero-figures {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--row-gap) var(--gap);
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--gap);
+  align-items: start;
   margin-top: auto;
 }
-.dash-hero-figures > * { flex: 1 1 auto; min-width: 0; }
+.dash-hero-figures > * { min-width: 0; }
+
+/* [FIX-2] ONE SIZE FOR ALL FOUR. They were two families at two sizes - the
+   counts at 15px/600 with 12px labels, the streak and the week at 24px/500
+   with 13px - which is the "too small" half of the finding. display-3 at 600
+   with fs-13 beneath, for every one of them, and the ink is the primary ramp
+   rather than the counts' secondary so four peers read as peers. */
+.dash-hero-figures .dash-hero-count-num,
+.dash-hero-figures .insights-strip-num,
+.dash-hero-figures .dash-hero-stat-num {
+  font-size: var(--display-3);
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-primary);
+}
+
+.dash-hero-figures .dash-hero-count-label,
+.dash-hero-figures .insights-strip-label,
+.dash-hero-figures .dash-hero-stat-label {
+  font-size: var(--fs-13);
+  color: var(--ink-secondary);
+  /* .insights-strip-label ships opacity 0.7 for the Insights strip; inside
+     this band it would make one label of four paler than its peers. */
+  opacity: 1;
+}
+
+/* The streak's own bottom margin was part of why it sat off the line. Inside
+   the band the grid owns the spacing. */
+.dash-hero-figures .dash-streak { margin-bottom: 0; }
+
+/* [FIX-2] THE INSIGHTS LIGHT-GROUND OVERRIDE MUST NOT REACH INTO A TILE.
+   `html.has-bg.bg-light .insights-strip-num / -label / .insights-task-row /
+   .insights-empty { color: #222 }` is (0,3,1) and exists for the Insights
+   STRIP, whose panel turns white-tinted on a light wallpaper. The Dashboard
+   reuses those class names on a TILE, and H1a ruled a tile keeps the same
+   dark colour on every ground - so on a light wallpaper the streak's number
+   rendered #222 on a #2a2622 tile and the Goals rows dimmed with it.
+
+   MEASURED: hiding the streak's glyph changed ZERO pixels, which is what an
+   invisible glyph looks like to a sampler that is working - its three peers
+   measured 12.08, 12.24 and 12.44 on the same ground. PRE-DATES this round:
+   at 66ce4ae the band rule is (0,2,0) against the same (0,3,1), so the light
+   rule won there too.
+
+   Scoped to #tab-dashboard, so Insights keeps the ink it was tuned for, and
+   one level deeper than the rule it corrects so it wins without !important.
+   This is O1's two-class guard applied to a surface rather than a control. */
+html.has-bg.bg-light #tab-dashboard .insights-strip-num,
+html.has-bg.bg-light #tab-dashboard .dash-hero-count-num,
+html.has-bg.bg-light #tab-dashboard .dash-hero-stat-num {
+  color: var(--ink-primary);
+}
+
+html.has-bg.bg-light #tab-dashboard .insights-strip-label,
+html.has-bg.bg-light #tab-dashboard .dash-hero-count-label,
+html.has-bg.bg-light #tab-dashboard .dash-hero-stat-label {
+  color: var(--ink-secondary);
+}
+
+/* The rows take the TILE's ink rather than a colour of their own, which is the
+   rule this class of bug keeps teaching: copy the ink from the node you sit
+   next to. */
+html.has-bg.bg-light #tab-dashboard .insights-task-row,
+html.has-bg.bg-light #tab-dashboard .insights-empty {
+  color: inherit;
+}
 
 .dash-hero-off { margin: auto 0; }/* ---- THE ACTION TILE -------------------------------------------------- */
 

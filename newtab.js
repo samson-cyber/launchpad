@@ -1362,7 +1362,7 @@
   var dashWeekToken = 0;
 
   function dashWeekHtml() {
-    return '<div class="dash-hero-stat">' +
+    return '<div class="dash-hero-stat dash-hero-fig-cell">' +
         '<div class="dash-hero-stat-num" data-dash-week>—</div>' +
         '<div class="dash-hero-stat-label">' + th("dash_this_week_so_far") + '</div>' +
       '</div>';
@@ -1902,16 +1902,21 @@
     // tasksCompletedOnDay is workspace-scoped; focusBlockedOnDay is not, because
     // the blocker does not record a workspace by design (storage.js C8). Both
     // labels keep the wording they had in the strip.
-    return '<div class="dash-hero-counts">' +
-        '<div class="dash-hero-count">' +
+    // [FIX-2] NO WRAPPER. The band is four EQUAL columns, and a group holding
+    // two of them is why it was three children of unequal width - which is
+    // what `flex: 1 1 auto` then wrapped. These two are peers of the streak
+    // and the week now, so the grid can give all four the same share.
+    // dash-hero-fig-cell is the shared marker; the count classes stay because
+    // renderDashboardPreview still builds its own .dash-hero-counts group and
+    // is not this round's surface.
+    return '<div class="dash-hero-count dash-hero-fig-cell">' +
           '<span class="dash-hero-count-num">' + escapeHtml(String(Storage.tasksCompletedOnDay(ws, todayKey))) + '</span>' +
           '<span class="dash-hero-count-label">' + th("dash_tasks_completed") + '</span>' +
         '</div>' +
-        '<div class="dash-hero-count">' +
+        '<div class="dash-hero-count dash-hero-fig-cell">' +
           '<span class="dash-hero-count-num">' + escapeHtml(String(Storage.focusBlockedOnDay(d, todayKey))) + '</span>' +
           '<span class="dash-hero-count-label">' + th("dash_distractions_blocked") + '</span>' +
-        '</div>' +
-      '</div>';
+        '</div>';
   }
 
   // THE PILL'S TRI-STATE, READ RATHER THAN REIMPLEMENTED, so the Dashboard can
@@ -2448,7 +2453,7 @@
     // did not have. The data-dash-streak hook is unchanged, so
     // dashRefreshStreak's two-phase patch still lands.
     var streakCard = scope
-      ? '<div class="dash-hero-stat" data-dash-streak>' + dashStreakBodyHtml(null) + '</div>'
+      ? '<div class="dash-hero-stat dash-hero-fig-cell" data-dash-streak>' + dashStreakBodyHtml(null) + '</div>'
       : '';
 
     panel.dataset.dashPeriod = period;
