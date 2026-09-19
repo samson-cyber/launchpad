@@ -3534,8 +3534,14 @@
     // labels at five and a half pixels - seen in the frame, not in a number,
     // and no contrast measurement would have called it wrong because the ratio
     // is fine. A box the size of the tile renders 1:1.
+    // [FIX-1] axis:false DROPS THE TWO <text> NODES so the caller can stretch
+    // the SVG to its tile. padBottom goes with them - the 32 units under the
+    // bars existed to seat those labels, and with the labels in HTML it is 32
+    // units of bar height being given away.
+    var axis = !(opts && opts.axis === false);
     var w = (opts && opts.w) || 1060, h = (opts && opts.h) || 190,
-        padX = 32, padTop = (opts && opts.caption === false) ? 12 : 28, padBottom = 32;
+        padX = 32, padTop = (opts && opts.caption === false) ? 12 : 28,
+        padBottom = axis ? 32 : 4;
     var maxH = Math.max.apply(null, hours) || 1;
     var step = (w - 2 * padX) / hours.length;
     var barW = step * 0.6;
@@ -3547,13 +3553,22 @@
       var cls = (i === todayIndex) ? "pp-bar pp-bar-today" : "pp-bar";
       return '<rect class="' + cls + '" x="' + x + '" y="' + y + '" width="' + barW + '" height="' + Math.max(bh, 1) + '" rx="2" />';
     }).join("");
-    return '<svg class="pp-trend-chart" viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + ariaLabel + '">' +
+    return '<svg class="pp-trend-chart' + (axis ? '' : ' pp-trend-chart-fill') + '"' +
+        ' viewBox="0 0 ' + w + ' ' + h + '"' +
+        (axis ? '' : ' preserveAspectRatio="none"') +
+        ' role="img" aria-label="' + ariaLabel + '">' +
         '<line class="pp-axis" x1="' + padX + '" y1="' + (h - padBottom) + '" x2="' + (w - padX) + '" y2="' + (h - padBottom) + '" />' +
         barsSvg +
         ((opts && opts.caption === false) ? "" :
           '<text class="pp-axis-label" x="' + padX + '" y="' + (padTop - 10) + '">' + th("insights_hours_day") + '</text>') +
-        '<text class="pp-axis-label-sub" x="' + padX + '" y="' + (h - padBottom + 16) + '" text-anchor="start">' + escapeHtml(startLabel || "") + '</text>' +
-        '<text class="pp-axis-label-sub" x="' + (w - padX) + '" y="' + (h - padBottom + 16) + '" text-anchor="end">' + escapeHtml(endLabel || "") + '</text>' +
+        // [FIX-1] GATED. Changing padBottom alone left these two in a chart
+        // that is now stretched with preserveAspectRatio="none" - every glyph
+        // in it would be squashed by whatever the tile's aspect happens to be.
+        // The caller renders them as HTML beneath the chart instead.
+        (axis
+          ? '<text class="pp-axis-label-sub" x="' + padX + '" y="' + (h - padBottom + 16) + '" text-anchor="start">' + escapeHtml(startLabel || "") + '</text>' +
+            '<text class="pp-axis-label-sub" x="' + (w - padX) + '" y="' + (h - padBottom + 16) + '" text-anchor="end">' + escapeHtml(endLabel || "") + '</text>'
+          : '') +
       '</svg>';
   }
 
@@ -3958,24 +3973,29 @@
           '<div class="pp-badge-sub">' + sub + '</div>' +
         '</div>';
     }).join("");
-    // [H2a] THE ROSE TILE, AND THE BADGES STAY. Board 6 draws this tile as a
-    // COUNT - "1/6" and the most recent badge - which is a smaller card than
-    // the one that ships: the live card is a six-badge grid with icons, titles
-    // and either the date earned or the real target. Replacing six badges with
-    // a count would be removing a feature in a re-skin, so the count JOINS them
-    // as the tile's figure and the grid stays beneath it.
+    // [FIX-1] 2x1, AND THE COUNT IS IN THE EYEBROW. H2a's note below is kept
+    // because it records exactly how this tile got to 4x2, and it was not a
+    // judgement about badges:
     //
-    // THAT IS ALSO WHAT MAKES THE GRID TILE EXACTLY. Eight tiles over four
-    // columns is seventeen cells - hero 2x2, hours 2x2, tag 2, site 1, tasks 1,
-    // this-week 1, heat 3, achievements 1 - which leaves THREE HOLES in the last
-    // row, and H1a's review ruled that a hole reads as a tile that failed. At
-    // 4x2 the count is twenty-four cells over six rows with nothing empty, and
-    // the badges have the room they always needed.
-    return '<div class="tile tile--overdue ins-achievements">' +
-        '<div class="tile-eyebrow">' + th("insights_achievements") + '</div>' +
-        '<div class="ins-ach-count">' + earnedCount +
-          '<span class="ins-ach-of">/' + INSIGHTS_BADGES.length + '</span></div>' +
-        '<div class="pp-badge-grid">' + badgesHtml + '</div>' +
+    //   "Eight tiles over four columns is seventeen cells [...] which leaves
+    //    THREE HOLES in the last row [...] At 4x2 the count is twenty-four
+    //    cells over six rows with nothing empty"
+    //
+    // So the tile was sized by the grid's arithmetic rather than by its data,
+    // and Samson's "far too big for their data" is that decision read back to
+    // us. The badges measured 180x244 each - a six-badge grid 1152px wide and
+    // 244px tall for six chips.
+    //
+    // THE COUNT MOVES RATHER THAN GOES. It was a display numeral under the
+    // eyebrow; at 2x1 there is no room for a numeral AND six badges, and the
+    // count is a label rather than a finding - nobody comes to this board to
+    // read "1/6" at 40px. In the eyebrow it is still on screen, still first,
+    // and costs no height at all.
+    return '<div class="tile tile--overdue span-2 ins-achievements">' +
+        '<div class="tile-eyebrow">' + th("insights_achievements") +
+          '<span class="ins-ach-of">' + earnedCount + '/' + INSIGHTS_BADGES.length + '</span>' +
+        '</div>' +
+        '<div class="pp-badge-grid ins-badge-row">' + badgesHtml + '</div>' +
       '</div>';
   }
 
@@ -4028,8 +4048,80 @@
         // EVERY READER IS UNTOUCHED. This is a re-render: the same
         // insightsRefresh fills the same data-ins-* hooks, in the same two
         // phases, from the same scope.
+        // ===== [FIX-1] THE DATA DECIDES THE TILE SIZES ====================
+        //
+        // Samson, on the real board: the hours/day bars are too small, the
+        // heatmap disappears off its tile, this-week's last row is clipped and
+        // its values are ragged, and "Achievements and Deep Work are both far
+        // too big for their data". THE TWO BIGGEST TILES ARE BEST FOCUS HOURS
+        // AND HOURS / DAY.
+        //
+        // THE 4x2 ACHIEVEMENTS TILE WAS NEVER A DESIGN DECISION - it was
+        // arithmetic. H2a's own comment says so in as many words: eight tiles
+        // over four columns came to seventeen cells, "which leaves THREE HOLES
+        // in the last row", so the badge card was inflated to 4x2 to make
+        // twenty-four. The tile Samson calls far too big for its data is the
+        // hole-filler, and it filled the holes by being wrong.
+        //
+        // AND THE SAME ARITHMETIC IS STILL THERE. The reissue's spans - 2x2,
+        // 2x2, 2x1, 1x1, 2x1, 1x1, 1x1, 2x1 - come to SEVENTEEN, not sixteen,
+        // and seventeen cannot tile four columns however they are arranged.
+        // Reported rather than fudged, and resolved by growing three tiles
+        // rather than shrinking one, because every shrink breaks a stated
+        // ruling and each of these three growths answers one:
+        //
+        //   TIME BY TAG   1x1 -> 1x2   a 96px donut AND a legend beside it
+        //   TOP TASKS     1x1 -> 1x2   a list; height is rows
+        //   THIS WEEK     1x1 -> 2x1   its own ruling is that the last row is
+        //                              clipped and the value column is ragged
+        //
+        // TWENTY CELLS, FIVE ROWS, NO HOLES:
+        //
+        //   r1-2   HOURS / DAY  2x2    |  BEST FOCUS HOURS  2x2
+        //   r3     DEEP WORK    2x1    |  TAG 1x2 | TASKS 1x2
+        //   r4     TIME BY SITE 2x1    |  (tag)   | (tasks)
+        //   r5     THIS WEEK    2x1    |  ACHIEVEMENTS      2x1
+        //
+        // DOM ORDER IS THE TILING. Auto-placement is sparse and never
+        // backtracks, so the order below is the only one that fills row 4's
+        // first two columns with the site list rather than leaving them empty.
         '<div class="bento ins-bento">' +
-        '<div class="tile tile--hero span-2x2 ins-hero">' +
+        // THE HOURS/DAY TILE IS ITS OWN NOW. It was the hero's lower half - one
+        // card carrying a figure and a chart - and board 6 splits them, which is
+        // the change that lets the bars fill 366px instead of sharing 240 with a
+        // display numeral. The hook is the same; only its host moved.
+        '<div class="tile tile--list span-2x2 ins-hours">' +
+          '<div class="tile-eyebrow">' + th("insights_hours_day") + '</div>' +
+          '<div class="ins-hours-chart" data-ins-hours></div>' +
+          // [FIX-1] THE AXIS IS HTML NOW, and that is what lets the bars fill
+          // the tile. The two labels were <text> inside the SVG, which pinned
+          // the chart to a fixed 520x270 aspect: at 596px wide it rendered
+          // 288px tall inside a 318px box and the tallest bar reached 74% of
+          // it. Text cannot survive preserveAspectRatio="none"; rects can. So
+          // the labels come out, the SVG stretches to the box, and the bars
+          // are as tall as the tile is.
+          '<div class="ins-hours-axis" data-ins-hours-axis></div>' +
+        '</div>' +
+        // [FIX-1] BEST FOCUS HOURS LEADS THE BOARD BESIDE THE HOURS CHART, and
+        // it is 2x2 rather than 3x1. At 901x176 the grid needed 285px of
+        // content in 128px of inner height and rendered four of its eight rows;
+        // the other four painted straight out of the bottom of the tile, which
+        // is Samson's "the heatmap disappears off its tile". Two columns is
+        // NARROWER than three, and that is the fix rather than a cost: 31px
+        // cells across 24 hours is what made the grid 901px wide in the first
+        // place, and cells that size the whole grid to its tile fit seven rows
+        // and a ruler into a 2x2 with room over.
+        '<div class="tile tile--list span-2x2 ins-heat-card">' +
+          '<div class="tile-eyebrow">' + th("insights_heat_title") + '</div>' +
+          '<div data-ins-heat></div>' +
+        '</div>' +
+        // [FIX-1] DEEP WORK IS 2x1 AND FOLLOWS THE TWO CHARTS. It was the
+        // 2x2 hero and it is one figure with three sub-figures - Samson's
+        // "far too big for their data", and the measurement agrees: 596x366
+        // for a numeral and three stats. At 2x1 the three sit BESIDE the
+        // figure rather than under it, which is the shape the content had
+        // all along.
+        '<div class="tile tile--hero span-2 ins-hero">' +
           // [insights-rhythm] ONE NAMING OF THE RANGE PER CARD. This title said
           // "Deep Work \u00b7 last 30 days" and insightsStripHtml printed "last
           // 30 days" again directly beneath the numeral, 56px lower - the same
@@ -4053,25 +4145,23 @@
           '<div class="tile-eyebrow">' + th("insights_deep_work") + '</div>' +
           '<div class="ins-hero-head" data-ins-strip></div>' +
         '</div>' +
-        // THE HOURS/DAY TILE IS ITS OWN NOW. It was the hero's lower half - one
-        // card carrying a figure and a chart - and board 6 splits them, which is
-        // the change that lets the bars fill 366px instead of sharing 240 with a
-        // display numeral. The hook is the same; only its host moved.
-        '<div class="tile tile--list span-2x2 ins-hours">' +
-          '<div class="tile-eyebrow">' + th("insights_hours_day") + '</div>' +
-          '<div class="ins-hours-chart" data-ins-hours></div>' +
-        '</div>' +
-        '<div class="tile tile--goals span-2 ins-tag">' +
+        '<div class="tile tile--goals span-1x2 ins-tag">' +
           '<div class="tile-eyebrow">' + th("insights_time_by_tag_range", { range: rangeLabel }) + '</div>' +
           '<div class="pp-donut-row" data-ins-donut></div>' +
         '</div>' +
-        '<div class="tile tile--list ins-peer">' +
-          '<div class="tile-eyebrow">' + th("insights_time_by_site_range", { range: rangeLabel }) + '</div>' +
-          '<div class="insights-task-list insights-site-list" data-ins-topsites></div>' +
-        '</div>' +
-        '<div class="tile tile--list ins-peer">' +
+        '<div class="tile tile--list span-1x2 ins-peer ins-tasks">' +
           '<div class="tile-eyebrow">' + th("insights_top_tasks_range", { range: rangeLabel }) + '</div>' +
           '<div class="insights-task-list" data-ins-toptasks></div>' +
+        '</div>' +
+        // TIME BY SITE IS TWO WIDE BECAUSE OF THE BAR. In a 291px tile the row
+        // is a name and a value with 90px of grid column between them that the
+        // bar never got - measured at ZERO pixels wide on the shipped board,
+        // because H2a set `display:none` on it outright. Reversed by ruling:
+        // the durations say how long, the bars say how the list is SHAPED, and
+        // at 596px both fit without either crowding the other.
+        '<div class="tile tile--list span-2x2 ins-peer ins-sites">' +
+          '<div class="tile-eyebrow">' + th("insights_time_by_site_range", { range: rangeLabel }) + '</div>' +
+          '<div class="insights-task-list insights-site-list" data-ins-topsites></div>' +
         '</div>' +
         // [1.8.3] ROW THREE. Design guide 4.2 puts the heatmap at span 8 and
         // the weekly review at span 4. The heatmap is [1.8.5], and the space
@@ -4086,11 +4176,7 @@
         // Reversed, the heatmap would take columns 1-3 and this-week column 4,
         // which is the same tiling and the wrong reading order - the violet
         // stat is the summary and the heatmap is the detail beside it.
-        '<div class="tile tile--blocking ins-weekly" data-ins-weekly></div>' +
-        '<div class="tile tile--list span-3 ins-heat-card">' +
-          '<div class="tile-eyebrow">' + th("insights_heat_title") + '</div>' +
-          '<div data-ins-heat></div>' +
-        '</div>' +
+        '<div class="tile tile--blocking span-2x2 ins-weekly" data-ins-weekly></div>' +
         insightsAchievementsCardHtml(d) +
         '</div>'
       : "";
@@ -4760,11 +4846,15 @@
     // in a layout round. The two opts are the board's: a taller box so the bars
     // fill a 2x2 tile, and no in-SVG caption because the tile's eyebrow is the
     // caption now. The preview passes neither and renders exactly as before.
+    var hoursStart = fmtShortDate(insightsKeyToTs(keys[0]));
+    var hoursEnd = endsToday ? t("insights_today")
+                             : fmtShortDate(insightsKeyToTs(keys[keys.length - 1]));
     insightsFill(panel, "[data-ins-hours]",
       insightsBarChartSvg(hours, todayIdx, t("insights_deep_work_caption", { range: rangeLabelNow }),
-        fmtShortDate(insightsKeyToTs(keys[0])),
-        endsToday ? t("insights_today") : fmtShortDate(insightsKeyToTs(keys[keys.length - 1])),
-        { w: 520, h: 270, caption: false }));
+        hoursStart, hoursEnd,
+        { w: 520, h: 270, caption: false, axis: false }));
+    insightsFill(panel, "[data-ins-hours-axis]",
+      '<span>' + escapeHtml(hoursStart) + '</span><span>' + escapeHtml(hoursEnd) + '</span>');
     // [1.8.3] The weekly card is INDEPENDENT OF THE RANGE SELECTOR - it always
     // describes this week against last, whatever window the rest of the board
     // is showing. That is deliberate: "this week vs last" is a fixed question,

@@ -19033,6 +19033,10 @@ html.has-bg.bg-light .mode-preset-note { color: var(--text-secondary); }/* =====
 
 .span-2 { grid-column: span 2; }
 .span-2x2 { grid-column: span 2; grid-row: span 2; }
+/* [FIX-1] A TALL ONE-COLUMN TILE. The donut with its legend and a list of
+   tasks both want rows rather than width, and they are what make the Insights
+   board tile without a hole - see the arithmetic in the bento's own comment. */
+.span-1x2 { grid-column: span 1; grid-row: span 2; }
 .span-3 { grid-column: span 3; }/* REDUCED MOTION HAS NOTHING TO SAY HERE YET, and that is deliberate rather
    than an oversight: the design system's own README lists motion as "not
    decided here - its own research pass after this language is built". There is
@@ -21085,8 +21089,13 @@ html.has-bg .insights-tab .ins-bento { align-content: start; }/* ===== v1's SPAN
    is perfectly legible and completely wrong. */
 
 
-html.has-bg .insights-tab .ins-bento .ins-weekly { grid-column: span 1; }
-html.has-bg .insights-tab .ins-bento .ins-heat-card { grid-column: span 3; }/* ---- THE HERO, 2x2 -------------------------------------------------------
+/* [FIX-1] THE SAME OVERRIDE, AT THE ROUND'S OWN SPANS. H2a wrote these two to
+   beat [1.8.5]'s `span 4` and `span 8`, which were written for a repeat(12)
+   row and still match. Both v1 rules are still in the sheet, so both still
+   have to be beaten - the numbers are simply this round's: the weekly card is
+   two columns and the heatmap is two, not one and three. */
+html.has-bg .insights-tab .ins-bento .ins-weekly { grid-column: span 2; grid-row: span 2; }
+html.has-bg .insights-tab .ins-bento .ins-heat-card { grid-column: span 2; grid-row: span 2; }/* ---- THE HERO, 2x2 -------------------------------------------------------
 
    THE FIGURE TAKES THE ACTION GRADIENT AS ITS INK, which is board 6's signature
    and the one place on this board where a numeral is not achromatic. It is a
@@ -21160,14 +21169,45 @@ html.has-bg.bg-light .insights-tab .pp-axis-label-sub { fill: var(--ink-mute); o
 
 html.has-bg .insights-tab .ins-tag { justify-content: flex-start; }
 html.has-bg .insights-tab .ins-tag { overflow: hidden; }
+/* [FIX-1] THE LEGEND SITS UNDER THE DONUT, NOT BESIDE IT, AND THE FRAME IS
+   WHY. Every measurement on this tile was green and the rendered legend read
+   "de...", "wri...", "infr...", "Un..." - three characters and an ellipsis for
+   every tag name. The tile went from two columns to one this round and a 112px
+   ring beside a legend leaves about 150px for a name and its hours; stacked,
+   the name gets the tile's full width.
+
+   AND THE RING COMES DOWN TO 96px, which is the brief's number and is what
+   buys the height the stack costs. */
 html.has-bg .insights-tab .ins-tag .pp-donut-row {
   display: flex;
-  align-items: center;
-  gap: 22px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
   margin-top: var(--space-2);
   min-height: 0;
 }
-html.has-bg .insights-tab .pp-donut { width: 112px; height: 112px; flex: none; }/* THE RING SITS ON A DARK PLATE, AND IT IS THE 3:1 NON-TEXT FLOOR THAT ASKS FOR
+html.has-bg .insights-tab .ins-tag .pp-donut { align-self: center; }
+
+/* A GRID, BECAUSE THE NAME WOULD NOT GIVE WAY. Stacking the legend under the
+   ring gave the names their full length and the frame then showed the HOURS
+   clipped instead - "15h33r", "7h44r" - because .pp-donut-legend-name has
+   ellipsis but no min-width:0, so in a flex row it refuses to shrink below its
+   content and pushes the figure past the tile. Three columns state the
+   intention outright: the swatch and the figure take what they need, the name
+   takes the rest and ellipses. */
+html.has-bg .insights-tab .ins-tag .pp-donut-legend-row {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+html.has-bg .insights-tab .ins-tag .pp-donut-legend-name { min-width: 0; }
+html.has-bg .insights-tab .ins-tag .pp-donut-legend-hrs {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+html.has-bg .insights-tab .pp-donut { width: 112px; height: 112px; flex: none; }
+html.has-bg .insights-tab .ins-tag .pp-donut { width: 96px; height: 96px; }/* THE RING SITS ON A DARK PLATE, AND IT IS THE 3:1 NON-TEXT FLOOR THAT ASKS FOR
    IT. Measured on the shipped tile, each segment hidden on its own so what the
    diff sees is that arc against the ground rather than against its neighbours:
 
@@ -21280,6 +21320,53 @@ html.has-bg .insights-tab .insights-task-row {
   font-size: var(--fs-12);
 }
 html.has-bg .insights-tab .insights-task-bar { display: none; }
+
+/* [FIX-1] THE BAR COMES BACK, ON THE SITE LIST ONLY, BY RULING.
+
+   H2a removed it and the note above says why: "the proportional bar was
+   saying a second time what the durations beside it already say". Samson,
+   on the real board, ruled the other way - "time by site gains a horizontal
+   bar per row" - and the reason the two readings differ is worth keeping:
+   a duration answers HOW LONG for one row, and a bar answers HOW THIS ROW
+   COMPARES to the one above it. On a list whose top entry is usually four or
+   five times the last, the second question is the one the list is for.
+
+   TOP TASKS IS UNTOUCHED. The ruling names the site list, and tasks on this
+   board are usually within a factor of two of each other, where a bar says
+   very little. One list has the bar because its data has the shape.
+
+   A GRID, NOT A FLEX ROW, AND THAT IS THE WHOLE FIX. The bar has had a 90px
+   column in the base rule since [1.7.x]; it measured ZERO pixels wide on the
+   shipped board because the rule above replaces the grid with a flex row and
+   then hides the bar outright. The value column is fixed so every duration
+   shares one right edge without depending on how long the numbers happen to
+   be. */
+
+html.has-bg .insights-tab .ins-sites .insights-task-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(64px, 1.1fr) 4.5em;
+  align-items: center;
+  gap: var(--space-3);
+}
+html.has-bg .insights-tab .ins-sites .insights-task-bar {
+  display: block;
+  height: 6px;
+  border-radius: var(--radius-sm);
+  background: var(--tile-fill);
+  overflow: hidden;
+}
+html.has-bg .insights-tab .ins-sites .insights-task-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--action);
+}
+/* RIGHT-ALIGNED IN A FIXED COLUMN, tabular, so the edges line up by
+   construction rather than by luck of the digits. */
+html.has-bg .insights-tab .ins-sites .insights-task-dur {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
 html.has-bg .insights-tab .insights-task-name {
   color: var(--ink);
   overflow: hidden;
@@ -21287,7 +21374,150 @@ html.has-bg .insights-tab .insights-task-name {
   white-space: nowrap;
   min-width: 0;
 }
-html.has-bg .insights-tab .insights-task-dur { color: var(--ink-mute); flex: none; }/* ---- THIS WEEK VS LAST, violet ------------------------------------------- */
+html.has-bg .insights-tab .insights-task-dur { color: var(--ink-mute); flex: none; }/* =========================================================================
+   [FIX-1] THE BARS FILL THE TILE
+
+   Samson: "the hours/day bars are too small - they fill the tile." Measured
+   on the shipped board: a 520x270 viewBox rendering at 542x288 inside a 318px
+   inner height, with the tallest of thirty bars reaching 236px - 74% of the
+   box it sits in - and each bar 10px wide.
+
+   AN SVG WITH TEXT IN IT CANNOT STRETCH. preserveAspectRatio="none" is what
+   makes a chart fill a box of any shape, and it distorts every glyph it
+   contains. The two axis labels are therefore HTML now (see the builder), and
+   with nothing left inside but <rect>s the chart can take the whole tile.
+   ========================================================================= */
+
+html.has-bg .insights-tab .ins-hours {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+/* min-height:0 IS LOAD-BEARING ON BOTH. A flex item's default min-height is
+   auto, which refuses to shrink below its content - so without it the chart
+   keeps its intrinsic height and pushes the tile taller than its grid row
+   instead of filling it. */
+html.has-bg .insights-tab .ins-hours-chart {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: var(--space-2);
+}
+html.has-bg .insights-tab .ins-hours-chart .pp-trend-chart-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* THE AXIS, which used to be two <text> nodes inside the chart. fs-11 by
+   ruling - it is an axis rather than body copy, and it is the one pair of
+   labels on the board that stays at the smaller step. */
+html.has-bg .insights-tab .ins-hours-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-1);
+  font-size: var(--fs-11);
+  color: var(--ink-mute);
+}
+
+/* =========================================================================
+   [FIX-1] BEST FOCUS HOURS, 2x2, ALL SEVEN ROWS INSIDE
+
+   Measured on the shipped board: 285px of grid in 128px of inner height, four
+   of eight rows fully inside the tile and the rest painted out of the bottom -
+   the tile does not clip, so they simply ran over the board.
+
+   THE CELL SIZES TO THE TILE INSTEAD OF THE TILE TO THE CELL. 31px squares
+   across twenty-four hours is what made the grid 901px wide and 285px tall;
+   nothing chose that number, it was the cell's fixed size times the data. The
+   cells are 1fr of whatever the tile gives them now, with aspect-ratio keeping
+   them square, so seven rows and a ruler fit any tile this card is given. */
+
+html.has-bg .insights-tab .ins-heat-card { display: flex; flex-direction: column; min-height: 0; }
+html.has-bg .insights-tab .ins-heat-card > [data-ins-heat] { min-height: 0; flex: 1 1 auto; }
+html.has-bg .insights-tab .ins-heat { display: flex; flex-direction: column; min-height: 0; }
+html.has-bg .insights-tab .ins-heat-grid { gap: 2px; }
+html.has-bg .insights-tab .ins-heat-cells { gap: 2px; min-width: 0; }
+html.has-bg .insights-tab .ins-heat-cell {
+  width: auto;
+  height: auto;
+  flex: 1 1 0;
+  min-width: 0;
+  aspect-ratio: 1 / 1;
+}
+html.has-bg .insights-tab .ins-heat-row { gap: var(--space-1-5); }
+html.has-bg .insights-tab .ins-heat-daylabel { flex: 0 0 auto; min-width: 2.2em; }
+
+/* =========================================================================
+   [FIX-1] DEEP WORK, 2x1 - THE THREE STATS BESIDE THE FIGURE
+
+   596x366 for one numeral and three sub-figures is Samson's "far too big for
+   their data", and at 2x1 the three have to go somewhere: beside the figure,
+   which is the shape they always had. */
+
+html.has-bg .insights-tab .ins-hero .ins-hero-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+html.has-bg .insights-tab .ins-hero .ins-hero-stats {
+  display: flex;
+  gap: var(--space-5);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* =========================================================================
+   [FIX-1] ACHIEVEMENTS, 2x1 - SIX BADGES IN A ROW AT THEIR SIZE
+
+   They measured 180x244 EACH on the shipped board: a 1152px grid, 244px tall,
+   for six chips, because a 4x2 tile had to be filled. In one row across two
+   columns each badge is about 84px, which is a chip rather than a poster. The
+   sub-line goes with the height - a date or a target under a 84px badge is two
+   words on three lines - and the badge keeps its title attribute, so the fact
+   is still reachable without being printed six times. */
+
+html.has-bg .insights-tab .ins-badge-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: stretch;
+  margin-top: var(--space-2);
+}
+html.has-bg .insights-tab .ins-badge-row .insights-badge {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: var(--space-2) var(--space-1);
+  text-align: center;
+}
+html.has-bg .insights-tab .ins-badge-row .pp-badge-sub { display: none; }
+html.has-bg .insights-tab .ins-badge-row .pp-badge-title {
+  font-size: var(--fs-11);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The count rides the eyebrow now rather than a display numeral of its own. */
+html.has-bg .insights-tab .ins-achievements .tile-eyebrow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1-5);
+}
+/* [FIX-1 ink] #fff, NOT --ink, AND THE MARGIN IS THE REASON. Measured on a
+   LIGHT PHOTOGRAPH this count read 4.49:1 against a 4.5 floor - a miss by one
+   hundredth, which is still a miss. Both tiles that failed this round are
+   TINTED (rose here, violet for the week span): a tint is a colour at 82%, so
+   a light photograph lifts it further than it lifts the near-black list tiles,
+   and the warm off-white runs out of room first. White is the only step left
+   above it and it is what the count is - a figure, not body copy. */
+html.has-bg .insights-tab .ins-ach-of {
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+/* The week span line has the same cause and is fixed at its OWN declaration,
+   twenty lines down - a second rule here would lose on source order, which is
+   exactly how the first attempt at both of these changed nothing. */
+
+
+/* ---- THIS WEEK VS LAST, violet ------------------------------------------- */
 
 
 html.has-bg .insights-tab .ins-weekly { justify-content: flex-start; gap: 2px; overflow: hidden; }/* opacity: 1, AND v1's 0.7 IS WHY. .ins-wk-span carries opacity 0.7 from
@@ -21303,7 +21533,13 @@ html.has-bg .insights-tab .ins-wk-span {
   font-weight: var(--eyebrow-weight);
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--eyebrow-ink);
+  /* [FIX-1 ink] --ink, not --eyebrow-ink. On a LIGHT PHOTOGRAPH the violet
+     tile composites light enough that the eyebrow step reads 4.45:1 against a
+     4.5 floor. A tint is a colour at 82%, so a bright ground lifts it further
+     than it lifts the near-black list tiles and the dimmer step runs out of
+     room first - the same shape as the rose tile's count two hundred lines up.
+     The line keeps every other eyebrow property; only the ink steps up. */
+  color: var(--ink);
 }
 html.has-bg .insights-tab .ins-wk-rows { margin-top: var(--space-2); }
 html.has-bg .insights-tab .ins-wk-row {
@@ -21322,11 +21558,84 @@ html.has-bg .insights-tab .ins-wk-mag { color: var(--eyebrow-ink); opacity: 1; }
 html.has-bg.bg-light .insights-tab .ins-wk-delta,
 html.has-bg.bg-light .insights-tab .ins-wk-arrow,
 html.has-bg.bg-light .insights-tab .ins-wk-mag { color: var(--eyebrow-ink); }
-html.has-bg .insights-tab .ins-wk-tops { margin-top: var(--space-2); }
+
+/* =========================================================================
+   [FIX-1] THIS WEEK VS LAST: THE LAST ROW, AND THE VALUE COLUMN
+
+   Samson: "the last row is clipped and the values column is ragged." Both
+   measured on the shipped board - 306px of content in a 174px box, the last
+   row's bottom 40px past the tile's, and the four values' right edges at 280,
+   296, 277 and 282.
+
+   THE RAGGEDNESS IS THE ROW BEING A FLEX LINE. Label, value and delta were
+   laid out with justify-content, so each value sat wherever its own delta
+   pushed it and no two agreed. A grid gives the value and the delta fixed
+   columns, and then the edges line up by construction rather than by luck of
+   how many digits a week happened to produce.
+
+   THE CLIPPING IS TWO COLUMNS PLUS ROOM AT THE FOOT. At 2x1 the labels and
+   their values stop competing for a 291px line, which is most of the 99px;
+   the padding is what holds the last row clear of the tile's edge rather than
+   flush against it. */
+
+html.has-bg .insights-tab .ins-weekly { padding-bottom: var(--space-4); }
+html.has-bg .insights-tab .ins-wk-rows { margin-top: var(--space-1); }
+html.has-bg .insights-tab .ins-wk-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.5em 4.5em;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--fs-12);
+}
+html.has-bg .insights-tab .ins-wk-now {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+html.has-bg .insights-tab .ins-wk-delta {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+/* The two 'top' lines are a pair, not a stack, now that the tile is wide. */
+html.has-bg .insights-tab .ins-wk-tops {
+  display: flex;
+  gap: var(--space-5);
+  margin-top: var(--space-2);
+  min-width: 0;
+}
 html.has-bg .insights-tab .ins-wk-top {
   display: flex;
+  flex: 1 1 0;
+  min-width: 0;
   gap: var(--space-2);
-  font-size: var(--fs-11);
+  align-items: baseline;
+}
+html.has-bg .insights-tab .ins-wk-top-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* [FIX-1] THE TWO 'top' LINES ARE A PAIR, NOT A STACK. .ins-wk-tops inherits
+   flex-direction: column from v1, where this card was one narrow column; at two
+   columns wide they sit side by side on ONE line. Measured: the stacked pair
+   ran 68px and ended 88px below the tile's own bottom, where .ins-weekly's
+   overflow:hidden clipped it away entirely - so the top task and top tag were
+   not merely cramped on the shipped board, they were invisible. */
+html.has-bg .insights-tab .ins-wk-tops {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-5);
+  margin-top: var(--space-2);
+  min-width: 0;
+}
+html.has-bg .insights-tab .ins-wk-top {
+  display: flex;
+  flex: 1 1 0;
+  gap: var(--space-2);
+  /* [FIX-1 type] fs-11 -> fs-12 with the rest of the board's body copy. */
+  font-size: var(--fs-12);
   min-width: 0;
 }
 html.has-bg .insights-tab .ins-wk-top-name {
@@ -21355,15 +21664,29 @@ html.has-bg .insights-tab .ins-heat-row {
 }
 html.has-bg .insights-tab .ins-heat-daylabel,
 html.has-bg .insights-tab .ins-heat-hour,
+/* [FIX-1 type] THE BODY COPY ON THIS BOARD GOES UP ONE STEP, fs-11 -> fs-12.
+   Samson: "fonts too small in places". The two classes that move are this
+   caption and the Deep Work stat labels; the heatmap's day letters and hour
+   ruler stay at fs-11 because they are an AXIS, which is the same call the
+   brief makes for the hours chart's own axis, and .ins-wk-span stays because
+   it is an eyebrow in everything but name - uppercase, eyebrow ink, eyebrow
+   weight. The badge sub-lines are no longer rendered at all. */
 html.has-bg .insights-tab .ins-heat-note {
   color: var(--ink-mute);
   opacity: 1;
-}/* ---- ACHIEVEMENTS, rose, 4 wide and 2 tall ------------------------------- */
+  font-size: var(--fs-12);
+}
+html.has-bg .insights-tab .ins-hero-stat-label { font-size: var(--fs-12); }/* ---- ACHIEVEMENTS, rose, 4 wide and 2 tall ------------------------------- */
 
 
+/* [FIX-1] TWO COLUMNS, ONE ROW. `1 / -1` is the rule that actually made this
+   tile full-width - the span-2 class on the element never had a chance against
+   it - and `grid-row: span 2` is the other half of the 4x2 the arithmetic
+   wanted. Both go; the tile is two wide and one tall like the weekly card it
+   shares row five with. */
 html.has-bg .insights-tab .ins-achievements {
-  grid-column: 1 / -1;
-  grid-row: span 2;
+  grid-column: span 2;
+  grid-row: span 1;
   justify-content: flex-start;
 }
 html.has-bg .insights-tab .ins-ach-count {
@@ -21374,7 +21697,10 @@ html.has-bg .insights-tab .ins-ach-count {
   font-variant-numeric: tabular-nums;
   margin-top: 4px;
 }
-html.has-bg .insights-tab .ins-ach-of { font-size: var(--fs-15); color: var(--eyebrow-ink); }
+/* [FIX-1] THE COUNT IS IN THE EYEBROW NOW, so it is a label beside a label
+   rather than a figure under one: fs-12 with the eyebrow, and #fff because
+   --eyebrow-ink measured 4.49:1 on the rose tile under a light photograph. */
+html.has-bg .insights-tab .ins-ach-of { font-size: var(--fs-12); color: #fff; }
 html.has-bg .insights-tab .ins-achievements .pp-badge-grid {
   margin-top: var(--space-3);
   display: grid;
