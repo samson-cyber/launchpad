@@ -6030,3 +6030,69 @@ I18n.register("en", {
       "message": "Not tracking"
     }
   });
+
+// ===== [FIX-8] SETTINGS, CUT TO WHAT A USER TOUCHES ======================
+//
+// Eight of these fourteen are SHORTER FORMS of keys that stay in the
+// catalogue, because their long forms are now the info glyph on the same row
+// rather than a paragraph beneath it. Both are live and both are shown; the
+// long one is the title and the aria-label, the short one is the label. A
+// translator changing one must look at the other.
+I18n.register("en", {
+    "settings_advanced": {
+      "description": "The fold under Focus sessions and Focus blocking. FIX-8 cut those two tiles to the rows a user touches - four and three - and put the rest behind this. It is a summary on a <details>, so it is a control and not a heading; keep it to one word.",
+      "message": "Advanced"
+    },
+    "prosettings_work_length": {
+      "description": "The Focus sessions work-phase length. Replaces prosettings_work ('Work'), which sat directly under a Mode row whose first segment is also 'Work' - two different meanings of one word, one line apart. The row is a number of minutes, so the label says which length.",
+      "message": "Work length"
+    },
+    "prosettings_break_length": {
+      "description": "The Focus sessions short-break length. Replaces prosettings_short_break ('Short break'); with Long break moved behind Advanced there is no longer a second break on the tile to be short in contrast to, so the word 'short' only raised a question the visible rows no longer answer.",
+      "message": "Break length"
+    },
+    "prosettings_chime": {
+      "description": "The label on the Focus sessions chime picker. The control's full sense - a sound at each phase boundary - is its aria-label, which is prosettings_sound_at_each_phase_boundary; this is the row label beside it and has one column to live in.",
+      "message": "Chime"
+    },
+    "prosettings_chain_after_break_short": {
+      "description": "Row label for the roll-into-next-phase toggle, behind Advanced. The full sentence, including the ten-second countdown you can cancel, is prosettings_chain_after_break and is now the row's info glyph. Keep this short enough not to wrap beside a toggle.",
+      "message": "Roll into the next phase"
+    },
+    "prosettings_desktop_notifications_short": {
+      "description": "Row label for the phase-boundary notifications toggle, behind Advanced. The full sentence, including that it fires with no tab open, is prosettings_desktop_notifications_at_each_phase and is now the row's info glyph.",
+      "message": "Desktop notifications"
+    },
+    "prosettings_commitment_toggle_short": {
+      "description": "Row label for the repeat-snooze commitment toggle, behind Focus blocking's Advanced. The full sentence is prosettings_commitment_note and is now the row's info glyph.",
+      "message": "Type a sentence before a repeat snooze"
+    },
+    "prosettings_combined_analytics_short": {
+      "description": "Row label for the combined-analytics toggle, which FIX-8 moved from Workspaces to the Data tile. The full sentence, 'Show combined analytics across all workspaces', is prosettings_show_combined_analytics_across_all and is now the row's info glyph.",
+      "message": "Combined analytics"
+    },
+    "prosettings_no_blocked_sites_yet_add_short": {
+      "description": "The Focus blocking empty state. Replaces prosettings_no_blocked_sites_yet_add, which told the user to 'add one below' - the add field is now the very next thing on the tile rather than several rows down, so the instruction describes a layout that no longer exists. What survives is the fact they cannot infer: subdomains are covered.",
+      "message": "No blocked sites yet. Subdomains are included."
+    },
+    "settings_bookmarks": {
+      "description": "Row label in the Data tile for importing Chrome bookmarks. The verb is on the button (settings_import_from_chrome); this names the subject, so the row reads as a label and a control like every other row on the surface.",
+      "message": "Bookmarks"
+    },
+    "settings_backups": {
+      "description": "Row label in the Data tile carrying the Export and Import buttons. Replaces two full-width stacked buttons that repeated the word 'backup' in both of their labels.",
+      "message": "Backups"
+    },
+    "settings_import_from_chrome": {
+      "description": "Button beside the Bookmarks row label. Replaces settings_import_chrome_bookmarks ('Import Chrome Bookmarks'), whose subject is now the row label, so repeating 'Bookmarks' in the button would say it twice.",
+      "message": "Import from Chrome"
+    },
+    "common_export": {
+      "description": "The Export button on the Data tile's Backups row. Bare verb: its object is the row label beside it. Shares a row with common_import and the two must stay the same length class so the pair does not read lopsided.",
+      "message": "Export"
+    },
+    "common_import": {
+      "description": "The Import button on the Data tile's Backups row. Bare verb: its object is the row label beside it. Pairs with common_export.",
+      "message": "Import"
+    }
+  });

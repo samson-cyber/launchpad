@@ -19036,7 +19036,12 @@ html.has-bg.bg-light .mode-preset-note { color: var(--text-secondary); }/* =====
      space-between, which would push the last row to the bottom of whatever
      height the row happened to be. */
   justify-content: flex-start;
-  gap: var(--space-2);
+  /* [FIX-8] --space-2 to --space-1-5 between the head and its rows, and the
+     tile's own padding down one step with it. Two pixels each, but the panel
+     carries EIGHT tiles now rather than seven, and the chrome around the rows
+     measured 74px per tile against 197px of actual rows in the smallest one. */
+  gap: var(--space-1-5);
+  padding: var(--space-2-5);
 
   /* AND EXACTLY AS WIDE AS ITS COLUMN. Without this a tile sizes to its own
      content: measured at 270 and 267 for Look and Wallpaper, which under-fill,
@@ -19273,7 +19278,282 @@ html.has-bg.bg-light .settings-search {
   border-color: rgba(0, 0, 0, 0.18);
   color: rgba(0, 0, 0, 0.87);
 }
-html.has-bg.bg-light .settings-no-matches { color: rgba(0, 0, 0, 0.62); }/* =========================================================================
+html.has-bg.bg-light .settings-no-matches { color: rgba(0, 0, 0, 0.62); }
+/* ===== [FIX-8] THE CONTROLS BREATHE =====================================
+
+   Samson, on the shipped panel: "the buttons especially for the rotate
+   wallpaper, the icon text and layout sizes are all smooshed together."
+
+   THE SEGMENT HAD NO HORIZONTAL PADDING AT ALL. `.seg-btn` shipped
+   `padding: 6px 0` with `flex: 1`, so three labels divided the track between
+   them and each one's text ran to its own edges. Measured in the shipped
+   panel: "Medium" was 50px of text in a 50px box, "Compact" 57 in 57, "Chime
+   2, rising triad" 125 in 125. Every segment in the panel overflowed its own
+   box, which is what reads as smooshed.
+
+   flex: 0 0 auto IS THE OTHER HALF OF THE FIX. Padding alone cannot survive
+   `flex: 1` - an equal-share track hands each segment the same width whatever
+   its padding asks for, and the text is what gives way. Content-sized
+   segments with 12px of side padding are the ruling, and they are also why
+   the segments are no longer all the same width.
+
+   SCOPED TO .set-tile DELIBERATELY. .seg-btn is shared with the Insights
+   range control and the focus-block dialog; this round owns neither, and both
+   are laid out for their own widths. */
+
+.set-tile .seg-btn {
+  flex: 0 0 auto;
+  padding: var(--space-1-5) var(--space-3);
+  white-space: nowrap;
+}
+
+/* THE ROW WRAPS THE CONTROL BENEATH ITS LABEL when the two do not fit, which
+   is the ruling and is also the only safe end to `flex: 0 0 auto` - a segment
+   that will not shrink inside a tile that clips would otherwise be cut off,
+   and a clipped control is a defect. The track may wrap internally as a last
+   resort; that wraps the TRACK, never a label. */
+
+.set-tile .set-row { flex-wrap: wrap; }
+.set-tile .settings-segmented { flex-wrap: wrap; max-width: 100%; }
+.set-tile .set-seg { flex: 0 1 auto; }
+
+/* THE LABEL NO LONGER EATS THE ROW. At `flex: 1 1 auto` it absorbed every
+   spare pixel, which put an info glyph placed after it hard against the
+   control at the far end instead of beside the words it explains. The glyph's
+   own auto end-margin takes the space instead, so a row reads
+   label - glyph - gap - control in that order and with no gap inside the
+   pair. */
+
+.set-tile .set-row-label { flex: 0 1 auto; }
+
+/* ---- THE INFO GLYPH -----------------------------------------------------
+
+   Every helper sentence that sat under a row as a permanent paragraph is now
+   on demand. Measured, they cost 50px each and there were four of them, plus
+   a 68px one under the backups block: 268px of prose in a panel whose whole
+   problem was that it did not fit.
+
+   THE SENTENCE IS THE title AND THE aria-label, both from the same catalogue
+   key, so hover and a screen reader get the identical text and neither can
+   drift from the other. It is not rendered off-screen as well: the settings
+   search matches `row.textContent`, and these paragraphs were siblings of
+   their rows rather than children, so the search never saw them to begin
+   with - nothing is lost that was ever there. */
+
+.set-info {
+  flex: 0 0 auto;
+  margin-inline-end: auto;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-11);
+  line-height: 1;
+  color: var(--ink-meta);
+  cursor: help;
+}
+
+.set-info:hover,
+.set-info:focus-visible { color: var(--ink); }
+
+/* ---- THE FOLD -----------------------------------------------------------
+
+   <details> rather than a button and a class, so the open/closed state, the
+   keyboard behaviour and the exposed role are the browser's. The panel shuts
+   every fold on open (see openSettingsPanel) and the search opens one it
+   matches inside (settingsSearchApply). */
+
+.set-fold {
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--tile-rule);
+}
+
+.set-fold-head {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  list-style: none;
+  cursor: pointer;
+  font-size: var(--fs-11);
+  font-weight: 600;
+  color: var(--ink-meta);
+}
+
+.set-fold-head::-webkit-details-marker { display: none; }
+.set-fold-head::after { content: "\25be"; font-size: var(--fs-9); line-height: 1; }
+.set-fold[open] > .set-fold-head::after { content: "\25b4"; }
+.set-fold-head:hover { color: var(--ink); }
+.set-fold-rows { margin-top: var(--space-2); }
+
+/* ---- A LIST THAT SCROLLS INSIDE ITS TILE --------------------------------
+
+   Twelve tags measured 515px, which is most of a viewport for one list. The
+   tile scrolls its own list rather than letting the list set the height of a
+   column - the ruling, and the reason the panel fits without the PANEL
+   scrolling. */
+
+/* THE CAP IS TUNED TO THE COLUMN, and that is the right way round. The list is
+   the only block on this surface whose height is the USER's rather than the
+   product's, so it is the only one that can absorb the difference between two
+   columns of fixed subjects. At 12 tags the left column lands within a few
+   pixels of the right; at 3 tags the cap never binds and the column is simply
+   shorter, which is what a bound is for. */
+
+.set-scroll-list {
+  max-height: 264px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* THE WORKSPACE LIST IS BOUNDED THE SAME WAY, and at three workspaces it does
+   not scroll - 3 rows at 42px plus their gaps is 152px, inside this cap. The
+   bound is for the profile with nine of them, which is the shape that put the
+   tags list at 515px and this whole round on the board. */
+
+.set-tile .pro-workspace-list {
+  max-height: 176px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ---- SMALL SHAPES THE ROWS NEEDED -------------------------------------- */
+
+/* THE ADD ROW WAS 64px FOR ONE INPUT AND ONE BUTTON. .focus-block-add-row
+   carries flex-wrap:wrap from the three-column round, where 273px could not
+   hold both; at 502px it can, and the error line below it only needs height
+   when there is an error to show. */
+
+.set-tile .focus-block-add-row { flex-wrap: nowrap; }
+.set-tile .focus-block-error.is-quiet:empty { display: none; }
+
+.set-row-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+
+/* The licence hint and the declined-permission line. Both are empty most of
+   the time and cost nothing when they are. */
+
+.set-row-hint {
+  margin: 0;
+  font-size: var(--fs-11);
+  line-height: 1.4;
+  color: var(--ink-meta);
+}
+
+.set-row-hint:empty { display: none; }
+
+.settings-tile-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--fs-11);
+  color: var(--ink-meta);
+}
+
+/* A Pro chip ON A ROW, for the two Pro toggles that moved into the free Data
+   tile. A tile says Pro in its head; a row has no head, and a control that is
+   locked with nothing saying why reads as broken rather than as locked. */
+
+.set-pro-chip-row {
+  align-self: center;
+  padding: 0 var(--space-1);
+  font-size: var(--fs-9);
+}
+
+/* .set-row.is-locked already existed for the per-workspace wallpaper row. It
+   set opacity and nothing else, which leaves a locked TOGGLE still clickable -
+   the tile-level rule next to it has stopped that since H1c and a row-level
+   one never existed because no locked row was a toggle until now. */
+
+.set-row.is-locked.set-row-toggle { pointer-events: none; }
+/* ---- THE TRASHED-TAG DISCLOSURE ON A LIGHT WALLPAPER --------------------
+
+   The only ink failure this round INTRODUCED, and it was introduced by making
+   the element render at all: the tags subtitle carries this toggle, and while
+   the workspace count was overwriting that subtitle the disclosure never
+   appeared, so no sweep had ever measured it. It came back with the Tags tile
+   and measured 1.15:1 on a light solid.
+
+   THE SHIPPED RULE IS CORRECT FOR THE SURFACE IT WAS WRITTEN FOR.
+   html.has-bg.bg-light .pro-tags-trash-toggle takes --sat-accent-ink, whose
+   light-ground half is #15539b - the right answer on the LIGHT panel this
+   control used to live on. It now lives on a dark frost TILE, which does not
+   change with the wallpaper, so on THAT ground it needs the tile's own ink.
+
+   THE TILE'S BLUE IS NOT ENOUGH EITHER, which is why this is --ink and not the
+   #8ab4f8 the dark grounds use. Measured: #8ab4f8 here is 4.11:1 against a 4.5
+   text floor, because the Tags tile is tile--goals and its tint is GREEN - a
+   blue on green starts closer together than the blue on grey the token was
+   picked against. The affordance does not depend on the colour: the control
+   ships text-decoration: underline and a pointer cursor, so underlined body ink
+   still reads as something you click.
+
+   THE SELECTOR CARRIES html.has-bg.bg-light DELIBERATELY, and the first attempt
+   at this rule is the reason. `.set-tile .pro-tags-trash-toggle` is (0,2,0) and
+   the shipped rule it has to beat is (0,3,1), so the override never applied at
+   all and the re-sweep returned the identical 1.15 - which reads exactly like a
+   fix that did not work rather than one that never ran. Only the light solid is
+   scoped, because the dark grounds already clear the floor at #8ab4f8 and a
+   ground that passes is not this rule's business. */
+
+html.has-bg.bg-light .set-tile .pro-tags-trash-toggle { color: var(--ink); }
+
+
+/* ---- THE 112px LICENCE FIELD -------------------------------------------
+
+   `.set-tile input[type="text"] { flex: 1 1 8em }` was written to let a field
+   SHRINK along a row. Inside a .set-row-stack - which is `flex-direction:
+   column` - flex-basis resolves on the VERTICAL axis instead, so the basis
+   became a HEIGHT: 8em at 14px is 112px, exactly what the licence input
+   measured. The field is on a plain row now, where that rule does what it was
+   written to do, and this states the invariant so the next text input put in
+   a stack does not inherit the same surprise. */
+
+.set-row-stack > input[type="text"] { flex: 0 0 auto; }
+
+/* ---- THE CHIME PICKER ---------------------------------------------------
+
+   The closed control is ours; the open option list is the OS's and does not
+   take these colours on every platform. That is the trade for four
+   multi-word options in a 300px column. */
+
+.set-select {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--icon-bg);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--fs-12);
+}
+
+.set-select:focus { outline: none; border-color: var(--accent); }
+
+html.has-bg .set-select {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+html.has-bg .set-select option { color: #202124; }
+
+html.bg-light .set-tile .set-select {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+/* =========================================================================
    [H1a] THE DASHBOARD AS A BENTO
 
    Seven tiles on H0's .tile vocabulary. The old hero band's rules are LEFT IN

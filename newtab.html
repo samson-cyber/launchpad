@@ -504,7 +504,26 @@
     <p id="settings-no-matches" class="settings-no-matches hidden" data-i18n="rc_no_matches_found" role="status">No matches found</p>
     <div class="settings-body settings-tiles">
 
-      <!-- ---- COLUMN 1 ------------------------------------------------- -->
+      <!-- ===== [FIX-8] TWO COLUMNS, NOT THREE ==============================
+
+           H1c's three columns measured 496 / 1074 / 1821px on busy-messy: a
+           3.7x spread, with column 3 ending 1889px down a 900px viewport. The
+           panel scrolled, and Samson's word for it was that the pills "tear
+           off". Three columns at 1040px wide also gave each one 273px, which
+           is what wrapped nearly every toggle label onto two lines and is why
+           the rows read as smooshed.
+
+           LEFT is what anyone can change: Appearance, Wallpaper, Pro, Tags.
+           RIGHT is what Pro does on your behalf: Focus sessions, Focus
+           blocking, Workspaces, Data.
+
+           TAGS IS IN THE LEFT COLUMN AND THE BRIEF DID NOT SAY WHICH. It named
+           the six existing tiles per column; Tags is the seventh, created by
+           this round, and the stated reason for creating it is that "twelve
+           rows of tags in the Workspaces tile is why that column tears". Left
+           is where it stops that from recurring. -->
+
+      <!-- ---- LEFT ------------------------------------------------------ -->
       <div class="set-col">
       <section class="tile tile--list set-tile" data-set-tile="look">
         <h3 class="tile-eyebrow set-tile-head" data-i18n="settings_appearance">Appearance</h3>
@@ -538,7 +557,10 @@
             <input type="checkbox" id="settings-focus-view">
             <span class="set-toggle" aria-hidden="true"></span>
           </label>
-          <div class="set-row set-row-stack" data-set-row>
+          <!-- [FIX-8] AN ORDINARY ROW. It was stacked because seven swatches
+               would not sit beside a label in a 273px column; in a 502px one
+               they do, and the stack cost 18px to say the same thing. -->
+          <div class="set-row" data-set-row>
             <span class="set-row-label" data-i18n="prosettings_notes">Notes</span>
             <div data-i18n-aria-label="prosettings_default_paper_colour_for_new" class="notes-default-color" id="notes-default-color" role="radiogroup" aria-label="Default paper colour for new notes"></div>
           </div>
@@ -579,10 +601,95 @@
         </div>
       </section>
 
+      <!-- THE PRO TILE IS NOT data-set-pro. Its rows are how a free or expired
+           user BUYS Pro and how anyone re-enters a key, so locking them would
+           lock the door from the inside - which is the defect the licence key
+           being unreachable on expiry already was. -->
+      <section class="tile tile--list set-tile" data-set-tile="pro">
+        <h3 class="tile-eyebrow set-tile-head" data-i18n="feature_pro_settings_name">Pro</h3>
+        <div class="set-rows">
+          <!-- [FIX-8] PLAN AND ITS TWO ACTIONS ON ONE ROW. They were three
+               stacked blocks: a bare "Plan: Pro" line, then a row of two
+               buttons, then a bare "No license applied." line. -->
+          <div class="set-row" data-set-row>
+            <div id="pro-sub-content"></div>
+            <div class="set-row-actions">
+              <button data-i18n-title="prosettings_unavailable_title" data-i18n="prosettings_cancel_subscription" class="settings-btn" type="button" disabled title="Available with Pro launch">Cancel subscription</button>
+              <button data-i18n-title="prosettings_unavailable_title" data-i18n="prosettings_reactivate" class="settings-btn" type="button" disabled title="Available with Pro launch">Reactivate</button>
+            </div>
+          </div>
+          <!-- [FIX-8] ONE INPUT LINE. It was 112px tall - not because anyone
+               asked for a textarea (it has always been <input type="text">)
+               but because `.set-tile input[type="text"] { flex: 1 1 8em }`,
+               written to let a field SHRINK along a row, was resolving its
+               8em basis on the VERTICAL axis inside a .set-row-stack. 8em at
+               14px is 112px, exactly what it measured. On a plain .set-row
+               the same rule does what it was written to do. -->
+          <div class="set-row" data-set-row>
+            <span class="set-row-label" data-i18n="prosettings_license_key">License key</span>
+            <input data-i18n-placeholder="prosettings_enter_license_key" type="text" id="pro-license-input" placeholder="Enter license key" autocomplete="off" spellcheck="false">
+            <button data-i18n="common_apply" id="pro-license-apply" type="button" class="settings-btn">Apply</button>
+          </div>
+          <div id="pro-license-current" class="set-row-hint"></div>
+          <div class="set-row" id="pro-license-check-row" data-set-row>
+            <button data-i18n="prosettings_check_license_status_now" id="pro-license-check" type="button" class="settings-btn">Check license status now</button>
+          </div>
+          <p id="pro-license-check-status" class="pro-license-check-status hidden" role="status" aria-live="polite"></p>
+          <div class="set-row" id="pro-license-clear-row" data-set-row>
+            <button data-i18n="prosettings_clear_license" id="pro-license-clear" type="button" class="settings-btn settings-btn-danger">Clear license</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- [FIX-8] TAGS IS ITS OWN TILE. It was a .set-row-stack inside
+           Workspaces measuring 611px of a 1007px tile, which is the single
+           reason that column ran 1821px.
+
+           SPLITTING IT ALSO FIXES A LIVE DEFECT. renderProWorkspacesSection
+           writes its "N workspaces" count into `host.parentNode.querySelector
+           (".pro-section-subtitle")` - and the only such element in that
+           parent was the TAGS subtitle. It ran last, so the tags counter line
+           read "3 workspaces", and that counter line is also the disclosure
+           that reveals trashed tags. In its own tile the tags subtitle is the
+           only writer's target again. -->
+      <section class="tile tile--goals set-tile set-tile-pro" data-set-tile="tags" data-set-pro>
+        <h3 class="tile-eyebrow set-tile-head" data-i18n="feature_tags_name">Tags<span class="set-pro-chip" data-i18n="apply_pro">Pro</span></h3>
+        <div class="set-rows">
+          <p class="pro-section-subtitle pro-tags-subtitle"></p>
+          <ul id="pro-tags-list" class="pro-tags-list set-scroll-list"></ul>
+          <div id="pro-tag-create-form" class="pro-tag-create-form hidden">
+            <div class="pro-tag-palette" id="pro-tag-create-palette"></div>
+            <input data-i18n-placeholder="tag_create_name_placeholder" type="text" id="pro-tag-create-name" class="pro-tag-name-input" placeholder="Tag name" maxlength="48" autocomplete="off" spellcheck="false">
+            <button data-i18n="common_save" id="pro-tag-create-save" type="button" class="settings-btn" disabled>Save</button>
+            <button data-i18n="common_cancel" id="pro-tag-create-cancel" type="button" class="settings-btn">Cancel</button>
+            <div id="pro-tag-create-error" class="pro-tag-create-error hidden" role="alert"></div>
+          </div>
+          <div class="set-row" data-set-row>
+            <button data-i18n="prosettings_new_tag" id="pro-tag-new-btn" type="button" class="settings-btn">+ New tag</button>
+          </div>
+        </div>
+      </section>
+
       </div>
 
-      <!-- ---- COLUMN 2 ------------------------------------------------- -->
+      <!-- ---- RIGHT ----------------------------------------------------- -->
       <div class="set-col">
+
+      <!-- [FIX-8] FOUR ROWS, THEN A FOLD. This tile had ELEVEN rows and two
+           helper paragraphs, 622px of a 900px viewport for one subject. The
+           canvas board drew three or four rows per tile and read clean; the
+           density was content, not layout.
+
+           THE FOUR ARE THE ONES A SESSION NEEDS: what kind, how long, how long
+           a break, what it sounds like. Everything else tunes a behaviour you
+           have already chosen, which is what Advanced is for.
+
+           THE FOLD IS NOT PERSISTED, by ruling: it opens for the session and
+           closes on the next open, the same argument as the trashed-tags
+           reveal above - "let me look at that" is a moment, not a preference.
+           settingsSearchApply opens it when a search matches a row inside it,
+           because a control the search can find and the user cannot reach is
+           worse than one that is simply hidden. -->
       <section class="tile tile--blocking set-tile set-tile-pro" data-set-tile="focus" data-set-pro>
         <h3 class="tile-eyebrow set-tile-head" data-i18n="prosettings_focus_sessions">Focus sessions<span class="set-pro-chip" data-i18n="apply_pro">Pro</span></h3>
         <div class="set-rows">
@@ -594,66 +701,73 @@
             </div>
           </div>
           <div class="set-row" data-set-row>
-            <span class="set-row-label" data-i18n="prosettings_work">Work</span>
+            <span class="set-row-label" data-i18n="prosettings_work_length">Work length</span>
             <input type="number" id="pomo-work-min" class="set-stepper" min="5" max="60" step="1" inputmode="numeric">
           </div>
           <div class="set-row" data-set-row>
-            <span class="set-row-label" data-i18n="prosettings_short_break">Short break</span>
+            <span class="set-row-label" data-i18n="prosettings_break_length">Break length</span>
             <input type="number" id="pomo-short-break-min" class="set-stepper" min="1" max="30" step="1" inputmode="numeric">
           </div>
+          <!-- [FIX-8] A SELECT, NOT A SEGMENTED PILL. Four options reading
+               "None / Chime 1, soft bell / Chime 2, rising triad / Chime 3,
+               warm tone" measured 33 + 106 + 125 + 123px of label inside a
+               273px track: three of the four overflowed their segment and the
+               control wrapped to 86px of tile. A segmented control is for two
+               or three short words; this is a picker. -->
           <div class="set-row" data-set-row>
-            <span class="set-row-label" data-i18n="prosettings_long_break">Long break</span>
-            <input type="number" id="pomo-long-break-min" class="set-stepper" min="5" max="60" step="1" inputmode="numeric">
+            <span class="set-row-label" data-i18n="prosettings_chime">Chime</span>
+            <select id="pomo-sound-select" class="set-select" data-i18n-aria-label="prosettings_sound_at_each_phase_boundary" aria-label="Sound at each phase boundary">
+              <option value="none" data-i18n="prosettings_none">None</option>
+              <option value="chime1" data-i18n="prosettings_chime_1_soft_bell">Chime 1, soft bell</option>
+              <option value="chime2" data-i18n="prosettings_chime_2_rising_triad">Chime 2, rising triad</option>
+              <option value="chime3" data-i18n="prosettings_chime_3_warm_tone">Chime 3, warm tone</option>
+            </select>
           </div>
-          <div class="set-row" data-set-row>
-            <span class="set-row-label" data-i18n="prosettings_cycles_before_long_break">Cycles</span>
-            <input type="number" id="pomo-cycles" class="set-stepper" min="2" max="10" step="1" inputmode="numeric">
-          </div>
-          <label class="set-row set-row-toggle" data-set-row>
-            <span class="set-row-label" id="pomo-chain-label" data-i18n="prosettings_chain_after_break">Roll into the next work phase after a break, with a 10-second countdown you can cancel</span>
-            <input type="checkbox" id="pomo-chain-toggle">
-            <span class="set-toggle" aria-hidden="true"></span>
-          </label>
-          <div class="set-row" data-set-row>
-            <button data-i18n="prosettings_reset_cycle_count" type="button" id="pomo-reset-cycles" class="settings-btn pomo-reset-btn">Reset cycle count</button>
-            <span class="pomo-reset-hint" id="pomo-reset-hint"></span>
-          </div>
-          <label class="set-row set-row-toggle" data-set-row>
-            <span class="set-row-label" data-i18n="prosettings_desktop_notifications_at_each_phase">Desktop notifications at each phase boundary (fires even with no tab open)</span>
-            <input type="checkbox" id="pomo-notifications-toggle">
-            <span class="set-toggle" aria-hidden="true"></span>
-          </label>
-          <p class="pomo-notif-note" id="pomo-notifications-note" hidden></p>
-          <div class="set-row set-row-stack" data-set-row>
-            <span class="set-row-label" data-i18n="prosettings_sound_at_each_phase_boundary">Sound at each phase boundary</span>
-            <div class="settings-segmented set-seg set-seg-wrap" id="pomo-sound-options">
-              <button type="button" class="seg-btn" data-value="none" data-i18n="prosettings_none">None</button>
-              <button type="button" class="seg-btn" data-value="chime1" data-i18n="prosettings_chime_1_soft_bell">Chime 1, soft bell</button>
-              <button type="button" class="seg-btn" data-value="chime2" data-i18n="prosettings_chime_2_rising_triad">Chime 2, rising triad</button>
-              <button type="button" class="seg-btn" data-value="chime3" data-i18n="prosettings_chime_3_warm_tone">Chime 3, warm tone</button>
+          <details class="set-fold" data-set-fold>
+            <summary class="set-fold-head" data-i18n="settings_advanced">Advanced</summary>
+            <div class="set-rows set-fold-rows">
+              <div class="set-row" data-set-row>
+                <span class="set-row-label" data-i18n="prosettings_long_break">Long break</span>
+                <input type="number" id="pomo-long-break-min" class="set-stepper" min="5" max="60" step="1" inputmode="numeric">
+              </div>
+              <div class="set-row" data-set-row>
+                <span class="set-row-label" data-i18n="prosettings_cycles_before_long_break">Cycles</span>
+                <input type="number" id="pomo-cycles" class="set-stepper" min="2" max="10" step="1" inputmode="numeric">
+              </div>
+              <label class="set-row set-row-toggle" data-set-row>
+                <span class="set-row-label" id="pomo-chain-label" data-i18n="prosettings_chain_after_break_short">Roll into the next phase</span>
+                <button type="button" class="set-info" data-i18n-title="prosettings_chain_after_break" data-i18n-aria-label="prosettings_chain_after_break" title="Roll into the next work phase after a break, with a 10-second countdown you can cancel" aria-label="Roll into the next work phase after a break, with a 10-second countdown you can cancel">&#9432;</button>
+                <input type="checkbox" id="pomo-chain-toggle">
+                <span class="set-toggle" aria-hidden="true"></span>
+              </label>
+              <div class="set-row" data-set-row>
+                <span class="set-row-label" data-i18n="prosettings_daily_focus_target">Daily focus target</span>
+                <div class="set-stepper-wrap">
+                  <input type="number" id="pro-focus-target" class="set-stepper" min="15" max="720" step="15" inputmode="numeric" placeholder="e.g. 240">
+                  <span id="pro-focus-target-echo" class="pomo-setting-echo"></span>
+                </div>
+              </div>
+              <label class="set-row set-row-toggle" data-set-row>
+                <span class="set-row-label" data-i18n="prosettings_desktop_notifications_short">Desktop notifications</span>
+                <button type="button" class="set-info" data-i18n-title="prosettings_desktop_notifications_at_each_phase" data-i18n-aria-label="prosettings_desktop_notifications_at_each_phase" title="Desktop notifications at each phase boundary (fires even with no tab open)" aria-label="Desktop notifications at each phase boundary (fires even with no tab open)">&#9432;</button>
+                <input type="checkbox" id="pomo-notifications-toggle">
+                <span class="set-toggle" aria-hidden="true"></span>
+              </label>
+              <p class="pomo-notif-note" id="pomo-notifications-note" hidden></p>
+              <div class="set-row" data-set-row>
+                <button data-i18n="prosettings_reset_cycle_count" type="button" id="pomo-reset-cycles" class="settings-btn pomo-reset-btn">Reset cycle count</button>
+                <span class="pomo-reset-hint" id="pomo-reset-hint"></span>
+              </div>
             </div>
-          </div>
-          <div class="set-row" data-set-row>
-            <span class="set-row-label" data-i18n="prosettings_daily_focus_target">Daily focus target</span>
-            <div class="set-stepper-wrap">
-              <input type="number" id="pro-focus-target" class="set-stepper" min="15" max="720" step="15" inputmode="numeric" placeholder="e.g. 240">
-              <span id="pro-focus-target-echo" class="pomo-setting-echo"></span>
-            </div>
-          </div>
-          <label class="set-row set-row-toggle" data-set-row>
-            <span class="set-row-label" data-i18n="prosettings_reminders">Reminders</span>
-            <input type="checkbox" id="due-reminders-toggle">
-            <span class="set-toggle" aria-hidden="true"></span>
-          </label>
-          <p data-i18n="prosettings_due_reminders_note" class="fb-note" id="due-reminders-note">Off by default. Sends one desktop notification per task, at 9am or the first time the browser is open after it, and only in a Work workspace.</p>
+          </details>
         </div>
       </section>
 
       <section class="tile tile--overdue set-tile set-tile-pro focus-block-section" data-set-tile="blocking" data-set-pro>
         <h3 class="tile-eyebrow set-tile-head" data-i18n="prosettings_focus_blocking">Focus blocking<span class="set-pro-chip" data-i18n="apply_pro">Pro</span></h3>
         <div class="set-rows">
-          <ul id="focus-block-list" class="focus-block-list"></ul>
-          <p data-i18n="prosettings_no_blocked_sites_yet_add" class="focus-block-empty hidden">No blocked sites yet. Add one below. Subdomains are included automatically.</p>
+          <ul id="focus-block-list" class="focus-block-list set-scroll-list"></ul>
+          <p data-i18n="prosettings_no_blocked_sites_yet_add_short" class="focus-block-empty hidden">No blocked sites yet. Subdomains are included.</p>
           <div class="set-row set-row-stack" data-set-row>
             <div class="focus-block-add-row">
               <input data-i18n-placeholder="prosettings_youtube_com" data-i18n-aria-label="prosettings_site_to_block" type="text" id="focus-block-input" class="focus-block-input" placeholder="youtube.com" maxlength="255" autocomplete="off" spellcheck="false" aria-label="Site to block">
@@ -662,56 +776,43 @@
             <div id="focus-block-error" class="focus-block-error is-quiet" role="alert"></div>
           </div>
           <label class="set-row set-row-toggle" data-set-row>
-            <span class="set-row-label" data-i18n="prosettings_commitment_toggle">Ask me to type a sentence before a repeat snooze</span>
-            <input type="checkbox" id="focus-commitment-toggle">
-            <span class="set-toggle" aria-hidden="true"></span>
-          </label>
-          <p data-i18n="prosettings_commitment_note" class="fb-note" id="focus-commitment-note">Off by default. When on, snoozing the same site twice in one focus session asks you to type one short sentence first.</p>
-          <div class="set-row" data-set-row>
-            <span class="set-row-label" data-i18n="prosettings_idle_after">Count me idle after</span>
-            <div class="set-stepper-wrap">
-              <input type="number" id="focus-idle-input" class="set-stepper" min="15" max="3600" step="5" inputmode="numeric">
-              <span data-i18n="prosettings_seconds" class="focus-idle-unit">seconds</span>
-            </div>
-          </div>
-          <p data-i18n="prosettings_idle_note" class="fb-note" id="focus-idle-note">Used both to stop tracking and to stop the active-task timer. The browser will not go below 15 seconds.</p>
-          <label class="set-row set-row-toggle" data-set-row>
             <span class="set-row-label" data-i18n="prosettings_block_automatically_during_focus_sessions">Block automatically during focus sessions</span>
             <input type="checkbox" id="focus-auto-arm-toggle">
             <span class="set-toggle" aria-hidden="true"></span>
           </label>
+          <details class="set-fold" data-set-fold>
+            <summary class="set-fold-head" data-i18n="settings_advanced">Advanced</summary>
+            <div class="set-rows set-fold-rows">
+              <label class="set-row set-row-toggle" data-set-row>
+                <span class="set-row-label" data-i18n="prosettings_commitment_toggle_short">Type a sentence before a repeat snooze</span>
+                <button type="button" class="set-info" data-i18n-title="prosettings_commitment_note" data-i18n-aria-label="prosettings_commitment_note" title="Off by default. When on, snoozing the same site twice in one focus session asks you to type one short sentence first." aria-label="Off by default. When on, snoozing the same site twice in one focus session asks you to type one short sentence first.">&#9432;</button>
+                <input type="checkbox" id="focus-commitment-toggle">
+                <span class="set-toggle" aria-hidden="true"></span>
+              </label>
+              <div class="set-row" data-set-row>
+                <span class="set-row-label" data-i18n="prosettings_idle_after">Count me idle after</span>
+                <button type="button" class="set-info" data-i18n-title="prosettings_idle_note" data-i18n-aria-label="prosettings_idle_note" title="Used both to stop tracking and to stop the active-task timer. The browser will not go below 15 seconds." aria-label="Used both to stop tracking and to stop the active-task timer. The browser will not go below 15 seconds.">&#9432;</button>
+                <div class="set-stepper-wrap">
+                  <input type="number" id="focus-idle-input" class="set-stepper" min="15" max="3600" step="5" inputmode="numeric">
+                  <span data-i18n="prosettings_seconds" class="focus-idle-unit">seconds</span>
+                </div>
+              </div>
+            </div>
+          </details>
         </div>
       </section>
 
-      </div>
-
-      <!-- ---- COLUMN 3 ------------------------------------------------- -->
-      <div class="set-col">
-      <section class="tile tile--goals set-tile set-tile-pro pro-tags-section" data-set-tile="workspaces" data-set-pro>
+      <!-- [FIX-8] THE "Add workspace" PLACEHOLDER IS GONE. It was disabled
+           behind a "Coming in v1.0.6" title while renderProWorkspacesSection
+           injects a REAL add row - input, Track checkbox, Add button - directly
+           above it. The JS has tried to delete the placeholder since [1.0.6]
+           via `.settings-row .settings-btn[disabled]`, and H1c renamed that
+           row to .set-row, so the cleanup has silently matched nothing since.
+           Deleting the markup is the fix; the dead cleanup goes with it. -->
+      <section class="tile tile--goals set-tile set-tile-pro" data-set-tile="workspaces" data-set-pro>
         <h3 class="tile-eyebrow set-tile-head" data-i18n="prosettings_workspaces">Workspaces<span class="set-pro-chip" data-i18n="apply_pro">Pro</span></h3>
         <div class="set-rows">
           <ul id="pro-workspace-list" class="pro-workspace-list"></ul>
-          <div class="set-row" data-set-row>
-            <button data-i18n-title="prosettings_coming_in_v1_0_6_2" data-i18n="prosettings_add_workspace" class="settings-btn" type="button" disabled title="Coming in v1.0.6">Add workspace</button>
-          </div>
-          <label class="set-row set-row-toggle" data-set-row>
-            <span class="set-row-label" data-i18n="prosettings_show_combined_analytics_across_all">Show combined analytics across all workspaces</span>
-            <input type="checkbox" id="pro-analytics-toggle">
-            <span class="set-toggle" aria-hidden="true"></span>
-          </label>
-          <div class="set-row set-row-stack" data-set-row>
-            <span class="set-row-label" data-i18n="feature_tags_name">Tags</span>
-            <p class="pro-section-subtitle pro-tags-subtitle"></p>
-            <ul id="pro-tags-list" class="pro-tags-list"></ul>
-            <div id="pro-tag-create-form" class="pro-tag-create-form hidden">
-              <div class="pro-tag-palette" id="pro-tag-create-palette"></div>
-              <input data-i18n-placeholder="tag_create_name_placeholder" type="text" id="pro-tag-create-name" class="pro-tag-name-input" placeholder="Tag name" maxlength="48" autocomplete="off" spellcheck="false">
-              <button data-i18n="common_save" id="pro-tag-create-save" type="button" class="settings-btn" disabled>Save</button>
-              <button data-i18n="common_cancel" id="pro-tag-create-cancel" type="button" class="settings-btn">Cancel</button>
-              <div id="pro-tag-create-error" class="pro-tag-create-error hidden" role="alert"></div>
-            </div>
-            <button data-i18n="prosettings_new_tag" id="pro-tag-new-btn" type="button" class="settings-btn">+ New tag</button>
-          </div>
         </div>
       </section>
 
@@ -720,18 +821,54 @@
         <div class="set-rows">
           <label class="set-row set-row-toggle" data-set-row>
             <span class="set-row-label" data-i18n="settings_track_time_on_sites">Track time on sites</span>
+            <button type="button" class="set-info" data-i18n-title="settings_track_time_note" data-i18n-aria-label="settings_track_time_note" title="On by default. Measures how long you spend on each site so the Dashboard can show today. Stays on this device." aria-label="On by default. Measures how long you spend on each site so the Dashboard can show today. Stays on this device.">&#9432;</button>
             <input type="checkbox" id="settings-track-sites">
             <span class="set-toggle" aria-hidden="true"></span>
           </label>
-          <p data-i18n="settings_track_time_note" class="fb-note" id="settings-track-note">On by default. Measures how long you spend on each site so the Dashboard can show today. Stays on this device.</p>
+          <!-- [FIX-8] REMINDERS AND COMBINED ANALYTICS MOVED HERE, by ruling:
+               both are "the product does something daily on your behalf",
+               which is this tile's subject and not Focus sessions' or
+               Workspaces'. Both are Pro, and they carry data-set-pro on the
+               ROW rather than on the tile - applySettingsProGate already
+               selects `[data-set-pro]` and walks its descendants, so a row
+               works with no change to it, and .set-row.is-locked already had
+               a rule. The chip on the row says why, since a row has no head
+               to carry the tile's one. -->
+          <label class="set-row set-row-toggle" data-set-row data-set-pro>
+            <span class="set-row-label" data-i18n="prosettings_reminders">Reminders</span>
+            <span class="set-pro-chip set-pro-chip-row" data-i18n="apply_pro">Pro</span>
+            <button type="button" class="set-info" data-i18n-title="prosettings_due_reminders_note" data-i18n-aria-label="prosettings_due_reminders_note" title="Off by default. Sends one desktop notification per task, at 9am or the first time the browser is open after it, and only in a Work workspace." aria-label="Off by default. Sends one desktop notification per task, at 9am or the first time the browser is open after it, and only in a Work workspace.">&#9432;</button>
+            <input type="checkbox" id="due-reminders-toggle">
+            <span class="set-toggle" aria-hidden="true"></span>
+          </label>
+          <!-- [FIX-8] THE STATIC 50px PARAGRAPH IS NOW THE ROW'S INFO GLYPH,
+               but this element STAYS, empty and hidden. It is where the
+               declined-notifications refusal is written, and H2e verified
+               that the three permission-gated toggles refuse "and say so on
+               screen" - deleting it would have made one of the three refuse
+               in silence. Empty it costs nothing; today it cost 50px always. -->
+          <p id="due-reminders-note" class="set-row-hint" hidden></p>
+          <label class="set-row set-row-toggle" data-set-row data-set-pro>
+            <span class="set-row-label" data-i18n="prosettings_combined_analytics_short">Combined analytics</span>
+            <span class="set-pro-chip set-pro-chip-row" data-i18n="apply_pro">Pro</span>
+            <button type="button" class="set-info" data-i18n-title="prosettings_show_combined_analytics_across_all" data-i18n-aria-label="prosettings_show_combined_analytics_across_all" title="Show combined analytics across all workspaces" aria-label="Show combined analytics across all workspaces">&#9432;</button>
+            <input type="checkbox" id="pro-analytics-toggle">
+            <span class="set-toggle" aria-hidden="true"></span>
+          </label>
+          <!-- [FIX-8] THREE FULL-WIDTH STACKED BUTTONS BECAME TWO LABELLED
+               ROWS. 40px each plus gaps was 132px of a 461px tile for what is
+               one subject with three verbs. -->
           <div class="set-row" data-set-row>
-            <button data-i18n="settings_import_chrome_bookmarks" id="settings-import-bookmarks" type="button" class="settings-btn settings-btn-full">Import Chrome Bookmarks</button>
+            <span class="set-row-label" data-i18n="settings_bookmarks">Bookmarks</span>
+            <button data-i18n="settings_import_from_chrome" id="settings-import-bookmarks" type="button" class="settings-btn">Import from Chrome</button>
           </div>
           <div class="set-row" data-set-row>
-            <button data-i18n="settings_export_backup" id="settings-export-backup" type="button" class="settings-btn settings-btn-full">Export backup</button>
-          </div>
-          <div class="set-row" data-set-row>
-            <button data-i18n="settings_import_backup" id="settings-import-backup" type="button" class="settings-btn settings-btn-full">Import backup</button>
+            <span class="set-row-label" data-i18n="settings_backups">Backups</span>
+            <button type="button" class="set-info" data-i18n-title="settings_backups_include_your_shortcuts_groups" data-i18n-aria-label="settings_backups_include_your_shortcuts_groups" title="Backups include your shortcuts, groups, settings, wallpaper, notes, tasks, licence key, and your tracked focus history. Stored locally on your device only." aria-label="Backups include your shortcuts, groups, settings, wallpaper, notes, tasks, licence key, and your tracked focus history. Stored locally on your device only.">&#9432;</button>
+            <div class="set-row-actions">
+              <button data-i18n="common_export" id="settings-export-backup" type="button" class="settings-btn">Export</button>
+              <button data-i18n="common_import" id="settings-import-backup" type="button" class="settings-btn">Import</button>
+            </div>
           </div>
           <label class="set-row set-row-toggle" id="auto-backup-row" data-set-row hidden>
             <span class="set-row-label" data-i18n="settings_automatic_weekly_backup">Automatic weekly backup</span>
@@ -741,39 +878,10 @@
           <p class="settings-privacy" id="auto-backup-note" hidden></p>
           <p class="settings-privacy" id="auto-backup-last" hidden></p>
           <input type="file" id="settings-backup-file" accept=".json" class="hidden">
-          <p data-i18n="settings_backups_include_your_shortcuts_groups" class="settings-privacy">Backups include your shortcuts, groups, settings, wallpaper, notes, tasks, licence key, and your tracked focus history. Stored locally on your device only.</p>
-          <p class="settings-version" id="settings-version"></p>
-          <p class="settings-privacy"><a data-i18n="prosettings_privacy_policy" id="pro-settings-privacy-link" href="https://mylaunchpad.me/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy policy</a></p>
+          <p class="settings-tile-foot"><span class="settings-version" id="settings-version"></span><a data-i18n="prosettings_privacy_policy" id="pro-settings-privacy-link" href="https://mylaunchpad.me/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy policy</a></p>
         </div>
       </section>
 
-      <!-- THE PRO TILE IS NOT data-set-pro. Its rows are how a free or expired
-           user BUYS Pro and how anyone re-enters a key, so locking them would
-           lock the door from the inside - which is the defect the licence key
-           being unreachable on expiry already was. -->
-      <section class="tile tile--list set-tile" data-set-tile="pro">
-        <h3 class="tile-eyebrow set-tile-head" data-i18n="feature_pro_settings_name">Pro</h3>
-        <div class="set-rows">
-          <div id="pro-sub-content"></div>
-          <div class="set-row" data-set-row>
-            <button data-i18n-title="prosettings_unavailable_title" data-i18n="prosettings_cancel_subscription" class="settings-btn" type="button" disabled title="Available with Pro launch">Cancel subscription</button>
-            <button data-i18n-title="prosettings_unavailable_title" data-i18n="prosettings_reactivate" class="settings-btn" type="button" disabled title="Available with Pro launch">Reactivate</button>
-          </div>
-          <div id="pro-license-current"></div>
-          <div class="set-row set-row-stack" data-set-row>
-            <span class="set-row-label" data-i18n="prosettings_license_key">License key</span>
-            <input data-i18n-placeholder="prosettings_enter_license_key" type="text" id="pro-license-input" placeholder="Enter license key" autocomplete="off" spellcheck="false">
-            <button data-i18n="common_apply" id="pro-license-apply" type="button" class="settings-btn">Apply</button>
-          </div>
-          <div class="set-row" id="pro-license-check-row" data-set-row>
-            <button data-i18n="prosettings_check_license_status_now" id="pro-license-check" type="button" class="settings-btn">Check license status now</button>
-          </div>
-          <p id="pro-license-check-status" class="pro-license-check-status hidden" role="status" aria-live="polite"></p>
-          <div class="set-row" id="pro-license-clear-row" data-set-row>
-            <button data-i18n="prosettings_clear_license" id="pro-license-clear" type="button" class="settings-btn settings-btn-danger">Clear license</button>
-          </div>
-        </div>
-      </section>
       </div>
 
     </div>

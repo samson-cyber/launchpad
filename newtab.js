@@ -12609,14 +12609,17 @@
     //
     // Writing first and playing second, so a play that is blocked still leaves
     // the setting saved.
-    // [H1c] A SEGMENTED PILL, NOT FOUR RADIOS - so the event is a click on a
-    // button rather than a change on an input, and the value is a data
-    // attribute rather than input.value. The write, the re-render and the
-    // preview are the same three lines they were.
-    safeOn("#pomo-sound-options", "click", async function (e) {
-      var btn = e.target.closest && e.target.closest(".seg-btn");
-      if (!btn || btn.disabled) return;
-      var value = btn.getAttribute("data-value");
+    // [FIX-8] A SELECT, NOT A SEGMENTED PILL. H1c made these four options a
+    // segmented control, and four multi-word labels cannot share one: measured
+    // in the shipped panel, "Chime 1, soft bell" needed 106px, "Chime 2, rising
+    // triad" 125px and "Chime 3, warm tone" 123px inside a 273px track, so
+    // three of the four overflowed their own segment and the control wrapped to
+    // 86px of tile. A segmented control is for two or three short words.
+    //
+    // The write, the re-render and the preview are the same three lines they
+    // have been since the four radios this replaced twice over.
+    safeOn("#pomo-sound-select", "change", async function (e) {
+      var value = e.target.value;
       if (!value) return;
       try {
         await Storage.setPomodoroSound(data, value);
@@ -13002,21 +13005,23 @@
       });
     }
 
-    // Drop the [1.0.3] "Coming in v1.0.6" subtitle now that this section is live.
-    var subtitle = host.parentNode && host.parentNode.querySelector(".pro-section-subtitle");
-    if (subtitle) {
-      subtitle.textContent = t("ws_count_subtitle", { count: workspaces.length });
-    }
-
-    // Drop the placeholder "Add workspace" button from [1.0.3] (it carries
-    // the "Coming in v1.0.6" tooltip and is wired to nothing).
-    var legacyBtn = host.parentNode && host.parentNode.querySelector(".settings-row .settings-btn[disabled]");
-    if (legacyBtn && legacyBtn.parentNode) {
-      var parentRow = legacyBtn.parentNode;
-      if (parentRow.classList.contains("settings-row") && !parentRow.id) {
-        parentRow.parentNode.removeChild(parentRow);
-      }
-    }
+    // [FIX-8] TWO [1.0.3] CLEANUP BLOCKS STOOD HERE AND BOTH ARE GONE. Each
+    // was written to tidy up markup that this round deleted outright.
+    //
+    // THE SUBTITLE WRITER WAS ACTIVELY WRONG, not merely spent. It wrote the
+    // workspace count into `host.parentNode.querySelector(".pro-section-
+    // subtitle")`, and after H1c the only such element in that parent was the
+    // TAGS subtitle - so on a real profile the tags counter line read
+    // "3 workspaces". That line is also the disclosure that reveals trashed
+    // tags, so the tag trash was unreachable from this panel for as long as
+    // the two sections shared a tile. Tags has its own tile now and its own
+    // subtitle writer; there is no second claimant to remove.
+    //
+    // THE PLACEHOLDER-BUTTON REMOVER HAD MATCHED NOTHING SINCE H1c, which
+    // renamed the row it selected on from .settings-row to .set-row - which is
+    // why the "Coming in v1.0.6" button was still on screen, disabled, one row
+    // under the real add-workspace controls this function injects. The markup
+    // no longer carries it.
   }
 
   function startWorkspaceRename(nameEl) {
@@ -13145,15 +13150,14 @@
     }
     // [1.0.18 B-2] Reflect the chime selection. s.sound is already whitelist-
     // coerced by the reader, so a legacy/garbage stored id lands on "none" here
-    // and the picker always shows exactly one checked radio.
-    // A BUTTON HAS NO .checked AND NO .value. This loop was written for four
-    // <input type="radio"> and kept running against the segmented pill that
-    // replaced them, so nothing was ever painted as selected - the write landed
-    // and the control did not show it. Found by a contrast measurement that
-    // could not locate a .seg-btn.active to measure.
-    $$("#pomo-sound-options .seg-btn").forEach(function (btn) {
-      btn.classList.toggle("active", btn.getAttribute("data-value") === s.sound);
-    });
+    // and the picker always shows exactly one selected option.
+    // [FIX-8] ONE ASSIGNMENT, because the control is a <select> again. The two
+    // shapes before it each broke this in their own way: four radios needed a
+    // loop over .checked, and the segmented pill that replaced them kept that
+    // loop while a BUTTON has neither .checked nor .value, so for a while the
+    // write landed and the control never showed it.
+    var soundSel = $("#pomo-sound-select");
+    if (soundSel) soundSel.value = s.sound;
   }
 
   // ===== [1.2.0 R1] Pro Settings: Focus blocking section =====
@@ -13720,8 +13724,17 @@
         }
         if (!granted) {
           box.checked = false;
+          // [FIX-8] UNHIDE IT. The note used to be a permanent 50px paragraph
+          // of static prose that this line overwrote; the prose is now the
+          // row's info glyph and the element ships empty and hidden, so a
+          // refusal that only set textContent would have been written into a
+          // node nobody can see. H2e verified these three toggles refuse "and
+          // say so on screen", and this is the line that keeps that true.
           var note = $("#due-reminders-note");
-          if (note) note.textContent = t("bind_notifications_permission_was_declined");
+          if (note) {
+            note.textContent = t("bind_notifications_permission_was_declined");
+            note.hidden = false;
+          }
           return;
         }
       }
@@ -16816,6 +16829,12 @@
     // locked at. Rendering them only for Pro would leave a free user looking at
     // empty tiles, which reads as broken rather than as locked.
     proTagsTrashRevealed = false;
+    // [FIX-8] THE "Advanced" FOLDS CLOSE ON EVERY OPEN, and deliberately are
+    // not persisted - the same argument as proTagsTrashRevealed directly above.
+    // Opening Advanced is "let me change that one thing", a moment rather than
+    // a preference, and a panel that remembers it is a panel that slowly grows
+    // back to the eleven rows this round cut it down from.
+    $$("#settings-panel [data-set-fold]").forEach(function (f) { f.open = false; });
     renderProSubscriptionSection();
     renderProLicenseSection();
     renderProTagsSection();
@@ -16907,6 +16926,21 @@
       var hide = needle && rows.length > 0 && live === 0;
       tile.classList.toggle("set-tile-filtered", !!hide);
       if (!hide) shown++;
+
+      // [FIX-8] A MATCH INSIDE A COLLAPSED "Advanced" FOLD OPENS IT. Without
+      // this the search finds the row, unhides it, and leaves it inside a shut
+      // <details> - so the user types the name of a setting that exists and the
+      // panel shows them nothing, which is worse than the setting simply being
+      // hidden. Closing again when the needle clears is deliberate: the fold is
+      // not persisted (see the markup), and a search should not be able to
+      // leave it open behind itself.
+      $$("[data-set-fold]", tile).forEach(function (fold) {
+        if (!needle) { fold.open = false; return; }
+        var liveInFold = $$("[data-set-row]", fold).some(function (r) {
+          return !r.classList.contains("set-row-filtered");
+        });
+        if (liveInFold) fold.open = true;
+      });
     });
     var none = $("#settings-no-matches");
     if (none) none.classList.toggle("hidden", !(needle && shown === 0));
