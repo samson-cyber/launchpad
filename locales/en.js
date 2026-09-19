@@ -907,6 +907,39 @@ I18n.register("en", {
     "message": "Data",
     "description": "Text on the settings surface."
   },
+
+  "settings_alias_look": {
+    "message": "appearance theme look icons text size layout grid compact list focus view notes paper colour color",
+    "description": "SEARCH ALIASES, never rendered. Space-separated words a user might TYPE to find a row in the Appearance tile of Settings, matched in addition to each row's own visible label. Translate to the words a speaker of your language would actually type, not word-for-word: the point is recall, so include the common misnomer and the alternative spelling. Order and punctuation are irrelevant."
+  },
+  "settings_alias_wallpaper": {
+    "message": "wallpaper background image photo picture rotate rotation dim dimming brightness",
+    "description": "SEARCH ALIASES, never rendered. Typed words that should find the Wallpaper tile's rows in Settings. See settings_alias_look for how to translate an alias list."
+  },
+  "settings_alias_pro": {
+    "message": "pro subscription licence license key plan billing upgrade trial account",
+    "description": "SEARCH ALIASES, never rendered. Typed words that should find the Pro tile's rows in Settings. See settings_alias_look."
+  },
+  "settings_alias_tags": {
+    "message": "tags tag labels colours colors trash",
+    "description": "SEARCH ALIASES, never rendered. Typed words that should find the Tags tile's rows in Settings. See settings_alias_look."
+  },
+  "settings_alias_focus": {
+    "message": "focus sessions session pomodoro timer countdown work break chime sound notification duration length",
+    "description": "SEARCH ALIASES, never rendered. Typed words that should find the Focus sessions tile's rows in Settings. 'pomodoro' and 'timer' are the words users reach for and the product deliberately does not use on the surface, which is exactly why they belong here. See settings_alias_look."
+  },
+  "settings_alias_blocking": {
+    "message": "focus blocking block blocked sites distraction distractions allow deny schedule budget friction",
+    "description": "SEARCH ALIASES, never rendered. Typed words that should find the Focus blocking tile's rows in Settings. See settings_alias_look."
+  },
+  "settings_alias_workspaces": {
+    "message": "workspaces workspace mode work casual switch profile",
+    "description": "SEARCH ALIASES, never rendered. Typed words that should find the Workspaces tile's rows in Settings. See settings_alias_look."
+  },
+  "settings_alias_data": {
+    "message": "data backup export import restore download json reset erase delete storage",
+    "description": "SEARCH ALIASES, never rendered. Typed words that should find the Data tile's rows in Settings. See settings_alias_look."
+  },
   "settings_export_backup": {
     "message": "Export backup",
     "description": "Text on the settings surface."

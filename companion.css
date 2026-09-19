@@ -334,6 +334,47 @@
    so it takes the same tier the due-list's own secondary text does. */
 .cmp-block-hint { color: rgba(255, 255, 255, 0.60); }
 
+/* ===== [H3d] THE CHAINING COUNTDOWN ======================================
+
+   IT SITS ABOVE THE CONTROLS AND SAYS ONE THING, for the ten seconds it
+   exists. Cancel is a TEXT LINK rather than a control with a box: it stands
+   beside a Start button, and a second filled control at a phase boundary would
+   make the two look like a choice of equals when one of them is "do nothing".
+
+   THE rgba FAMILY, NOT THE TILE TOKENS, and that is this file's own convention
+   rather than a preference. Every .cmp- rule here is built from
+   rgba(255,255,255,a) - the file uses no --ink-* and no --font-sans anywhere -
+   so a rule that reached for a different ink system would be the one line on
+   this surface that did not match the rest of it. */
+.cmp-chain {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-11);
+  color: rgba(255, 255, 255, 0.72);
+}
+.cmp-chain-text { min-width: 0; }
+.cmp-chain-cancel {
+  flex: 0 0 auto;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.72);
+  font-family: inherit;
+  font-size: var(--fs-11);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cmp-chain-cancel:hover { color: #fff; }
+.cmp-chain-cancel:focus-visible {
+  /* --accent, not --sat-accent, for the reason the note further up records. */
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
 .cmp-empty-row {
   display: flex;
   align-items: center;

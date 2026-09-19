@@ -53,6 +53,42 @@ var Companion = (function () {
   // how many more there are, so nothing is hidden without being counted.
   var DUE_LIST_MAX = 6;
 
+  // ===== [H3d] WM.5's CHAINING COUNTDOWN, ON THE SURFACE THAT OWNS START ====
+  //
+  // RULED 2026-09-19. FIX-6 moved this to the Dashboard hero when the pill was
+  // removed; this moves it once more, and the reason is the one FIX-6 itself
+  // gave - it must render on a LIVE surface the user is looking at, because the
+  // consent property IS the visibility. The side panel is where Start lives, and
+  // the surface that begins a session is the one that should ask whether to
+  // begin the next.
+  //
+  // PAGE MEMORY, NOT STORAGE, CARRIED OVER INTACT. A stored deadline would
+  // outlive the surface that showed it: close the panel mid-countdown and the
+  // next surface to open would find an expired commitment and start a work phase
+  // nobody watched. That is the invisible auto-advance [WM.5] exists to prevent.
+  // The deadline below is a closure variable and dies with the document.
+  //
+  // WHAT THE CLOSED-PANEL CASE GETS: the boundary notification the worker
+  // already posts, which carries its own 'Start next session' button. One click
+  // rather than none, which is the right default when nobody is looking.
+
+  // The READ half: is the product in a chaining state right now? Pure - no
+  // timer, no DOM, no arming - so readState keeps its contract.
+  function chainReadState(data) {
+    var a = Storage.getActiveTask(data);
+    if (!a) return null;
+    var ps = Storage.hydratePomodoroState(a.pomodoroState);
+    if (!ps.sessionComplete) return null;
+    if (!Storage.shouldChainAfterBreak(data, ps)) return null;
+    // THE MODE THAT AUTHORISED THE CHAIN travels with it. Driven on the page
+    // before this moved: with the workspace flipped to Casual during the
+    // countdown, the continuation started a Casual session while the countdown
+    // on screen promised the next phase of a Work one. Only the AUTOMATIC
+    // continuation inherits; a hand click on Start reads the live workspace,
+    // because the user is here and chose it.
+    return { mode: ps.mode || null };
+  }
+
   async function readState(opts) {
     var wantDue = !!(opts && opts.showDueList);
     // [FIX-6] OPT-IN, THE SAME SHAPE showDueList TAKES, AND THE POPUP DOES NOT
@@ -118,6 +154,15 @@ var Companion = (function () {
       // for them - exactly as st.due is. A surface that did not ask renders
       // byte-identically to before, which is what keeps the popup's ruling
       // intact by construction rather than by a second code path.
+      // [H3d] THE CHAIN'S READ HALF, and it is a READ - no arming here.
+      // readState is pure by contract ("ONE READ, ONE PLAIN OBJECT, NO DOM"),
+      // and arming starts a timer, so the deadline lives in the mount closure
+      // and this only reports what the stored state says is true.
+      //
+      // Gated on wantControls rather than on its own option: the countdown asks
+      // "start the next phase?", which is only a question a surface that can
+      // START one may ask. The popup passes neither and renders neither.
+      chain: wantControls ? chainReadState(data) : null,
       controls: wantControls ? {
         running: !!pomo,
         // The length a start would use: the CURRENT workspace mode's preset,
@@ -459,7 +504,20 @@ var Companion = (function () {
                  : c.arm === "auto" ? t("focusblock_state_auto")
                  : t("focusblock_state_on");
     var armTitle = armOn ? t("focusblock_turn_off") : t("focusblock_turn_on");
+    // [H3d] THE COUNTDOWN SITS ABOVE THE CONTROLS, because it is the only thing
+    // in this cluster that is about to happen rather than something to do. It
+    // renders for ten seconds at a phase boundary and is absent every other
+    // moment. role="status" so the seconds are announced without stealing focus.
+    var chain = (st.chainSecs === null || st.chainSecs === undefined) ? "" :
+      '<div class="cmp-chain" data-cmp-chain role="status">' +
+        '<span class="cmp-chain-text" data-cmp-chain-text>' +
+          esc(t("sat_next_phase_in_seconds", { count: st.chainSecs })) + '</span>' +
+        '<button type="button" class="cmp-chain-cancel" data-cmp-act="chain-cancel">' +
+          esc(t("common_cancel")) + '</button>' +
+      '</div>';
+
     return '<div class="cmp-session">' +
+        chain +
         '<div class="cmp-session-row">' +
           (c.running
             ? '<button type="button" class="cmp-btn cmp-btn-stop" data-cmp-act="pomo-stop">' +
@@ -508,6 +566,83 @@ var Companion = (function () {
     var timer = null;
     var stopped = false;
 
+    // [H3d] THE CHAIN'S WRITE HALF: page memory, scoped to this mount. Closing
+    // the panel destroys the document and takes the deadline with it, which is
+    // exactly [WM.5]'s rule rather than an accident of scope.
+    var chainDeadline = null;     // ms epoch, or null
+    var chainCancelled = false;   // cleared when a new session begins
+    var chainTimer = null;
+
+    function chainClear() {
+      if (chainTimer) { clearTimeout(chainTimer); chainTimer = null; }
+      chainDeadline = null;
+    }
+
+    // IS THE COUNTDOWN ACTUALLY ON SCREEN? The page had to ask whether a tab
+    // panel carried .hidden; this surface is its OWN DOCUMENT, so it asks the
+    // document. A closed side panel is destroyed outright and never reaches
+    // here; this covers the softer cases - the window minimised, the panel
+    // occluded - where the timer would otherwise keep its promise to nobody.
+    function chainVisible() {
+      if (typeof document === "undefined") return false;
+      if (document.visibilityState !== "visible") return false;
+      return !!container.querySelector("[data-cmp-chain]");
+    }
+
+    // Seconds left, or null when no countdown is running. Called from render,
+    // so it also ARMS the first time the panel sees a chaining state - once,
+    // because a re-render must not restart the clock.
+    function chainSecs() {
+      var c = state && state.chain;
+      if (!c) {
+        // The chaining state is gone: a new session started, or the record was
+        // dismissed. Either way the cancel is spent.
+        chainClear();
+        chainCancelled = false;
+        return null;
+      }
+      if (chainCancelled) return null;
+      if (chainDeadline === null) {
+        chainDeadline = Date.now() + Storage.CHAIN_COUNTDOWN_MS;
+        chainTick();
+      }
+      return Math.max(0, Math.ceil((chainDeadline - Date.now()) / 1000));
+    }
+
+    function chainTick() {
+      if (chainTimer) clearTimeout(chainTimer);
+      chainTimer = setTimeout(async function () {
+        chainTimer = null;
+        if (stopped || chainDeadline === null || chainCancelled) return;
+        // THE SURFACE MUST STILL BE THERE WHEN IT FIRES. If the panel is hidden
+        // the commitment was never witnessed, and the countdown simply ends -
+        // the boundary notification's button is the answer for nobody looking.
+        if (!chainVisible()) { chainClear(); return; }
+        if (Date.now() >= chainDeadline) {
+          var mode = (state && state.chain && state.chain.mode) || null;
+          chainClear();
+          try {
+            // `data` re-read at the point of write, as every write on this
+            // surface is: a foreign context's object can be superseded between
+            // the render that armed this and the moment it fires.
+            var fresh = await Storage.getAll();
+            await Storage.startPomodoroPhase(fresh, mode ? { mode: mode } : null);
+          } catch (err) {
+            console.error("[LaunchPad] Companion: chained start failed", err);
+          }
+          await render();
+          return;
+        }
+        // TEXT ONLY, FOUR TIMES A SECOND. The only thing that changes while the
+        // countdown runs is the number, and this surface re-renders on every
+        // foreign storage write already - rebuilding it four times a second for
+        // one digit would fight that.
+        var txt = container.querySelector("[data-cmp-chain-text]");
+        if (txt) txt.textContent = t("sat_next_phase_in_seconds", { count: Math.max(0, Math.ceil((chainDeadline - Date.now()) / 1000)) });
+        chainTick();
+      }, 250);
+    }
+
     // [1.9.4] BOTH numerals tick, and they are recomputed from the state's read
     // moment rather than incremented, so a tick that fires late cannot drift.
     // A running phase counts DOWN; the stopwatch and the engine figure count UP.
@@ -550,6 +685,11 @@ var Companion = (function () {
       if (stopped) return;
       state = await readState({ showDueList: showDueList, showSessionControls: showSessionControls });
       state.readAt = Date.now();
+      // [H3d] ARM BEFORE PAINT. chainSecs reads the state readState just built
+      // and starts the clock the first time it sees a chaining boundary, so the
+      // number the markup carries and the number the tick continues from are the
+      // same one.
+      state.chainSecs = chainSecs();
       container.innerHTML = viewHtml(state, state.readAt);
       container.setAttribute("data-cmp-state", state.pro
         ? (state.task ? (state.pomo ? "pomodoro" : (state.paused ? "paused" : "active")) : (state.paused ? "empty-paused" : "empty"))
@@ -611,6 +751,17 @@ var Companion = (function () {
         } catch (err) {
           console.error("[LaunchPad] Companion: start-on-task failed", err);
         }
+        await render();
+        return;
+      }
+      // [H3d] CANCEL STOPS THE COUNTDOWN AND NOTHING ELSE. No phase is running
+      // to stop and no session is ended: stepping off the treadmill is not the
+      // same act as ending the session. It writes nothing - the cancel is page
+      // memory, exactly as the deadline is - so there is no storage round trip
+      // and the re-render is immediate.
+      if (action === "chain-cancel") {
+        chainCancelled = true;
+        chainClear();
         await render();
         return;
       }
@@ -696,6 +847,10 @@ var Companion = (function () {
     function destroy() {
       stopped = true;
       stopTick();
+      // [H3d] AND THE CHAIN'S TIMER. A 250ms timeout outliving the view would
+      // keep calling startPomodoroPhase against a document nobody is looking at,
+      // which is the whole thing the visibility rule exists to prevent.
+      chainClear();
       container.removeEventListener("click", onClick);
       if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
         chrome.storage.onChanged.removeListener(onChanged);

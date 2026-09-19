@@ -1658,20 +1658,25 @@
       '</div>';
   }
 
-  // ===== [FIX-6] WM.5's CHAINING COUNTDOWN, ON THE HERO =====================
+  // ===== [H3d] WM.5's CHAINING COUNTDOWN IS NOT ON THE HERO ================
   //
-  // RULED 2026-09-19 with the pill's removal. The argument that put this on the
-  // pill is the argument that moves it here: it must render on a LIVE surface
-  // the user is looking at, because the consent property IS the visibility.
-  // A stored deadline would outlive the page that showed it - the whole point
-  // of [WM.5]'s page-memory decision, which is unchanged.
+  // FIX-6 put it here when the pill was removed, on the argument that it must
+  // render on a LIVE surface the user is looking at - the consent property IS
+  // the visibility. That argument was right and it is the argument that moved
+  // it again: RULED 2026-09-19, the countdown follows START into the side
+  // panel, because the surface that begins a session is the surface that should
+  // ask whether to begin the next one. A hero that cannot start a session had
+  // no business offering to continue one.
   //
-  // AND IF THE DASHBOARD IS NOT OPEN, NOTHING ARMS, which is correct rather
-  // than a gap. satChainRemainingSec arms on its first call from a render, so
-  // with no Dashboard on screen there is no countdown and no automatic
-  // continuation from the page - exactly as there was none with no pill on
-  // screen. The service worker's boundary notification carries its own 'Start
-  // next session' button, which is the one-click answer for nobody looking.
+  // The machinery is in companion.js now; [WM.5]'s page-memory decision travels
+  // with it unchanged, and the panel is a stricter home for it than a tab panel
+  // was - it is its own document, so it asks document.visibilityState instead of
+  // inspecting a sibling's class.
+  //
+  // WITH THE PANEL CLOSED NOTHING ARMS, which is correct rather than a gap, and
+  // it is the same correctness FIX-6 claimed for a closed Dashboard: the service
+  // worker's boundary notification carries its own 'Start next session' button,
+  // which is the one-click answer for nobody looking.
   // ===== [FIX-7] THE RUNNING SESSION, ON THE HERO =========================
   //
   // Samson, on the real product: "when a task is running I'm not seeing it on
@@ -1836,8 +1841,9 @@
   }
 
   // TEXT AND ONE CUSTOM PROPERTY, once a second. Rebuilding the tile would
-  // restart four async refreshers for one digit, which is the same argument
-  // dashPaintChain makes below.
+  // restart four async refreshers for one digit - the argument dashPaintChain
+  // used to make below it, and still the argument here now that the countdown
+  // has gone to the panel.
   function dashPaintSession() {
     var host = document.querySelector("[data-dash-session]");
     if (!host) return;
@@ -1854,48 +1860,17 @@
     host.classList.toggle("is-paused", Storage.isTrackingPaused(data));
   }
 
-  function dashChainHtml() {
-    var secs = satChainRemainingSec();
-    if (secs === null) return "";
-    return '<div class="dash-chain" data-dash-chain role="status">' +
-        '<span class="dash-chain-text" data-dash-chain-text>' +
-          th("sat_next_phase_in_seconds", { count: secs }) + '</span>' +
-        '<button type="button" class="dash-chain-cancel" data-dash-action="chain-cancel">' +
-          th("common_cancel") + '</button>' +
-      '</div>';
-  }
-
-  // TEXT ONLY, FOUR TIMES A SECOND. The only thing that changes while the
-  // countdown runs is the number; anything more would rebuild nine tiles and
-  // four async refreshers for one digit. When the countdown ENDS the surface
-  // has to change shape, so that case - and only that case - asks for a render.
-  // [FIX-6] IS THE COUNTDOWN ACTUALLY ON SCREEN? The pill never had to ask:
-  // it was visible in every state, so an armed countdown was a SEEN countdown
-  // by construction. A tab panel is different - it renders, it is hidden when
-  // the user switches away, and the timer does not care.
+  // [H3d] dashChainHtml, dashChainVisible and dashPaintChain STOOD HERE and are
+  // gone with the countdown they served. The visibility test they needed is not
+  // lost, only relocated: the panel is its own DOCUMENT, so it asks
+  // document.visibilityState rather than whether a tab panel carries .hidden,
+  // which is a stronger guard for the same reason - a hidden document cannot be
+  // a witnessed one.
   //
-  // MEASURED, AND IT IS WHY THIS FUNCTION EXISTS: with the Dashboard rendered
-  // and then left for Home, the countdown went on ticking and started the next
-  // work phase twelve seconds later with nothing on screen. That is precisely
-  // the invisible auto-advance [WM.5] was designed to prevent - its own note
-  // says "the consent property IS the visibility, so the countdown cannot
-  // outlive it" - and moving the surface from a permanent widget to a tab
-  // panel broke it without changing a line of the timer.
-  function dashChainVisible() {
-    var n = document.querySelector("[data-dash-chain]");
-    if (!n) return false;
-    var p = document.getElementById("tab-dashboard");
-    return !!p && !p.classList.contains("hidden");
-  }
-
-  function dashPaintChain() {
-    var node = document.querySelector("[data-dash-chain]");
-    var secs = satChainRemainingSec();
-    if (secs === null) { if (node) render(); return; }
-    if (!node) { render(); return; }
-    var txt = node.querySelector("[data-dash-chain-text]");
-    if (txt) txt.textContent = t("sat_next_phase_in_seconds", { count: secs });
-  }
+  // WHY IT HAD TO GO RATHER THAN BE LEFT AS A SECOND COPY: two armed countdowns
+  // on two surfaces are two independent timers, and each one calls
+  // startPomodoroPhase when it runs out. With the Dashboard open behind an open
+  // side panel the boundary would have started twice.
 
   function dashHeroCountsHtml(d, ws) {
     var todayKey = Storage.localDayKey();
@@ -2491,11 +2466,12 @@
             // [FIX-9] THE ONLY "Focused today" ON THE TILE. The figure's own
             // label says the SCOPE now; see dashHeroFocusHtml.
             '<div class="tile-eyebrow">' + th("common_focused_today") + '</div>' +
-            // [FIX-6] ABOVE THE FIGURE, because it is the only thing on this
-            // tile that is about to happen rather than about what already has.
-            // It renders for ten seconds at a phase boundary and is absent
-            // every other moment.
-            dashChainHtml() +
+            // [H3d] THE COUNTDOWN IS NOT HERE ANY MORE. It stood above the
+            // figure for ten seconds at a phase boundary; ruled 2026-09-19 that
+            // it FOLLOWS START into the side panel, because the surface that
+            // starts a session is the surface that should ask whether to start
+            // the next one. The hero shows the ring and the phase and nothing
+            // that is about to happen.
             (scope ? dashHeroFocusHtml(scope, Storage.getFocusTargetMin(d), ws)
                    : '<div class="dash-note dash-hero-off">' + th("dash_tracking_off_note") + '</div>') +
             '<div class="dash-hero-figures">' +
@@ -2728,20 +2704,10 @@
       // [1.7.3] Today's three. The picker is a labelled control on the section
       // header; removing a pick is the row's own x. Both go through
       // Storage.setTodaysThree, the per-field writer, never a wholesale write.
-      // [FIX-6 / WM.5] CANCEL STOPS THE COUNTDOWN AND NOTHING ELSE. No phase
-      // is running to stop and no session is ended: stepping off the treadmill
-      // is not the same act as ending the session, which is why this is a quiet
-      // link beside the sentence rather than a control in the session cluster.
-      if (action === "chain-cancel") {
-        satChainCancelled = true;
-        satChainClear();
-        // [FIX-6] THE BOARD, NOT THE PAGE. render() rebuilds Home and leaves a
-        // visible Dashboard untouched, so the cancelled countdown stayed on the
-        // hero looking live. Same mistake as the continuation's, found the same
-        // way - by clicking the control and looking at what was still there.
-        satRepaintPhaseSurfaces();
-        return;
-      }
+      // [H3d] THE "chain-cancel" ACTION STOOD HERE. Cancel went to the side
+      // panel with the countdown it belongs to; its reasoning is unchanged and
+      // travels with it - cancelling stops the countdown and nothing else, because
+      // stepping off the treadmill is not the same act as ending the session.
 
       if (action === "pick-three") {
         openTodaysThreePicker();
@@ -17204,6 +17170,38 @@
   // reads as a shorter panel rather than as a grid of empty boxes. Matching is
   // on the label's rendered text, which is what the user is looking at - not on
   // an id or a catalogue key, neither of which they have ever seen.
+  //
+  // ===== [H3d] PLUS ALIASES, RULED 2026-09-19 ===============================
+  //
+  // THE LABEL STAYS WHAT IS READ; THE ALIAS IS WHAT IS TYPED. Rendered text
+  // alone fails the search on exactly the words a user reaches for first,
+  // because the product deliberately does not use them: nothing on this panel
+  // says "pomodoro" or "timer", so typing either found NOTHING while the Focus
+  // sessions tile sat there. The same gap in the other direction - the TILE's
+  // name was never searched at all, only its rows - is why "wallpaper" found
+  // "Rotate wallpaper" but would miss any row in that tile that did not happen
+  // to repeat the word.
+  //
+  // ONE ALIAS LIST PER TILE, not per row, and that is the useful grain: a user
+  // typing a feature's name wants the feature's settings, all of them. Eight
+  // lists cover thirty-four rows.
+  //
+  // FROM THE CATALOGUE, so the aliases translate. A speaker of another language
+  // types different words, and a hard-coded English list would make search an
+  // English-only feature on a surface that is otherwise fully localised. The
+  // lists are never rendered - they reach the matcher as a string and never as
+  // a text node - so there is nothing here for a screen reader to read out or
+  // for a layout to make room for. I18n.has guards the lookup, because t()
+  // returns the KEY on a miss and a missing key would otherwise become a
+  // matchable word ("settings_alias_look" would answer to "alias").
+  function settingsTileAliases(tile) {
+    var name = tile && tile.getAttribute("data-set-tile");
+    if (!name) return "";
+    var key = "settings_alias_" + name;
+    if (typeof I18n === "undefined" || !I18n.has || !I18n.has(key)) return "";
+    return " " + I18n.t(key);
+  }
+
   function settingsSearchApply(q) {
     var panel = $("#settings-panel");
     if (!panel) return;
@@ -17212,17 +17210,36 @@
     $$(".set-tile", panel).forEach(function (tile) {
       var rows = $$("[data-set-row]", tile);
       var live = 0;
+      // Read once per tile rather than once per row: the value is the same for
+      // every row under it and the lookup is a catalogue hit each time.
+      var aliases = settingsTileAliases(tile).toLowerCase();
       rows.forEach(function (row) {
-        var hay = (row.textContent || "").toLowerCase();
+        var hay = ((row.textContent || "") + aliases).toLowerCase();
         var hit = !needle || hay.indexOf(needle) !== -1;
         row.classList.toggle("set-row-filtered", !hit);
         if (hit) live++;
       });
-      // A tile with no rows at all (none today, but a future tile might be all
-      // rendered content) is left alone rather than hidden by an empty count.
+      // A tile with no rows at all is left alone rather than hidden by an empty
+      // count.
+      //
+      // [H3d] "none today" IS NO LONGER TRUE, AND IT COST THE "No matches"
+      // MESSAGE. H1c wrote that parenthetical about a hypothetical future tile;
+      // the Workspaces tile is exactly it - its body is a single JS-rendered
+      // <ul> and it carries no [data-set-row] at all. So rows.length is 0, it
+      // never hides, and it used to still increment `shown` - which made `shown`
+      // impossible to reach 0 and the "No matches" line unreachable on any
+      // query. Typing nonsense gave an empty panel and no explanation.
+      //
+      // A tile that contributed NO MATCHABLE ROWS does not count as a match. It
+      // stays on screen, because that decision is unchanged and its content is
+      // real; it simply stops voting on whether anything was found.
+      //
+      // FOUND BY THE ALIAS WORK RATHER THAN LOOKED FOR: asserting which tiles
+      // survive each search is what made a tile that survives every search
+      // visible. NOT IN THIS ROUND'S BRIEF - flagged in the report.
       var hide = needle && rows.length > 0 && live === 0;
       tile.classList.toggle("set-tile-filtered", !!hide);
-      if (!hide) shown++;
+      if (!hide && rows.length > 0) shown++;
 
       // [FIX-8] A MATCH INSIDE A COLLAPSED "Advanced" FOLD OPENS IT. Without
       // this the search finds the row, unhides it, and leaves it inside a shut
@@ -20498,89 +20515,26 @@
     return ps.sessionComplete ? ps : null;
   }
 
-  // ===== [WM.5] THE CHAINING COUNTDOWN =====
+  // ===== [WM.5] THE CHAINING COUNTDOWN — MOVED, NOT DELETED =====
   //
-  // 2026-09-01: in Work mode the next work phase starts after a VISIBLE
-  // 10-second countdown with a cancel control. Casual never advances at all.
+  // [H3d] RULED 2026-09-19: the countdown FOLLOWS START into the side panel.
+  // The whole block that stood here - the deadline, the cancel flag, the 250ms
+  // tick and the arming read - lives in companion.js now, against the surface
+  // that owns Start.
   //
-  // PAGE MEMORY, NOT STORAGE, AND THIS IS A DECISION RATHER THAN AN OMISSION.
-  // A stored deadline would outlive the page that showed it: close the tab
-  // during the countdown and the next new tab - minutes or hours later - would
-  // find an expired commitment and start a work phase nobody was watching. That
-  // is precisely the invisible auto-advance 2026-07-22 objected to and which
-  // the visible, cancellable countdown was designed to answer. The consent
-  // property IS the visibility, so the countdown cannot outlive it.
+  // [WM.5]'s DECISION IS CARRIED OVER INTACT AND IS WORTH RESTATING, because it
+  // is the reason the move is a move rather than a copy: the deadline is PAGE
+  // MEMORY, never storage. A stored deadline would outlive the surface that
+  // showed it, and the next surface to open would find an expired commitment and
+  // start a work phase nobody watched. The consent property IS the visibility.
   //
-  // WHAT THE BACKGROUND CASE GETS INSTEAD: the boundary notification the worker
-  // already posts, which carries a 'Start next session' button. One click
-  // rather than none, which is the right default when nobody is looking.
-  var satChainDeadline = null;     // ms epoch, or null
-  var satChainCancelled = false;   // cleared when a new session begins
-  var satChainTimer = null;
+  // The panel is a better home for exactly that property than a tab panel was:
+  // it is its own document, so it asks document.visibilityState rather than
+  // whether a sibling element carries .hidden.
+  //
+  // WHAT THE BACKGROUND CASE GETS, unchanged: the boundary notification the
+  // worker already posts, which carries its own 'Start next session' button.
 
-  function satChainClear() {
-    if (satChainTimer) { clearTimeout(satChainTimer); satChainTimer = null; }
-    satChainDeadline = null;
-  }
-
-  // Seconds left, or null when no countdown is running. Called from the render,
-  // so it also ARMS the countdown the first time the card appears in a chaining
-  // state - once, because a re-render must not restart the clock.
-  function satChainRemainingSec() {
-    var done = satSessionComplete();
-    if (!done) {
-      // The session-complete state is gone: either a new session started or the
-      // card was dismissed. Either way the cancel is spent.
-      satChainClear();
-      satChainCancelled = false;
-      return null;
-    }
-    if (satChainCancelled) return null;
-    if (!Storage.shouldChainAfterBreak(data, done)) { satChainClear(); return null; }
-    if (satChainDeadline === null) {
-      satChainDeadline = Date.now() + Storage.CHAIN_COUNTDOWN_MS;
-      satChainTick();
-    }
-    return Math.max(0, Math.ceil((satChainDeadline - Date.now()) / 1000));
-  }
-
-  // ONE TIMER, RE-ARMED, rather than a setInterval: an interval that outlives
-  // its card keeps firing against a stale closure, and this page already carries
-  // a tick of its own that would double-render.
-  function satChainTick() {
-    if (satChainTimer) clearTimeout(satChainTimer);
-    satChainTimer = setTimeout(function () {
-      satChainTimer = null;
-      if (satChainDeadline === null || satChainCancelled) return;
-      // [FIX-6] THE SURFACE MUST STILL BE THERE WHEN IT FIRES. If the user has
-      // switched tabs, closed the board or never saw it, the commitment was
-      // never witnessed and the countdown simply ends - the boundary
-      // notification's 'Start next session' button is the one-click answer for
-      // nobody looking, exactly as it is when no page is open at all.
-      if (!dashChainVisible()) { satChainClear(); return; }
-      if (Date.now() >= satChainDeadline) {
-        var done = satSessionComplete();
-        satChainClear();
-        // THE MODE THAT AUTHORISED THE CHAIN, carried into the session it
-        // starts. Driven: with the workspace flipped to Casual during the
-        // countdown, this started an 11-minute Casual session - while the
-        // countdown on screen was promising the next phase of a Work session.
-        // A HAND click on Start next session still reads the live workspace,
-        // because the user is here and chose it; only the automatic
-        // continuation inherits.
-        satPomoStart(done ? done.mode : null);
-        return;
-      }
-      // [FIX-6] THE DASHBOARD'S COUNTDOWN NODE, NOT A WHOLE RE-RENDER. The
-      // pill was cheap to rebuild four times a second; the Dashboard is not -
-      // it is a bento of nine tiles with four async refreshers hanging off it.
-      // dashPaintChain writes the seconds and nothing else, and falls back to
-      // a real render only when the countdown has ENDED and the surface has to
-      // change shape.
-      dashPaintChain();
-      satChainTick();
-    }, 250);
-  }
 
   // Remaining ms in the running phase, floored at 0. [A2 D4] While tracking is
   // paused the countdown FREEZES: it reads phaseEndsAt - pausedAt, exactly what
@@ -21031,10 +20985,12 @@
   // here is the ten-second countdown running out, which is not a control and
   // has no other home: the page owns the timer, so the page starts the phase.
   async function satPomoStart(modeOverride) {
-    // [WM.5] A cancel belongs to the boundary it was clicked at, not to the
-    // session: the next break should offer the countdown again.
-    satChainCancelled = false;
-    satChainClear();
+    // [H3d] THE TWO CHAIN LINES THAT STOOD HERE went with the countdown. They
+    // reset the cancel flag and cleared the deadline, and both of those now
+    // belong to the panel's own timer - which resets its cancel on the same
+    // rule, for the same reason: a cancel belongs to the boundary it was
+    // clicked at, not to the session, so the next break offers the countdown
+    // again.
     try {
       await Storage.startPomodoroPhase(data, modeOverride ? { mode: modeOverride } : null);
     } catch (err) {
