@@ -22072,3 +22072,217 @@ html.bg-light .tasks-split .tt-task-play,
 html.has-bg.bg-light .tasks-split .tt-task-play,
 html.bg-light .dash-due-row .tt-task-play,
 html.has-bg.bg-light .dash-due-row .tt-task-play { color: var(--action-soft); }
+
+/* =========================================================================
+   [H3b] THE FREE PREVIEW: YOURS ON THE LEFT, THE PITCH ON THE RIGHT
+
+   V2-Preview's ruling is STRUCTURE, not skin. The free Dashboard used to stack
+   the user's real "Focused today, by site" card on top of a demo hero printing
+   an invented "Focused today" - two figures, one true, the same words, one
+   screen. Labelling the demo was the smallest honest fix and it still left them
+   stacked and competing. Two COLUMNS cannot be read as one story by accident.
+
+   .dash-free-live IS NOW DEAD and is deliberately not deleted here. It is the
+   v1 wrapper this block replaces; three other H3 sessions are in this sheet as
+   this is written, and a delete in a region none of them owns is the cheapest
+   possible merge conflict to cause. H4's v1 sweep is where it goes, with the
+   six v1 hero-band classes this round also stopped emitting.
+   ========================================================================= */
+
+.dash-free-split {
+  display: grid;
+  /* HALF AND HALF, as the board draws it. The real column is not "a sidebar":
+     it is the half of the surface that is actually the user's, and giving it
+     less would say the opposite of what its eyebrow says. */
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap);
+  align-items: start;
+}
+
+.dash-free-mine {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-width: 0;
+}
+
+.dash-free-yours { min-height: 220px; }
+
+/* The live card's own root. .pp-insights-card used to carry this and the free
+   surface moved out of .dash-tab, which is how the ink was lost twice before -
+   the tile declares --ink at its root, so the card inside it inherits and there
+   is nothing to forget. */
+.dash-free-yours .dash-passive { min-width: 0; }
+
+.dash-free-pitch {
+  gap: var(--space-2);
+}
+
+.dash-free-pitch-sub {
+  font-size: var(--fs-15);
+  /* The action tile takes DARK ink - --ink-on-action - at its root, and this
+     inherits it rather than restating a colour. O11's lesson applied early:
+     there is no opacity here, because the one thing a pitch may not be is
+     harder to read than the demo beside it. */
+  opacity: 1;
+}
+
+.dash-free-pitch-cta {
+  align-self: flex-start;
+  display: inline-block;
+  padding: 10px 20px;
+  border-radius: var(--pill);
+  /* THE INVERSE OF THE TILE: dark ink on orange is the tile, so the button on
+     it is the ink colour carrying the tile's own orange back. One button, and
+     it is the only interactive thing in this column. */
+  background: var(--ink-on-action);
+  color: var(--action);
+  font-size: var(--fs-14);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.dash-free-pitch-cta:hover { filter: brightness(1.15); }
+
+.dash-free-pitch-cta.is-teaser {
+  background: none;
+  border: 1px solid var(--ink-on-action);
+  color: var(--ink-on-action);
+  cursor: default;
+}
+
+.dash-free-theirs { min-width: 0; }
+
+.dash-free-theirs-head {
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--ink-mute);
+  margin: 0 0 var(--space-3);
+  /* OUTSIDE THE DIMMED COLUMN, and that is the measurement talking rather than
+     a preference. The demo below is at reduced opacity; this heading is the
+     sentence that explains WHY it is dim, so it is the one node on this side
+     that must not be dimmed with it. */
+  opacity: 1;
+}
+
+/* THE DEMO IS DIM, AND THE NUMBER IS MEASURED RATHER THAN CHOSEN.
+   O11: opacity is symmetric and contrast is not - fading a column fades its
+   ink toward its tile AND its tile toward the wallpaper at the same time. The
+   value below is the one at which every text node in this column still clears
+   its floor on all three grounds; the labels that say "Preview - example data"
+   are inside it, so they are dimmed too and were measured with the rest. */
+.dash-free-demo { opacity: 0.82; }
+
+.dash-free-demo-grid {
+  --cols: 2;
+  /* The demo is half the surface's width, so its rows are shorter than the
+     live board's - a 176px row at half width leaves a count tile almost
+     square, which is the board's own proportion rather than a new one. */
+  --row-h: 132px;
+  /* minmax, NOT a fixed row, and the live .dash-bento does the same. A fixed
+     row CLIPS a tile that wants more: the hero measured 345px of content in a
+     130px box on the first frame and painted straight out of the bottom. */
+  grid-auto-rows: minmax(var(--row-h), auto);
+}
+
+/* H1a'S SEVEN NAMED AREAS ARE NOT THIS GRID'S, and this rule is the whole of a
+   defect worth recording rather than just fixing.
+
+   The demo count tiles reuse .dash-tile-count and .tile--overdue / .tile--goals
+   so they read at the same size and colour as the live board's. Those classes
+   carry H1a's PLACEMENT with them - `.dash-tile-count.tile--overdue { grid-area:
+   overdue }` - and a grid-area naming a line this grid never declared does not
+   fail: the browser invents implicit tracks for it. The two-column demo
+   measured FOUR columns (89.58px 89.58px 105.06px 246.78px) and every tile
+   landed somewhere it had not been put, while every rule involved looked
+   correct on its own.
+
+   THE SAME SHAPE AS FIX-1's, one layer along: [1.8.5]'s spans were written for
+   a repeat(12) row and still matched a four-column bento. A class that carries
+   layout is a class that carries it everywhere it is reused. */
+.dash-free-demo-grid > .tile { grid-area: auto; }
+
+/* AND THE SPAN HELPERS RESTATED, because the reset above outranks them.
+   `grid-area` is a SHORTHAND: setting it to auto resets grid-column and
+   grid-row with it, and this selector is two classes to .span-2's one, so the
+   reset won and every tile became one cell. Restated here at the specificity
+   that beats it rather than weakening the reset, which still has a named area
+   to neutralise. */
+.dash-free-demo-grid > .tile.span-2 { grid-column: span 2; }
+.dash-free-demo-grid > .tile.span-2x2 { grid-column: span 2; grid-row: span 2; }
+
+/* THE EYEBROW CARRIES ITS OWN LABEL, so it is a row rather than a block. As a
+   block the two runs concatenate with no space at all - the first frame read
+   "Focused todayPreview - example data" - because they are two spans in one
+   flow, not two lines. Baseline-aligned and pushed apart, which is what
+   .pp-demo-titled already does for a card title. */
+.dash-free-demo-grid .tile-eyebrow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--row-gap);
+  min-width: 0;
+}
+
+.dash-free-demo-grid .tile-eyebrow > .pp-demo-label { text-align: right; }
+
+/* The hero's figure, at half width. The live board's hero is 2x2 and this is
+   2x1, so the numeral keeps --display-1 - the [1.7.1] invariant is that the
+   token appears ONCE in this sheet and this is not a second reference - and
+   the figures sit in a row beneath it rather than a column beside it. */
+.dash-free-demo-grid .dash-hero-figures {
+  display: flex;
+  gap: var(--row-gap);
+  flex-wrap: wrap;
+}
+
+.dash-free-demo-grid .dash-due-list,
+.dash-free-demo-grid .insights-task-list {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* NARROW: the two columns stack, and the REAL one stays first. A free user on
+   a narrow window still meets their own data before the pitch for somebody
+   else's. */
+@media (max-width: 1100px) {
+  .dash-free-split { grid-template-columns: 1fr; }
+}
+
+/* [H3b] THE INSIGHTS PREVIEW'S OWN BENTO. Four columns like the live board's,
+   and the same eyebrow-as-a-row the Dashboard demo needs - a tile whose
+   eyebrow carries the demo label is a flex row, or the two runs concatenate. */
+.ins-bento-preview {
+  --cols: 4;
+  --row-h: 150px;
+  grid-auto-rows: minmax(var(--row-h), auto);
+}
+
+.ins-bento-preview > .tile { grid-area: auto; min-height: 0; }
+.ins-bento-preview > .tile.span-2 { grid-column: span 2; }
+.ins-bento-preview > .tile.span-4 { grid-column: span 4; }
+.ins-bento-preview > .tile.span-1x2 { grid-column: span 1; grid-row: span 2; }
+.ins-bento-preview > .tile.span-2x2 { grid-column: span 2; grid-row: span 2; }
+
+.ins-bento-preview .tile-eyebrow,
+.tasks-split .pp-goal-card > .pp-goal-header {
+  min-width: 0;
+}
+
+.ins-bento-preview .tile-eyebrow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--row-gap);
+}
+
+/* The demo tiles hold charts and lists that were sized for a v1 card; keep
+   them inside the tile rather than letting one paint out of its bottom, which
+   is the defect FIX-1 named on the live board. */
+.ins-bento-preview .pp-trend-chart,
+.ins-bento-preview .pp-donut-row,
+.ins-bento-preview .insights-task-list,
+.ins-bento-preview .pp-badge-grid { min-width: 0; max-width: 100%; }
+
+.ins-bento-preview .ins-heat-card > *:not(.tile-eyebrow) { min-height: 0; overflow: hidden; }

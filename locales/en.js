@@ -1567,6 +1567,22 @@ I18n.register("en", {
     "message": "Daily avg",
     "description": "Text sink in insightsStripHtml(). Rendered with t()."
   },
+  "preview_yours_title": {
+    "message": "This is yours - free, local, no account.",
+    "description": "THE EYEBROW ON THE ONE LIVE TILE OF THE FREE DASHBOARD, above the user's own time-by-site card. It is the only thing on that surface built from their real data, and the sentence exists to say so before the demo beside it can be mistaken for theirs. Three claims, each literally true and each one the product can be held to: the card is theirs, the tier is free, and nothing left the device. Rendered with th()."
+  },
+  "preview_pitch_headline": {
+    "message": "Pro adds the rest",
+    "description": "The headline on the free Dashboard's one action tile - the pitch. Deliberately small and flat: the demo column beside it is the argument, and this line only names what the column is. It must not promise a specific feature, because the demo already shows them and a second list would drift from it. Rendered with th()."
+  },
+  "preview_pitch_trial": {
+    "message": "7 days free. No card.",
+    "description": "The sub-line on the free Dashboard's pitch tile, directly above its one button. The two facts a reader needs before pressing it, and both are enforced elsewhere: the trial is 7 days and it takes no payment method. If either ever changes this string is the first thing to fix. Rendered with th()."
+  },
+  "preview_demo_column_title": {
+    "message": "With Pro, a day looks like this",
+    "description": "The heading above the DEMO half of the free Dashboard. \"A day\", never \"your day\": the figures below it are invented, and a possessive would make the heading itself the lie every card under it is labelled to prevent. Rendered with th()."
+  },
   "preview_example_data": {
     "message": "Preview - example data",
     "description": "THE SELF-LABEL ON EVERY DEMO CARD, on all three free-preview surfaces - Tasks, Dashboard and Insights. It was insights_preview_history and it labelled one row on one surface; it is renamed because the key now names what it IS rather than where it happened to sit. The sentence must stay short enough to ride on a card title's own line beside the title. Rendered with th()."

@@ -3233,6 +3233,14 @@
     return '<div class="pp-dash-card-title pp-demo-titled">' + titleHtml + previewLabelHtml() + '</div>';
   }
 
+  // [H3b] THE SAME THING FOR A TILE. A v2 tile names itself in its eyebrow, so
+  // the demo label rides there rather than on a card title - and it is one
+  // helper for the same reason previewLabelHtml is: a second spelling is a
+  // seventh card nobody labelled.
+  function previewTileEyebrowHtml(titleHtml) {
+    return '<div class="tile-eyebrow">' + titleHtml + previewLabelHtml() + '</div>';
+  }
+
   function priorityClass(p) {
     if (p === "urgent") return "pp-prio pp-prio-urgent";
     if (p === "high")   return "pp-prio pp-prio-high";
@@ -3262,7 +3270,7 @@
             activeBadge +
           '</div>';
       }).join("");
-      return '<div class="pp-goal-card">' +
+      return '<div class="tile tile--list pp-goal-card pp-demo-tile">' +
           '<div class="pp-goal-header">' +
             '<div class="pp-goal-header-left">' +
               '<span class="pp-goal-name">' + th(g.nameKey) + '</span>' +
@@ -3369,24 +3377,36 @@
       '</div>';
   }
 
+  // [H3b] THE DEMO HALF OF THE FREE DASHBOARD, IN THE TILE LANGUAGE.
+  //
+  // WHAT THIS REPLACES, AND WHY IT IS THIS ROUND'S JOB. H1a rebuilt the live
+  // Dashboard as a bento and left the v1 hero band's rules in the sheet on
+  // purpose, with a note: "renderProPreview still paints the v1 Dashboard as
+  // its demo surface, so .dash-hero-region and friends are still reached. That
+  // divergence is a finding, not a cleanup this round may make - the preview is
+  // another session's region." This is that session, and the six classes that
+  // were reached ONLY from here - dash-hero-region, -left, -centre, -right,
+  // dash-row2, dash-today, dash-goals - are no longer emitted by anything.
+  //
+  // IT IS HALF WIDTH NOW, which is a content decision rather than a styling
+  // one. renderFreeDashboard places it beside the user's own live tile, so the
+  // demo is a two-column bento rather than a four-column one and the hero's
+  // three regions collapse to one tile with its figures in a row.
+  //
+  // EVERY TILE CARRIES THE LABEL, unchanged from [preview-labels]: the banner
+  // names the surface, and a card met on its own four hundred pixels down a
+  // scroll carries no banner.
   function renderDashboardPreview() {
     var D = DEMO_DASH_BOARD;
 
-    var heroLeft =
-      '<div class="dash-hero-region dash-hero-left">' +
-        '<div class="dash-hero-figure">' +
-          '<div class="dash-hero-dial">' +
-            '<div class="dash-hero-num">' + escapeHtml(D.focusedToday) + '</div>' +
-          '</div>' +
-          '<div class="dash-hero-label">' + th("common_focused_today") + '</div>' +
-          // [preview-labels] THE ONE THE RULING NAMES. On the free Dashboard the
-          // user's own "Focused today, by site" card renders LIVE directly above
-          // this hero, which prints an invented "Focused today" of its own. Two
-          // figures, one true, same words, one screen. The banner between them
-          // names the surface below it; this names the number.
-          previewLabelHtml() +
-        '</div>' +
-        '<div class="dash-hero-counts">' +
+    // The hero. ONE tile, and the figure keeps .dash-hero-num so the [1.7.1]
+    // invariant is untouched - --display-1 is still referenced exactly once in
+    // the stylesheet and this is still the node that reads it.
+    var hero =
+      '<div class="tile tile--hero span-2 dash-tile pp-demo-tile">' +
+        '<div class="tile-eyebrow">' + th("common_focused_today") + previewLabelHtml() + '</div>' +
+        '<div class="dash-hero-num">' + escapeHtml(D.focusedToday) + '</div>' +
+        '<div class="dash-hero-figures">' +
           '<div class="dash-hero-count">' +
             '<span class="dash-hero-count-num">' + D.tasksCompleted + '</span>' +
             '<span class="dash-hero-count-label">' + th("dash_tasks_completed") + '</span>' +
@@ -3395,85 +3415,54 @@
             '<span class="dash-hero-count-num">' + D.blocked + '</span>' +
             '<span class="dash-hero-count-label">' + th("dash_distractions_blocked") + '</span>' +
           '</div>' +
-        '</div>' +
-      '</div>';
-
-    // The pick-up card, with its outlined primary DISABLED rather than removed:
-    // the button is the shape of the surface and hiding it would understate what
-    // Pro looks like, while an enabled one would be a control that does nothing.
-    var heroCentre =
-      '<div class="dash-hero-region dash-hero-centre">' +
-        '<div class="dash-head" data-dash-variant="pickup">' +
-          '<div class="pp-dash-card-title">' + th("dash_pick_up_where_you_left_off") + '</div>' +
-          '<div class="dash-headline">' + th(D.pickup.titleKey) + '</div>' +
-          '<div class="dash-sub">' + th(D.pickup.goalKey) + '</div>' +
-          '<button type="button" class="dash-cta" disabled>' + th("dash_continue") + '</button>' +
-        '</div>' +
-      '</div>';
-
-    var heroRight =
-      '<div class="dash-hero-region dash-hero-right">' +
-        '<div class="dash-hero-stat">' +
-          '<div class="dash-streak">' +
-            '<span class="insights-strip-num">' + D.streak + '</span>' +
-            '<span class="insights-strip-label">' + th("dash_day_streak") + '</span>' +
-          '</div>' +
-        '</div>' +
-        '<div class="dash-hero-stat">' +
-          '<div class="dash-hero-stat-num">' + escapeHtml(D.weekSoFar) + '</div>' +
-          '<div class="dash-hero-stat-label">' + th("dash_this_week_so_far") + '</div>' +
-        '</div>' +
-        '<div class="dash-hero-stat">' +
-          '<div class="dash-hero-stat-num">' + D.blocking + '</div>' +
-          '<div class="dash-hero-stat-label">' + th("dash_focus_blocking") + '</div>' +
-        '</div>' +
-      '</div>';
-
-    // THE PICKER IS ABSENT, not disabled: it opens a modal, and a modal trigger
-    // that opens nothing is the worst of both readings. The picked ROWS render,
-    // because they are what the feature looks like.
-    var today =
-      '<div class="dash-mod dash-today">' +
-        '<div class="pp-insights-card">' +
-          '<div class="dash-three">' +
-            '<div class="dash-three-head">' +
-              '<span class="pp-dash-card-title pp-demo-titled">' + th("dash_todays_three") + previewLabelHtml() + '</span>' +
-            '</div>' +
-            '<div class="dash-three-list">' +
-              D.three.map(function (r) { return previewRowHtml(r, "dash-three-row"); }).join("") +
-            '</div>' +
-          '</div>' +
-          // ONE LABEL PER CARD, NOT PER TITLE. This card holds two headings -
-          // Today's three and Due today - inside ONE frosted surface, so the
-          // label above covers both. Labelling this one too put the same
-          // sentence twice in one card, which was measured and then removed.
-          '<div class="pp-dash-card-title dash-due-title">' + th("dashboard_due_today") + '</div>' +
-          '<div class="dash-due-list">' +
-            D.due.map(function (r) { return previewRowHtml(r); }).join("") +
+          '<div class="dash-hero-count">' +
+            '<span class="dash-hero-count-num">' + D.streak + '</span>' +
+            '<span class="dash-hero-count-label">' + th("dash_day_streak") + '</span>' +
           '</div>' +
         '</div>' +
       '</div>';
 
+    // The two tints, as COUNT tiles - the live board's own shape for "one
+    // number and one line about it".
+    var overdueCount = D.due.filter(function (r) { return r.overdue; }).length;
+    var counts =
+      '<div class="tile tile--overdue dash-tile dash-tile-count pp-demo-tile">' +
+        '<div class="tile-eyebrow">' + th("dash_overdue") + previewLabelHtml() + '</div>' +
+        '<div class="dash-tile-figure">' + overdueCount + '</div>' +
+      '</div>' +
+      '<div class="tile tile--goals dash-tile dash-tile-count pp-demo-tile">' +
+        '<div class="tile-eyebrow">' + th("dashboard_goals") + previewLabelHtml() + '</div>' +
+        '<div class="dash-tile-figure">' + D.goals.length + '</div>' +
+      '</div>';
+
+    // Due today, as a list tile. THE PICKER STAYS ABSENT (not disabled): it
+    // opens a modal, and a modal trigger that opens nothing is the worst of
+    // both readings. The rows render, because they are what the feature is.
+    var due =
+      '<div class="tile tile--list span-2 dash-tile pp-demo-tile">' +
+        '<div class="tile-eyebrow">' + th("dashboard_due_today") + previewLabelHtml() + '</div>' +
+        '<div class="dash-due-list">' +
+          D.due.map(function (r) { return previewRowHtml(r); }).join("") +
+        '</div>' +
+      '</div>';
+
+    // Goals, as a list tile with the progress bars the live board uses.
     var goals =
-      '<div class="dash-mod dash-goals">' +
-        '<div class="pp-insights-card">' +
-          previewCardTitleHtml(th("dashboard_goals")) +
-          '<div class="insights-task-list">' +
-            D.goals.map(function (g) {
-              return '<div class="insights-task-row">' +
-                  '<span class="insights-task-name">' + th(g.nameKey) + '</span>' +
-                  '<span class="insights-task-bar"><span class="insights-task-bar-fill" style="width:' + g.pct + '%"></span></span>' +
-                  '<span class="insights-task-dur">' + escapeHtml(g.frac) + '</span>' +
-                '</div>';
-            }).join("") +
-          '</div>' +
+      '<div class="tile tile--list span-2 dash-tile pp-demo-tile">' +
+        '<div class="tile-eyebrow">' + th("dashboard_goals") + previewLabelHtml() + '</div>' +
+        '<div class="insights-task-list">' +
+          D.goals.map(function (g) {
+            return '<div class="insights-task-row">' +
+                '<span class="insights-task-name">' + th(g.nameKey) + '</span>' +
+                '<span class="insights-task-bar"><span class="insights-task-bar-fill" style="width:' + g.pct + '%"></span></span>' +
+                '<span class="insights-task-dur">' + escapeHtml(g.frac) + '</span>' +
+              '</div>';
+          }).join("") +
         '</div>' +
       '</div>';
 
-    return '<div class="dash-tab" data-period="day">' +
-        '<div class="dash-greeting">' + th("clock_good_afternoon") + '</div>' +
-        '<div class="dash-hero">' + heroLeft + heroCentre + heroRight + '</div>' +
-        '<div class="dash-row2">' + today + goals + '</div>' +
+    return '<div class="dash-tab bento dash-free-demo-grid" data-period="day">' +
+        hero + counts + due + goals +
       '</div>';
   }
 
@@ -3692,17 +3681,27 @@
       topTask: th("insights_wk_preview_task"), topTag: th("insights_wk_preview_tag")
     });
 
+    // [H3b] THE PREVIEW IS A BENTO, at FIX-1's spans rather than H2a's. FIX-1
+    // reallocated the live board after H2a's first cut left it with holes, and
+    // the preview must match what the product looks like NOW - a demo of a
+    // layout the product no longer has is worse than no demo.
+    //
+    // SIXTEEN CELLS, STATED: hero 2x2 + tag 1x2 + tasks 1x2 fills rows 1-2;
+    // heat 2x2 + site 2x1 + weekly 2x1 fills rows 3-4; achievements spans 4.
+    // Auto-placement is sparse and never backtracks, so DOM order is the
+    // tiling - the same rule the live board's own comment states.
     return '<div class="ins-row-range ins-row-range-preview">' +
         '<span class="insights-range-static">' + th("insights_last_30_days") + '</span>' +
         '<p class="insights-range-note">' + previewLabelHtml() + '</p>' +
       '</div>' +
-      '<div class="pp-insights-card ins-hero">' +
+      '<div class="bento ins-bento-preview">' +
+      '<div class="tile tile--hero span-2x2 ins-hero pp-demo-tile">' +
         // [insights-rhythm] THE RANGE IS NAMED ONCE PER CARD. The title read
         // "Deep Work \u00b7 last 30 days" with "last 30 days" printed again
         // beneath the numeral, in a card whose whole job is one figure. The
         // range stays on the FIGURE, because that is the label a reader needs
         // where they are actually looking; the eyebrow keeps the subject.
-        previewCardTitleHtml(th("insights_deep_work")) +
+        previewTileEyebrowHtml(th("insights_deep_work")) +
         '<div class="ins-hero-head">' +
           '<div class="ins-hero-lead">' +
             '<span class="dash-hero-num">32h</span>' +
@@ -3721,33 +3720,32 @@
         '</div>' +
         '<div class="ins-hero-chart">' + trendSvg + '</div>' +
       '</div>' +
-      '<div class="ins-peers">' +
-        '<div class="pp-insights-card ins-peer">' +
-          previewCardTitleHtml(th("insights_time_by_tag_last_30_days")) +
+
+        '<div class="tile tile--goals span-1x2 ins-peer pp-demo-tile">' +
+          previewTileEyebrowHtml(th("insights_time_by_tag_last_30_days")) +
           '<div class="pp-donut-row">' + donutSvg + '<div class="pp-donut-legend">' + donutLegend + '</div></div>' +
         '</div>' +
-        '<div class="pp-insights-card ins-peer">' +
-          previewCardTitleHtml(th("insights_preview_by_site")) +
+        '<div class="tile tile--list span-2 ins-peer pp-demo-tile">' +
+          previewTileEyebrowHtml(th("insights_preview_by_site")) +
           '<div class="insights-task-list insights-site-list">' + demoRowsHtml(DEMO_PREVIEW_SITES) + '</div>' +
         '</div>' +
-        '<div class="pp-insights-card ins-peer">' +
-          previewCardTitleHtml(th("insights_preview_top_tasks")) +
+        '<div class="tile tile--list span-1x2 ins-peer pp-demo-tile">' +
+          previewTileEyebrowHtml(th("insights_preview_top_tasks")) +
           '<div class="insights-task-list">' + demoRowsHtml(DEMO_PREVIEW_TASKS) + '</div>' +
         '</div>' +
-      '</div>' +
-      '<div class="ins-row3">' +
-        '<div class="pp-insights-card ins-heat-card">' +
-          previewCardTitleHtml(th("insights_heat_title")) +
+
+        '<div class="tile tile--list span-2x2 ins-heat-card pp-demo-tile">' +
+          previewTileEyebrowHtml(th("insights_heat_title")) +
           heatHtml +
         '</div>' +
-        '<div class="pp-insights-card ins-weekly">' +
-          previewCardTitleHtml(th("insights_wk_title")) +
+        '<div class="tile tile--blocking span-2 ins-weekly pp-demo-tile">' +
+          previewTileEyebrowHtml(th("insights_wk_title")) +
           wkHtml +
         '</div>' +
-      '</div>' +
-      '<div class="pp-insights-card">' +
-        previewCardTitleHtml(th("insights_achievements")) +
+      '<div class="tile tile--overdue span-4 pp-demo-tile">' +
+        previewTileEyebrowHtml(th("insights_achievements")) +
         '<div class="pp-badge-grid">' + badgesHtml + '</div>' +
+      '</div>' +
       '</div>';
   }
 
@@ -5202,49 +5200,112 @@
     }
   }
 
-  // ===== [PT.2] THE FREE DASHBOARD =====
+  // ===== [PT.2 -> H3b] THE FREE DASHBOARD =====
   //
   // THE CONTRADICTION THE SPEC LEFT, AND HOW IT IS RESOLVED. The 2026-09-12
   // reversal says the two passive-time sections are FREE. The Dashboard is a PRO
   // TAB, and a free profile forks to renderProPreview - static demo markup. So
   // "free" needed a surface, and the PLAN ruled one: the free Dashboard shows the
   // passive-time card LIVE, on the user's own data, with the Pro sections
-  // previewed beneath it. The tab itself is no longer gated; it is PARTIALLY
-  // free.
+  // previewed beside it. The tab itself is no longer gated; it is PARTIALLY free.
   //
-  // WHY THE LIVE HALF GOES ON TOP. The preview is a picture of a product the user
-  // has never touched. Putting something true about their own morning above it
-  // turns the picture into an upsell that has just earned a moment of attention,
-  // rather than the first thing they see.
+  // [H3b] THE LIVE HALF MOVED FROM ABOVE THE DEMO TO BESIDE IT, and that is the
+  // whole of this round on this surface.
   //
-  // THE PREVIEW BENEATH IS UNTOUCHED, and that is an assertion rather than an
-  // intention. THE ASSERTION HAS CHANGED SHAPE TWICE NOW, and each time for a
-  // reason worth keeping, because the invariant it protects has not changed at
-  // all: whatever renderProPreview draws, THIS function does not touch it.
+  // PT.2 put the true card ON TOP of the preview, reasoning that "something
+  // true about their own morning above it turns the picture into an upsell that
+  // has just earned a moment of attention". The design pack's own frame is what
+  // overturned it: the user's real "Focused today, by site" card sat directly
+  // above a DEMO hero printing a DIFFERENT "Focused today", in the same words,
+  // on one screen. [preview-labels] answered that with a label on the demo
+  // figure, which is the smallest honest fix and still leaves two figures
+  // stacked and competing. V2-Preview's ruling is structural instead: REAL on
+  // the left, DEMO on the right, and NO FAKE FIGURE ABOVE A REAL ONE anywhere
+  // on the surface. Two columns cannot be read as one story by accident.
   //
-  //   PT.2 wrote it as byte-identity - renderProPreview's markup matched what it
-  //     produced before that round, compared against master's whole preview.
-  //   9c42b0d kept it: the banner round moved only newtab.css, so the markup
-  //     claim survived untouched.
-  //   [preview-labels] BREAKS LITERAL BYTE-IDENTITY ON PURPOSE - every demo card
-  //     gains a previewLabelHtml() span - so the assertion is now: the preview
-  //     subtree WITH THOSE SPANS REMOVED is byte-identical to master's, i.e. the
-  //     change is purely additive and nothing was removed, re-ordered or
-  //     re-nested. That is the property the round can actually claim, and it is
-  //     stronger than "looks the same" because it is a diff of two strings.
+  // THE LIVE HALF IS THE ONLY THING HERE BUILT FROM THE USER'S DATA, so it says
+  // so in its own eyebrow rather than relying on position.
   //
-  // The live card is a SIBLING above the preview, never a wrapper around it, so
-  // the comparison has something whole to compare.
+  // WHAT THE BYTE-IDENTITY ASSERTION BECOMES - ITS FIFTH SHAPE. The invariant
+  // has never changed: whatever the DEMO builder draws, this function does not
+  // touch it. Only the evidence for it has.
+  //
+  //   1. PT.2         literal byte-identity of renderProPreview's markup
+  //                   against master's whole preview.
+  //   2. 9c42b0d      kept - the banner round moved only newtab.css.
+  //   3. preview-labels  broke literal identity ON PURPOSE (every demo card
+  //                   gained a label span), so: the subtree WITH THOSE SPANS
+  //                   REMOVED is byte-identical to master's.
+  //   4. H2a/FIX-1    kept BY CONSTRUCTION rather than by comparison - the five
+  //                   shared Insights builders took an opt-in `opts` the board
+  //                   passes and the preview does not, so the preview's output
+  //                   could not move. Unlisted until now; recorded here because
+  //                   it is a fourth event and the comment claimed three.
+  //   5. THIS ROUND   the demo markup is REPLACED outright, so identity against
+  //                   master is meaningless and is not claimed. What is claimed
+  //                   instead, and measured in a browser: the demo column's
+  //                   innerHTML is EXACTLY renderDashboardPreview()'s return
+  //                   value, character for character. This function composes
+  //                   the surface; it does not edit the demo.
+  //
+  // COMPOSED FROM THE SAME TWO BUILDERS renderProPreview uses - the banner and
+  // the per-tab body - rather than post-processing renderProPreview's output.
+  // Reaching into a rendered tree to move nodes around is exactly the coupling
+  // the assertion above exists to forbid.
   function renderFreeDashboard(panel, d) {
-    // The same gate the Pro card uses - null scope means tracking is off for this
-    // workspace, and the card is then ABSENT rather than empty (the badge rule).
+    // The same gate the Pro card uses - null scope means tracking is off for
+    // this workspace, and the card is then ABSENT rather than empty (the badge
+    // rule). With no scope the left column is the pitch alone, which is still
+    // an honest column: it promises nothing about data that is not there.
     var scope = dashFocusedScope(d);
-    var live = scope ? '<div class="dash-free-live"><div class="pp-insights-card dash-passive" data-dash-passive></div></div>' : '';
-    // renderProPreview owns the panel's innerHTML, so it runs FIRST and the live
-    // half is inserted before it. Prepending rather than re-templating is what
-    // keeps the preview's markup out of this function entirely.
-    renderProPreview("dashboard", panel, d);
-    if (live) panel.insertAdjacentHTML("afterbegin", live);
+
+    var yours = scope
+      ? '<div class="tile tile--list dash-free-yours">' +
+          '<div class="tile-eyebrow">' + th("preview_yours_title") + '</div>' +
+          '<div class="dash-passive" data-dash-passive></div>' +
+        '</div>'
+      : '';
+
+    // THE PITCH IS ONE ACTION TILE AND ONE BUTTON. V2-Preview: "the pitch is
+    // the single action tile with the trial length and one button". The button
+    // is the SAME key pair the banner and the tab-bar chip use, so a user who
+    // has burned their trial reads "Upgrade" in all three places.
+    var trialUsed = !!(d && d.pro && d.pro.trialStartedAt);
+    var pitch =
+      '<div class="tile tile--action dash-free-pitch">' +
+        '<div class="tile-eyebrow">' + th("preview_pitch_headline") + '</div>' +
+        '<div class="dash-free-pitch-sub">' + th("preview_pitch_trial") + '</div>' +
+        (trialCtaLive()
+          ? '<a href="#" class="dash-free-pitch-cta" data-pro-preview-cta>' +
+              th(trialUsed ? "read_upgrade" : "upgrade_start_free_trial") + '</a>'
+          : '<span class="dash-free-pitch-cta is-teaser" aria-disabled="true">' +
+              th("preview_coming_soon") + '</span>') +
+      '</div>';
+
+    panel.innerHTML =
+      '<div class="pro-preview" data-tab="dashboard">' +
+        previewBannerHtml(d) +
+        '<div class="pro-preview-content">' +
+          '<div class="dash-free-split">' +
+            '<div class="dash-free-mine">' + yours + pitch + '</div>' +
+            '<div class="dash-free-theirs">' +
+              '<div class="dash-free-theirs-head">' + th("preview_demo_column_title") + '</div>' +
+              // THE DEMO, PLACED AND NOT EDITED. See the fifth shape above.
+              '<div class="dash-free-demo" data-free-demo>' + renderDashboardPreview() + '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    // ONE BINDER FOR BOTH CTAs - the banner's and the pitch tile's carry the
+    // same hook, so a second listener would be a second place to forget.
+    panel.querySelectorAll("[data-pro-preview-cta]").forEach(function (cta) {
+      cta.addEventListener("click", function (e) {
+        e.preventDefault();
+        openUpgradePopover(cta, data);
+      });
+    });
+
     if (scope) dashRefreshPassive(panel, scope);
   }
 

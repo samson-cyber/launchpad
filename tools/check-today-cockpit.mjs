@@ -962,18 +962,51 @@ const hasClassToken = (src, name) => {
   // rather than relaxed: it now guards MIRRORING plus the preview rule.
   {
     const prevBody = extractFn(SRC.nt, "renderDashboardPreview");
-    check("preview: mirrors the cockpit's layout - hero band, three regions, row two",
-      /dash-hero-left/.test(prevBody) && /dash-hero-centre/.test(prevBody) &&
-      /dash-hero-right/.test(prevBody) && /dash-row2/.test(prevBody) &&
-      /dash-today/.test(prevBody) && /dash-goals/.test(prevBody));
+    // [H3b] RE-ANCHORED, AND THIS ROW IS THE ONE H1a WAS WAITING ON.
+    //
+    // It used to require dash-hero-left / -centre / -right / dash-row2 /
+    // dash-today / dash-goals. Those six classes were emitted by NOTHING but
+    // renderDashboardPreview - measured - so this assertion was the only reason
+    // the v1 hero band still had to exist, and H1a's own note in newtab.css
+    // said so: "renderProPreview still paints the v1 Dashboard as its demo
+    // surface... That divergence is a finding, not a cleanup this round may
+    // make - the preview is another session's region."
+    //
+    // THE PROPERTY IS UNCHANGED: the demo MIRRORS the product rather than
+    // drifting into a shape the product does not have. Only the product's shape
+    // moved. It is a bento of tiles now, so the demo is asserted to be one -
+    // and asserted NOT to be the band, so the six classes cannot creep back.
+    check("preview: mirrors the product - a bento of tiles, not the retired hero band",
+      /dash-free-demo-grid/.test(prevBody) && /tile--hero/.test(prevBody) &&
+      /tile--overdue/.test(prevBody) && /tile--goals/.test(prevBody) &&
+      /tile--list/.test(prevBody) &&
+      !/dash-hero-left/.test(prevBody) && !/dash-hero-centre/.test(prevBody) &&
+      !/dash-hero-right/.test(prevBody) && !/dash-row2/.test(prevBody));
+    // AND THE SIX ARE GONE FROM THE WHOLE FILE, which is the half a per-function
+    // test cannot see. A class emitted nowhere is a rule the H4 sweep may
+    // retire; a class emitted somewhere else is a finding. This says which.
+    check("preview: the v1 hero-band classes are emitted by nothing at all",
+      ["dash-hero-region", "dash-hero-left", "dash-hero-centre", "dash-hero-right",
+       "dash-row2", "dash-today", "dash-goals"]
+        .every((c) => !new RegExp('class="[^"]*\\b' + c + '\\b').test(SRC.nt)));
     check("preview: uses the REAL numeral class, so --display-1 is still referenced once",
       /class="dash-hero-num"/.test(prevBody) &&
       (SRC.css.match(/var\(--display-1\)/g) || []).length === 1);
     // Every control inert, and the picker absent entirely rather than present
     // and dead - a modal trigger that opens nothing is worse than no trigger.
+    // [H3b] RE-ANCHORED. It required at least one button and every button
+    // disabled, which was right while the demo carried a dead "Continue" and a
+    // dead add-task control. The v2 demo carries NONE - the pick-up card went
+    // with the hero band - so `buttons.length > 0` now fails on a preview that
+    // is MORE correct than the one it was written for, not less.
+    //
+    // THE PROPERTY IS UNCHANGED AND IS THE SECOND HALF OF THAT ROW: no enabled
+    // control of any kind. Zero buttons satisfies it; so does a disabled one,
+    // which is still permitted where the button is the shape of the surface.
+    // What is refused is an ENABLED one.
     const buttons = prevBody.match(/<button[^>]*>/g) || [];
-    check("preview: every button is disabled - no enabled control of any kind",
-      buttons.length > 0 && buttons.every((b) => /\sdisabled/.test(b)), buttons.join(" | ").slice(0, 120));
+    check("preview: no ENABLED control of any kind - zero buttons, or disabled ones",
+      buttons.every((b) => /\sdisabled/.test(b)), buttons.join(" | ").slice(0, 120));
     check("preview: carries NO wired action and no picker",
       !/data-dash-action/.test(prevBody) && !/pick-three/.test(prevBody));
     check("preview: draws NO ring - the ring encodes a target a free user cannot set",
