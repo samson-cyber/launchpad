@@ -22310,3 +22310,360 @@ html.has-bg.bg-light .dash-due-row .tt-task-play { color: var(--action-soft); }
 .ins-bento-preview .pp-badge-grid { min-width: 0; max-width: 100%; }
 
 .ins-bento-preview .ins-heat-card > *:not(.tile-eyebrow) { min-height: 0; overflow: hidden; }
+
+/* =========================================================================
+   [H3a] MODALS IN THE LANGUAGE
+
+   Every dialog in this product is a FLOATER over the wallpaper - it is the one
+   family that never sits on a panel, which is why H0's tile component did not
+   reach it and why it still wears v1's blue primary and v1's red danger.
+
+   THE TIER STAYS AND THE FILL CHANGES. A modal keeps the floater's shape - the
+   14px blur, the xl radius, the deep shadow, the dimmed scrim behind it -
+   because that shape is what says "this is in front of everything". What moves
+   is the FILL: the v2 tints, so a dialog belongs to the same family as the
+   tiles it was raised from.
+   ========================================================================= */
+
+/* ---- 1. THE SURFACE ----------------------------------------------------- */
+
+/* The ordinary dialog takes the HERO pair - the bento's neutral tint, which is
+   what every non-tinted tile in this product is made of. At the floater's 92%
+   rather than the tile's 82%: a modal is meant to take the page's attention,
+   and a wallpaper reading clearly through a dialog would undo the scrim behind
+   it. */
+.tt-modal {
+  background: linear-gradient(160deg, var(--tile-hero), var(--tile-hero-2));
+  background-color: rgba(38, 30, 34, 0.92);
+  border-color: var(--tile-line);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+/* THE GRADIENT'S OWN ALPHA IS THE TILE'S 82%, so the flat colour underneath it
+   is what lifts the pair to a floater's 92%. Stating both is what lets the hue
+   come from the tokens rather than being re-mixed by hand. */
+
+html.bg-light .tt-modal,
+html.has-bg.bg-light .tt-modal {
+  background: linear-gradient(160deg, var(--tile-hero), var(--tile-hero-2));
+  background-color: rgba(38, 30, 34, 0.96);
+  color: var(--ink);
+}
+
+/* ---- 2. THE DESTRUCTIVE CONFIRM ----------------------------------------
+
+   IT TAKES THE OVERDUE TINT, and the dialog says so before the button does.
+   aeaf99d gave the danger BUTTON a red fill on an otherwise neutral dialog,
+   which puts the whole weight of "this is destructive" on the one control the
+   user is about to click. Tinting the surface moves the warning up a level: the
+   dialog is rose before the pointer is anywhere near it.
+
+   THE ROSE IS LIFTED TO THE BUTTON, not repeated on it. A rose button on a rose
+   dialog would be a fill inside a fill; the button carries the tint's own
+   lighter end as INK on a hairline, which reads as the one action on a warned
+   surface. */
+.tt-modal.is-dangerous {
+  background: linear-gradient(160deg, var(--tile-overdue), var(--tile-overdue-2));
+  background-color: rgba(90, 47, 42, 0.92);
+}
+html.bg-light .tt-modal.is-dangerous,
+html.has-bg.bg-light .tt-modal.is-dangerous {
+  background: linear-gradient(160deg, var(--tile-overdue), var(--tile-overdue-2));
+  background-color: rgba(90, 47, 42, 0.96);
+}
+
+/* THIS REPLACES aeaf99d's RED. Its own comment recorded the measurement that
+   set #ffb4ab - "3.91:1 on this fill over a dark card, below the 4.5 floor" -
+   and that reasoning is kept, not discarded: the ink here is measured against
+   the rose fill it actually sits on, on all three grounds, rather than inherited
+   from the red one.
+
+   THE INK IS --ink-on-overdue, WHICH ALREADY EXISTED. tokens.css defines it as
+   "a tile's eyebrow takes its own tint raised to text weight" - which is the
+   design system's own name for exactly what the brief asks for, the rose lifted
+   to its control. Inventing a second rose ink beside it would have been a new
+   source for one value. */
+.tt-modal-btn-danger {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: var(--ink-on-overdue);
+  color: var(--ink-on-overdue);
+}
+.tt-modal-btn-danger:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+/* THE LIGHT BRANCH CARRIES .tt-modal-btn TOO, and leaving it off is the
+   reason this rule is being written twice. The shipped light-ground rule
+   above is html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-danger, which is
+   (0,4,1); a light branch without .tt-modal-btn is (0,3,1) and loses to it
+   no matter where it sits in the file. The first pass got exactly that, and
+   on a light wallpaper the button kept aeaf99d's red entirely -
+   rgba(208,2,27,0.10) on rgba(208,2,27,0.55) with #6b1411 ink - while the
+   dialog around it had already gone rose. A frame caught it; the harness did
+   not, because its ground had been reset out from under it.
+
+   The irony is recorded deliberately: the rule being overridden is itself a
+   fix for the same specificity mistake, and says so in its own comment. */
+html.bg-light .tt-modal-btn.tt-modal-btn-danger,
+html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-danger {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: var(--ink-on-overdue);
+  color: var(--ink-on-overdue);
+}
+html.bg-light .tt-modal-btn.tt-modal-btn-danger:hover,
+html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-danger:hover { background: rgba(255, 255, 255, 0.18); }
+
+/* ---- 3. THE ORDINARY PRIMARY -------------------------------------------
+
+   The action colour, in the pairing H1a measured at 7.5:1 on every ground - an
+   opaque fill with --ink-on-action. It replaces a blue fill with a blue glow,
+   which was the last place on a v2 surface where the old accent was the thing
+   a user clicks. */
+.tt-modal-btn-primary-fill,
+html.bg-light .tt-modal-btn-primary-fill,
+html.has-bg.bg-light .tt-modal-btn-primary-fill {
+  background: var(--action);
+  border-color: transparent;
+  color: var(--ink-on-action);
+  box-shadow: none;
+}
+.tt-modal-btn-primary-fill:hover,
+html.bg-light .tt-modal-btn-primary-fill:hover,
+html.has-bg.bg-light .tt-modal-btn-primary-fill:hover {
+  box-shadow: none;
+  filter: brightness(1.06);
+}
+
+/* The neutral buttons - Cancel, and any extra a caller adds - take the tile's
+   own hairline rather than a colour, so the one coloured control in a dialog is
+   the one that acts. */
+.tt-modal-btn {
+  font-family: var(--font-sans);
+  border-radius: var(--inner);
+}
+.tt-modal .tt-modal-cancel,
+html.bg-light .tt-modal .tt-modal-cancel,
+html.has-bg.bg-light .tt-modal .tt-modal-cancel {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--tile-line);
+  color: var(--ink);
+}
+.tt-modal .tt-modal-cancel:hover,
+html.bg-light .tt-modal .tt-modal-cancel:hover,
+html.has-bg.bg-light .tt-modal .tt-modal-cancel:hover { background: rgba(255, 255, 255, 0.14); }
+
+/* The dialog's own text tiers, so a body written for a white-tinted floater
+   does not arrive dark on a tint that stays dark. */
+html.bg-light .tt-modal .tt-modal-title,
+html.has-bg.bg-light .tt-modal .tt-modal-title,
+html.bg-light .tt-modal .tt-modal-message,
+html.has-bg.bg-light .tt-modal .tt-modal-message,
+html.bg-light .tt-modal .tt-modal-label,
+html.has-bg.bg-light .tt-modal .tt-modal-label { color: var(--ink); }
+.tt-modal .tt-modal-label { color: var(--ink); }
+.tt-modal .tt-modal-hint { color: var(--ink-meta); }
+html.bg-light .tt-modal .tt-modal-hint,
+html.has-bg.bg-light .tt-modal .tt-modal-hint { color: var(--ink-meta); }
+html.bg-light .tt-modal .tt-modal-close,
+html.has-bg.bg-light .tt-modal .tt-modal-close { color: var(--ink); }
+.tt-modal .tt-modal-close { color: var(--ink); }
+
+/* ---- 4. THE ATTACH PICKER ----------------------------------------------
+
+   It is a modal like any other, so it takes the hero tint from .tt-modal above.
+   What it needs of its own is its list: rows that read as a list on glass
+   rather than as a second panel inside the dialog. */
+.tt-modal .session-picker-row,
+html.bg-light .tt-modal .session-picker-row,
+html.has-bg.bg-light .tt-modal .session-picker-row {
+  background: none;
+  border-color: var(--tile-line);
+  color: var(--ink);
+  border-radius: var(--inner);
+}
+.tt-modal .session-picker-row:hover,
+html.bg-light .tt-modal .session-picker-row:hover,
+html.has-bg.bg-light .tt-modal .session-picker-row:hover { background: var(--tile-fill); }
+/* The picker's own scrollbar, 6px in the tile's line colour. scrollbar-width is
+   NOT set - FIX-3 measured that the standard property DISABLES the webkit
+   pseudo-elements on this Chromium, so declaring both leaves the OS bar. */
+.tt-modal .session-picker::-webkit-scrollbar { width: 6px; }
+.tt-modal .session-picker::-webkit-scrollbar-track { background: transparent; }
+.tt-modal .session-picker::-webkit-scrollbar-thumb {
+  background: var(--tile-line);
+  border-radius: 3px;
+}
+
+/* ---- 5. THE CONTEXT MENU ------------------------------------------------
+
+   MENU TIER AT 96%. It is the smallest floating surface in the product and the
+   one most often opened over dense content, so it is the one place where the
+   wallpaper reading through costs more than it gives. The frost variables carry
+   95%; this is the one surface that states its own, one point higher, because a
+   menu row is 7px of padding and a hairline away from the row beneath it. */
+.tt-context-menu {
+  background: rgba(30, 30, 30, 0.96);
+  border-color: var(--tile-line);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  border-radius: var(--inner);
+}
+html.bg-light .tt-context-menu,
+html.has-bg.bg-light .tt-context-menu {
+  background: rgba(30, 30, 30, 0.96);
+  color: var(--ink);
+  border-color: var(--tile-line);
+}
+.tt-context-menu .tt-ctx-item,
+html.bg-light .tt-context-menu .tt-ctx-item,
+html.has-bg.bg-light .tt-context-menu .tt-ctx-item { color: var(--ink); }
+.tt-context-menu .tt-ctx-item:hover,
+html.bg-light .tt-context-menu .tt-ctx-item:hover,
+html.has-bg.bg-light .tt-context-menu .tt-ctx-item:hover { background: var(--tile-fill); }
+
+/* DELETE IN THE ROSE INK, and a hover wash in the same family rather than the
+   #d0021b it carried - which was the only pure red left in a menu whose every
+   other row is neutral. */
+.tt-context-menu .tt-ctx-item.tt-ctx-danger,
+html.bg-light .tt-context-menu .tt-ctx-item.tt-ctx-danger,
+html.has-bg.bg-light .tt-context-menu .tt-ctx-item.tt-ctx-danger { color: var(--ink-on-overdue); }
+.tt-context-menu .tt-ctx-item.tt-ctx-danger:hover,
+html.bg-light .tt-context-menu .tt-ctx-item.tt-ctx-danger:hover,
+html.has-bg.bg-light .tt-context-menu .tt-ctx-item.tt-ctx-danger:hover {
+  background: rgba(255, 180, 171, 0.14);
+  color: var(--ink-on-overdue);
+}
+.tt-context-menu .tt-ctx-separator { background: var(--tile-line); }
+
+/* ---- 6. THE RULES EDITOR -----------------------------------------------
+
+   271b31b gave it the product's own controls; this gives those controls the v2
+   language. Nothing about what it SAVES moves - the segmented pill still writes
+   the mode, the chips still write the days, the steppers still write the times.
+
+   THE SEGMENTED PILL takes the same pairing the range selector took in H2a: an
+   opaque action fill for the active segment, never action ink on an action
+   tint, which H1a measured at 2.43 and removed. */
+.tt-modal .settings-segmented,
+html.has-bg .tt-modal .settings-segmented,
+html.bg-light .tt-modal .settings-segmented,
+html.has-bg.bg-light .tt-modal .settings-segmented {
+  background: var(--tile-fill);
+  border-radius: var(--inner);
+}
+.tt-modal .seg-btn,
+html.has-bg .tt-modal .seg-btn,
+html.bg-light .tt-modal .seg-btn,
+html.has-bg.bg-light .tt-modal .seg-btn {
+  color: var(--ink);
+  font-family: var(--font-sans);
+  background: none;
+}
+.tt-modal .seg-btn.active,
+html.has-bg .tt-modal .seg-btn.active,
+html.bg-light .tt-modal .seg-btn.active,
+html.has-bg.bg-light .tt-modal .seg-btn.active {
+  background: var(--action);
+  color: var(--ink-on-action);
+  box-shadow: none;
+}
+
+/* THE DAY CHIPS IN THE ACTION TINT when they are on. A chip is a small
+   non-text-bearing state as much as a label, so the fill carries the state and
+   the ink stays the tile's - the pattern .nb-chip's own comment argues for,
+   with the action tint supplying the fill it was missing. */
+.tt-modal .fb-dow-chip,
+html.bg-light .tt-modal .fb-dow-chip,
+html.has-bg.bg-light .tt-modal .fb-dow-chip {
+  background: var(--tile-fill);
+  border-color: var(--tile-line);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+.tt-modal .fb-dow-chip.is-active,
+html.bg-light .tt-modal .fb-dow-chip.is-active,
+html.has-bg.bg-light .tt-modal .fb-dow-chip.is-active {
+  background: var(--action-tint);
+  border-color: var(--action);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* THE TIME STEPPERS. The numeric field keeps its tabular figures and its hidden
+   native spinner - both are 271b31b's and both are right - and takes the tile's
+   fill and hairline so it reads as a field on this surface rather than on the
+   white one it was declared against. */
+.tt-modal .fb-num,
+html.bg-light .tt-modal .fb-num,
+html.has-bg.bg-light .tt-modal .fb-num {
+  background: rgba(0, 0, 0, 0.22);
+  border-color: var(--tile-line);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+.tt-modal .fb-num:focus,
+.tt-modal .fb-num:focus-visible { border-color: var(--action); }
+.tt-modal .fb-time-sep,
+html.bg-light .tt-modal .fb-time-sep,
+html.has-bg.bg-light .tt-modal .fb-time-sep { color: var(--ink); }
+
+/* THE MODE NOTE keeps its amber for the warning form and takes the meta tier
+   otherwise. One amber per surface: .fb-note-warn is the dialog's only one. */
+.tt-modal .fb-note,
+html.bg-light .tt-modal .fb-note,
+html.has-bg.bg-light .tt-modal .fb-note { color: var(--ink-meta); }
+.tt-modal .fb-note-warn,
+html.bg-light .tt-modal .fb-note-warn,
+html.has-bg.bg-light .tt-modal .fb-note-warn { color: var(--sat-amber, #f1c40f); }
+
+/* Text inputs across every dialog, one rule rather than per-form. */
+.tt-modal input[type="text"],
+.tt-modal input[type="date"],
+.tt-modal input[type="number"],
+.tt-modal textarea,
+.tt-modal select,
+html.bg-light .tt-modal input[type="text"],
+html.bg-light .tt-modal input[type="date"],
+html.bg-light .tt-modal input[type="number"],
+html.bg-light .tt-modal textarea,
+html.bg-light .tt-modal select,
+html.has-bg.bg-light .tt-modal input[type="text"],
+html.has-bg.bg-light .tt-modal input[type="date"],
+html.has-bg.bg-light .tt-modal input[type="number"],
+html.has-bg.bg-light .tt-modal textarea,
+html.has-bg.bg-light .tt-modal select {
+  background: rgba(0, 0, 0, 0.22);
+  border-color: var(--tile-line);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+.tt-modal input:focus-visible,
+.tt-modal textarea:focus-visible,
+.tt-modal select:focus-visible { border-color: var(--action); }
+
+
+/* ---- 7. THE LIGHT-GROUND RULES THIS ROUND INVALIDATED -------------------
+
+   BOTH OF THESE WERE CORRECT UNTIL THIS COMMIT, and the reason is the same
+   for each: they were written for a surface that turned WHITE on a light
+   wallpaper, and these surfaces no longer do. The modal now carries the warm
+   hero or overdue tint on every ground and the context menu stays at the dark
+   menu tier, so a light-branch rule that paints ink DARK is now painting dark
+   on dark. .session-picker-note measured 2.41 and .tt-ctx-header 1.32.
+
+   The second one is worth reading in full at newtab.css:12569: its comment
+   explains that --text-hint measured 2.43 "against a white-tinted frost that
+   is lighter still" and lifts it to --text-secondary. The measurement was
+   right and the premise is now gone. A round that changes what a surface IS
+   owes a pass over every rule that described the old one.
+
+   SCOPED, NOT REPLACED. .session-picker-* is also the pill picker's markup,
+   which is still a light-tinted surface on a light ground, so the override
+   lives inside .tt-modal and the pill keeps the ink it was measured with. */
+html.bg-light .tt-modal .session-picker-row,
+html.has-bg.bg-light .tt-modal .session-picker-row { color: var(--ink); }
+html.bg-light .tt-modal .session-picker-row:hover,
+html.has-bg.bg-light .tt-modal .session-picker-row:hover { background: rgba(255, 255, 255, 0.08); }
+html.bg-light .tt-modal .session-picker-note,
+html.has-bg.bg-light .tt-modal .session-picker-note { color: var(--ink-meta); }
+html.bg-light .tt-context-menu .tt-ctx-header,
+html.has-bg.bg-light .tt-context-menu .tt-ctx-header { color: var(--ink-mute); }

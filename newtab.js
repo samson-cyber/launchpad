@@ -9593,7 +9593,12 @@
     var cancelHtml = hideCancel ? "" :
       '<button type="button" class="tt-modal-btn tt-modal-cancel">' + th("common_cancel") + '</button>';
     overlay.innerHTML =
-      '<div class="tt-modal" role="dialog" aria-modal="true">' +
+      // [H3a] THE DANGER STATE IS ON THE DIALOG, not only on its button. The
+      // destructive confirm takes the overdue tint, so the surface says what
+      // kind of decision this is before the pointer is anywhere near the one
+      // control that makes it. The button's own class is unchanged, which is
+      // what keeps drive-dialogs' danger assertion measuring what it always did.
+      '<div class="tt-modal' + (opts.dangerous ? " is-dangerous" : "") + '" role="dialog" aria-modal="true">' +
         '<header class="tt-modal-header">' +
           titleHtml +
           '<button type="button" class="tt-modal-close" aria-label="' + th("common_close") + '">&times;</button>' +

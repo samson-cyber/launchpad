@@ -53,13 +53,13 @@ import { spawn } from "node:child_process";
 
 import { browserArgs } from "./browser-launch.mjs";
 
-// NOTE, found while wiring this up and NOT changed here: REPO is an absolute
-// path to the MAIN checkout, so running this from a git worktree drives the
-// extension in C:\Dev\Git\launchpad rather than the tree under test. Every
-// other harness derives its path from process.cwd(). Left alone because this
-// round is about window position and changing it would alter what the tool
-// tests; recorded so it is not rediscovered.
-const REPO = "C:\\Dev\\Git\\launchpad";
+// [H3a] DERIVED FROM cwd, and the note this replaces had been recording the
+// bug for two rounds: an absolute REPO means a worktree drives the MAIN
+// checkout, so the tool reports on a tree nobody is editing. H2d fixed the
+// same thing in drive-gate.mjs, whose header cites THIS file as the example -
+// so the note had outlived its own reason not to act on it. A harness that
+// silently tests the wrong tree is worse than one that fails to start.
+const REPO = process.cwd();
 
 function launch(profileDir, port) {
   const exe = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
@@ -188,7 +188,12 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 await cdp.send("Emulation.setDeviceMetricsOverride",
   { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
 await wait(3000); await ev(`LP.devPro(true)`); await wait(800);
-const seedSrc = fs.readFileSync("C:/Dev/Git/launchpad/tools/capture-fixture.js", "utf8");
+// [H3a] AND THE SECOND ONE, which the first fix missed. REPO became
+// cwd-derived above while this line still read the MAIN checkout's
+// fixture seeder - so a worktree run drove its own tree with another
+// tree's fixture, which is the harder half of the same bug to notice,
+// because it fails silently rather than not at all.
+const seedSrc = fs.readFileSync(path.join(REPO, "tools", "capture-fixture.js"), "utf8");
 await ev(`(async () => { ${seedSrc} \n return await __seedCaptureFixture(); })()`);
 await cdp.send("Page.navigate", { url: URL_ }, sessionId);
 await wait(3300); await ev(`LP.devPro(true)`); await wait(900);
