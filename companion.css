@@ -356,3 +356,32 @@
   color: var(--sat-amber);
 }
 .cmp-body.is-paused .cmp-glyph { color: var(--sat-amber); opacity: 1; }
+
+/* ===== [FIX-7] THE DUE LIST'S PLAY GLYPH, SIDE PANEL ONLY ================
+
+   The panel's Start renders only once a task is active, and these rows were
+   the only other thing on the surface - so a Pro user with nothing active had
+   no way to begin. One click here activates the task and starts a session.
+
+   VISIBLE AT REST, not on hover. That is this round's ruling for the task
+   rows and it applies here for a stronger reason: on a 380px panel there is
+   no pointer hovering rows to discover an affordance with, and a control you
+   cannot see is one the user does not know exists - which is the whole report
+   this round answers. */
+.cmp-due-play {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-inline-end: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--action-soft, #ffb37a);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s;
+}
+.cmp-due-play:hover { background: rgba(255, 255, 255, 0.12); color: var(--action, #ff8a3d); }
+.cmp-due-play:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

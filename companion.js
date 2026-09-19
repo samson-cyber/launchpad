@@ -171,7 +171,11 @@ var Companion = (function () {
         st.due = {
           total: live.length,
           items: live.slice(0, DUE_LIST_MAX).map(function (it) {
-            return { id: it.taskId, name: it.name, kind: it.kind };
+            // [FIX-7] ws RIDES ALONG. getDueWork has always returned it and
+            // this map dropped it, which was fine while the list was a reading
+            // surface and is not now: activating a task needs the workspace it
+            // lives in, and a due row can be from any of them.
+            return { id: it.taskId, name: it.name, kind: it.kind, ws: it.workspaceId };
           })
         };
       } catch (err) {
@@ -273,8 +277,25 @@ var Companion = (function () {
           '<span class="cmp-due-empty-text">' + esc(t("companion_due_none")) + '</span>' +
         '</div>';
     }
+    // [FIX-7] EVERY ROW CARRIES A PLAY GLYPH, ON THE PANEL ONLY.
+    //
+    // THE DEFECT THIS CLOSES, stated plainly because it is the round: the
+    // panel's Start renders only when a task is ALREADY active, and these rows
+    // were inert <li>. A Pro user with nothing active therefore opened the
+    // side panel and found one control - "Open LaunchPad". The pill used to
+    // cover that gap and the pill is gone.
+    //
+    // st.controls IS THE PANEL FLAG, so the popup's rows stay exactly as they
+    // were - reading surface, no controls, finding 3 intact.
+    var canStart = !!st.controls;
     var rows = st.due.items.map(function (it) {
       return '<li class="cmp-due-row">' +
+          (canStart
+            ? '<button type="button" class="cmp-due-play" data-cmp-act="due-start" ' +
+                'data-cmp-task="' + esc(it.id) + '" data-cmp-ws="' + esc(it.ws || "") + '" ' +
+                'title="' + esc(t("companion_start_on_task", { name: it.name })) + '" ' +
+                'aria-label="' + esc(t("companion_start_on_task", { name: it.name })) + '">\u25b6</button>'
+            : '') +
           '<span class="cmp-due-name" title="' + esc(it.name) + '">' + esc(it.name) + '</span>' +
           (it.kind === "overdue"
             ? '<span class="cmp-due-kind">' + esc(t("companion_due_overdue")) + '</span>'
@@ -553,7 +574,11 @@ var Companion = (function () {
     // whose Storage._adoptWrite is a no-op (registered in [1.9.1] against
     // exactly this moment); an object read at open time can be superseded by the
     // page or the service worker before the user clicks.
-    async function act(action) {
+    // [FIX-7] THE ELEMENT COMES THROUGH NOW. Every act until this round was
+    // identified by its NAME alone; due-start needs the row's task and
+    // workspace, which live on the button. Existing callers pass one argument
+    // and btnEl is simply undefined for them.
+    async function act(action, btnEl) {
       if (action === "open") {
         // The same URL the open-launchpad command builds, for the same reason:
         // chrome.tabs.create({}) would open whichever extension owns the new tab
@@ -567,6 +592,28 @@ var Companion = (function () {
       // SAME Storage writer the pill called, re-reading `data` at the point of
       // write for the reason the note above gives: a second write path for any
       // of these would break the phase accounting invisibly from here.
+      // [FIX-7] ONE CLICK FROM NOTHING TO A RUNNING SESSION. Activate, then
+      // start - two writers, in that order, because startPomodoroPhase stamps
+      // the ACTIVE task's record and there is no active task yet.
+      //
+      // RE-READ BETWEEN THEM. setActiveTask persists, so the object the second
+      // writer needs is the one on disk rather than the one in hand - the same
+      // rule the pause path above follows and for the same reason.
+      if (action === "due-start") {
+        var tid = btnEl && btnEl.getAttribute("data-cmp-task");
+        var wid = btnEl && btnEl.getAttribute("data-cmp-ws");
+        if (!tid) return;
+        try {
+          var f1 = await Storage.getAll();
+          await Storage.setActiveTask(f1, tid, wid || null, { clearPause: true });
+          var f2 = await Storage.getAll();
+          await Storage.startPomodoroPhase(f2, null);
+        } catch (err) {
+          console.error("[LaunchPad] Companion: start-on-task failed", err);
+        }
+        await render();
+        return;
+      }
       if (action === "pomo-start") {
         try {
           var fs1 = await Storage.getAll();
@@ -618,7 +665,7 @@ var Companion = (function () {
       var btn = ev.target && ev.target.closest ? ev.target.closest("[data-cmp-act]") : null;
       if (!btn || !container.contains(btn)) return;
       ev.preventDefault();
-      act(btn.getAttribute("data-cmp-act"));
+      act(btn.getAttribute("data-cmp-act"), btn);
     }
     container.addEventListener("click", onClick);
 

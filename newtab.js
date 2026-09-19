@@ -1656,6 +1656,71 @@
   // continuation from the page - exactly as there was none with no pill on
   // screen. The service worker's boundary notification carries its own 'Start
   // next session' button, which is the one-click answer for nobody looking.
+  // ===== [FIX-7] THE RUNNING SESSION, ON THE HERO =========================
+  //
+  // Samson, on the real product: "when a task is running I'm not seeing it on
+  // the dashboard." He was right and the reason is that it was never built:
+  // H1a's hero is a stats tile whose ring measures focused-today against a
+  // daily TARGET, and the session lived on the pill.
+  //
+  // THE RING IS H2b's CONIC, REBUILT. Its rules went with the pill's CSS, so
+  // this is the same construction rather than the same selectors: a conic
+  // gradient for the arc and a radial mask for the hole, which keeps the whole
+  // dial one element instead of two SVG circles in their own coordinate space.
+  // --ring-frac is what the 1s paint writes.
+  //
+  // NO CONTROLS HERE, by ruling. Stop, Pause and the blocking arm are the side
+  // panel's; this tile answers "what is running", not "change it". The task
+  // NAME is on it because a countdown with no subject is a timer, not a
+  // session - which is the half of Samson's report that a bare ring would
+  // have left unanswered.
+  function dashHeroSessionHtml() {
+    var pomo = satRunningPomo();
+    if (!pomo) return "";
+    var res = Storage.resolveActiveTask(data);
+    if (!res || res.stale) return "";
+    var paused = Storage.isTrackingPaused(data);
+    var remaining = satPomoRemainingMs(pomo);
+    var frac = pomo.totalMs > 0 ? Math.max(0, Math.min(1, remaining / pomo.totalMs)) : 0;
+    // [E3] The centre reads FOCUS during a work phase - the protagonist - and
+    // break phases keep their own label.
+    var phaseLabel = pomo.phase === "work" ? "Focus" : (SAT_POMO_PHASE_LABEL[pomo.phase] || "Focus");
+    return '<div class="dash-session' + (paused ? ' is-paused' : '') + '" data-dash-session>' +
+        '<div class="dash-session-ring" aria-hidden="true">' +
+          '<div class="dash-session-track"></div>' +
+          '<div class="dash-session-fill" data-dash-session-fill style="--ring-frac: ' + frac.toFixed(4) + '"></div>' +
+          '<div class="dash-session-centre">' +
+            '<span class="dash-session-time" data-dash-session-time>' + escapeHtml(satFmtLong(remaining)) + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="dash-session-meta">' +
+          '<div class="dash-session-phase">' +
+            escapeHtml(paused ? t("dash_session_paused") : phaseLabel) + '</div>' +
+          '<div class="dash-session-task" title="' + escapeHtml(res.task.name) + '">' +
+            escapeHtml(res.task.name) + '</div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  // TEXT AND ONE CUSTOM PROPERTY, once a second. Rebuilding the tile would
+  // restart four async refreshers for one digit, which is the same argument
+  // dashPaintChain makes below.
+  function dashPaintSession() {
+    var host = document.querySelector("[data-dash-session]");
+    if (!host) return;
+    var pomo = satRunningPomo();
+    if (!pomo) { satRepaintPhaseSurfaces(); return; }
+    var remaining = satPomoRemainingMs(pomo);
+    var t0 = host.querySelector("[data-dash-session-time]");
+    if (t0) t0.textContent = satFmtLong(remaining);
+    var fill = host.querySelector("[data-dash-session-fill]");
+    if (fill && pomo.totalMs > 0) {
+      fill.style.setProperty("--ring-frac",
+        Math.max(0, Math.min(1, remaining / pomo.totalMs)).toFixed(4));
+    }
+    host.classList.toggle("is-paused", Storage.isTrackingPaused(data));
+  }
+
   function dashChainHtml() {
     var secs = satChainRemainingSec();
     if (secs === null) return "";
@@ -1955,7 +2020,13 @@
   // and the up-next tile are literally the same array. The fallback keeps the
   // builder callable on its own - the identical read, one tick later.
   function dashDueListHtml(ws, dueItems, d) {
-    var items = dueItems || Storage.getDueWork(d || data).items;
+    // [FIX-7] ONE GUARDED LOCAL FOR THE DATA OBJECT. `d || data` reads fine on
+    // the page and THROWS in check-today-cockpit, where `data` is not merely
+    // falsy but undeclared - and the gate calls this builder with two
+    // arguments, so the || never short-circuits away from it. The old line got
+    // away with it only because passing dueItems skipped its branch entirely.
+    var dd = d || (typeof data !== "undefined" ? data : null);
+    var items = dueItems || Storage.getDueWork(dd).items;
     if (!items.length) return '<div class="dash-note">' + th("dash_nothing_due_today") + '</div>';
 
     var shown = items.slice(0, DASH_DUE_MAX);
@@ -1971,10 +2042,31 @@
       // correctly and simply loses its priority stripe.
       var task = Storage.getTaskById(ws, it.taskId);
       var prio = task ? taskPriorityClass(task.priority) : "";
+      // [FIX-7] THE DUE ROW GETS THE SAME GLYPH, from the same builder. The
+      // ruling names both surfaces, and a second copy of the three-state logic
+      // is how they drift - this row never had one at all, which is how it
+      // came to be the one list you could not start anything from.
+      //
+      // THE TASK MAY NOT RESOLVE (the reader carries the name and the stamp
+      // itself, so an unresolvable row still renders), and with no task there
+      // is nothing to start - so the glyph follows the resolve, not the row.
+      // DERIVED FROM THIS BUILDER'S OWN DATA OBJECT, not from satIsActiveTaskRow,
+      // which reads the page's module-level `data` and therefore cannot run in
+      // check-today-cockpit's sandbox. The builder takes `d` precisely so it can
+      // be booted without the page; reaching past that is what broke the gate.
+      var dueAct = dd ? Storage.getActiveTask(dd) : null;
+      var dueActive = !!(task && dueAct && dueAct.taskId === task.id &&
+        dueAct.workspaceId === (ws && ws.id));
+      // `d || data`, MATCHING THE LINE THAT OPENS THIS BUILDER. It takes its
+      // data object as a parameter precisely so a harness can boot it without
+      // the page's module scope, and reaching past that to the module `data`
+      // broke check-today-cockpit the moment this glyph was added.
+      var duePaused = dueActive && !!dd && Storage.isTrackingPaused(dd);
       return '<div class="dash-due-row' + (prio ? " " + prio : "") +
           (it.snoozed ? " is-snoozed" : "") + '">' +
           '<input type="checkbox" class="tt-task-check dash-due-check" data-task-id="' + escapeHtml(it.taskId) + '" ' +
             'aria-label="' + th("dash_due_complete_task_aria", { taskName: it.name }) + '">' +
+          (task ? taskPlayHtml(task, dueActive, duePaused) : '') +
           '<span class="dash-due-name">' + escapeHtml(it.name) + '</span>' +
           (it.kind === "overdue" ? '<span class="dash-meta-due is-overdue">' + th("dash_overdue") + '</span>' : '') +
         '</div>';
@@ -2259,6 +2351,11 @@
           // in one tile rather than two regions that had to be balanced.
           '<div class="tile tile--hero dash-tile dash-tile-hero">' +
             '<div class="tile-eyebrow">' + th("common_focused_today") + '</div>' +
+            // [FIX-7] THE RUNNING SESSION LEADS THE TILE. It is the only thing
+            // on this board that is happening RIGHT NOW; everything beneath it
+            // is a total. Absent whenever no phase runs, so the tile is
+            // unchanged for a user who is not in a session.
+            dashHeroSessionHtml() +
             // [FIX-6] ABOVE THE FIGURE, because it is the only thing on this
             // tile that is about to happen rather than about what already has.
             // It renders for ten seconds at a phase boundary and is absent
@@ -2467,6 +2564,22 @@
     panel.dataset.dashBound = "1";
 
     panel.addEventListener("click", async function (e) {
+      // [FIX-7] THE DUE ROW'S PLAY GLYPH, ROUTED HERE. This panel's listener
+      // only ever looked for [data-dash-action]; the glyph carries the Tasks
+      // tab's own data-play-act so ONE builder serves both lists, which means
+      // the routing has to be taught here rather than the markup bent to fit.
+      // Checked BEFORE the dash-action lookup because the glyph is a <button>
+      // inside a row that may itself carry one.
+      var dashPlay = e.target.closest && e.target.closest(".tt-task-play");
+      if (dashPlay) {
+        var dpAct = dashPlay.getAttribute("data-play-act") || "activate";
+        if (dpAct === "pause") { satSetPaused(true); return; }
+        if (dpAct === "resume") { satSetPaused(false); return; }
+        var dpId = dashPlay.getAttribute("data-task-id");
+        var dpWs = Storage.getActiveWorkspace(data);
+        if (dpId && dpWs) satStartOnTask(dpId, dpWs.id);
+        return;
+      }
       var btn = e.target.closest("[data-dash-action]");
       if (!btn) return;
       var action = btn.getAttribute("data-dash-action");
@@ -6942,6 +7055,20 @@
     '</button>';
   }
 
+  // [FIX-7] ONE BUILDER FOR EVERY ROW THAT CARRIES THIS GLYPH - the Tasks tab
+  // and the Dashboard's due list. They had drifted before (the due row never
+  // had one at all), and a second copy is how the three states get out of step.
+  function taskPlayHtml(task, isActive, paused) {
+    var act = !isActive ? "activate" : (paused ? "resume" : "pause");
+    var glyph = (act === "pause") ? "⏸" : "▶";
+    var label = act === "activate" ? t("task_play_start")
+              : act === "pause" ? t("sat_pause_tracking")
+              : t("sat_resume_tracking");
+    return '<button type="button" class="tt-task-play' + (paused ? ' is-paused' : '') + '" ' +
+      'data-task-id="' + escapeHtml(task.id) + '" data-play-act="' + act + '" ' +
+      'title="' + escapeHtml(label) + '" aria-label="' + escapeHtml(label) + '">' + glyph + '</button>';
+  }
+
   function taskRowHtml(workspace, task) {
     var checked = task.completed ? " checked" : "";
     var completedCls = task.completed ? " is-completed" : "";
@@ -6986,24 +7113,33 @@
     var isActiveTask = satIsActiveTaskRow(workspace, task);
     var activeCls = isActiveTask ? " is-active-task" : "";
     var rowPaused = isActiveTask && Storage.isTrackingPaused(data);
-    // [H1b] THE PLAY GLYPH HAS LEFT THE RESTING ROW (ruled 2026-09-18). It was
-    // the row's second always-visible control and the board's row has one: the
-    // checkbox. Starting a session moves to the hover menu, which is the SAME
-    // menu the right-click opens and which has carried "Make active" since
-    // [1.0.16] - so the destination existed before this round and nothing new
-    // had to be built for it.
+    // ===== [FIX-7] THE PLAY GLYPH IS BACK ON THE ROW, AND VISIBLE ==========
     //
-    // WHAT DID HAVE TO BE BUILT is the active row's other two states. The glyph
-    // was a three-way toggle - activate / pause / resume - and only the first of
-    // the three was in the menu. openTaskContextMenu now carries pause and
-    // resume in the slot "Make active" occupies on every other row, through the
-    // same satSetPaused the glyph called. Removing the glyph without that would
-    // have taken pause off this surface entirely.
+    // RULED 2026-09-19, reversing H1b. Samson, on the shipped product: "I'm
+    // not really a fan of having the play or start button gone - having to
+    // right-click the task to start feels messy."
     //
-    // THE HANDLER STAYS, and that is deliberate rather than an oversight: the
-    // .tt-task-play branch in bindTasksTabEvents costs nothing, and the class is
-    // gone from the row, so it is dead by construction rather than by promise.
-    // The round that sweeps v1 out of the Tasks region removes both together.
+    // H1b's argument was that the board's row has ONE always-visible control
+    // and it is the checkbox. That was a reading of a DRAWING; this is a
+    // reading of the product in use, and the product lost its one-gesture
+    // start. It is worse than H1b could have known, because the PILL went two
+    // rounds later and took the other route with it - between them the two
+    // rounds left right-click as the only way to begin.
+    //
+    // VISIBLE AT REST, not on hover. A hover affordance is undiscoverable and
+    // unreachable on touch, and H1b's "a second always-visible control" is
+    // answered by what it was traded for: a menu nobody found.
+    //
+    // ONE CLICK = ACTIVATE AND START, which is a real change from [1.0.16],
+    // where the glyph only made the task active and the session was a second
+    // step on the pill. There is no pill to take that step on any more.
+    //
+    // THE THREE STATES ARE UNCHANGED and so is the handler that routes them:
+    //   non-active         -> play   activate + start a session
+    //   active + running   -> pause  (the GLOBAL flag, as it always wrote)
+    //   active + paused    -> play   resume
+    // data-play-act is read by the delegated handler, so routing follows the
+    // state the row was RENDERED in and the two cannot drift.
 
     // [Polish step 8] Paused-active reads at ROW level, not just glyph level.
     // Driven by the SAME rowPaused above that routes the glyph's three states —
@@ -7022,6 +7158,9 @@
       '<span class="tt2-spine" aria-hidden="true"></span>' +
       '<span class="tt-task-handle" aria-hidden="true" title="' + th("task_drag_to_reorder") + '">⠇</span>' +
       '<input type="checkbox" class="tt-task-check" data-task-id="' + escapeHtml(task.id) + '"' + checked + ' aria-label="' + th("task_toggle_task_complete") + '">' +
+      // [FIX-7] BESIDE THE CHECKBOX, at the row's left, as ruled. A completed
+      // row gets none: there is nothing to start.
+      (task.completed ? '' : taskPlayHtml(task, isActiveTask, rowPaused)) +
       // [2.0 timing] The name and its time readouts are ONE cluster now, so both
       // numbers sit beside the task they describe instead of at the far right of
       // the row. See .tt-task-main — the name shrinks and truncates, the readouts
@@ -8526,7 +8665,12 @@
         if (playAction === "resume") { satSetPaused(false); return; }
         var playId = playBtn.getAttribute("data-task-id");
         var playWs = Storage.getActiveWorkspace(data);
-        if (playId && playWs) satActivate(playId, playWs.id);
+        // [FIX-7] ACTIVATE AND START, which is the ruling and a change from
+        // [1.0.16]. satActivate may open a confirm when a phase is already
+        // running (satConfirmSwitchReset), so the start is chained off its
+        // resolution rather than fired beside it - otherwise a declined
+        // switch would still have started a session on the task kept.
+        if (playId && playWs) satStartOnTask(playId, playWs.id);
         return;
       }
 
@@ -20257,6 +20401,9 @@
   // say so. A guard written for one surface, silently gating two others.
   function satPaintTime() {
     satUpdateTabTitle();
+    // [FIX-7] The Dashboard's session ring is a ticking surface too, and it
+    // rides this same 1s text path - no second timer, no re-render per tick.
+    dashPaintSession();
 
     // ONE READ OF THE CLOCK for both row surfaces. Two independent reads inside
     // one pass can straddle a second boundary and show the same count a second
@@ -20588,6 +20735,23 @@
   // covers every gesture — and equally, nothing that is not a gesture picks it
   // up. The row glyph's RESUME click is unaffected: it routes to satSetPaused,
   // not here, and is already a resume.
+  // [FIX-7] ACTIVATE, THEN START - the one-gesture path every play glyph uses.
+  //
+  // CHAINED OFF satActivate's RESULT, not fired beside it. satActivate returns
+  // false when it has opened the reset confirm instead of switching, and a
+  // start fired regardless would have begun a session on whichever task the
+  // user chose to keep - the opposite of what declining the switch means.
+  //
+  // AND IT DOES NOT RESTART A RUNNING PHASE. Clicking play on the task that is
+  // already running would otherwise throw away the minutes elapsed and stamp a
+  // fresh phase, which no reading of "start" intends.
+  async function satStartOnTask(taskId, workspaceId) {
+    var switched = await satActivate(taskId, workspaceId);
+    if (switched === false) return;
+    if (satRunningPomo()) return;
+    await satPomoStart();
+  }
+
   async function satActivate(taskId, workspaceId) {
     // [A2 D6] Switching AWAY from a task with a running focus phase resets that
     // session — gate it behind a confirm. Covers every switch entry point (row

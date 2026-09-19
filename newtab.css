@@ -21097,3 +21097,139 @@ html.bg-light #tab-dashboard .dash-chain,
 html.has-bg.bg-light #tab-dashboard .dash-chain { color: var(--ink-mute); }
 html.bg-light #tab-dashboard .dash-chain-cancel,
 html.has-bg.bg-light #tab-dashboard .dash-chain-cancel { color: var(--ink-mute); }
+
+/* =========================================================================
+   [FIX-7] THE RUNNING SESSION ON THE DASHBOARD HERO
+
+   THE RING IS H2b's CONIC, REBUILT RATHER THAN MOVED. Its rules were .sat-*
+   and went with the pill; this is the same construction under new names - a
+   conic gradient for the arc, a radial mask for the hole, so the whole dial is
+   ONE element rather than two SVG circles in their own coordinate system.
+   --ring-frac is the single number the 1s paint writes.
+
+   THE FILL IS THE action COLOUR, which is the board's call and the one that
+   survives measurement: a graphical indicator has to clear 3:1 against the
+   tile it sits on, and amber on pause is the one signal this surface carries
+   for that state - the same rule [1.9.4] FINDING 5 counts.
+   ========================================================================= */
+#tab-dashboard .dash-session {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 8px;
+}
+#tab-dashboard .dash-session-ring {
+  position: relative;
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+}
+#tab-dashboard .dash-session-track,
+#tab-dashboard .dash-session-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-circle);
+  /* A 6px ring: keep the middle, drop the centre. Both halves stated because
+     -webkit- is still required on WebKit for mask-composite. */
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 6px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 6px));
+}
+#tab-dashboard .dash-session-track { background: rgba(255, 255, 255, 0.14); }
+#tab-dashboard .dash-session-fill {
+  --ring-frac: 0;
+  background: conic-gradient(var(--action) calc(var(--ring-frac) * 360deg), transparent 0);
+}
+/* PAUSED IS AMBER ON THE RING, AND NOWHERE ELSE. The phase word beneath says
+   "Paused" in the meta tier; a second amber object would be the inflation
+   [1.9.4] counts, which is the rule the pill's own paused state followed. */
+#tab-dashboard .dash-session.is-paused .dash-session-fill {
+  background: conic-gradient(var(--sat-amber) calc(var(--ring-frac) * 360deg), transparent 0);
+}
+#tab-dashboard .dash-session-centre {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#tab-dashboard .dash-session-time {
+  font-size: var(--fs-13);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+#tab-dashboard .dash-session.is-paused .dash-session-time { color: var(--sat-amber); }
+#tab-dashboard .dash-session-meta { min-width: 0; }
+#tab-dashboard .dash-session-phase {
+  font-size: var(--fs-11);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--action-soft);
+}
+#tab-dashboard .dash-session-task {
+  margin-top: 2px;
+  font-size: var(--fs-12);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html.bg-light #tab-dashboard .dash-session-task,
+html.has-bg.bg-light #tab-dashboard .dash-session-task { color: var(--ink); }
+html.bg-light #tab-dashboard .dash-session-phase,
+html.has-bg.bg-light #tab-dashboard .dash-session-phase { color: var(--action-soft); }
+
+/* =========================================================================
+   [FIX-7] THE PLAY GLYPH IS VISIBLE AT REST
+
+   RULED 2026-09-19, reversing H1b. The v1 rules above keep the glyph at
+   opacity 0 until the row is hovered - which the comment on them calls
+   "subtle at rest" and which Samson, twice now, calls not being able to find
+   it. A hover affordance is also unreachable on touch and invisible to anyone
+   scanning the list rather than pointing at it.
+
+   action-soft, PER THE RULING, and that is a change of family as well as of
+   opacity: the v1 glyph took --ink-secondary and lit to --sat-accent (the v1
+   blue) on hover. The v2 rows are tiles and the play glyph is the one place a
+   row carries colour - the same call the pill's own task list made.
+
+   THE TEXT STROKE GOES. It existed to ring a nearly-transparent glyph so it
+   read as a control at 9px on a photograph; at full opacity in the action
+   colour it is an outline around an already-solid mark.
+   ========================================================================= */
+html.has-bg .tasks-split .tt-task-play,
+html.has-bg .dash-due-row .tt-task-play,
+.tasks-split .tt-task-play,
+.dash-due-row .tt-task-play {
+  opacity: 1;
+  color: var(--action-soft);
+  -webkit-text-stroke: 0;
+  font-size: var(--fs-11);
+}
+html.has-bg .tasks-split .tt-task-row:hover .tt-task-play,
+html.has-bg .dash-due-row:hover .tt-task-play,
+.tasks-split .tt-task-row:hover .tt-task-play,
+.dash-due-row:hover .tt-task-play { opacity: 1; }
+html.has-bg .tasks-split .tt-task-play:hover,
+html.has-bg .dash-due-row .tt-task-play:hover,
+.tasks-split .tt-task-play:hover,
+.dash-due-row .tt-task-play:hover {
+  color: var(--action);
+  background: var(--tile-fill);
+}
+/* THE ACTIVE ROW'S GLYPH IS THE LOUD ONE - it is the only row on the board
+   whose state is live, and the glyph is what changes it. Paused takes the
+   amber, which is this surface's one signal for that state. */
+html.has-bg .tasks-split .tt-task-row.is-active-task .tt-task-play,
+.tasks-split .tt-task-row.is-active-task .tt-task-play {
+  color: var(--action);
+}
+html.has-bg .tasks-split .tt-task-row.is-active-task .tt-task-play.is-paused,
+.tasks-split .tt-task-row.is-active-task .tt-task-play.is-paused {
+  color: var(--sat-amber);
+}
+html.bg-light .tasks-split .tt-task-play,
+html.has-bg.bg-light .tasks-split .tt-task-play,
+html.bg-light .dash-due-row .tt-task-play,
+html.has-bg.bg-light .dash-due-row .tt-task-play { color: var(--action-soft); }

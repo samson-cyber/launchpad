@@ -1503,6 +1503,10 @@ I18n.register("en", {
     "message": "No tasks left to pick in this workspace.",
     "description": "Shown in the Today's three picker when every open task is already picked, or the workspace has no open tasks. Rendered with th()."
   },
+  "dash_session_paused": {
+    "message": "Paused",
+    "description": "The phase word on the Dashboard hero's running-session block while tracking is paused. Replaces the phase name (Focus / Short break / Long break). The ring beside it goes amber and is the ONE amber signal on this surface, per [1.9.4] finding 5. Rendered with t()."
+  },
   "dash_tasks_completed": {
     "message": "Tasks completed",
     "description": "Text sink in dashStripHtml(). Rendered with t()."
@@ -1838,6 +1842,10 @@ I18n.register("en", {
   "companion_paused": {
     "message": "Paused",
     "description": "Toolbar popup eyebrow when tracking is globally paused. The numeral freezes with it. Rendered with t()."
+  },
+  "companion_start_on_task": {
+    "message": "Start a focus session on \u201c{name}\u201d",
+    "description": "Tooltip and aria-label on the play glyph beside each row of the side panel's due list. One click makes that task active AND starts a focus session on it. {name} is the task. Side panel only - the toolbar popup's rows stay a reading surface (companion.js finding 3)."
   },
   "companion_start_focus": {
     "message": "▶ Focus · {minutes} min",

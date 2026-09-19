@@ -176,6 +176,11 @@ function boot(src) {
     // the subject still boots. This widens what the harness LOADS, never what an
     // assertion accepts.
     "taskPriorityClass",
+    // [FIX-7] And it now renders the Tasks tab's PLAY GLYPH, from the same
+    // builder, so the due row and the task row cannot drift on the glyph's
+    // three states. Same rule as the line above: this widens what the harness
+    // LOADS, never what an assertion accepts.
+    "taskPlayHtml",
   ];
   // [1.5.0] R3. The extracted builders now call th()/t(), which newtab.js binds
   // inside its IIFE and this sandbox therefore does not have. Resolve them
