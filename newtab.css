@@ -8822,9 +8822,14 @@ html.has-bg.bg-light .pro-preview-banner {
   gap: var(--space-2-5);
 }
 
+/* [E3] RULING 34. The list tile's meta ink, which is the board's own:
+   html.has-bg .insights-tab .insights-task-dur { color: var(--ink-mute) }.
+   THE OPACITY GOES WITH IT - E2 gave this node --ink-mute while leaving the
+   0.7 in place on a WHITE tile and measured 1.40, and Round E's twin line is
+   the rule: both opacities go, the step lives in the colour, once. */
 .pp-goal-deadline {
   font-size: var(--fs-12);
-  opacity: 0.7;
+  color: var(--ink-mute);
 }
 
 .pp-icon-btn {
@@ -8864,9 +8869,10 @@ html.has-bg.bg-light .pro-preview-banner {
   transition: width 0.2s;
 }
 
+/* [E3] RULING 34, the same sibling and the same reason as .pp-goal-deadline. */
 .pp-progress-text {
   font-size: var(--fs-11);
-  opacity: 0.7;
+  color: var(--ink-mute);
   min-width: 28px;
   text-align: end;
 }
@@ -8929,15 +8935,28 @@ html.has-bg.bg-light .pro-preview-banner {
   white-space: nowrap;
 }
 
+/* [E3] RULING 33. The demo's "active" label takes the hero session-label's
+   treatment - ink only, NO FILL - now that the tile under it is dark on every
+   ground. E2 measured the board's sibling after seeding a session:
+   .dash-working-elapsed is rgb(243,237,230) = --ink, at no fill at all, on a
+   tile whose gradient is identical on all three grounds.
+
+   THE BADGE SITS ON A LIST TILE, NOT THE HERO, so it takes --ink on that tile
+   and the demo keeps no second signal: one signal per surface, and a demo has
+   no session running. The green fill and its hairline are what made this the
+   worst node in the preview at 1.34 - bright green on a pale green pill on a
+   white card - and both go rather than being re-tinted.
+
+   THE PADDING AND THE RADIUS GO WITH THEM, because the sibling has neither:
+   #tab-dashboard .dash-working-elapsed is font-size, weight, colour and
+   nothing else. Keeping a pill's inset and corner radius on a node with no
+   pill left would be a value I chose rather than one I took. The gap stays -
+   it spaces the dot from the word, which is still two objects. */
 .pp-active-badge {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1-5);
-  padding: 2px var(--space-2);
-  border-radius:var(--radius-pill);
-  background: rgba(46, 204, 113, 0.18);
-  border: 1px solid rgba(46, 204, 113, 0.4);
-  color: #58e89a;
+  color: var(--ink);
   font-size: var(--fs-11);
   font-weight: 500;
 }
@@ -10090,9 +10109,37 @@ html.has-bg.bg-light .dash-mod .pp-insights-card {
 
 
 
-html.has-bg.bg-light .pp-dash-card,
-html.has-bg.bg-light .pp-goal-card,
-html.has-bg.bg-light .pp-insights-card,
+/* [E3] RULING 43 — THE WHITE-CARD RULE IS RETIRED FOR THE ONE SELECTOR THAT
+   IS A TILE, AND TWO OF THE FIVE WERE ALREADY DEAD.
+
+   Warm Bento (DECISIONS 2026-09-18) has no white card: a tile is the same
+   colour on every wallpaper and only its ALPHA moves, which tokens.css does
+   under html.bg-light (tints 0.94, list 0.90). H3b rebuilt the preview out of
+   tiles; this v1 rule kept painting one of them white, and the `background`
+   SHORTHAND dropped the tile gradient with it. E2 measured the consequence:
+   tile-ink tokens on a white tile read 1.15 to 1.40, which is what withdrew
+   rulings 33 and 34 there.
+
+   MEASURED IN THE DOM, ON THE FREE PREVIEW, NOT READ OFF THIS LIST:
+
+     .pp-dash-card        0 elements   H3b left no emitter - DEAD
+     .pp-insights-card    0 elements   H3b replaced every one with .tile - DEAD
+     .pp-goal-card        a TILE       tile tile--list pp-goal-card pp-demo-tile
+     .pp-tasks-header     not a tile   the filter bar, a card of its own
+     .pp-empty-state      not a tile   and not inside one - a card of its own
+
+   So exactly ONE of the five was a tile, and the other twelve preview tiles
+   (five on Dashboard, seven on Insights) were never in this list and already
+   render dark on a light ground. The two dead selectors go because a rule
+   naming classes that no longer exist is what made this list read as five
+   white tiles when it was one.
+
+   .pp-goal-card NEEDS NO REPLACEMENT RULE. .tile--list already says
+   `background: var(--tile-list)`, and html.bg-light already redefines that
+   token to rgba(20,18,20,0.90). Removing the override is the whole fix; the
+   sibling list tiles on Dashboard and Insights measure exactly that today.
+   Its border and text-shadow go with it for the same reason - a near-black
+   0.08 hairline is invisible on a dark tile, and .tile brings --tile-line. */
 html.has-bg.bg-light .pp-tasks-header,
 html.has-bg.bg-light .pp-empty-state {
   background: rgba(255, 255, 255, 0.85);
@@ -10380,9 +10427,17 @@ html.has-bg:not(.bg-light) .insights-range-seg .seg-btn:not(.active) {
 
 
 
+/* [E3] RULING 34. THIS ONE IS NOT ON A TILE and does not move to a tile ink:
+   the surface census puts it on .ins-row-range-preview, the range CARD, which
+   is Card-tier frost and stays white-tinted on a light ground. So its sibling
+   is the node beside it on that same card - .ins-row-range .insights-range-note
+   - and that node is at 0.8, not 0.7. Its own [1.8.6] comment already records
+   why: at 0.7 over this card the ink measured 4.02 on the bright ground, and
+   "one step up clears it on all four grounds". The value is the sibling's,
+   unchanged, and it was already written down. */
 .insights-range-static {
   font-size: var(--fs-12);
-  opacity: 0.7;
+  opacity: 0.8;
 }
 .ins-row-range-preview { margin-bottom: var(--space-4); }/* [1.8.6] At a one-day range insightsStripHtml emits no asides at all (see the
    comment there); this keeps the empty flex child from holding a gap open. */
@@ -23243,13 +23298,26 @@ html.has-bg.bg-light .pro-preview-content .tile {
       specificity that beats it, and only where the class sits on a tile - off a
       tile the v1 rule is still right, because off a tile the surface really is
       white-tinted. */
-html.has-bg.bg-light .pro-preview-content .tile .pp-section-header,
+/* [E3] RULING 44 - THREE OF THESE SEVEN MATCHED NOTHING, and they are dropped.
+   Counted in the live DOM with all three previews rendered, on the only
+   ground this rule applies to:
+
+     .pp-section-header      0   section headers sit on the BARE PAGE here,
+                                 never inside a tile
+     .pp-axis-label-sub      0   E2's ruling 32 passed axis:false and the SVG
+                                 captions stopped being emitted at all
+     .insights-range-static  0   the census puts it on the range CARD, not a
+                                 tile - this was Round E's guess, and it is
+                                 the same guess E2's census already corrected
+
+   The four that remain were measured the same way and all move real nodes:
+   .pp-axis-label 1/1, .pp-donut-center 1/1, .insights-task-name 21/21,
+   .insights-task-dur 21/21. They still beat the v1 `color:#222` list, which
+   is unchanged and still right OFF a tile. */
 html.has-bg.bg-light .pro-preview-content .tile .pp-axis-label,
-html.has-bg.bg-light .pro-preview-content .tile .pp-axis-label-sub,
 html.has-bg.bg-light .pro-preview-content .tile .pp-donut-center,
 html.has-bg.bg-light .pro-preview-content .tile .insights-task-name,
-html.has-bg.bg-light .pro-preview-content .tile .insights-task-dur,
-html.has-bg.bg-light .pro-preview-content .tile .insights-range-static {
+html.has-bg.bg-light .pro-preview-content .tile .insights-task-dur {
   color: var(--ink);
   fill: var(--ink);
 }
@@ -23303,6 +23371,22 @@ html.has-bg .pro-preview-content .pp-badge-locked .pp-badge-icon {
       ink the sheet already uses for text on a light wallpaper. */
 html.has-bg.bg-light .dash-free-theirs-head {
   color: var(--text-primary);
+}
+
+/* [E3] RULING 34, THE BARE-PAGE ROW OF THE CENSUS. The collapsed section
+   heading in the Tasks preview sits on the WALLPAPER - the census walks to
+   the first ancestor that paints and lands on body, at rgb(245,245,245) - so
+   it is rule 5's case exactly, one rule up, and it takes rule 5's sibling.
+
+   ITS 0.6 GOES ON THIS GROUND RATHER THAN MULTIPLYING THROUGH. At 0.6 over a
+   #f5f5f5 page the heading measured 4.05; a colour alone cannot fix a node
+   whose own opacity is the step, which is the mistake E2 made on the goal
+   card's meta and Round E made on the locked badges. The dim is kept where it
+   is legible - the dark grounds, where this node already clears - and dropped
+   only here, where it is the defect. */
+html.has-bg.bg-light .pro-preview-content .pp-section-header-collapsible {
+  color: var(--text-primary);
+  opacity: 1;
 }
 
 
