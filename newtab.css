@@ -3511,9 +3511,19 @@ html.bg-image .empty-group-hint {
   color: var(--text-primary);
 }
 
+/* [ROUND G] THE ACTION PAIR, not v1's accent. "Got it" is the one thing a user
+   clicks in this tip, and it was the last unconditional --accent FILL on a
+   control - the same #1a73e8 on every ground, measured 4.39 on dark, light and
+   a bright photograph alike, which is what told me it was one rule rather than
+   a light-ground branch like the modal primary's.
+
+   --ink-on-action ON --action is the pairing H1a measured at 7.5:1 and this
+   round measures at 8.04 on the modal primary. Ruling 25 on 1218650322138914
+   named this button; ruling 37 put it in this round because it is the same
+   colour doctrine, not the same selector. */
 #rc-tip-dismiss {
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--action);
+  color: var(--ink-on-action);
   border: none;
   border-radius:var(--radius-md);
   padding: 5px var(--space-3);
@@ -14506,31 +14516,47 @@ html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-danger {
 
 html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-danger:hover {
   background: rgba(208, 2, 27, 0.18);
-}/* ===== THE AFFIRMATIVE BUTTON KEEPS ITS FILL ON A LIGHT WALLPAPER =========
-   THE SECOND INSTANCE OF THE SAME CAUSE, and measured rather than reasoned
-   about. On a light ground .tt-modal-btn-primary-fill rendered
+}/* ===== [ROUND G] THE AFFIRMATIVE BUTTON'S LIGHT-GROUND RULE IS RETIRED ====
+
+   WHAT USED TO BE HERE, and why it was right when it was written. On a light
+   ground .tt-modal-btn-primary-fill rendered
 
        color rgb(31,31,31)  background rgba(0,0,0,0.04)  background-image NONE
 
-   which is BYTE-IDENTICAL to .tt-modal-cancel beside it. Not a contrast nudge
-   - the 3.57:1 that aeaf99d reported was the symptom, and the cause is that
-   the gradient was gone entirely. html.has-bg.bg-light .tt-modal-btn is
-   (0,3,1) and .tt-modal-btn-primary-fill is (0,1,0), and the ground rule uses
-   the `background` SHORTHAND, which resets background-image to none.
+   - BYTE-IDENTICAL to .tt-modal-cancel beside it, because
+   html.has-bg.bg-light .tt-modal-btn is (0,3,1), .tt-modal-btn-primary-fill
+   was (0,1,0), and the ground rule uses the `background` SHORTHAND, which
+   resets background-image to none. So a rule was added at (0,4,1) to put the
+   fill back. It put back a BLUE one.
 
-   Every modal in the product ends in Cancel + a primary; on a light wallpaper
-   the two were the same button. */
+   WHY IT GOES NOW. H3a migrated the primary to var(--action) and gave it
+   ground-scoped forms - but at (0,3,1), which loses to the (0,4,1) above. The
+   result was measured on a real modal, opened by a real click, on all three
+   grounds:
 
+       dark solid    background rgb(255,138,61)   ink rgb(26,13,5)    8.04
+       bright photo  background rgb(255,138,61)   ink rgb(26,13,5)    8.04
+       light solid   background #1a73e8 gradient  ink #fff           4.83
 
-html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-primary-fill {
-  background: linear-gradient(135deg, var(--accent) 0%, #1667d4 100%);
-  border-color: transparent;
-  color: #fff;
-}
+   Every modal primary in the product came from ONE emitter (newtab.js, inside
+   openTasksModal), so that was every modal in the product wearing v1 blue on
+   one ground. RETIRED rather than re-ranked: the rule carried nothing the
+   light ground still needs. Its border-color: transparent and its ink are both
+   in H3a's rule already, and its only other job - putting a fill back where
+   the shorthand had removed one - is done by that rule too. The hover was a
+   second blue gradient and nothing else.
 
-html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-primary-fill:hover {
-  background: linear-gradient(135deg, #1667d4 0%, #125bbb 100%);
-}
+   WHAT NOW WINS, and it is a source-order win rather than a specificity one:
+   html.has-bg.bg-light .tt-modal-btn-primary-fill (0,3,1) ties with
+   html.has-bg.bg-light .tt-modal-btn (0,3,1) and sits later in the file. A tie
+   is not a loss, but it is worth naming, because moving either rule would
+   silently undo this.
+
+   THE INK DOES NOT NEED A GROUND BRANCH. --action is an OPAQUE fill, so the
+   wallpaper never reaches the glyph: --ink-on-action measures 8.04 on the
+   orange on all three grounds, one number, one rule. That is the difference
+   between this and the tile-ink pattern, which exists for surfaces whose
+   backdrop changes. */
 
 html.has-bg.bg-light .tt-modal-error {
   color: #b00020;

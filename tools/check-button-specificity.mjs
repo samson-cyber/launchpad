@@ -185,6 +185,82 @@ export function containerBreaches(text) {
   return out;
 }
 
+// =========================================================================
+// [ROUND G] THE THIRD RULE: ONE ACTION COLOUR. A v1 ACCENT FILL MUST NOT
+// OUTRANK A v2 --action FILL ON THE SAME CONTROL.
+//
+// WHY THIS IS A THIRD SECTION AND NOT A WIDENING OF THE SECOND. Round F found
+// every modal primary in the product rendering v1 blue on a light wallpaper,
+// and the obvious diagnosis - "the v1-vs-v2 section checks color but not
+// background" - is WRONG. paints() has matched `background` since H4.2: the
+// property was never the problem. Two other things were, and both were
+// measured rather than reasoned about:
+//
+//   1. THE SUBSTRING EXEMPTION. containerBreaches skips any ground rule whose
+//      selector "names a container", tested with sel.includes(".tt-modal").
+//      `.tt-modal-btn-primary-fill` CONTAINS `.tt-modal`, so the breaching
+//      rule was exempted before any property was looked at. Verified: with
+//      exactly the two rules in question as input, containerBreaches returns
+//      []. Round A's review flagged this substring match as a weakness; this
+//      is it firing.
+//
+//   2. SECTION ONE EXCUSES IT TOO, for a different reason. hasGroundForm asks
+//      whether a ground-scoped form of the state modifier EXISTS. H3a wrote
+//      three, and the best of them is (0,3,1) against the v1 rule's (0,4,1) -
+//      so a form existed, did not win, and the state was skipped.
+//
+// SO THE TEST HERE IS NOT ABOUT RANK ALONE, WHICH IS WHAT MAKES IT SAFE.
+// A gate that failed whenever a ground rule outranked a bare class rule would
+// also fail H3a's own fix for the danger button, which deliberately adds
+// .tt-modal-btn to reach (0,4,1). Structure cannot tell that rule from the
+// blue one - both are ground-scoped supersets that outrank a bare class. What
+// separates them is the COLOUR SYSTEM they paint: one control painted
+// var(--action) by one rule and v1 blue by another is a contradiction, and
+// the contradiction is the thing worth failing on. That is also exactly the
+// round's title.
+const V1_ACCENT = /var\(\s*--accent\b|#1a73e8|#1667d4|#125bbb|#186cdd/i;
+const V2_ACTION = /var\(\s*--action\b/;
+
+// The declared VALUE for one property, so a rule can be classified by what it
+// paints rather than by where it sits.
+function declValue(body, prop) {
+  const re = new RegExp("(?:^|;)\\s*" + prop + "(?:-color)?\\s*:([^;]*)", "i");
+  const m = re.exec(body);
+  return m ? m[1] : "";
+}
+
+export function actionColourBreaches(text) {
+  const rs = rules(text.replace(/\/\*[\s\S]*?\*\//g, " "));
+  const v2 = new Map();   // subject-key -> the best-ranked --action FILL
+  const v1 = [];          // every v1 accent FILL, with its rank
+  for (const [sel, body] of rs) {
+    if (!paints(body).has("background")) continue;
+    const key = classesOf(sel.trim().split(/\s+/).pop()).sort().join(".");
+    if (!key) continue;
+    const decl = declValue(body, "background");
+    const r = rank(specificity(sel));
+    if (V2_ACTION.test(decl)) {
+      if (!v2.has(key) || v2.get(key).r < r) v2.set(key, { r, sel: sel.trim() });
+    } else if (V1_ACCENT.test(decl)) {
+      v1.push({ key, sel: sel.trim(), r, decl: decl.trim().slice(0, 60) });
+    }
+  }
+  const out = [];
+  for (const g of v1) {
+    const gCls = g.key.split(".");
+    for (const [ownKey, own] of v2) {
+      // The v1 rule must be able to select a node the v2 rule paints: its
+      // subject compound is the same set, or a SUPERSET of it (the v1 rule
+      // adds an identity class, which is the shape of the modal primary).
+      const ownCls = ownKey.split(".");
+      if (!ownCls.every((c) => gCls.includes(c))) continue;
+      if (g.r <= own.r) continue;
+      out.push({ cls: ownKey, v1: g.sel, v1Rank: g.r, v1Value: g.decl, v2: own.sel, v2Rank: own.r });
+    }
+  }
+  return out;
+}
+
 export function audit(css) {
   const all = rules(css.replace(/\/\*[\s\S]*?\*\//g, ""));
   const grounds = [], states = [];
@@ -271,6 +347,24 @@ if (args.includes("--self-test")) {
     .gd-btn-primary { color:#fff; }`);
   chk("...and does not report a :not() pair that cannot co-occur", excl.length === 0);
 
+  // ---- [ROUND G] one action colour ----
+  const RG_V2 = ".tt-modal-btn-primary-fill { background: var(--action); }";
+  const RG_V1 = "html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-primary-fill { background: linear-gradient(135deg, var(--accent) 0%, #1667d4 100%); }";
+  chk("CATCHES a v1 accent fill outranking a v2 --action fill",
+    actionColourBreaches(RG_V2 + "\n" + RG_V1).length === 1,
+    JSON.stringify(actionColourBreaches(RG_V2 + "\n" + RG_V1)));
+  chk("...and names both sides",
+    (actionColourBreaches(RG_V2 + "\n" + RG_V1)[0] || {}).v1Rank === 4001 &&
+    (actionColourBreaches(RG_V2 + "\n" + RG_V1)[0] || {}).v2Rank === 1000);
+  chk("PASSES when the v2 rule outranks the v1 one (the fix must not fail)",
+    actionColourBreaches(RG_V1 + "\nhtml.has-bg.bg-light .tt-modal-btn.tt-modal-btn-primary-fill { background: var(--action); }").length === 0);
+  chk("PASSES a v1 accent fill on a control no --action rule paints",
+    actionColourBreaches("#some-v1-thing { background: var(--accent); }").length === 0);
+  chk("does NOT fire on a DIFFERENT control that merely shares no class",
+    actionColourBreaches(RG_V2 + "\nhtml.has-bg.bg-light .unrelated-btn { background: var(--accent); }").length === 0);
+  chk("does not mistake an --action fill for a v1 one",
+    actionColourBreaches(".a { background: var(--action); }\nhtml.has-bg .a.b { background: var(--action); }").length === 0);
+
   console.log(`\n  ${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 }
@@ -346,9 +440,47 @@ if (containerRules < 20) {
 }
 console.log("    (scanned " + containerRules + " container-scoped rules)\n");
 
+// [ROUND G] ONE ACTION COLOUR. Enforced at zero from the day it lands: the
+// round that added it is the round that cleared the two sites it found, so
+// there is no baseline to grandfather and no reason to let one accumulate.
+const actionBreaches = actionColourBreaches(css);
+const ACTION_BASELINE = 0;
+console.log("\n  ONE ACTION COLOUR - a v1 accent fill must not outrank an --action fill");
+if (!actionBreaches.length) {
+  console.log("    ok   no v1 accent fill outranks a v2 --action fill\n");
+} else {
+  const seenA = new Set();
+  for (const b of actionBreaches) {
+    if (seenA.has(b.cls)) continue;
+    seenA.add(b.cls);
+    console.log("    FAIL  ." + b.cls + " { background }");
+    console.log("          v1 accent (" + b.v1Rank + ")  " + b.v1);
+    console.log("                          -> " + b.v1Value);
+    console.log("          v2 --action (" + b.v2Rank + ")  " + b.v2);
+    console.log("          FIX: retire the v1 fill if it only restores the old blue, or give");
+    console.log("               the --action rule a form that outranks it. One colour, every ground.");
+  }
+  console.log("");
+}
+// ANTI-VACUITY: there must BE --action fills to protect, or a token rename
+// would make this row pass by measuring nothing.
+const actionFills = new Set();
+for (const [sel, body] of rules(css.replace(/\/\*[\s\S]*?\*\//g, " "))) {
+  if (paints(body).has("background") && /var\(\s*--action\b/.test(body)) actionFills.add(sel.trim());
+}
+if (actionFills.size < 3) {
+  console.log("  REFUSED: only " + actionFills.size + " --action fill(s) found; this row would pass vacuously.\n");
+  process.exit(2);
+}
+console.log("    (scanned " + actionFills.size + " --action fill rule(s))\n");
+
 const ENFORCING = false;
 const BASELINE = 19;
 
+if (actionBreaches.length > ACTION_BASELINE) {
+  console.log("  BUTTON SPECIFICITY: FAIL - " + actionBreaches.length + " v1 accent fill(s) outrank an --action fill\n");
+  process.exit(1);
+}
 if (breaches.length > CONTAINER_BASELINE) {
   console.log(`\n  BUTTON SPECIFICITY: FAIL - ${breaches.length} v1 ground rule(s) outrank a v2 container\n`);
   process.exit(1);

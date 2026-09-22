@@ -4681,8 +4681,8 @@ I18n.register("en", {
       "sense": "button.action"
     },
     "focusblock_casual_offer_dismiss": {
-      "description": "The quiet dismiss on that dialog, rendered as a LINK rather than a second button so the one coloured control is the one that acts. Declines the offer and changes nothing; the schedule stays saved and stays dormant. Deliberately not 'Cancel' - there is nothing to cancel, the save already happened.",
-      "message": "Not now",
+      "description": "The quiet dismiss on that dialog, rendered as a LINK rather than a second button so the one coloured control is the one that acts. Declines the offer and changes nothing; the schedule stays saved and stays dormant. Deliberately not 'Cancel' - there is nothing to cancel, the save already happened. [Round G, ruling 38] Was 'Not now', which implied a later prompt that only ever arrives on the next save; this names the CONSEQUENCE of declining instead, which is what the design guide asks a decline to do.",
+      "message": "Leave it Casual",
       "sense": "button.dismiss"
     },
     "focusblock_budget_mode_note": {
