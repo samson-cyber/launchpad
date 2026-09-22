@@ -225,6 +225,16 @@ export const PARSER_FIXTURES = [
 // The allowlist reader has its own fixtures, for the same reason the HTML
 // extractor does: it is source B, and a source that mis-parses is worse than one
 // that is missing, because it reports a confident wrong answer.
+//
+// EVERY FIXTURE CARRIES THE SENTINEL, because build.sh's array must. A fixture
+// without it is not a smaller build.sh, it is an invalid one, and the three
+// `broken` cases below are exactly the fixtures that leave it out or move it.
+//
+// COUNTS ARE ASSERTED AGAINST A KNOWN LIST, NEVER AGAINST "more than before".
+// The defect this file exists to catch produces a SHORT list that is internally
+// consistent, so a floor or a trend would have passed it; only naming the
+// entries catches it. The `count` fixture below states its number in words as
+// well as its entries, so a fixture edited carelessly disagrees with itself.
 export const ALLOWLIST_FIXTURES = [
   {
     name: "an apostrophe in a comment does not become an entry",
@@ -233,23 +243,86 @@ export const ALLOWLIST_FIXTURES = [
         "    # [1.14.1] TD.1's parser. Referenced by newtab.html and MISSING from this\n" +
         "    # array until TD.2's build caught it.\n" +
         "    'quickadd.js'\n" +
-        ")",
+        ") # end-allowlist",
     want: ["manifest.json", "quickadd.js"]
   },
   {
     name: "a trailing comment after a real entry is stripped",
-    sh: "$allow = @(\n    'a.js',   # it's fine\n    'b.js'\n)",
+    sh: "$allow = @(\n    'a.js',   # it's fine\n    'b.js'\n) # end-allowlist",
     want: ["a.js", "b.js"]
   },
   {
     name: "a # inside a quoted entry is NOT a comment",
-    sh: "$allow = @(\n    'weird#name.js',\n    'b.js'\n)",
+    sh: "$allow = @(\n    'weird#name.js',\n    'b.js'\n) # end-allowlist",
     want: ["weird#name.js", "b.js"]
   },
   {
     name: "ordinary entries are unaffected",
-    sh: "$allow = @(\n    'manifest.json',\n    'newtab.html',\n    'locales'\n)",
+    sh: "$allow = @(\n    'manifest.json',\n    'newtab.html',\n    'locales'\n) # end-allowlist",
     want: ["manifest.json", "newtab.html", "locales"]
+  },
+
+  // ---- ROUND D: the second prose trap, aa79686 -----------------------------
+  {
+    // THE FIXTURE THIS ROUND EXISTS FOR. Under the old non-greedy match this
+    // returned ["manifest.json"] and reported ok - a short list, silently.
+    roundD: true,
+    name: "a ) in a comment above the close does NOT truncate the array",
+    sh: "$allow = @(\n" +
+        "    'manifest.json',\n" +
+        "    # A DIRECTORY (like lib and sounds) so a fourth subset follows.\n" +
+        "    'fonts',\n" +
+        "    'sounds'\n" +
+        ") # end-allowlist",
+    want: ["manifest.json", "fonts", "sounds"]
+  },
+  {
+    roundD: true,
+    name: "a ) inside a quoted entry does not close the array either",
+    sh: "$allow = @(\n    'odd)name.js',\n    'b.js'\n) # end-allowlist",
+    want: ["odd)name.js", "b.js"]
+  },
+  {
+    roundD: true,
+    name: "a balanced ( ) pair in a comment leaves the depth where it found it",
+    sh: "$allow = @(\n" +
+        "    # see tokens.css (the @font-face block) for why\n" +
+        "    'fonts',\n" +
+        "    'sounds'\n" +
+        ") # end-allowlist",
+    want: ["fonts", "sounds"]
+  },
+  {
+    roundD: true,
+    name: "count: eight entries, named, so a careless edit disagrees with itself",
+    sh: "$allow = @(\n" +
+        "    'manifest.json', 'newtab.html', 'newtab.js',\n" +
+        "    # a comment with a ) and an apostrophe: TD.1's\n" +
+        "    'tokens.css', 'locales', 'lib',\n" +
+        "    'fonts', 'sounds'\n" +
+        ") # end-allowlist",
+    want: ["manifest.json", "newtab.html", "newtab.js", "tokens.css", "locales", "lib", "fonts", "sounds"],
+    count: 8
+  },
+
+  // ---- the three mutations, each of which must be BROKEN, not a short list --
+  {
+    roundD: true,
+    name: "BROKEN: the sentinel is missing",
+    sh: "$allow = @(\n    'manifest.json',\n    'fonts'\n)",
+    broken: /sentinel/i
+  },
+  {
+    roundD: true,
+    name: "BROKEN: the sentinel is present but the array is never closed",
+    sh: "$allow = @(\n    'manifest.json',\n    'fonts'\n# end-allowlist\n$root = (Get-Location).Path\n",
+    broken: /never closed|sentinel/i
+  },
+  {
+    roundD: true,
+    name: "BROKEN: the opener is gone",
+    sh: "$deny = @(\n    'manifest.json'\n) # end-allowlist",
+    broken: /opener/i
   }
 ];
 
@@ -267,9 +340,23 @@ export function runParserSelfTest() {
   }
   for (const f of ALLOWLIST_FIXTURES) {
     const r = parseAllowlistText(f.sh);
-    const got = r.ok ? r.entries : ["<<" + r.why + ">>"];
-    const ok = got.length === f.want.length && got.every((g, i) => g === f.want[i]);
-    results.push({ name: "allowlist: " + f.name, ok, got, want: f.want });
+    let ok, got, want;
+    if (f.broken) {
+      // A BROKEN FIXTURE ASSERTS THE REFUSAL AND ITS REASON. Asserting only
+      // ok===false would pass for a parser broken in some other way, which is
+      // the shape of vacuity P13 is about.
+      got = r.ok ? "parsed " + r.entries.length + " entr(ies)" : r.why;
+      ok = r.ok === false && f.broken.test(r.why);
+      want = "BROKEN, why matching " + String(f.broken);
+    } else {
+      got = r.ok ? r.entries : ["<<" + r.why + ">>"];
+      ok = got.length === f.want.length && got.every((g, i) => g === f.want[i]);
+      // The stated count and the stated list must agree with EACH OTHER as
+      // well as with the parse, so a fixture edited on one side fails.
+      if (f.count !== undefined && (f.count !== f.want.length || got.length !== f.count)) ok = false;
+      want = f.want;
+    }
+    results.push({ name: "allowlist: " + f.name, ok, got, want });
   }
   return results;
 }
@@ -295,53 +382,125 @@ export function readAllowlist(buildShPath) {
   return parseAllowlistText(fs.readFileSync(buildShPath, "utf8"));
 }
 
+// THE SENTINEL. build.sh's allowlist must END with this exact line, and the
+// parser refuses the file if it does not. See parseAllowlistText for why a
+// second, redundant-looking defence is here at all.
+export const ALLOWLIST_SENTINEL = ") # end-allowlist";
+
 // The parse, SEPARATED FROM THE FILE READ so it can be fixtured without a
 // temp file. Source B is the allowlist; a source that mis-parses is worse than
 // a missing one, because it reports a confident wrong answer.
+//
+// =============================================================================
+// TWO PROSE TRAPS, AND WHY THE FIX IS TWO DEFENCES RATHER THAN ONE
+// =============================================================================
+// This array has now been silently edited by its own comments TWICE, from
+// opposite ends:
+//
+//   d5dd9e3  AN APOSTROPHE ADDED ENTRIES. The reader paired single quotes
+//            across comment lines, so "TD.1's parser" and "TD.2's build" paired
+//            with each other and the prose between them became an entry.
+//   aa79686  A CLOSING PARENTHESIS REMOVED THEM. The reader located the block
+//            with a NON-GREEDY match that stopped at the first `)`, so one in a
+//            comment ended the array early and every entry below it vanished.
+//            H0 hit this twice in one round: first in a comment about the fonts
+//            directory, then again in the comment WARNING about the trap, which
+//            contained the character inside the warning.
+//
+// Both are the same defect - the allowlist being editable by prose - and the
+// first fix's own line said an allowlist that can be edited by prose is not an
+// allowlist.
+//
+// THE SHRINKING DIRECTION IS THE DANGEROUS ONE. An entry that appears is noisy
+// and informational. An entry that DISAPPEARS takes the gate's coverage with
+// it: everything below the cut stops being enforced, nothing goes red, and the
+// first thing that notices is a packaged build. That is the importers.js shape,
+// and it has reached a real build three times.
+//
+// SO: A WALK, AND A SENTINEL.
+//
+// THE WALK finds the array's real close by BRACKET DEPTH, tracking quoted
+// strings and comments as it goes - d5dd9e3's per-line walk for `#`, extended
+// to parentheses and run over the whole block. It also collects the entries as
+// it walks, so there is no second pass over "uncommented" text that could
+// disagree with the first. A `)` in a comment is now simply a character in a
+// comment.
+//
+// THE SENTINEL requires the array to end with the exact line `) # end-allowlist`
+// and returns BROKEN if it does not. It is deliberately redundant with the walk,
+// because the failure this file is guarding is SILENCE: a truncated parse looks
+// exactly like a short allowlist, and every consumer of a short allowlist agrees
+// with every other consumer of the same short allowlist. The walk makes the
+// parse correct; the sentinel makes a wrong parse impossible to mistake for a
+// correct one. If a third trap is ever found in a third character, the sentinel
+// catches it on the day it lands rather than on the next release build.
+//
+// BOTH CONSUMERS ALREADY EXIT 2 ON ok:false - check-html-refs.mjs:119 and
+// verify-package.mjs:151 - so BROKEN is wired through without either gate
+// changing. That was checked, not assumed.
+// =============================================================================
 export function parseAllowlistText(sh) {
-  const block = sh.match(/\\?\$allow\s*=\s*@\(([\s\S]*?)\)/);
-  if (!block) {
-    return { ok: false, why: "could not locate the `$allow = @( ... )` array in build.sh" };
+  const open = /\\?\$allow\s*=\s*@\(/.exec(sh);
+  if (!open) {
+    return { ok: false, why: "could not locate the `$allow = @(` array opener in build.sh" };
   }
-  // COMMENTS COME OUT FIRST, AND THIS IS NOT TIDYING.
-  //
-  // The scan below pairs single quotes. An APOSTROPHE in a comment is a single
-  // quote, so two comment lines reading "TD.1's parser ..." and "... TD.2's
-  // build" pair with each other and the text between them is read as an
-  // allowlist ENTRY. That is exactly what happened: the [1.14.1] comment added
-  // beside 'quickadd.js' produced two phantom entries, and the gate duly
-  // reported them under "allowlist entries absent from the repo".
-  //
-  // Absent entries are only informational, so the gate still passed - which is
-  // the part that makes this worth fixing rather than noting. The failure mode
-  // in the other direction is silent and real: if an apostrophe pair happened to
-  // span a genuine filename, that file would be ALLOWLISTED by a comment, and
-  // source B - the thing this gate cross-checks the zip against - would be
-  // quietly wrong. An allowlist that can be edited by prose is not an allowlist.
-  //
-  // Found by TD.4's packaged smoke, which is the first build since the comment
-  // landed. Third time a build has caught something no other check could see.
-  const uncommented = block[1]
-    .split(/\r?\n/)
-    .map(function (line) {
-      // Everything from the first # that is not inside a quoted string. Walking
-      // the line rather than regexing it, because the thing being got wrong here
-      // is precisely quote pairing.
-      var inQ = false, qc = "";
-      for (var i = 0; i < line.length; i++) {
-        var ch = line[i];
-        if (inQ) { if (ch === qc) inQ = false; continue; }
-        if (ch === "'" || ch === '"') { inQ = true; qc = ch; continue; }
-        if (ch === "#") return line.slice(0, i);
-      }
-      return line;
-    })
-    .join("\n");
 
+  const bodyStart = open.index + open[0].length;
   const entries = [];
-  const re = /'([^']+)'/g;
-  let m;
-  while ((m = re.exec(uncommented))) entries.push(norm(m[1]));
+  let depth = 1;          // the @( we just consumed
+  let quote = null;       // "'" or '"' while inside a string
+  let quoteStart = -1;    // where the current single-quoted string's body began
+  let inComment = false;  // from an unquoted # to the end of its line
+  let close = -1;
+
+  for (let i = bodyStart; i < sh.length; i++) {
+    const ch = sh[i];
+
+    if (inComment) {
+      // A comment runs to the newline and NOTHING inside it is code. This one
+      // line is the whole of the second trap's fix: a `)` here is a character.
+      if (ch === "\n") inComment = false;
+      continue;
+    }
+
+    if (quote) {
+      if (ch !== quote) continue;
+      // Only SINGLE-quoted strings are allowlist entries; that is what the
+      // array is written in, and it is what the old regex matched.
+      if (quote === "'" && i > quoteStart) entries.push(norm(sh.slice(quoteStart, i)));
+      quote = null;
+      continue;
+    }
+
+    if (ch === "'" || ch === '"') { quote = ch; quoteStart = i + 1; continue; }
+    if (ch === "#") { inComment = true; continue; }
+    if (ch === "(") { depth++; continue; }
+    if (ch === ")") { depth--; if (depth === 0) { close = i; break; } }
+  }
+
+  if (close === -1) {
+    return { ok: false, why:
+      "the `$allow = @( ... )` array is never closed - walked to the end of build.sh " +
+      "at depth " + depth + " without the parenthesis depth returning to zero" };
+  }
+
+  // THE SENTINEL, checked on the close parenthesis's OWN LINE. Taking the line
+  // from the close rather than searching the file for the string is what makes
+  // mutation 3 fail: delete the array's `)` and leave the marker behind, and the
+  // walk runs on into the packaging code and closes on some later parenthesis -
+  // whose line is not the sentinel, so this refuses rather than returning a
+  // parse of everything in between.
+  const lineEnd = sh.indexOf("\n", close);
+  const closeLine = (lineEnd === -1 ? sh.slice(close) : sh.slice(close, lineEnd)).replace(/\r$/, "");
+  if (closeLine.trim() !== ALLOWLIST_SENTINEL) {
+    return { ok: false, why:
+      "the `$allow = @( ... )` array does not end with the sentinel line `" +
+      ALLOWLIST_SENTINEL + "` - it ends with " + JSON.stringify(closeLine.trim()) + ". " +
+      "The sentinel is required so that a TRUNCATED parse cannot pass as a short " +
+      "allowlist: without it, a stray `)` in a comment silently removes every " +
+      "entry below it and every gate agrees on the short list (aa79686)." };
+  }
+
   if (!entries.length) {
     return { ok: false, why: "found the `$allow = @( ... )` array in build.sh but it parsed to zero entries" };
   }

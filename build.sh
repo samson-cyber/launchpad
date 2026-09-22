@@ -572,19 +572,35 @@ powershell.exe -NoProfile -Command "
     # automatically. That is the lesson PF.2 recorded when lib was renamed and
     # this array needed no change at all.
     #
-    # NO CLOSING PARENTHESIS MAY APPEAR IN A COMMENT IN THIS ARRAY, and this
-    # comment does not contain one. The parser locates the block with a
-    # NON-GREEDY match that stops at the first closing parenthesis, so one in
-    # prose ENDS the allowlist early and every entry below it silently
-    # disappears. The first draft of this comment did exactly that and dropped
-    # both fonts and sounds; the SECOND draft, which was a warning about the
-    # trap, contained the character inside the warning and dropped them again.
-    # Same class as the apostrophe trap the parser's own header records - prose
-    # editing the allowlist - which is why that header says an allowlist that
-    # can be edited by prose is not an allowlist.
+    # A CLOSING PARENTHESIS IN A COMMENT USED TO END THIS ARRAY, and it does
+    # not any more (Round D, 2026-09-22). The reader located the block with a
+    # non-greedy match that stopped at the first one, so a ) in prose truncated
+    # the allowlist and every entry below it silently disappeared - which cost
+    # 'fonts' and 'sounds' twice while this very comment was being written, the
+    # second time inside a warning about the trap. parseAllowlistText now walks
+    # the array by bracket depth, outside quoted strings and outside comments,
+    # so this sentence is safe and so is the one above it.
+    #
+    # BUT A DOUBLE QUOTE IS STILL FATAL HERE, and that one is bash rather than
+    # the reader: this whole block is the argument to powershell.exe -Command
+    # inside a BASH DOUBLE-QUOTED STRING, so an UNPAIRED double-quote character
+    # in a comment closes that string and the next ) is a bash token. Round D
+    # wrote one and build.sh died with a syntax error at this line before any
+    # gate ran. A balanced pair survives - the importers.js comment above has
+    # carried one for weeks - but pair them or omit them. Three parsers read
+    # these comments in order, bash then PowerShell then the JS reader, and
+    # only the third has been hardened.
+    #
+    # WHAT YOU MUST NOT REMOVE IS THE SENTINEL on the closing line below. The
+    # parser requires the array to end with exactly that line and refuses the
+    # build (exit 2) if it does not. It is redundant with the walk on purpose:
+    # a truncated parse looks exactly like a short allowlist, every gate agrees
+    # on the short list, and nothing goes red until a packaged build. The walk
+    # makes the parse correct; the sentinel makes a wrong parse impossible to
+    # mistake for a correct one.
     'fonts',
     'sounds'
-  )
+  ) # end-allowlist
   \$root = (Get-Location).Path
   \$zip = [System.IO.Compression.ZipFile]::Open((Join-Path \$root 'launchpad.zip'), 'Create')
   try {
