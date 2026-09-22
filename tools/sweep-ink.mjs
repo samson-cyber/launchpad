@@ -314,6 +314,26 @@ const PAGE = {
 
   CLEAR_SCROLLER: `(function () { document.querySelectorAll("[data-ink-scroller]").forEach(function (e) { e.scrollTop = 0; e.removeAttribute("data-ink-scroller"); }); return 1; })()`,
 
+  // [H4.1] THE RE-PIN (H3a). The ground is applied once per ground loop, by the
+  // product's own writer plus a reload - but newtab.js rewrites
+  // documentElement's className on every render, so by the time a later surface
+  // is measured the class can no longer be the one the loop set, and every row
+  // is then filed under a ground label it was not taken on. H3a turned 195
+  // clean readings into ten real failures by moving the pin to immediately
+  // before each measurement.
+  //
+  // This RE-ASSERTS the classes and reports what it found, so a drift is
+  // visible in the output rather than inferred. It does not reload: a reload
+  // per capture pair would multiply the run by the number of surfaces, and the
+  // class is the only thing that drifts - the stored background does not.
+  REPIN: (cls) => `(function () {
+  var h = document.documentElement;
+  var want = ${JSON.stringify(cls)};
+  var had = h.className;
+  if (had !== want) h.className = want;
+  return { had: had, want: want, drifted: had !== want };
+})()`,
+
   // Technique 2. Transparent ink, not hidden elements.
   INKLESS_ON: `(function () {
   var st = document.getElementById("__inkless");
@@ -394,7 +414,12 @@ const SURFACES = [
   { key: "Dashboard",    open: `(function(){document.querySelector('[data-tab="dashboard"]').click();return 1})()`, wait: 2400 },
   { key: "Insights",     open: `(function(){document.querySelector('[data-tab="insights"]').click();return 1})()`, wait: 2600 },
   { key: "Settings",     open: `(function(){document.querySelector('[data-tab="home"]').click();document.getElementById("sb-settings").click();return 1})()`, wait: 1600 },
-  { key: "Pro Settings", open: `(function(){document.getElementById("sb-pro-settings").click();return 1})()`, wait: 1800 },
+  // [H4.1] "Pro Settings" IS RETIRED (ruling 11). It opened #sb-pro-settings,
+  // a control 4cb7420 removed when the two panels became one, so every run
+  // since has printed "OPEN FAILED" for it. A sweep that reports failure to
+  // open a surface which no longer exists is noise, and noise is what
+  // eventually hides a real failure - the whole point of this instrument being
+  // that the denominator is visible. Settings above is now the one panel.
 ];
 
 // WCAG large text: >= 24px at any weight, or >= 18.66px at 700+. Everything
@@ -958,6 +983,13 @@ async function sweep() {
   const rows = [];
   const groundMeta = {};
 
+  // [H4.1] TWO RUN-LEVEL LEDGERS. A re-pin that fired and a node that could not
+  // be measured are both facts about the RUN rather than about the product, and
+  // both were invisible before: the first would have mislabelled a ground, the
+  // second would have been counted as a clear node.
+  const repins = [];
+  const unmeasuredRows = [];
+
   for (const g of grounds) {
     await ev(`(async function(){ await Storage.saveBackgroundConfig({ global: ${JSON.stringify(g.bg)}, rotate:{on:false,every:"day"}, ws:{} }); return 1; })()`);
     await ev(`location.reload()`); await sleep(5200);
@@ -970,7 +1002,7 @@ async function sweep() {
       try { await ev(s.open); } catch (e) { console.log(`  ${s.key}: OPEN FAILED ${e.message.slice(0, 80)}`); continue; }
       await sleep(s.wait);
       const sc = await ev(PAGE.SCROLLERS);
-      let seen = 0, under = 0;
+      let seen = 0, under = 0, unmeasured = 0;
       for (let step = 0; step < (sc.steps || 1); step++) {
         if (step) { await ev(PAGE.SCROLL_TO(step)); await sleep(700); }
         await ev(PAGE.CLEAR_IDS);
@@ -978,6 +1010,14 @@ async function sweep() {
         if (!nodes.length) continue;
         // Technique 1: the whole population flips at once, so a screen of 90
         // nodes costs two screenshots rather than 180.
+        // [H4.1] RE-PIN IMMEDIATELY BEFORE THE PAIR (H3a), and record it. A
+        // drift here means every row of this screen would otherwise have been
+        // filed under a ground it was not taken on.
+        const pin = await ev(PAGE.REPIN(groundMeta[g.key].classes));
+        if (pin && pin.drifted) {
+          repins.push({ ground: g.key, surface: s.key, step, had: pin.had, want: pin.want });
+          await sleep(150);
+        }
         await ev(PAGE.INKLESS_OFF); await sleep(250);
         const painted = await shot();
         await ev(PAGE.INKLESS_ON); await sleep(300);
@@ -988,6 +1028,14 @@ async function sweep() {
           const { big, floor } = floorFor(nd.fs, nd.fw);
           const r = typeof m.ratio === "number" ? m.ratio : null;
           if (r !== null && r < floor) under++;
+          // [H4.1] AN UNMEASURABLE NODE IS NOT A CLEAR NODE (H4.0 fault 1). The
+          // most dangerous line a measurement can print is "0 under floor" from
+          // a run that measured nothing: H4.0's ad-hoc harness reported exactly
+          // that with 32 of 32 nodes unmeasurable, because every box came out
+          // NaN. Counted here, named below, and fatal at the end when it is
+          // paired with a zero failure count.
+          if (r === null) { unmeasured++; unmeasuredRows.push({ ground: g.key, surface: s.key,
+            cls: nd.cls, text: (nd.text || "").slice(0, 28), note: m.note || null, px: m.pixels }); }
           seen++;
           rows.push({ ground: g.key, surface: s.key, step, cls: nd.cls, elId: nd.elId, tag: nd.tag,
                       text: nd.text, fs: nd.fs, fw: nd.fw, big, floor, ratio: r,
@@ -995,8 +1043,50 @@ async function sweep() {
                       color: nd.color, shadow: nd.shadow });
         }
       }
-      console.log(`  ${s.key.padEnd(13)} ${String(seen).padStart(4)} nodes over ${sc.steps || 1} screen(s)   ${under ? under + " UNDER FLOOR" : "all clear"}`);
+      // "all clear" is printed ONLY when nothing failed AND nothing was
+      // unmeasurable. Anything else says which, because the two are different
+      // findings and only one of them is about the product.
+      const verdict = under && unmeasured ? `${under} UNDER FLOOR, ${unmeasured} UNMEASURABLE`
+                    : under ? `${under} UNDER FLOOR`
+                    : unmeasured ? `${unmeasured} UNMEASURABLE (this is NOT a pass)`
+                    : "all clear";
+      console.log(`  ${s.key.padEnd(13)} ${String(seen).padStart(4)} nodes over ${sc.steps || 1} screen(s)   ${verdict}`);
     }
+  }
+
+  // ---------------------------------------------------------------- the run
+  // [H4.1] WHAT THE RUN ITSELF DID, reported before any finding about the
+  // product, because a finding from a run that mislabelled its grounds or
+  // measured nothing is not a finding.
+  console.log("\nTHE RUN");
+  if (repins.length) {
+    console.log(`  RE-PINS: the ground class had drifted ${repins.length} time(s) and was re-asserted (H3a)`);
+    for (const r of repins.slice(0, 12)) {
+      console.log(`    ${r.ground}/${r.surface}#${r.step}: had "${r.had}" want "${r.want}"`);
+    }
+    if (repins.length > 12) console.log(`    ... and ${repins.length - 12} more`);
+  } else {
+    console.log("  RE-PINS: none - the ground class held for every capture pair");
+  }
+
+  const totalUnder = rows.filter((r) => r.ratio !== null && r.ratio < r.floor).length;
+  console.log(`  UNMEASURABLE: ${unmeasuredRows.length} of ${rows.length} node(s)`);
+  for (const u of unmeasuredRows.slice(0, 20)) {
+    console.log(`    ${u.ground}/${u.surface}  ${u.cls}  "${u.text}"  ${u.note || ""} px=${u.px}`);
+  }
+  if (unmeasuredRows.length > 20) console.log(`    ... and ${unmeasuredRows.length - 20} more`);
+
+  // THE FATAL PAIRING (H4.0 fault 1). "0 under floor" from a run with
+  // unmeasurable nodes is the shape of a false green: the number that looks
+  // like a pass is produced by the nodes that were never measured. A run may
+  // legitimately fail to measure a 3px glyph, so this does not forbid
+  // unmeasurable nodes - it forbids REPORTING A CLEAN SWEEP alongside them.
+  if (unmeasuredRows.length && totalUnder === 0) {
+    console.error("\nREFUSED: 0 under floor with " + unmeasuredRows.length +
+      " unmeasurable node(s). That is not a pass (H4.0).");
+    console.error("  The nodes above were never measured, so the zero is about them, not the product.");
+    console.error("  Fix the instrument or name each one, then re-run. --allow-unmeasurable overrides.");
+    if (!flag("--allow-unmeasurable")) process.exitCode = 3;
   }
 
   fs.writeFileSync(OUT, JSON.stringify({
@@ -1021,7 +1111,91 @@ async function sweep() {
 }
 
 // =========================================================================
+// THE SAME-TREE RE-RUN CONTROL (H3c). Two sweeps in, every moved row out.
+//
+// WHY THIS IS NOT A DIFF TOOL. A row that moved between two trees is not a
+// finding until you know how far rows move between two runs of ONE tree. H3c
+// nearly reported three noise readings as a regression on a locked surface;
+// the same-tree control moved seven rows, one of them the identical node, by
+// more than the difference being investigated. So:
+//
+//   node tools/sweep-ink.mjs --compare before.json after.json
+//       every moved row, labelled "vs noise: UNKNOWN"
+//   node tools/sweep-ink.mjs --compare before.json after.json --noise twice.json
+//       where twice.json is a SECOND sweep of the SAME tree as before.json;
+//       each delta is then labelled against that tree's measured noise floor
+//
+// A delta at or below the noise floor is NOISE and must not be reported as a
+// product change. A delta above it is a candidate, still to be explained.
+function compare(aPath, bPath, noisePath) {
+  const load = (f) => JSON.parse(fs.readFileSync(f, "utf8"));
+  const rowsOf = (j) => (Array.isArray(j) ? j : (j.rows || []));
+  // The hero and the clock TICK, so a key that includes their text never
+  // matches across runs (H4.0 fault 3, one layer along). Text is part of the
+  // key because it is what makes a row legible, so the digits are masked.
+  const key = (r) => [r.ground, r.surface, r.step, r.cls, r.elId || "",
+                      String(r.text || "").replace(/\d+/g, "#").slice(0, 24)].join(" | ");
+  const index = (f) => {
+    const m = new Map();
+    for (const r of rowsOf(load(f))) m.set(key(r), r);
+    return m;
+  };
+  const A = index(aPath), B = index(bPath);
+
+  let floor = null;
+  if (noisePath) {
+    const Nz = index(noisePath);
+    const deltas = [];
+    for (const [k, a] of A) {
+      const z = Nz.get(k);
+      if (!z || a.ratio === null || z.ratio === null) continue;
+      deltas.push(Math.abs(a.ratio - z.ratio));
+    }
+    deltas.sort((x, y) => y - x);
+    floor = deltas.length ? deltas[0] : 0;
+    const moved = deltas.filter((x) => x >= 0.01).length;
+    console.log(`NOISE FLOOR, measured on the SAME tree twice: ${floor.toFixed(2)}`);
+    console.log(`  ${moved} of ${deltas.length} shared row(s) moved at all between two runs of one tree`);
+    console.log("  Any delta below this is this instrument's own noise, not a change.\n");
+  } else {
+    console.log("NO --noise RUN SUPPLIED, so every delta below is labelled UNKNOWN.");
+    console.log("  Sweep the SAME tree twice and pass it as --noise before calling any of");
+    console.log("  these a regression. H3c is the round that learned this.\n");
+  }
+
+  const moved = [], onlyA = [], onlyB = [];
+  for (const [k, b] of B) {
+    const a = A.get(k);
+    if (!a) { onlyB.push(k); continue; }
+    if (a.ratio === null || b.ratio === null) continue;
+    if (Math.abs(a.ratio - b.ratio) >= 0.01) moved.push({ k, from: a.ratio, to: b.ratio, floorAt: b.floor });
+  }
+  for (const k of A.keys()) if (!B.has(k)) onlyA.push(k);
+
+  moved.sort((x, y) => (x.to - x.from) - (y.to - y.from));
+  console.log(`MOVED: ${moved.length}   only-in-before: ${onlyA.length}   only-in-after: ${onlyB.length}`);
+  for (const m of moved) {
+    const delta = m.to - m.from;
+    const verdict = floor === null ? "vs noise: UNKNOWN"
+                  : Math.abs(delta) <= floor ? "NOISE (<= floor)"
+                  : "above the noise floor";
+    const crossed = m.from >= m.floorAt && m.to < m.floorAt ? "  *** CROSSED DOWN ***"
+                  : m.from < m.floorAt && m.to >= m.floorAt ? "  crossed up" : "";
+    console.log(`  ${m.from.toFixed(2)} -> ${m.to.toFixed(2)}  ${delta >= 0 ? "+" : ""}${delta.toFixed(2)}  ${verdict}${crossed}   ${m.k}`);
+  }
+  if (onlyA.length) { console.log("\n  gone in the after run:"); onlyA.slice(0, 15).forEach((k) => console.log("    " + k)); }
+  if (onlyB.length) { console.log("\n  new in the after run:"); onlyB.slice(0, 15).forEach((k) => console.log("    " + k)); }
+  process.exit(0);
+}
+
+// =========================================================================
 if (flag("--self-test")) selfTest();
+else if (flag("--compare")) {
+  const i = argv.indexOf("--compare");
+  const a = argv[i + 1], b = argv[i + 2];
+  if (!a || !b) { console.error("--compare needs two sweep files"); process.exit(2); }
+  compare(a, b, arg("--noise", null));
+}
 else if (arg("--report")) report(arg("--report"), argv[argv.indexOf("--report") + 2] || null);
 else if (arg("--split")) split(arg("--split"));
 else if (flag("--out") || flag("--attach")) {
@@ -1035,6 +1209,11 @@ of them. An ON-DEMAND instrument, not a build gate: see the header for why.
   node tools/sweep-ink.mjs --report sweep.json [ground]
   node tools/sweep-ink.mjs --split  sweep.json
   node tools/sweep-ink.mjs --self-test
+  node tools/sweep-ink.mjs --compare before.json after.json [--noise twice.json]
+      the SAME-TREE RE-RUN CONTROL (H3c). A row that moved between two trees
+      is not a finding until you know how far rows move between two runs of
+      ONE tree. Pass a second sweep of the before-tree as --noise and every
+      delta is labelled against that measured floor.
 
   --grounds a,b   subset of ${GROUNDS.map((g) => g.key).join(",")}
   --surfaces a,b  subset of ${SURFACES.map((s) => s.key).join(",")}

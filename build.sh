@@ -258,6 +258,19 @@ fi
 # enqueueBgData FIFO. Regressions here are SILENT DATA LOSS — one writer's blob
 # overwrites another's — which is why this is a release gate and not a habit.
 # ~2.3s: it injects storage latency on purpose so cycles genuinely interleave.
+# [H4.1] THE COMPANION ORPHAN SWEEP, gate 25 (ruling 13). Every .cmp- class the
+# popup and side panel EMIT must have a rule, and every rule must have an
+# emitter. Those are the two drifts a restyle always produces and nothing else
+# in this build can see either: an emitted class with no rule renders unstyled
+# with no error, and a rule with no emitter is dead CSS the next token sweep has
+# to chase. H4.0's wholesale re-apply of H2c onto four newer surfaces found a
+# real one on the first run (.cmp-actions-route, whose emitter had become
+# .cmp-link). 0.105s over three runs, which is why it is a gate and not a tool.
+if ! node tools/check-cmp-orphans.mjs; then
+  echo "ERROR: cmp-orphans gate failed - a companion class has no rule, or a rule has no emitter." >&2
+  exit 1
+fi
+
 if ! node tools/check-bg-queue.mjs; then
   echo 'ERROR: background-queue gate failed — a `data` writer is not serialized (L1).' >&2
   exit 1

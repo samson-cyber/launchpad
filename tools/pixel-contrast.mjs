@@ -22,6 +22,37 @@
 // element's real composited ink; the same pixels in the hidden frame are the
 // real backdrop. WCAG-contrast the two.
 //
+// TWO CORRECTIONS ABOUT `visibility: hidden`, both paid for.
+//
+//   IT REMOVES THE ELEMENT'S OWN BACKGROUND TOO. On a filled control - a
+//   button, a chip, an active tab - the backdrop in the hidden frame is then
+//   the PAGE behind the fill, not the fill the text actually sits on. So the
+//   number is the control's visibility against the page, which is a real
+//   property and is NOT legibility. H4.0 read 1.98 / 2.51 / 3.63 on the
+//   companion's buttons that way and nearly reported five contrast failures
+//   that did not exist; measured as TEXT (`color: transparent`, which removes
+//   only the glyphs) the count was zero. TEXT LEGIBILITY AND ELEMENT
+//   VISIBILITY ARE TWO MEASUREMENTS. tools/sweep-ink.mjs uses the transparent
+//   technique for exactly this reason and says so in its own header.
+//
+//   A TICKING NODE CANNOT SHARE ONE PAINTED FRAME. If the painted capture is
+//   reused across a loop while a countdown re-renders, the diff inside that
+//   node's box compares one numeral with another - ink against ink - and
+//   returns a ratio near 1 on a node whose colour is --ink. Pair the captures
+//   per node, and address the node by a STAMPED ID rather than by its text,
+//   because the text is the thing that changed.
+//
+// TWO CORRECTIONS ABOUT SVG, from H3b, and the accessors below own both.
+//
+//   SVG TEXT PAINTS WITH `fill`, NOT `color`. getComputedStyle(el).color on an
+//   <svg><text> returns an inherited CSS colour that is usually nothing like
+//   the ink on screen, so a node judged on it is judged on a colour it never
+//   painted.
+//
+//   AN SVG ELEMENT'S className IS AN SVGAnimatedString, NOT A STRING. So
+//   el.className.trim() and el.className.split() both throw, and an enumerator
+//   walking a mixed HTML/SVG tree either dies or quietly drops every SVG node.
+//
 // ANTI-ALIASING drags both extremes together, biasing the result DOWNWARD,
 // which is the safe direction to be wrong.
 //
@@ -119,6 +150,37 @@ export function measure(paintedBuf, hiddenBuf, box, scale = 1) {
 }
 
 
+// =========================================================================
+// THE TWO SVG ACCESSORS, exported so every harness shares one definition
+// rather than each rediscovering H3b's pair. They run in NODE here and in the
+// PAGE when a harness inlines them, so they reference nothing browser-only
+// beyond what they are handed.
+// =========================================================================
+
+/** The colour an element actually paints its glyphs with. */
+export function inkColorOf(el, cs) {
+  const isSvg = !!(el && ((el.ownerSVGElement !== undefined && el.ownerSVGElement !== null)
+                          || (el.namespaceURI && /svg/i.test(el.namespaceURI))));
+  if (isSvg) {
+    const f = cs && cs.fill;
+    // `none` is not a colour; fall through rather than report it as ink.
+    if (f && f !== "none") return f;
+  }
+  return (cs && cs.color) || null;
+}
+
+/** An element's classes as a real array, for HTML and SVG alike. */
+export function classListOf(el) {
+  if (!el) return [];
+  const c = el.className;
+  if (typeof c === "string") return c.trim() ? c.trim().split(/\s+/) : [];
+  // SVGAnimatedString: the string lives on .baseVal, and .trim()/.split() on
+  // the object itself throw.
+  if (c && typeof c.baseVal === "string") return c.baseVal.trim() ? c.baseVal.trim().split(/\s+/) : [];
+  if (el.classList && el.classList.length !== undefined) return Array.prototype.slice.call(el.classList);
+  return [];
+}
+
 // ---------------------------------------------------------------- self-test
 function synth(w, h, px) {
   // A tiny uncompressed-ish PNG built through zlib, so the decoder above is
@@ -190,6 +252,40 @@ if (process.argv.includes("--self-test")) {
   const m5 = measure(onWhite, bare, { x: 0, y: 16, width: 20, height: 4 });
   chk("a box outside the painted region reports no measurement",
     m5.ratio === null, m5.note || String(m5.ratio));
+
+  // 5. THE SVG PAIR (H3b), asserted against PLANTED STUBS shaped like the real
+  //    objects. This file has no DOM and jsdom is not a dependency, so what is
+  //    tested is the ACCESSOR every harness calls - which is the thing that can
+  //    regress. The DOM facts are recorded in the header, not re-derived here.
+  const svgText = { namespaceURI: "http://www.w3.org/2000/svg", ownerSVGElement: {},
+                    className: { baseVal: "donut-label is-muted" } };
+  const htmlText = { namespaceURI: "http://www.w3.org/1999/xhtml", ownerSVGElement: null,
+                     className: "tile-eyebrow" };
+
+  chk("SVG text reports its FILL, not its inherited color",
+    inkColorOf(svgText, { fill: "rgb(207, 197, 188)", color: "rgb(255, 0, 0)" }) === "rgb(207, 197, 188)",
+    String(inkColorOf(svgText, { fill: "rgb(207, 197, 188)", color: "rgb(255, 0, 0)" })));
+  chk("fill:none is not ink; the color is used instead",
+    inkColorOf(svgText, { fill: "none", color: "rgb(1, 2, 3)" }) === "rgb(1, 2, 3)",
+    String(inkColorOf(svgText, { fill: "none", color: "rgb(1, 2, 3)" })));
+  chk("an HTML node still reports its color, not a stray fill",
+    inkColorOf(htmlText, { fill: "rgb(9, 9, 9)", color: "rgb(4, 5, 6)" }) === "rgb(4, 5, 6)",
+    String(inkColorOf(htmlText, { fill: "rgb(9, 9, 9)", color: "rgb(4, 5, 6)" })));
+  chk("an SVGAnimatedString className reads through .baseVal without throwing",
+    classListOf(svgText).join("|") === "donut-label|is-muted", classListOf(svgText).join("|"));
+  chk("a string className still reads normally",
+    classListOf(htmlText).join("|") === "tile-eyebrow", classListOf(htmlText).join("|"));
+
+  // THE NEGATIVE CONTROL FOR THE PAIR. The naive accessor is what H3b used, and
+  // this records that it really does fail on these same stubs - so the two rows
+  // above are not asserting something that was never a risk.
+  let naiveThrew = false;
+  try { svgText.className.trim(); } catch (e) { naiveThrew = true; }
+  chk("CONTROL: the naive className.trim() throws on the SVG stub, as H3b found",
+    naiveThrew === true);
+  chk("CONTROL: the naive .color would have returned the wrong ink for SVG",
+    ({ fill: "rgb(207, 197, 188)", color: "rgb(255, 0, 0)" }).color !== inkColorOf(svgText,
+      { fill: "rgb(207, 197, 188)", color: "rgb(255, 0, 0)" }));
 
   console.log(`
   ${pass} passed, ${fail} failed`);
