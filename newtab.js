@@ -2612,9 +2612,11 @@
   function dashPassiveHtml(split) {
     // [H4.2 / ruling 5] NOTHING TRACKED TODAY IS A FACT, NOT AN ABSENCE.
     //
-    // This returned '' - so the free Dashboard's own live tile rendered its
-    // eyebrow and then nothing, which reads as a broken tile rather than as a
-    // quiet day. H3b flagged the void and ruling 5 settled the copy: one
+    // This returned '' - so the tile rendered its eyebrow and then nothing,
+    // which reads as a broken tile rather than as a quiet day. BOTH DASHBOARDS
+    // pass through here: the Pro tile headed "Where the time went" and the
+    // free Dashboard's own live tile share this renderer, and the design-pack
+    // frames are what showed the line landing on Pro as well. H3b flagged the void and ruling 5 settled the copy: one
     // factual line, meta tier, from the catalogue, with no invitation and no
     // forecast. The tile beside this one is the pitch; this one is the user's.
     //
@@ -2623,7 +2625,7 @@
     // pass shows four tasks and two sites here. The empty case is a fresh free
     // profile before anything is tracked - H3b's human check 4.
     if (!split || !(split.totalMs > 0)) {
-      return '<div class="dash-passive-none">' + th("dash_free_nothing_tracked") + '</div>';
+      return '<div class="dash-passive-none">' + th("dash_nothing_tracked_today") + '</div>';
     }
     var maxMs = Math.max(
       split.tasks.length ? split.tasks[0].ms : 0,

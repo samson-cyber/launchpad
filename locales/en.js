@@ -2502,9 +2502,9 @@ I18n.register("en", {
     "message": "Focus on something today to start one.",
     "description": "Markup label in dashStreakBodyHtml(). Rendered with th()."
   },
-  "dash_free_nothing_tracked": {
+  "dash_nothing_tracked_today": {
     "message": "Nothing tracked yet today.",
-    "description": "The free Dashboard's own live tile, in place of its two lists, when the engine has recorded no time at all today. A STATEMENT OF FACT AND NOTHING ELSE (ruling 5, 2026-09-22): no invitation, no forecast, no promise about what Pro would show - the tile beside it is the pitch and this one is the user's own. It is NOT pt_no_time_on_tasks, which is a different case (site time exists, no task was active) and which does invite an action. Rendered with th() in the list tile's body at the meta tier. Translators: keep it a single short sentence in the past-to-present tense; 'yet' carries the whole difference between a fact and a complaint.",
+    "description": "BOTH Dashboards, in place of the two time lists, when the engine has recorded no time at all today - the Pro tile headed 'Where the time went' and the free Dashboard's own live tile, which share one renderer (dashPassiveHtml). The name said 'free' until the design-pack frames showed it on Pro. A STATEMENT OF FACT AND NOTHING ELSE (ruling 5, 2026-09-22): no invitation, no forecast, no promise about what Pro would show - the tile beside it is the pitch and this one is the user's own. It is NOT pt_no_time_on_tasks, which is a different case (site time exists, no task was active) and which does invite an action. Rendered with th() in the list tile's body at the meta tier. Translators: keep it a single short sentence in the past-to-present tense; 'yet' carries the whole difference between a fact and a complaint.",
     "placeholders": {}
   },
 
