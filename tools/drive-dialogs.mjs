@@ -212,6 +212,21 @@ const READ = `(function () {
     message: (ov.querySelector(".tt-modal-message") || {}).textContent || "",
     primaryLabel: p ? p.textContent : null, cancelLabel: c ? c.textContent : null,
     dangerous: !!(p && p.classList.contains("tt-modal-btn-danger")),
+    // [RULING 42] The fill the primary ACTUALLY paints, and the action token
+    // RESOLVED BY THE BROWSER rather than hardcoded here. A literal
+    // "rgb(255, 138, 61)" in this file would keep passing after someone
+    // retuned --action, and would then be asserting the old colour.
+    primaryFill: p ? getComputedStyle(p).backgroundColor : null,
+    primaryInk: p ? getComputedStyle(p).color : null,
+    actionFill: (function () {
+      var probe = document.createElement("span");
+      probe.style.cssText = "background:var(--action);color:var(--ink-on-action);position:fixed;left:-9999px";
+      document.body.appendChild(probe);
+      var cs = getComputedStyle(probe);
+      var out = { fill: cs.backgroundColor, ink: cs.color };
+      probe.remove();
+      return out;
+    })(),
     focused: document.activeElement ? (document.activeElement.className || document.activeElement.tagName) : null,
     inViewport: r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth && r.width > 0,
     role: m.getAttribute("role"), ariaModal: m.getAttribute("aria-modal") });
@@ -237,6 +252,29 @@ async function contract(label, dangerous) {
   chk(`${label}: CANCEL HAS FOCUS on open`, /tt-modal-cancel/.test(String(d.focused)), "focus=" + d.focused);
   chk(`${label}: danger styling ${dangerous ? "present" : "ABSENT (not destructive)"}`,
     d.dangerous === dangerous);
+
+  // [RULING 42] ONE ACTION COLOUR, ASSERTED ON THE PAINTED PIXEL RATHER THAN
+  // ON THE CLASS LIST. The class check above only says which branch of the
+  // markup ran; it says nothing about which rule won. That distinction is the
+  // whole point this round: `.tag-create-btn-primary` carried its class
+  // correctly and still painted the neutral wash, because a ground-scoped rule
+  // out-ranked it, and no class-level assertion anywhere could have seen it.
+  //
+  // The destructive case asserts the NEGATIVE, which is the other half of
+  // "never a second action on the same view": a delete button that wore the
+  // action colour would read as the safe default.
+  if (dangerous) {
+    chk(`${label}: the destructive primary does NOT wear the action colour`,
+      d.primaryFill !== d.actionFill.fill,
+      `primary=${d.primaryFill} action=${d.actionFill.fill}`);
+  } else {
+    chk(`${label}: the primary is filled with --action, resolved`,
+      d.primaryFill === d.actionFill.fill,
+      `primary=${d.primaryFill} action=${d.actionFill.fill}`);
+    chk(`${label}: the primary's ink is --ink-on-action, resolved`,
+      d.primaryInk === d.actionFill.ink,
+      `primary=${d.primaryInk} action=${d.actionFill.ink}`);
+  }
   await ev(`(function(){var b=document.querySelectorAll(".tt-modal-overlay button");
     if(b.length) b[b.length-1].focus();})()`);
   await key("Tab"); await wait(180);

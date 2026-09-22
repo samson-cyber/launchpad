@@ -91,6 +91,31 @@ const SEEDS = [
     to: "linear-gradient(135deg, var(--accent) 0%, var(--pro-identity-to) 100%)" },
   { name: "the Pro ink token is inlined back to a literal everywhere",
     file: "sheet", from: "var(--pro-ink-accent)", to: "#6fb1ff", all: true },
+
+  // ---- ruling 40's seeds. THE BRIEF ASKED FOR THE BLUE TO BE RE-PLANTED ON
+  // #bg-save, AND THAT SEED CANNOT EXIST: #bg-save was an orphan rule - the id
+  // appeared in newtab.css and in no other shipped file - so this round
+  // deleted it rather than recolouring a control nobody can reach. An anchor
+  // on a deleted rule would report ANCHOR MISS, which is not a catch. Both
+  // halves of the intent are kept instead: seed 7 takes a REAL action back to
+  // the accent, and seed 8 re-introduces #bg-save as a brand-new blue rule,
+  // which is the case the census has to catch for an orphan to be safe to
+  // delete at all.
+  { name: "an action goes back to the accent blue",
+    file: "sheet", from: ".gd-btn-primary {\n  background: var(--action);",
+    to: ".gd-btn-primary {\n  background: var(--accent);" },
+  { name: "a new blue action rule appears (the deleted #bg-save, re-planted)",
+    file: "sheet", from: ".restore-all-btn:hover {",
+    to: "#bg-save { background: var(--accent); color: var(--accent-text); }\n.restore-all-btn:hover {" },
+
+  // ---- ruling 41's seed, and the same defect on the tag popover. Both are
+  // rules that win only on FILE ORDER once the qualifying class is dropped.
+  { name: "the modal primary's light branch drops .tt-modal-btn and ties again",
+    file: "sheet", from: "html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-primary-fill {",
+    to: "html.has-bg.bg-light .tt-modal-btn-primary-fill {" },
+  { name: "the tag primary drops .tag-create-btn and goes back to being dead",
+    file: "sheet", from: "html.has-bg .tag-create-btn.tag-create-btn-primary {",
+    to: "html.has-bg .tag-create-btn-primary {" },
 ];
 
 let seedApplied = null;
@@ -214,6 +239,124 @@ check("the logo still carries Google's four brand colours",
   ["#4285f4", "#ea4335", "#34a853", "#fbbc05"]
     .every((c) => fillValues.map((v) => v.toLowerCase()).includes(c)),
   fillValues.join(" "));
+
+// ---- 5. THE ACTION CENSUS (ruling 40) ----------------------------------
+//
+// ONE ACTION COLOUR ON EVERY CONTROL. DECISIONS 2026-09-18 settled that the
+// thing a user clicks is --action with --ink-on-action, and never a second
+// action on the same view. Round G swept the modal primary and the right-click
+// tip; this gate is what stops the next blue fill arriving on a button.
+//
+// IT ENFORCES AT ZERO, against a NAMED list rather than a count. A count would
+// have been satisfied by the population it inherited: at the time this was
+// written the sheet had exactly four --accent fills and all four were
+// non-actions, so "no more than four" would pass a fifth one straight through
+// if someone deleted one of these and added a button. Every surviving accent
+// fill is listed here by selector, with the reason it is not a control.
+//
+// WHAT COUNTS AS AN ACCENT FILL: a `background` or `background-color`
+// declaration whose value mentions --accent, INCLUDING through color-mix. The
+// open-tabs active-row wash is a color-mix and would slip past a plain
+// `var(--accent)` search - which is exactly how the eighth action escaped
+// Round G's census, that one by being painted from --pro-ink-accent instead.
+const NON_ACTIONS = new Map([
+  [".bg-gallery-thumb .bg-check",
+   "a selection checkmark on a wallpaper thumbnail - state, not a control"],
+  [".shortcut-custom-letter",
+   "the letter avatar on a shortcut with no favicon - identity, not a control"],
+  [".set-row-toggle input:checked + .set-toggle",
+   "a switch in its on position - state, and the switch IS the control"],
+  ["html.bg-light #open-tabs-panel .ot-row.is-active",
+   "a 12% wash marking the current tab in a list - state, not a control"],
+]);
+
+// Flat-parse the comment-blanked sheet. An @media prelude glues itself onto
+// the first selector inside it; strip it so a media-scoped rule is still
+// matched by its real selector rather than silently skipped.
+const RULE = /([^{}]+)\{([^{}]*)\}/g;
+const norm = (x) => x.replace(/@media[^{]*\{/g, "").replace(/\s+/g, " ").trim();
+let rulesSeen = 0;
+let actionFills = 0;
+const accentFills = [];
+for (const m of S.matchAll(RULE)) {
+  const sel = norm(m[1]);
+  if (!sel || sel.startsWith("@")) continue;
+  rulesSeen++;
+  for (const decl of m[2].split(";")) {
+    const i = decl.indexOf(":");
+    if (i < 0) continue;
+    const prop = decl.slice(0, i).trim(), val = decl.slice(i + 1).trim();
+    if (prop !== "background" && prop !== "background-color") continue;
+    if (/var\(\s*--action\s*\)/.test(val)) actionFills++;
+    if (/--accent/.test(val)) accentFills.push({ sel, val });
+  }
+}
+
+// P2 floors. Both of these exist because "0 found, 0 violations" and "looked
+// at everything, found nothing" have the same exit code.
+if (rulesSeen < 500) {
+  console.error(`\nGATE BROKEN: parsed only ${rulesSeen} rules out of newtab.css.`);
+  console.error("The census would pass on an empty read. Refusing to score it.");
+  process.exit(2);
+}
+check("the action colour is actually in use as a fill",
+  actionFills >= 3, `${actionFills} --action fill(s), floor 3`);
+
+const strays = accentFills.filter((f) => !NON_ACTIONS.has(f.sel));
+check("no control is filled with the accent blue",
+  strays.length === 0,
+  strays.length ? strays.map((f) => `${f.sel} { background: ${f.val} }`).join("  |  ") : "");
+
+// The listed non-actions must still BE there. If one is renamed away, the
+// entry stops describing anything and the list quietly loosens.
+let listedFound = 0;
+for (const sel of NON_ACTIONS.keys()) {
+  if (accentFills.some((f) => f.sel === sel)) listedFound++;
+}
+check("every named non-action is still present and still accent-filled",
+  listedFound === NON_ACTIONS.size,
+  `${listedFound} of ${NON_ACTIONS.size} found - an entry that matches nothing is a hole`);
+
+// ---- 6. RANK, NOT FILE ORDER (ruling 41) --------------------------------
+//
+// Two action rules used to win only because they sat lower in the file than a
+// ground-scoped rule of EQUAL specificity. A tie decided by line number is not
+// a decision: move either rule, or add one between them, and the fill silently
+// reverts to a neutral wash. Both now carry the qualifying class so they win
+// on rank.
+//
+// THE TAG POPOVER IS WHY THIS IS A GATE AND NOT A COMMENT. There the same
+// shape was not a latent risk but a live defect that had already happened:
+// `.tag-create-btn-primary` is (0,1,0) and `html.has-bg .tag-create-btn` is
+// (0,2,1) and later, so with any wallpaper set the primary lost outright and
+// Save had been byte-identical to Cancel for as long as the frosted branch had
+// existed. Measured, both rgba(255, 255, 255, 0.08) with white ink.
+//
+// EACH FORM IS ANCHORED ON ITS SELECTOR TERMINATOR - the selector followed by
+// " {" if it ends a selector list, or by "," if it sits inside one - and every
+// state is listed separately. A bare substring search does not work
+// here and the first draft of this check proved it: each selector also occurs
+// in its own :hover twin, so dropping the qualifying class from the base rule
+// left the twin's text behind and the search still matched. Both seeds escaped
+// a gate that was already written to catch them. Anchoring on the opening is
+// what makes the assertion about the rule rather than about the file.
+const RANKED = [
+  { what: "the modal primary on a light wallpaper",
+    forms: ["html.bg-light .tt-modal-btn.tt-modal-btn-primary-fill",
+            "html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-primary-fill",
+            "html.bg-light .tt-modal-btn.tt-modal-btn-primary-fill:hover",
+            "html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-primary-fill:hover"] },
+  { what: "the tag popover's Save",
+    forms: ["html.has-bg .tag-create-btn.tag-create-btn-primary",
+            "html.has-bg .tag-create-btn.tag-create-btn-primary:hover:not(:disabled)",
+            "html.has-bg .tag-create-btn.tag-create-btn-primary:disabled"] },
+];
+const declared = (f) => S.includes(f + " {") || S.includes(f + ",");
+for (const { what, forms } of RANKED) {
+  const missing = forms.filter((f) => !declared(f));
+  check(`${what} out-ranks its ground-scoped rule in every state, rather than out-ordering it`,
+    missing.length === 0, missing.join("  |  "));
+}
 
 // --------------------------------------------------------------------------
 console.log("");

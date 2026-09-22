@@ -1350,9 +1350,23 @@ html.has-bg .sb-group-more:hover {
   color: var(--text-primary);
 }
 
+/* [ACTION SWEEP / RULING 40] The dialog's one action takes the action pair.
+   Measured before: #1a73e8 with white ink, 4.51 on all three grounds. The pair
+   is --ink-on-action on --action, measured 8.11 on the same three.
+
+   THE HOVER MUST RESET filter. `.gd-btn:hover` is a generic brightness(0.95)
+   and it is (0,2,0), the same rank as this rule's hover, so it is not
+   overridden by rank - and it sets a DIFFERENT property, so it would survive
+   anyway and darken the soft orange. `filter: none` is the fix, not an
+   ornament. */
 .gd-btn-primary {
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--action);
+  color: var(--ink-on-action);
+}
+
+.gd-btn-primary:hover {
+  background: var(--action-soft);
+  filter: none;
 }
 
 .gd-btn-danger {
@@ -2389,13 +2403,20 @@ html.has-bg .modal-icon-btn:hover {
   background: var(--bg-hover);
 }
 
+/* [ACTION SWEEP / RULING 40] Measured before: #1a73e8 / white, 4.51.
+
+   THE HOVER STOPS BEING AN OPACITY FADE. Opacity is symmetric and contrast is
+   not (O11): 0.9 on this button dimmed the fill and the ink together toward
+   whatever sits behind, which on a light ground lightens dark ink. A fill swap
+   to --action-soft changes the one thing hover means to change. */
 #bookmark-import-btn {
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--action);
+  color: var(--ink-on-action);
 }
 
 #bookmark-import-btn:hover {
-  opacity: 0.9;
+  background: var(--action-soft);
+  opacity: 1;
 }/* ===== History Section (inside overlay) ===== *//* --- Toolbar --- */
 
 
@@ -2516,21 +2537,14 @@ html.has-bg .modal-icon-btn:hover {
   font-size: var(--fs-13);
 }
 
-#rc-date-apply {
-  padding: var(--space-1) var(--space-2-5);
-  border: none;
-  border-radius:var(--radius-sm);
-  background: var(--accent);
-  color: var(--accent-text);
-  font-size: var(--fs-12);
-  font-weight: 500;
-  font-family: inherit;
-  cursor: pointer;
-}
+/* [ACTION SWEEP] #rc-date-apply's RULES ARE DELETED RATHER THAN RECOLOURED,
+   because there is no such element. `rc-date-apply` appears in newtab.css and
+   in no other shipped file - not newtab.html, not any .js, not any .json, and
+   not as a built-up string. Nothing can render it and nothing can click it.
 
-#rc-date-apply:hover {
-  opacity: 0.9;
-}/* --- History search box --- */
+   Recolouring it would have been a no-op that left the census reading eight
+   actions where the product has six, and left a future round driving a control
+   that does not exist. The same is true of #bg-save, deleted below. *//* --- History search box --- */
 
 
 
@@ -3021,12 +3035,14 @@ html.has-bg .rc-panel-item-meta {
   cursor: pointer;
   border: none;
   font-family: inherit;
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--action);
+  color: var(--ink-on-action);
 }
 
+/* [ACTION SWEEP / RULING 40] Measured before: #1a73e8 / white, 4.51. */
 #bg-url-apply:hover {
-  opacity: 0.9;
+  background: var(--action-soft);
+  opacity: 1;
 }
 
 #bg-error {
@@ -3080,21 +3096,10 @@ html.has-bg .rc-panel-item-meta {
   gap: var(--space-2);
 }
 
-#bg-save {
-  padding: var(--space-2) var(--space-5);
-  border-radius:var(--radius-sm);
-  font-size: var(--fs-13);
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-  font-family: inherit;
-  background: var(--accent);
-  color: var(--accent-text);
-}
-
-#bg-save:hover {
-  opacity: 0.9;
-}/* ===== Background Active Overrides ===== */
+/* [ACTION SWEEP] #bg-save IS AN ORPHAN RULE TOO, and is deleted for the same
+   reason as #rc-date-apply above: the id exists only here. The wallpaper
+   panel's live Apply button is #bg-url-apply, which is real, is driven, and
+   takes the pair. *//* ===== Background Active Overrides ===== */
 
 
 
@@ -5377,8 +5382,8 @@ html.has-bg.bg-light .sessions-trash-action:hover {
   padding: var(--space-1) var(--space-3);
   border: none;
   border-radius:var(--radius-sm);
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--action);
+  color: var(--ink-on-action);
   font-size: var(--fs-12);
   font-weight: 500;
   cursor: pointer;
@@ -5386,8 +5391,16 @@ html.has-bg.bg-light .sessions-trash-action:hover {
   flex-shrink: 0;
 }
 
+/* [ACTION SWEEP / RULING 40] Measured before: #1a73e8 / white, 4.51.
+
+   THIS CLASS IS WORN BY TWO BUTTONS - #restore-all-btn in #restore-dropdown
+   and #sessions-save-btn in #sessions-dropdown - and that is not two actions
+   on one view: the two dropdowns are separate panels and only one is open at a
+   time. Checked before recolouring, because a shared class is exactly where
+   "never a second action on the same view" gets broken by accident. */
 .restore-all-btn:hover {
-  opacity: 0.9;
+  background: var(--action-soft);
+  opacity: 1;
 }/* --- Tab list --- */
 
 
@@ -14889,15 +14902,79 @@ html.has-bg .tag-submenu-swatch {
   cursor: not-allowed;
 }
 
-.tag-create-btn-primary {
-  background: var(--accent);
-  color: var(--accent-text);
-  border-color: var(--accent);
+/* [ACTION SWEEP / RULING 40] THIS RULE HAS NEVER APPLIED ON ANY SURFACE A
+   USER HAS, and the recolour alone would not have changed that.
+
+   MEASURED, not read: with any wallpaper set - which is every ground in this
+   sweep - Save and Cancel came back byte-identical, both
+   rgba(255, 255, 255, 0.08) with white ink. The cause is rank, not colour.
+   `html.has-bg .tag-create-btn` is (0,2,1) and sits LATER in the file;
+   `.tag-create-btn-primary` is (0,1,0). The generic frosted-button rule wins
+   twice over. So the primary has been indistinguishable from the secondary for
+   as long as the frosted branch has existed, and writing --action into a
+   (0,1,0) rule would have left it exactly as dead.
+
+   The fix therefore carries .tag-create-btn as well - (0,3,1) beats (0,2,1) on
+   rank, not on order, which is ruling 41's principle applied to the selector
+   that needed it most. The hover must clear (0,4,1), because
+   `html.has-bg .tag-create-btn:hover:not(:disabled)` counts :hover and
+   :disabled as classes; it is written at (0,5,1).
+
+   FOUND AND NOT FIXED HERE: on a light wallpaper the whole popover is
+   white-on-white - the "New tag" title, the typed name, and Cancel - because
+   `html.has-bg .tag-create-title`, `.tag-create-input` and `.tag-create-btn`
+   set #fff over a white-tinted floater with no bg-light branch. Save is fixed
+   by this rule; the other three are not this round's selectors. Reported with
+   a frame rather than swept in silently. */
+.tag-create-btn-primary,
+html.has-bg .tag-create-btn.tag-create-btn-primary {
+  background: var(--action);
+  color: var(--ink-on-action);
+  border-color: transparent;
 }
 
-.tag-create-btn-primary:hover:not(:disabled) {
-  background: var(--accent);
-  filter: brightness(1.1);
+.tag-create-btn-primary:hover:not(:disabled),
+html.has-bg .tag-create-btn.tag-create-btn-primary:hover:not(:disabled) {
+  background: var(--action-soft);
+  filter: none;
+}
+
+/* A DISABLED CONTROL STOPS WEARING THE ACTION COLOUR, rather than wearing a
+   dimmed version of it. Verbatim from H2d's .gate-btn:disabled, and for the
+   same reason: the shared `.tag-create-btn:disabled { opacity: 0.5 }` would
+   otherwise leave a half-strength orange, which reads as a broken action
+   rather than an unavailable one. Save is disabled until a name is typed, so
+   this is the state the control is usually in.
+
+   IT MIRRORS THE SECONDARY EXPLICITLY, IN BOTH CONTEXTS, and two wrong drafts
+   are recorded here because each failed in a different direction and the
+   second looked like a fix for the first.
+
+   Draft 1 set --ink-chrome, which is rgba(255, 255, 255, 0.50), on top of the
+   shared `.tag-create-btn:disabled { opacity: 0.5 }` - 0.25 effective, DIMMER
+   than the Cancel it is meant to match. That is Round E's multiplied opacity
+   repeating: two dimming steps on one signal, each written without looking at
+   the other.
+
+   Draft 2 dropped `color` entirely, expecting `html.has-bg .tag-create-btn` to
+   supply #fff as it does for Cancel. MEASURED, it supplied rgb(26, 13, 5) -
+   the ACTION ink - because the rest rule above is (0,3,1) and outranks it, so
+   a near-black glyph survived onto a neutral wash on a dark floater. Inheriting
+   is not the same as matching when the rule you are inheriting past is your own.
+
+   So the ink is stated, once per context, at the value the secondary uses
+   there: --text-primary with no wallpaper, #fff with one. Measured disabled:
+   byte-identical to Cancel in the same state on both. */
+.tag-create-btn-primary:disabled {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+html.has-bg .tag-create-btn.tag-create-btn-primary:disabled {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-color: var(--surface-line);
 }
 
 html.has-bg #tag-create-popover {
@@ -15417,18 +15494,24 @@ html.bg-light #open-tabs-panel {
 }
 .ot-clear-sel:hover { background: var(--surface-fill); color: var(--ink-primary); }
 
+/* [ACTION SWEEP / RULING 40] THE EIGHTH ACTION WAS A DIFFERENT BLUE. This
+   base rule used --pro-ink-accent (#6fb1ff), not --accent, so G's census - which
+   grepped --accent - never saw it. Measured before: #6fb1ff with #202124 ink,
+   7.21 on the dark and photo grounds, and a THIRD colour on light (the
+   color-mix branch below, 5.75 with white ink). One control, two blues, three
+   readings. */
 .ot-save-btn {
   border: none;
   border-radius: var(--radius-sm);
-  background: var(--pro-ink-accent);
-  color: #202124;
+  background: var(--action);
+  color: var(--ink-on-action);
   font-size: var(--fs-12);
   font-weight: 600;
   font-family: inherit;
   padding: var(--space-1-5) var(--space-2-5);
   cursor: pointer;
 }
-.ot-save-btn:hover { filter: brightness(1.08); }/* ---- the list ---- *//* Rows bleed to the section edges and pay their own inset back, the same
+.ot-save-btn:hover { background: var(--action-soft); filter: none; }/* ---- the list ---- *//* Rows bleed to the section edges and pay their own inset back, the same
    arrangement #bm-tree uses, so a long title has the full panel width. */
 
 
@@ -15561,17 +15644,14 @@ html.bg-light #open-tabs-panel .ot-row.is-selected {
    the wallpaper for precisely this reason. Reusing it beats inventing a sixth
    blue, and it means one future correction fixes both surfaces. */
 
-html.bg-light #open-tabs-panel .ot-badge-active { color: var(--sat-accent-ink); }/* White on a bare --accent measures 4.46:1 here - the accent is documented as
-   4.505:1 against white, which is a floor it clears by four thousandths and
-   which anti-aliasing then eats. Darkening the fill one step, rather than
-   lightening the text or enlarging it, keeps the button reading as the accent
-   while clearing 4.5 with room: measured 5.9:1. Derived from the token, so it
-   does not reintroduce a blue literal. */
-
-html.bg-light #open-tabs-panel .ot-save-btn {
-  background: color-mix(in srgb, var(--accent) 86%, #000);
-  color: #fff;
-}
+html.bg-light #open-tabs-panel .ot-badge-active { color: var(--sat-accent-ink); }/* [ACTION SWEEP / RULING 40] THE LIGHT-GROUND BRANCH IS DELETED, NOT
+   RECOLOURED. It existed to solve a problem the action pair does not have: a
+   bare --accent measured 4.46:1 against white, four thousandths under the
+   floor, so the fill was darkened one step to reach 5.9. An OPAQUE fill with
+   --ink-on-action measures the same on every ground - 8.11 here - so a
+   ground-scoped branch has nothing left to correct, and a branch whose only
+   effect would be to give this one control a second action colour is the
+   defect ruling 40 is about. The base rule now carries it on all three. */
 html.bg-light #open-tabs-panel .ot-filter:focus { border-color: var(--accent); }
 
 .ot-check {
@@ -22641,17 +22721,25 @@ html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-danger:hover { background: rgba(
    opaque fill with --ink-on-action. It replaces a blue fill with a blue glow,
    which was the last place on a v2 surface where the old accent was the thing
    a user clicks. */
+/* [RULING 41] THE LIGHT BRANCH CARRIES .tt-modal-btn, so it wins on RANK.
+   As written it was (0,3,1) and `html.has-bg.bg-light .tt-modal-btn` is also
+   (0,3,1): the primary won only because it sits later in the file. That is a
+   tie decided by line number, and a tie is not a decision - any future rule
+   moved above it, or any reordering, silently takes the fill back to the
+   neutral wash. With .tt-modal-btn added the light branches are (0,4,1) and
+   beat it outright, which is exactly what the danger button already does
+   above and what this file's own comment at the light branch recommends. */
 .tt-modal-btn-primary-fill,
-html.bg-light .tt-modal-btn-primary-fill,
-html.has-bg.bg-light .tt-modal-btn-primary-fill {
+html.bg-light .tt-modal-btn.tt-modal-btn-primary-fill,
+html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-primary-fill {
   background: var(--action);
   border-color: transparent;
   color: var(--ink-on-action);
   box-shadow: none;
 }
 .tt-modal-btn-primary-fill:hover,
-html.bg-light .tt-modal-btn-primary-fill:hover,
-html.has-bg.bg-light .tt-modal-btn-primary-fill:hover {
+html.bg-light .tt-modal-btn.tt-modal-btn-primary-fill:hover,
+html.has-bg.bg-light .tt-modal-btn.tt-modal-btn-primary-fill:hover {
   box-shadow: none;
   filter: brightness(1.06);
 }
