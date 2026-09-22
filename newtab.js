@@ -2610,7 +2610,21 @@
   // says why it is empty, because "no task was active" is actionable where "no
   // other sites" is not.
   function dashPassiveHtml(split) {
-    if (!split || !(split.totalMs > 0)) return '';
+    // [H4.2 / ruling 5] NOTHING TRACKED TODAY IS A FACT, NOT AN ABSENCE.
+    //
+    // This returned '' - so the free Dashboard's own live tile rendered its
+    // eyebrow and then nothing, which reads as a broken tile rather than as a
+    // quiet day. H3b flagged the void and ruling 5 settled the copy: one
+    // factual line, meta tier, from the catalogue, with no invitation and no
+    // forecast. The tile beside this one is the pitch; this one is the user's.
+    //
+    // THE FIXTURE DOES NOT REACH THIS BRANCH, and that is worth saying because
+    // it is why the void survived so long: busy-messy seeds day 0, so a driven
+    // pass shows four tasks and two sites here. The empty case is a fresh free
+    // profile before anything is tracked - H3b's human check 4.
+    if (!split || !(split.totalMs > 0)) {
+      return '<div class="dash-passive-none">' + th("dash_free_nothing_tracked") + '</div>';
+    }
     var maxMs = Math.max(
       split.tasks.length ? split.tasks[0].ms : 0,
       split.sites.length ? split.sites[0].ms : 0);
@@ -3353,6 +3367,9 @@
   // another session's region." This is that session, and the six classes that
   // were reached ONLY from here - dash-hero-region, -left, -centre, -right,
   // dash-row2, dash-today, dash-goals - are no longer emitted by anything.
+  // [H4.2] AND THEIR RULES ARE NOW RETIRED TOO, on this record's evidence:
+  // sixteen rules across newtab.css, plus the five comments they orphaned.
+  // -left had no rule left to retire. This note is the reason they could go.
   //
   // IT IS HALF WIDTH NOW, which is a content decision rather than a styling
   // one. renderFreeDashboard places it beside the user's own live tile, so the
@@ -15251,10 +15268,12 @@
     // straight past it rather than pointing at nothing. (The pill is hidden for
     // free users; a Pro user has it, but this keeps the tour honest either way.)
     //
-    // Measured by RECT, not offsetParent: offsetParent is null for every
-    // position:fixed element, and #active-task-pill is fixed — so the
-    // offsetParent test silently skipped the pill step for everyone, tour of
-    // four quietly becoming a tour of three. Caught at runtime, not by reading.
+    // Measured by RECT, not offsetParent, and the rule outlived the example:
+    // offsetParent is null for every position:fixed element, and the
+    // active-task pill (removed in a9e2947) was fixed - so the offsetParent
+    // test silently skipped the pill step for everyone, a tour of four quietly
+    // becoming a tour of three. Caught at runtime, not by reading. The pill is
+    // gone; the next fixed anchor would hit this again, so the rect stays.
     if (!target || !isTourAnchorVisible(target)) {
       if (last) return endProTour();
       proTourState.index++;
@@ -20232,24 +20251,20 @@
 
   // ===== Render =====
 
-  // ===== [1.0.16 v3] Active-task surface (docked card + slim pill) =====
+  // ===== The session readout's surviving arithmetic =====
   //
-  // The engine's first visible surface, in the top-right fixed chrome on EVERY
-  // tab, with a frosted fill so its text is legible on any wallpaper. v3
-  // (DIRECTION v3) makes the expanded state an ALWAYS-OPEN DOCKED CARD — it is
-  // furniture, so it does NOT close on scroll / outside-click / Escape the way v2's
-  // body-mounted panel did. The single #active-task-pill container renders as one
-  // of three states, all in place (no body-mounted panel any more):
-  //   - CARD (active + expanded): the default. Eyebrow, name, goal · tag, large
-  //     ticking timer, Done/Cancel/Switch, paused indicator, cross-workspace
-  //     notice — plus a minimize chevron.
-  //   - slim PILL, minimized: active task, but the user minimized the card
-  //     (data.activeTaskCardMinimized). Clicking the pill restores the card.
-  //   - slim PILL, empty: "No active task +". Clicking opens the Switch dropdown.
-  // The minimize preference rides `data` (cross-tab via onChanged, default
-  // expanded) and is inert to the engine (Storage.setActiveTaskCardMinimized). The
-  // Switch dropdown is still a body-mounted menu anchored to the card's Switch
-  // button; only IT keeps the scroll-close behavior.
+  // [H4.2] THE SURFACE THIS HEADER DESCRIBED IS GONE. It read, in the present
+  // tense, "The single #active-task-pill container renders as one of three
+  // states, all in place" - a docked card, a minimized slim pill and an empty
+  // one. a9e2947 removed the pill entirely and FIX-6's census moved every job
+  // it did: Start and Stop to the side panel, End for now to the Tasks row's
+  // context menu, the stale-record self-heal into the render it now lives in,
+  // and the chaining countdown to the panel (H3d). What is left below is what
+  // was never the pill's - the Tasks row's worked clock and live figure, and
+  // the browser tab's title.
+  //
+  // The paragraph that follows IS still the rule, which is why it stays: it
+  // governs those survivors, not the removed surface.
   //
   // Time shown is today's FOCUSED time for the task (D1), not wall-clock since
   // activation. The readout arrives in two halves from

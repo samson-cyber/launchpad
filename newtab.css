@@ -1761,12 +1761,17 @@ html:not(.has-bg) .variant-dropdown-more:hover {
   background: var(--surface-fill);
 }
 
+/* [H4.2] THE THIRD CONTEXT MENU'S DELETE, in the same rose as the other two.
+   Ruling 1 named the sidebar menu; this is the same control on the variant
+   menu, and converting two of three would leave one control class wearing two
+   reds - which is what "one word, one red" forbids. */
 .vctx-item.vctx-danger {
-  color: #ff6b6b;
+  color: var(--ink-on-overdue);
 }
 
 .vctx-item.vctx-danger:hover {
-  background: rgba(255, 107, 107, 0.15);
+  background: rgba(255, 180, 171, 0.14);
+  color: var(--ink-on-overdue);
 }/* ===== Variant Icon Dialog ===== */
 
 
@@ -2013,18 +2018,27 @@ html.has-bg .nest-submenu-item:hover {
   font-family: inherit;
 }
 
+/* [H4.2] THE v1 MODAL TAKES THE HERO PAIR. RESTYLED, NOT REBUILT (ruling 1):
+   #modal-overlay's markup is untouched, and only these two colours move.
+
+   Done was var(--accent) - v1's blue - which made it the last blue action in a
+   product whose every other primary is --action. It is now THE ONE ACTION on
+   this surface, in the action colour with its own ink; Cancel stops competing
+   for the same blue and takes the meta tier, which is the weighting H3a and
+   H4.0 both settled on elsewhere: the loud control is the one that acts. */
 #modal-cancel {
   background: transparent;
-  color: var(--accent);
+  color: var(--ink-mute);
 }
 
 #modal-cancel:hover {
   background: var(--bg-hover);
+  color: var(--ink);
 }
 
 #modal-save {
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--action);
+  color: var(--ink-on-action);
 }
 
 #modal-save:hover {
@@ -4025,12 +4039,19 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
   background: var(--surface-fill);
 }
 
+/* [H4.2] DELETE IN THE ROSE INK, on H3a's pattern rather than a new choice.
+   H3a ruled this exact control on the TASKS context menu - "the only pure red
+   left in a menu whose every other row is neutral" - and gave it
+   var(--ink-on-overdue) with a hover wash in the same family. This is the same
+   control on the sidebar, so it takes the same treatment: one rose, no second
+   red, and the word carries the danger rather than a fill. */
 .sb-ctx-danger {
-  color: #ff6b6b;
+  color: var(--ink-on-overdue);
 }
 
 .sb-ctx-danger:hover {
-  background: rgba(255, 100, 100, 0.15);
+  background: rgba(255, 180, 171, 0.14);
+  color: var(--ink-on-overdue);
 }
 
 .sb-ctx-separator {
@@ -4358,6 +4379,17 @@ html.has-bg:not(.bg-light) #sb-rate:hover {
 
 
 :root { --sat-accent: var(--accent); }
+/* [H4.2c] THE MUTED INK IS LIFTED ON DARK FROST, ONCE AND NOT PER SURFACE.
+   Three rounds reached #cfc5bc independently - FIX-1 on Tasks, H2d on Insights,
+   H3e on the Dashboard's tiles over a photograph - each scoping it by hand. A
+   value three surfaces agree on belongs to the ground, so it is stated here.
+
+   :not(.bg-light) IS THE LOAD-BEARING HALF. #cfc5bc is LIGHTER than #a89c93,
+   which is what lifts it off a dark frost and precisely what would sink it into
+   a white-tinted one. H1a's ruling is the same shape from the other side: on a
+   light ground the tint's ALPHA rises and the inks do not move. */
+html.has-bg:not(.bg-light) { --ink-mute: #cfc5bc; }
+
 html.has-bg { --sat-accent: #8ab4f8; }
 html.has-bg.bg-light { --sat-accent: var(--accent); }/* [2.0 timing] ACCENT INK ON A FROSTED CARD — a second token, and the reason it
    has to exist.
@@ -8941,39 +8973,13 @@ html.has-bg.bg-light .dash-greeting {
 
    The ring ([1.7.2]) and the this-week strip ([1.7.3]) have RESERVED SPACE and
    no placeholder: min-height on the figure and the right region holds the band's
-   shape open so it can be judged now and does not jump when they arrive. */
-
-
-
-
-.dash-hero,
-.dash-row2 {
+   shape open so it can be judged now and does not jump when they arrive. */.dash-hero {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: var(--space-4);
   align-items: stretch;
 }
-
-.dash-hero-region { grid-column: span 4; min-width: 0; }
-.dash-mod         { min-width: 0; }
-.dash-today       { grid-column: span 7; }
-.dash-goals       { grid-column: span 5; display: flex; flex-direction: column; gap: var(--space-4); }/* The band's three regions read as one surface, so they share the card frame
-   rather than each carrying their own. The centre is the only one with a
-   control in it, which is why it is the only one that needs no extra emphasis:
-   the outlined button is the emphasis. */
-
-
-.dash-hero-region {
-  background: var(--pro-frost-card-bg);
-  -webkit-backdrop-filter: var(--pro-frost-card-blur);
-  backdrop-filter: var(--pro-frost-card-blur);
-  border: 1px solid var(--surface-line);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}/* LEFT: the surface's one hero. --display-1 appears exactly here and nowhere
+.dash-mod         { min-width: 0; }/* LEFT: the surface's one hero. --display-1 appears exactly here and nowhere
    else on the Dashboard; if a second element ever wants this size, one of the
    two is not the hero. */
 
@@ -9099,14 +9105,8 @@ html.bg-light .dash-ring-track { stroke: rgba(0, 0, 0, 0.12); }/* NOTHING NAGS W
 .dash-hero-count-label {
   font-size: var(--fs-11);
   color: var(--ink-meta);
-}/* CENTRE: the pick-up card. .dash-head keeps every one of its five variants. */
-
-
-.dash-hero-centre { justify-content: center; }/* RIGHT: streak and focus blocking at --display-3, with room kept for the
+}/* RIGHT: streak and focus blocking at --display-3, with room kept for the
    this-week strip ([1.7.3]) beneath them. */
-
-
-.dash-hero-right { gap: var(--space-4); }
 
 .dash-hero-stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 
@@ -9139,15 +9139,6 @@ html.bg-light .dash-ring-track { stroke: rgba(0, 0, 0, 0.12); }/* NOTHING NAGS W
 .dash-hero-stat .insights-strip-label {
   font-size: var(--fs-12);
   color: var(--ink-secondary);
-}/* NARROW WIDTHS. Measured against `busy` rather than assumed: see the round's
-   report. The band's three regions cannot hold their content at four columns
-   once the container drops below roughly 1000px, so they go to a 12/12/12 stack
-   at the SAME 900px breakpoint the Notes panel already uses. A second
-   breakpoint was not introduced because the measurement did not demand one. */@media (max-width: 900px) {
-  .dash-hero-region { grid-column: span 12; }
-  .dash-today,
-  .dash-goals { grid-column: span 12; }
-
 }/* ----- Module 4's header block ----- *//* The suggestion / pick-up / empty / evening head, now the top of the due-today
    card rather than a card of its own. A rule, not a bare margin, because the
    separator is what tells the eye where the head ends and the list begins. */
@@ -9994,34 +9985,13 @@ html.has-bg.bg-light .dash-mod .pp-insights-card {
   --ink-hint: rgba(0, 0, 0, 0.38);
   --surface-line: rgba(0, 0, 0, 0.14);
   --surface-fill: rgba(0, 0, 0, 0.06);
-}/* [1.7.2] THE HERO BAND'S LIGHT BRANCH - A DEFECT [1.7.1] SHIPPED AND THIS
-   ROUND'S FOUR-FRAME MEASUREMENT CAUGHT. .dash-hero-region took its background
-   from var(--pro-frost-card-bg), which FLIPS WHITE under html.bg-light, but the
-   region was never added to the light-branch rule below that also flips the INK.
-   Measured on a light solid wallpaper: numeral and label at 1.00:1, white on
-   white, invisible. The ring was fine because it was keyed to the shipped pill
-   ring's values, which already had their light override.
-
-   THE INK TOKENS ARE REDEFINED ON THE REGION rather than each descendant being
-   patched, so every element that reads var(--ink-*) flips with the card - the
-   two counts, both right-hand stats, the streak's own strip classes, and
-   whatever [1.7.3] and [1.7.4] add next. Patching the four elements that exist
-   today would leave the next one to rediscover this. */
-
-
-html.has-bg.bg-light .dash-hero-region {
-  background: rgba(255, 255, 255, 0.85);
-  border-color: rgba(0, 0, 0, 0.08);
-  color: #222;
-  text-shadow: none;
-  --ink-primary: rgba(0, 0, 0, 0.87);
-  --ink-secondary: rgba(0, 0, 0, 0.66);
-  /* 0.70 / 0.64 - the measured light-ground pair. The note sits on
-     html.has-bg.bg-light .group-header, the first block to carry it. */
-  --ink-meta: rgba(0, 0, 0, 0.70);
-  --ink-chrome: rgba(0, 0, 0, 0.64);
-  --ink-hint: rgba(0, 0, 0, 0.38);
-}/* Row two's modules sit on .pp-insights-card, which the rule below already
+}/* [H4.2] [1.7.2]'s HERO-BAND LIGHT BRANCH IS GONE WITH ITS RULE. It fixed a
+   real defect - .dash-hero-region took a background that flipped white under
+   html.bg-light while its ink did not, measured at 1.00:1, white on white -
+   and the whole band it fixed was retired here, so the rule and this note went
+   with it. The LESSON is the one 2e generalises: a ground-branch rule that
+   flips a background must flip the ink in the same breath, and a v1
+   ground-branch rule reaching a v2 tile is now scoped out by construction. *//* Row two's modules sit on .pp-insights-card, which the rule below already
    covers; only the band needed its own entry. *//* .pro-preview-banner IS NO LONGER IN THIS LIST, and its absence is the fix
    rather than an omission. This rule paints the cards white-tinted on a light
    wallpaper, which is right for a card and was exactly wrong for the banner:
@@ -10876,6 +10846,16 @@ html.has-bg.bg-light .due-bell-list {
 
 
 
+
+/* [H4.2 / ruling 5] THE DAY WITH NOTHING IN IT. One factual line where the two
+   lists would be, at the META TIER - the tile's quiet body, not a heading and
+   not an error. --ink-mute rather than --ink-hint because it is a fact the user
+   should be able to read, not a whisper. */
+.dash-passive-none {
+  margin-top: var(--space-2);
+  font-size: var(--fs-12);
+  color: var(--ink-mute);
+}
 
 .dash-passive-sub {
   margin-top: var(--space-4);
@@ -18050,7 +18030,7 @@ html.bg-light .search-mode:hover {
   /* UNCHANGED AT 900, and the position change does not move it in the stack.
      Above: #content-header (2) and #sidebar (200), so it is never hidden by the
      page furniture it opens over. Below: #shortcut-menu (1000), #nest-submenu
-     (1100), #bookmarks-panel (1200), #active-task-pill (1500) and its docked
+     (1100), #bookmarks-panel (1200) and the docked
      card (9000), the overlays (2000) and #open-all-toast (9999) - so nothing
      the user deliberately opened is ever covered by a list they are only
      typing past. */
@@ -19632,11 +19612,15 @@ html.bg-light .set-tile .set-select {
 /* =========================================================================
    [H1a] THE DASHBOARD AS A BENTO
 
-   Seven tiles on H0's .tile vocabulary. The old hero band's rules are LEFT IN
-   PLACE and are not dead: renderProPreview still paints the v1 Dashboard as its
-   demo surface, so .dash-hero-region and friends are still reached. That
-   divergence is a finding, not a cleanup this round may make - the preview is
-   another session's region.
+   Seven tiles on H0's .tile vocabulary.
+
+   [H4.2] THE OLD HERO BAND'S RULES ARE NOW GONE. H1a left them in place with a
+   note that "renderProPreview still paints the v1 Dashboard as its demo
+   surface, so .dash-hero-region and friends are still reached", and called the
+   divergence a finding rather than a cleanup it could make. H3b then rebuilt
+   the free preview in the tile language, which retired the last emitter, and
+   H3b's own record in newtab.js names the seven classes that were reached only
+   from there. This round retired their sixteen rules on that evidence.
    ========================================================================= */
 
 
@@ -21825,34 +21809,6 @@ html.has-bg.bg-light .insights-tab .tile {
    same reason: a second filled control on a hero tile would compete with the
    figure it sits above.
    ========================================================================= */
-#tab-dashboard .dash-chain {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin-top: 6px;
-  font-size: var(--fs-11);
-  color: var(--ink-mute);
-}
-#tab-dashboard .dash-chain-text { min-width: 0; }
-#tab-dashboard .dash-chain-cancel {
-  flex: 0 0 auto;
-  padding: 2px 0;
-  border: 0;
-  background: none;
-  color: var(--ink-mute);
-  font-family: var(--font-sans);
-  font-size: var(--fs-11);
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-color: var(--tile-line);
-}
-#tab-dashboard .dash-chain-cancel:hover { color: var(--ink); text-decoration-color: currentColor; }
-#tab-dashboard .dash-chain-cancel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
-html.bg-light #tab-dashboard .dash-chain,
-html.has-bg.bg-light #tab-dashboard .dash-chain { color: var(--ink-mute); }
-html.bg-light #tab-dashboard .dash-chain-cancel,
-html.has-bg.bg-light #tab-dashboard .dash-chain-cancel { color: var(--ink-mute); }
 
 /* =========================================================================
    [FIX-7] THE RUNNING SESSION ON THE DASHBOARD HERO

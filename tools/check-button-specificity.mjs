@@ -104,6 +104,87 @@ function paints(body) {
 }
 const classesOf = (sel) => (sel.match(/\.([\w-]+)/g) || []).map((c) => c.slice(1));
 
+// =========================================================================
+// [H4.2] THE SECOND RULE: A v1 GROUND BRANCH MUST NOT OUTRANK A v2 CONTAINER.
+//
+// Four instances this arc, all one shape - a v1 html.has-bg / bg-light ink rule
+// reaching a v2 surface that no longer changes with the ground:
+//   H1b    tile #2's ink
+//   FIX-2  the streak number
+//   H3a    the danger button
+//   H3a    html.has-bg .seg-btn.active beating .tt-modal .seg-btn.active
+//
+// A v2 container declares its own ink precisely BECAUSE it does not change with
+// the ground - a tile is the same colour on every wallpaper (H1a's ruling: the
+// tint alphas rise on a light ground, the inks do not move). So a ground rule
+// that wins inside one has overruled a decision already made.
+//
+// RANK, NOT EXISTENCE. H3a's fix was to give the container rule its own
+// ground-scoped forms so it outranks the v1 rule; a gate that forbade the v1
+// rule outright would forbid the fix. This fails only when the ground rule
+// actually WINS.
+export const V2_CONTAINERS = [".tile", ".dash-tile", ".tt-modal", ".tt-context-menu"];
+
+export function containerBreaches(text) {
+  // rules() yields [sel, body] TUPLES and paints() yields a SET - read from the
+  // producer above rather than assumed.
+  //
+  // AND COMMENTS COME OFF FIRST. rules() treats everything between one rule's
+  // `}` and the next `{` as the selector, comments included, which the existing
+  // audit never cared about because it only regex-TESTS selectors. specificity()
+  // COUNTS them: a hex colour in a comment reads as an ID, and one finding here
+  // came back ranked 1004019 because the note above it mentioned #6fb1ff. A rank
+  // computed from prose is not a rank. Stripped here only, so the gate's
+  // published 19-finding baseline still counts exactly what it counted before.
+  const rs = rules(text.replace(/\/\*[\s\S]*?\*\//g, " "));
+  const out = [];
+  // Every (class, property) a container-scoped rule paints, with its best rank.
+  const owned = new Map();
+  for (const [sel, body] of rs) {
+    if (!V2_CONTAINERS.some((c) => sel.includes(c))) continue;
+    const props = [...paints(body)];
+    if (!props.length) continue;
+    const subject = sel.trim().split(/\s+/).pop();      // the node it paints
+    const key = classesOf(subject).sort().join(".");
+    if (!key) continue;
+    for (const pr of props) {
+      const k = key + "|" + pr;
+      const r = rank(specificity(sel));
+      if (!owned.has(k) || owned.get(k).r < r) owned.set(k, { r, sel });
+    }
+  }
+  // Any v1 ground rule that can REACH INSIDE a container and outranks its ink.
+  //
+  // "Can reach" is the whole difficulty. A ground rule with an ancestor
+  // qualifier cannot leave it: html.has-bg .insights-tab .seg-btn never
+  // matches inside .tt-modal. Only the UNQUALIFIED shape reaches everywhere -
+  // html.has-bg .seg-btn.active - and that is the shape of all four instances
+  // this arc. So: exactly one compound after the html qualifier, and the same
+  // subject compound as the container rule, so the two really can select one
+  // node rather than merely sharing a class name.
+  const compoundKey = (compound) => classesOf(compound).sort().join(".");
+  for (const [sel, body] of rs) {
+    const s = sel.trim();
+    if (!GROUND.test(s)) continue;
+    if (V2_CONTAINERS.some((c) => s.includes(c))) continue;   // it names one: fine
+    const parts = s.split(/\s+/).filter(Boolean);
+    // html.<ground> <subject> and nothing between them
+    if (parts.length !== 2 || !/^html\./.test(parts[0])) continue;
+    const props = [...paints(body)];
+    if (!props.length) continue;
+    const key = compoundKey(parts[1]);
+    if (!key) continue;
+    const r = rank(specificity(s));
+    for (const pr of props) {
+      const own = owned.get(key + "|" + pr);
+      if (!own) continue;
+      if (r > own.r) out.push({ cls: key, prop: pr, ground: s, groundRank: r,
+                                container: own.sel.trim(), containerRank: own.r });
+    }
+  }
+  return out;
+}
+
 export function audit(css) {
   const all = rules(css.replace(/\/\*[\s\S]*?\*\//g, ""));
   const grounds = [], states = [];
@@ -227,11 +308,54 @@ for (const f of findings) {
 // nothing. Each needs the runtime probe pointed at it to say whether the
 // property it loses CARRIES MEANING, which is the judgement this gate cannot
 // make and deliberately does not try to.
+// =========================================================================
+// [H4.2] THE SECOND RULE'S VERDICT, AND IT IS ENFORCING.
+//
+// Unlike the baseline above, this rule starts at zero, so it can be red from
+// day one: the four instances this arc produced are fixed, and a fifth must
+// fail the build rather than move a counter. H1b's tile #2, FIX-2's streak
+// number and H3a's two are the whole population, and H4.2 retired
+// .dash-hero-region's light branch - the last v1 ground rule that owned a
+// surface a v2 container had taken over.
+const breaches = containerBreaches(css);
+const CONTAINER_BASELINE = 0;
+console.log("\n  v1 GROUND BRANCH vs v2 CONTAINER");
+console.log("    containers: " + V2_CONTAINERS.join(" "));
+if (!breaches.length) {
+  console.log("    ok   no v1 ground rule outranks a v2 container's own ink\n");
+} else {
+  const seen = new Set();
+  for (const b of breaches) {
+    const k = b.cls + "|" + b.prop;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    console.log("    FAIL  ." + b.cls + " { " + b.prop + " }");
+    console.log("          ground    (" + b.groundRank + ")  " + b.ground);
+    console.log("          container (" + b.containerRank + ")  " + b.container);
+    console.log("          FIX: give the CONTAINER rule its ground-scoped forms so it wins,");
+    console.log("               as H3a did - do not delete the v1 rule, which other surfaces read.");
+  }
+  console.log("");
+}
+// ANTI-VACUITY: the scan must have found containers to check at all, or a
+// refactor that renamed .tile would make this row pass by measuring nothing.
+const containerRules = rules(css.replace(/\/\*[\s\S]*?\*\//g, " ")).filter(([sel]) => V2_CONTAINERS.some((c) => sel.includes(c))).length;
+if (containerRules < 20) {
+  console.log("  REFUSED: only " + containerRules + " container-scoped rule(s) found; this row would pass vacuously.\n");
+  process.exit(2);
+}
+console.log("    (scanned " + containerRules + " container-scoped rules)\n");
+
 const ENFORCING = false;
 const BASELINE = 19;
 
+if (breaches.length > CONTAINER_BASELINE) {
+  console.log(`\n  BUTTON SPECIFICITY: FAIL - ${breaches.length} v1 ground rule(s) outrank a v2 container\n`);
+  process.exit(1);
+}
 if (!findings.length) {
-  console.log("\n  BUTTON SPECIFICITY: PASS - no state modifier is outranked by a ground rule\n");
+  console.log("\n  BUTTON SPECIFICITY: PASS - no state modifier is outranked by a ground rule,\n" +
+    "  and no v1 ground branch outranks a v2 container\n");
   process.exit(0);
 }
 if (ENFORCING) {
