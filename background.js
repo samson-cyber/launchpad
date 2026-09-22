@@ -407,7 +407,12 @@ function runSyncMerge(reason) {
     var data = await Storage.getAll();
     var res = await Storage.syncMergeIntoLocal(data);
     if (res.unavailable) return res;
-    var touched = res.settings.length > 0 || res.licenseKeyAdopted;
+    // [L6] A STAMP-ONLY MERGE IS STILL A CHANGE WORTH SAVING. When the two
+    // sides hold the same value under different stamps, adopting the newer
+    // stamp is what stops this machine pushing its older one straight back.
+    // Left out of `touched`, the adoption would live only in memory and the
+    // two machines would trade stamps for as long as both were awake.
+    var touched = res.settings.length > 0 || res.licenseKeyAdopted || (res.stamps && res.stamps.length > 0);
     if (touched) await Storage.saveAll(data);
 
     if (res.licenseKeyAdopted) {

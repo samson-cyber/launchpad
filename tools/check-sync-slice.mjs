@@ -28,8 +28,11 @@ function check(name, ok, detail) { rows.push({ name, pass: !!ok, detail: detail 
 // ---- load the real storage.js -------------------------------------------
 let Storage = null;
 let SRC_TEXT = "";
-try {
-  SRC_TEXT = fs.readFileSync(path.join(repoRoot, "storage.js"), "utf8");
+
+// FACTORED OUT so the MUTANT can be loaded the same way as the subject. A
+// mutation test that builds its victim differently is testing a different
+// program.
+function loadStorage(source) {
   const noop = () => {};
   const listeners = [];
   const ctx = {
@@ -49,8 +52,13 @@ try {
   };
   ctx.self = ctx; ctx.globalThis = ctx; ctx.window = ctx;
   vm.createContext(ctx);
-  vm.runInContext(SRC_TEXT, ctx, { filename: "storage.js" });
-  Storage = ctx.Storage;
+  vm.runInContext(source, ctx, { filename: "storage.js" });
+  return ctx.Storage;
+}
+
+try {
+  SRC_TEXT = fs.readFileSync(path.join(repoRoot, "storage.js"), "utf8");
+  Storage = loadStorage(SRC_TEXT);
 } catch (e) {
   console.log("\nSYNC SLICE: BROKEN - storage.js did not load: " + e.message + "\n");
   process.exit(2);
@@ -231,6 +239,124 @@ check("storage.js cancels a queued push when a value arrives",
 check("the licence adoption clears the seat and the verdict",
   /function adoptSyncedLicenseKey[\s\S]{0,400}?instanceId = null[\s\S]{0,200}?lastVerifiedAt = null[\s\S]{0,120}?subscriptionStatus = "free"/.test(SRC_TEXT));
 
+// ===== [L6] THE PER-FIELD WRITE STAMPS ====================================
+//
+// WHAT THESE ROWS ARE FOR. Without a stamp the merge treated an arriving
+// value as authoritative because it arrived, so a 1500ms-old echo of the
+// FIRST click overwrote a change made 20ms ago - measured 5 times in 9 on a
+// real profile before the fix. The stamp makes "last write wins" a fact
+// about when each side wrote rather than about who spoke most recently.
+//
+// AND WHY THE MUTATION IS HERE RATHER THAN IN A ROUND REPORT. The comparison
+// is four lines and deleting them leaves a merge that still runs, still
+// returns the right shape and still passes every other row in this file. A
+// row that cannot fail is P2's vacuous gate, so the deletion is performed
+// below, against a second copy of storage.js in its own VM, and the suite
+// fails if the mutant still behaves.
+
+const STAMP_KEY = Storage.SYNC_STAMPS_KEY;
+const REM = PREFIX + "dueRemindersEnabled";
+const stampedData = (value, stamp) => {
+  const d = { settings: { dueRemindersEnabled: value } };
+  if (stamp !== null) d[STAMP_KEY] = { dueRemindersEnabled: stamp };
+  return d;
+};
+
+check("the stamps map has a name storage.js and the gate agree on", typeof STAMP_KEY === "string" && STAMP_KEY.length > 0, STAMP_KEY);
+
+// --- the wire format ---
+{
+  const wrapped = Storage.syncWrapStamped({ workMin: 25 }, 4242);
+  check("a stamped value travels WRAPPED, value and stamp together",
+    wrapped && wrapped.t === 4242 && wrapped.v && wrapped.v.workMin === 25, JSON.stringify(wrapped));
+  check("an UNSTAMPED value travels in the legacy shape",
+    Storage.syncWrapStamped(true, null) === true, JSON.stringify(Storage.syncWrapStamped(true, null)));
+  const back = Storage.syncUnwrapStamped(wrapped);
+  check("a wrapper round-trips", back.stamp === 4242 && back.v === undefined && back.value.workMin === 25, JSON.stringify(back));
+  const plain = Storage.syncUnwrapStamped({ workMin: 25 });
+  check("a plain OBJECT is not mistaken for a wrapper", plain.stamp === null && plain.value.workMin === 25, JSON.stringify(plain));
+}
+
+// --- the stamp never leaks into the payload as a setting ---
+{
+  const dirtyStamped = JSON.parse(JSON.stringify(dirty));
+  dirtyStamped[STAMP_KEY] = { iconSize: 1 };
+  const s2 = Storage.buildSyncSlice(dirtyStamped, null);
+  check("the stamps map is NEVER a key in the slice",
+    !Object.keys(s2).some((k) => k.indexOf(STAMP_KEY) !== -1), Object.keys(s2).join(","));
+}
+
+// --- the truth table, against the real applySyncedValues ---
+{
+  let d = stampedData(false, 1000);
+  Storage.applySyncedValues(d, { [REM]: Storage.syncWrapStamped(true, 2000) });
+  check("both stamped, remote NEWER -> remote wins (PF.2 preserved)", d.settings.dueRemindersEnabled === true, JSON.stringify(d.settings));
+
+  d = stampedData(false, 2000);
+  Storage.applySyncedValues(d, { [REM]: Storage.syncWrapStamped(true, 1000) });
+  check("both stamped, remote OLDER -> LOCAL wins (this is L6)", d.settings.dueRemindersEnabled === false, JSON.stringify(d.settings));
+
+  d = stampedData(false, 1500);
+  Storage.applySyncedValues(d, { [REM]: Storage.syncWrapStamped(true, 1500) });
+  check("equal stamps -> local kept", d.settings.dueRemindersEnabled === false, JSON.stringify(d.settings));
+
+  d = stampedData(false, null);
+  Storage.applySyncedValues(d, { [REM]: true });
+  check("NEITHER side stamped -> today's behaviour, remote wins", d.settings.dueRemindersEnabled === true, JSON.stringify(d.settings));
+
+  d = stampedData(false, 1000);
+  Storage.applySyncedValues(d, { [REM]: true });
+  check("remote UNSTAMPED against a stamped local -> the unstamped side is older",
+    d.settings.dueRemindersEnabled === false, JSON.stringify(d.settings));
+
+  d = stampedData(false, null);
+  Storage.applySyncedValues(d, { [REM]: Storage.syncWrapStamped(true, 1) });
+  check("local UNSTAMPED against a stamped remote -> the unstamped side is older",
+    d.settings.dueRemindersEnabled === true, JSON.stringify(d.settings));
+
+  d = stampedData(true, 1000);
+  const r = Storage.applySyncedValues(d, { [REM]: Storage.syncWrapStamped(true, 9000) });
+  check("same value, newer stamp -> the stamp is adopted and REPORTED",
+    Storage.syncStampOf(d, "dueRemindersEnabled") === 9000 && r.stamps.indexOf("dueRemindersEnabled") !== -1,
+    JSON.stringify(r) + " " + Storage.syncStampOf(d, "dueRemindersEnabled"));
+}
+
+// --- key order is not a change (the spurious save that carried a stale blob) ---
+{
+  const a = { workMin: 25, notificationsEnabled: true, chain: false };
+  const bb = { chain: false, workMin: 25, notificationsEnabled: true };
+  check("the merge compares values on a STABLE key order",
+    Storage.syncStableStringify(a) === Storage.syncStableStringify(bb) && JSON.stringify(a) !== JSON.stringify(bb),
+    Storage.syncStableStringify(a));
+}
+
+// --- ONE WRITER: the stamp goes in the same set() as the value ---
+check("saveAll stamps BEFORE the local set, so value and stamp are one write",
+  /syncStampLocal\(data\)[\s\S]{0,400}?await chrome\.storage\.local\.set\(\{/.test(SRC_TEXT));
+check("getAll primes the stamp basis",
+  /async function getAll\(\)[\s\S]{0,400}?syncNoteLocalBasis\(data\)/.test(SRC_TEXT));
+check("a stamp-only merge still counts as touched in background.js",
+  /var touched = res\.settings\.length > 0 \|\| res\.licenseKeyAdopted \|\| \(res\.stamps/.test(BG));
+
+// --- THE MUTATION. Remove the comparison; L6 must come back. ---
+{
+  const CUT = SRC_TEXT.indexOf("if (localStamp !== null && (parsed.stamp === null || parsed.stamp <= localStamp)) {");
+  check("the stamp comparison is present in storage.js to be mutated", CUT !== -1, String(CUT));
+  if (CUT !== -1) {
+    const end = SRC_TEXT.indexOf("}", SRC_TEXT.indexOf("continue;", CUT)) + 1;
+    const mutated = SRC_TEXT.slice(0, CUT) + "if (false) {" + SRC_TEXT.slice(SRC_TEXT.indexOf("{", CUT) + 1, end) + SRC_TEXT.slice(end);
+    let Mutant = null, why = "";
+    try { Mutant = loadStorage(mutated); } catch (e) { why = e.message; }
+    check("the mutant still loads (so the row below is about behaviour, not a syntax error)", !!Mutant, why);
+    if (Mutant) {
+      const d = { settings: { dueRemindersEnabled: false }, [STAMP_KEY]: { dueRemindersEnabled: 2000 } };
+      Mutant.applySyncedValues(d, { [REM]: Mutant.syncWrapStamped(true, 1000) });
+      check("MUTATION: removing the stamp comparison brings L6 back (older remote overwrites newer local)",
+        d.settings.dueRemindersEnabled === true,
+        "the mutant kept the local value - this suite cannot see the comparison being removed");
+    }
+  }
+}
 // ---- report --------------------------------------------------------------
 let pass = 0, fail = 0;
 console.log("\nSYNC SLICE - what may leave this machine\n");
@@ -238,7 +364,7 @@ for (const r of rows) {
   console.log(`  ${r.pass ? "PASS" : "FAIL"}  ${r.name}${r.pass ? "" : "   << " + r.detail}`);
   r.pass ? pass++ : fail++;
 }
-const MIN = 30;
+const MIN = 45;
 if (rows.length < MIN) {
   console.log(`\nSYNC SLICE: FAIL - only ${rows.length} assertions ran (expected >= ${MIN}); the suite is broken, not clean.\n`);
   process.exit(1);

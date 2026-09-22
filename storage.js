@@ -2965,7 +2965,18 @@ var Storage = (function () {
     return data.workspaces[idx] || data.workspaces[0];
   }
 
+  // [L6] getAll IS WHERE THE STAMP BASIS COMES FROM, which is why the real
+  // body moved behind this wrapper rather than growing five more return
+  // statements. Every caller of saveAll gets its `data` from here, so priming
+  // on the way out means "anything different by save time is this context's
+  // own edit" - the only question syncStampLocal has to answer.
   async function getAll() {
+    var data = await getAllInner();
+    try { syncNoteLocalBasis(data); } catch (err) { /* never fail a read */ }
+    return data;
+  }
+
+  async function getAllInner() {
     try {
       var result = await chrome.storage.local.get("data");
       var existing = result.data;
@@ -3084,6 +3095,12 @@ var Storage = (function () {
       // Both keys land in the same chrome.storage.local.set call so they
       // arrive atomically in a single onChanged event.
       _pendingWriteIds.add(writeId);
+      // [L6] THE STAMP GOES IN BEFORE THE SET, so the value and the record of
+      // when it was written are one write and cannot come apart. Guarded like
+      // syncPush below: the sync slice is a convenience on top of local
+      // storage and must never turn a good local save into a failed one.
+      try { syncStampLocal(data); }
+      catch (stampErr) { console.warn("[LaunchPad] sync stamp skipped:", stampErr && stampErr.message); }
       await chrome.storage.local.set({
         data: data,
         __lastWrite: { tab: TAB_INSTANCE_ID, writeId: writeId, ts: Date.now() }
@@ -10046,6 +10063,143 @@ var Storage = (function () {
     }
     return out;
   }
+  // ---- [L6] PER-FIELD WRITE STAMPS ---------------------------------------
+  //
+  // THE BUG THIS EXISTS FOR. Flip a synced setting, wait for the 1500ms
+  // debounce to flush it, then flip it again before the echo comes back:
+  //
+  //     t=0      click 1     local := true    queued, timer -> 1500
+  //     t=1500   flush       sync  := true
+  //     t=1510   click 2     local := false
+  //     t=1530   runSyncMerge reads sync (still true) and writes it into local
+  //
+  // and the second click is gone. Measured 5 times in 9 on a real profile,
+  // permanently, for gaps between ~1450ms and ~1540ms. Permanently rather than
+  // transiently because PF.2's own queue cancellation then drops the page's
+  // pending `false`: the arriving `true` is newer as far as that rule can see,
+  // so the second click never reaches sync at all. BUGS.md L6.
+  //
+  // WHY A STAMP AND NOT A DEBOUNCE-WINDOW SKIP. The alternative - have the
+  // merge ignore any field whose local value changed within the last
+  // SYNC_DEBOUNCE_MS - needs no new state, and it reintroduces PF.2 in the
+  // other direction: a genuinely newer value arriving from another machine
+  // inside that window would be discarded because THIS machine happened to
+  // have touched the field. PF.2's notes say last-write-wins is per sync KEY;
+  // a stamp is what makes "last" a fact rather than an assumption about who
+  // spoke most recently. Ruled 2026-09-22.
+  //
+  // ONE WRITER, NEVER TWO. The stamp is written by saveAll, in the SAME
+  // chrome.storage.local.set that carries the value - see syncStampLocal's
+  // call site. A stamp written by a second writer could be lost while the
+  // value survived, and a value with a stale stamp is worse than no stamp at
+  // all: it would lose to an older remote write and look like this bug.
+  //
+  // THE WIRE FORMAT IS WRAPPED, AND OLD PROFILES ARE THE REASON IT IS MARKED.
+  // A stamped key holds { __lp: 1, v: <value>, t: <ms> }. Three of the synced
+  // fields are objects already (pomodoro, focus, modePresets), so "is this a
+  // wrapper?" cannot be answered by typeof - it is answered by the marker.
+  // Anything without the marker is a value written before this change, and is
+  // treated as UNSTAMPED, which is older than anything stamped. That is what
+  // makes the upgrade one-way and quiet: the first machine to write a field
+  // stamps it, and the other side stops being able to overwrite it blindly.
+  var SYNC_STAMP_MARK = 1;
+  var SYNC_STAMPS_KEY = "__syncStamps";
+
+  function syncWrapStamped(value, stamp) {
+    // No stamp means the legacy shape, on purpose: a field this machine has
+    // never written carries no claim about when it was written.
+    if (typeof stamp !== "number" || !isFinite(stamp)) return value;
+    return { __lp: SYNC_STAMP_MARK, v: value, t: stamp };
+  }
+
+  function syncUnwrapStamped(raw) {
+    if (raw && typeof raw === "object" && !Array.isArray(raw) &&
+        raw.__lp === SYNC_STAMP_MARK && Object.prototype.hasOwnProperty.call(raw, "v")) {
+      return { value: raw.v, stamp: (typeof raw.t === "number" && isFinite(raw.t)) ? raw.t : null };
+    }
+    return { value: raw, stamp: null };
+  }
+
+  // Deterministic for the EQUALITY TEST only - never for the wire, where the
+  // value must travel exactly as it is.
+  function syncStableStringify(v) {
+    if (v === null || typeof v !== "object") return JSON.stringify(v);
+    if (Array.isArray(v)) {
+      var parts = [];
+      for (var i = 0; i < v.length; i++) parts.push(syncStableStringify(v[i]));
+      return "[" + parts.join(",") + "]";
+    }
+    var keys = Object.keys(v).sort();
+    var out = [];
+    for (var j = 0; j < keys.length; j++) {
+      out.push(JSON.stringify(keys[j]) + ":" + syncStableStringify(v[keys[j]]));
+    }
+    return "{" + out.join(",") + "}";
+  }
+
+  function syncStampOf(data, field) {
+    var s = data && data[SYNC_STAMPS_KEY];
+    if (!s || typeof s !== "object") return null;
+    var t = s[field];
+    return (typeof t === "number" && isFinite(t)) ? t : null;
+  }
+
+  function syncSetStamp(data, field, stamp) {
+    if (!data) return;
+    if (typeof stamp !== "number" || !isFinite(stamp)) return;
+    if (!data[SYNC_STAMPS_KEY] || typeof data[SYNC_STAMPS_KEY] !== "object") data[SYNC_STAMPS_KEY] = {};
+    data[SYNC_STAMPS_KEY][field] = stamp;
+  }
+
+  // WHICH FIELD CHANGED, ANSWERED BY DIFFING AGAINST WHAT THIS CONTEXT LAST
+  // SAW PERSISTED. saveAll writes the whole blob and is told nothing about
+  // which setter ran, so the basis is primed by getAll - the read of the
+  // persisted truth - and updated on every stamp and every merge. Anything
+  // that differs at save time is therefore a change made by THIS context since
+  // it last read, which is exactly what deserves a new stamp.
+  var _syncLocalBasis = null;
+
+  function syncEncodeField(data, field) {
+    var v = (data && data.settings) ? data.settings[field] : undefined;
+    return v === undefined ? undefined : JSON.stringify(v);
+  }
+
+  function syncNoteLocalBasis(data) {
+    if (!data) return;
+    _syncLocalBasis = {};
+    for (var i = 0; i < SYNC_SETTING_FIELDS.length; i++) {
+      _syncLocalBasis[SYNC_SETTING_FIELDS[i]] = syncEncodeField(data, SYNC_SETTING_FIELDS[i]);
+    }
+  }
+
+  // Stamps every synced field whose value moved since the basis. Returns the
+  // names, for tests. Called from saveAll BEFORE the set, so the stamp and the
+  // value are one write.
+  function syncStampLocal(data) {
+    if (!data || !data.settings) return [];
+    if (!_syncLocalBasis) {
+      // A save with no preceding getAll in this context. Every caller of
+      // saveAll obtains `data` from getAll, which primes the basis, so this is
+      // unreachable in the product; establishing the basis without stamping is
+      // the conservative branch - it cannot invent a claim about a write this
+      // context did not observe.
+      syncNoteLocalBasis(data);
+      return [];
+    }
+    var stamped = [];
+    var now = Date.now();
+    for (var i = 0; i < SYNC_SETTING_FIELDS.length; i++) {
+      var f = SYNC_SETTING_FIELDS[i];
+      var enc = syncEncodeField(data, f);
+      if (enc === _syncLocalBasis[f]) continue;
+      _syncLocalBasis[f] = enc;
+      if (enc === undefined) continue;
+      syncSetStamp(data, f, now);
+      stamped.push(f);
+    }
+    return stamped;
+  }
+
   var SYNC_LICENSE_FIELD = "licenseKey";
   var SYNC_BG_ROTATE_FIELD = "bgRotate";
 
@@ -10069,7 +10223,10 @@ var Storage = (function () {
       for (var i = 0; i < SYNC_SETTING_FIELDS.length; i++) {
         var f = SYNC_SETTING_FIELDS[i];
         if (data.settings[f] !== undefined) {
-          out[syncKeyFor(f)] = syncStripSubfields(f, data.settings[f]);
+          // The stamp rides WITH the value. Two keys could be written apart
+          // and read apart, and a value whose stamp had not landed yet would
+          // be judged by the previous one.
+          out[syncKeyFor(f)] = syncWrapStamped(syncStripSubfields(f, data.settings[f]), syncStampOf(data, f));
         }
       }
     }
@@ -10187,7 +10344,11 @@ var Storage = (function () {
   // Applies a bag of synced values to `data` in place. Returns what changed so
   // the caller can decide whether a save and a re-render are warranted.
   function applySyncedValues(data, bag) {
-    var res = { settings: [], licenseKeyAdopted: false, bgRotate: null };
+    // `stamps` is separate from `settings` because a stamp can move while the
+    // VALUE does not - two machines agreeing on a value but not on when it was
+    // written. That still has to be saved, or this side keeps pushing its older
+    // stamp back and the two ping-pong forever without either value changing.
+    var res = { settings: [], stamps: [], kept: [], licenseKeyAdopted: false, bgRotate: null };
     if (!data || !bag) return res;
     if (!data.settings) data.settings = {};
     for (var i = 0; i < SYNC_SETTING_FIELDS.length; i++) {
@@ -10195,11 +10356,38 @@ var Storage = (function () {
       var k = syncKeyFor(f);
       if (!Object.prototype.hasOwnProperty.call(bag, k)) continue;
       if (bag[k] === undefined) continue;
+
+      // [L6] THE STAMP DECIDES, NOT THE DIRECTION OF TRAVEL. Before this, an
+      // arriving value was authoritative simply because it arrived, which is
+      // how a 1500ms-old echo overwrote a change made 20ms ago.
+      //
+      //   both stamped      the strictly newer one wins
+      //   remote only       remote wins - an unstamped local value predates
+      //                     this feature and makes no claim
+      //   local only        local wins, for the mirror of that reason
+      //   neither           today's behaviour, unchanged: remote wins. Two
+      //                     unstamped sides is an old profile talking to an
+      //                     old profile, and nothing here knows better.
+      //
+      // EQUAL STAMPS KEEP LOCAL. A tie is the same write echoing back, where
+      // the values agree anyway; preferring local on a tie is the direction
+      // that cannot resurrect a value the user has already replaced.
+      var parsed = syncUnwrapStamped(bag[k]);
+      var localStamp = syncStampOf(data, f);
+      if (localStamp !== null && (parsed.stamp === null || parsed.stamp <= localStamp)) {
+        res.kept.push(f);
+        continue;
+      }
       // THE OMITTED SUBFIELDS ARE TAKEN BACK FROM LOCAL, not from the bag. An
       // arriving `pomodoro` carries no notificationsEnabled (buildSyncSlice
       // stripped it), so assigning the arrival wholesale would DELETE this
       // machine's answer to a per-browser permission question. Re-graft it.
-      var incoming = bag[k];
+      // THE UNWRAPPED VALUE, never bag[k]. Assigning the wrapper would store
+      // { __lp, v, t } AS the setting - and the object fields (pomodoro, focus,
+      // modePresets) would then also lose their subfield re-graft, because the
+      // re-graft below inspects the value and would find a wrapper instead.
+      // Caught by the truth table before a browser ever ran.
+      var incoming = parsed.value;
       var omit = SYNC_OMIT_SUBFIELDS[f];
       if (omit && incoming && typeof incoming === "object" && !Array.isArray(incoming)) {
         var merged = {};
@@ -10214,9 +10402,27 @@ var Storage = (function () {
         }
         incoming = merged;
       }
-      if (JSON.stringify(data.settings[f]) === JSON.stringify(incoming)) continue;
-      data.settings[f] = incoming;
-      res.settings.push(f);
+      // KEY ORDER IS NOT A CHANGE. The re-graft above rebuilds the object by
+      // walking the ARRIVING keys and appending the omitted ones, so a local
+      // `pomodoro` whose notificationsEnabled sat in the middle comes back with
+      // it at the end - identical content, different JSON. The old comparison
+      // called that a change, which made the FIRST merge on every profile
+      // report settings=[pomodoro] and save. Measured: that spurious save is
+      // what carried a stale blob over a concurrent page write in 1 of 10
+      // trials, so this is not only churn. Compare on a stable ordering.
+      var sameValue = syncStableStringify(data.settings[f]) === syncStableStringify(incoming);
+      if (!sameValue) {
+        data.settings[f] = incoming;
+        res.settings.push(f);
+      }
+      // ADOPT THE STAMP EVEN WHEN THE VALUE MATCHED, and keep the basis in
+      // step so the saveAll that follows does not re-stamp this field with
+      // now() and claim the merge as a local edit.
+      if (parsed.stamp !== null && parsed.stamp !== localStamp) {
+        syncSetStamp(data, f, parsed.stamp);
+        res.stamps.push(f);
+      }
+      if (_syncLocalBasis) _syncLocalBasis[f] = syncEncodeField(data, f);
     }
     var lk = bag[syncKeyFor(SYNC_LICENSE_FIELD)];
     if (typeof lk === "string" && lk) res.licenseKeyAdopted = adoptSyncedLicenseKey(data, lk);
@@ -10329,6 +10535,13 @@ var Storage = (function () {
     SYNC_SETTING_FIELDS: SYNC_SETTING_FIELDS,
     SYNC_OMIT_SUBFIELDS: SYNC_OMIT_SUBFIELDS,
     SYNC_DEBOUNCE_MS: SYNC_DEBOUNCE_MS,
+    SYNC_STAMPS_KEY: SYNC_STAMPS_KEY,
+    syncWrapStamped: syncWrapStamped,
+    syncUnwrapStamped: syncUnwrapStamped,
+    syncStampOf: syncStampOf,
+    syncStableStringify: syncStableStringify,
+    syncStampLocal: syncStampLocal,
+    syncNoteLocalBasis: syncNoteLocalBasis,
     syncAvailable: syncAvailable,
     syncAllKeys: syncAllKeys,
     buildSyncSlice: buildSyncSlice,
