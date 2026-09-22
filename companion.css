@@ -1,83 +1,353 @@
 /* ===========================================================================
-   COMPANION — the toolbar popup's own styles.
+   COMPANION — the toolbar popup's and the side panel's styles.
 
    [1.9.1] Tokens come from tokens.css, which newtab.css also loads, so the
    frost tiers, radii, spacing and ink ramp here are the SAME VALUES the new tab
    uses rather than a second set that drifts. newtab.css itself is NOT linked:
-   it is fifteen thousand lines of new-tab layout whose element-level rules
+   it is twenty thousand lines of new-tab layout whose element-level rules
    would land on this markup uninvited.
 
-   THE POPUP HAS NO WALLPAPER BEHIND IT. Chrome paints it over browser chrome,
-   not over the user's background image, so the has-bg / bg-light branches that
-   govern every other surface in this product do not apply and are not written
-   here. That is also why this round's ink measurement runs two meaningful
-   frames rather than four - see the report.
+   THE POPUP AND THE PANEL HAVE NO WALLPAPER BEHIND THEM. Chrome paints both
+   over browser chrome, not over the user's background image, so the has-bg /
+   bg-light branches that govern every other surface in this product do not
+   apply and are not written here. ONE GROUND, fixed, for each. That is also
+   why this file's ink measurement runs one frame per surface rather than the
+   three real grounds an in-page surface needs.
 
-   FLOATER TIER, per the arc's plan: a popup is a transient surface over the
-   browser, which is what the Floater tier is for.
+   ===========================================================================
+   [H2c] THE v2 TILE LANGUAGE, AND THE ONE THING THAT COULD NOT BE REUSED.
+
+   The spec's §2 Companion entry is "hero-tinted tiles at 16px on Chrome's own
+   dark". Every COLOUR, ink, radius and spacing value below comes from
+   tokens.css's v2 set, so this surface and the new tab resolve the same
+   numbers. But `.tile` ITSELF IS DEFINED IN newtab.css, which this document
+   deliberately does not load, so the component is re-expressed here as
+   `.cmp-tile` rather than imported.
+
+   THAT IS A SECOND DEFINITION OF ONE COMPONENT AND IT IS A REAL COST, named
+   here rather than left for a reader to discover: if `.tile`'s shared half
+   changes in newtab.css, this does not follow. It is mitigated the only way
+   available without moving H0's component into tokens.css (which is another
+   session's file, and which would put a COMPONENT in a file named for TOKENS):
+   the shared half below is a transcription of `.tile`'s, the variable half is
+   the same two custom properties, and every value is a token rather than a
+   literal, so the two can only drift if a token is renamed - which the census
+   and the build would both notice.
+
+   THREE DEPARTURES FROM THE RAMP, all because this is a 360px surface and the
+   ramp was measured on a 1328px one. Each is a local token so it is declared
+   once and visible in one place:
+
+     --cmp-tile-r    16px, not --tile's 20px. The spec states 16px for this
+                     surface and for the pill, twice, and the reason is size:
+                     a 20px radius on a 360px-wide tile reads as a lozenge.
+     --cmp-tile-pad  16px/18px, not --tile-pad's 24px/26px. A 26px inset on a
+                     360px popup leaves 308px of content and the task name
+                     ellipses a word earlier.
+     --cmp-ground    the page behind the tiles. The v2 set publishes no
+                     page-ground token because every v2 surface so far sits on
+                     the WALLPAPER; this one sits on Chrome. The value is
+                     --tile-hero-2's own colour at full opacity, so the ground
+                     is the family's darkest published colour rather than a
+                     new one invented here.
+
+   NO backdrop-filter ON THESE TILES, and that is the same omission .cmp-popup
+   already made for its v1 fill: a blur has nothing behind it to blur here. The
+   tints are alpha over --cmp-ground rather than over a photograph, which is
+   also why the bg-light alpha lift (H1a) is irrelevant to this file - there is
+   no light ground to lift for.
    =========================================================================== */
 
+:root {
+  --cmp-tile-r: 16px;
+  --cmp-tile-pad: 16px;
+  --cmp-tile-pad-x: 18px;
+  /* --tile-hero-2 (rgba(26,21,24,0.82)) at full opacity. */
+  --cmp-ground: #1a1518;
+}
+
+/* ----- the two surfaces -----
+
+   SPACE GROTESK REACHES THIS DOCUMENT THE SAME WAY THE TOKENS DO. The
+   @font-face blocks live in tokens.css and its url()s resolve relative to THAT
+   stylesheet, which sits at the extension root beside fonts/ - so a second HTML
+   entry gets the face by linking tokens.css and nothing more. The family is
+   named here rather than inherited because H0 flipped `body` in newtab.css,
+   which these documents do not load: without this line the popup and the panel
+   would be the two surfaces still in the old face, and nothing would say so. */
 .cmp-popup {
   width: 360px;
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-  background: var(--pro-frost-floater-bg);
-  color: #fff;
-  /* The popup is opaque browser chrome; a blur has nothing behind it to blur,
-     so the tier's background colour is taken and its blur deliberately is not.
-     Naming the omission because "used the tier variable" should not imply
-     "used every declaration the tier carries". */
+  font-family: var(--font-sans);
+  background: var(--cmp-ground);
+  color: var(--ink);
 }
 
-/* ----- [1.16.0] the side panel -----
-
-   THE SAME GROUND AS THE POPUP, AND FOR THE SAME REASON. Chrome paints the side
-   panel over browser chrome, not over the user's wallpaper, so the has-bg /
-   bg-light branches that govern every in-page surface do not reach here either.
-   One ground, fixed: the floater tier's colour with white ink. That is what this
-   round's ink measurement measures against, and why it is one frame rather than
-   the three real grounds an in-page surface would need.
-
-   NO FIXED WIDTH, WHICH IS THE ONE REAL DIFFERENCE FROM .cmp-popup. A popup is
+/* NO FIXED WIDTH, WHICH IS THE ONE REAL DIFFERENCE FROM .cmp-popup. A popup is
    360px because the extension chooses it; a side panel's width is CHROME'S and
    the USER'S - they drag it - so declaring one here would either be ignored or
-   fight the drag. The card inside already wraps: the name and goal lines ellipse
-   and the metrics row is two flex columns.
+   fight the drag.
 
    MIN-HEIGHT 100VH so the ground reaches the bottom of a tall panel rather than
-   ending under the last row and leaving the browser's own background showing
+   ending under the last tile and leaving the browser's own background showing
    below it. */
 .cmp-panel {
   margin: 0;
   min-height: 100vh;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-  background: var(--pro-frost-floater-bg);
-  color: #fff;
+  font-family: var(--font-sans);
+  background: var(--cmp-ground);
+  color: var(--ink);
 }
 
+/* The tiles stack with the grid's own gap, so the rhythm between them is the
+   same 14px the bento uses between cells. */
 .cmp-root {
-  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding: var(--gap);
 }
 
-/* ----- [1.16.0] the due list -----
+/* ----- the tile ----- */
 
-   INK IS INHERITED, NOT DECLARED. .cmp-popup and .cmp-panel own `color: #fff`
-   and everything under them takes it; the rows below carry no colour of their
-   own, so there is nothing here to disagree with the surface. Emphasis is
-   weight and size, never opacity - the same rule the rest of this file follows.
-
-   The list is separated from the card by a hairline rather than a heading
-   band: it is a second region on one surface, not a second panel. */
-.cmp-due {
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
+.cmp-tile {
+  border-radius: var(--cmp-tile-r);
+  border: 1px solid var(--tile-line);
+  /* The inset top highlight, in the SAME token as the border - one value, two
+     jobs, so they cannot drift apart. */
+  box-shadow: inset 0 1px 0 var(--tile-line);
+  padding: var(--cmp-tile-pad) var(--cmp-tile-pad-x);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* The default is the hero pair, so a bare .cmp-tile is never unstyled. */
+  background: linear-gradient(160deg, var(--tile-hero), var(--tile-hero-2));
+  --eyebrow-ink: var(--ink-mute);
 }
 
-.cmp-due-head {
+/* The list tile is FLAT rather than a pair and is the faintest of the family:
+   its job is to let the eye rest on the rows. Rows stack from the top. */
+.cmp-tile--list {
+  background: var(--tile-list);
+  --eyebrow-ink: var(--ink-mute);
+}
+
+/* The eyebrow. Its colour is the tile's business; its shape is not.
+   --fs-11 rather than --eyebrow-size, and the two are the same thing: the alias
+   is declared in tokens.css and resolves here. The ramp token is named directly
+   because check-text-size reads the DECLARATION. */
+.cmp-eyebrow {
   font-size: var(--fs-11);
-  text-transform: uppercase;
+  line-height: var(--eyebrow-lh);
+  font-weight: var(--eyebrow-weight);
   letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--eyebrow-ink);
+}
+
+/* ----- the card's head: ring, chip, eyebrow ----- */
+
+.cmp-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+/* THE RING IS THE PHASE, DRAWN RATHER THAN SPELLED. A conic sweep in --action
+   over the tile's own faint fill, with the centre punched out by a second
+   layer in the tile's gradient start - not by a background-colour literal,
+   which would show a seam the moment the tile's tint changes.
+
+   --p IS SET INLINE, as a percentage the module computes from the phase's own
+   remaining/total. That is the one inline style on this surface and the CSP
+   allows it (style-src carries 'unsafe-inline'); the alternative is a class per
+   percent. It is a GRAPHICAL fill, so its floor is 3:1 against the tile, not
+   4.5 - it says nothing a word does not also say beside it. */
+.cmp-ring {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-circle);
+  /* THE SWEEP'S DEFAULT IS DECLARED HERE rather than left to var()'s fallback,
+     and check-bg-queue.mjs is why: it scans every property this file CONSUMES
+     and requires it to be DEFINED in the two stylesheets these documents load.
+     --p arrives on the style attribute, which a static scan cannot see, so
+     without this line the gate reports it missing - correctly, by its own rule,
+     since it cannot tell an inline-set property from a typo'd one. Declaring
+     the default satisfies the rule and is better anyway: 0 is now the ring's
+     stated resting value rather than a fallback buried in a function call. */
+  --p: 0;
+  background: conic-gradient(var(--action) calc(var(--p, 0) * 1%), var(--tile-fill) 0);
+  /* THE CENTRE IS MASKED OUT, NOT PAINTED OVER. Covering it with a disc in the
+     tile's own colour looked equivalent and is not: every tile tint is an ALPHA,
+     so a disc of --tile-hero over the conic lets 18% of the orange through and
+     the hole reads as a faint smear. A mask removes those pixels outright and
+     lets the tile itself show, which also means the ring needs no knowledge of
+     what it is sitting on. */
+  -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 4px), #000 0);
+  mask: radial-gradient(closest-side, transparent calc(100% - 4px), #000 0);
+}
+
+/* The mode chip. THE ON-CHIP TAKES THE ACTION TILE'S OWN PAIRING - an opaque
+   action fill with --ink-on-action - which is the pairing H0 measured at 7.53
+   on all three grounds, and the same one .dash-mode-chip.is-on takes. Written
+   with the same two declarations so the two surfaces cannot disagree. */
+.cmp-chip {
+  flex: 0 0 auto;
+  border-radius: var(--pill);
+  padding: 2px 10px;
+  background: var(--action);
+  color: var(--ink-on-action);
+  font-size: var(--fs-10);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The glyph is the state's mark when there is no ring to carry it. */
+.cmp-glyph {
+  flex: 0 0 auto;
+  font-size: var(--fs-12);
+  color: var(--ink-mute);
+}
+
+/* ----- the task ----- */
+
+.cmp-name {
+  font-size: var(--fs-15);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cmp-goal {
+  margin-top: 2px;
+  font-size: var(--fs-12);
+  color: var(--ink-mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ----- the two figures -----
+   TWO COLUMNS. The card this mirrors shows both numbers; showing both here
+   fills the horizontal space a short task name leaves empty, and keeps the two
+   FAMILIES visibly separate - the wall-clock on the left, the engine's figure
+   on the right - rather than stacking them where they read as one ramp of the
+   same quantity. */
+.cmp-metrics {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.cmp-metric-today { text-align: right; }
+
+.cmp-hero {
+  font-size: var(--figure-size);
+  line-height: var(--figure-lh);
+  font-weight: var(--figure-weight);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.cmp-sub {
+  font-size: var(--fs-15);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.cmp-metric-label {
+  margin-top: 2px;
+  font-size: var(--fs-10);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+/* ----- the actions: one button and one link -----
+
+   THE SPEC SAYS "Pause and the link", AND THE DIFFERENCE IS THE POINT. Pause
+   is the one thing this surface does, so it takes the action pill. Opening
+   LaunchPad is a route rather than an act, so it is a link and not a second
+   button competing with the first - "never a second action on the same view". */
+.cmp-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.cmp-btn {
+  border: 0;
+  border-radius: var(--pill);
+  padding: 8px 18px;
+  background: var(--action);
+  color: var(--ink-on-action);
+  font-family: inherit;
+  font-size: var(--fs-13);
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.12s;
+}
+.cmp-btn:hover { filter: brightness(1.08); }
+
+.cmp-link {
+  border: 0;
+  background: none;
+  padding: 4px 0;
+  color: var(--ink-mute);
+  font-family: inherit;
+  font-size: var(--fs-12);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.cmp-link:hover { color: var(--ink); }
+
+.cmp-btn:focus-visible,
+.cmp-link:focus-visible,
+.cmp-seg-btn:focus-visible,
+.cmp-switch:focus-visible {
+  /* --action, the v2 one-action colour. This used to be --accent, v1's blue,
+     for the reason the old comment gave (--sat-accent lives in newtab.css and
+     would resolve to nothing here). The reason still holds; the colour moved. */
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
+}
+
+/* ----- empty and locked ----- */
+
+.cmp-empty-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cmp-empty-text {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--ink);
+}
+.cmp-locked-text {
+  margin: 0 0 var(--space-3);
+  font-size: var(--fs-13);
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+/* ----- the due-work list tile -----
+
+   A LIST TILE, NOT A REGION UNDER A RULE. Before H2c this was a hairline and a
+   heading inside the one card; the spec makes it its own tile, which is what
+   lets the panel read as three things rather than one long one. */
+.cmp-due-head {
   margin-bottom: var(--space-2);
 }
 
@@ -90,342 +360,217 @@
 .cmp-due-row {
   display: flex;
   align-items: baseline;
-  gap: var(--space-2);
-  padding: var(--space-1) 0;
+  gap: var(--row-gap);
+  padding: var(--row) 0;
   font-size: var(--fs-12);
   line-height: 1.4;
+  border-bottom: 1px solid var(--tile-rule);
 }
+.cmp-due-list .cmp-due-row:last-child { border-bottom: 0; }
 
-/* The name takes the room and ellipses; the kind never wraps under it. */
+/* The name takes the room and ellipses. */
 .cmp-due-name {
   flex: 1 1 auto;
   min-width: 0;
+  color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* OVERDUE IS A WORD, NOT A COLOUR. The row must not depend on a hue to be
-   read, and this surface is not the place to invent a second urgency scale
-   beside the trash countdown's. Weight carries it. */
-.cmp-due-kind {
-  flex: 0 0 auto;
-  font-size: var(--fs-10);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.cmp-due-more,
-.cmp-due-empty-text {
-  margin-top: var(--space-1);
-  font-size: var(--fs-11);
-}
-
-.cmp-due-empty { padding-top: var(--space-3); }
-
-/* [BELL-PANEL] The group heading, matching the bell's shape. Weight and size
-   carry it, never opacity - the rule the rest of this file follows. The first
-   one sits flush under the head; the later ones need air above them so two
-   groups do not read as one list. */
+/* The group heading, matching the bell's shape. Weight and size carry it,
+   never opacity. The first sits flush under the head; later ones need air
+   above them so two groups do not read as one list. */
 .cmp-due-group {
   font-size: var(--fs-10);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  color: var(--ink-mute);
   margin-bottom: var(--space-1);
 }
-.cmp-due-list + .cmp-due-group { margin-top: var(--space-2); }
+.cmp-due-list + .cmp-due-group { margin-top: var(--space-3); }
+/* [H4.0] "OVERDUE IS A WORD IN THE ACTION COLOUR, NO FILL." The ruling had
+   nowhere to land while the per-row Overdue TAG existed; commit A removed that
+   tag because this heading carries the word, so the heading is where it
+   applies. "Due today" and "Recurring" stay at --ink-mute on purpose - they
+   state a schedule, this one asks for something. No chip and no fill, which is
+   the rest of the same ruling. */
+.cmp-due-group--overdue { color: var(--action); }
 
-/* ----- [BELL-PANEL] the three daily controls -----
-
-   THE SAME HAIRLINE THE DUE LIST USES, for the same reason: this is a third
-   region on one surface, not a third panel. Nothing here declares an ink
-   colour; #fff is inherited from .cmp-panel exactly as the rows above are.
-
-   SIDE-PANEL ONLY IN PRACTICE, but not by a media query or a width test - the
-   markup is simply absent unless the shell passed showControls, so there is no
-   rule here that could fire on the popup by accident. */
-.cmp-controls {
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
-}
-
-/* The workspace this acts on. Mode and tracking are per-workspace and a panel
-   that sits open for hours must not look global. */
-.cmp-ctl-head {
+.cmp-due-more,
+.cmp-due-empty-text {
+  margin-top: var(--space-2);
   font-size: var(--fs-11);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: var(--ink-mute);
+}
+
+/* ----- the controls tile -----
+
+   The workspace this acts on is named at the top: mode and tracking are
+   per-workspace and a panel that sits open for hours must not look global. */
+.cmp-ctl-head {
   margin-bottom: var(--space-2);
 }
 
-/* THE SEGMENT IS THE BUTTON PAIR, SHARING .cmp-btn's vocabulary rather than
-   inventing a second one: the selected half takes the same fill .cmp-btn-primary
-   takes, so "on" is a FILL and not a hue, and the control is still legible if a
-   user cannot separate the two colours. */
+/* THE MODE PAIR, in .dash-mode-pair's vocabulary and with its values. The pair
+   sits on the tile's own faint fill rather than on a frosted plate, because
+   there is nothing behind this surface for a frost to sample. */
 .cmp-seg {
-  display: flex;
-  gap: var(--space-1);
-  margin-bottom: var(--space-2);
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--inner);
+  background: var(--tile-fill);
+  border: 1px solid var(--tile-line);
+  margin-bottom: var(--space-3);
 }
 .cmp-seg-btn {
-  flex: 1;
-  min-height: 30px;
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  border: 0;
+  background: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  color: var(--ink-mute);
   font-family: inherit;
-  font-size: var(--fs-12);
-  cursor: pointer;
-  transition: background-color 0.12s, border-color 0.12s;
-}
-.cmp-seg-btn:hover { background: rgba(255, 255, 255, 0.16); }
-.cmp-seg-btn.is-on {
-  background: rgba(255, 255, 255, 0.22);
-  border-color: rgba(255, 255, 255, 0.38);
+  font-size: var(--fs-13);
   font-weight: 600;
+  cursor: pointer;
 }
-.cmp-seg-btn:focus-visible,
-.cmp-switch:focus-visible {
-  /* --accent, not --sat-accent, for the reason .cmp-btn states: the latter is
-     defined in newtab.css, which this surface deliberately does not load. */
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+.cmp-seg-btn.is-on {
+  background: var(--action);
+  color: var(--ink-on-action);
 }
 
 .cmp-ctl-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-2);
-  padding: var(--space-1) 0;
+  gap: var(--space-3);
+  padding: var(--row) 0;
 }
 .cmp-ctl-label {
   flex: 1 1 auto;
   min-width: 0;
   font-size: var(--fs-12);
   line-height: 1.4;
+  color: var(--ink);
 }
 
-/* A TRACK AND A KNOB, and the ON state is a fill rather than a colour alone -
-   the knob also MOVES, so the state survives a user who cannot tell the two
-   fills apart. 34x20 is a thumb target on a surface read for hours. */
+/* THE SWITCH takes .dash-tile-toggle's values exactly: a faint track that
+   becomes the action TINT, and a knob that becomes the action itself and
+   MOVES. The movement is what keeps the state readable for someone who cannot
+   separate the two fills. */
 .cmp-switch {
   flex: 0 0 auto;
   position: relative;
-  width: 34px;
-  height: 20px;
+  width: 32px;
+  height: 18px;
   padding: 0;
-  border-radius: var(--radius-pill);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9px;
+  border: 1px solid var(--tile-line);
+  background: var(--tile-fill);
   cursor: pointer;
-  transition: background-color 0.12s, border-color 0.12s;
-}
-.cmp-switch:hover { background: rgba(255, 255, 255, 0.16); }
-.cmp-switch.is-on {
-  background: rgba(255, 255, 255, 0.32);
-  border-color: rgba(255, 255, 255, 0.5);
 }
 .cmp-switch-knob {
   position: absolute;
-  top: 50%;
+  top: 2px;
   left: 2px;
-  width: 14px;
-  height: 14px;
-  margin-top: -7px;
+  width: 12px;
+  height: 12px;
   border-radius: var(--radius-circle);
-  background: #fff;
-  transition: left 0.12s;
+  background: var(--ink-mute);
+  transition: left 0.12s, background-color 0.12s;
 }
-.cmp-switch.is-on .cmp-switch-knob { left: 16px; }
+.cmp-switch.is-on { background: var(--action-tint); }
+.cmp-switch.is-on .cmp-switch-knob { left: 16px; background: var(--action); }
+
+/* THE HINT, AND IT IS THE RULED PART. A due reminder is suppressed outright
+   when the workspace is not in Work, so on Casual the toggle can read ON while
+   nothing will ever fire. Rendered only on Casual, because on Work it is not a
+   condition to warn about - the same shape, the same string and the same gate
+   as .dash-tile-hint on the Dashboard's due tile. */
+.cmp-ctl-hint {
+  margin: 0 0 var(--space-2);
+  font-size: var(--fs-11);
+  line-height: 1.4;
+  color: var(--ink-mute);
+}
 
 /* The declined-permission line. Hidden until it has something to say, so it
    reserves no space in the ordinary case. */
 .cmp-ctl-note {
-  margin: var(--space-1) 0 0;
+  margin: var(--space-2) 0 0;
   font-size: var(--fs-11);
+  line-height: 1.4;
+  color: var(--ink);
 }
 .cmp-ctl-note[hidden] { display: none; }
 
-@media (prefers-reduced-motion: reduce) {
-  .cmp-seg-btn,
-  .cmp-switch,
-  .cmp-switch-knob { transition: none; }
-}
+/* ===== [H4.0] THE SURFACES H2c NEVER SAW, IN H2c's LANGUAGE ==============
 
-/* ----- locked (free / expired) ----- */
-.cmp-locked-text {
-  margin: 0;
-  font-size: var(--fs-13);
-  line-height: 1.5;
-  opacity: 0.75;
-}
+   Everything above this point is H2c's tile language. What follows is the four
+   surfaces built AFTER H2c was written - FIX-6's session controls and blocking
+   arm, FIX-7's due-row play glyph, H3d's chaining countdown - re-expressed in
+   the same tokens instead of the rgba(255,255,255,a) family they arrived in.
 
-/* ----- the empty state ----- */
-/* [1.9.4] STACKS. It was a single flex ROW, so when the route button arrived it
-   became a second column beside the sentence and rendered at half width, jammed
-   against the text. The row is now .cmp-empty-row and this is its container. */
-.cmp-empty {
-  display: block;
-}
-.cmp-empty-text {
-  font-size: var(--fs-14);
-  opacity: 0.75;
-}
+   FIX-6's OWN PREMISE IS WHAT THIS REVERSES, and it is quoted rather than
+   quietly dropped. It read: "This surface is not a tile on a wallpaper:
+   companion.css has no --tile-* tokens and deliberately does not load
+   newtab.css, so the rules here are built from the same rgba(255,255,255,a)
+   family ... Copying the pill's tokens here would have resolved to nothing."
 
-/* ----- the active states ----- */
-.cmp-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-1);
-}
-.cmp-glyph {
-  font-size: var(--fs-12);
-  opacity: 0.8;
-}
-/* The eyebrow is the microlabel idiom the pill uses: tiny caps above the name,
-   on its own line so it never truncates - only the name does. */
-.cmp-eyebrow {
-  font-size: var(--fs-11);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  opacity: 0.65;
-}
+   HALF OF THAT IS TRUE AND IT IS THE HALF THAT MISLED. The PILL's tokens
+   (--sat-accent and friends) do live in newtab.css and would indeed resolve to
+   nothing here - this file's own notes say so twice and both are kept. But the
+   v2 TILE tokens live in tokens.css, which companion.html and side-panel.html
+   each link on their second line, and check-bg-queue's "every custom property
+   companion.css uses is DEFINED in the layer it loads" row enforces precisely
+   that distinction. The tile language was available the whole time; the premise
+   confused two different token sets.
 
-.cmp-name {
-  /* [1.9.4] --fs-15, NOT --fs-16. There is no --fs-16 anywhere in this product:
-     the ramp tops out at --fs-15, so this rule has been silently falling back to
-     the inherited body size since [1.9.1] - an undefined custom property makes
-     the declaration invalid at computed-value time, with no console warning and
-     nothing in the rendered page to say the intended size never applied. Found
-     by checking the token existed before reusing it, rather than after. */
-  font-size: var(--fs-15);
-  font-weight: 500;
-  line-height: 1.3;
-  /* Two lines then ellipsis. A task name is user text of any length and the
-     popup is 360px; truncating at one line loses too much of a real name. */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
+   ONE EXCEPTION IS DECLARED RATHER THAN ASSUMED: --sat-amber. tokens.css
+   defines it at :root as the product's single source for amber, this file
+   already consumed it before this round, and the pause signal has to be amber.
+   It is a tokens.css token that happens to carry a v1 name. */
 
-.cmp-goal {
-  margin-top: 2px;
-  font-size: var(--fs-12);
-  opacity: 0.65;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* ----- the two metrics -----
-   [1.9.4 finding 4] TWO COLUMNS RATHER THAN A STACK. The paused card carried
-   substantial empty space to the right of a title occupying half the width;
-   this puts the second number there. It also keeps the two FAMILIES apart:
-   wall-clock on the left, the engine's figure on the right. Stacked, they read
-   as one ramp of the same quantity, which is the blend newtab.js's vocabulary
-   law forbids. */
-.cmp-metrics {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-top: var(--space-3);
-}
-.cmp-metric-today { text-align: right; }
-
-.cmp-hero {
-  font-size: var(--display-3);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  /* Tabular numerals so a ticking figure does not shuffle its own width every
-     second - the same reason every other numeral surface in this product asks
-     for them. */
-  line-height: 1.1;
-}
-
-/* The engine's figure is SUBORDINATE, and the size says so. It is a real number
-   and it stays on the surface; it is simply not the headline, because it is
-   legitimately zero on any page the engine does not track. */
-.cmp-sub {
-  font-size: var(--fs-15);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-  opacity: 0.85;
-}
-
-.cmp-metric-label {
-  margin-top: 2px;
-  font-size: var(--fs-11);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  opacity: 0.6;
-}
-
-/* ----- controls ----- */
-.cmp-actions {
-  display: flex;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-}
-.cmp-actions-route { margin-top: var(--space-3); }
-.cmp-btn {
-  flex: 1;
-  min-height: 30px;
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  font-family: inherit;
-  font-size: var(--fs-13);
-  cursor: pointer;
-  transition: background-color 0.12s, border-color 0.12s;
-}
-.cmp-btn:hover { background: rgba(255, 255, 255, 0.16); }
-.cmp-btn:focus-visible {
-  /* --accent, not --sat-accent: the latter is defined in newtab.css, which this
-     surface deliberately does not load, so it would resolve to nothing here. */
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-.cmp-btn-primary { background: rgba(255, 255, 255, 0.14); }
-.cmp-btn-primary:hover { background: rgba(255, 255, 255, 0.22); }
-
-/* ===== [FIX-6] THE SESSION CONTROLS, SIDE PANEL ONLY =====================
-
-   The active-task pill was removed and it was the only surface that could
-   START a focus session. These render only when the mount asks for them, so
-   the toolbar popup is untouched - its omission was a ruling, not an
-   oversight.
-
-   THEY TAKE THE PANEL'S OWN LANGUAGE, not the pill's. This surface is not a
-   tile on a wallpaper: companion.css has no --tile-* tokens and deliberately
-   does not load newtab.css, so the rules here are built from the same
-   rgba(255,255,255,a) family every other .cmp- control uses. Copying the
-   pill's tokens here would have resolved to nothing, which is the mistake the
-   --accent note four rules above already records. */
+/* ----- the session controls (FIX-6), side panel only ----- */
+/* The block is separated by a rule rather than a gap, because Start belongs to
+   the tile above it and must not read as a second tile. --tile-line is the
+   same hairline the tiles use. */
 .cmp-session {
   margin-top: var(--space-3);
   padding-top: var(--space-3);
-  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  border-top: 1px solid var(--tile-line);
 }
-.cmp-session-row { display: flex; gap: var(--space-2); }
-.cmp-btn-stop { background: rgba(255, 255, 255, 0.08); }
-.cmp-btn-stop:hover { background: rgba(255, 255, 255, 0.16); }
+.cmp-session-row {
+  display: flex;
+  gap: var(--space-2);
+}
+/* START TAKES .cmp-btn AND NOTHING ELSE. In H2c's vocabulary .cmp-btn IS the
+   action fill (background: var(--action)), so FIX-6's .cmp-btn-primary
+   modifier - which existed because master's .cmp-btn was the QUIET one - has
+   nothing left to add and is retired. The weighting master chose survives: the
+   loud control is the one that acts.
+
+   STOP STAYS QUIETER, which is FIX-6's deliberate choice kept rather than
+   flattened: ending a session is not the eager act, so it takes the tile fill
+   and the tile's own hairline instead of the action colour. */
+.cmp-btn-stop {
+  background: var(--tile-fill);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--tile-line);
+}
+.cmp-btn-stop:hover { background: var(--tile-line); filter: none; }
 
 /* The blocking arm. A switch and its state word, which is the form the pill's
    row used and the form [1.2.0 R3 / C9] ruled: the LABEL is the teaching
    surface, so it says off / on / on (auto) rather than leaving the knob to
-   carry the meaning alone. */
+   carry the meaning alone.
+
+   IT NOW MATCHES .cmp-switch's TOKENS rather than approximating them in rgba.
+   The two remain separate classes because FIX-6's drives assert this one by
+   name, which is H3a's "button class unchanged so the drive keeps asserting
+   it" lesson applied. */
 .cmp-block-row {
   display: flex;
   align-items: center;
@@ -438,9 +583,9 @@
   width: 30px;
   height: 17px;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--tile-line);
+  border-radius: var(--radius-pill);
+  background: var(--tile-fill);
   cursor: pointer;
   transition: background-color 0.12s, border-color 0.12s;
 }
@@ -449,44 +594,39 @@
   width: 11px;
   height: 11px;
   margin-inline-start: 2px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.72);
+  border-radius: var(--radius-circle);
+  background: var(--ink-mute);
   transition: margin-inline-start 0.12s, background-color 0.12s;
 }
 .cmp-block-row.is-on .cmp-block-toggle {
-  background: rgba(255, 255, 255, 0.30);
-  border-color: rgba(255, 255, 255, 0.42);
+  background: var(--action-tint);
+  border-color: var(--action);
 }
 .cmp-block-row.is-on .cmp-block-knob {
   margin-inline-start: 15px;
-  background: #fff;
+  background: var(--action);
 }
-.cmp-block-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.cmp-block-label { color: #fff; }
-/* The hint is quieter than the label but not the faintest thing here: it is a
-   statement of fact a user acts on ("you armed blocking and listed nothing"),
-   so it takes the same tier the due-list's own secondary text does. */
-.cmp-block-hint { color: rgba(255, 255, 255, 0.60); }
+.cmp-block-toggle:focus-visible { outline: 2px solid var(--action); outline-offset: 1px; }
+.cmp-block-label { color: var(--ink); }
+/* The hint is a statement of fact a user acts on ("you armed blocking and
+   listed nothing"), so it takes the same tier the due list's secondary text
+   does. */
+.cmp-block-hint { color: var(--ink-meta); }
 
-/* ===== [H3d] THE CHAINING COUNTDOWN ======================================
-
-   IT SITS ABOVE THE CONTROLS AND SAYS ONE THING, for the ten seconds it
+/* ----- the chaining countdown (H3d) ----- */
+/* IT SITS ABOVE THE CONTROLS AND SAYS ONE THING, for the ten seconds it
    exists. Cancel is a TEXT LINK rather than a control with a box: it stands
-   beside a Start button, and a second filled control at a phase boundary would
+   beside a filled Start, and a second filled control at a phase boundary would
    make the two look like a choice of equals when one of them is "do nothing".
-
-   THE rgba FAMILY, NOT THE TILE TOKENS, and that is this file's own convention
-   rather than a preference. Every .cmp- rule here is built from
-   rgba(255,255,255,a) - the file uses no --ink-* and no --font-sans anywhere -
-   so a rule that reached for a different ink system would be the one line on
-   this surface that did not match the rest of it. */
+   H2c's .cmp-link is exactly that control, so the cancel now shares it instead
+   of re-describing an underline in rgba. */
 .cmp-chain {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
   margin-bottom: var(--space-2);
   font-size: var(--fs-11);
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--ink-mute);
 }
 .cmp-chain-text { min-width: 0; }
 .cmp-chain-cancel {
@@ -494,43 +634,79 @@
   padding: 2px 0;
   border: 0;
   background: none;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--ink-mute);
   font-family: inherit;
   font-size: var(--fs-11);
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.cmp-chain-cancel:hover { color: #fff; }
+.cmp-chain-cancel:hover { color: var(--ink); }
 .cmp-chain-cancel:focus-visible {
-  /* --accent, not --sat-accent, for the reason the note further up records. */
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--action);
   outline-offset: 2px;
   border-radius: 3px;
 }
 
-.cmp-empty-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
+/* ----- the hover states H2c's base rules do not cover ----- */
+/* .cmp-actions-route is NOT re-added: routeHtml emits H2c's .cmp-link now, so
+   nothing wears that class. Found by this round's own orphan sweep, which
+   compares every class the JS emits against every rule the CSS defines. */
+.cmp-seg-btn:hover { color: var(--ink); }
+.cmp-switch:hover { background: var(--tile-line); }
 /* ----- paused -----
-   [1.9.4 finding 5] ONE AMBER SIGNAL, and it is the element that NAMES the
-   state. The guide says amber MARKS the paused state; it marked six things
-   across two surfaces, and a card that is mostly amber reads as a warning -
-   the failure mode the preview-banner ruling rejected red for.
-   The numeral is NOT amber any more. Its job is to be read, and "frozen" is
-   already said in words directly beneath it.
-   The glyph and the eyebrow are counted as ONE signal rather than two: they sit
-   on one line, adjacent, and say one thing - an amber pause glyph beside a grey
-   PAUSED would read as a rendering fault rather than as restraint. */
-.cmp-body.is-paused .cmp-eyebrow,
+   ONE AMBER SIGNAL, and it is the element that NAMES the state. The guide says
+   amber MARKS the paused state; it marked six things across two surfaces, and a
+   card that is mostly amber reads as a warning. The numeral is NOT amber: its
+   job is to be read, and "frozen" is already said in words beside it. The glyph
+   and the eyebrow count as ONE signal - they sit adjacent and say one thing.
+
+   --sat-amber, and NOT a v2 property of the same name. tokens.css's v2 block
+   names `paused` in its "deliberately absent" list and says why: the amber IS
+   v1's --sat-amber, and v1's is the richer definition because it already
+   carries a bg-light branch the design system has no term for. Redeclaring it
+   would create a second source for one value, so the v2 set does not - and a
+   reference to the v2 name here would have resolved to nothing at all, which is
+   exactly the silent failure check-bg-queue.mjs exists to catch. It caught this
+   line in draft, in a comment, which is the right amount of literal-minded. */
+/* [H4.0] THE LABEL AMBERS ONLY WHEN THERE IS NO RING TO DO IT.
+   "One amber signal per surface: the ring when a session runs, the label only
+   when no ring" - this round's ruling. The frame showed the ring and the WORK
+   eyebrow both amber during a paused phase, which is two.
+
+   H2c's OWN ARGUMENT FOR THE PAIR IS KEPT BELOW rather than deleted, because
+   it records why they were both amber: adjacent on one line, saying the same
+   thing. The ruling overrides it; the reasoning still explains the history.
+
+   THE CONDITION LIVES IN THE RENDER, not here. `st.pomo` already decides ring
+   versus glyph one line above the eyebrow, so it is also "is there a ring", and
+   the eyebrow takes cmp-eyebrow-paused only when there is not. A :has() guard
+   here was the first attempt and did nothing, because the amber arrives through
+   that explicit class rather than through a descendant rule - guarding one of
+   two painting paths changes nothing. There is now one path.
+
+   The tracking pause is global and independent of a phase, so the no-ring
+   paused state is real and still needs its signal - which is why the class
+   exists at all rather than being deleted. */
 .cmp-glyph-paused,
 .cmp-eyebrow-paused {
   color: var(--sat-amber);
 }
-.cmp-body.is-paused .cmp-glyph { color: var(--sat-amber); opacity: 1; }
+.cmp-tile.is-paused .cmp-glyph { color: var(--sat-amber); }
+
+/* THE RING GOES AMBER TOO, and that is the glyph rule rather than a new one.
+   The ring REPLACES the glyph during a phase, and the glyph ambers on pause; a
+   ring that stayed orange beside an amber eyebrow would be the head saying two
+   things at once. It is still ONE signal - ring and eyebrow are adjacent on one
+   line and say the same thing - which is the count [1.9.5 finding 5] set. */
+.cmp-tile.is-paused .cmp-ring {
+  background: conic-gradient(var(--sat-amber) calc(var(--p, 0) * 1%), var(--tile-fill) 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cmp-btn,
+  .cmp-switch-knob { transition: none; }
+}
 
 /* ===== [FIX-7] THE DUE LIST'S PLAY GLYPH, SIDE PANEL ONLY ================
 
@@ -538,11 +714,15 @@
    the only other thing on the surface - so a Pro user with nothing active had
    no way to begin. One click here activates the task and starts a session.
 
-   VISIBLE AT REST, not on hover. That is this round's ruling for the task
-   rows and it applies here for a stronger reason: on a 380px panel there is
-   no pointer hovering rows to discover an affordance with, and a control you
-   cannot see is one the user does not know exists - which is the whole report
-   this round answers. */
+   VISIBLE AT REST, not on hover. That was FIX-7's ruling for the task rows and
+   it applies here for a stronger reason: on a 380px panel there is no pointer
+   hovering rows to discover an affordance with, and a control you cannot see
+   is one the user does not know exists.
+
+   [H4.0] --action-soft AND --action WERE ALREADY THE RIGHT TOKENS - FIX-7
+   reached for them with a hex fallback because it believed tokens.css was not
+   loaded here. Both are defined in it, so the fallbacks are dropped: a fallback
+   that never fires hides whether the token resolves. */
 .cmp-due-play {
   flex: 0 0 auto;
   width: 20px;
@@ -552,11 +732,11 @@
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
-  color: var(--action-soft, #ffb37a);
+  color: var(--action-soft);
   font-size: 10px;
   line-height: 1;
   cursor: pointer;
   transition: background-color 0.12s, color 0.12s;
 }
-.cmp-due-play:hover { background: rgba(255, 255, 255, 0.12); color: var(--action, #ff8a3d); }
-.cmp-due-play:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cmp-due-play:hover { background: var(--tile-fill); color: var(--action); }
+.cmp-due-play:focus-visible { outline: 2px solid var(--action); outline-offset: 1px; }

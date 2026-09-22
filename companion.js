@@ -137,10 +137,21 @@ var Companion = (function () {
       paused: paused,
       task: res ? { id: res.task.id, name: res.task.name } : null,
       goalName: goalName,
+      // [H2c] THE MODE RIDES EVERY RENDER, not just the panel's controls tile.
+      // The spec gives the POPUP a chip too ("ring, chip, task, the two
+      // figures"), and the chip is the Work stamp - so this is read on the base
+      // state rather than behind an option, which is also what lets the panel's
+      // chip and its mode segment come from one read and never disagree.
+      mode: Storage.getWorkspaceMode(Storage.getActiveWorkspace(data)),
       pomo: pomo ? {
         phase: pomo.phase,
         label: Storage.POMODORO_PHASE_LABELS[pomo.phase] || "Focus",
-        remainingMs: Storage.pomodoroRemainingMs(data, pomo)
+        remainingMs: Storage.pomodoroRemainingMs(data, pomo),
+        // [H2c] THE RING NEEDS THE WHOLE, not just what is left. runningPomodoro
+        // already returns totalMs (its own phaseDurationMs, or the configured
+        // total for the phase), so the sweep is derived from the engine's own
+        // two numbers rather than from a duration this file guesses at.
+        totalMs: pomo.totalMs || 0
       } : null,
       // [1.9.4 finding 2] THE SESSION NUMERAL, and it is a DIFFERENT KIND OF
       // NUMBER from focusedMs below. This is the ACTIVATION STOPWATCH - wall
@@ -278,10 +289,13 @@ var Companion = (function () {
     if (wantDaily) {
       try {
         var cws = Storage.getActiveWorkspace(data);
+        // NO `mode` HERE. It used to be read a second time into this object,
+        // and once the chip put it on the base state that was two reads of one
+        // value on one render - the shape that lets a surface disagree with
+        // itself. The segment and the hint below both take st.mode.
         st.daily = cws ? {
           workspaceId: cws.id,
           workspaceName: cws.name || cws.id,
-          mode: Storage.getWorkspaceMode(cws),
           tracking: Storage.isTrackingEnabled(cws),
           reminders: Storage.getDueRemindersEnabled(data)
         } : null;
@@ -353,12 +367,16 @@ var Companion = (function () {
   // The URL is built with runtime.getURL exactly as the open-launchpad command
   // builds it - never chrome.tabs.create({}), which opens whichever extension
   // currently owns the new tab override.
+  // [H2c] THE ROUTE IS A LINK, NOT A BUTTON, and that is the spec's "Pause and
+  // the link" read literally. Opening LaunchPad is a way OUT of this surface
+  // rather than something it does; giving it a second filled button would put
+  // two equal-weight actions on one view, which the one-action rule forbids.
+  // Still a <button> element - it performs an action rather than navigating a
+  // document, so a link element here would lie to a keyboard and a reader.
   function routeHtml() {
-    return '<div class="cmp-actions cmp-actions-route">' +
-        '<button type="button" class="cmp-btn cmp-btn-route" data-cmp-act="open">' +
-          esc(t("companion_open_launchpad")) +
-        '</button>' +
-      '</div>';
+    return '<button type="button" class="cmp-link" data-cmp-act="open">' +
+        esc(t("companion_open_launchpad")) +
+      '</button>';
   }
 
   // [1.16.0] THE LIST IS READ-ONLY, AND THAT IS THE SAME DECISION actionsHtml
@@ -394,7 +412,7 @@ var Companion = (function () {
   function dueListHtml(st) {
     if (!st.due) return "";
     if (!st.due.total) {
-      return '<div class="cmp-due cmp-due-empty">' +
+      return '<div class="cmp-tile cmp-tile--list cmp-due-empty">' +
           '<span class="cmp-due-empty-text">' + esc(t("companion_due_none")) + '</span>' +
         '</div>';
     }
@@ -423,7 +441,11 @@ var Companion = (function () {
     var body = DUE_GROUPS.map(function (g) {
       var rows = st.due.items.filter(function (it) { return it.kind === g.kind; });
       if (!rows.length) return "";               // absent, never an empty group
-      return '<div class="cmp-due-group">' + esc(t(g.key)) + '</div>' +
+      // [H4.0] THE KIND RIDES ON THE HEADING so "Overdue is a word in the
+      // action colour" has something to select. g.kind is already the group's
+      // identity here - this is a hook on it, not a second definition of it.
+      return '<div class="cmp-due-group cmp-due-group--' + g.kind + '">' +
+          esc(t(g.key)) + '</div>' +
         '<ul class="cmp-due-list">' +
           rows.map(function (it) {
             return '<li class="cmp-due-row">' +
@@ -441,8 +463,10 @@ var Companion = (function () {
     var more = st.due.total > st.due.items.length
       ? '<div class="cmp-due-more">' + esc(t("companion_due_more", { count: st.due.total - st.due.items.length })) + '</div>'
       : "";
-    return '<div class="cmp-due">' +
-        '<div class="cmp-due-head">' + esc(t("bell_due_work_label", { count: st.due.total })) + '</div>' +
+    // [H2c] THE LIST TILE. The faintest of the family at 72%, which is what
+    // makes a list read as somewhere to rest rather than as another card.
+    return '<div class="cmp-tile cmp-tile--list">' +
+        '<div class="cmp-eyebrow cmp-due-head">' + esc(t("bell_due_work_label", { count: st.due.total })) + '</div>' +
         body +
         more +
       '</div>';
@@ -458,7 +482,7 @@ var Companion = (function () {
       // way to do it, which is the same dead end finding 1 is about. Still not a
       // preview and still no create affordance - one route, no imitation of the
       // surface it cannot show.
-      return '<div class="cmp-locked">' +
+      return '<div class="cmp-tile cmp-locked">' +
           '<p class="cmp-locked-text">' + esc(t("companion_locked")) + '</p>' +
           routeHtml() +
         '</div>';
@@ -467,20 +491,26 @@ var Companion = (function () {
     if (!st.task) {
       // [1.9.5 finding 5] ONE amber signal: the head says the state, so the
       // eyebrow carries it and nothing else does.
-      return '<div class="cmp-body cmp-empty' + (st.paused ? " is-paused" : "") + '">' +
+      // [H2c] THREE TILES, SIDE BY SIDE IN THE ROOT, not three regions inside
+      // one card. That is the whole structural move of this round: .cmp-root is
+      // a column with the grid's own gap, so the module, the list and the
+      // controls read as three things a panel holds rather than as one long
+      // card with rules drawn across it.
+      return '<div class="cmp-tile cmp-empty' + (st.paused ? " is-paused" : "") + '">' +
           '<div class="cmp-empty-row">' +
             (st.paused ? '<span class="cmp-glyph cmp-glyph-paused" aria-hidden="true">&#9208;</span>' : '') +
             '<span class="cmp-empty-text">' + esc(t("companion_no_active_task")) + '</span>' +
             (st.paused ? '<span class="cmp-eyebrow cmp-eyebrow-paused">' + esc(t("companion_paused")) + '</span>' : '') +
+            modeChipHtml(st) +
           '</div>' +
-          routeHtml() +
-          // THE EMPTY STATE IS WHERE THE LIST EARNS ITS PLACE MOST. No session
-          // is running, so the card above says almost nothing - and "what should
-          // I be doing" is exactly the question a user with no active task came
-          // to this surface with.
-          dueListHtml(st) +
-          controlsHtml(st) +
-        '</div>';
+          '<div class="cmp-actions">' + routeHtml() + '</div>' +
+        '</div>' +
+        // THE EMPTY STATE IS WHERE THE LIST EARNS ITS PLACE MOST. No session is
+        // running, so the tile above says almost nothing - and "what should I be
+        // doing" is exactly the question a user with no active task came to this
+        // surface with.
+        dueListHtml(st) +
+        controlsHtml(st);
     }
 
     // [1.9.4 finding 2] THE HERO IS THE SESSION NUMERAL, at the pill's
@@ -514,10 +544,23 @@ var Companion = (function () {
       heroClass = "cmp-hero";
     }
 
-    return '<div class="cmp-body' + (st.paused ? " is-paused" : "") + '">' +
+    return '<div class="cmp-tile' + (st.paused ? " is-paused" : "") + '">' +
+        // [H2c] THE HEAD IS RING, CHIP, EYEBROW, in the spec's own order. The
+        // ring REPLACES the glyph during a phase rather than sitting beside it:
+        // both say "a phase is running" and two marks for one fact is the
+        // doubling the 1.9.5 finding below already rejected once for PAUSED.
         '<div class="cmp-head">' +
-          '<span class="cmp-glyph" aria-hidden="true">' + glyph + '</span>' +
-          '<span class="cmp-eyebrow">' + esc(eyebrow) + '</span>' +
+          (st.pomo
+            ? ringHtml(st)
+            : '<span class="cmp-glyph' + (st.paused ? " cmp-glyph-paused" : "") + '" aria-hidden="true">' + glyph + '</span>') +
+          // [H4.0] "ONE AMBER SIGNAL PER SURFACE: the ring when a session
+          // runs, the label only when no ring." The ring and the glyph are
+          // already mutually exclusive on st.pomo one line above, so st.pomo IS
+          // "there is a ring" - and when there is, the ring carries the pause
+          // and this label does not. H2c had both amber and argued they read as
+          // one signal because they sit adjacent; the ruling says otherwise.
+          '<span class="cmp-eyebrow' + (st.paused && !st.pomo ? " cmp-eyebrow-paused" : "") + '">' + esc(eyebrow) + '</span>' +
+          modeChipHtml(st) +
         '</div>' +
         '<div class="cmp-name" title="' + esc(st.task.name) + '">' + esc(st.task.name) + '</div>' +
         (st.goalName
@@ -539,9 +582,60 @@ var Companion = (function () {
           '</div>' +
         '</div>' +
         actionsHtml(st) +
-        dueListHtml(st) +
-        controlsHtml(st) +
-      '</div>';
+      '</div>' +
+      dueListHtml(st) +
+      controlsHtml(st);
+  }
+
+  // [H2c] THE RING. A conic sweep of the phase that has ELAPSED, so it fills as
+  // the countdown empties - the direction every progress ring in this product
+  // reads. --p is a percentage on the element's own style attribute, which the
+  // CSP allows (style-src carries 'unsafe-inline'); the alternative is a class
+  // per percent.
+  //
+  // IT IS DECORATION IN THE STRICT SENSE and is marked aria-hidden: the phase
+  // label sits beside it and the countdown sits beneath it, both as text, so a
+  // screen reader that never sees this loses nothing. That is also why its floor
+  // is 3:1 against the tile rather than 4.5 - it is a graphical fill, not a word.
+  //
+  // A ZERO-LENGTH PHASE CANNOT DIVIDE. totalMs is 0 when runningPomodoro had no
+  // duration to report, and 0/0 would paint NaN% - which CSS drops, leaving the
+  // ring at its default 0 rather than at an arbitrary sweep.
+  function ringHtml(st) {
+    var total = st.pomo && st.pomo.totalMs;
+    var pct = 0;
+    if (total > 0) {
+      pct = Math.round(((total - st.pomo.remainingMs) / total) * 100);
+      pct = Math.max(0, Math.min(100, pct));
+    }
+    return '<span class="cmp-ring" aria-hidden="true" style="--p:' + pct + '"></span>';
+  }
+
+  // [H2c] THE WORK CHIP. The stamp the pill already carries, on this surface for
+  // the first time. Work only: Casual is the default and a chip that is always
+  // present says nothing. It is the ONE place the action colour touches this
+  // tile, and it takes the action tile's own pairing - opaque --action with
+  // --ink-on-action - which is the pairing H0 measured at 7.53, rather than
+  // action ink on an action tint.
+  //
+  // AND IT IS SUPPRESSED WHEN IT WOULD SAY THE EYEBROW'S WORD BACK, which the
+  // first rendered frame of this round is the reason for. During a POMODORO
+  // WORK PHASE the eyebrow is the phase label - "Work" - and the chip beside it
+  // said "WORK" too: two adjacent identical words, in two weights, meaning two
+  // different things (this phase is a work phase / this workspace is
+  // disciplined). It reads as a rendering fault, which is exactly what [1.9.5
+  // finding 5] found when PAUSED printed twice on one 360px card, and the fix is
+  // the one that finding used: SAY IT ONCE.
+  //
+  // The comparison is against the phase LABEL rather than against the phase key,
+  // because the collision is a collision of WORDS - a "Short break" phase in a
+  // Work workspace does not collide and keeps its chip, which is the case where
+  // the chip is most worth having.
+  function modeChipHtml(st) {
+    if (st.mode !== "work") return "";
+    var label = t("wsmode_work");
+    if (st.pomo && String(st.pomo.label).toLowerCase() === String(label).toLowerCase()) return "";
+    return '<span class="cmp-chip">' + esc(label) + '</span>';
   }
 
   // [1.9.4 finding 3] WHICH CONTROLS, AND WHAT IS DELIBERATELY ABSENT.
@@ -615,7 +709,7 @@ var Companion = (function () {
           (c.running
             ? '<button type="button" class="cmp-btn cmp-btn-stop" data-cmp-act="pomo-stop">' +
                 esc(t("sat_stop")) + '</button>'
-            : '<button type="button" class="cmp-btn cmp-btn-primary" data-cmp-act="pomo-start">' +
+            : '<button type="button" class="cmp-btn" data-cmp-act="pomo-start">' +
                 esc(t("companion_start_focus", { minutes: c.workMin })) + '</button>') +
         '</div>' +
         '<div class="cmp-block-row' + (armOn ? ' is-on' : '') + '">' +
@@ -632,12 +726,35 @@ var Companion = (function () {
 
   function actionsHtml(st) {
     var pauseLabel = st.paused ? t("companion_resume") : t("companion_pause");
+    // [H4.0] THE CLASS WEIGHTS ARE INVERTED BETWEEN THE TWO SIDES, so neither
+    // literal string could simply win. On master .cmp-btn was the QUIET control
+    // and .cmp-btn-primary the loud one; in H2c's language .cmp-btn IS the loud
+    // one (background: var(--action)) and .cmp-link is the quiet one. Taking
+    // master's string here would have painted pause in a fill master never gave
+    // it, and taking H2c's without the prefix below would have deleted the
+    // session block from the panel.
+    //
+    // So: H2c's .cmp-btn for pause - the popup's one solid control, beside
+    // routeHtml's .cmp-link, which is the shape H2c was accepted with - and
+    // master's sessionControlsHtml prefix kept intact.
+    // [H4.0] PAUSE IS QUIET WHERE START EXISTS, LOUD WHERE IT IS ALONE.
+    // Two solid --action buttons appeared on the idle panel once these two
+    // commits met, and the frame is what showed it. FIX-6 had ranked them -
+    // Start loud, Pause quiet - but it ranked them on MASTER's scale, where
+    // .cmp-btn was the quiet class; in H2c's scale .cmp-btn is the loud one, so
+    // carrying each literal class across flattened the ranking rather than
+    // preserving it.
+    //
+    // st.controls is the panel/popup discriminator this file already uses (it
+    // is what FIX-7 gates the play glyph on), so no new condition is invented.
+    // On the popup Pause is the only control and stays solid, which is exactly
+    // the shape H2c was accepted with.
+    var pauseClass = st.controls ? "cmp-link" : "cmp-btn";
     return sessionControlsHtml(st) +
       '<div class="cmp-actions">' +
-        '<button type="button" class="cmp-btn cmp-btn-primary" data-cmp-act="' +
+        '<button type="button" class="' + pauseClass + '" data-cmp-act="' +
           (st.paused ? "resume" : "pause") + '">' + esc(pauseLabel) + '</button>' +
-        '<button type="button" class="cmp-btn cmp-btn-route" data-cmp-act="open">' +
-          esc(t("companion_open_launchpad")) + '</button>' +
+        routeHtml() +
       '</div>';
   }
 
@@ -674,7 +791,7 @@ var Companion = (function () {
       { mode: "work",   key: "wsmode_work" },
       { mode: "casual", key: "wsmode_casual" }
     ].map(function (o) {
-      var on = c.mode === o.mode;
+      var on = st.mode === o.mode;
       return '<button type="button" class="cmp-seg-btn' + (on ? " is-on" : "") + '"' +
           ' data-cmp-act="mode-' + o.mode + '" aria-pressed="' + (on ? "true" : "false") + '">' +
           esc(t(o.key)) + '</button>';
@@ -691,11 +808,33 @@ var Companion = (function () {
         '</div>';
     }
 
-    return '<div class="cmp-controls">' +
-        '<div class="cmp-ctl-head">' + esc(c.workspaceName) + '</div>' +
+    // [H2c] THE HINT, AND IT IS THE RULED PART OF THIS TILE.
+    //
+    // A due reminder is suppressed OUTRIGHT when the workspace is not in Work -
+    // storage.js returns an empty set before it looks at a single task - so on
+    // Casual this toggle can read ON while nothing will ever fire. Saying so
+    // where the control is, rather than leaving the user to find out by silence,
+    // is the same fix the schedule editor's mode note already makes.
+    //
+    // RENDERED ONLY ON CASUAL, because on Work it is not a condition to warn
+    // about. Same gate, same string and same shape as .dash-tile-hint on the
+    // Dashboard's due tile (H1a) - dash_reminders_work_only is reused rather
+    // than a second string saying the same sentence.
+    //
+    // It sits UNDER the reminders row rather than under the head, because on
+    // this surface the switch it qualifies is a row in a list of rows and a hint
+    // floating at the top would attach itself to the wrong one.
+    var casual = st.mode !== "work";
+    var remindersHint = casual
+      ? '<p class="cmp-ctl-hint">' + esc(t("dash_reminders_work_only")) + '</p>'
+      : "";
+
+    return '<div class="cmp-tile cmp-controls">' +
+        '<div class="cmp-eyebrow cmp-ctl-head">' + esc(c.workspaceName) + '</div>' +
         '<div class="cmp-seg" role="group" aria-label="' +
           esc(t("wsmode_group_label", { workspaceName: c.workspaceName })) + '">' + seg + '</div>' +
         switchRow(t("prosettings_reminders"), c.reminders, "toggle-reminders") +
+        remindersHint +
         switchRow(t("settings_track_time_on_sites"), c.tracking, "toggle-tracking") +
         '<p class="cmp-ctl-note" data-cmp-ctl-note hidden></p>' +
       '</div>';
