@@ -23026,3 +23026,123 @@ html.bg-image .search-mode-label {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 
+/* =========================================================================
+   [ROUND E] THE FREE PREVIEW'S INK, MEASURED FOR THE FIRST TIME
+
+   THE PREVIEW HAD NEVER BEEN SWEPT. sweep-ink opens with LP.devPro(true) -
+   correctly, or every Pro surface renders as a preview and the sweep measures
+   the wrong product (I10). The unstated other half is that WITH it the preview
+   is never measured at all, and the preview is a DIFFERENT DOM WITH THE SAME
+   CLASS NAMES under .pro-preview-content. Measured now: 7 / 9 / 31 / 6 / 17
+   nodes under floor inside .pro-preview-content on the five grounds.
+
+   THE CAUSE OF THE SOLID-LIGHT COLUMN, WHICH IS THE SERIOUS ONE. The v1 rule
+   `html.has-bg.bg-light .pro-preview-content { color: #222 }` and its selector
+   list were written when the preview was a white-tinted CARD surface. H3b
+   rebuilt the preview out of v2 TILES, and a tile is dark on every ground -
+   H1a's rule, "the tile is the same colour on every wallpaper and only its
+   alpha moves". So near-black ink now lands on a dark tile:
+   .insights-task-name measured 1.10, .pp-axis-label 1.20, .pp-donut-center
+   1.71. Not dim - invisible.
+
+   THE PRO BOARD ALREADY SOLVED THIS AND THE PREVIEW DID NOT GET THE FIX, which
+   is this whole task's thesis. `html.has-bg.bg-light .insights-tab .tile`
+   resets the v1 light tokens back to the tile inks. 134 selectors in this sheet
+   are scoped to .insights-tab and exactly ONE of them also names
+   .pro-preview-content; 42 of them name a class the preview also renders. The
+   preview carries .dash-tab (H3b's demo grid) so those fixes DO reach it, and
+   carries neither .tasks-tab nor .insights-tab.
+
+   EVERY VALUE BELOW IS A SIBLING'S. Nothing new is invented.
+   ========================================================================= */
+
+/* 1. THE TILE INK RESET - the twin of html.has-bg.bg-light .insights-tab .tile,
+      verbatim. A tile inside the preview is the same dark tile it is on the
+      board, so it takes the same ink. */
+/* THE TILE'S MUTED INK, ON EVERY GROUND. `html.has-bg:not(.bg-light)` already
+   lifts --ink-mute to #cfc5bc globally, so the DARK grounds were never the
+   problem; on bg-light it stays the darker rgb(168,156,147), and the board
+   re-lifts it per tile - `html.has-bg .insights-tab .tile { --ink-mute:
+   #cfc5bc }`, which the sheet's own comment calls "the sheet's own existing
+   pattern". The preview's tiles are the same dark tiles and never got it, so
+   .tile-eyebrow, .dash-hero-count-label and .pp-badge-sub all sat in the 3.3 to
+   4.4 band on a light solid. Same value, same pattern, one more scope. */
+html.has-bg .pro-preview-content .tile { --ink-mute: #cfc5bc; }
+
+html.has-bg.bg-light .pro-preview-content .tile {
+  --ink-primary: var(--ink);
+  --ink-secondary: var(--ink-mute);
+  --ink-meta: var(--ink-mute);
+  --ink-chrome: var(--ink-mute);
+  --ink-hint: var(--ink-faint);
+}
+
+/* 2. THE NAMED CLASSES IN THE v1 LIST, on a tile.
+      Token resets cannot reach these: the v1 rule names each class EXPLICITLY
+      (.pp-section-header, .pp-axis-label, .pp-axis-label-sub, .pp-donut-center,
+      .pp-badge-title, .pp-badge-sub) and sets `color: #222` on it directly, so
+      the declaration wins wherever the class appears. Restated here at the
+      specificity that beats it, and only where the class sits on a tile - off a
+      tile the v1 rule is still right, because off a tile the surface really is
+      white-tinted. */
+html.has-bg.bg-light .pro-preview-content .tile .pp-section-header,
+html.has-bg.bg-light .pro-preview-content .tile .pp-axis-label,
+html.has-bg.bg-light .pro-preview-content .tile .pp-axis-label-sub,
+html.has-bg.bg-light .pro-preview-content .tile .pp-donut-center,
+html.has-bg.bg-light .pro-preview-content .tile .insights-task-name,
+html.has-bg.bg-light .pro-preview-content .tile .insights-task-dur,
+html.has-bg.bg-light .pro-preview-content .tile .insights-range-static {
+  color: var(--ink);
+  fill: var(--ink);
+}
+
+/* 3. THE ACHIEVEMENT BADGES, on every ground.
+      The twin is html.has-bg .insights-tab .ins-achievements .pp-badge-title /
+      .pp-badge-sub, and its own comment records the defect it fixed: "TWO
+      INHERITED OPACITIES, MULTIPLYING. .pp-badge-sub carries opacity 0.7 and
+      .pp-badge-locked carries 0.55 on the PARENT, so a locked sub-line was
+      being stepped three times... and measured 1.55". The preview kept exactly
+      that, at 1.78 on the dark grounds and 1.17 on a light one.
+
+      1292ef4'S RULING IS NOT REOPENED. Unearned badges stay FAINTER than earned
+      ones - that is the dim the ruling is about. What changes is the value the
+      dim is measured against, which is the same re-expression the Pro board
+      made when it took this fix. */
+html.has-bg .pro-preview-content .pp-badge-title {
+  color: var(--ink);
+}
+html.has-bg .pro-preview-content .pp-badge-sub {
+  color: var(--ink-mute);
+  opacity: 1;
+}
+/* MY FIRST PASS AT THIS WAS THE EXACT DEFECT THE TWIN'S COMMENT WARNS ABOUT,
+   and the measurement caught it. I set opacity 0.75 on the locked CHILDREN and
+   left .pp-badge-locked's own 0.55 on the PARENT, so the two multiplied to 0.41
+   and a locked sub-line measured 1.68 on a light solid - worse than the 1.78 I
+   set out to fix. The twin says it in one line: "Both opacities go; the step
+   lives in the colour, once." Taken verbatim now rather than paraphrased. */
+html.has-bg .pro-preview-content .pp-badge-locked { opacity: 1; color: var(--ink-faint); }
+html.has-bg .pro-preview-content .pp-badge-locked .pp-badge-title,
+html.has-bg .pro-preview-content .pp-badge-locked .pp-badge-sub,
+html.has-bg .pro-preview-content .pp-badge-locked .pp-badge-icon {
+  color: var(--ink-faint);
+  opacity: 1;
+}
+
+/* 4. THE DEMO COLUMN'S DIM WAS THE LAST 0.1 OF A RATIO, and O11 is why.
+      H3b set .dash-free-demo to 0.82 and measured every node clear ON A DARK
+      GROUND ONLY. Opacity is symmetric and contrast is not: the same 0.82 takes
+      .tile-eyebrow to 4.41 and 4.42 against a 4.5 floor, and .pp-demo-label to
+      4.36 - all three within a tenth, all three failing. 0.9 clears them with
+      the dim still legible as a dim; the demo column is still visibly quieter
+      than the live column beside it, which is the whole job of the value. */
+.dash-free-demo { opacity: 0.9; }
+
+/* 5. THE HEADING OVER THE DEMO COLUMN, on a light ground.
+      --ink-mute is a TILE ink and this heading sits on the wallpaper, not on a
+      tile - measured 2.40 against #f5f5f5. Its sibling is the same heading's
+      own dark-ground reading; on a light solid it takes the light-ground body
+      ink the sheet already uses for text on a light wallpaper. */
+html.has-bg.bg-light .dash-free-theirs-head {
+  color: var(--text-primary);
+}

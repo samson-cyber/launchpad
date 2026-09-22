@@ -269,13 +269,15 @@ const PAGE = {
     out.push({
       id: id,
       tag: el.tagName.toLowerCase(),
-      cls: (typeof el.className === "string" ? el.className : "") || (el.id ? "#" + el.id : ""),
+      cls: (typeof el.className === "string" ? el.className
+            : (el.className && el.className.baseVal) || "") || (el.id ? "#" + el.id : ""),
       elId: el.id || "",
       text: s.trim().replace(WS, " ").slice(0, 46),
       box: { x: box.x, y: box.y, width: box.width, height: box.height },
       fs: parseFloat(cs.fontSize) || 0,
       fw: cs.fontWeight,
       color: cs.color,
+      inPreview: !!(el.closest && el.closest(".pro-preview-content")),
       shadow: cs.textShadow === "none" ? "" : cs.textShadow
     });
   }
@@ -335,10 +337,21 @@ const PAGE = {
 })()`,
 
   // Technique 2. Transparent ink, not hidden elements.
+  // [ROUND E] THE INKLESS FRAME MUST BLANK SVG PAINT TOO, and not doing so
+  // FABRICATED FAILURES. An SVG text element - the donut centre figure, the bar
+  // chart axis captions - takes its paint from "fill", not from "color". With
+  // only color cleared those glyphs stayed painted in BOTH frames, the two were
+  // identical over that box, and the ratio came back near 1.0. The Insights
+  // donut read 1.26 on the DEFAULT DARK ground: the worst number in the product
+  // and not a measurement at all. Technique 2 one element type further on - the
+  // inkless frame removes the GLYPHS and nothing else, and it was missing a
+  // whole class of glyph. It moves the Pro board numbers as well as the
+  // preview's, which is a correction rather than a leak.
   INKLESS_ON: `(function () {
   var st = document.getElementById("__inkless");
   if (!st) { st = document.createElement("style"); st.id = "__inkless"; document.head.appendChild(st); }
-  st.textContent = "[data-ink-id]{color:transparent !important;text-shadow:none !important;-webkit-text-stroke-color:transparent !important;}";
+  st.textContent = "[data-ink-id]{color:transparent !important;text-shadow:none !important;" +
+    "-webkit-text-stroke-color:transparent !important;fill:transparent !important;stroke:none !important;}";
   return 1;
 })()`,
 
@@ -408,12 +421,35 @@ const GROUNDS = [
   { key: "photo-light", bg: LIGHT_PHOTO,     note: "a LIGHT photograph -> bg-image, STILL no luminance class" },
 ];
 
+// [ROUND E] EVERY SURFACE NAMES ITS TIER, and the free preview is a target
+// rather than a thing the sweep could not see.
+//
+// WHY IT WAS INVISIBLE, which is the finding this change closes. The run below
+// opens with LP.devPro(true) - correctly, because without it every Pro surface
+// renders as a preview and the sweep measures the wrong product (I10). The
+// consequence nobody stated is the other half of that sentence: WITH it, the
+// preview is never measured at all. The preview is a DIFFERENT DOM WITH THE
+// SAME CLASS NAMES under .pro-preview-content, so every fix scoped to
+// .tasks-tab / .insights-tab / .dash-tab is a fix the preview did not get, and
+// no instrument has ever pointed at it. Two white-on-white defects shipped and
+// were found by looking at a picture (Asana 1218617885858729).
+//
+// TIER IS A RUN DIMENSION, NOT A SURFACE PROPERTY, because switching it costs a
+// reload of the whole page. The loop below sorts pro before free within each
+// ground and flips ONCE, so a five-ground run pays five flips rather than
+// thirty.
 const SURFACES = [
-  { key: "Home",         open: `(function(){document.querySelector('[data-tab="home"]').click();return 1})()`, wait: 1500 },
-  { key: "Tasks",        open: `(function(){document.querySelector('[data-tab="tasks"]').click();return 1})()`, wait: 2000 },
-  { key: "Dashboard",    open: `(function(){document.querySelector('[data-tab="dashboard"]').click();return 1})()`, wait: 2400 },
-  { key: "Insights",     open: `(function(){document.querySelector('[data-tab="insights"]').click();return 1})()`, wait: 2600 },
-  { key: "Settings",     open: `(function(){document.querySelector('[data-tab="home"]').click();document.getElementById("sb-settings").click();return 1})()`, wait: 1600 },
+  { key: "Home",         tier: "pro",  open: `(function(){document.querySelector('[data-tab="home"]').click();return 1})()`, wait: 1500 },
+  { key: "Tasks",        tier: "pro",  open: `(function(){document.querySelector('[data-tab="tasks"]').click();return 1})()`, wait: 2000 },
+  { key: "Dashboard",    tier: "pro",  open: `(function(){document.querySelector('[data-tab="dashboard"]').click();return 1})()`, wait: 2400 },
+  { key: "Insights",     tier: "pro",  open: `(function(){document.querySelector('[data-tab="insights"]').click();return 1})()`, wait: 2600 },
+  { key: "Settings",     tier: "pro",  open: `(function(){document.querySelector('[data-tab="home"]').click();document.getElementById("sb-settings").click();return 1})()`, wait: 1600 },
+  // THE FREE PREVIEW. Same three tabs, same clicks - the difference is entirely
+  // the tier the page was reloaded under, which is what makes these separate
+  // surfaces rather than a flag on the three above.
+  { key: "Free Tasks",     tier: "free", open: `(function(){document.querySelector('[data-tab="tasks"]').click();return 1})()`, wait: 2000 },
+  { key: "Free Dashboard", tier: "free", open: `(function(){document.querySelector('[data-tab="dashboard"]').click();return 1})()`, wait: 2400 },
+  { key: "Free Insights",  tier: "free", open: `(function(){document.querySelector('[data-tab="insights"]').click();return 1})()`, wait: 2600 },
   // [H4.1] "Pro Settings" IS RETIRED (ruling 11). It opened #sb-pro-settings,
   // a control 4cb7420 removed when the two panels became one, so every run
   // since has printed "OPEN FAILED" for it. A sweep that reports failure to
@@ -442,7 +478,17 @@ export function floorFor(fontPx, fontWeight) {
 // class+id+tag+text and kept ONCE per ground, at its WORST reading — which is
 // also the reading a fix has to clear.
 // =========================================================================
-export const rowKey = (r) => `${r.cls} ${r.elId} ${r.tag} ${r.text}`;
+// [ROUND E] THE TIER IS PART OF THE KEY, and leaving it out would have made
+// this round's own no-leak proof impossible.
+//
+// The preview renders the SAME CLASS NAMES as the Pro board under a different
+// tier - .dash-hero-num, .insights-task-name, .pp-* and the rest. Without the
+// tier in the key, a preview node and a Pro node that happen to share a class
+// and a string merge into one row kept AT ITS WORST, so a preview failure would
+// be reported under "Dashboard" and a Pro number would move because the preview
+// moved. They are two different renders of two different DOMs; they are not one
+// node measured twice.
+export const rowKey = (r) => `${r.tier || "pro"} ${r.cls} ${r.elId} ${r.tag} ${r.text}`;
 
 // THE FORMATTER IS EXPORTED BECAUSE THE FORMATTER IS WHAT LIED. A node need not
 // exist on every ground — `#rc-tip-dismiss` is a dismissable tip, on screen for
@@ -939,9 +985,32 @@ async function sweep() {
 
   await sleep(3500);
   // I10: without this every Pro surface renders as a preview and the sweep
-  // measures the wrong product.
+  // measures the wrong product. [ROUND E] And with it, the preview is never
+  // measured - see SURFACES. The run starts Pro because the self-test below
+  // needs the Pro board; ensureTier flips it per ground thereafter.
+  let currentTier = "pro";
   await ev(`LP.devPro(true)`);
   await ev(`location.reload()`); await sleep(5000);
+
+  // [ROUND E] FLIP ONLY WHEN THE TIER ACTUALLY CHANGES, and RE-ASSERT what the
+  // page came back as rather than trusting the call. LP.devPro writes a flag and
+  // reloads; a run that assumed the flip landed would file free rows under pro.
+  const tierFlips = [];
+  async function ensureTier(want) {
+    if (currentTier === want) return;
+    await ev(`LP.devPro(${want === "pro"})`);
+    await ev(`location.reload()`); await sleep(5200);
+    const got = await ev(`(async function(){ return ProAccess.getProAccessLevel(await Storage.getAll()); })()`);
+    const isPro = (got === "active" || got === "trialing" || got === "grace");
+    const landed = isPro ? "pro" : "free";
+    if (landed !== want) {
+      console.error(`\nREFUSED: asked for the ${want} tier and the page came back "${got}" (${landed}).`);
+      console.error("  Every row of this ground would be filed under a tier it was not measured on.");
+      process.exit(2);
+    }
+    tierFlips.push({ want, got });
+    currentTier = want;
+  }
 
   // ---- PRECONDITION: THE FRAME'S SCALE.
   // Every box is CSS pixels and every screenshot is device pixels. If the two
@@ -997,7 +1066,12 @@ async function sweep() {
     groundMeta[g.key] = { classes: cls, note: g.note };
     console.log(`\n### GROUND ${g.key}  ->  html.class = "${cls}"`);
 
-    for (const s of surfaces) {
+    // [ROUND E] Pro first, then free, so the tier flips once per ground.
+    const ordered = surfaces.slice().sort((a, b) =>
+      ((a.tier || "pro") === "free" ? 1 : 0) - ((b.tier || "pro") === "free" ? 1 : 0));
+
+    for (const s of ordered) {
+      await ensureTier(s.tier || "pro");
       await ev(PAGE.CLEAR_IDS); await ev(PAGE.CLEAR_SCROLLER);
       try { await ev(s.open); } catch (e) { console.log(`  ${s.key}: OPEN FAILED ${e.message.slice(0, 80)}`); continue; }
       await sleep(s.wait);
@@ -1037,7 +1111,8 @@ async function sweep() {
           if (r === null) { unmeasured++; unmeasuredRows.push({ ground: g.key, surface: s.key,
             cls: nd.cls, text: (nd.text || "").slice(0, 28), note: m.note || null, px: m.pixels }); }
           seen++;
-          rows.push({ ground: g.key, surface: s.key, step, cls: nd.cls, elId: nd.elId, tag: nd.tag,
+          rows.push({ ground: g.key, surface: s.key, tier: s.tier || "pro", inPreview: !!nd.inPreview,
+                      step, cls: nd.cls, elId: nd.elId, tag: nd.tag,
                       text: nd.text, fs: nd.fs, fw: nd.fw, big, floor, ratio: r,
                       pixels: m.pixels, ink: m.ink || null, bg: m.bg || null,
                       color: nd.color, shadow: nd.shadow });
@@ -1059,6 +1134,9 @@ async function sweep() {
   // product, because a finding from a run that mislabelled its grounds or
   // measured nothing is not a finding.
   console.log("\nTHE RUN");
+  // [ROUND E] The tier flips are a run-level fact for the same reason the
+  // re-pins are: a run that measured the wrong tier is not a finding.
+  console.log(`  TIER FLIPS: ${tierFlips.length}, each verified against ProAccess.getProAccessLevel after the reload`);
   if (repins.length) {
     console.log(`  RE-PINS: the ground class had drifted ${repins.length} time(s) and was re-asserted (H3a)`);
     for (const r of repins.slice(0, 12)) {
