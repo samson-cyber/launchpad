@@ -23172,3 +23172,52 @@ html.has-bg .pro-preview-content .pp-badge-locked .pp-badge-icon {
 html.has-bg.bg-light .dash-free-theirs-head {
   color: var(--text-primary);
 }
+
+
+/* =========================================================================
+   [E2] THE PREVIEW, SECOND PASS - RULINGS 33 AND 34 WITHDRAWN, AND WHY
+
+   BOTH WERE WRITTEN, MEASURED, AND MADE THINGS WORSE. Kept as a record rather
+   than deleted, because the mistake is the useful part.
+
+     .pp-goal-deadline   4.20 / 4.08  ->  1.40 / 1.39    given --ink-mute
+     .pp-progress-text   3.86         ->  1.38           given --ink-mute
+     .pp-active-badge    1.34         ->  1.15           given --ink, fill removed
+
+   THE CAUSE IS ONE FALSE PREMISE I HELD WHILE HOLDING THE MEASUREMENT THAT
+   DISPROVED IT. Round E's fixes rest on H1a's rule that "a tile is the same
+   colour on every wallpaper and only its alpha moves", so a tile ink is safe on
+   every ground. E2's own DOM probe measured the preview's .tile--list at
+   rgba(255,255,255,0.85) on a light solid - WHITE - and I wrote --ink-mute and
+   --ink onto it anyway, reasoning from the doctrine instead of from the reading
+   in front of me. Near-white ink on a white tile is 1.15:1.
+
+   SO THE PREVIEW'S TILES ARE NOT THE BOARD'S TILES ON A LIGHT GROUND, and that
+   is the finding this round actually produced. Something in the v1 light branch
+   paints them white-tinted where the board's stay dark. Until that is found and
+   named, NO tile-ink token is safe inside .pro-preview-content on bg-light, and
+   Round E's own rules in that region are worth re-reading with this in mind -
+   they measured better, but they may be right by accident.
+
+   RULING 33 CANNOT BE SATISFIED BY TAKING THE SIBLING'S TOKENS, and that is not
+   a refusal of the ruling but a fact about the two surfaces. The board's session
+   label sits on .tile--hero, dark on all three grounds - measured. The preview's
+   badge sits on a surface that is dark on two grounds and white on the third.
+   Two labels of OPPOSITE POLARITY on a light ground cannot share one ink token.
+   The ruling's author could not have known that; the probe is what found it.
+
+   RULING 34's SURFACE CENSUS STANDS and is the durable part - it is reported in
+   the round's comment and it is what makes the next attempt cheap:
+
+     .pp-goal-deadline              .tile.tile--list        ON A TILE
+     .pp-progress-text              .tile.tile--list        ON A TILE
+     .pp-empty-state                its OWN fill            a card of its own
+     .pp-section-header-collapsible (bare page)             text on the wallpaper
+     .insights-range-static         .ins-row-range-preview  the range card
+
+   Round E called all five "off-tile" and two of them are not. That was a guess,
+   which is why the ruling said not to make one.
+
+   WHAT REMAINS HERE: only ruling 32's one argument, in newtab.js, which is a
+   clean win and is measured as one.
+   ========================================================================= */

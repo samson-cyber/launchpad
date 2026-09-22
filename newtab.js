@@ -3594,7 +3594,29 @@
     var d = DEMO_INSIGHTS_DATA;
 
     // 30-day trend bars — through the shared builder.
-    var trendSvg = insightsBarChartSvg(d.trend30.days, d.trend30.todayIndex, t("insights_trend_caption"), t("insights_axis_start_30"), t("insights_today"));
+    //
+    // [E2 / RULING 32] axis:false, MATCHING FIX-1'S BOARD. One argument.
+    //
+    // WHY THE BOARD DID IT: the two axis captions were <text> INSIDE the SVG,
+    // which pinned the chart to a fixed aspect - text cannot survive
+    // preserveAspectRatio="none", rects can - so the bars could never fill
+    // their tile. FIX-1 took the captions out and the SVG stretches to its box.
+    //
+    // AND THE PREVIEW NEEDS NO HTML AXIS TO REPLACE THEM, which is the one
+    // place this departs from the board and is worth stating rather than
+    // leaving to inference. The board pairs axis:false with a separate
+    // .ins-hours-axis div carrying the same two labels, because its hours tile
+    // is a chart ALONE and would otherwise name no range at all. The preview's
+    // chart lives in the DEEP WORK card, which already names its range once,
+    // under the figure - "last 30 days" in .ins-hero-lead-label. That is
+    // [insights-rhythm]'s own rule: ONE NAMING OF THE RANGE PER CARD. Adding an
+    // HTML axis here would print the window a second time in one card, which is
+    // the defect that ruling exists to prevent.
+    //
+    // startLabel and endLabel are still PASSED, not removed: the builder takes
+    // them positionally and a caller that dropped them would change the
+    // signature for the board too. With axis:false they are simply not drawn.
+    var trendSvg = insightsBarChartSvg(d.trend30.days, d.trend30.todayIndex, t("insights_trend_caption"), t("insights_axis_start_30"), t("insights_today"), { axis: false });
 
     // Donut chart + legend — through the shared builders. The demo segments carry
     // {tag:{name,color}, hours}; map them to the builders' {color,value}/name shape.
