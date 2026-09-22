@@ -1143,20 +1143,40 @@ function compare(aPath, bPath, noisePath) {
   const A = index(aPath), B = index(bPath);
 
   let floor = null;
+  const unstable = new Set();
   if (noisePath) {
     const Nz = index(noisePath);
     const deltas = [];
     for (const [k, a] of A) {
       const z = Nz.get(k);
       if (!z || a.ratio === null || z.ratio === null) continue;
-      deltas.push(Math.abs(a.ratio - z.ratio));
+      const dd = Math.abs(a.ratio - z.ratio);
+      deltas.push(dd);
+      // [H4.6] NAMED, NOT JUST COUNTED. A node that moves between two runs of
+      // ONE tree is unstable by identity - Home's one-time tips and
+      // search-mode-label are the whole population here - and a delta on one of
+      // those is noise however large it is. That is the distinction H3c made by
+      // hand, and no single threshold can express it.
+      if (dd >= 0.5) unstable.add(k);
     }
-    deltas.sort((x, y) => y - x);
-    floor = deltas.length ? deltas[0] : 0;
+    deltas.sort((x, y) => x - y);
+    const at = (q) => deltas.length ? deltas[Math.min(deltas.length - 1, Math.floor(deltas.length * q))] : 0;
+    const max = deltas.length ? deltas[deltas.length - 1] : 0;
+    // [H4.6] THE p99, NOT THE MAX. Taking the largest same-tree swing as the
+    // floor let ONE unstable node excuse the entire product: on this repo the
+    // max is 10.84 and the p99 is 0.18, and the max-as-floor labelled a real
+    // +3.77 improvement "NOISE". The distribution is bimodal - 95% of rows are
+    // perfectly stable - so the tail is a property of a few nodes, not of the
+    // measurement.
+    floor = at(0.99);
     const moved = deltas.filter((x) => x >= 0.01).length;
-    console.log(`NOISE FLOOR, measured on the SAME tree twice: ${floor.toFixed(2)}`);
-    console.log(`  ${moved} of ${deltas.length} shared row(s) moved at all between two runs of one tree`);
-    console.log("  Any delta below this is this instrument's own noise, not a change.\n");
+    console.log(`NOISE, measured on the SAME tree twice, over ${deltas.length} shared rows:`);
+    console.log(`  p50 ${at(0.5).toFixed(4)}   p95 ${at(0.95).toFixed(2)}   p99 ${floor.toFixed(2)}   max ${max.toFixed(2)}`);
+    console.log(`  ${moved} row(s) moved at all; ${unstable.size} are UNSTABLE BY IDENTITY (>= 0.5 on one tree)`);
+    for (const k of [...unstable].slice(0, 8)) console.log(`    unstable: ${k}`);
+    if (unstable.size > 8) console.log(`    ... and ${unstable.size - 8} more`);
+    console.log("  THE FLOOR IS THE p99. The max is printed beside it because taking the max");
+    console.log("  as the floor lets one unstable node excuse every other delta (H4.6).\n");
   } else {
     console.log("NO --noise RUN SUPPLIED, so every delta below is labelled UNKNOWN.");
     console.log("  Sweep the SAME tree twice and pass it as --noise before calling any of");
@@ -1177,8 +1197,9 @@ function compare(aPath, bPath, noisePath) {
   for (const m of moved) {
     const delta = m.to - m.from;
     const verdict = floor === null ? "vs noise: UNKNOWN"
-                  : Math.abs(delta) <= floor ? "NOISE (<= floor)"
-                  : "above the noise floor";
+                  : unstable.has(m.k) ? "NOISE (node is unstable on one tree)"
+                  : Math.abs(delta) <= floor ? "NOISE (<= p99)"
+                  : "ABOVE THE NOISE FLOOR";
     const crossed = m.from >= m.floorAt && m.to < m.floorAt ? "  *** CROSSED DOWN ***"
                   : m.from < m.floorAt && m.to >= m.floorAt ? "  crossed up" : "";
     console.log(`  ${m.from.toFixed(2)} -> ${m.to.toFixed(2)}  ${delta >= 0 ? "+" : ""}${delta.toFixed(2)}  ${verdict}${crossed}   ${m.k}`);
