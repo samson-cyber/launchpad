@@ -48,6 +48,26 @@ the evidence that it was never submitted.
 - **The 2.0.0 artifact was `launchpad-2.0.0-92eeb68.zip`** — sha256 `2bffe33c14e4e562344841e4c973ae78b70068c47eeada1653453521339a9093`, 619,610 bytes. **This is the build that was uploaded and approved.** Deleted from disk after upload per the no-candidate-zip rule; reproducible from `92eeb68`.
 - **Thirteen build gates green** — twelve source suites (`panel-ink`, `focus-decision`, `insights-readers`, `since-format`, `trial-copy`, `license-line`, `pro-celebration`, `chip-ink`, `today-cockpit`, `text-size`, `pill-clarity`, `bg-queue`) plus the package gate (23/23 manifest-declared and referenced files resolve with exact forward-slash entry names).
 - **RELEASE STATE as of 2026-09-15 — stated here in full, deliberately, rather than by pointer. THREE versions now matter.** **`2.2.0` is BUILT and AWAITING UPLOAD** (cut 2026-09-15, tagged `v2.2.0`, 939914 bytes, sha256 `1638fb64f09f1d36779fff945ddb46c5a684f1cb3dfd485c2de0bf291a94068f`). **Built is not submitted — nobody has uploaded it.** **`2.1.0` is SUBMITTED and AWAITING REVIEW** (uploaded 2026-09-01) and **that state is UNCONFIRMED**: the 2.2.0 round could not reach the store dashboard, so it needs Samson's check. **`2.0.0` is still LIVE** as far as this repo can prove, is what users are actually running, and therefore remains the **store baseline** any permission diff is taken against. The manifest now reads **`2.2.0`**. **Submitted is not published, and built is not even submitted.**
+- **THE v2 WARM BENTO ARC IS LANDED, 2026-09-18 to 2026-09-22 (Asana 1218529386131162).** Every surface now renders in the tile language. In order, with hashes:
+
+  | round | hash | what |
+  | --- | --- | --- |
+  | H0 | `aa79686` | tokens.css, the tile, Space Grotesk, the radius ramp |
+  | H1a | `0b4d68b` | the Dashboard as a bento |
+  | H1b | `e982431` | Tasks as tiles |
+  | H1c | `7a22637` + `3a6df91` | one Settings panel, then every control driven |
+  | H2a-e | `0dea617` `ba21664` `3494e3f` `e69f3d9` | Insights, the pill, the gate, the donut |
+  | FIX-1..9 | `a568dae` `7c557d5` `66ce4ae` `4cb7420` `ff53383` `a9e2947` `8253f70` `8fb9af2` `b6580f4` | Samson's findings on the real product, including the pill's removal |
+  | H3a-e | `22b8fb3` `f821ff7` `b7738d8` `51211d1` `25c94ea` | modals, the free preview, Home's face, the countdown's move, the bright-photo population |
+  | H4.0 | `add29ae` `b1c99c5` | the unlanded pair re-applied by ruling (a) |
+  | H4.1-4.5 | `b87e34e` `fc1ed3d` `2265264` … | the instruments, the token and rule sweep, the package-gate fix, the frames, these docs |
+
+- **THE `v2.2.0` TAG IS PRE-v2 AND MUST BE RE-CUT AT SUBMISSION.** It sits on `5c585ae`, cut 2026-09-15 — three days and the whole Warm Bento arc BEFORE any of the above. Its recorded artifact (939914 bytes, sha256 `1638fb64…`) is a build of a product that no longer exists: the tag's own bytes do not contain tokens.css, the tile language, Space Grotesk or the side panel's session controls. **Re-tag at submission from the rebuilt master**, per the standing rule that the annotated tag follows the ARTIFACT and is applied AT SUBMISSION. Nothing about this is a defect; it is the tag doing what a tag does, on a master that then moved 30+ commits.
+
+- **AND THE PACKAGE COULD NOT BE BUILT AT ALL BETWEEN 2026-09-18 AND 2026-09-22.** `verify-package.mjs` could not read CSS, so the three Space Grotesk fonts H0 added were "allowed but referenced by nothing" and every `build.sh` run failed and discarded its zip. Fixed in `2265264`; the first successful build since H0 produced 1326777 bytes, sha256 `28c9fe1abbf4a0f27741038f9e0a9efe24440a28113c2a3fc9e990a34e750d28`. **That artifact is NOT a release candidate** — it was built in a worktree (so its sha256 is checkout-dependent, per CLAUDE.md), it was driven as a smoke test, and it was deleted immediately afterwards under the no-candidate-zip rule.
+
+- **`2.1.0`'s STORE STATE IS STILL UNCONFIRMED.** Uploaded 2026-09-01; nothing in this arc could reach the store dashboard, so the line is exactly as stale as it was and still needs Samson's check.
+
 - **UPLOADING 2.2.0 REPLACES A PENDING 2.1.0.** A store item has one pending submission, so if 2.1.0 has not yet been approved it is superseded and never reaches a user, and the review clock restarts on 2.2.0. 2.2.0 is a strict superset — 132 commits on top of `15797ad` — so nothing is lost but the wait. See CLAUDE.md's release-state block.
 - **`2.0.1` was built, fully gated, and NEVER submitted** — deferred by Samson on 2026-08-29 so its four items would ride inside a larger update. That update is 2.1.0, and those items reached the store inside it. **A manifest bump is not evidence that a release occurred**; the annotated tags are, and 2.0.1 is the standing counter-example.
 - **Tags: `v2.0.0` on `92eeb68` and `v2.1.0` on `15797ad`**, both annotated, both pushed to origin, each applied at submission per the rule. **No `v2.0.1` tag exists and none should**, since it was never submitted. Note what a tag does *not* say: it records **submission, not approval**. `v2.1.0` existing means 2.1.0 was uploaded, not that a single user has it.

@@ -4344,3 +4344,98 @@ defined token is used. Reversible in four lines if a surface wants 8/9/10 again.
 
 **Measured:** newtab.js 27,659 → 26,267 lines; newtab.css 23,683 → 21,054; 43
 `sat*` functions removed and 30 kept, because those 30 were never the pill's.
+
+## 2026-09-22 — THE v2 ARC CLOSES: one definition of due, the companion joins the language, and one amber per surface
+
+The four Warm Bento amendments above (the action colour and the tile tints, the
+frost family, Space Grotesk, the radius ramp) were ruled on 2026-09-18 and are
+unchanged. This entry records what the surfaces then taught, which is a
+different list, and it is written at the checkpoint rather than per round
+because several of these only became true when two rounds met.
+
+**ONE DEFINITION OF DUE IS THREE QUANTITIES FROM ONE READER.** `Storage.getDueWork`
+answers the question once, and three surfaces ask it for three different fields:
+
+| surface | field | why it differs |
+| --- | --- | --- |
+| the board (Dashboard, Tasks) | `counts.total` | snoozing silences a signal; it does not hide work |
+| the bell, the side panel head | `counts.unsnoozed` | the bell IS the signal |
+| the Dashboard's overdue tile | `counts.overdue` | a subset, named on the tile |
+
+They are equal only while nothing is snoozed, and after one snooze the first
+stays put while the other two drop by exactly one. That is the correct
+statement: the brief that produced this asked for "all three equal", and the
+measurement refused it. H4.0 drove it end to end on one fixture at one moment -
+5 / 5 / 5 / 3, then 5 / 4 / 4 after a snooze made through the bell's own
+control.
+
+**THE COMPANION DOCUMENTS TAKE THE TILE LANGUAGE FROM tokens.css, AND FIX-6's
+PREMISE FOR NOT DOING SO WAS HALF RIGHT.** FIX-6 wrote: "companion.css has no
+--tile-* tokens and deliberately does not load newtab.css, so ... Copying the
+pill's tokens here would have resolved to nothing." The PILL's tokens
+(`--sat-accent` and friends) do live in newtab.css and would indeed resolve to
+nothing — the file's own notes say so twice and both are kept. But the v2 TILE
+tokens live in **tokens.css**, which companion.html and side-panel.html each
+link on their second line, and `check-bg-queue` enforces exactly that
+distinction. Two different token sets, one name shape.
+
+**The companion rule, stated so it cannot be misread again:** a companion
+document may use any token **tokens.css** defines and no token defined in
+**newtab.css**. `--sat-amber` is therefore legal and is the product's single
+source for amber; `--sat-accent` is not. "No `--sat-*`" was the wrong way to
+say it and would have deleted the pause signal.
+
+**ONE AMBER SIGNAL PER SURFACE: the ring when a session runs, the label only
+when there is no ring.** This SUPERSEDES H2c's accepted reasoning that a ring
+and an adjacent eyebrow "are still ONE signal — ring and eyebrow are adjacent on
+one line and say the same thing". H2c's argument stays in companion.css as the
+record of why the pair existed. The condition lives in the render, where
+`st.pomo` already chooses ring-or-glyph, rather than in a CSS guard: the first
+attempt guarded a descendant rule and changed nothing, because the amber arrives
+through a class the render adds.
+
+**PAUSE IS QUIET WHERE START EXISTS AND LOUD WHERE IT IS ALONE** — panel
+`.cmp-link`, popup `.cmp-btn`. *Pending Samson's check 12.* Neither commit's
+author ever saw both controls at once: FIX-6 ranked Start above Pause on
+master's scale, where `.cmp-btn` was the QUIET class, and H2c's scale inverts it
+(`.cmp-btn` carries `var(--action)`). Carrying each literal class across
+flattened a ranking somebody had chosen, and the frame is what showed it.
+
+**THE EYEBROW TINT NARROWS ON A PHOTOGRAPH** (ruling 9, H3e). *Pending Samson's
+check 9.* "Colour lives on the tile, never on the words" already had one
+exception, the eyebrow. On a bright photograph the eyebrow measured 4.20–4.45,
+so the exception narrows: the tint reaches the eyebrow on SOLID grounds only,
+and on `bg-image` the eyebrow takes `--ink` while the tile carries the subject
+alone.
+
+**A v1 GROUND-BRANCH INK RULE MAY NOT OUTRANK A v2 CONTAINER'S OWN INK.** Four
+instances in one arc — H1b's tile #2, FIX-2's streak number, H3a's danger
+button, H3a's `.seg-btn.active` — all the same shape: an `html.has-bg` /
+`html.bg-light` rule reaching a surface that no longer changes with the ground.
+A tile declares its own ink *because* H1a ruled that tints rise in alpha on a
+light ground while inks do not move, so a ground rule winning inside one has
+overruled a decision already made.
+
+Enforced in `tools/check-button-specificity.mjs`, on RANK rather than existence:
+H3a's fix was to give the container rule its own ground-scoped forms so it wins,
+and a gate that forbade the v1 rule outright would forbid the fix. It fires only
+on the shape that can actually reach — one compound after the `html` qualifier,
+no ancestor to confine it — because a ground rule that names an ancestor cannot
+leave it.
+
+**THE UNLANDED PAIR WAS RE-APPLIED BY RULING (a), 2026-09-22.** Branch
+`unlanded/h2c-and-panel` and tag `unlanded-2026-09-18`, both at `db82b58`, held
+three commits verified and REVIEW-accepted on 2026-09-18 that never reached
+master. `0b3ba2e` was dropped as moot — the pill it fixed was removed by
+`a9e2947`. `e597640` (the due-work grouping, the kind-ordered cap, the three
+daily controls) landed as `add29ae`; `db82b58` (H2c's tile language on both
+companion documents) landed as `b1c99c5`. **The branch is deleted with this
+entry; the tag is kept** (ruling 17), because a tag costs nothing and is the
+only remaining way to reach those three commits as they were written.
+
+**The re-apply's own finding, which is the arc's sharpest:** two commits each
+added a `controls` key to the SAME 85-line object literal, git merged both
+without a conflict, ES6 permits duplicate data properties, the last one won, and
+`st.controls` was `null` on every surface. The side panel would have shipped
+with a perfectly grouped due list and no way to start work on it — no syntax
+error, no gate, no marker. It is in BUGS.md under the merge family.

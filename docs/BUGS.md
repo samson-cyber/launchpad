@@ -1127,6 +1127,39 @@ Run for any change to the website repo, to anything a CDN serves, or to a page t
 
 ---
 
+## V — THE v2 ARC's TRAPS (H0–H4, 2026-09-18 to 2026-09-22)
+
+Eleven entries, each paid for once. Three are about MERGING, four about
+INSTRUMENTS, two about CSS reaching where it should not, and two about
+assertions that lie.
+
+### Merging
+
+- **V1. TWO COMMITS CAN ADD THE SAME KEY TO ONE OBJECT LITERAL, AND GIT WILL NOT SAY SO.** `st = { ... }` opened at line 134 and closed at 219. FIX-6 added `controls:` in the middle of it; e597640 added `controls: null` at the end. The auto-merge took both, **ES6 permits duplicate data properties, and the LAST one wins** — so `st.controls` was `null` on every surface, `sessionControlsHtml` returned `""`, `canStart` was false, and the side panel would have shipped with a perfectly grouped due list and no way to start work on it. No conflict marker, no syntax error, no gate, nothing in the console. **After a clean auto-merge of two commits that touch the same object literal, COUNT ITS KEYS BY BRACE DEPTH.** A clean merge onto a file that was rewritten underneath is a suspect, not a result. (H4.0)
+- **V2. IDENTICAL CLASS NAMES CAN MEAN OPPOSITE WEIGHTS IN TWO TREES.** master's `.cmp-btn` was the QUIET control and `.cmp-btn-primary` the loud one; H2c's `.cmp-btn` carries `var(--action)` and `.cmp-link` is the quiet one. So "keep master's class" and "take theirs" each FLATTEN a ranking somebody chose, and both look like a faithful merge. Resolve by preserving the relative WEIGHTING, not the literal string — and look at a frame, which is what showed it. (H4.0)
+- **V3. A REMOVAL PATCH CANNOT KNOW ABOUT A CALL SITE ADDED AFTER IT WAS WRITTEN.** When a commit that deletes machinery is rebased across rounds that rewrote the same file, the deletions apply cleanly and any NEW reference survives. Count the references on both sides: master carried the chain machinery on 40 lines of newtab.js and the landed tree on 1 — and that 1 was the comment recording the removal. (H3d landing)
+
+### Instruments
+
+- **V4. "0 UNDER FLOOR" WITH N UNMEASURABLE NODES IS NOT A PASS.** An ad-hoc harness reported a clean sweep with **32 of 32 nodes unmeasurable**: `decodePNG` returns `{w,h,ch,data}` and the caller read `.width`, and `measure()` wants `box` as an object while the caller passed an array, so every bound was `NaN` and every node returned "too few changed pixels". The zero was about the nodes that were never measured. **Vacuity is a hard failure, not a footnote** — `tools/sweep-ink.mjs` now counts unmeasurable nodes, names each one, and exits non-zero when that count is paired with zero failures. (H4.0, wired H4.1)
+- **V5. A TICKING NODE CANNOT SHARE ONE PAINTED FRAME, AND CANNOT BE ADDRESSED BY ITS TEXT.** Reusing one painted capture across a loop while a countdown re-renders makes the diff compare one numeral with another — ink against ink — and returns a ratio near 1 on a node whose colour is `--ink`. Pair the captures **per node**. And identity must be a STAMPED ID: keying on class-plus-text meant the hero had already ticked by the hide step, the lookup matched nothing, and the largest numeral on the surface was reported unmeasurable. I13's method, extended. (H4.0)
+- **V6. `visibility: hidden` REMOVES A CONTROL'S FILL AS WELL AS ITS GLYPHS.** So the backdrop in the hidden frame is the PAGE behind the fill, not the fill the text sits on, and the number is the control's visibility against the page — a real property, and **not legibility**. Master's companion buttons read 1.98 / 2.51 / 3.63 / 2.67 / 4.19 that way and were one step from being reported as five contrast failures; measured as TEXT (`color: transparent`, which removes only the glyphs) the count was **zero**. Text legibility and element visibility are two measurements. `sweep-ink` has used the transparent technique since it was written; single-node harnesses keep inheriting the other one. (H4.0)
+- **V7. PIN THE GROUND IMMEDIATELY BEFORE EACH MEASUREMENT, NOT ONCE PER LOOP.** newtab.js rewrites `documentElement.className` on every render, so a ground pinned once per loop can have drifted by the time a later surface is measured, and every row is filed under a ground it was not taken on. Moving the pin turned 195 clean readings into ten real failures. `sweep-ink` now re-asserts and reports every drift. (H3a, wired H4.1)
+- **V8. A ROW THAT MOVED BETWEEN TWO TREES IS NOT A FINDING UNTIL YOU KNOW HOW FAR ROWS MOVE BETWEEN TWO RUNS OF ONE TREE.** Three rows differed on nodes a round had not touched; sweeping the SAME tree twice moved seven, including the identical `"Search"` label, 10.10 → 8.32. The instrument's own noise exceeded the difference being attributed to the change. `sweep-ink --compare a b --noise twice` labels every delta against a measured floor and refuses to call anything a regression without one. (H3c, wired H4.1)
+- **V9. SVG TEXT PAINTS WITH `fill`, AND AN SVG `className` IS AN `SVGAnimatedString`.** Reading `.color` on an `<svg><text>` returns an inherited value it never painted; `.className.trim()` and `.split()` both THROW, so an enumerator walking a mixed tree dies or silently drops every SVG node. `tools/pixel-contrast.mjs` exports `inkColorOf()` and `classListOf()` so every harness shares one definition. (H3b, wired H4.1)
+
+### CSS reaching where it should not
+
+- **V10. A v1 GROUND-BRANCH INK RULE MUST NOT OUTRANK A v2 CONTAINER'S OWN INK.** Four instances in one arc. A tile declares its own ink *because* it does not change with the ground, so a ground rule winning inside one has overruled a decision already made. Enforced in `check-button-specificity.mjs` on RANK, and only for the shape that can actually reach — one compound after the `html` qualifier, no ancestor to confine it. A ground rule that names an ancestor cannot leave it, and reporting those pairs teaches people to ignore the gate. (H1b / FIX-2 / H3a, enforced H4.2)
+- **V11. WHEN A STATE ARRIVES BY AN EXPLICIT CLASS FROM THE RENDER, A CSS GUARD ON THE DESCENDANT RULE IS NOT ON THE PATH.** Guarding `.cmp-tile.is-paused .cmp-eyebrow` with `:not(:has(.cmp-ring))` changed nothing, because the amber arrives through `cmp-eyebrow-paused`, a class the render adds. Guarding one of two painting paths changes nothing. Put the condition where the render already has it. (H4.0)
+
+### And two about assertions
+
+- **V12. AN ASSERTION CAN FIRE ON ITS OWN PROSE.** Three did in one round: `'======='` matched a comment banner of equals signs; `.cmp-btn-primary` matched the comment explaining its retirement; `:has(` matched the comment explaining its removal. **Strip comments before asserting on source, and anchor to line start.** This is M5 from the other side — there, a string inside a comment is invisible to a sweep FOR it; here, it makes a clean file look dirty. (H4.0, H4.2)
+- **V13. A CAPABILITY CAN BE WRITTEN, SELF-TESTED AND NEVER CALLED.** `cssUrlRefs()` was added to `tools/lib/package-sources.mjs` by the same commit that put `fonts/` in the allowlist, with a header predicting the exact failure — and `verify-package.mjs` never imported it. **Every build since then failed and discarded its zip**, and nobody built for four days. Six CSS rows passed in the gate's own self-test the whole time, which is what made it invisible: the reader was tested, the WIRING was not. Same shape as the `importers.js` allowlist miss. **A self-test proving a function works is not evidence that anything calls it.** (H0, found H4.3)
+
+---
+
 ## Known Limitations
 
 Accepted bugs and constraints we're not planning to fix. Format: date, area, description, reasoning.

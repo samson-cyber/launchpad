@@ -137,6 +137,23 @@ LaunchPad uses **two distinct, parallel numbering tracks**. They look alike but 
 - `i18n.js` — Message catalogue engine: `t()` plain text, `th()` HTML-escaped, `Intl.PluralRules`, locale negotiation. DOM-free on purpose, because it also loads in the service worker
 - `locales/en.js` — The UI catalogue, ~440 messages, each with a description
 - `i18n-dom.js` — The `data-i18n` pass over static markup. Replaces the text NODE, never `textContent`, so inline icons survive
+- **THE COMPANION RULE — "no token defined in `newtab.css`", NOT "no `--sat-*`".**
+  `companion.html` and `side-panel.html` link `tokens.css` and `companion.css`
+  and nothing else, so a companion rule may use any token **tokens.css** defines
+  and none that only **newtab.css** defines. `--sat-amber` is at `:root` in
+  tokens.css and is the product's single source for amber, so it is legal and
+  the pause signal depends on it; `--sat-accent` lives in newtab.css and would
+  resolve to nothing. The `--sat-` PREFIX is not the test and a rule written
+  that way would have deleted a working signal (H4.0). `check-bg-queue` enforces
+  the real test: every custom property companion.css uses must be defined in the
+  layer it loads.
+- **THE ORPHAN SWEEP RUNS ON EVERY COMPANION ROUND.** `tools/check-cmp-orphans.mjs`
+  is gate 25 (0.105s): every `.cmp-` class the two documents EMIT must have a
+  rule, and every rule must have an emitter. Those are the two drifts a restyle
+  always produces and nothing else in the build can see either — an emitted
+  class with no rule renders unstyled with no error, and a rule with no emitter
+  is dead CSS the next token sweep has to chase. It found a real one on its
+  first run.
 - `privacy-policy.html` — **Two copies, in two repos, and they must say the same thing.** The published one is `launchpad-website/privacy-policy.html`, served at `https://mylaunchpad.me/privacy-policy` — that is the URL the product links to and the one the Chrome Web Store listing points at. The extension's own copy ships inside the zip (it is in `build.sh`'s allowlist as `EXPECTED_UNREFERENCED`, so no gate notices it rotting). **The two files are deliberately NOT byte-identical** — the website copy is a page on a site with a header, a footer and `styles.css`, the bundled copy is standalone with inline CSS — but the prose between `<div class="container-prose">` and its `</div>` IS byte-identical, including indentation, and that is the invariant to check. *(This line read "Hosted via GitHub Pages at `https://samson-cyber.github.io/launchpad/privacy-policy.html`" until 2026-09-16. That URL returns 404 and the product's in-app Privacy-policy link pointed at it; the bundled copy had meanwhile drifted five months behind the published one. An unreferenced file with no gate and a docs line nobody rechecks is how both happened.)*
 - `build.sh` — ZIP packaging script (with clean-tree guard)
 
@@ -325,6 +342,27 @@ Chat's name, on Asana 1218038664501728. Claude Chat's correction sits directly
 beneath it and **the offending comment was deliberately left in place** - deleting
 it would have hidden that this happened, which is the same instinct the rule
 exists to prevent.
+
+**AN `IMPLEMENTATION` COMMENT IS NOT COMPLETE WITHOUT THE PUSH LINE.** Adopted
+2026-09-22 after three verified rounds were lost. Its FIRST line states
+`origin/master`'s hash and `ahead 0` — or, if the work did not go anywhere, the
+first word is **UNPUSHED** and the reason follows.
+
+**WHY THAT LINE AND NOT A LONGER RULE.** Between 2026-09-17 and 2026-09-19,
+`0b3ba2e`, `e597640` and `db82b58` were each built, verified and REVIEW-accepted,
+and each stayed on one branch. Every report said so in passing — "this commit is
+NOT pushed" sits inside all three — and the header check and the pull-main-last
+rule were both in force. Neither caught it, because both are things the author
+does and neither is a thing the READER sees first. The line that catches it is
+the one the reviewer reads before anything else. H2c was even accepted with the
+words "UNPUSHED - push it", and it still was not.
+
+**ONE PROMPT PER CLAUDE CODE SESSION.** A round's brief goes to ONE session and
+is not pasted into a second window. Two sessions on one brief produce two
+worktrees on the same files, and the loser's work is invisible until someone
+diffs the branches — which is how the three commits above accumulated. If a
+round is too large for one session, SPLIT THE BRIEF at a stated boundary and say
+so in the comment, as H1c did.
 
 **ONE PRACTICAL NOTE ON ATTRIBUTION.** Every comment reaches Asana through
 Samson's API token, so the API's author field says "Samson Stephens" on all of
