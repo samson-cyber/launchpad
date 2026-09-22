@@ -171,8 +171,20 @@ if (inspected !== GUARDED.length) {
 // Scoped to the gradient declarations themselves: an unscoped search for
 // "var(--accent)" matches the whole sheet and would pass on anything.
 const gradients = S.match(/linear-gradient\([^)]*--pro-identity[^)]*\)/g) || [];
+// THE FLOOR IS A CENSUS, AND ROUND FC MOVED THE POPULATION FROM 3 TO 2.
+// The tab-bar CTA chip was the third identity gradient. It is a BUTTON -
+// the one action on the free tier's chrome - and white on
+// --pro-identity-to (#6fb1ff) measured 2.17-2.47 against a 4.5 floor on
+// ALL FIVE grounds, so it took the action pair instead (--action fill,
+// --ink-on-action ink), which is DECISIONS 2026-09-18 ("never a second
+// action on the same view") and ROUND G's ruling 37 in the same week.
+//
+// THE FLOOR IS RE-BASELINED, NOT REMOVED. Its job is to stop "0 found, 0
+// violations" reading as clean if the tokens are ever inlined away; at 2
+// it still catches a drop to 1 or 0, which is every way that could
+// happen. What it must never become is 0.
 check("the Pro gradients are still painted from the identity tokens",
-  gradients.length >= 3, `found ${gradients.length}, expected at least 3`);
+  gradients.length >= 2, `found ${gradients.length}, expected at least 2`);
 check("no Pro gradient mixes the accent into the brand mark",
   gradients.every((g) => !/var\(\s*--accent/.test(g)),
   gradients.filter((g) => /var\(\s*--accent/.test(g))[0] || "");

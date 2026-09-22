@@ -476,16 +476,34 @@ html.bg-booting *::after {
   flex-shrink: 0;
 }
 
-.tab.gated {
-  opacity: 0.35;
-}
+/* ===== [ROUND FC] A LOCKED TAB IS STILL A TAB =============================
 
-.tab.gated:hover {
-  opacity: 0.5;
-}
+   Measured on the free tier, which no sweep had ever run against this surface:
+   the gated labels read 2.48 to 2.59 against a 4.5 floor on the dark grounds -
+   "Tasks", "Dashboard", "Insights", the three things a free user is being
+   invited to buy.
+
+   THE CAUSE IS AN OPACITY ON THE PARENT, NOT AN INK. .tab already carries
+   opacity 0.7 and .tab.gated multiplied a second 0.35 onto it, so the label
+   landed at an effective 0.35 of white - and ROUND E's twin line says exactly
+   what to do about it: "Both opacities go; the step lives in the colour,
+   once." That round found the same shape on the locked achievement badges and
+   its own first pass made it worse by fixing the child under a dimmed parent.
+
+   SO THE LABEL KEEPS THE INACTIVE TAB'S INK TIER - .tab's own 0.7, unchanged,
+   which is what makes a locked tab read as a tab - and the LOCK GLYPH carries
+   the state at --ink-mute. It is a separate node (an aria-hidden stroke-only
+   SVG on currentColor), so the step can live there without touching the word
+   beside it. One signal, one place.
+
+   THE GLYPH IS A GRAPHIC, NOT TEXT: aria-hidden, no text content, so
+   sweep-ink's enumerator cannot see it at all and its floor is the 3:1
+   non-text one. Measured separately with pixel-contrast; the number is in the
+   IMPLEMENTATION. */
 
 .tab.gated .tab-lock {
   display: inline-block;
+  color: var(--ink-mute);
 }/* ===== Tab Panels ===== */
 
 
@@ -8148,10 +8166,35 @@ html.has-bg.bg-light .workspace-readonly-banner {
   font-weight: 600;
   letter-spacing: 0.2px;
   cursor: pointer;
-  color: #fff;
-  background: linear-gradient(135deg, var(--pro-identity-from) 0%, var(--pro-identity-to) 100%);
-  box-shadow: 0 1px 4px rgba(74, 144, 226, 0.45);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  /* [ROUND FC] THE ACTION PAIR, BECAUSE THE DOM SAYS THIS IS AN ACTION.
+
+     #tab-cta is a <button type="button"> with an aria-label, driven through
+     states A-F by applyCtaState; the catalogue entry for its own string says
+     it outright - "the tab-bar CTA chip [...] where it is both the visible
+     label and the accessible name". It labels nothing; it is the one thing to
+     do on the free tier's chrome. So it takes the action pair rather than a
+     tile ink, and DECISIONS' 2026-09-18 entry is why there is no third
+     option: "action orange is the one thing to do [...] Never a second action
+     on the same view."
+
+     WHITE ON THE IDENTITY GRADIENT WAS THE DEFECT. --pro-identity-to is
+     #6fb1ff, and white on it measured 2.17 to 2.47 - under floor on ALL FIVE
+     grounds, not only the dark ones, because the chip has no light-ground
+     branch and never needed one to be wrong. Orange takes dark ink, which is
+     what --ink-on-action is for and what the token's own comment says.
+
+     EVERY VALUE HERE IS A SIBLING'S, taken from .tt2-action - the Tasks
+     header's one action - verbatim: the fill, the ink, --action-soft on
+     hover, and no shadow of either kind. The text-shadow went with the white:
+     it existed to lift light ink off a mid-blue, and under dark ink on orange
+     it only takes contrast away. The box-shadow was the identity blue and
+     would have been the one thing on the bar still arguing for it.
+
+     THE OTHER THREE STATES ARE UNTOUCHED: .tab-cta-trial, .tab-cta-pro and
+     .tab-cta-teaser each set their own colour and background, checked one by
+     one, so none of them inherits this ink. */
+  color: var(--ink-on-action);
+  background: var(--action);
   position: relative;
   white-space: nowrap;
   transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
@@ -8167,8 +8210,9 @@ html.has-bg.bg-light .workspace-readonly-banner {
   background: var(--surface-line);
 }
 
+/* [ROUND FC] --action-soft on hover, .tt2-action's own hover, verbatim. */
 .tab-cta:hover {
-  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.6);
+  background: var(--action-soft);
 }
 
 .tab-cta:active {
