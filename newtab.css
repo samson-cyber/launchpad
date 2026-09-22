@@ -19122,6 +19122,154 @@ html.has-bg.bg-light .mode-preset-note { color: var(--text-secondary); }/* =====
 }/* Narrow: the columns wrap rather than squeezing. The subject grouping survives
    because each column keeps its own tiles together. */@media (max-width: 1100px) { .settings-tiles { flex-wrap: wrap; } .set-col { flex: 1 1 320px; } }@media (max-width: 760px) { .set-col { flex: 1 1 100%; } }
 
+/* =========================================================================
+   [ROUND A] THE SETTINGS TILE DECLARES ITS OWN INK.
+
+   FOURTEEN CLASSES PAINTED DARK INK ON A DARK TILE under a light wallpaper -
+   25 nodes between 1.12 and 2.64:1 against a 4.5 floor, which is invisible
+   rather than dim. They carry v1's light-branch values, written when a light
+   wallpaper meant a WHITE card; H1c rebuilt this panel as v2 tiles, and H1a
+   ruled that on a light ground the tint's ALPHA rises while the inks do not
+   move. So a tile is dark on every ground, and ink chosen for white is wrong
+   on all of them.
+
+   THE TOKENS ARE RE-POINTED ON THE TILE, WHICH IS WHY THIS IS THREE LINES AND
+   NOT FOURTEEN RULES. --text-primary / --text-secondary / --text-hint are
+   defined ONLY at :root in tokens.css, as v1's white-card values, with no
+   dark-ground override anywhere in the product. A descendant reading
+   var(--text-primary) resolves it on ITSELF and inherits the nearest
+   definition - so declaring them here reaches every class that goes through
+   them, on every ground, without a single ground selector and without
+   out-ranking anything.
+
+   AND IT REACHES STATES A SWEEP CANNOT. Seven .settings-btn nodes are
+   unmeasurable on this surface: four sit in the collapsed licence sub-form at
+   0x0, one inside a closed .set-fold, the rest below the fold at capture.
+   They are the same class and the same ink as the three that DO measure, at
+   1.31-1.49, so inheritance fixes them by construction where a per-node fix
+   would have missed them.
+   ========================================================================= */
+.set-tile {
+  /* THE MUTE IS LIFTED HERE TOO, and this is the case H4.2c deferred in
+     writing. That round lifted --ink-mute to #cfc5bc on dark frost and scoped
+     it `html.has-bg:not(.bg-light)`, noting that whether the light ground was
+     a latent defect "is a question for the per-node measurement, not for this
+     edit". Measured: inside this tile on a light wallpaper the unlifted
+     #a89c93 leaves six nodes between 1.97 and 4.11.
+
+     The reason is the same one this whole block rests on - a v2 tile is dark
+     on EVERY ground, so it wants the dark-frost mute on every ground. Taken on
+     the tile rather than by widening H4.2c's rule, which would reach the v1
+     cards that legitimately go white-tinted and that this round does not own. */
+  --ink-mute: #cfc5bc;
+
+  --text-primary: var(--ink);
+  --text-secondary: var(--ink-mute);
+  --text-hint: var(--ink-faint);
+}
+
+/* ----- the seven that carry LITERALS, and cannot be reached by a token -----
+
+   SCOPED `.tile.set-tile` RATHER THAN `.set-tile`, deliberately. These
+   sections ship as class="tile tile--list set-tile", so they ARE .tile
+   elements, and check-button-specificity's container rule matches on the
+   selector STRING containing ".tile". Written as `.set-tile` every rule below
+   would be invisible to that gate - ".set-tile" does not contain ".tile" as a
+   substring - and the panel would stay outside the protection H4.2e added.
+   Written this way it is both true and visible.
+
+   All three grounds are named, as H3a did for .tt-modal, because the v1 rules
+   these outrank are themselves ground-scoped at (0,3,1). */
+.tile.set-tile .pws-name,
+.tile.set-tile .pws-name-input,
+.tile.set-tile .pws-add-input,
+html.has-bg .tile.set-tile .pws-name,
+html.has-bg .tile.set-tile .pws-name-input,
+html.has-bg .tile.set-tile .pws-add-input,
+html.bg-light .tile.set-tile .pws-name,
+html.bg-light .tile.set-tile .pws-name-input,
+html.bg-light .tile.set-tile .pws-add-input,
+html.has-bg.bg-light .tile.set-tile .pws-name,
+html.has-bg.bg-light .tile.set-tile .pws-name-input,
+html.has-bg.bg-light .tile.set-tile .pws-add-input { color: var(--ink); }
+
+/* The row's own affordances - the drag handle, the two deletes, the tag
+   remove. They were rgba(0,0,0,0.35-0.66), which is a quiet mark ON WHITE and
+   nothing at all on this tile. The muted ink is the tier they belong to. */
+.tile.set-tile .pws-drag-handle,
+.tile.set-tile .pws-delete,
+html.has-bg .tile.set-tile .pws-drag-handle,
+html.has-bg .tile.set-tile .pws-delete,
+html.bg-light .tile.set-tile .pws-drag-handle,
+html.bg-light .tile.set-tile .pws-delete,
+html.has-bg.bg-light .tile.set-tile .pws-drag-handle,
+html.has-bg.bg-light .tile.set-tile .pws-delete { color: var(--ink-mute); }
+
+/* THE TAG DELETE IS ONE TIER BRIGHTER THAN ITS TWO SIBLINGS, and the reason is
+   the floor rather than emphasis. It is a 🗑 glyph, which the sweep classifies
+   as TEXT - so it carries the 4.5 floor, not the 3:1 a non-text control would -
+   and at the muted tier it measured 3.25 where the drag handle and the × both
+   clear. That it responds to colour at all was checked first: rgba(0,0,0,0.66)
+   read 1.29 and #cfc5bc read 3.25, so the glyph is tinted rather than painted
+   by the emoji font and the shortfall is a tier choice. */
+.tile.set-tile .pro-tag-delete,
+html.has-bg .tile.set-tile .pro-tag-delete,
+html.bg-light .tile.set-tile .pro-tag-delete,
+html.has-bg.bg-light .tile.set-tile .pro-tag-delete { color: var(--ink); }
+
+/* The tracking checkbox's own label, which has no class of its own and so
+   reached the sweep as a bare node at rgba(0,0,0,0.8).
+
+   BOTH FORMS OF IT. `.pws-add-tracking` is the add-workspace form and
+   `.pws-tracking` is the toggle on each existing workspace row; the v1 light
+   branch gives both the same rgba(0,0,0,0.8), and the first pass here covered
+   only the first. The probe is what told them apart - the add form's span read
+   rgb(243,237,230) while the row's was still dark. */
+.tile.set-tile .pws-add-tracking input:checked + span,
+.tile.set-tile .pws-tracking input:checked + span,
+.tile.set-tile .pro-workspace-row:hover .pws-tracking,
+html.has-bg .tile.set-tile .pws-add-tracking input:checked + span,
+html.has-bg .tile.set-tile .pws-tracking input:checked + span,
+html.has-bg .tile.set-tile .pro-workspace-row:hover .pws-tracking,
+html.bg-light .tile.set-tile .pws-add-tracking input:checked + span,
+html.bg-light .tile.set-tile .pws-tracking input:checked + span,
+html.bg-light .tile.set-tile .pro-workspace-row:hover .pws-tracking,
+html.has-bg.bg-light .tile.set-tile .pws-add-tracking input:checked + span,
+html.has-bg.bg-light .tile.set-tile .pws-tracking input:checked + span,
+html.has-bg.bg-light .tile.set-tile .pro-workspace-row:hover .pws-tracking { color: var(--ink); }
+
+/* And the label around them, which the light branch sets to rgba(0,0,0,0.5). */
+.tile.set-tile .pws-tracking,
+.tile.set-tile .pws-add-tracking,
+html.has-bg .tile.set-tile .pws-tracking,
+html.has-bg .tile.set-tile .pws-add-tracking,
+html.bg-light .tile.set-tile .pws-tracking,
+html.bg-light .tile.set-tile .pws-add-tracking,
+html.has-bg.bg-light .tile.set-tile .pws-tracking,
+html.has-bg.bg-light .tile.set-tile .pws-add-tracking { color: var(--ink-mute); }
+
+/* ONE RED PER PRODUCT (H4's ruling). #b3261e was chosen for a light plate and
+   measured 5.95 there; on this tile it reads 2.15. --ink-on-overdue is the
+   rose every other destructive control in the v2 language already uses - the
+   Tasks menu's Delete, the sidebar menu's, the variant menu's - so this is the
+   fourth place it lands rather than a fifth red. */
+.tile.set-tile .settings-btn-danger,
+html.has-bg .tile.set-tile .settings-btn-danger,
+html.bg-light .tile.set-tile .settings-btn-danger,
+html.has-bg.bg-light .tile.set-tile .settings-btn-danger { color: var(--ink-on-overdue); }
+
+/* THE PRIVACY LINK KEEPS THE PANEL'S OWN LINK INK, and that is a correction to
+   the obvious answer rather than an omission. --action is the one ACTION
+   colour and this is not an action - it is a link, and this panel already has
+   a ruled ink for one: #8ab4f8, which newtab.css names twice as "the existing
+   on-dark precedent" and "the panel's established link ink". Every other dark
+   surface in the panel gives it that value; only the light branch sent it back
+   to v1's #1a73e8, which is the bug. */
+.tile.set-tile #pro-settings-privacy-link,
+html.has-bg .tile.set-tile #pro-settings-privacy-link,
+html.bg-light .tile.set-tile #pro-settings-privacy-link,
+html.has-bg.bg-light .tile.set-tile #pro-settings-privacy-link { color: #8ab4f8; }
+
 .set-tile {
   /* A settings tile is as tall as its rows. The component's default is
      space-between, which would push the last row to the bottom of whatever
