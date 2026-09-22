@@ -16469,6 +16469,41 @@ html.has-bg.bg-light .focus-block-inert { color: #8a6100; }/* Notes inside the r
 
 .fb-note-warn { color: var(--sat-amber, #f1c40f); }
 
+/* [ROUND F] THE QUIET DISMISS on the Casual-schedule offer, and it is the one
+   new element this round adds.
+
+   A LINK, NOT A SECOND BUTTON. The offer has one thing to do - switch the
+   workspace to Work - and that control already carries the action colour from
+   H3a's ordinary primary. Rendering the decline as a bordered button beside it
+   would put two controls of equal weight on a choice that is not equal, which
+   is the reason openTasksModal's own hideCancel note already gives for not
+   pairing a dismissing primary with a Cancel.
+
+   IT IS STILL A <button>. It performs an action rather than navigating to a
+   document, so a link element here would lie to a keyboard and to a reader.
+
+   It sits in the BODY rather than the footer because the footer belongs to the
+   shared modal, which this round does not own. */
+.fb-casual-dismiss {
+  display: inline-block;
+  margin: var(--space-3) 0 0;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--ink-mute);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.fb-casual-dismiss:hover { color: var(--ink); }
+.fb-casual-dismiss:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
 html.has-bg.bg-light .fb-note { color: rgba(0, 0, 0, 0.62); }/* MEASURED AT 4.39:1 AT #8a6100 - under the floor, and only on this ground,
    because the light-wallpaper floater is white-tinted rather than white and an
    amber that clears 4.5 on paper does not clear it here. Darkened until it

@@ -4664,6 +4664,27 @@ I18n.register("en", {
       "message": "Runs only when this workspace is in Work mode.",
       "sense": "note.explanation"
     },
+
+    "focusblock_casual_offer_title": {
+      "description": "Title of the dialog shown AFTER a schedule is saved on a Casual workspace (ROUND F, product decision 2026-09-22, option 2). It leads with the reassuring fact rather than the problem: the rule IS saved, unconditionally, and a title that opened with the mode would read as a refusal. The body carries the condition and the buttons carry the offer.",
+      "message": "Your schedule is saved",
+      "sense": "dialog.title"
+    },
+    "focusblock_casual_offer_body": {
+      "description": "The one factual line in that dialog. Names the workspace, states the mode, states the consequence, and points at the remedy the button beside it performs - in that order, so a user who dismisses still leaves knowing why. Sibling of focusblock_schedule_mode_note and dash_reminders_work_only; keep the verb 'run' consistent with the first and the 'in Work mode' phrasing consistent with both. NOT a warning: Casual is a legitimate state and the rule is correctly saved either way.",
+      "message": "{workspaceName} is in Casual mode, so this schedule will not run until you switch it to Work.",
+      "sense": "dialog.body"
+    },
+    "focusblock_casual_offer_switch": {
+      "description": "The action button on that dialog. Flips the ACTIVE workspace to Work through WM.1's writer. Names the destination mode rather than the act ('Switch to Work', not 'Switch mode'), because the user has just been told what Work is for.",
+      "message": "Switch to Work",
+      "sense": "button.action"
+    },
+    "focusblock_casual_offer_dismiss": {
+      "description": "The quiet dismiss on that dialog, rendered as a LINK rather than a second button so the one coloured control is the one that acts. Declines the offer and changes nothing; the schedule stays saved and stays dormant. Deliberately not 'Cancel' - there is nothing to cancel, the save already happened.",
+      "message": "Not now",
+      "sense": "button.dismiss"
+    },
     "focusblock_budget_mode_note": {
       "description": "Shown under the budget controls, always, and it exists to be READ AGAINST the schedule note beside it. A budget deliberately sits OUTSIDE mode (WM.3: a limit the user set for themselves, which a mode switch must not silently spend or restore), so the doomscroll case still works in a Casual workspace. Without this line the schedule note would imply, by its silence here, that every rule is mode-governed.",
       "message": "Runs in any mode.",

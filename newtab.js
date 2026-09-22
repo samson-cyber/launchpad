@@ -13803,7 +13803,102 @@
           return false;
         }
         renderFocusBlockingSection();
+
+        // [ROUND F] A SCHEDULE SAVED ON A CASUAL WORKSPACE CANNOT EVER FIRE,
+        // and until now nothing said so at the moment it happened.
+        //
+        // WORKSPACE_MODE_DEFAULT is "casual" and a schedule is mode-governed by
+        // the 2026-09-01 ruling, so the DEFAULT state of a freshly-written
+        // schedule is a rule that does nothing. That is the first-run path, not
+        // an edge case: it was diagnosed twice as something else - once as a
+        // timezone fault, once as a bug - and both times the workspace was
+        // Casual. The unconditional note under the editor states the property;
+        // it cannot tell a user they are in that state right now, and it cannot
+        // tell them the switch lives in the workspace dropdown rather than in
+        // Settings.
+        //
+        // RULED 2026-09-22, option 2 of four. The ruling STANDS (schedules stay
+        // mode-governed), the DEFAULT STANDS (Casual, so nothing ships armed),
+        // and the cost is one dialog on one path. The two rejected options are
+        // worth naming because they will be proposed again: reversing the
+        // ruling would make Casual stop meaning "none of the discipline", which
+        // was the mode's whole definition; flipping the default would arm every
+        // existing profile on update.
+        //
+        // THE RULE IS SAVED FIRST AND UNCONDITIONALLY. This is an offer, never
+        // a gate - the save above has already happened and is not contingent on
+        // the answer. That is also why the dialog's title leads with "saved".
+        //
+        // SCHEDULE ONLY. A budget sits outside mode entirely (WM.3, and the
+        // editor's own counterpart note says so), so it must not raise this.
+        // Session rules are left alone deliberately: they are governed by
+        // whether a session is running rather than by the schedule clock, and
+        // widening this dialog to them is a ruling nobody has made.
+        //
+        // ONCE PER SAVE, NOT ONCE PER SESSION. No suppression flag and nothing
+        // persisted: a user who saves two Casual schedules is told twice,
+        // because each one is a separate rule that will not run. A "don't show
+        // again" would be a setting that silences a fact.
+        if (mode === "schedule") {
+          var fbWs = Storage.getActiveWorkspace(data);
+          if (fbWs && Storage.getWorkspaceMode(fbWs) !== "work") {
+            fbOfferWorkMode(fbWs);
+            // FALSE, NOT TRUE, AND IT IS NOT A REFUSAL. openTasksModal is
+            // SINGLE-INSTANCE: fbOfferWorkMode has already closed this editor
+            // and put its own dialog in tasksModalEl. Returning true would send
+            // the primary handler on to closeTasksModal(), which would close
+            // the offer a millisecond after opening it.
+            return false;
+          }
+        }
         return true;
+      }
+    });
+  }
+
+  // [ROUND F] THE OFFER. One factual line, one action, one quiet dismiss.
+  //
+  // hideCancel AND THE DISMISS IN THE BODY, which is the only part of this that
+  // is not the product's ordinary confirm. The ruling puts the action colour on
+  // the switch and makes the dismiss a LINK, and the shared footer renders
+  // Cancel as a bordered button beside the primary - two controls of equal
+  // weight for a choice that is not equal. hideCancel is openTasksModal's own
+  // supported path (its comment: "Hiding the BUTTON never removes a way out:
+  // the X, the overlay click and Escape all route through doCancel"), so the
+  // dialog keeps three dismissal routes and gains a fourth that reads as the
+  // lighter half of the pair.
+  //
+  // THE FLIP GOES THROUGH setWorkspaceModeFromSwitcher, which is WM.1's writer
+  // reached the one way the rest of this file reaches it - "one path, not two
+  // that can drift". It owns the saveAll, the dropdown refresh, the phase
+  // repaint and the toast, and none of those are re-implemented here.
+  //
+  // NOTHING IS ADDED ANYWHERE ELSE. The mode chip's Casual-is-absence ruling
+  // stands, so there is no new indicator on Home, in the sidebar, or on the
+  // pill - which no longer exists in any case.
+  function fbOfferWorkMode(ws) {
+    var wsName = ws.name || ws.id;
+    openTasksModal({
+      title: t("focusblock_casual_offer_title"),
+      bodyHtml:
+        '<p class="tt-modal-message">' +
+          th("focusblock_casual_offer_body", { workspaceName: wsName }) +
+        '</p>' +
+        '<button type="button" class="fb-casual-dismiss" data-fb-casual-dismiss>' +
+          th("focusblock_casual_offer_dismiss") +
+        '</button>',
+      primaryLabel: t("focusblock_casual_offer_switch"),
+      hideCancel: true,
+      onMounted: function (overlay) {
+        var dismiss = overlay.querySelector("[data-fb-casual-dismiss]");
+        if (dismiss) {
+          dismiss.addEventListener("click", function () { closeTasksModal(); });
+        }
+      },
+      onPrimary: async function () {
+        await setWorkspaceModeFromSwitcher(ws.id, "work");
+        // Returning nothing lets the primary handler close this dialog, which
+        // is what a completed offer should do.
       }
     });
   }
