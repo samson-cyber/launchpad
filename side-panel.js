@@ -12,9 +12,13 @@
 //
 // WHAT DIFFERS FROM THE POPUP SHELL, and it is exactly two things:
 //
-//   1. `showDueList: true`. A panel has HEIGHT and a popup does not. Decision A
-//      spends it on the due list; see the module's own comment for why that
-//      list and not another.
+//   1. `showDueList: true` and `showControls: true`. A panel has HEIGHT and a
+//      popup does not. Decision A spends it on the due list; see the module's
+//      own comment for why that list and not another. [BELL-PANEL] spends what
+//      was still void beneath it on the three daily controls - the mode
+//      segment, reminders, tracking - after the design-pack census measured
+//      this surface at 900px and found roughly two thirds of it empty. Both are
+//      OPTIONS rather than branches, so the popup is untouched by either.
 //   2. The teardown. A popup is destroyed by Chrome when it closes and gets no
 //      lifecycle event worth trusting, so it leans on pagehide. A panel can
 //      stay open for hours and is closed by the user, so it ALSO listens for
@@ -55,7 +59,25 @@
   // glance at and dismiss - and that ruling stands. This panel is pinned open
   // beside the work, and since the active-task pill was removed it is the only
   // surface in the product that can start a focus session at all.
-  var view = Companion.mount(root, { showDueList: true, showSessionControls: true });
+  //
+  // [H4.0] AND IT ASKS FOR THE THREE DAILY CONTROLS, which are a DIFFERENT
+  // FEATURE with a name one word away. e597640 called them `showControls`;
+  // beside FIX-6's `showSessionControls` that reads as the same option, and a
+  // future round resolving them by picking one would drop the other in silence
+  // - which is exactly how this pair arrived here in the first place. Renamed
+  // to showDailyControls. A mount option is never rendered, so the rename
+  // reaches nothing but this call and companion.js's reader.
+  //
+  //   showSessionControls -> Start / Stop, the blocking arm, the countdown
+  //   showDailyControls   -> the mode segment, reminders, tracking
+  //
+  // The popup passes NEITHER (companion-popup.js mounts with {}), which is the
+  // standing ruling on that surface and is asserted by its own drive.
+  var view = Companion.mount(root, {
+    showDueList: true,
+    showSessionControls: true,
+    showDailyControls: true
+  });
 
   // [1.9.4] THE DRIVE HANDLE, for the reason the popup shell states: a harness
   // must drive the view THIS FILE mounted, not one of its own, because two

@@ -99,6 +99,12 @@ var Companion = (function () {
     // It is also, since the pill was removed, the only surface that can START
     // a focus session at all.
     var wantControls = !!(opts && opts.showSessionControls);
+    // [H4.0] AND A SECOND, SEPARATE OPT-IN FOR THE THREE DAILY CONTROLS.
+    // e597640 spelled this `showControls` and read it into a variable also
+    // called wantControls - so re-applying it on top of FIX-6 collided on both
+    // names at once. They are different features and the panel wants both;
+    // the popup passes neither, which is the standing ruling on that surface.
+    var wantDaily = !!(opts && opts.showDailyControls);
     var data = await Storage.getAll();
     var level = ProAccess.getProAccessLevel(data);
     var pro = ProAccess.isProAccessibleLevel(level);
@@ -206,26 +212,82 @@ var Companion = (function () {
       //
       // SNOOZED ROWS ARE EXCLUDED. A snooze is the user saying "not today", and
       // a surface that keeps showing it has not heard them.
-      due: null
+      due: null,
+      // [BELL-PANEL, renamed in H4.0] The three daily controls, read only where
+      // they are shown. Absent on the popup, which has no height to put them in.
+      //
+      // THIS LINE SAID `controls: null` AND IT WAS A DUPLICATE KEY. FIX-6's
+      // session controls are declared `controls:` earlier in THIS SAME literal,
+      // so the re-apply gave one object two `controls` keys and the last one
+      // won: st.controls was null everywhere, which silently removed Start,
+      // Stop, the blocking arm AND every due row's play glyph while the list
+      // above them rendered perfectly. Git reported no conflict and node
+      // --check no error.
+      daily: null
     };
 
     if (wantDue) {
       try {
         var work = Storage.getDueWork(data);
         var live = (work.items || []).filter(function (it) { return !it.snoozed; });
+        // ORDERED BY KIND BEFORE THE CAP, WHICH IS THE PART THAT MATTERS.
+        // getDueWork pushes rows in due-day order, so a flat slice(0, 6) took
+        // whichever six came first and could drop an overdue row to show a
+        // recurring one. The bell renders overdue -> today -> recurring, so the
+        // panel sorts into that order FIRST and caps afterwards: the six it
+        // shows are now the six the bell shows first, and "3 more" is the same
+        // tail. Stable within a kind, because sort() is stable and the input is
+        // already the bell's own order.
+        var rank = { overdue: 0, today: 1, recurring: 2 };
+        var ordered = live.slice().sort(function (a, b) {
+          return (rank[a.kind] == null ? 9 : rank[a.kind]) - (rank[b.kind] == null ? 9 : rank[b.kind]);
+        });
         st.due = {
           total: live.length,
-          items: live.slice(0, DUE_LIST_MAX).map(function (it) {
-            // [FIX-7] ws RIDES ALONG. getDueWork has always returned it and
-            // this map dropped it, which was fine while the list was a reading
-            // surface and is not now: activating a task needs the workspace it
-            // lives in, and a due row can be from any of them.
+          // [H4.0] e597640's `ordered` REPLACES master's `live` here - that is
+          // the whole point of the kind-sort above, and slicing `live` would
+          // have left the sort computed and unused, which is the defect
+          // e597640 was written to fix still present with a comment claiming
+          // otherwise.
+          items: ordered.slice(0, DUE_LIST_MAX).map(function (it) {
+            // [FIX-7] ws RIDES ALONG, AND e597640 DROPPED IT - it predates the
+            // rows being actionable. Kept: activating a task needs the
+            // workspace it lives in, and a due row can be from any of them.
             return { id: it.taskId, name: it.name, kind: it.kind, ws: it.workspaceId };
           })
         };
       } catch (err) {
         console.error("[LaunchPad] Companion: due-work read failed", err);
         st.due = { total: 0, items: [] };
+      }
+    }
+
+    // [BELL-PANEL] THE THREE DAILY CONTROLS, READ THROUGH STORAGE'S OWN
+    // READERS. Mode and tracking are per-workspace and hang off the ACTIVE
+    // workspace - the same one getDueWork scopes to, so the panel never mixes
+    // one workspace's due list with another's switches. Reminders is a settings
+    // flag and is global, which is why it has no workspace beside it.
+    // [H4.0] st.daily, NOT st.controls - AND THIS ONE AUTO-MERGED WITHOUT A
+    // CONFLICT, which is why it is worth a note. FIX-6 put the SESSION controls
+    // on st.controls; this block assigned the DAILY controls to the same
+    // property, later in the same function, so on the side panel it overwrote
+    // them. sessionControlsHtml would have read c.arm and c.running off an
+    // object carrying neither and rendered nothing, while FIX-7's
+    // `!!st.controls` stayed truthy and kept drawing the play glyphs. Two
+    // features, two shapes, one name: separated here rather than sequenced.
+    if (wantDaily) {
+      try {
+        var cws = Storage.getActiveWorkspace(data);
+        st.daily = cws ? {
+          workspaceId: cws.id,
+          workspaceName: cws.name || cws.id,
+          mode: Storage.getWorkspaceMode(cws),
+          tracking: Storage.isTrackingEnabled(cws),
+          reminders: Storage.getDueRemindersEnabled(data)
+        } : null;
+      } catch (err) {
+        console.error("[LaunchPad] Companion: daily-controls read failed", err);
+        st.daily = null;
       }
     }
 
@@ -310,11 +372,25 @@ var Companion = (function () {
   // so a stray click is MORE likely, not less. So the rows show what is due and
   // the route below the card is still the one way to act on it.
   //
-  // THE KIND IS A WORD, NOT A COLOUR. Overdue is the only kind that differs
-  // from "today" in any way that matters here, and saying it in text means the
-  // row does not depend on a hue to be read - which also keeps this surface out
-  // of the business of inventing a second urgency scale beside the trash
-  // countdown's.
+  // THE KIND IS A WORD, NOT A COLOUR - and after [BELL-PANEL] the word is a
+  // GROUP HEADING rather than a tag on the row, which is the bell's own shape.
+  // Saying it in text still means the row does not depend on a hue to be read,
+  // and it keeps this surface out of the business of inventing a second urgency
+  // scale beside the trash countdown's.
+  //
+  // [BELL-PANEL] THE HEADING, THE GROUPS AND THE WORD ARE THE BELL'S, REUSED
+  // RATHER THAN RESTATED. The census found the two surfaces naming one list two
+  // ways - the bell "Due work", the panel "Due now" - and the ruling is one
+  // word. These are the BELL'S catalogue keys (bell_due_work_label,
+  // bell_group_*), not new ones: a second string saying the same thing is the
+  // drift the ruling is about, one catalogue entry further down. An empty group
+  // is ABSENT rather than rendered empty, exactly as dueBellListHtml does it.
+  var DUE_GROUPS = [
+    { kind: "overdue",   key: "bell_group_overdue" },
+    { kind: "today",     key: "bell_group_today" },
+    { kind: "recurring", key: "bell_group_recurring" }
+  ];
+
   function dueListHtml(st) {
     if (!st.due) return "";
     if (!st.due.total) {
@@ -332,27 +408,42 @@ var Companion = (function () {
     //
     // st.controls IS THE PANEL FLAG, so the popup's rows stay exactly as they
     // were - reading surface, no controls, finding 3 intact.
+    //
+    // [H4.0] THE GLYPH NOW RIDES INSIDE e597640's GROUPS. The two versions of
+    // this function each built the <li> themselves - one grouped and inert,
+    // one flat and actionable - so neither could simply win: grouping without
+    // the glyph loses the only way to start work from this surface, and the
+    // glyph without grouping loses the one definition of due. The group walk
+    // is e597640's; the row's contents are FIX-7's.
+    //
+    // THE PER-ROW "Overdue" TAG IS GONE, and that is e597640's call kept
+    // deliberately: the group HEADING carries the word now, so the tag was the
+    // same fact printed twice on one line.
     var canStart = !!st.controls;
-    var rows = st.due.items.map(function (it) {
-      return '<li class="cmp-due-row">' +
-          (canStart
-            ? '<button type="button" class="cmp-due-play" data-cmp-act="due-start" ' +
-                'data-cmp-task="' + esc(it.id) + '" data-cmp-ws="' + esc(it.ws || "") + '" ' +
-                'title="' + esc(t("companion_start_on_task", { name: it.name })) + '" ' +
-                'aria-label="' + esc(t("companion_start_on_task", { name: it.name })) + '">\u25b6</button>'
-            : '') +
-          '<span class="cmp-due-name" title="' + esc(it.name) + '">' + esc(it.name) + '</span>' +
-          (it.kind === "overdue"
-            ? '<span class="cmp-due-kind">' + esc(t("companion_due_overdue")) + '</span>'
-            : "") +
-        '</li>';
+    var body = DUE_GROUPS.map(function (g) {
+      var rows = st.due.items.filter(function (it) { return it.kind === g.kind; });
+      if (!rows.length) return "";               // absent, never an empty group
+      return '<div class="cmp-due-group">' + esc(t(g.key)) + '</div>' +
+        '<ul class="cmp-due-list">' +
+          rows.map(function (it) {
+            return '<li class="cmp-due-row">' +
+                (canStart
+                  ? '<button type="button" class="cmp-due-play" data-cmp-act="due-start" ' +
+                      'data-cmp-task="' + esc(it.id) + '" data-cmp-ws="' + esc(it.ws || "") + '" ' +
+                      'title="' + esc(t("companion_start_on_task", { name: it.name })) + '" ' +
+                      'aria-label="' + esc(t("companion_start_on_task", { name: it.name })) + '">\u25b6</button>'
+                  : '') +
+                '<span class="cmp-due-name" title="' + esc(it.name) + '">' + esc(it.name) + '</span>' +
+              '</li>';
+          }).join("") +
+        '</ul>';
     }).join("");
     var more = st.due.total > st.due.items.length
       ? '<div class="cmp-due-more">' + esc(t("companion_due_more", { count: st.due.total - st.due.items.length })) + '</div>'
       : "";
     return '<div class="cmp-due">' +
-        '<div class="cmp-due-head">' + esc(t("companion_due_head", { count: st.due.total })) + '</div>' +
-        '<ul class="cmp-due-list">' + rows + '</ul>' +
+        '<div class="cmp-due-head">' + esc(t("bell_due_work_label", { count: st.due.total })) + '</div>' +
+        body +
         more +
       '</div>';
   }
@@ -388,6 +479,7 @@ var Companion = (function () {
           // I be doing" is exactly the question a user with no active task came
           // to this surface with.
           dueListHtml(st) +
+          controlsHtml(st) +
         '</div>';
     }
 
@@ -448,6 +540,7 @@ var Companion = (function () {
         '</div>' +
         actionsHtml(st) +
         dueListHtml(st) +
+        controlsHtml(st) +
       '</div>';
   }
 
@@ -548,6 +641,66 @@ var Companion = (function () {
       '</div>';
   }
 
+  // [BELL-PANEL] THE THREE DAILY CONTROLS, AND WHY THESE THREE.
+  //
+  // The census measured this panel at 900px and found the module and its list
+  // occupying about a third of it, with the rest void. The ruling spends that
+  // void on the three switches a user flips during a day rather than while
+  // configuring: the workspace's mode, whether reminders fire, and whether this
+  // workspace is tracked. Everything else in Settings is set once and left.
+  //
+  // THEY ARE NOT A SECOND IMPLEMENTATION OF ANYTHING. Each one reads through
+  // Storage's own reader and writes through Storage's own writer - the SAME
+  // functions the page's controls call. This file owns no mode logic, no
+  // reminder logic and no tracking logic, which is the one-writer rule and the
+  // reason a change here cannot disagree with the page.
+  //
+  // WHY BUTTONS AND NOT CHECKBOXES. The container already carries ONE delegated
+  // click listener, so a button-based switch needs no second listener and no
+  // change-event plumbing, and `role="switch"` with `aria-checked` gives a
+  // screen reader the same thing a checkbox would. It also keeps every control
+  // on this surface in one idiom.
+  //
+  // THE SEGMENT SAYS WHICH WORKSPACE IT IS ACTING ON, because mode and tracking
+  // are per-workspace and a panel that sits open for hours beside a page where
+  // the workspace can be switched must not look global. Reminders carries no
+  // workspace name for the same reason inverted: it IS global.
+  function controlsHtml(st) {
+    // [H4.0] st.daily - see the read above. This function is the DAILY controls
+    // (mode / reminders / tracking); sessionControlsHtml is the session ones.
+    if (!st.daily) return "";
+    var c = st.daily;
+    var seg = [
+      { mode: "work",   key: "wsmode_work" },
+      { mode: "casual", key: "wsmode_casual" }
+    ].map(function (o) {
+      var on = c.mode === o.mode;
+      return '<button type="button" class="cmp-seg-btn' + (on ? " is-on" : "") + '"' +
+          ' data-cmp-act="mode-' + o.mode + '" aria-pressed="' + (on ? "true" : "false") + '">' +
+          esc(t(o.key)) + '</button>';
+    }).join("");
+
+    function switchRow(label, on, action) {
+      return '<div class="cmp-ctl-row">' +
+          '<span class="cmp-ctl-label">' + esc(label) + '</span>' +
+          '<button type="button" class="cmp-switch' + (on ? " is-on" : "") + '"' +
+            ' role="switch" aria-checked="' + (on ? "true" : "false") + '"' +
+            ' data-cmp-act="' + action + '">' +
+            '<span class="cmp-switch-knob" aria-hidden="true"></span>' +
+          '</button>' +
+        '</div>';
+    }
+
+    return '<div class="cmp-controls">' +
+        '<div class="cmp-ctl-head">' + esc(c.workspaceName) + '</div>' +
+        '<div class="cmp-seg" role="group" aria-label="' +
+          esc(t("wsmode_group_label", { workspaceName: c.workspaceName })) + '">' + seg + '</div>' +
+        switchRow(t("prosettings_reminders"), c.reminders, "toggle-reminders") +
+        switchRow(t("settings_track_time_on_sites"), c.tracking, "toggle-tracking") +
+        '<p class="cmp-ctl-note" data-cmp-ctl-note hidden></p>' +
+      '</div>';
+  }
+
   // ---------------------------------------------------------------- mount
   //
   // THE CONTAINER IS A PARAMETER. [1.16.0] mounts this same module in the side
@@ -562,6 +715,10 @@ var Companion = (function () {
     // not argued from the shape of this default.
     var showDueList = !!options.showDueList;
     var showSessionControls = !!options.showSessionControls;
+    // [BELL-PANEL, renamed in H4.0] THE THIRD OPTION, and it is a separate one
+    // for the same reason the others are: the popup has no height to spend, so
+    // it passes nothing and renders exactly what it rendered before.
+    var showDailyControls = !!options.showDailyControls;
     var state = null;
     var timer = null;
     var stopped = false;
@@ -683,7 +840,11 @@ var Companion = (function () {
 
     async function render() {
       if (stopped) return;
-      state = await readState({ showDueList: showDueList, showSessionControls: showSessionControls });
+      state = await readState({
+        showDueList: showDueList,
+        showSessionControls: showSessionControls,
+        showDailyControls: showDailyControls
+      });
       state.readAt = Date.now();
       // [H3d] ARM BEFORE PAINT. chainSecs reads the state readState just built
       // and starts the clock the first time it sees a chaining boundary, so the
@@ -808,6 +969,88 @@ var Companion = (function () {
         // EAGER RE-RENDER, matching satSetPaused. The onChanged path would also
         // fire here, but waiting for a storage round trip to reflect a click the
         // user just made is the lag this surface can least afford.
+        await render();
+        return;
+      }
+
+      // [BELL-PANEL] THE THREE CONTROLS. `data` is re-read here for the reason
+      // stated above the pause branch - this is a foreign context and the object
+      // readState returned can be superseded between open and click.
+      //
+      // TWO OF THESE WRITERS ARE MUTATE-ONLY AND ONE SAVES ITSELF, and getting
+      // that backwards is silent either way. setWorkspaceMode and
+      // setTrackingEnabled are pure mutations on the in-memory object (J5 -
+      // Storage is stateless-by-argument), so the caller owns the saveAll;
+      // setDueRemindersEnabled awaits its OWN saveAll, so a saveAll after it
+      // would be a second write of the same object. The page's handlers make the
+      // same distinction, which is why this reads the way newtab.js reads.
+      if (action === "mode-work" || action === "mode-casual") {
+        try {
+          var modeData = await Storage.getAll();
+          var modeWs = Storage.getActiveWorkspace(modeData);
+          if (!modeWs) return;
+          // Returns false when the value is unchanged, so clicking the segment
+          // you are already on emits no write and no re-render.
+          if (!Storage.setWorkspaceMode(modeData, modeWs.id, action === "mode-work" ? "work" : "casual")) return;
+          await Storage.saveAll(modeData);
+        } catch (err) {
+          console.error("[LaunchPad] Companion: mode write failed", err);
+        }
+        await render();
+        return;
+      }
+
+      if (action === "toggle-tracking") {
+        try {
+          var trkData = await Storage.getAll();
+          var trkWs = Storage.getActiveWorkspace(trkData);
+          if (!trkWs) return;
+          Storage.setTrackingEnabled(trkData, trkWs.id, !Storage.isTrackingEnabled(trkWs));
+          await Storage.saveAll(trkData);
+        } catch (err) {
+          console.error("[LaunchPad] Companion: tracking toggle failed", err);
+        }
+        await render();
+        return;
+      }
+
+      if (action === "toggle-reminders") {
+        // THE PERMISSION IS REQUESTED FROM THIS GESTURE AND ONLY IN THE ON
+        // BRANCH, which is the shape newtab.js's #due-reminders-toggle already
+        // uses and the reason the phase-boundary toggle can share the same
+        // optional permission without either owning it. A click in a side panel
+        // IS a user gesture, so the request is allowed to prompt here.
+        //
+        // DENIED NEVER FLIPS THE FLAG. A reminders switch that reads ON while
+        // the browser will not deliver a notification is a surface telling the
+        // user something untrue, which is worse than the switch refusing to move.
+        try {
+          var remData = await Storage.getAll();
+          var turningOn = !Storage.getDueRemindersEnabled(remData);
+          if (turningOn) {
+            var granted = false;
+            try {
+              granted = await new Promise(function (resolve) {
+                chrome.permissions.request({ permissions: ["notifications"] }, function (g) { resolve(!!g); });
+              });
+            } catch (err2) {
+              console.error("[LaunchPad] Companion: permission request failed", err2);
+              granted = false;
+            }
+            if (!granted) {
+              var note = container.querySelector("[data-cmp-ctl-note]");
+              if (note) {
+                note.textContent = t("bind_notifications_permission_was_declined");
+                note.hidden = false;
+              }
+              return;
+            }
+          }
+          // Saves itself - no saveAll after this one.
+          await Storage.setDueRemindersEnabled(remData, turningOn);
+        } catch (err) {
+          console.error("[LaunchPad] Companion: reminders toggle failed", err);
+        }
         await render();
       }
     }
