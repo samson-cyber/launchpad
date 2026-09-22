@@ -88,6 +88,7 @@ import {
   norm,
   isGlob,
   localRefs,
+  cssUrlRefs,
   PARSER_FIXTURES,
   ALLOWLIST_FIXTURES,
   runParserSelfTest,
@@ -180,6 +181,33 @@ for (const page of shippedHtml) {
   if (!fs.existsSync(abs)) continue;
   htmlPagesParsed++;
   for (const p of localRefs(fs.readFileSync(abs, "utf8"))) addRef(p, `<${page}> src/href`);
+}
+
+// [H4.3] SHIPPED STYLESHEETS ARE READ TOO, AND THIS WAS THE MISSING HALF.
+//
+// H0 added `fonts` to the allowlist and wrote cssUrlRefs() in the same commit,
+// whose header states the problem exactly: "adding fonts/ to the allowlist
+// would have made three woff2 files allowed but never referenced ... The files
+// ARE referenced. The reader just could not read the language they are
+// referenced in." The reader was written, self-tested, and never called - so
+// every build since 2026-09-18 has FAILED and discarded its zip, and nobody
+// built until H4's packaged smoke.
+//
+// RESOLVED RELATIVE TO THE STYLESHEET, not to the repo root. tokens.css sits at
+// the root so its url("fonts/x.woff2") happens to resolve the same either way,
+// but a stylesheet in a subdirectory would not, and a walk that only works for
+// files at the root is a walk that breaks the first time one moves.
+const shippedCss = allowedFiles.filter((q) => /\.css$/i.test(q)).sort();
+let cssFilesParsed = 0;
+for (const sheet of shippedCss) {
+  const abs = path.join(repoRoot, sheet);
+  if (!fs.existsSync(abs)) continue;
+  cssFilesParsed++;
+  const dir = path.posix.dirname(sheet.replace(/\\/g, "/"));
+  for (const r of cssUrlRefs(fs.readFileSync(abs, "utf8"))) {
+    const resolved = dir === "." ? r : norm(path.posix.normalize(dir + "/" + r));
+    addRef(resolved, `url() in ${sheet}`);
+  }
 }
 
 // importScripts closure over shipped JS.
