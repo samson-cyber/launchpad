@@ -526,8 +526,12 @@ html.bg-booting *::after {
      .tasks-body: the two-phase render fills async surfaces under the reader and
      must not shift the page beneath them. */
   overflow-anchor: none;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  /* [ROUND B] NO scrollbar-width AND NO scrollbar-color. Either one disables
+     the ::-webkit-scrollbar rules below, so the pair that was written to style
+     this bar is exactly what handed it back to the OS. Measured: with both
+     set the gutter is 10px; with only scrollbar-width removed it is 15px -
+     WIDER, because `thin` was at least narrowing the OS bar it was causing;
+     with both gone it is the 6px the rules below ask for. */
 }/* ===== [1.10.4] ONE CENTRING REFERENCE FOR HOME'S HEADER AND ITS CONTENT =====
  *
  * THE MEASURED DEFECT, which is not the one that was reported. Every element -
@@ -589,21 +593,59 @@ html.bg-booting *::after {
    html.bg-light override further down. */
 
 
-.tab-panel::-webkit-scrollbar {
-  width: 8px;
+/* ===== [ROUND B] ONE SCROLLBAR, SIX SURFACES =============================
+
+   FIX-3 (8fb9af2) diagnosed this on the pill and fixed it there; the pill
+   went with a9e2947, so the shape it settled is restated here rather than
+   pointed at. 6px, transparent track, a --tile-line thumb at radius 3.
+
+   SIX SELECTORS, NOT SEVEN. #recently-closed-list is left exactly as it is:
+   it renders only inside #history-panel-body, which sets max-height:none on
+   it, so it never scrolls and its own overflow/scrollbar block is dead in
+   every context. Measured with 52 cards: 500px of content in a 500px box,
+   while the PARENT scrolled 568/381. Reported, not fixed - it is a dead
+   block rather than a broken bar, and deleting it is a different round's
+   call.
+
+   --tile-line IS ONE VALUE ON EVERY GROUND - it is declared once in
+   tokens.css and never re-declared per ground - which is exactly why the v1
+   light-branch rules below had to be dealt with rather than left. */
+
+.tab-panel::-webkit-scrollbar,
+.tasks-body::-webkit-scrollbar,
+.tt-box-body::-webkit-scrollbar,
+#sb-group-list::-webkit-scrollbar,
+.rc-panel-list::-webkit-scrollbar,
+.pro-preview-content::-webkit-scrollbar {
+  width: 6px;
 }
 
-.tab-panel::-webkit-scrollbar-track {
+.tab-panel::-webkit-scrollbar-track,
+.tasks-body::-webkit-scrollbar-track,
+.tt-box-body::-webkit-scrollbar-track,
+#sb-group-list::-webkit-scrollbar-track,
+.rc-panel-list::-webkit-scrollbar-track,
+.pro-preview-content::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.tab-panel::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.22);
-  border-radius:var(--radius-sm);
+.tab-panel::-webkit-scrollbar-thumb,
+.tasks-body::-webkit-scrollbar-thumb,
+.tt-box-body::-webkit-scrollbar-thumb,
+#sb-group-list::-webkit-scrollbar-thumb,
+.rc-panel-list::-webkit-scrollbar-thumb,
+.pro-preview-content::-webkit-scrollbar-thumb {
+  background: var(--tile-line);
+  border-radius: 3px;
 }
 
-.tab-panel::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.35);
+.tab-panel::-webkit-scrollbar-thumb:hover,
+.tasks-body::-webkit-scrollbar-thumb:hover,
+.tt-box-body::-webkit-scrollbar-thumb:hover,
+#sb-group-list::-webkit-scrollbar-thumb:hover,
+.rc-panel-list::-webkit-scrollbar-thumb:hover,
+.pro-preview-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
 }/* The panel carries tabindex="-1" solely so it can be the keyboard scroll target
    (setActiveTab focuses it on a Pro-tab switch). It is a scroll container, not a
    control — the visible focus indicator belongs to the .tab button that owns the
@@ -2665,19 +2707,10 @@ html.has-bg .modal-icon-btn:hover {
   max-height: 300px;
   overflow-y: auto;
   padding: var(--space-1) 0;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+  /* [ROUND B] the standard pair removed - see .tab-panel above. */
 }
 
-.rc-panel-list::-webkit-scrollbar {
-  width: 4px;
-}
-
-.rc-panel-list::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 2px;
-}
-
+/* [ROUND B] superseded by the grouped rule above. */
 .rc-panel-item {
   display: flex;
   align-items: center;
@@ -3764,18 +3797,10 @@ html:not(.has-bg) .promo-toast-dismiss:hover {
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--space-1) var(--space-1);
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+  /* [ROUND B] the standard pair removed - see .tab-panel above. */
 }
 
-#sb-group-list::-webkit-scrollbar {
-  width: 4px;
-}
-
-#sb-group-list::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 2px;
-}/* Wrapper for group row + expandable shortcut list */
+/* [ROUND B] superseded by the grouped rule above. *//* Wrapper for group row + expandable shortcut list */
 
 
 .sb-group-wrapper {
@@ -8607,17 +8632,13 @@ html.has-bg.bg-light .pro-preview-banner {
   padding: var(--space-5) 28px var(--space-7);
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-  scrollbar-width: thin;
+  /* [ROUND B] scrollbar-width removed. This surface declared no
+     scrollbar-color of its own and still measured the OS bar with the width
+     forced to auto - because scrollbar-color IS INHERITED and it was taking
+     .tab-panel's. Cleaning the ancestor is what frees this one. */
 }
 
-.pro-preview-content::-webkit-scrollbar {
-  width: 8px;
-}
-
-.pro-preview-content::-webkit-scrollbar-thumb {
-  background: var(--surface-line);
-  border-radius:var(--radius-sm);
-}/* ----- Tasks preview ----- */
+/* [ROUND B] superseded by the grouped rule above. *//* ----- Tasks preview ----- */
 
 
 
@@ -11592,31 +11613,14 @@ html.bg-image .tasks-templates-link {
      overflow-anchor:none keeps the full-rebuild render from snapping scroll to
      top; moved here from .tasks-tab, same rationale as [1.0.11.16]. */
   overflow-anchor: none;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  /* [ROUND B] the standard pair removed - see .tab-panel. */
 }/* [Tasks v3] Subtle inner-region scrollbar. Light thumb because .tasks-body
    scrolls over the wallpaper (transparent chrome, white body text); mirrors the
    thin/rounded/transparent-track treatment of the other inner scroll panels
    (#recently-closed-list, .rc-panel-list). Light-wallpaper override below. */
 
 
-.tasks-body::-webkit-scrollbar {
-  width: 8px;
-}
-
-.tasks-body::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.tasks-body::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.22);
-  border-radius:var(--radius-sm);
-}
-
-.tasks-body::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.35);
-}
-
+/* [ROUND B] superseded by the grouped rule above. */
 .tt-section {
   background: var(--pro-frost-card-bg);
   backdrop-filter: var(--pro-frost-card-blur);
@@ -11688,22 +11692,10 @@ html.bg-image .tasks-templates-link {
 .tt-box-body {
   max-height: 320px;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  /* [ROUND B] the standard pair removed - see .tab-panel. */
 }
 
-.tt-box-body::-webkit-scrollbar {
-  width: 8px;
-}
-
-.tt-box-body::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.tt-box-body::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius:var(--radius-sm);
-}/* [Tasks] Box header: title (which carries .tt-section-title's own opacity) on
+/* [ROUND B] superseded by the grouped rule above. *//* [Tasks] Box header: title (which carries .tt-section-title's own opacity) on
    the left, bulk actions on the right at full strength — the actions sit OUTSIDE
    the h2 so the title's opacity:0.78 group doesn't dim them. */
 
@@ -13437,19 +13429,20 @@ html.has-bg.bg-light .ins-wk-noprior {
    would wash out. */
 
 
-html.has-bg.bg-light .tasks-body,
-html.has-bg.bg-light .tab-panel {
-  scrollbar-color: rgba(0, 0, 0, 0.22) transparent;
-}
-
+/* [ROUND B] THE LIGHT BRANCH'S scrollbar-color IS THE DANGEROUS HALF: on a
+   light wallpaper it would re-disable the webkit rules this round just
+   revived, and the bar would go back to the OS one on exactly one ground.
+   It is gone. The thumb keeps a rule, pointed at --tile-line, because these
+   two scroll over dark frost on every ground - the same argument FIX-3 made
+   for the pill in the same words. */
 html.has-bg.bg-light .tasks-body::-webkit-scrollbar-thumb,
 html.has-bg.bg-light .tab-panel::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--tile-line);
 }
 
 html.has-bg.bg-light .tasks-body::-webkit-scrollbar-thumb:hover,
 html.has-bg.bg-light .tab-panel::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.32);
+  background: rgba(255, 255, 255, 0.28);
 }/* [Polish] Light-background pass. Sections must read as distinct raised
    surfaces even on a pure-white wallpaper: a more opaque fill, a definite
    border, and a soft lift shadow so the container separates from the page. */
@@ -13471,12 +13464,33 @@ html.has-bg.bg-light .tt-section-count {
    dark hover wash, and dark-tinted action buttons so nothing washes out. */
 
 
-html.has-bg.bg-light .tt-box-body {
-  scrollbar-color: rgba(0, 0, 0, 0.22) transparent;
+/* [ROUND B] as above: the scrollbar-color goes, the thumb takes --tile-line. */
+html.has-bg.bg-light .tt-box-body::-webkit-scrollbar-thumb {
+  background: var(--tile-line);
 }
 
-html.has-bg.bg-light .tt-box-body::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
+/* [ROUND B] THE ONE SURFACE THAT KEEPS ITS OWN COLOUR, and the frame is what
+   found it. Five of the six scroll over something dark on every ground, so a
+   --tile-line thumb reads on all three. THE SIDEBAR DOES NOT: on a light
+   SOLID, html.bg-light #sidebar-panel takes background rgba(255,255,255,0.6),
+   and white-at-14% on a near-white panel is nothing at all - the 3x frame of
+   that gutter is blank.
+
+   SCOPED TO bg-light AND NOT TO has-bg, deliberately. A light PHOTOGRAPH is
+   html.has-bg.bg-image with NO bg-light class - the known hard case - and
+   there the sidebar keeps its dark treatment and the white thumb reads
+   correctly. Framed on both before this rule was written; only the solid
+   needed it.
+
+   0.22, which is what the v1 light branch used for the other surfaces before
+   this round pointed them at the token - the value was right for a light
+   panel, it was simply on the wrong surfaces. */
+html.bg-light #sb-group-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+html.bg-light #sb-group-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.34);
 }
 
 html.has-bg.bg-light .tt-completed-row:hover,
