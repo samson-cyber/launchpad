@@ -25595,8 +25595,27 @@
       if (createBtn) {
         var ctxForCreate = tagSubmenuContext;
         var anchor = $("#tag-submenu");
-        closeTagSubmenu();
+        // [RULING 59] OPEN BEFORE CLOSING, and the order is the whole fix.
+        // openTagCreatePopover places itself from anchorEl.getBoundingClientRect(),
+        // and closeTagSubmenu puts .hidden on that same element. A display:none
+        // element measures 0x0 at (0,0), so the popover was landing in the
+        // viewport's top-left corner on every open. Opening first takes the
+        // rect while the submenu is still on screen; the submenu closes on the
+        // next line and the position is already computed.
         openTagCreatePopover(anchor, ctxForCreate);
+        closeTagSubmenu();
+        // AND THE PARENT MENU GOES, which this path never did - the popover
+        // opened with the shortcut context menu still sitting behind it. The
+        // twin is this popover's own commit path, commitTagCreatePopover:
+        //   closeTagCreatePopover(); closeTagSubmenu(); hideMenu();
+        //   hideGroupMenu(); closeSidebarShortcutCtxMenu();
+        // Only hideMenu() is taken here. The other two release the sidebar lock
+        // and collapse the sidebar when it is not hovered, which would pull the
+        // sidebar out from under a popover the user is still typing into -
+        // closeTagSubmenu's own comment is the standing warning about exactly
+        // that. On the commit path they are correct, because the popover is
+        // closing in the same breath.
+        hideMenu();
         return;
       }
       var item = e.target.closest(".tag-submenu-item");
@@ -25865,7 +25884,19 @@
     var menu = $("#shortcut-menu");
     var group = findGroup(groupId);
     var shortcut = group && group.shortcuts.find(function (s) { return s.id === shortcutId; });
-    var hasVariants = shortcut && shortcut.variants && shortcut.variants.length > 0;
+    // [RULING 59] COERCED, because one of the four toggles below passes this
+    // value UN-NEGATED. A shortcut the user added has no `variants` key at all
+    // - the add-shortcut modal builds { url, title, favicon } and
+    // Storage.addShortcut adds id, addedAt, deletedAt and tagIds, never
+    // variants - so `shortcut.variants` is undefined and the whole expression
+    // evaluated to undefined rather than false. classList.toggle(name,
+    // undefined) has NO force argument and therefore FLIPS, so "Nest with..."
+    // alternated shown/hidden on each right-click of the same shortcut. The
+    // three `!hasVariants` lines were always fine: `!` coerces. Fixed at the
+    // declaration rather than at the call so the next un-negated reader is
+    // safe too. The capture fixture seeds `variants: []`, which is why no
+    // driven test had ever reproduced it.
+    var hasVariants = !!(shortcut && shortcut.variants && shortcut.variants.length > 0);
 
     // Toggle variant-specific menu items
     var openDefault = $("#menu-open-default");

@@ -552,6 +552,198 @@ if (g.open) {
     `present=${afterMove.present} target ${before.counts[target] || 0} -> ${afterMove.counts[target]} (moved ${before.n})`);
 }
 
+// ====================================== 4. THE RIGHT-CLICK PATH (RULING 59) =
+// Two FUNCTIONAL bugs, not ink, on the path every user takes. Both were found
+// by Round FL's frames and neither had a driven proof until here.
+//
+// 4A. The tag-create popover captures #tag-submenu as its anchor, CLOSES the
+//     submenu, and only then reads the anchor's rect - which is now all zeros,
+//     because the element is display:none. The popover lands at (0, 6) in the
+//     viewport's top-left corner, with the shortcut context menu still open
+//     behind it.
+//
+// 4B. #menu-nest-with is the ONLY one of the four toggles that passes
+//     hasVariants UN-NEGATED. classList.toggle(name, undefined) has no force
+//     argument, so it FLIPS. The other three pass !hasVariants, which coerces
+//     undefined to a real boolean, which is why only this one item alternates.
+//
+//     THE RECORD THAT TRIGGERS IT IS THE ORDINARY ONE. The capture fixture
+//     seeds variants: [] and would never reproduce this. The add-shortcut
+//     modal builds { url, title, favicon } and Storage.addShortcut adds id,
+//     addedAt, deletedAt and tagIds - so a shortcut THE USER ADDED has no
+//     variants key at all and hasVariants is undefined for it.
+console.log("\n  4. THE RIGHT-CLICK PATH: tag-create popover + Nest with... (ruling 59)");
+await cdp.send("Page.navigate", { url: URL_ }, sessionId);
+await wait(3200); await ev(`LP.devPro(true)`); await wait(900);
+
+// ---- 4A ------------------------------------------------------------------
+const rightClickTile = () => ev(`(function(){
+  var t = document.querySelector("#groups .shortcuts-grid .shortcut");
+  if (!t) return "no shortcut tile";
+  var r = t.getBoundingClientRect();
+  t.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true,
+    clientX: Math.round(r.left + r.width / 2), clientY: Math.round(r.top + r.height / 2) }));
+  return "ctx on " + (t.dataset.id || "?");
+})()`);
+console.log("    (" + (await rightClickTile()) + ")");
+await wait(700);
+const menuUp = JSON.parse(await ev(`(function(){
+  var m = document.querySelector("#shortcut-menu");
+  var r = m ? m.getBoundingClientRect() : null;
+  return JSON.stringify({ open: !!m && !m.classList.contains("hidden"),
+    left: r ? Math.round(r.left) : null, top: r ? Math.round(r.top) : null });
+})()`));
+chk("tag popover: the shortcut menu opens on right-click", menuUp.open === true,
+  `menu at (${menuUp.left}, ${menuUp.top})`);
+
+await click("#menu-add-tag"); await wait(700);
+// The submenu's rect is read HERE, while it is still on screen - this is the
+// reading the product itself fails to take before it closes the element.
+const subRect = JSON.parse(await ev(`(function(){
+  var s = document.querySelector("#tag-submenu");
+  if (!s || s.classList.contains("hidden")) return JSON.stringify({ open: false });
+  var r = s.getBoundingClientRect();
+  return JSON.stringify({ open: true, left: Math.round(r.left), top: Math.round(r.top),
+    bottom: Math.round(r.bottom), width: Math.round(r.width) });
+})()`));
+chk("tag popover: the Tags submenu opens", subRect.open === true,
+  subRect.open ? `submenu at (${subRect.left}, ${subRect.top})` : "submenu hidden");
+
+await ev(`(function(){var b=document.querySelector("#tag-submenu .tag-submenu-create"); if(b) b.click();})()`);
+await wait(800);
+const popState = JSON.parse(await ev(`(function(){
+  var p = document.querySelector("#tag-create-popover");
+  var m = document.querySelector("#shortcut-menu");
+  var sm = document.querySelector("#tag-submenu");
+  var r = p ? p.getBoundingClientRect() : null;
+  return JSON.stringify({
+    open: !!p && !p.classList.contains("hidden"),
+    left: r ? Math.round(r.left) : null, top: r ? Math.round(r.top) : null,
+    width: r ? Math.round(r.width) : null, height: r ? Math.round(r.height) : null,
+    inViewport: !!r && r.top >= 0 && r.left >= 0 && r.width > 0 && r.height > 0
+                && r.right <= innerWidth && r.bottom <= innerHeight,
+    menuStillOpen: !!m && !m.classList.contains("hidden"),
+    submenuStillOpen: !!sm && !sm.classList.contains("hidden") });
+})()`));
+chk("tag popover: it opens", popState.open === true);
+chk("tag popover: IN THE VIEWPORT", popState.inViewport === true,
+  `rect (${popState.left}, ${popState.top}) ${popState.width}x${popState.height}`);
+// THE DISCRIMINATOR. With the defect the popover sits at x=0, top=6 - the
+// viewport corner - while the submenu it claims to be anchored to is hundreds
+// of pixels away.
+//
+// BOTH VERTICAL PLACEMENTS ARE CORRECT, and a first version of this assertion
+// only allowed one. openTagCreatePopover places the popover BELOW the anchor,
+// then flips it ABOVE when below would overflow the viewport - which is what
+// happens here, because the submenu's bottom is 811 in a 900px-tall window.
+// Asserting only "top === bottom + 6" failed a correctly placed popover, so
+// the assertion was wrong rather than the fix.
+const below = Math.abs(popState.top - (subRect.bottom + 6)) <= 24;
+const above = Math.abs((popState.top + popState.height) - (subRect.top - 6)) <= 24;
+const nearAnchor = popState.open && subRect.open
+  && Math.abs(popState.left - subRect.left) <= 24 && (below || above);
+chk("tag popover: ANCHORED TO THE SUBMENU it was opened from, not the viewport corner",
+  nearAnchor === true,
+  `popover (${popState.left}, ${popState.top}) ${popState.width}x${popState.height} vs submenu ` +
+  `(${subRect.left}, top ${subRect.top}, bottom ${subRect.bottom})` +
+  (nearAnchor ? `  [placed ${below ? "below" : "above"} the anchor]` : ""));
+chk("tag popover: THE CONTEXT MENU IS CLOSED behind it",
+  popState.menuStillOpen === false, `#shortcut-menu open=${popState.menuStillOpen}`);
+await key("Escape"); await wait(500);
+
+// ---- 4B ------------------------------------------------------------------
+// The record shape is COPIED FROM THE PRODUCT'S OWN add-shortcut branch, and
+// written through Storage.addShortcut, the writer that branch calls. Then the
+// stored record is read back and the missing key is asserted, so the premise
+// is proven here rather than assumed.
+// BOTH records are made HERE rather than taken from the fixture, because
+// sections 1-3 delete the fixture's variant-carrying shortcut and its group.
+// A first pass reused "Notion" and read [true,true,true] off a menu that never
+// opened - a PASS on a tile that no longer existed. The tile lookup below now
+// fails loudly for exactly that reason.
+const madeRecords = await ev(`(async () => {
+  var d = await Storage.getAll();
+  var ws = Storage.getActiveWorkspace(d);
+  var g = (ws.groups || []).find(function (x) { return (x.shortcuts || []).length > 0; });
+  if (!g) return "no group";
+  // The record shape of the add-shortcut modal's own branch, verbatim.
+  await Storage.addShortcut(g.id, {
+    url: "https://rc-no-variants.example.com/", title: "RC no-variants", favicon: ""
+  });
+  // And one carrying variants, which is what the nest flow leaves behind.
+  await Storage.addShortcut(g.id, {
+    url: "https://rc-has-variants.example.com/", title: "RC has-variants", favicon: "",
+    variants: [{ id: "rcv1", url: "https://rc-has-variants.example.com/two", title: "two" }]
+  });
+  var d2 = await Storage.getAll();
+  var ws2 = Storage.getActiveWorkspace(d2);
+  var g2 = (ws2.groups || []).find(function (x) { return x.id === g.id; });
+  var pick = function (t) { return (g2.shortcuts || []).find(function (s) { return s.title === t; }); };
+  var a = pick("RC no-variants"), b = pick("RC has-variants");
+  if (!a || !b) return "not stored";
+  return JSON.stringify({ groupId: g.id,
+    noVarKey: Object.prototype.hasOwnProperty.call(a, "variants"),
+    hasVarLen: (b.variants || []).length });
+})()`);
+let recs = null;
+try { recs = JSON.parse(madeRecords); } catch (e) { /* string error */ }
+chk("nest-with: the product's own writer stores a shortcut with NO variants key",
+  !!recs && recs.noVarKey === false,
+  recs ? `hasVariantsKey=${recs.noVarKey}` : String(madeRecords));
+chk("nest-with: and the control record DOES carry variants",
+  !!recs && recs.hasVarLen === 1, recs ? `variants.length=${recs.hasVarLen}` : String(madeRecords));
+
+await cdp.send("Page.navigate", { url: URL_ }, sessionId);
+await wait(3200); await ev(`LP.devPro(true)`); await wait(900);
+
+// Right-click ONE record three times and read the item each time. Three, not
+// two, because a flip is only visible as a flip across an odd number.
+const nestReads = async (title) => {
+  const out = [], found = [];
+  for (let i = 0; i < 3; i++) {
+    found.push(await ev(`(function(){
+      var tiles = document.querySelectorAll("#groups .shortcuts-grid .shortcut");
+      for (var i = 0; i < tiles.length; i++) {
+        if ((tiles[i].textContent || "").indexOf(${JSON.stringify(title)}) !== -1) {
+          var r = tiles[i].getBoundingClientRect();
+          tiles[i].dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true,
+            clientX: Math.round(r.left + r.width / 2), clientY: Math.round(r.top + r.height / 2) }));
+          return "ok";
+        }
+      } return "not found";})()`));
+    await wait(450);
+    // The MENU must actually be open, or the class being read is last time's.
+    out.push(await ev(`(function(){
+      var m = document.querySelector("#shortcut-menu");
+      if (!m || m.classList.contains("hidden")) return "menu-closed";
+      var n = document.querySelector("#menu-nest-with");
+      return n ? !n.classList.contains("hidden") : null;})()`));
+    await ev(`(function(){document.body.click();})()`); await wait(300);
+  }
+  return { out, found };
+};
+const recHasVariants = (title) => ev(`(async () => {
+  var d = await Storage.getAll(); var ws = Storage.getActiveWorkspace(d);
+  for (var i = 0; i < (ws.groups || []).length; i++) {
+    var s = (ws.groups[i].shortcuts || []).find(function (x) {
+      return ((x.title || "") + "").indexOf(${JSON.stringify(title)}) !== -1; });
+    if (s) return !!(s.variants && s.variants.length > 0);
+  } return null; })()`);
+
+for (const title of ["RC no-variants", "RC has-variants"]) {
+  const { out: seen, found } = await nestReads(title);
+  const truth = await recHasVariants(title);
+  const drivable = found.every((f) => f === "ok") && seen.every((v) => typeof v === "boolean");
+  chk(`nest-with [${title}]: the tile is there and the menu opens all three times`,
+    drivable === true, `found=${JSON.stringify(found)} read=${JSON.stringify(seen)}`);
+  const stable = drivable && seen.every((v) => v === seen[0]);
+  chk(`nest-with [${title}]: IDENTICAL across three right-clicks`, stable === true,
+    `shown = ${JSON.stringify(seen)}`);
+  chk(`nest-with [${title}]: shown IFF the record has no variants`,
+    stable && seen[0] === (truth === false),
+    `shown=${seen[0]} recordHasVariants=${truth}`);
+}
+
 console.log("\n  " + pass + " passed, " + fail + " failed" +
   (known ? ", " + known + " known-open" : "") + "\n");
 try { await cdp.send("Browser.close"); } catch (e) {}
