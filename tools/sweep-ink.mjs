@@ -771,6 +771,39 @@ const FLOATERS = [
       "this surface has coverage - it is the trigger from a swept state that " +
       "is missing, not the measurement." },
 
+  // ---- the two transient tips, raised through their own gates --------------
+  // Silenced on the tab surfaces (see the run setup) and measured here instead,
+  // where the settle rule waits for the fade rather than racing it.
+  { key: "right-click tip", root: "#rc-tip", mutates: true,
+    why: "promoState.openCount past 2 with rightClickTipShown cleared, then a normal open",
+    steps: [ { js: `(async function () {
+        await chrome.storage.local.set({ promoState: { openCount: 5, lastPromoOpen: 0 } });
+        await chrome.storage.local.remove("rightClickTipShown");
+        return true;
+      })()`, wait: 200 },
+      { js: `location.reload()`, wait: 5400 },
+      { js: `(function () {
+        var t = document.getElementById("rc-tip");
+        return (t && !t.classList.contains("hidden")) ? true : "the tip did not raise";
+      })()`, wait: 300 } ] },
+
+  { key: "nesting tooltip", root: "#nesting-tooltip", mutates: true,
+    why: "two shortcuts reducing to one match key in one group, with nestingTipDismissed cleared",
+    steps: [ { js: `(async function () {
+        var d = await Storage.getAll();
+        if (!d.settings) d.settings = {};
+        d.settings.nestingTipDismissed = false;
+        await Storage.saveAll(d);
+        return true;
+      })()`, wait: 200 },
+      // checkNestingTooltip fires 2000ms after a render that finds a colliding
+      // pair; busy-messy seeds two same-name-same-host pairs in Clients.
+      { js: `location.reload()`, wait: 6200 },
+      { js: `(function () {
+        var t = document.getElementById("nesting-tooltip");
+        return (t && !t.classList.contains("hidden")) ? true : "the tooltip did not raise";
+      })()`, wait: 300 } ] },
+
   // ---- LAST, BECAUSE ITS TRIGGER MUTATES THE FIXTURE -----------------------
   // Completing the nest flow really nests one shortcut under another, and the
   // pass then carries that change into every floater after it. Measured: with
@@ -1437,6 +1470,37 @@ async function sweep() {
     console.error(`\nREFUSED: the page reads ${clock.hour}:${String(clock.minute).padStart(2, "0")}, not the pinned ${CLOCK_HOUR}:${CLOCK_MINUTE}.`);
     process.exit(2);
   }
+  // [RULING 53, and ruling 4's attribution] THE TWO TRANSIENT TIPS ARE
+  // SILENCED ON THE TAB SURFACES, through the product's own persisted flags.
+  //
+  // They are the single largest source of non-reproducibility this instrument
+  // has. Attributed by identity rather than suspected: the one node separating
+  // this round's Home/none baseline from Round FL's on the SAME DAY was
+  // #rc-tip-dismiss "Got it" at 2.19, and the two cells separating the before
+  // and after tables were nest-tip-text and nest-tip-dismiss. Every one of them
+  // is a toast that fades, so whether it is on screen - and how far through its
+  // own transition - depends on when the shutter fell. Ruling 47 measured the
+  // same node at 8.01 and 4.39 on one tree for exactly this reason.
+  //
+  // A PERSISTED FLAG HIDES NOTHING (P27): rightClickTipShown and
+  // settings.nestingTipDismissed are precisely what each tip's own dismiss
+  // control writes, so this puts the profile in a state a real user can be in
+  // rather than hiding an element. tools/capture-fixture.js already silences
+  // the nesting tooltip this way and says why.
+  //
+  // AND THEY ARE STILL MEASURED - as FLOATERS, below, raised deliberately
+  // through their own gates and held to the settle rule. They move from a
+  // surface where they appear at random to a pass that waits for them.
+  await ev(`(async function () {
+    await chrome.storage.local.set({ rightClickTipShown: true });
+    var d = await Storage.getAll();
+    if (!d.settings) d.settings = {};
+    d.settings.nestingTipDismissed = true;
+    await Storage.saveAll(d);
+    return 1;
+  })()`);
+  await ev(`location.reload()`); await sleep(4600);
+
   const clockLine = `CLOCK ${clock.date} ${clock.weekday} ${String(CLOCK_HOUR).padStart(2, "0")}:${String(CLOCK_MINUTE).padStart(2, "0")} local` +
     `  home=${clock.greetingHome} dash=${clock.greetingDash}`;
   console.log("\n" + clockLine);
