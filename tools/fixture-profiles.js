@@ -165,16 +165,30 @@ var __FIXTURE_PROFILES = (function () {
       }
     });
 
-    // The auto-nest case, written the way background.js's nesting leaves it: a
-    // parent carrying variants. ASSUMED SHAPE (no factory): variants are plain
-    // {id,name,url,addedAt,deletedAt} siblings under the parent's `variants`.
+    // The auto-nest case: a parent carrying variants.
+    //
+    // [RULING 60] THE SHAPE IS NO LONGER ASSUMED - IT IS TAKEN FROM THE TWO
+    // PLACES THE PRODUCT WRITES ONE, and it was wrong in two ways.
+    //
+    // newtab.js:20209 (the drag-to-nest path) and newtab.js:25994 (the
+    // add-modal nest path) both push exactly
+    //   { id, url, title, favicon, deletedAt }
+    // and neither writes addedAt. This fixture wrote addedAt as well, so every
+    // variant here carried a key no product path sets - the same class of
+    // defect as a hand-built shortcut carrying createdAt. The note above also
+    // said `name` where both the product and this code write `title`.
+    //
+    // THERE IS NO VARIANT FACTORY ON Storage, which is why this is assembled
+    // here at all: the product duplicates the literal at those two sites and
+    // exports no writer for it. That is a product gap, reported rather than
+    // fixed from a fixture - a factory added here would be a third shape.
     data = await S.getAll();
     var sws = data.workspaces.find(function (w) { return w.id === studio; });
     var daily = sws.groups.find(function (g) { return g.name === "Daily"; });
     var drive = daily.shortcuts.find(function (s) { return s.title === "Drive"; });
     drive.variants = [
-      { id: "var_sheets", title: "Sheets", url: "https://sheets.google.com", favicon: "https://sheets.google.com/favicon.ico", addedAt: ago(40), deletedAt: null },
-      { id: "var_docs",   title: "Docs",   url: "https://docs.google.com",   favicon: "https://docs.google.com/favicon.ico", addedAt: ago(40), deletedAt: null }
+      { id: "var_sheets", url: "https://sheets.google.com", title: "Sheets", favicon: "https://sheets.google.com/favicon.ico", deletedAt: null },
+      { id: "var_docs",   url: "https://docs.google.com",   title: "Docs",   favicon: "https://docs.google.com/favicon.ico", deletedAt: null }
     ];
     await S.saveAll(data);
     log.push("home: 5 groups, " + (8 + 24 + 10 + 6) + " shortcuts, one 24-deep scrolling group, one empty group, a nested pair under Drive, two same-name-same-host pairs in Clients, one 70-char name in Reading");

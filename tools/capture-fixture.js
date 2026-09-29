@@ -9,9 +9,22 @@
 // what a listing needs is a plausible working day.
 //
 // Seeded through Storage.createTask / createGoal / createTag / createNote /
-// createNamedSession and addShortcut rather than by writing records by hand
-// (I12, Q13): a hand-built record can encode the same wrong assumption as the
-// reader, and then the fixture agrees with the bug instead of exposing it.
+// createNamedSession, rather than by writing those records by hand (I12, Q13):
+// a hand-built record can encode the same wrong assumption as the reader, and
+// then the fixture agrees with the bug instead of exposing it.
+//
+// GROUPS AND SHORTCUTS ARE THE EXCEPTION AND ARE BUILT BY HAND, below. This
+// line used to claim addShortcut as well, and addShortcut has never been called
+// from this file - so the header described a discipline the code did not keep,
+// which is worse than not claiming it. Corrected rather than implemented,
+// deliberately: this is the CALM profile, the one tools/capture-screenshots.mjs
+// photographs for the store listing, and tools/seed-fixture.mjs's own header
+// says the store frames must not move because this file changed. Routing these
+// two record types through the writers changes ids, drops createdAt and adds
+// addedAt / deletedAt; none of that is visible, but the change is not worth
+// making against a file whose contract is that it does not change. The BUSY
+// fixture - tools/fixture-profiles.js, which is what the sweeps actually run -
+// already goes through addGroup and addShortcut.
 //
 // Tracking data is written in tracking.js's OWN shape, read from that file
 // rather than invented: `tracking_days` keyed `<workspaceId>:<dayKey>`, each
