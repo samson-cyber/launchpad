@@ -278,6 +278,15 @@ const PAGE = {
       fw: cs.fontWeight,
       color: cs.color,
       inPreview: !!(el.closest && el.closest(".pro-preview-content")),
+      // [RULING 61] Which floater this node is inside, if any. The floaters
+      // pass marks the OPEN floater's visible root with data-sweep-floater
+      // before the capture pair, so the whole existing enumerate-once,
+      // two-screenshots machinery measures it with no second code path - the
+      // same shape Round E used for inPreview.
+      floater: (function () {
+        var f = el.closest && el.closest("[data-sweep-floater]");
+        return f ? f.getAttribute("data-sweep-floater") : null;
+      })(),
       shadow: cs.textShadow === "none" ? "" : cs.textShadow
     });
   }
@@ -544,6 +553,225 @@ const SURFACES = [
   // open a surface which no longer exists is noise, and noise is what
   // eventually hides a real failure - the whole point of this instrument being
   // that the denominator is visible. Settings above is now the one panel.
+];
+
+// =========================================================================
+// [RULING 61] THE FLOATERS.
+//
+// EVERY ONE OF THESE WAS INVISIBLE ON A LIGHT WALLPAPER FOR MONTHS while this
+// instrument swept 635 nodes on five grounds and reported them all clear. The
+// reason is structural and worth stating once: SURFACES above is eight TAB
+// surfaces, every `open` is a tab click, and a floater is closed until
+// something opens it. The sweep's denominator was visible and honest and did
+// not contain them.
+//
+// OPENED THROUGH THE PRODUCT'S OWN PATH, NEVER BY UNHIDING. Round FL measured
+// these by removing `.hidden` and pinning a position, which answers "what does
+// the cascade paint" but not "what does a user see": a floater revealed out of
+// place composites against different pixels, and FL's own local verification
+// measured every node 0.1 to 2.4 HIGHER than the cloud run for exactly that
+// reason. A right-click that really opens the menu puts the floater where the
+// product puts it, over what the product puts behind it.
+//
+// UNREACHABLE IS A RESULT, NOT A SKIP. A floater whose trigger cannot be
+// reached from any driven state is listed with the reason. A sweep that
+// silently omits what it could not open is how this whole population stayed
+// invisible in the first place.
+//
+// THE VISIBLE ROOT IS TAKEN WHERE THERE ARE SEVERAL (E3): querySelector returns
+// the first in document order, which for a subtree with one node per tab panel
+// is not the one on screen. Each floater resolves its root by visibility.
+
+// A real contextmenu, at the element's own centre, because the product's
+// handler reads clientX/clientY to place the menu.
+const CTX_AT = (sel, nth) => `(function () {
+  var els = document.querySelectorAll(${JSON.stringify(sel)});
+  var e = els[${nth || 0}]; if (!e) return false;
+  var r = e.getBoundingClientRect();
+  e.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true,
+    clientX: Math.round(r.left + r.width / 2), clientY: Math.round(r.top + r.height / 2) }));
+  return true;
+})()`;
+
+const CLICK = (sel, nth) => `(function () {
+  var els = document.querySelectorAll(${JSON.stringify(sel)});
+  var e = els[${nth || 0}]; if (!e) return false;
+  if (e.scrollIntoView) e.scrollIntoView({ block: "center" });
+  e.click(); return true;
+})()`;
+
+const FLOATERS = [
+  // ---- the five Round FL fixed, each through its own trigger ----------------
+  { key: "tag popover", root: "#tag-create-popover",
+    why: "right-click a shortcut > Tags > Create new",
+    steps: [ { js: CTX_AT(".shortcut"), wait: 500 },
+             { js: CLICK("#menu-add-tag"), wait: 500 },
+             { js: CLICK(".tag-submenu-create"), wait: 500 } ] },
+
+  { key: "group delete", root: "#group-delete-dialog",
+    why: "the group menu > Delete",
+    steps: [ { js: CLICK(".group-more-btn"), wait: 450 },
+             { js: CLICK('#group-menu [data-action="delete"]'), wait: 550 } ] },
+
+  // OPENS STANDALONE AND NOT FROM THIS PASS, and the discrepancy is recorded
+  // rather than smoothed over. Probed directly on a fresh profile: one
+  // .shortcut.has-variants tile exists, it is inside a .shortcuts-grid, and
+  // clicking it produces `.variant-dropdown visible` at 200x122 with opacity 1
+  // and checkVisibility true. Driven from inside this pass, on the same
+  // fixture, querySelectorAll(".variant-dropdown") returns ZERO - the element
+  // is never created, so it is the product's handler not running rather than a
+  // visibility or root-resolution problem. Moving the one mutating floater to
+  // the end did not change it, so it is not the nest consuming the tile.
+  // Reported as an open failure with that diagnostic; the next round starts
+  // from "the handler does not fire from a swept state" rather than from
+  // scratch.
+  { key: "variant dropdown", root: ".variant-dropdown",
+    why: "click a shortcut that carries variants (busy-messy seeds one)",
+    // The tile carries the class the product's own handler keys on -
+    // newtab.js:25398 closes on ".shortcut.has-variants" - rather than the
+    // badge span, which was this round's first guess and matched nothing.
+    steps: [ { js: `(function () {
+        var t = document.querySelector(".shortcut.has-variants");
+        if (!t) return "no .shortcut.has-variants on this surface";
+        if (!t.closest(".shortcuts-grid")) return "the tile is not inside a .shortcuts-grid, which the handler requires";
+        if (t.scrollIntoView) t.scrollIntoView({ block: "center" });
+        // The handler anchors the dropdown to the tile's own icon
+        // (showVariantDropdown(..., el.querySelector(".shortcut-icon"))), so the
+        // click is delivered there rather than to the tile's padding.
+        var icon = t.querySelector(".shortcut-icon") || t;
+        icon.click();
+        return true;
+      })()`, wait: 1100 } ] },
+
+  // THE TOAST HAS A SIX-SECOND LIFE (newtab.js showPromoToast: a 6000ms
+  // auto-dismiss, then a 300ms fade-out before removal), which is short enough
+  // that a per-node capture pair can outlive it. It is raised the way a user
+  // raises it - promoState.openCount past PROMO_FIRST_OPEN and a normal page
+  // open - and the auto-dismiss is then CANCELLED for the measurement rather
+  // than raced: a node measured against a toast that vanished mid-pair is the
+  // mid-fade artifact ruling 48 exists to stop, one object larger.
+  // THE TOAST OUTLIVED ITS OWN MEASUREMENT. It is raised the way a user raises
+  // it - openCount past PROMO_FIRST_OPEN and a normal page open - but
+  // showPromoToast schedules a 6000ms auto-dismiss, and a reload plus settle
+  // plus a capture pair does not fit inside six seconds. The first draft tried
+  // to clear the timer by id after the fact and measured nothing, because the
+  // toast had already gone by the time the nodes were enumerated.
+  //
+  // So the AUTO-DISMISS is suppressed for the measurement, and it is named here
+  // rather than raced. This is a measurement affordance of the same kind as the
+  // inkless frame - the OPENING is still the product's own path; only the
+  // disappearing is held off, and only for the one timer that does it.
+  { key: "promo toast", root: ".promo-toast",
+    why: "the rating prompt raised on a normal open (openCount >= PROMO_FIRST_OPEN)",
+    preScript: `(function () {
+      var real = window.setTimeout;
+      window.setTimeout = function (fn, ms) {
+        if (ms === 6000) return 0;
+        return real.apply(window, arguments);
+      };
+    })()`,
+    // THE NEST TIP SITS ON TOP OF IT, and that is a product finding this pass
+    // made rather than a harness problem. Measured: every one of the promo
+    // toast's four children hit-tests to nest-tip-text or nest-tip-dismiss -
+    // the two toasts occupy the same corner, and the rating prompt is fully
+    // occluded by the drag tip whenever both are up. ENUMERATE's hit test
+    // rejected all four nodes, correctly. The tip is dismissed through its own
+    // stored flag before the toast is raised, so the toast is measured on its
+    // own; the OVERLAP is reported rather than papered over.
+    steps: [ { js: `(async function () {
+        await chrome.storage.local.set({ promoState: { openCount: 9, lastPromoOpen: 0 },
+                                         rightClickTipShown: true, nestTipShown: true });
+        return true;
+      })()`, wait: 200 },
+      { js: `location.reload()`, wait: 5200 },
+      { js: `(function () {
+        document.querySelectorAll("#nesting-tooltip, #rc-tip").forEach(function (t) { t.remove(); });
+        return true;
+      })()`, wait: 150 },
+      { js: `(function () {
+        return document.querySelector(".promo-toast") ? true : "the toast did not raise";
+      })()`, wait: 300 } ] },
+
+  // ---- the panels FL classified by grep, each through its sidebar control ---
+  { key: "history panel",   root: "#history-panel",   why: "sidebar > History",
+    steps: [ { js: CLICK("#sb-history"), wait: 900 } ] },
+  { key: "bookmarks panel", root: "#bookmarks-panel", why: "sidebar > Bookmarks",
+    steps: [ { js: CLICK("#sb-bookmarks"), wait: 900 } ] },
+  { key: "open-tabs panel", root: "#open-tabs-panel", why: "sidebar > Open tabs",
+    steps: [ { js: CLICK("#sb-open-tabs"), wait: 900 } ] },
+  { key: "import panel",    root: "#import-panel",    why: "sidebar > Import",
+    steps: [ { js: CLICK("#sb-import"), wait: 900 } ] },
+  { key: "tips panel",      root: "#tips-panel",      why: "sidebar > Tips",
+    steps: [ { js: CLICK("#sb-tips"), wait: 900 } ] },
+  { key: "restore dropdown", root: "#restore-dropdown", why: "sidebar > Restore session",
+    steps: [ { js: CLICK("#sb-restore"), wait: 800 } ] },
+  { key: "workspace dropdown", root: "#workspace-dropdown", why: "the workspace chip in the sidebar",
+    // #sb-ws-chip is a decorative <span aria-hidden="true">; the control is
+    // #sb-workspace-switcher (newtab.js:12280).
+    steps: [ { js: CLICK("#sb-workspace-switcher"), wait: 800 } ] },
+  { key: "due bell",        root: ".due-bell-list",   why: "the due bell in the tab bar",
+    steps: [ { js: CLICK("#due-bell"), wait: 700 } ] },
+  { key: "shortcut menu",   root: "#shortcut-menu",   why: "right-click a shortcut",
+    steps: [ { js: CTX_AT(".shortcut"), wait: 600 } ] },
+  { key: "group menu",      root: "#group-menu",      why: "the group's 3-dot control",
+    steps: [ { js: CLICK(".group-more-btn"), wait: 600 } ] },
+  { key: "tag submenu",     root: "#tag-submenu",     why: "right-click a shortcut > Tags",
+    steps: [ { js: CTX_AT(".shortcut"), wait: 500 },
+             { js: CLICK("#menu-add-tag"), wait: 600 } ] },
+  { key: "shortcut editor", root: "#modal-overlay",   why: "right-click a shortcut > Edit",
+    steps: [ { js: CTX_AT(".shortcut"), wait: 500 },
+             { js: CLICK("#menu-edit"), wait: 700 } ] },
+  { key: "icon picker",     root: ".icon-picker",     why: "the editor > Change icon",
+    steps: [ { js: CTX_AT(".shortcut"), wait: 500 },
+             { js: CLICK("#menu-edit"), wait: 600 },
+             { js: CLICK("#modal-icon-change"), wait: 700 } ] },
+  { key: "task context menu", root: ".tt-context-menu", why: "right-click a task row on Tasks",
+    steps: [ { js: `(function(){var t=document.querySelector('[data-tab="tasks"]'); if(t)t.click(); return true})()`, wait: 1600 },
+             { js: CTX_AT(".tt-task-row"), wait: 600 } ] },
+  // Through the path RC's drive-dialogs section 2 already drives end to end:
+  // removing a shortcut that carries variants raises the shared confirm. The
+  // first draft went via a task row's context menu and matched a NOTEBOOK
+  // picker item instead, which opened nothing.
+  { key: "tt-modal", root: ".tt-modal", unreachable:
+      "not from a driven state HERE, and it is already covered elsewhere. Two " +
+      "paths were tried and measured: a task row's context menu, whose items " +
+      "are notebook picker rows on this fixture, and #menu-remove on a " +
+      "shortcut carrying variants, which removes without a confirm in this " +
+      "state (probed: the menu item is visible and clicks, and no .tt-modal " +
+      "appears). tools/drive-dialogs.mjs drives four tt-modals end to end " +
+      "through their real triggers and asserts the primary's painted fill, so " +
+      "this surface has coverage - it is the trigger from a swept state that " +
+      "is missing, not the measurement." },
+
+  // ---- LAST, BECAUSE ITS TRIGGER MUTATES THE FIXTURE -----------------------
+  // Completing the nest flow really nests one shortcut under another, and the
+  // pass then carries that change into every floater after it. Measured: with
+  // this entry in its original position, the variant dropdown two entries later
+  // reported "0 matched" for .variant-dropdown - the tile it was going to click
+  // had been consumed into someone else's variants. Every other floater here
+  // only OPENS something; this one commits. It runs last so the state it leaves
+  // is nobody else's problem, and the reload after it restores nothing, which is
+  // why the order is the fix rather than a cleanup step.
+  { key: "nest rename", root: "#nest-rename-dialog",
+    why: "right-click a shortcut > Nest with... > pick a target",
+    steps: [ { js: CTX_AT(".shortcut"), wait: 500 },
+             { js: CLICK("#menu-nest-with"), wait: 500 },
+             { js: CLICK(".nest-submenu-item"), wait: 900 } ] },
+
+  // ---- named, and NOT reachable from any driven state ----------------------
+  { key: "badge splash", root: ".badge-splash-card", unreachable:
+      "fires only when an achievement is EARNED during the run. The fixture " +
+      "seeds badges already earned, and there is no product control that " +
+      "replays the splash. LP.replayProCelebration exists for the celebration, " +
+      "not for this one." },
+  { key: "pro celebration", root: ".pro-celebrate-card", unreachable:
+      "fires on the trial/purchase transition. LP.replayProCelebration would " +
+      "raise it, but that is a dev hook rather than the product's own path, " +
+      "and ruling 61 asks for the path a user takes." },
+  { key: "upgrade popover", root: "#upgrade-popover", unreachable:
+      "free-tier chrome. The sweep flips tier per ground for the Free surfaces, " +
+      "but this popover hangs off the tab-bar upgrade chip, which is not on any " +
+      "surface the floaters pass drives. Reachable once the pass runs per tier." },
 ];
 
 // WCAG large text: >= 24px at any weight, or >= 18.66px at 700+. Everything
@@ -1081,6 +1309,7 @@ async function sweep() {
   // measured - see SURFACES. The run starts Pro because the self-test below
   // needs the Pro board; ensureTier flips it per ground thereafter.
   let currentTier = "pro";
+  const floaterNotes = [];
   await ev(`LP.devPro(true)`);
   await ev(`location.reload()`); await sleep(5000);
 
@@ -1240,6 +1469,7 @@ async function sweep() {
             cls: nd.cls, text: (nd.text || "").slice(0, 28), note: m.note || null, px: m.pixels }); }
           seen++;
           rows.push({ ground: g.key, surface: s.key, tier: s.tier || "pro", inPreview: !!nd.inPreview,
+                      floater: nd.floater || null,
                       step, cls: nd.cls, elId: nd.elId, tag: nd.tag,
                       text: nd.text, fs: nd.fs, fw: nd.fw, big, floor, ratio: r,
                       pixels: m.pixels, ink: m.ink || null, bg: m.bg || null,
@@ -1255,6 +1485,137 @@ async function sweep() {
                     : "all clear";
       console.log(`  ${s.key.padEnd(13)} ${String(seen).padStart(4)} nodes over ${sc.steps || 1} screen(s)   ${verdict}`);
     }
+
+    // ---------------------------------------------- [RULING 61] THE FLOATERS
+    // Driven Pro, on the Home tab, once per ground. Each is opened through the
+    // product's own path, measured, and then the page is RELOADED - a floater
+    // left standing would be enumerated again under the next one's name, which
+    // is the contamination that made #restore-all-btn read 1.57 in FL's probe.
+    await ensureTier("pro");
+    for (const f of FLOATERS) {
+      if (f.unreachable) {
+        floaterNotes.push({ ground: g.key, key: f.key, unreachable: f.unreachable });
+        console.log(`  ${("~ " + f.key).padEnd(24)} UNREACHABLE - ${f.unreachable.slice(0, 64)}...`);
+        continue;
+      }
+      // A floater may need a page-level affordance in place BEFORE its own
+      // page life starts (the promo toast's auto-dismiss). Installed on new
+      // document, removed straight after, so it reaches this floater and no
+      // other measurement in the run.
+      let preId = null;
+      if (f.preScript) {
+        preId = (await send("Page.addScriptToEvaluateOnNewDocument", { source: f.preScript })).identifier;
+      }
+      await ev(`location.reload()`); await sleep(4800);
+      await ev(PAGE.CLEAR_IDS); await ev(PAGE.CLEAR_SCROLLER);
+      let failed = null;
+      for (const st of f.steps) {
+        let r;
+        try { r = await ev(st.js); } catch (e) { failed = e.message.slice(0, 70); break; }
+        if (r === false || typeof r === "string") { failed = (typeof r === "string" ? r : "a step found nothing to click"); break; }
+        await sleep(st.wait);
+      }
+      if (failed) {
+        floaterNotes.push({ ground: g.key, key: f.key, openFailed: failed });
+        console.log(`  ${("~ " + f.key).padEnd(24)} OPEN FAILED - ${failed}`);
+        if (preId) { try { await send("Page.removeScriptToEvaluateOnNewDocument", { identifier: preId }); } catch (e) {} }
+        continue;
+      }
+
+      // THE VISIBLE ROOT, not the first in document order (E3): a subtree with
+      // one node per tab panel returns the wrong one to querySelector, and E3
+      // reported the Tasks preview three times without a single error.
+      const marked = await ev(`(function () {
+        var all = document.querySelectorAll(${JSON.stringify("SELECTOR")});
+        var pick = null;
+        for (var i = 0; i < all.length; i++) {
+          var e = all[i];
+          if (!e.checkVisibility || !e.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue;
+          var r = e.getBoundingClientRect();
+          if (r.width < 4 || r.height < 4) continue;
+          pick = e; break;
+        }
+        if (!pick) return { ok: false, found: all.length };
+        document.querySelectorAll("[data-sweep-floater]").forEach(function (n) { n.removeAttribute("data-sweep-floater"); });
+        pick.setAttribute("data-sweep-floater", ${JSON.stringify("KEY")});
+        return { ok: true, found: all.length };
+      })()`.replace('"SELECTOR"', JSON.stringify(f.root)).replace('"KEY"', JSON.stringify(f.key)));
+      if (!marked || !marked.ok) {
+        floaterNotes.push({ ground: g.key, key: f.key, openFailed: "opened, but no visible root for " + f.root + " (" + (marked ? marked.found : "?") + " matched)" });
+        console.log(`  ${("~ " + f.key).padEnd(24)} NO VISIBLE ROOT (${f.root}) - ${marked ? marked.found : "?"} matched, none visible`);
+        continue;
+      }
+
+      // [RULING 48] THE SETTLE RULE. No capture until the floater's own opacity
+      // is 1 and nothing is still animating on it or inside it. A node caught at
+      // two points of one fade gives two numbers and neither is its colour;
+      // #rc-tip-dismiss read 8.01 and 4.39 on one tree for exactly this.
+      const settled = await ev(`(async function () {
+        var e = document.querySelector("[data-sweep-floater]");
+        if (!e) return { ok: false, why: "the root went away" };
+        for (var i = 0; i < 40; i++) {
+          var cs = getComputedStyle(e);
+          // AN ENDLESS ANIMATION IS NOT SOMETHING TO WAIT FOR, and ruling 48
+          // as written waits for it forever. The tips panel has
+          // animation: tip-nudge 2.4s ease-in-out infinite on a decorative
+          // arrow (newtab.css:16539); its iterations never run out, so the
+          // first draft of this rule sat out its full 3.2s budget on every
+          // ground and reported the panel unsettled. A looping decoration is
+          // part of the surface's steady state - what the rule is for is a
+          // TRANSITION that has not finished, which is the thing that gives one
+          // node two different readings.
+          var an = (e.getAnimations ? e.getAnimations({ subtree: true }) : []).filter(function (a) {
+            if (a.playState !== "running") return false;
+            var t = a.effect && a.effect.getTiming ? a.effect.getTiming() : null;
+            if (t && t.iterations === Infinity) return false;
+            return true;
+          });
+          if (parseFloat(cs.opacity) === 1 && an.length === 0) return { ok: true, waited: i * 80 };
+          await new Promise(function (r) { setTimeout(r, 80); });
+        }
+        return { ok: false, why: "opacity < 1 or an animation still running after 3.2s" };
+      })()`);
+      if (!settled || !settled.ok) {
+        floaterNotes.push({ ground: g.key, key: f.key, unsettled: (settled && settled.why) || "no answer" });
+        console.log(`  ${("~ " + f.key).padEnd(24)} NOT SETTLED - ${(settled && settled.why) || "?"}`);
+        continue;
+      }
+
+      const pin = await ev(PAGE.REPIN(groundMeta[g.key].classes));
+      if (pin && pin.drifted) { repins.push({ ground: g.key, surface: "Floaters/" + f.key, step: 0, had: pin.had, want: pin.want }); await sleep(150); }
+      await ev(PAGE.CLEAR_IDS);
+      const fnodes = (await ev(PAGE.ENUMERATE)).filter((nd) => nd.floater === f.key);
+      if (!fnodes.length) {
+        floaterNotes.push({ ground: g.key, key: f.key, openFailed: "open and settled, but it has no measurable text node" });
+        console.log(`  ${("~ " + f.key).padEnd(24)} NO TEXT NODES`);
+        continue;
+      }
+      await ev(PAGE.INKLESS_OFF); await sleep(250);
+      const fPainted = await shot();
+      await ev(PAGE.INKLESS_ON); await sleep(300);
+      const fInkless = await shot();
+      await ev(PAGE.INKLESS_OFF); await sleep(120);
+      let fUnder = 0, fUnmeas = 0;
+      for (const nd of fnodes) {
+        const m = measure(fPainted, fInkless, nd.box, SCALE);
+        const { big, floor } = floorFor(nd.fs, nd.fw);
+        const r = typeof m.ratio === "number" ? m.ratio : null;
+        if (r !== null && r < floor) fUnder++;
+        if (r === null) { fUnmeas++; unmeasuredRows.push({ ground: g.key, surface: "Floaters/" + f.key,
+          cls: nd.cls, text: (nd.text || "").slice(0, 28), note: m.note || null, px: m.pixels }); }
+        rows.push({ ground: g.key, surface: "Floaters", tier: "pro", inPreview: false,
+                    floater: f.key, step: 0, cls: nd.cls, elId: nd.elId, tag: nd.tag,
+                    text: nd.text, fs: nd.fs, fw: nd.fw, big, floor, ratio: r,
+                    pixels: m.pixels, ink: m.ink || null, bg: m.bg || null,
+                    color: nd.color, shadow: nd.shadow });
+      }
+      const fv = fUnder && fUnmeas ? `${fUnder} UNDER FLOOR, ${fUnmeas} UNMEASURABLE`
+               : fUnder ? `${fUnder} UNDER FLOOR`
+               : fUnmeas ? `${fUnmeas} UNMEASURABLE (this is NOT a pass)` : "all clear";
+      console.log(`  ${("~ " + f.key).padEnd(24)} ${String(fnodes.length).padStart(3)} nodes   ${fv}`);
+      if (preId) { try { await send("Page.removeScriptToEvaluateOnNewDocument", { identifier: preId }); } catch (e) {} }
+    }
+    await ev(`location.reload()`); await sleep(4200);
   }
 
   // ---------------------------------------------------------------- the run
@@ -1295,7 +1656,22 @@ async function sweep() {
     if (!flag("--allow-unmeasurable")) process.exitCode = 3;
   }
 
+  // [RULING 61] The floaters that were NOT measured, and why - printed before
+  // any finding, like the re-pins and the tier flips, because a floaters pass
+  // that quietly dropped half its list would read exactly like a clean one.
+  if (floaterNotes.length) {
+    const byKey = new Map();
+    for (const n of floaterNotes) if (!byKey.has(n.key)) byKey.set(n.key, n);
+    console.log(`\n  FLOATERS NOT MEASURED: ${byKey.size} of ${FLOATERS.length}`);
+    for (const [k, n] of byKey) {
+      console.log(`    ${k.padEnd(22)} ${n.unreachable ? "unreachable - " + n.unreachable
+                                        : n.unsettled ? "not settled - " + n.unsettled
+                                        : "open failed - " + n.openFailed}`);
+    }
+  }
+
   fs.writeFileSync(OUT, JSON.stringify({
+    floaters: { list: FLOATERS.map((f) => f.key), notes: floaterNotes },
     clock: { line: clockLine, hour: CLOCK_HOUR, minute: CLOCK_MINUTE,
              date: clock.date, weekday: clock.weekday,
              greetingHome: clock.greetingHome, greetingDash: clock.greetingDash },
