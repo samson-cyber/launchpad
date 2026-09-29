@@ -391,8 +391,10 @@ fi
 # described and the mistake happened anyway, and only the package gate caught
 # it - on the first build in 132 commits.
 #
-# Seven --mutate seeds, all caught, including the one the task specified
-# ("point --pro-identity at var(--accent), gate fails").
+# Fourteen --mutate seeds, all caught, including the one the task specified
+# ("point --pro-identity at var(--accent), gate fails"). [ROUND FL] Section 7
+# is the TEXT census: a control whose TEXT is the accent blue (ruling 51),
+# which the fill census in section 5 could not see.
 #
 # Pure file reads, no browser, no subject to boot: ~0.05s.
 if ! node tools/check-accent-boundary.mjs; then

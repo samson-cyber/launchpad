@@ -2223,10 +2223,15 @@ html.has-bg .nest-submenu-item:hover {
   flex-shrink: 0;
 }
 
+/* [ROUND FL / RULING 51] "Change icon" sits in #modal beside Done, which H4.2
+   made the action, so it was the same second-blue-control the bookmark picker
+   carried. Found by the text census this round adds to check-accent-boundary,
+   and given the same control ink for the same reason (the note on
+   #bookmark-select-all). */
 .modal-icon-btn {
   padding: var(--space-1) var(--space-2-5);
   font-size: var(--fs-12);
-  color: var(--accent);
+  color: var(--text-secondary);
   background: transparent;
   border: 1px solid var(--border);
   border-radius:var(--radius-sm);
@@ -2394,10 +2399,23 @@ html.has-bg .modal-icon-btn:hover {
   margin-bottom: var(--space-2);
 }
 
+/* [ROUND FL / RULING 51] A TEXT CONTROL THAT IS NOT THE ACTION TAKES THE
+   CONTROL INK, NEVER THE LINK INK. "Select all / none" and Cancel were v1 blue
+   text beside the orange Import - a second action colour on one view, 4.50 on
+   white. They take --text-secondary, which on this card IS the control ink:
+   the picker is a white v1 card (#fff on every ground, measured), and its own
+   secondary text is #5f6368.
+
+   NOT --ink-mute, WHICH IS WHAT THE RULING'S LEAN NAMED, AND THE REASON IS A
+   MEASUREMENT. --ink / --ink-mute are v2 inks for DARK tiles: #a89c93 on this
+   white card is ~2.7:1, and #cfc5bc (the lift html.has-bg:not(.bg-light)
+   applies) is ~1.6:1. #modal-cancel took --ink-mute in H4.2 and renders at
+   exactly those two colours on #modal's white card today - the lean applied
+   literally would have copied that defect here. */
 #bookmark-select-all {
   background: none;
   border: none;
-  color: var(--accent);
+  color: var(--text-secondary);
   font-size: var(--fs-12);
   font-weight: 500;
   cursor: pointer;
@@ -2464,11 +2482,12 @@ html.has-bg .modal-icon-btn:hover {
 
 #bookmark-cancel {
   background: transparent;
-  color: var(--accent);
+  color: var(--text-secondary);
 }
 
 #bookmark-cancel:hover {
   background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 /* [ACTION SWEEP / RULING 40] Measured before: #1a73e8 / white, 4.51.
@@ -3143,21 +3162,10 @@ html.has-bg .rc-panel-item-meta {
   background: rgba(217, 48, 37, 0.08);
 }
 
-#bg-cancel {
-  padding: var(--space-2) var(--space-5);
-  border-radius:var(--radius-sm);
-  font-size: var(--fs-13);
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-  font-family: inherit;
-  background: transparent;
-  color: var(--accent);
-}
-
-#bg-cancel:hover {
-  background: var(--bg-hover);
-}
+/* [ROUND FL] #bg-cancel IS DELETED, NOT RECOLOURED - the third orphan in this
+   panel after #rc-date-apply and #bg-save. The id is in newtab.css and in no
+   shipped .html or .js, so nothing renders it; the text census would otherwise
+   have counted a blue Cancel the product does not have. */
 
 .bg-footer-actions-right {
   display: flex;

@@ -116,6 +116,20 @@ const SEEDS = [
   { name: "the tag primary drops .tag-create-btn and goes back to being dead",
     file: "sheet", from: "html.has-bg .tag-create-btn.tag-create-btn-primary {",
     to: "html.has-bg .tag-create-btn-primary {" },
+
+  // ---- ROUND FL / ruling 51's seeds: the TEXT clause. The bookmark picker's
+  // Cancel going back to v1 blue is the defect this clause was written for;
+  // the second is a brand-new blue text control, which is the case a named
+  // list exists to catch; the third is a listed STATE losing its state class,
+  // which turns it into a resting control ink while keeping a familiar name.
+  { name: "the bookmark picker's Cancel goes back to the link ink",
+    file: "sheet", from: "#bookmark-cancel {\n  background: transparent;\n  color: var(--text-secondary);",
+    to: "#bookmark-cancel {\n  background: transparent;\n  color: var(--accent);" },
+  { name: "a new blue text control appears",
+    file: "sheet", from: ".restore-all-btn:hover {",
+    to: ".gd-btn-secondary-link { color: var(--accent); }\n.restore-all-btn:hover {" },
+  { name: "a listed active state drops .active and becomes resting ink",
+    file: "sheet", from: ".bg-tab.active {", to: ".bg-tab {" },
 ];
 
 let seedApplied = null;
@@ -357,6 +371,65 @@ for (const { what, forms } of RANKED) {
   check(`${what} out-ranks its ground-scoped rule in every state, rather than out-ordering it`,
     missing.length === 0, missing.join("  |  "));
 }
+
+// ---- 7. THE TEXT CENSUS (ruling 51, ROUND FL) ------------------------
+//
+// A TEXT CONTROL THAT IS NOT THE ACTION TAKES THE CONTROL INK, NEVER THE LINK
+// INK. Section 5 counts FILLS, so a control painted blue in its TEXT sailed
+// through it: the bookmark picker's "Select all / none" and Cancel were v1
+// blue beside the orange Import - two action colours on one view - on the
+// same day the fill census went to zero. This is the clause that would have
+// seen them.
+//
+// SAME SHAPE AS SECTION 5, AND FOR THE SAME REASON: a NAMED list, never a
+// count. Every `color` declaration whose value is var(--accent) must be here
+// with the reason it is not a control's resting ink. There are two honest
+// reasons - a SELECTED STATE (the ink marks which option is on) and a LINK
+// (the one place the link ink belongs) - and one list of controls that are
+// OPEN, reported and not yet ruled on, so the gate names them every run
+// rather than hiding them inside a reason that is not true.
+//
+// --accent-text is excluded by construction: it is the ink ON an accent fill
+// (the lettered tile), which section 5 already accounts for.
+const TEXT_NON_CONTROLS = new Map([
+  [".rc-filter-option.active", "state: the selected history filter"],
+  [".bg-tab.active", "state: the selected wallpaper tab"],
+  [".restore-date-option.active", "state: the selected restore date"],
+  ["html.has-bg .restore-date-option.active", "state: the same, on a wallpaper"],
+  [".settings-dropdown-option.active", "state: the selected dropdown option"],
+  ["html.has-bg .settings-dropdown-option.active", "state: the same, on a wallpaper"],
+  ["#modal-import-link a:hover", "link: an inline link's hover"],
+  ["#pro-settings-privacy-link", "link: the privacy policy"],
+  ["html.bg-light #pro-settings-privacy-link", "link: the same, on a light wallpaper"],
+  [".pro-tags-trash-toggle", "link-styled disclosure, underlined, documented as the panel's link ink"],
+]);
+const TEXT_OPEN = new Map([
+  [".pro-tag-restore", "a bordered Restore button on a trashed tag row. Not beside an action, so ruling 51's lean does not obviously reach it; reported on Asana 1218734361174537 for a ruling"],
+  ["html.has-bg.bg-light .pro-tag-restore", "the same control's light branch"],
+]);
+const accentTexts = [];
+for (const m of S.matchAll(RULE)) {
+  const sel = norm(m[1]);
+  if (!sel || sel.startsWith("@")) continue;
+  for (const decl of m[2].split(";")) {
+    const i = decl.indexOf(":");
+    if (i < 0) continue;
+    const prop = decl.slice(0, i).trim(), val = decl.slice(i + 1).trim();
+    if (prop === "color" && /var\(\s*--accent\s*\)/.test(val)) accentTexts.push(sel);
+  }
+}
+// P2 floor: the census must be reading something, or zero strays means nothing.
+check("the text census found accent inks to classify",
+  accentTexts.length >= TEXT_NON_CONTROLS.size, `${accentTexts.length} found`);
+const textStrays = accentTexts.filter((sel) => !TEXT_NON_CONTROLS.has(sel) && !TEXT_OPEN.has(sel));
+check("no control takes the accent blue as its text ink",
+  textStrays.length === 0, textStrays.join("  |  "));
+const namedText = [...TEXT_NON_CONTROLS.keys(), ...TEXT_OPEN.keys()];
+const textMissing = namedText.filter((sel) => !accentTexts.includes(sel));
+check("every named accent-ink entry is still present and still accent",
+  textMissing.length === 0,
+  textMissing.length ? `${textMissing.join("  |  ")} - an entry that matches nothing is a hole` : "");
+for (const [sel, why] of TEXT_OPEN) console.log(`  OPEN  ${sel}  -- ${why}`);
 
 // --------------------------------------------------------------------------
 console.log("");
