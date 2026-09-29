@@ -35,6 +35,9 @@
 //
 //   node --experimental-websocket tools/drive-dialogs.mjs [browser-path]
 //   (Node 20 needs the flag; Node 22+ does not. Runs on Edge - BUGS I22.)
+//   [ROUND FL] Also drives Linux Chromium when given its path. As root it needs
+//   --no-sandbox, which belongs in a one-line wrapper script passed as the
+//   path, not in this file's flags.
 // Exit 0 = PASS, 1 = FAIL.
 // ===========================================================================
 import fs from "node:fs";
@@ -52,6 +55,7 @@ import { spawn } from "node:child_process";
 
 
 import { browserArgs } from "./browser-launch.mjs";
+import { decodePNG } from "./pixel-contrast.mjs";
 
 // [H3a] DERIVED FROM cwd, and the note this replaces had been recording the
 // bug for two rounds: an absolute REPO means a worktree drives the MAIN
@@ -62,7 +66,12 @@ import { browserArgs } from "./browser-launch.mjs";
 const REPO = process.cwd();
 
 function launch(profileDir, port) {
-  const exe = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
+  // [ROUND FL] THE HEADER HAS ALWAYS DOCUMENTED A [browser-path] ARGUMENT AND
+  // THIS LINE NEVER READ IT, so the harness could only ever drive Edge at its
+  // Windows install path. Honoured now, defaulting to exactly that path, so a
+  // Windows run is unchanged and a run elsewhere (a Chromium in a container)
+  // can be pointed at its browser rather than rewritten.
+  const exe = process.argv[2] || "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
   // Off-screen by default via browser-launch.mjs; this harness is headless
   // anyway, and stays that way - it drives dialogs over CDP and needs neither
   // a compositor nor a window manager.
@@ -92,17 +101,26 @@ async function waitForPort(port, ms = 30000) {
 // BUGS.md I7: the extension id comes from Secure Preferences, matched on the
 // REPO PATH. Taking "the first chrome-extension:// target" gets one of Edge's
 // own force-installed extensions.
+//
+// [ROUND FL] Linux Chromium keeps the same record in plain "Preferences" and
+// leaves Secure Preferences' extension map empty, so both are read - Secure
+// Preferences first, which is where Edge on Windows puts it.
 function extensionId(profileDir, tries = 40) {
-  const f = path.join(profileDir, "Default", "Secure Preferences");
+  const files = ["Secure Preferences", "Preferences"].map((n) => path.join(profileDir, "Default", n));
+  // Both sides normalised to one separator: the old form normalised only the
+  // stored path, toward backslashes, so it could never match a POSIX REPO. On
+  // Windows the comparison is unchanged.
+  const norm = (x) => x.toLowerCase().replace(/\\/g, "/");
   for (let i = 0; i < tries; i++) {
-    try {
-      const j = JSON.parse(fs.readFileSync(f, "utf8"));
-      const settings = j?.extensions?.settings || {};
-      for (const [id, v] of Object.entries(settings)) {
-        const p = (v && v.path) || "";
-        if (p.toLowerCase().replace(/\//g, "\\") === REPO.toLowerCase()) return id;
-      }
-    } catch (e) {}
+    for (const f of files) {
+      try {
+        const j = JSON.parse(fs.readFileSync(f, "utf8"));
+        const settings = j?.extensions?.settings || {};
+        for (const [id, v] of Object.entries(settings)) {
+          if (norm((v && v.path) || "") === norm(REPO)) return id;
+        }
+      } catch (e) {}
+    }
   }
   return null;
 }
@@ -421,6 +439,117 @@ if (varD) {
         var g=(ws.groups||[]).find(function(x){return x.name==="Daily";})||{};
         return !(g.shortcuts||[]).some(function(s){return /notion\\.so$/.test(new URL(s.url).hostname);});})()`)) === true);
   } else chk("variants delete: CONFIRM REMOVED the shortcut AND its variants", false, "did not reopen");
+}
+
+// ============================================ 3. DELETE A GROUP ============
+// [ROUND FL / RULING 52] #group-delete-dialog JOINS THE DRIVEN SET. It is a v1
+// dialog, not an openTasksModal, so READ above cannot see it and it has its own
+// reader here.
+//
+// RULING 52 IS WHY THE PRIMARY ASSERTION IS THE NON-DESTRUCTIVE ONE. "Move &
+// Delete" keeps the action pair: MOVE is the action and the delete is its
+// consequence - the shortcuts survive. A dialog whose primary preserves the
+// user's content is not a destructive confirm even when a container goes away,
+// so the destructive assertion is deliberately NOT extended to it. What IS
+// asserted is the same thing the tt-modals carry: the primary WEARS --action,
+// resolved by the browser rather than hardcoded, and on the PAINTED PIXEL as
+// well as the computed style - the tag popover's Save carried the right class
+// and the right declaration and still painted the neutral wash.
+//
+// THE v1 DIALOG'S OWN GAPS ARE REPORTED, NOT COUNTED: it carries no role or
+// aria-modal and does not move focus on open. Those belong with whoever
+// reunifies it with the tt-modal system (the same note as the nest confirm's
+// focus, above), not with a round about its ink.
+console.log("\n  3. DELETE A GROUP THAT HOLDS SHORTCUTS (ruling 52: move is the action)");
+await cdp.send("Page.navigate", { url: URL_ }, sessionId);
+await wait(3200); await ev(`LP.devPro(true)`); await wait(900);
+const GROUP = "Read";
+const groupState = () => ev(`(async()=>{var r=await chrome.storage.local.get("data");
+  var ws=(r.data.workspaces||[])[0]||{};
+  var live=(ws.groups||[]).filter(function(g){return !g.deletedAt;});
+  var g=live.find(function(x){return x.name===${JSON.stringify(GROUP)};});
+  var counts={}; live.forEach(function(x){counts[x.id]=(x.shortcuts||[]).length;});
+  return JSON.stringify({present:!!g, id:g?g.id:null, n:g?(g.shortcuts||[]).length:0, counts:counts});})()`).then(JSON.parse);
+const openGroupDelete = () => ev(`(function(){
+  var gs=document.querySelectorAll(".group");
+  for (var i=0;i<gs.length;i++){
+    if ((gs[i].querySelector(".group-name")||{}).textContent===${JSON.stringify(GROUP)}) {
+      var b=gs[i].querySelector(".group-more-btn"); if(!b) return "no more-btn";
+      b.click();
+      var d=document.querySelector('#group-menu [data-action="delete"]');
+      if(!d) return "no delete item"; d.click(); return "clicked delete on " + ${JSON.stringify(GROUP)};
+    }
+  } return "no group " + ${JSON.stringify(GROUP)};})()`);
+const GD_READ = `(function () {
+  var ov = document.getElementById("group-delete-overlay"), dlg = document.getElementById("group-delete-dialog");
+  if (!ov || ov.classList.contains("hidden")) return JSON.stringify({ open: false });
+  var r = dlg.getBoundingClientRect(), p = document.getElementById("gd-move-delete"), c = document.getElementById("gd-cancel");
+  var pr = p.getBoundingClientRect();
+  var probe = document.createElement("span");
+  probe.style.cssText = "background:var(--action);color:var(--ink-on-action);position:fixed;left:-9999px";
+  document.body.appendChild(probe);
+  var pc = getComputedStyle(probe), act = { fill: pc.backgroundColor, ink: pc.color };
+  probe.remove();
+  return JSON.stringify({ open: true,
+    title: document.getElementById("gd-title").textContent, message: document.getElementById("gd-message").textContent,
+    primaryLabel: p.textContent, cancelLabel: c.textContent,
+    moveVisible: !document.getElementById("gd-move-section").classList.contains("hidden"),
+    primaryDanger: p.classList.contains("gd-btn-danger"),
+    primaryFill: getComputedStyle(p).backgroundColor, primaryInk: getComputedStyle(p).color, actionFill: act,
+    box: { x: pr.x, y: pr.y, width: pr.width, height: pr.height },
+    target: document.getElementById("gd-move-target").value,
+    inViewport: r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth && r.width > 0,
+    role: dlg.getAttribute("role"), ariaModal: dlg.getAttribute("aria-modal"),
+    focusInside: dlg.contains(document.activeElement) });
+})()`;
+// The painted fill: the MODAL colour inside the button's box, from the screen.
+// Text is a minority of the box, so the most common pixel is the fill.
+async function paintedFill(box) {
+  const shot = await cdp.send("Page.captureScreenshot", { format: "png",
+    clip: { x: box.x, y: box.y, width: box.width, height: box.height, scale: 1 } }, sessionId);
+  const img = decodePNG(Buffer.from(shot.data, "base64"));
+  const tally = new Map();
+  for (let i = 0; i < img.w * img.h; i++) {
+    const k = img.data[i * img.ch] + "," + img.data[i * img.ch + 1] + "," + img.data[i * img.ch + 2];
+    tally.set(k, (tally.get(k) || 0) + 1);
+  }
+  return [...tally.entries()].sort((a, b) => b[1] - a[1])[0][0].split(",").map(Number);
+}
+const rgbOf = (css) => (css.match(/\d+(\.\d+)?/g) || []).slice(0, 3).map(Number);
+const before = await groupState();
+console.log("    (" + (await openGroupDelete()) + ")");
+await wait(700);
+const g = JSON.parse(await ev(GD_READ));
+chk("group delete: opens IN-PAGE", g.open === true, g.open ? "title=" + JSON.stringify(g.title) : "overlay hidden");
+if (g.open) {
+  chk("group delete: IN THE VIEWPORT", g.inViewport === true);
+  chk("group delete: title + sentence + BOTH labels, and the move section is offered",
+    !!g.title && !!g.message && !!g.primaryLabel && !!g.cancelLabel && g.moveVisible,
+    `${JSON.stringify(g.title)} | ${JSON.stringify(g.primaryLabel)} | ${JSON.stringify(g.cancelLabel)}`);
+  chk("group delete: the primary is NOT danger-styled (ruling 52)", g.primaryDanger === false);
+  chk("group delete: the primary is filled with --action, resolved",
+    g.primaryFill === g.actionFill.fill, `primary=${g.primaryFill} action=${g.actionFill.fill}`);
+  chk("group delete: the primary's ink is --ink-on-action, resolved",
+    g.primaryInk === g.actionFill.ink, `primary=${g.primaryInk} action=${g.actionFill.ink}`);
+  const px = await paintedFill(g.box), want = rgbOf(g.actionFill.fill);
+  chk("group delete: the primary PAINTS --action (screen pixel, +/-3)",
+    px.every((v, i) => Math.abs(v - want[i]) <= 3), `painted=rgb(${px.join(", ")}) action=${g.actionFill.fill}`);
+  if (g.role !== "dialog" || g.ariaModal !== "true") { known++; console.log("    KNOWN  group delete: no role=dialog / aria-modal - a v1 dialog, not an openTasksModal"); }
+  if (!g.focusInside) { known++; console.log("    KNOWN  group delete: focus is not moved into the dialog on open"); }
+  await key("Escape"); await wait(600);
+  chk("group delete: Escape closes it", JSON.parse(await ev(GD_READ)).open === false);
+  console.log("    (" + (await openGroupDelete()) + ")"); await wait(700);
+  await click("#gd-cancel"); await wait(700);
+  const afterCancel = await groupState();
+  chk("group delete: CANCEL LEFT THE GROUP and its shortcuts in place",
+    afterCancel.present && afterCancel.n === before.n, `present=${afterCancel.present} n=${before.n}->${afterCancel.n}`);
+  console.log("    (" + (await openGroupDelete()) + ")"); await wait(700);
+  const target = JSON.parse(await ev(GD_READ)).target;
+  await click("#gd-move-delete"); await wait(1500);
+  const afterMove = await groupState();
+  chk("group delete: MOVE & DELETE removed the group AND kept its shortcuts in the target",
+    !afterMove.present && afterMove.counts[target] === (before.counts[target] || 0) + before.n,
+    `present=${afterMove.present} target ${before.counts[target] || 0} -> ${afterMove.counts[target]} (moved ${before.n})`);
 }
 
 console.log("\n  " + pass + " passed, " + fail + " failed" +

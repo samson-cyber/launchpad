@@ -4439,3 +4439,39 @@ without a conflict, ES6 permits duplicate data properties, the last one won, and
 `st.controls` was `null` on every surface. The side panel would have shipped
 with a perfectly grouped due list and no way to start work on it — no syntax
 error, no gate, no marker. It is in BUGS.md under the merge family.
+
+## 2026-09-29 — Round FL: a floater that takes the light tint takes the light inks, and a dialog that preserves content is not destructive
+
+**RULING 52 (Samson, 2026-09-22): "Move & Delete" keeps the action pair.** In
+`#group-delete-dialog`, MOVE is the action and the delete is its consequence -
+the shortcuts survive. **A dialog whose primary preserves the user's content is
+not a destructive confirm, even when a container goes away.** So drive-dialogs
+asserts this primary WEARS `--action` (resolved token and painted pixel), the
+same assertion the non-destructive tt-modals carry, and the destructive
+assertion is deliberately not extended to it. "Delete All", the button beside
+it that does discard the shortcuts, is the dialog's danger control.
+
+**A FLOATER THAT GAINS A LIGHT-WALLPAPER BACKGROUND HAS ITS INKS REVISITED IN
+THE SAME COMMIT.** `html.bg-light` flips `--pro-frost-floater-bg` to white at
+0.92 for every consumer at once, so any floater without a bg-light answer turns
+white on white the moment a pale wallpaper is set. The task named two floaters.
+The census found five live ones among 19 consumers, and all five are fixed with
+the house pattern: restate the light ink ramp on the floater, then answer the
+literal whites one by one. The census is the step to repeat. A
+`html:not(.has-bg)` branch is NOT a light answer, because the shipped default
+ground is itself a has-bg colour and that branch reaches no one.
+
+**RULING 51, APPLIED BY MEASUREMENT RATHER THAN BY THE LETTER OF ITS LEAN.** A
+text control that is not the action takes the control ink, never the link ink.
+The lean named `--ink` / `--ink-mute`, and those are v2 inks for DARK tiles. On
+a white v1 card `--ink-mute` measures ~2.7:1, and its has-bg lift ~1.6:1. So on
+a white v1 card the control ink is the card's own secondary text,
+`--text-secondary` (#5f6368, 6.05 measured). `#modal-cancel` took `--ink-mute`
+in H4.2 and today measures 1.70 dark / 2.68 light on `#modal`'s white card. It
+is reported on Asana 1218734361174537 and not changed here, because it is a
+ruled surface.
+
+**`check-accent-boundary` section 7 is the TEXT census**, built like section 5:
+a named list, never a count. It has six selected states, four links, and one
+control listed OPEN (`.pro-tag-restore`) rather than given a reason that is not
+true.
