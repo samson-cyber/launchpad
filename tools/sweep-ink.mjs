@@ -278,6 +278,33 @@ const PAGE = {
       fw: cs.fontWeight,
       color: cs.color,
       inPreview: !!(el.closest && el.closest(".pro-preview-content")),
+      // [RULING 62] BY CODEPOINT RANGE, not by font fallback. A font-fallback
+      // test asks which face rendered the glyph, which varies by platform and
+      // would classify differently on this machine than in any container; a
+      // codepoint is the same everywhere.
+      //
+      // WRITTEN WITH ARITHMETIC AND NO REGEX because this file's own self-test
+      // A1 forbids a backslash anywhere in the page-source region, and the
+      // first draft of this used a Unicode property escape. The test caught it.
+      //
+      // ONLY A NODE THAT IS ENTIRELY PICTOGRAPHIC counts. A mixed node like the
+      // right-click tip's bulb followed by real words has its contrast decided
+      // by the WORDS, so excluding it would drop a real reading; a node that is
+      // nothing but a star has no contrast question of the kind this instrument
+      // measures.
+      emoji: (function () {
+        var str = s || "", any = false;
+        for (var i = 0; i < str.length; i++) {
+          var c = str.codePointAt(i);
+          if (c > 65535) i++;
+          if (c === 32 || c === 9 || c === 10 || c === 13 || c === 65038 || c === 65039 || c === 8205) continue;
+          var pic = (c >= 127744 && c <= 129791) || (c >= 126976 && c <= 127487) ||
+                    (c >= 9728 && c <= 10175) || c === 11088 || c === 11093;
+          if (!pic) return false;
+          any = true;
+        }
+        return any;
+      })(),
       // [RULING 61] Which floater this node is inside, if any. The floaters
       // pass marks the OPEN floater's visible root with data-sweep-floater
       // before the capture pair, so the whole existing enumerate-once,
@@ -821,6 +848,24 @@ export const fmtRatio = (row) =>
 // Whichever ground actually has a reading, for the descriptive line.
 export const anyRow = (r) => r.sl || r.pl || r.nn || r.sd || null;
 
+// THE AGGREGATION RULE, WRITTEN DOWN BECAUSE IT WAS ALREADY RIGHT HERE AND
+// WRONG EVERYWHERE ELSE.
+//
+//   A node is UNMEASURABLE only when NO instance of it measured.
+//   Otherwise it keeps its WORST MEASURED reading.
+//
+// The second clause is the one that matters: a node seen on two screens, once
+// measured and once not, is a MEASURED node. The mapping below sends a null
+// ratio to Infinity so it can never win the comparison, which is that rule -
+// but nothing said so and nothing tested it, and the cost of that silence was
+// paid outside this file. Round FL's local verification re-implemented the
+// dedupe in a scratch script, treated unmeasurable as WORSE than any number,
+// and produced 29 unmeasurable nodes for the Pro board where this file's own
+// report said 13 for the whole run, free tier included. Four cells of a
+// residual table disagreed with their baseline for no reason but that.
+//
+// The worst MEASURED reading is also the reading a fix has to clear, which is
+// the argument for the rule and not just a description of it.
 export function dedupeByGround(rows) {
   const out = new Map();                       // ground -> key -> row
   for (const r of rows) {
@@ -1084,6 +1129,54 @@ function selfTest() {
   chk("one text node seen on three surfaces dedupes to one row", only.length === 1, String(only.length));
   chk("...kept at its WORST reading, which is the one a fix must clear", only[0] && only[0].ratio === 2.2, only[0] && String(only[0].ratio));
   chk("...with every surface it was seen on recorded", only[0] && only[0].surfaces.size === 3, only[0] && String(only[0].surfaces.size));
+
+  // --- THE AGGREGATION RULE, planted: one node, two screens, one of them
+  // unmeasurable. This is the case that had no test, and its absence cost
+  // Round FL four cells of a residual table.
+  const twoScreens = dedupeByGround([
+    mk({ ratio: null, surface: "Home", step: 0 }),
+    mk({ ratio: 6.2, surface: "Home", step: 1 }),
+  ]);
+  const ts = [...twoScreens.get("solid-light").values()][0];
+  chk("a node measured on one screen and not the other is MEASURED",
+    ts && ts.ratio === 6.2, ts && String(ts.ratio));
+  const bothNull = dedupeByGround([
+    mk({ ratio: null, surface: "Home", step: 0 }),
+    mk({ ratio: null, surface: "Home", step: 1 }),
+  ]);
+  const bn = [...bothNull.get("solid-light").values()][0];
+  chk("...unmeasurable ONLY when no instance measured", bn && bn.ratio === null, bn && String(bn.ratio));
+  const worstWins = dedupeByGround([
+    mk({ ratio: 9.0, surface: "Home", step: 0 }),
+    mk({ ratio: null, surface: "Home", step: 1 }),
+    mk({ ratio: 3.1, surface: "Home", step: 2 }),
+  ]);
+  const ww = [...worstWins.get("solid-light").values()][0];
+  chk("...keeping the WORST measured reading, ignoring the unmeasurable one",
+    ww && ww.ratio === 3.1, ww && String(ww.ratio));
+
+  // --- [RULING 62] the emoji classifier, the same arithmetic ENUMERATE uses.
+  const isEmoji = (str) => {
+    let any = false;
+    for (let i = 0; i < str.length; i++) {
+      const c = str.codePointAt(i);
+      if (c > 65535) i++;
+      if (c === 32 || c === 9 || c === 10 || c === 13 || c === 65038 || c === 65039 || c === 8205) continue;
+      const pic = (c >= 127744 && c <= 129791) || (c >= 126976 && c <= 127487) ||
+                  (c >= 9728 && c <= 10175) || c === 11088 || c === 11093;
+      if (!pic) return false;
+      any = true;
+    }
+    return any;
+  };
+  const STAR = String.fromCodePoint(11088), BULB = String.fromCodePoint(128161), VS16 = String.fromCodePoint(65039);
+  chk("emoji: a lone star is an emoji node", isEmoji(STAR) === true);
+  chk("emoji: a star with a variation selector still is", isEmoji(STAR + VS16) === true);
+  chk("emoji: a bulb outside the BMP is one too", isEmoji(BULB) === true);
+  chk("emoji: a MIXED node is NOT - its contrast is decided by the words",
+    isEmoji(BULB + " Tip: Right-click any page") === false);
+  chk("emoji: ordinary text is not", isEmoji("Good morning") === false);
+  chk("emoji: whitespace alone is not", isEmoji("   ") === false);
 
   // --- Classification, one synthetic node per category plus a passing control.
   const node = (cls, byGround) => Object.entries(byGround).map(([g, ratio]) =>
@@ -1433,7 +1526,7 @@ async function sweep() {
       try { await ev(s.open); } catch (e) { console.log(`  ${s.key}: OPEN FAILED ${e.message.slice(0, 80)}`); continue; }
       await sleep(s.wait);
       const sc = await ev(PAGE.SCROLLERS);
-      let seen = 0, under = 0, unmeasured = 0;
+      let seen = 0, under = 0, unmeasured = 0, emojiUnder = 0;
       for (let step = 0; step < (sc.steps || 1); step++) {
         if (step) { await ev(PAGE.SCROLL_TO(step)); await sleep(700); }
         await ev(PAGE.CLEAR_IDS);
@@ -1458,7 +1551,11 @@ async function sweep() {
           const m = measure(painted, inkless, nd.box, SCALE);
           const { big, floor } = floorFor(nd.fs, nd.fw);
           const r = typeof m.ratio === "number" ? m.ratio : null;
-          if (r !== null && r < floor) under++;
+          // [RULING 62] An emoji glyph paints its own colours and ignores
+          // `color`, so a contrast ratio computed from the CSS ink is not a
+          // statement about it. Counted separately, never in the failures.
+          if (r !== null && r < floor && !nd.emoji) under++;
+          else if (r !== null && r < floor) emojiUnder++;
           // [H4.1] AN UNMEASURABLE NODE IS NOT A CLEAR NODE (H4.0 fault 1). The
           // most dangerous line a measurement can print is "0 under floor" from
           // a run that measured nothing: H4.0's ad-hoc harness reported exactly
@@ -1469,7 +1566,7 @@ async function sweep() {
             cls: nd.cls, text: (nd.text || "").slice(0, 28), note: m.note || null, px: m.pixels }); }
           seen++;
           rows.push({ ground: g.key, surface: s.key, tier: s.tier || "pro", inPreview: !!nd.inPreview,
-                      floater: nd.floater || null,
+                      floater: nd.floater || null, emoji: !!nd.emoji,
                       step, cls: nd.cls, elId: nd.elId, tag: nd.tag,
                       text: nd.text, fs: nd.fs, fw: nd.fw, big, floor, ratio: r,
                       pixels: m.pixels, ink: m.ink || null, bg: m.bg || null,
@@ -1479,10 +1576,10 @@ async function sweep() {
       // "all clear" is printed ONLY when nothing failed AND nothing was
       // unmeasurable. Anything else says which, because the two are different
       // findings and only one of them is about the product.
-      const verdict = under && unmeasured ? `${under} UNDER FLOOR, ${unmeasured} UNMEASURABLE`
+      const verdict = (under && unmeasured ? `${under} UNDER FLOOR, ${unmeasured} UNMEASURABLE`
                     : under ? `${under} UNDER FLOOR`
                     : unmeasured ? `${unmeasured} UNMEASURABLE (this is NOT a pass)`
-                    : "all clear";
+                    : "all clear") + (emojiUnder ? `  (+${emojiUnder} emoji, not counted)` : "");
       console.log(`  ${s.key.padEnd(13)} ${String(seen).padStart(4)} nodes over ${sc.steps || 1} screen(s)   ${verdict}`);
     }
 
@@ -1595,23 +1692,25 @@ async function sweep() {
       await ev(PAGE.INKLESS_ON); await sleep(300);
       const fInkless = await shot();
       await ev(PAGE.INKLESS_OFF); await sleep(120);
-      let fUnder = 0, fUnmeas = 0;
+      let fUnder = 0, fUnmeas = 0, fEmoji = 0;
       for (const nd of fnodes) {
         const m = measure(fPainted, fInkless, nd.box, SCALE);
         const { big, floor } = floorFor(nd.fs, nd.fw);
         const r = typeof m.ratio === "number" ? m.ratio : null;
-        if (r !== null && r < floor) fUnder++;
+        if (r !== null && r < floor && !nd.emoji) fUnder++;
+        else if (r !== null && r < floor) fEmoji++;
         if (r === null) { fUnmeas++; unmeasuredRows.push({ ground: g.key, surface: "Floaters/" + f.key,
           cls: nd.cls, text: (nd.text || "").slice(0, 28), note: m.note || null, px: m.pixels }); }
         rows.push({ ground: g.key, surface: "Floaters", tier: "pro", inPreview: false,
-                    floater: f.key, step: 0, cls: nd.cls, elId: nd.elId, tag: nd.tag,
+                    floater: f.key, emoji: !!nd.emoji, step: 0, cls: nd.cls, elId: nd.elId, tag: nd.tag,
                     text: nd.text, fs: nd.fs, fw: nd.fw, big, floor, ratio: r,
                     pixels: m.pixels, ink: m.ink || null, bg: m.bg || null,
                     color: nd.color, shadow: nd.shadow });
       }
-      const fv = fUnder && fUnmeas ? `${fUnder} UNDER FLOOR, ${fUnmeas} UNMEASURABLE`
+      const fv = (fUnder && fUnmeas ? `${fUnder} UNDER FLOOR, ${fUnmeas} UNMEASURABLE`
                : fUnder ? `${fUnder} UNDER FLOOR`
-               : fUnmeas ? `${fUnmeas} UNMEASURABLE (this is NOT a pass)` : "all clear";
+               : fUnmeas ? `${fUnmeas} UNMEASURABLE (this is NOT a pass)` : "all clear")
+               + (fEmoji ? `  (+${fEmoji} emoji, not counted)` : "");
       console.log(`  ${("~ " + f.key).padEnd(24)} ${String(fnodes.length).padStart(3)} nodes   ${fv}`);
       if (preId) { try { await send("Page.removeScriptToEvaluateOnNewDocument", { identifier: preId }); } catch (e) {} }
     }
@@ -1654,6 +1753,23 @@ async function sweep() {
     console.error("  The nodes above were never measured, so the zero is about them, not the product.");
     console.error("  Fix the instrument or name each one, then re-run. --allow-unmeasurable overrides.");
     if (!flag("--allow-unmeasurable")) process.exitCode = 3;
+  }
+
+  // [RULING 62] THE EMOJI, under their own heading and out of the failure
+  // count. A colour emoji paints its own glyph and ignores `color`, so a ratio
+  // computed from the CSS ink is not a statement about whether anyone can read
+  // it. They are PRINTED rather than dropped, because "we excluded these" is a
+  // claim a reader should be able to check.
+  const emojiRows = rows.filter((r) => r.emoji && r.ratio !== null && r.ratio < r.floor);
+  if (emojiRows.length) {
+    const seenE = new Map();
+    for (const r of emojiRows) if (!seenE.has(r.cls + r.text)) seenE.set(r.cls + r.text, r);
+    console.log(`
+  EMOJI GLYPHS, classified by codepoint and NOT counted as failures: ${seenE.size}`);
+    for (const r of seenE.values()) {
+      console.log(`    ${String(r.ratio.toFixed(2)).padStart(6)}  ${(r.cls || r.tag).padEnd(22)} ${r.surface}${r.floater ? "/" + r.floater : ""}`);
+    }
+    console.log("    a colour emoji ignores `color`; the ratio above is not a legibility reading.");
   }
 
   // [RULING 61] The floaters that were NOT measured, and why - printed before
