@@ -501,19 +501,20 @@ const GROUNDS = [
 // branch" is not sufficient: 10:00 and 06:00 are both "morning" and they differ
 // on whether due reminders have fired.
 //
-// THE HOUR IS 10:30, AND THE CELL MATTERS MORE THAN THE BRANCH. It sits in
-// [09:00, 12:00) - after the due-reminder hour, before both noon branches,
-// inside dashboardPeriod's "day" - and 10:30 is that cell's MIDPOINT, 90
-// minutes from 09:00 and 90 from 12:00, which is the widest margin available
-// inside it.
+// THE HOUR IS 14:00, IN THE INTERIOR OF EVERY BRANCH AT ONCE. dashGreeting's
+// afternoon is [12:00, 17:00) and greetingFor's is [12:00, 18:00); their
+// intersection is [12:00, 17:00), and 14:00 sits two hours inside its lower
+// edge and three inside its upper. DUE_REMINDER_HOUR is 9, five hours away;
+// dashboardPeriod's floor is 04:00 and its end-of-day is 17:00, the same
+// instant as dashGreeting's. So every boundary in the shipped code is at least
+// one full hour away, which is what an hour pinned for reproducibility has to
+// be - not merely inside a branch.
 //
-// [12:00, 17:00) is a wider cell and its midpoint would have a 150-minute
-// margin. It was NOT chosen, deliberately: this round's own before/after
-// comparison is the check that the TOOL changed and the PRODUCT did not, and
-// the baseline it compares against was swept unpinned inside [09:00, 12:00).
-// Pinning into a different cell would move the Dashboard for a reason that is
-// the pin rather than the tool, and would make that check unable to fail
-// honestly. The cell is the baseline's; the hour is the best point inside it.
+// AN EARLIER DRAFT PINNED 10:30 to keep this round's own before/after
+// comparison inside the unpinned baseline's cell. That was the wrong trade: it
+// chose an hour to make one comparison easy rather than to make every future
+// run reproducible, and 10:30 is only 90 minutes from two boundaries. The
+// comparison is handled by saying which cells moved and why instead.
 //
 // WHAT IS PINNED AND WHAT IS NOT. The HOUR is pinned absolutely. The DATE is
 // the run's own calendar date, and the weekday is RECORDED rather than pinned.
@@ -525,8 +526,8 @@ const GROUNDS = [
 // needs the pin installed before seeding, i.e. a change to seed-fixture.mjs,
 // which this round does not own. --compare refuses across differing header
 // lines, so a cross-weekday comparison is caught rather than silently made.
-const CLOCK_HOUR = 10;
-const CLOCK_MINUTE = 30;
+const CLOCK_HOUR = 14;
+const CLOCK_MINUTE = 0;
 
 // Installed with Page.addScriptToEvaluateOnNewDocument so it survives every
 // reload - and the sweep reloads on every ground and every tier flip.
@@ -1887,7 +1888,7 @@ function compare(aPath, bPath, noisePath) {
     console.error("  noise: " + (clockOf(noisePath) || "(no CLOCK line)"));
     process.exit(2);
   }
-  console.log("CLOCK " + (ca || "(unpinned on both sides)"));
+  console.log(ca || "CLOCK (unpinned on both sides)");
   const rowsOf = (j) => (Array.isArray(j) ? j : (j.rows || []));
   // The hero and the clock TICK, so a key that includes their text never
   // matches across runs (H4.0 fault 3, one layer along). Text is part of the
