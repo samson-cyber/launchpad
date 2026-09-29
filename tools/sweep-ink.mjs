@@ -779,7 +779,7 @@ const FLOATERS = [
   // only OPENS something; this one commits. It runs last so the state it leaves
   // is nobody else's problem, and the reload after it restores nothing, which is
   // why the order is the fix rather than a cleanup step.
-  { key: "nest rename", root: "#nest-rename-dialog",
+  { key: "nest rename", root: "#nest-rename-dialog", mutates: true,
     why: "right-click a shortcut > Nest with... > pick a target",
     steps: [ { js: CTX_AT(".shortcut"), wait: 500 },
              { js: CLICK("#menu-nest-with"), wait: 500 },
@@ -1583,6 +1583,24 @@ async function sweep() {
       console.log(`  ${s.key.padEnd(13)} ${String(seen).padStart(4)} nodes over ${sc.steps || 1} screen(s)   ${verdict}`);
     }
 
+    // Puts the fixture back after a floater whose trigger commits a change,
+    // and REFUSES the run if it cannot - a sweep continuing on a fixture it
+    // knows is wrong would file every later ground under a product that no
+    // longer matches the one it started on.
+    const restoreSnapshot = async (snap, key) => {
+      const ok = await ev(`(async function () {
+        try { await Storage.saveAll(JSON.parse(${JSON.stringify(snap)})); return true; }
+        catch (e) { return String((e && e.message) || e); }
+      })()`);
+      if (ok !== true) {
+        console.error(`
+REFUSED: could not put the fixture back after "${key}" (${ok}).`);
+        console.error("  Every ground after this one would measure a product this run mutated.");
+        process.exit(2);
+      }
+      await ev(`location.reload()`); await sleep(4200);
+    };
+
     // ---------------------------------------------- [RULING 61] THE FLOATERS
     // Driven Pro, on the Home tab, once per ground. Each is opened through the
     // product's own path, measured, and then the page is RELOADED - a floater
@@ -1599,6 +1617,19 @@ async function sweep() {
       // page life starts (the promo toast's auto-dismiss). Installed on new
       // document, removed straight after, so it reaches this floater and no
       // other measurement in the run.
+      // A MUTATING FLOATER IS SNAPSHOTTED AND PUT BACK. Running it last inside
+      // one ground was not enough: the ground loop runs five times, so the nest
+      // committed on the first ground was still there when the SECOND ground
+      // measured Home, and the tab surfaces drifted underneath the sweep.
+      // Caught by this round's own before/after check - variant-badge nodes
+      // appeared on Home in the after run and Home's denominator fell - which
+      // is the check working. The snapshot goes through the product's own
+      // getAll/saveAll rather than a storage write, so what is restored is a
+      // shape the product produced.
+      let snapshot = null;
+      if (f.mutates) {
+        snapshot = await ev(`(async function () { return JSON.stringify(await Storage.getAll()); })()`);
+      }
       let preId = null;
       if (f.preScript) {
         preId = (await send("Page.addScriptToEvaluateOnNewDocument", { source: f.preScript })).identifier;
@@ -1615,6 +1646,7 @@ async function sweep() {
       if (failed) {
         floaterNotes.push({ ground: g.key, key: f.key, openFailed: failed });
         console.log(`  ${("~ " + f.key).padEnd(24)} OPEN FAILED - ${failed}`);
+        if (snapshot) await restoreSnapshot(snapshot, f.key);
         if (preId) { try { await send("Page.removeScriptToEvaluateOnNewDocument", { identifier: preId }); } catch (e) {} }
         continue;
       }
@@ -1640,6 +1672,7 @@ async function sweep() {
       if (!marked || !marked.ok) {
         floaterNotes.push({ ground: g.key, key: f.key, openFailed: "opened, but no visible root for " + f.root + " (" + (marked ? marked.found : "?") + " matched)" });
         console.log(`  ${("~ " + f.key).padEnd(24)} NO VISIBLE ROOT (${f.root}) - ${marked ? marked.found : "?"} matched, none visible`);
+        if (snapshot) await restoreSnapshot(snapshot, f.key);
         continue;
       }
 
@@ -1675,6 +1708,7 @@ async function sweep() {
       if (!settled || !settled.ok) {
         floaterNotes.push({ ground: g.key, key: f.key, unsettled: (settled && settled.why) || "no answer" });
         console.log(`  ${("~ " + f.key).padEnd(24)} NOT SETTLED - ${(settled && settled.why) || "?"}`);
+        if (snapshot) await restoreSnapshot(snapshot, f.key);
         continue;
       }
 
@@ -1685,6 +1719,7 @@ async function sweep() {
       if (!fnodes.length) {
         floaterNotes.push({ ground: g.key, key: f.key, openFailed: "open and settled, but it has no measurable text node" });
         console.log(`  ${("~ " + f.key).padEnd(24)} NO TEXT NODES`);
+        if (snapshot) await restoreSnapshot(snapshot, f.key);
         continue;
       }
       await ev(PAGE.INKLESS_OFF); await sleep(250);
@@ -1713,6 +1748,7 @@ async function sweep() {
                + (fEmoji ? `  (+${fEmoji} emoji, not counted)` : "");
       console.log(`  ${("~ " + f.key).padEnd(24)} ${String(fnodes.length).padStart(3)} nodes   ${fv}`);
       if (preId) { try { await send("Page.removeScriptToEvaluateOnNewDocument", { identifier: preId }); } catch (e) {} }
+      if (snapshot) await restoreSnapshot(snapshot, f.key);
     }
     await ev(`location.reload()`); await sleep(4200);
   }
