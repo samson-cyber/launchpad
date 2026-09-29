@@ -438,6 +438,94 @@ const GROUNDS = [
 // reload of the whole page. The loop below sorts pro before free within each
 // ground and flips ONCE, so a five-ground run pays five flips rather than
 // thirty.
+// =========================================================================
+// [RULING 53] THE CLOCK PIN.
+//
+// THE PRODUCT RENDERS DIFFERENT NODES AT DIFFERENT HOURS, so an unpinned sweep
+// is not reproducible and a before/after pair that straddles a boundary shows
+// movement no commit caused. E3 proved it rather than suspected it: its merged
+// re-sweep crossed 17:00 MID-RUN and the Dashboard went 16 -> 17 under floor
+// with the DENOMINATOR moving 114 -> 107, because the hero's evening variant
+// renders four extra nodes ("That's the day", and three dash-recap-labels).
+// E2 had seen a cousin of the same thing and attributed it to fixture day
+// offset. One sweep can be internally inconsistent across its own ground
+// columns.
+//
+// EVERY BOUNDARY IN THE SHIPPED CODE, found by grepping getHours() rather than
+// by taking the two the brief named - there are five, not two:
+//
+//    04:00   DASHBOARD_DAY_FLOOR_MINUTES   newtab.js:897   dashboardPeriod
+//    09:00   DUE_REMINDER_HOUR             storage.js:9863 due reminders fire
+//    12:00   dashGreeting AND greetingFor  newtab.js:2217, 18261
+//    17:00   dashGreeting -> evening       newtab.js:2217
+//            DEFAULT_END_OF_DAY_MINUTES    storage.js:415  (the same instant)
+//    18:00   greetingFor -> evening        newtab.js:18261
+//
+// So the day is partitioned into six cells, not three, and "inside one greeting
+// branch" is not sufficient: 10:00 and 06:00 are both "morning" and they differ
+// on whether due reminders have fired.
+//
+// THE HOUR IS 10:30, AND THE CELL MATTERS MORE THAN THE BRANCH. It sits in
+// [09:00, 12:00) - after the due-reminder hour, before both noon branches,
+// inside dashboardPeriod's "day" - and 10:30 is that cell's MIDPOINT, 90
+// minutes from 09:00 and 90 from 12:00, which is the widest margin available
+// inside it.
+//
+// [12:00, 17:00) is a wider cell and its midpoint would have a 150-minute
+// margin. It was NOT chosen, deliberately: this round's own before/after
+// comparison is the check that the TOOL changed and the PRODUCT did not, and
+// the baseline it compares against was swept unpinned inside [09:00, 12:00).
+// Pinning into a different cell would move the Dashboard for a reason that is
+// the pin rather than the tool, and would make that check unable to fail
+// honestly. The cell is the baseline's; the hour is the best point inside it.
+//
+// WHAT IS PINNED AND WHAT IS NOT. The HOUR is pinned absolutely. The DATE is
+// the run's own calendar date, and the weekday is RECORDED rather than pinned.
+// That is a limit of what this file can reach, not a choice: the fixture is
+// seeded by tools/seed-fixture.mjs in its own browser session before sweep-ink
+// adopts it, and it keys tracking data by the REAL date. Pinning the date here
+// would leave the page believing in a day the fixture has no data for, which
+// moves Insights and the Dashboard for a third reason. Pinning the weekday
+// needs the pin installed before seeding, i.e. a change to seed-fixture.mjs,
+// which this round does not own. --compare refuses across differing header
+// lines, so a cross-weekday comparison is caught rather than silently made.
+const CLOCK_HOUR = 10;
+const CLOCK_MINUTE = 30;
+
+// Installed with Page.addScriptToEvaluateOnNewDocument so it survives every
+// reload - and the sweep reloads on every ground and every tier flip.
+//
+// THE CLOCK STILL TICKS. It is pinned to 10:30:00 at the start of each page
+// life and advances in real time from there, rather than being frozen: a frozen
+// Date.now() stalls the product's own elapsed-time readouts and its retry
+// timers, which would be a second measurement artifact in place of the first.
+// performance.now() is untouched, so transitions and the settle rule are
+// unaffected.
+const CLOCK_SCRIPT = `(function () {
+  var RD = Date;
+  var realNow = RD.now.bind(RD);
+  var anchor = new RD(realNow());
+  anchor.setHours(${CLOCK_HOUR}, ${CLOCK_MINUTE}, 0, 0);
+  var PIN0 = anchor.getTime();
+  var REAL0 = realNow();
+  function pinnedNow() { return PIN0 + (realNow() - REAL0); }
+  var P = new Proxy(RD, {
+    get: function (t, k, r) {
+      if (k === "now") return pinnedNow;
+      var v = Reflect.get(t, k, r);
+      return (typeof v === "function" && k !== "prototype") ? v.bind(t) : v;
+    },
+    construct: function (t, args) {
+      return args.length === 0 ? new t(pinnedNow()) : Reflect.construct(t, args);
+    },
+    apply: function () { return new RD(pinnedNow()).toString(); }
+  });
+  try {
+    Object.defineProperty(window, "Date", { value: P, writable: true, configurable: true });
+  } catch (e) { window.Date = P; }
+  window.__sweepClock = { pin: PIN0, hour: ${CLOCK_HOUR}, minute: ${CLOCK_MINUTE} };
+})()`;
+
 const SURFACES = [
   { key: "Home",         tier: "pro",  open: `(function(){document.querySelector('[data-tab="home"]').click();return 1})()`, wait: 1500 },
   { key: "Tasks",        tier: "pro",  open: `(function(){document.querySelector('[data-tab="tasks"]').click();return 1})()`, wait: 2000 },
@@ -976,6 +1064,10 @@ async function sweep() {
   };
   const send = (m, p) => { const i = ++n; ws.send(JSON.stringify({ id: i, method: m, params: p || {} })); return new Promise((res, rej) => pend.set(i, { res, rej })); };
   await send("Runtime.enable"); await send("Page.enable");
+
+  // [RULING 53] Installed BEFORE the first reload below, so every page life the
+  // sweep measures is on the pinned clock.
+  await send("Page.addScriptToEvaluateOnNewDocument", { source: CLOCK_SCRIPT });
   const ev = async (x) => {
     const r = await send("Runtime.evaluate", { expression: x, awaitPromise: true, returnByValue: true });
     if (r.exceptionDetails) throw new Error(JSON.stringify(r.exceptionDetails).slice(0, 400));
@@ -991,6 +1083,42 @@ async function sweep() {
   let currentTier = "pro";
   await ev(`LP.devPro(true)`);
   await ev(`location.reload()`); await sleep(5000);
+
+  // [RULING 53] THE HEADER LINE IS READ BACK OUT OF THE PAGE, not printed from
+  // the constants above. A pin that failed to install would otherwise print a
+  // header claiming a pinned clock over an unpinned run, which is worse than no
+  // pin at all: it would make two incomparable runs look comparable.
+  const clock = await ev(`(function () {
+    var d = new Date();
+    return {
+      installed: !!window.__sweepClock,
+      hour: d.getHours(), minute: d.getMinutes(),
+      weekday: d.toLocaleDateString(undefined, { weekday: "long" }),
+      date: d.toISOString().slice(0, 10),
+      greetingHome: (function () {
+        var h = d.getHours();
+        return h < 12 ? "morning" : (h < 18 ? "afternoon" : "evening");
+      })(),
+      greetingDash: (function () {
+        var h = d.getHours();
+        return h < 12 ? "morning" : (h < 17 ? "afternoon" : "evening");
+      })()
+    };
+  })()`);
+  if (!clock || !clock.installed) {
+    console.error("\nREFUSED: the clock pin did not install, so this run is not reproducible.");
+    console.error("  Page.addScriptToEvaluateOnNewDocument ran but window.__sweepClock is absent.");
+    process.exit(2);
+  }
+  if (clock.hour !== CLOCK_HOUR || clock.minute < CLOCK_MINUTE) {
+    console.error(`\nREFUSED: the page reads ${clock.hour}:${String(clock.minute).padStart(2, "0")}, not the pinned ${CLOCK_HOUR}:${CLOCK_MINUTE}.`);
+    process.exit(2);
+  }
+  const clockLine = `CLOCK ${clock.date} ${clock.weekday} ${String(CLOCK_HOUR).padStart(2, "0")}:${String(CLOCK_MINUTE).padStart(2, "0")} local` +
+    `  home=${clock.greetingHome} dash=${clock.greetingDash}`;
+  console.log("\n" + clockLine);
+  console.log("  the hour is pinned; the date is the run's own and the weekday is recorded.");
+  console.log("  --compare refuses two runs whose CLOCK lines differ.");
 
   // [ROUND E] FLIP ONLY WHEN THE TIER ACTUALLY CHANGES, and RE-ASSERT what the
   // page came back as rather than trusting the call. LP.devPro writes a flag and
@@ -1168,6 +1296,9 @@ async function sweep() {
   }
 
   fs.writeFileSync(OUT, JSON.stringify({
+    clock: { line: clockLine, hour: CLOCK_HOUR, minute: CLOCK_MINUTE,
+             date: clock.date, weekday: clock.weekday,
+             greetingHome: clock.greetingHome, greetingDash: clock.greetingDash },
     grounds: groundMeta,
     viewport: { w: vp.w, h: vp.h, dpr: vp.dpr, scale: SCALE },
     scope: { grounds: grounds.map((g) => g.key), surfaces: surfaces.map((s) => s.key) },
@@ -1207,6 +1338,28 @@ async function sweep() {
 // product change. A delta above it is a candidate, still to be explained.
 function compare(aPath, bPath, noisePath) {
   const load = (f) => JSON.parse(fs.readFileSync(f, "utf8"));
+
+  // [RULING 53] TWO RUNS ON DIFFERENT CLOCKS ARE NOT COMPARABLE, and the whole
+  // reason this refusal exists is that the difference is INVISIBLE in the rows:
+  // a Dashboard that gained four evening nodes reads as movement, not as a
+  // different hour. E3 lost a round's worth of attribution to exactly this.
+  // Both lines are printed so the reader can see which half to re-run.
+  const clockOf = (f) => { const j = load(f); return (j && j.clock && j.clock.line) || null; };
+  const ca = clockOf(aPath), cb = clockOf(bPath);
+  if (ca !== cb) {
+    console.error("REFUSED: these two runs were taken on different clocks.");
+    console.error("  a: " + (ca || "(no CLOCK line - swept before ruling 53)"));
+    console.error("  b: " + (cb || "(no CLOCK line - swept before ruling 53)"));
+    console.error("  Re-sweep one of them so both carry the same CLOCK line, then compare.");
+    process.exit(2);
+  }
+  if (noisePath && clockOf(noisePath) !== ca) {
+    console.error("REFUSED: the --noise run is on a different clock from the pair.");
+    console.error("  pair : " + ca);
+    console.error("  noise: " + (clockOf(noisePath) || "(no CLOCK line)"));
+    process.exit(2);
+  }
+  console.log("CLOCK " + (ca || "(unpinned on both sides)"));
   const rowsOf = (j) => (Array.isArray(j) ? j : (j.rows || []));
   // The hero and the clock TICK, so a key that includes their text never
   // matches across runs (H4.0 fault 3, one layer along). Text is part of the
