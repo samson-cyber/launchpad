@@ -1652,10 +1652,21 @@ async function sweep() {
     // and REFUSES the run if it cannot - a sweep continuing on a fixture it
     // knows is wrong would file every later ground under a product that no
     // longer matches the one it started on.
+    // The two halves go back by different routes on purpose: the `data` blob
+    // through Storage.saveAll, because getAll runs idempotent sweeps and a raw
+    // set of that key can be undone by the next read (I28), and every other
+    // top-level key through chrome.storage.local.set, because Storage does not
+    // own them.
     const restoreSnapshot = async (snap, key) => {
       const ok = await ev(`(async function () {
-        try { await Storage.saveAll(JSON.parse(${JSON.stringify(snap)})); return true; }
-        catch (e) { return String((e && e.message) || e); }
+        try {
+          var snapObj = JSON.parse(${JSON.stringify(snap)});
+          var local = snapObj.local || {};
+          delete local.data;
+          if (Object.keys(local).length) await chrome.storage.local.set(local);
+          await Storage.saveAll(snapObj.data);
+          return true;
+        } catch (e) { return String((e && e.message) || e); }
       })()`);
       if (ok !== true) {
         console.error(`
@@ -1691,9 +1702,20 @@ REFUSED: could not put the fixture back after "${key}" (${ok}).`);
       // is the check working. The snapshot goes through the product's own
       // getAll/saveAll rather than a storage write, so what is restored is a
       // shape the product produced.
+      // THE SNAPSHOT COVERS chrome.storage.local, NOT JUST THE `data` BLOB, and
+      // the first version covering only `data` is why this comment is here.
+      // The right-click tip's gate is `rightClickTipShown`, a TOP-LEVEL
+      // storage key that Storage.getAll never returns, so clearing it to raise
+      // the tip was never undone: the tip came back on the tab surfaces of
+      // every ground after the one its floater ran on. It read 1.12 on
+      // photo-dark, a false failure this round's own before/after table
+      // reported before the leak was found.
       let snapshot = null;
       if (f.mutates) {
-        snapshot = await ev(`(async function () { return JSON.stringify(await Storage.getAll()); })()`);
+        snapshot = await ev(`(async function () {
+          return JSON.stringify({ data: await Storage.getAll(),
+                                  local: await chrome.storage.local.get(null) });
+        })()`);
       }
       let preId = null;
       if (f.preScript) {
