@@ -1405,6 +1405,52 @@ html.has-bg #gd-move-target {
 html.has-bg .gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
+}
+
+/* [ROUND FL] A FLOATER THAT TAKES THE LIGHT TINT TAKES THE LIGHT INKS IN THE
+   SAME BREATH. html.bg-light flips --pro-frost-floater-bg to white at 0.92,
+   and this dialog had no bg-light branch at all, so every ink above stayed
+   white on a white panel. Measured on a light solid (#f5f5f5), pixel diff,
+   settled: title 1.14, Cancel 1.08, the select 1.08, the sentence too faint
+   to register. The ramp is restated on the dialog - the pattern
+   html.has-bg.bg-light .group-header carries, at the same 0.70 / 0.64 pair -
+   so every token-driven descendant flips with it; the literals below are the
+   ones a token cannot reach.
+
+   THE MOVE LABEL IS THE DARK HALF OF THE SAME GAP. `#gd-move-section label`
+   is --text-secondary, v1's grey for a white card, and on the dark frosted
+   dialog it measured 2.21 on both dark grounds. It takes --ink-secondary,
+   which the restated ramp then carries to the light ground too. */
+html.has-bg #gd-move-section label {
+  color: var(--ink-secondary);
+}
+
+html.has-bg.bg-light #group-delete-dialog {
+  --ink-primary: rgba(0, 0, 0, 0.87);
+  --ink-secondary: rgba(0, 0, 0, 0.66);
+  --ink-meta: rgba(0, 0, 0, 0.70);
+  --ink-chrome: rgba(0, 0, 0, 0.64);
+  --ink-hint: rgba(0, 0, 0, 0.38);
+  --surface-line: rgba(0, 0, 0, 0.14);
+  --surface-fill: rgba(0, 0, 0, 0.06);
+}
+
+html.has-bg.bg-light #gd-title {
+  color: var(--ink-primary);
+}
+
+html.has-bg.bg-light #gd-move-section {
+  background: var(--surface-fill);
+}
+
+html.has-bg.bg-light #gd-move-target {
+  border-color: var(--surface-line);
+  color: var(--ink-primary);
+}
+
+html.has-bg.bg-light .gd-btn:not(.gd-btn-primary):not(.gd-btn-danger) {
+  background: var(--surface-fill);
+  color: var(--ink-primary);
 }/* ===== Shortcuts Grid ===== */
 
 
@@ -1798,6 +1844,28 @@ html:not(.has-bg) .variant-dropdown-more {
 html:not(.has-bg) .variant-dropdown-more:hover {
   background: rgba(0, 0, 0, 0.08);
   color: rgba(0, 0, 0, 0.6);
+}/* [ROUND FL] Census find: the nested-shortcut dropdown is a frosted floater
+   with only a :not(.has-bg) branch, so on a light wallpaper its row labels
+   (--ink-primary) were white on white - too faint to register. The ramp is
+   restated on the dropdown and its arrow; the two literal whites follow. */
+html.has-bg.bg-light .variant-dropdown {
+  --ink-primary: rgba(0, 0, 0, 0.87);
+  --ink-secondary: rgba(0, 0, 0, 0.66);
+  --ink-meta: rgba(0, 0, 0, 0.70);
+  --ink-chrome: rgba(0, 0, 0, 0.64);
+  --ink-hint: rgba(0, 0, 0, 0.38);
+  --surface-line: rgba(0, 0, 0, 0.14);
+  --surface-fill: rgba(0, 0, 0, 0.06);
+  border-color: var(--surface-line);
+}
+
+html.has-bg.bg-light .variant-dropdown-arrow::after {
+  border-color: var(--surface-line);
+}
+
+html.has-bg.bg-light .variant-dropdown-more:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--ink-primary);
 }/* ===== Variant Context Menu ===== */
 
 
@@ -3657,6 +3725,28 @@ html:not(.has-bg) .promo-toast-dismiss {
 
 html:not(.has-bg) .promo-toast-dismiss:hover {
   color: rgba(0, 0, 0, 0.6);
+}/* [ROUND FL] Census find, and the most-seen of the five: the rating toast
+   raises itself on a normal open, and on a light wallpaper its sentence and
+   its dismiss were white on the white-tinted floater - too faint to register.
+   Ramp restated. The dismiss is a control glyph, so it takes --ink-chrome
+   rather than the ramp's --ink-hint, which is 0.38 and would sit under the 3:1
+   a control needs. */
+html.has-bg.bg-light .promo-toast {
+  --ink-primary: rgba(0, 0, 0, 0.87);
+  --ink-secondary: rgba(0, 0, 0, 0.66);
+  --ink-meta: rgba(0, 0, 0, 0.70);
+  --ink-chrome: rgba(0, 0, 0, 0.64);
+  --ink-hint: rgba(0, 0, 0, 0.38);
+  --surface-line: rgba(0, 0, 0, 0.14);
+  --surface-fill: rgba(0, 0, 0, 0.06);
+}
+
+html.has-bg.bg-light .promo-toast-dismiss {
+  color: var(--ink-chrome);
+}
+
+html.has-bg.bg-light .promo-toast-dismiss:hover {
+  color: var(--ink-primary);
 }/* ===== Open All Toast ===== */
 
 
@@ -4297,6 +4387,43 @@ html:not(.has-bg) .nrd-input {
 html:not(.has-bg) .nrd-skip {
   background: var(--icon-bg);
   color: var(--text-secondary);
+}
+
+/* [ROUND FL] THE SAME SHAPE, FOUND BY THE CENSUS RATHER THAN BY THE BRIEF.
+   This dialog paints --pro-frost-floater-bg and had only a :not(.has-bg)
+   branch - which no longer reaches anyone, since the shipped default ground
+   is itself a has-bg colour - so on a light wallpaper the title and Skip
+   measured too faint to register and the typed name 2.78 (white on the 0.4
+   black well, over a white panel). Ramp restated; the input's literals
+   answered.
+
+   NOT FIXED HERE, and reported: Save is white on rgba(0, 200, 180, 0.8) and
+   measures 2.96 on the DARK grounds too, so it is not a light-ground defect.
+   It is a primary that never took --action, which is ruling 40's census, not
+   this one's. */
+html.has-bg.bg-light #nest-rename-dialog {
+  --ink-primary: rgba(0, 0, 0, 0.87);
+  --ink-secondary: rgba(0, 0, 0, 0.66);
+  --ink-meta: rgba(0, 0, 0, 0.70);
+  --ink-chrome: rgba(0, 0, 0, 0.64);
+  --ink-hint: rgba(0, 0, 0, 0.38);
+  --surface-line: rgba(0, 0, 0, 0.14);
+  --surface-fill: rgba(0, 0, 0, 0.06);
+  border-color: var(--surface-line);
+}
+
+html.has-bg.bg-light .nrd-input {
+  background: var(--surface-fill);
+  border-color: var(--surface-line);
+  color: var(--ink-primary);
+}
+
+html.has-bg.bg-light .nrd-input:focus {
+  border-color: rgba(0, 0, 0, 0.4);
+}
+
+html.has-bg.bg-light .nrd-skip:hover {
+  background: rgba(0, 0, 0, 0.10);
 }
 
 .sb-group-icon {
@@ -15057,6 +15184,55 @@ html.has-bg .tag-create-btn {
 
 html.has-bg .tag-create-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.15);
+}
+
+/* [ROUND FL] THE LIGHT HALF THE ACTION SWEEP REPORTED AND DID NOT OWN (the
+   "FOUND AND NOT FIXED HERE" note above). On a light solid the title, the typed
+   name and Cancel changed too few pixels to measure at all - white glyphs on a
+   white floater - and the disabled Save with them. The ramp is restated on the
+   popover so the title (--ink-chrome) and every --surface-* border flip by
+   token; the three literals are answered here.
+
+   RANK, NOT ORDER (ruling 41), because this sits beside the one rule in the
+   product that was already broken by it. Cancel is written
+   `:not(.tag-create-btn-primary)` at (0,4,1), so it can never reach Save; the
+   disabled Save is (0,5,1) against the dark branch's (0,4,1). A bare
+   `html.has-bg.bg-light .tag-create-btn` would have TIED the orange Save's
+   (0,3,1) and won on line number - painting the action grey.
+
+   THE ERROR TAKES THE SWAP THE SYSTEM ALREADY DOCUMENTS: #ff6b6b on dark
+   frost, #d93025 on light (the .focus-block-error note). */
+html.has-bg.bg-light #tag-create-popover {
+  --ink-primary: rgba(0, 0, 0, 0.87);
+  --ink-secondary: rgba(0, 0, 0, 0.66);
+  --ink-meta: rgba(0, 0, 0, 0.70);
+  --ink-chrome: rgba(0, 0, 0, 0.64);
+  --ink-hint: rgba(0, 0, 0, 0.38);
+  --surface-line: rgba(0, 0, 0, 0.14);
+  --surface-fill: rgba(0, 0, 0, 0.06);
+}
+
+html.has-bg.bg-light .tag-create-input {
+  background: var(--surface-fill);
+  color: var(--ink-primary);
+}
+
+html.has-bg.bg-light .tag-create-btn:not(.tag-create-btn-primary) {
+  background: var(--surface-fill);
+  color: var(--ink-primary);
+}
+
+html.has-bg.bg-light .tag-create-btn:not(.tag-create-btn-primary):hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.10);
+}
+
+html.has-bg.bg-light .tag-create-btn.tag-create-btn-primary:disabled {
+  background: var(--surface-fill);
+  color: var(--ink-primary);
+}
+
+html.has-bg.bg-light .tag-create-error {
+  color: #d93025;
 }/* Tag pills — three sizes for three surfaces. All share base. Archived
    variant dims to opacity 0.4 to signal soft-deleted-but-still-attached. */
 
