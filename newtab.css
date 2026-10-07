@@ -2205,14 +2205,36 @@ html.has-bg .nest-submenu-item:hover {
    this surface, in the action colour with its own ink; Cancel stops competing
    for the same blue and takes the meta tier, which is the weighting H3a and
    H4.0 both settled on elsewhere: the loud control is the one that acts. */
+/* [RULING 58 / P1] THE CONTROL INK, finishing what ruling 51 named. FL's note
+   at #bookmark-select-all says this control out loud - "#modal-cancel took
+   --ink-mute in H4.2 and renders at exactly those two colours on #modal's
+   white card today" - and then correctly declined to copy the defect onto the
+   picker. It did not fix it here. That is what makes this residue rather than
+   a new finding.
+
+   THE PREMISE, RE-MEASURED: #modal is `background: var(--bg-card)` with no
+   has-bg and no bg-light override anywhere, and --bg-card is #fff with no
+   ground-scoped redefinition. So this card is white on all five grounds, which
+   is what makes --text-secondary (#5f6368, 6.05 on white - the figure this
+   sheet already records at the focus-panel note) the control ink here, and
+   what makes the v2 tile inks wrong.
+
+   BOTH STATES WERE BROKEN, AND THE HOVER WAS THE WORSE OF THE TWO:
+     resting  --ink-mute  #a89c93 base, lifted to #cfc5bc by
+              html.has-bg:not(.bg-light)        2.7 and 1.6 on white
+     hover    --ink       #f3ede6               about 1.05 on white
+   A near-white hover ink on a white card is not a weak state, it is an
+   invisible one, and it was reached by moving the mouse onto the control. The
+   hover takes --text-primary, which is the pairing the rest of this white card
+   already uses. */
 #modal-cancel {
   background: transparent;
-  color: var(--ink-mute);
+  color: var(--text-secondary);
 }
 
 #modal-cancel:hover {
   background: var(--bg-hover);
-  color: var(--ink);
+  color: var(--text-primary);
 }
 
 #modal-save {

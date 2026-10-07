@@ -333,6 +333,66 @@ const knownOpen = async (label, desc) => {
   else chk(`${label}: focus RETURNED to the page, not body`, true, "now fixed - retire this branch");
 };
 
+// ====================================== 0. #modal's CANCEL INK (ruling 58) ==
+//
+// #modal-overlay is the one dialog this harness opens as a STEP rather than as
+// a subject - section 1 drives it only to raise the nest confirm. So its own
+// Cancel was never asserted, and that is where ruling 58's P1 defect sat: H4.2
+// gave #modal-cancel --ink-mute, a v2 ink for DARK tiles, on a card that is
+// white on every ground. FL measured it at 2.7 resting and 1.6 with a
+// wallpaper, and wrote it down at #bookmark-select-all without fixing it.
+//
+// THE PREMISE IS ASSERTED ALONGSIDE THE INK, and that pairing is the point. A
+// grey-on-white expectation is correct only while the card is white; if
+// someone later gives #modal a frosted dark background, the right outcome is
+// for this to FAIL and force a rethink, not for grey ink to persist quietly on
+// dark. So the card's own colour is read too.
+//
+// EXPECTED VALUES COME FROM A PROBE rather than a hard-coded rgb string, for
+// the reason section 2 already gives: a retuned token would otherwise leave
+// this asserting the old colour.
+console.log("\n  0. #modal's CANCEL TAKES THE CONTROL INK (not a v2 tile ink)");
+{
+  await ev(`(function(){
+    var gs = document.querySelectorAll(".group");
+    for (var i=0;i<gs.length;i++){
+      var t = gs[i].querySelector(".add-tile"); if (t) { t.click(); return "add-tile"; }
+    } return "none";})()`);
+  await wait(900);
+  const m = JSON.parse(await ev(`(function(){
+    var ov = document.querySelector("#modal-overlay");
+    var open = !!(ov && !ov.classList.contains("hidden"));
+    var c = document.querySelector("#modal-cancel");
+    var card = document.querySelector("#modal");
+    function probe(decl) {
+      var p = document.createElement("span");
+      p.style.cssText = decl + ";position:fixed;left:-9999px";
+      document.body.appendChild(p);
+      var v = getComputedStyle(p).color;
+      p.remove(); return v;
+    }
+    return JSON.stringify({
+      open: open,
+      cancelInk: c ? getComputedStyle(c).color : null,
+      cardBg: card ? getComputedStyle(card).backgroundColor : null,
+      wantInk: probe("color:var(--text-secondary)"),
+      inkMute: probe("color:var(--ink-mute)"),
+      inkTile: probe("color:var(--ink)")
+    });})()`));
+  chk("modal: the add-shortcut dialog opened", m.open === true, JSON.stringify(m).slice(0, 140));
+  if (m.open) {
+    chk("modal: its card is still WHITE, which is what makes a grey control ink correct",
+      /^rgba?\(255,\s*255,\s*255/.test(String(m.cardBg)),
+      "card=" + m.cardBg + " - if this went dark, the ink expectation below is the wrong one");
+    chk("modal: CANCEL wears the control ink --text-secondary",
+      m.cancelInk === m.wantInk, `cancel=${m.cancelInk} want=${m.wantInk}`);
+    chk("modal: CANCEL is NOT wearing either v2 tile ink",
+      m.cancelInk !== m.inkMute && m.cancelInk !== m.inkTile,
+      `cancel=${m.cancelInk} --ink-mute=${m.inkMute} --ink=${m.inkTile}`);
+    await key("Escape"); await wait(600);
+  }
+}
+
 // ============================================ 1. NEST UNDER AN EXISTING =====
 // Same group as the add-tile. Daily holds www.notion.so, so a second notion.so
 // URL added through DAILY's own add-tile meets the condition.
