@@ -130,6 +130,27 @@ const SEEDS = [
     to: ".gd-btn-secondary-link { color: var(--accent); }\n.restore-all-btn:hover {" },
   { name: "a listed active state drops .active and becomes resting ink",
     file: "sheet", from: ".bg-tab.active {", to: ".bg-tab {" },
+
+  // ---- RULING 58 / P2's seeds: the TEAL clause. One per control that was
+  // painted teal, because each was a separate value and a census that only
+  // catches one of them is a census with two holes. The fourth seed is a
+  // brand-new teal control, which is the case the named-exceptions list exists
+  // to catch, and the fifth drops the drag target's own qualifying id so a
+  // listed non-control cannot quietly become the thing it is excused from.
+  { name: "the promo toast's action goes back to its teal",
+    file: "sheet", from: ".promo-toast-action {\n  padding: 5px 14px;\n  background: var(--action);",
+    to: ".promo-toast-action {\n  padding: 5px 14px;\n  background: rgba(78, 205, 196, 0.9);" },
+  { name: "the nest-rename Save goes back to its teal",
+    file: "sheet", from: ".nrd-save {\n  background: var(--action);",
+    to: ".nrd-save {\n  background: rgba(0, 200, 180, 0.8);" },
+  { name: "the variant dialog's Save goes back to its teal",
+    file: "sheet", from: ".vid-btn-primary {\n  background: var(--action);",
+    to: ".vid-btn-primary {\n  background: rgba(78, 205, 196, 0.3);" },
+  { name: "a brand-new teal control appears",
+    file: "sheet", from: ".restore-all-btn:hover {",
+    to: ".nrd-apply { background: #2fd4bb; color: #fff; }\n.restore-all-btn:hover {" },
+  { name: "the teal drag target loses the id the exception is written against",
+    file: "sheet", from: "#ungroup-drop-zone.drag-over {", to: ".drag-over-ungroup {" },
 ];
 
 let seedApplied = null;
@@ -330,6 +351,98 @@ for (const sel of NON_ACTIONS.keys()) {
 check("every named non-action is still present and still accent-filled",
   listedFound === NON_ACTIONS.size,
   `${listedFound} of ${NON_ACTIONS.size} found - an entry that matches nothing is a hole`);
+
+// ---- 5b. THE TEAL CENSUS (ruling 58 / P2) -------------------------------
+//
+// Sections 1-5 guard the accent BLUE, because blue was the v1 colour that kept
+// reappearing on actions. Teal is the other one and nothing was watching it:
+// three controls were each painted their own approximate teal, and two of the
+// three were text-floor failures.
+//
+//   .promo-toast-action  rgba(78,205,196,0.9) + #fff      ~1.7:1
+//   .nrd-save            rgba(0,200,180,0.8)  + white     ~2.1:1
+//   .vid-btn-primary     rgba(78,205,196,0.3) + #4ecdc4   passes; wrong colour
+//
+// THREE DIFFERENT VALUES FOR ONE JOB IS THE TELL. Nobody chose teal three
+// times; each control was given a teal that looked about right. That is the
+// shape a census catches and a comment does not.
+//
+// WHAT COUNTS AS TEAL, and it is deliberately narrow: a literal (hex or
+// rgb/rgba) in a `background` or `background-color` whose red is LOW and whose
+// green and blue are both high AND CLOSE TO EACH OTHER. The closeness clause
+// is what separates teal from the two families that would otherwise flood this
+// census - --pro-ink-accent blue (111,177,255; blue sits 78 above green) and
+// the active-dot green (#58e89a; green sits 78 above blue). Both are
+// legitimate, neither is teal, and without that clause this gate would have
+// reported 30 strays on the day it was written.
+const TEAL_OK = new Map([
+  ["#ungroup-drop-zone",
+   "a drag target's wash - a <div> reading 'Drop here to ungroup', not a control"],
+  ["#ungroup-drop-zone.drag-over",
+   "the same drag target in its over state - state, and still not a control"],
+]);
+
+const isTeal = (r, g, b) => r <= 120 && g >= 150 && b >= 150 && Math.abs(g - b) <= 40;
+function literalsIn(v) {
+  const out = [];
+  for (const m of v.matchAll(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/g)) {
+    out.push([+m[1], +m[2], +m[3], m[0]]);
+  }
+  for (const m of v.matchAll(/#([0-9a-fA-F]{6})\b/g)) {
+    const h = m[1];
+    out.push([parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16), m[0]]);
+  }
+  for (const m of v.matchAll(/#([0-9a-fA-F]{3})\b/g)) {
+    const h = m[1];
+    out.push([parseInt(h[0] + h[0], 16), parseInt(h[1] + h[1], 16), parseInt(h[2] + h[2], 16), m[0]]);
+  }
+  return out;
+}
+
+let bgDeclsSeen = 0;
+const tealFills = [];
+for (const m of S.matchAll(RULE)) {
+  const sel = norm(m[1]);
+  if (!sel || sel.startsWith("@")) continue;
+  for (const decl of m[2].split(";")) {
+    const i = decl.indexOf(":");
+    if (i < 0) continue;
+    const prop = decl.slice(0, i).trim(), val = decl.slice(i + 1).trim();
+    if (prop !== "background" && prop !== "background-color") continue;
+    bgDeclsSeen++;
+    for (const [r, g, b, lit] of literalsIn(val)) {
+      if (isTeal(r, g, b)) { tealFills.push({ sel, val, lit }); break; }
+    }
+  }
+}
+
+// ANTI-VACUITY (P2). This census means something only if it read a real
+// population: "0 teal fills" out of 0 reads is not a pass.
+if (bgDeclsSeen < 200) {
+  console.error(`\nGATE BROKEN: read only ${bgDeclsSeen} background declarations.`);
+  console.error("The teal census would pass on an empty read. Refusing to score it.");
+  process.exit(2);
+}
+
+// And the DETECTOR must be known to work, or a slip in isTeal turns this whole
+// section into a guaranteed pass. Two values that must classify as teal and
+// two that must not - the exact pair that made the closeness clause necessary.
+check("the teal detector classifies the known values correctly",
+  isTeal(78, 205, 196) && isTeal(0, 200, 180) && !isTeal(111, 177, 255) && !isTeal(88, 232, 154),
+  "must catch #4ecdc4 and #00c8b4, and reject the accent blue and the active-dot green");
+
+const tealStrays = tealFills.filter((f) => !TEAL_OK.has(f.sel));
+check("no control is filled with a raw teal literal",
+  tealStrays.length === 0,
+  tealStrays.length ? tealStrays.map((f) => `${f.sel} { ${f.lit} }`).join("  |  ") : "");
+
+let tealListedFound = 0;
+for (const sel of TEAL_OK.keys()) {
+  if (tealFills.some((f) => f.sel === sel)) tealListedFound++;
+}
+check("every named teal non-control is still present and still teal-filled",
+  tealListedFound === TEAL_OK.size,
+  `${tealListedFound} of ${TEAL_OK.size} found - an entry that matches nothing is a hole`);
 
 // ---- 6. RANK, NOT FILE ORDER (ruling 41) --------------------------------
 //

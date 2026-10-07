@@ -1976,13 +1976,23 @@ html.has-bg.bg-light .variant-dropdown-more:hover {
   color: #fff;
 }
 
+/* [RULING 58 / P2] THE THIRD TEAL, AND THE CENSUS IS WHAT FOUND IT. The brief
+   named .nrd-save and .promo-toast-action; this is #vid-save, the variant
+   dialog's Save, and it was teal INK (#4ecdc4) on a teal WASH
+   (rgba(78,205,196,0.3)). It is the same defect as the other two and the same
+   kind of control as .nrd-save - a dialog's confirming action - so it takes
+   the same pair rather than being left as the one survivor.
+
+   The complaint here is not a contrast floor, which light teal on a dark
+   floater passes. It is that a primary action was wearing a SECOND action
+   colour, which is the thing rulings 40 and 51 are both about. */
 .vid-btn-primary {
-  background: rgba(78, 205, 196, 0.3);
-  color: #4ecdc4;
+  background: var(--action);
+  color: var(--ink-on-action);
 }
 
 .vid-btn-primary:hover {
-  background: rgba(78, 205, 196, 0.45);
+  background: var(--action-soft);
 }/* ===== Nest Submenu ===== */
 
 
@@ -3718,10 +3728,18 @@ html.has-bg .rc-tip-text {
   flex: 1;
 }
 
+/* [RULING 58 / P2] THE ACTION PAIR, replacing the OTHER v1 teal. This was
+   rgba(78,205,196,0.9) under `color: #fff` - white on about #4ecdc4, which
+   measures roughly 1.7:1 and is the worst fill-and-ink pairing left in the
+   sheet. It is also a DIFFERENT teal from .nrd-save's rgba(0,200,180,...),
+   which is the tell that neither was a decision: two unrelated controls had
+   each been given their own approximate teal.
+
+   Both now take --ink-on-action on --action, ruling 40's measured 8.11. */
 .promo-toast-action {
   padding: 5px 14px;
-  background: rgba(78, 205, 196, 0.9);
-  color: #fff;
+  background: var(--action);
+  color: var(--ink-on-action);
   border-radius:var(--radius-md);
   text-decoration: none;
   font-size: var(--fs-12);
@@ -3730,7 +3748,7 @@ html.has-bg .rc-tip-text {
 }
 
 .promo-toast-action:hover {
-  background: rgba(78, 205, 196, 1);
+  background: var(--action-soft);
 }
 
 .promo-toast-dismiss {
@@ -4385,13 +4403,25 @@ html:not(.has-bg) .sidebar-variant-item:hover {
   font-family: inherit;
 }
 
+/* [RULING 58 / P2] THE ACTION PAIR, replacing a v1 TEAL LITERAL. This was
+   rgba(0,200,180,0.8) under `color: white`, which is white on about #00c8b4 -
+   roughly 2.1:1, and the alpha only lifts it as far as the frost behind it
+   allows. It is a text floor failure on the dialog's one confirming control,
+   not a near-miss.
+
+   The pair is the one ruling 40 measured at 8.11 on all three grounds:
+   --ink-on-action on --action, with --action-soft on hover. Teal was never a
+   product colour - it is v1 residue, and it was the SECOND of two different
+   teals doing the same job (see .promo-toast-action, which was a third
+   value). check-accent-boundary now censuses raw teal fills for exactly this
+   reason, so a third one cannot appear quietly. */
 .nrd-save {
-  background: rgba(0, 200, 180, 0.8);
-  color: white;
+  background: var(--action);
+  color: var(--ink-on-action);
 }
 
 .nrd-save:hover {
-  background: rgba(0, 200, 180, 1);
+  background: var(--action-soft);
 }
 
 .nrd-skip {
