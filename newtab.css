@@ -2039,10 +2039,37 @@ html.has-bg.bg-light .variant-dropdown-more:hover {
   white-space: nowrap;
 }
 
+/* [RULING 58 / P5] A MENU TAKES THE MENU TIER, AND HERE THAT IS A LEGIBILITY
+   FIX RATHER THAN A TIDY-UP. This rule took --pro-frost-card-bg, and the CARD
+   tier is one of the two that html.bg-light flips to a white tint
+   (rgba(255,255,255,0.85), at the top of this file). The MENU tier deliberately
+   has no light override - menus stay dark on light wallpapers - which is
+   exactly the property a menu whose ink is #fff depends on.
+
+   THE FAILURE IT LEAVES: html.has-bg .nest-submenu-item is `color: #fff`, and
+   there is no html.bg-light override for either this panel or its rows. So on
+   a light wallpaper the panel went near-white underneath pure white text,
+   which is not a near-miss - it is about 1:1 and the menu simply is not there.
+
+   A CENSUS BOUNDS THIS TO TWO RULES, so it is a correction and not the start
+   of a sweep: of the twelve rules that DECLARE a background of
+   --pro-frost-card-bg, exactly two are menu surfaces - this one and
+   html.has-bg #tag-submenu. The other ten are cards, panels, banners and
+   tiles, which are what the card tier is for and which are left alone. (The
+   census is of declarations, not of grep hits: a thirteenth line mentions the
+   token in the .insights-badge-count comment and paints nothing.) Every other
+   menu in the file (#group-menu,
+   #session-ctx-menu, #sidebar-shortcut-ctx-menu, #restore-date-menu,
+   .settings-dropdown-menu, .tt-context-menu) was already on the menu tier;
+   these two were the outliers.
+
+   NOTHING MOVES ON A DARK GROUND: --pro-frost-card-blur and
+   --pro-frost-menu-blur are both blur(12px), and the dark card and menu fills
+   differ only in alpha (0.85 vs 0.95). The light branch is the whole change. */
 html.has-bg #nest-submenu {
-  background: var(--pro-frost-card-bg);
-  backdrop-filter: var(--pro-frost-card-blur);
-  -webkit-backdrop-filter: var(--pro-frost-card-blur);
+  background: var(--pro-frost-menu-bg);
+  backdrop-filter: var(--pro-frost-menu-blur);
+  -webkit-backdrop-filter: var(--pro-frost-menu-blur);
   border-color: var(--surface-fill);
 }
 
@@ -14972,10 +14999,16 @@ html.has-bg.bg-light .tt-ctx-header {
   background: var(--bg-hover);
 }
 
+/* [RULING 58 / P5] THE MENU TIER, for the reason spelled out at
+   html.has-bg #nest-submenu: the card tier flips to a white tint under
+   html.bg-light, this panel's rows are `color: #fff` with no light override,
+   and the two together put white text on a near-white panel. The menu tier has
+   no light override, which is the property being relied on. These two rules
+   are the complete set the census found. */
 html.has-bg #tag-submenu {
-  background: var(--pro-frost-card-bg);
-  backdrop-filter: var(--pro-frost-card-blur);
-  -webkit-backdrop-filter: var(--pro-frost-card-blur);
+  background: var(--pro-frost-menu-bg);
+  backdrop-filter: var(--pro-frost-menu-blur);
+  -webkit-backdrop-filter: var(--pro-frost-menu-blur);
   border-color: var(--surface-fill);
 }
 
