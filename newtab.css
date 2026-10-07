@@ -1369,9 +1369,78 @@ html.has-bg .sb-group-more:hover {
   filter: none;
 }
 
+/* [RULING 58 / P3] THE WORD CARRIES THE DANGER, NOT A FILL - H3a's pattern,
+   and here it is a contrast fix as well as a language fix.
+
+   WHAT WAS WRONG: #f44336 under `color: #fff` is 3.68:1, below the 4.5 text
+   floor, on the one control in this product that deletes a group's shortcuts.
+   It was also the last pure-red FILL in the dialog system, sitting beside a
+   #gd-move-delete that the action sweep had just made orange - so the dialog
+   offered two loud buttons and the louder-looking one was the destructive one.
+
+   H3a RULED THIS SHAPE and H4.2 applied it twice already (.sb-ctx-danger, and
+   the third context menu's delete): one rose, no second red, the word carries
+   the danger rather than a fill. That is the shape taken here, and it fixes
+   the weighting too - #gd-move-delete keeps the action pair because moving the
+   shortcuts out is the recommended path (ruling 52), and Delete All stops
+   competing with it for attention while staying unmistakably red.
+
+   THE COLOUR IS GROUND-KEYED, AND --ink-on-overdue IS NOT USED HERE, which
+   looks like a departure from H4.2 and is not. The rose token is correct
+   wherever the SURFACE CANNOT GO LIGHT: .tt-context-menu takes it on all three
+   grounds in one rule, and it can, because that menu is on the MENU frost tier
+   and the menu tier has no html.bg-light override. This dialog is on the
+   FLOATER tier - var(--bg-card) with no wallpaper, var(--pro-frost-floater-bg)
+   with one - and the floater tier IS one of the two that html.bg-light flips
+   to a white tint. So this surface goes white on two of the three grounds,
+   where #e8a89a measures about 2.0.
+
+   For a surface that flips, the sheet already has a pair and it is used here:
+   #ff6b6b on dark frost, #b00020 on the light one. That is what
+   .tt-modal-error and #upgrade-popover .up-license-error both carry, for this
+   exact reason - and .tt-ctx-item.tt-ctx-danger carries it too at its
+   html.has-bg.bg-light branch, which is H3a's own danger control on the light
+   ground.
+
+   #d93025 WAS TRIED FIRST AND MEASURED SHORT. The sheet records it at 4.77,
+   and that figure is against pure #fff; the surface actually painted behind
+   this button on a light ground is rgb(245,245,245) - the wallpaper through a
+   0.92-alpha floater - which is darker than white and therefore LOWERS the
+   contrast of a dark ink. Measured composited: 4.38, under the floor. #b00020
+   measures 6.72 on that same painted surface, and #ff6b6b 6.09 on the dark
+   one.
+
+   ALL THREE GROUNDS ARE NAMED and no two ranks tie: (0,1,0) base, (0,2,0)
+   html.has-bg, (0,3,0) html.has-bg.bg-light, so each wins on rank rather than
+   on file order (ruling 41).
+
+   THE HOVER MUST RESET filter, the same trap .gd-btn-primary documents above:
+   `.gd-btn:hover` is a generic brightness(0.95) at EQUAL rank setting a
+   DIFFERENT property, so it survives and would dull the red. */
 .gd-btn-danger {
-  background: #f44336;
-  color: #fff;
+  background: transparent;
+  color: #b00020;
+}
+
+.gd-btn-danger:hover {
+  background: rgba(208, 2, 27, 0.08);
+  filter: none;
+}
+
+html.has-bg .gd-btn-danger {
+  color: #ff6b6b;
+}
+
+html.has-bg .gd-btn-danger:hover {
+  background: rgba(255, 107, 107, 0.12);
+}
+
+html.has-bg.bg-light .gd-btn-danger {
+  color: #b00020;
+}
+
+html.has-bg.bg-light .gd-btn-danger:hover {
+  background: rgba(208, 2, 27, 0.08);
 }
 
 #gd-move-delete {

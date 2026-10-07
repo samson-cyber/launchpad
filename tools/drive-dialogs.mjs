@@ -55,7 +55,7 @@ import { spawn } from "node:child_process";
 
 
 import { browserArgs } from "./browser-launch.mjs";
-import { decodePNG } from "./pixel-contrast.mjs";
+import { decodePNG, ratio } from "./pixel-contrast.mjs";
 
 // [H3a] DERIVED FROM cwd, and the note this replaces had been recording the
 // bug for two rounds: an absolute REPO means a worktree drives the MAIN
@@ -560,7 +560,19 @@ const GD_READ = `(function () {
     target: document.getElementById("gd-move-target").value,
     inViewport: r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth && r.width > 0,
     role: dlg.getAttribute("role"), ariaModal: dlg.getAttribute("aria-modal"),
-    focusInside: dlg.contains(document.activeElement) });
+    focusInside: dlg.contains(document.activeElement),
+    // ---- ruling 58 / P3: the DESTRUCTIVE button, which is a different
+    // element from the primary above. #gd-confirm is the one that deletes the
+    // shortcuts; #gd-move-delete keeps them.
+    danger: (function () {
+      var d = document.getElementById("gd-confirm");
+      if (!d) return null;
+      var db = d.getBoundingClientRect(), dc = getComputedStyle(d);
+      return { label: d.textContent, hasDangerClass: d.classList.contains("gd-btn-danger"),
+               ink: dc.color, fill: dc.backgroundColor,
+               box: { x: db.x, y: db.y, width: db.width, height: db.height } };
+    })(),
+    cancelInk: getComputedStyle(c).color });
 })()`;
 // The painted fill: the MODAL colour inside the button's box, from the screen.
 // Text is a minority of the box, so the most common pixel is the fill.
@@ -594,6 +606,52 @@ if (g.open) {
   const px = await paintedFill(g.box), want = rgbOf(g.actionFill.fill);
   chk("group delete: the primary PAINTS --action (screen pixel, +/-3)",
     px.every((v, i) => Math.abs(v - want[i]) <= 3), `painted=rgb(${px.join(", ")}) action=${g.actionFill.fill}`);
+
+  // ---- ruling 58 / P3: THE DESTRUCTIVE BUTTON, asserted separately from the
+  // primary. These are two different elements and the harness only ever read
+  // one of them: #gd-move-delete keeps the shortcuts, #gd-confirm deletes
+  // them, and it was #gd-confirm that carried #f44336 under white ink at
+  // 3.68:1 - under the text floor, on the most destructive control here.
+  //
+  // THE PIXEL IS WHAT MAKES THIS MORE THAN A COLOUR COMPARISON. H3a's pattern
+  // is "the word carries the danger rather than a fill", and the way to prove
+  // a fill is gone is to photograph the button and find the dialog's own
+  // surface inside its box. Then the contrast that matters is the ink against
+  // THAT measured surface, not against a colour the CSS nominally declares -
+  // this dialog is frosted glass over a wallpaper, so the surface is composited
+  // and only the screen knows it.
+  chk("group delete: the destructive button is a DIFFERENT element from the primary",
+    !!g.danger && g.danger.label !== g.primaryLabel,
+    g.danger ? `destructive=${JSON.stringify(g.danger.label)} primary=${JSON.stringify(g.primaryLabel)}` : "#gd-confirm missing");
+  if (g.danger) {
+    chk("group delete: the destructive button IS danger-styled", g.danger.hasDangerClass === true);
+    chk("group delete: the destructive button carries NO FILL - the word carries the danger",
+      /^rgba\(0,\s*0,\s*0,\s*0\)$/.test(g.danger.fill), "fill=" + g.danger.fill);
+    chk("group delete: the destructive button does NOT wear the action fill either",
+      g.danger.fill !== g.actionFill.fill, `danger=${g.danger.fill} action=${g.actionFill.fill}`);
+
+    const dInk = rgbOf(g.danger.ink);
+    chk("group delete: its ink is RED, not white-on-red",
+      dInk[0] > dInk[1] + 40 && dInk[0] > dInk[2] + 40,
+      `ink=rgb(${dInk.join(", ")})`);
+
+    const dSurf = await paintedFill(g.danger.box);
+    chk("group delete: the old #f44336 fill is GONE from the screen",
+      !(Math.abs(dSurf[0] - 244) <= 6 && Math.abs(dSurf[1] - 67) <= 6 && Math.abs(dSurf[2] - 54) <= 6),
+      `painted=rgb(${dSurf.join(", ")})`);
+    const dRatio = ratio(dInk, dSurf);
+    chk("group delete: its ink clears 4.5 against the surface actually painted behind it",
+      dRatio >= 4.5,
+      `${dRatio.toFixed(2)}:1  ink=rgb(${dInk.join(", ")}) on painted rgb(${dSurf.join(", ")})  (was 3.68 as #fff on #f44336)`);
+
+    // NEGATIVE CONTROL. Without this, every assertion above would still pass
+    // if the danger ink had been applied to the whole dialog - which is the
+    // way "one rose, no second red" gets broken in practice.
+    chk("group delete [negative control]: Cancel does NOT take the danger ink",
+      g.cancelInk !== g.danger.ink, `cancel=${g.cancelInk} danger=${g.danger.ink}`);
+    chk("group delete [negative control]: the primary does NOT take the danger ink",
+      g.primaryInk !== g.danger.ink, `primary=${g.primaryInk} danger=${g.danger.ink}`);
+  }
   if (g.role !== "dialog" || g.ariaModal !== "true") { known++; console.log("    KNOWN  group delete: no role=dialog / aria-modal - a v1 dialog, not an openTasksModal"); }
   if (!g.focusInside) { known++; console.log("    KNOWN  group delete: focus is not moved into the dialog on open"); }
   await key("Escape"); await wait(600);
