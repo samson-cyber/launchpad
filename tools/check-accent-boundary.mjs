@@ -151,6 +151,16 @@ const SEEDS = [
     to: ".nrd-apply { background: #2fd4bb; color: #fff; }\n.restore-all-btn:hover {" },
   { name: "the teal drag target loses the id the exception is written against",
     file: "sheet", from: "#ungroup-drop-zone.drag-over {", to: ".drag-over-ungroup {" },
+
+  // ---- RULING 58 / P4's seeds. The first two re-plant the two spellings of
+  // the blue on the control the OPEN list used to excuse; the #8ab4f8 one is
+  // the seed that would NOT have been caught before this round, because the
+  // text census matched only var(--accent).
+  { name: "the tag Restore goes back to the link ink",
+    file: "sheet", from: ".pro-tag-restore {\n  flex-shrink: 0;", to: ".pro-tag-restore {\n  color: var(--accent);\n  flex-shrink: 0;" },
+  { name: "the tag Restore's wallpaper branch goes back to the on-dark blue LITERAL",
+    file: "sheet", from: "html.has-bg .pro-tag-restore { color: var(--ink-secondary);",
+    to: "html.has-bg .pro-tag-restore { color: #8ab4f8;" },
 ];
 
 let seedApplied = null;
@@ -515,11 +525,23 @@ const TEXT_NON_CONTROLS = new Map([
   ["#pro-settings-privacy-link", "link: the privacy policy"],
   ["html.bg-light #pro-settings-privacy-link", "link: the same, on a light wallpaper"],
   [".pro-tags-trash-toggle", "link-styled disclosure, underlined, documented as the panel's link ink"],
+
+  // ---- the #8ab4f8 entries (ruling 58 / P4). These are reached by the
+  // LITERAL half of the census below, not by var(--accent).
+  ["html.has-bg #pro-settings-privacy-link", "link: the privacy policy, on a wallpaper"],
+  ["html.has-bg .pro-tags-trash-toggle", "link: the same disclosure, on a wallpaper"],
+  [".nb-pick-tick", "state: a tick marking the chosen item"],
+  [".tile.set-tile #pro-settings-privacy-link, html.has-bg .tile.set-tile #pro-settings-privacy-link, html.bg-light .tile.set-tile #pro-settings-privacy-link, html.has-bg.bg-light .tile.set-tile #pro-settings-privacy-link",
+   "link: the privacy policy inside a settings tile, all four grounds named in one rule"],
 ]);
-const TEXT_OPEN = new Map([
-  [".pro-tag-restore", "a bordered Restore button on a trashed tag row. Not beside an action, so ruling 51's lean does not obviously reach it; reported on Asana 1218734361174537 for a ruling"],
-  ["html.has-bg.bg-light .pro-tag-restore", "the same control's light branch"],
-]);
+
+// EMPTY, AND KEPT EMPTY ON PURPOSE. .pro-tag-restore and its light branch sat
+// here from ROUND FL until ruling 58 settled them: a bordered button IS a
+// control whether or not an action sits beside it, so it takes the control ink.
+// The mechanism stays for the next question that needs reporting rather than
+// failing - an OPEN entry is how this gate says "seen, not yet ruled" without
+// inventing a reason that is not true.
+const TEXT_OPEN = new Map([]);
 const accentTexts = [];
 for (const m of S.matchAll(RULE)) {
   const sel = norm(m[1]);
@@ -528,7 +550,22 @@ for (const m of S.matchAll(RULE)) {
     const i = decl.indexOf(":");
     if (i < 0) continue;
     const prop = decl.slice(0, i).trim(), val = decl.slice(i + 1).trim();
-    if (prop === "color" && /var\(\s*--accent\s*\)/.test(val)) accentTexts.push(sel);
+    // TWO SPELLINGS OF THE SAME INK, and the second one is here because its
+    // absence hid a live defect. The census matched only var(--accent), so
+    // `html.has-bg .pro-tag-restore { color: #8ab4f8 }` was never reported -
+    // the gate named that control's OTHER two branches as OPEN while the
+    // wallpaper branch, which is the one most users were seeing, went by
+    // unmentioned. #8ab4f8 is the on-dark accent ink (it is what --sat-accent
+    // resolves to under html.has-bg), so a colour declaration carrying it is
+    // an accent ink by any reading.
+    //
+    // IT IS NOT BANNED, AND THAT IS THE DIFFERENCE FROM #6fb1ff IN SECTION 3.
+    // #8ab4f8 is used legitimately in about twenty places - outlines, fills,
+    // the --sat-accent pair - so this clause classifies `color:` declarations
+    // and nothing else, exactly as the var(--accent) half does.
+    if (prop === "color" && (/var\(\s*--accent\s*\)/.test(val) || /#8ab4f8/i.test(val))) {
+      accentTexts.push(sel);
+    }
   }
 }
 // P2 floor: the census must be reading something, or zero strays means nothing.

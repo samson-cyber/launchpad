@@ -8054,13 +8054,39 @@ html.has-bg.bg-light .pro-tag-archived-label { color: var(--text-hint); }/* [Tra
   font: inherit;
   font-size: var(--fs-11);
   font-style: normal;
-  color: var(--accent);
+  color: var(--ink-secondary);
   cursor: pointer;
 }
 
+/* [RULING 58 / P4] THE CONTROL INK, AND THIS COMES OFF check-accent-boundary's
+   OPEN LIST. The gate reported it as OPEN rather than failing, with the note
+   "not beside an action, so ruling 51's lean does not obviously reach it". It
+   is ruled now: a bordered button IS a control, whether or not an action
+   happens to sit next to it, so it takes the control ink and not the link ink.
+   It was var(--accent) at rest, #8ab4f8 with a wallpaper and var(--accent)
+   again on a light one - three branches, all of them blue.
+
+   THE INK IS COPIED FROM THE NODE IT SITS BESIDE, which is the rule for this
+   kind of question: .pro-tag-delete is the same row's other control and takes
+   var(--ink-secondary) with rgba(0,0,0,0.66) on a light ground. These two now
+   match, so the row reads as one row.
+
+   WHY THE LIGHT BRANCH IS A LITERAL AND NOT THE TOKEN. --ink-secondary is
+   rgba(255,255,255,0.70) at :root and is redefined to rgba(0,0,0,0.66) by the
+   individual LIGHT SURFACE blocks in this file. No such block covers this row,
+   so var(--ink-secondary) here would resolve to white-70 on a light frosted
+   panel. The literal is what html.bg-light .pro-tag-delete uses for exactly
+   this reason, and it is the value those blocks all carry.
+
+   ALL THREE GROUNDS STAY NAMED, as H3a did for .tt-modal: keeping the branch
+   that only restates the base is deliberate, so a later ground-scoped rule
+   cannot take this control by file order (ruling 41).
+
+   NOT TOUCHED: the hover wash is rgba(255,255,255,0.08), which is faint on a
+   light ground but is a wash rather than ink, so it is out of this round. */
 .pro-tag-restore:hover { background: rgba(255, 255, 255, 0.08); }
-html.has-bg .pro-tag-restore { color: #8ab4f8; border-color: var(--surface-line); }
-html.has-bg.bg-light .pro-tag-restore { color: var(--accent); border-color: rgba(0, 0, 0, 0.14); }/* Collision note. flex-basis:100% drops it to its own line under the row (the
+html.has-bg .pro-tag-restore { color: var(--ink-secondary); border-color: var(--surface-line); }
+html.has-bg.bg-light .pro-tag-restore { color: rgba(0, 0, 0, 0.66); border-color: rgba(0, 0, 0, 0.14); }/* Collision note. flex-basis:100% drops it to its own line under the row (the
    row is flex-wrap:wrap when archived), matching .pro-tag-create-error. */
 
 
