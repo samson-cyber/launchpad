@@ -22489,7 +22489,9 @@ html.has-bg .insights-tab .ins-weekly { padding-bottom: var(--space-4); }
 html.has-bg .insights-tab .ins-wk-rows { margin-top: var(--space-1); }
 html.has-bg .insights-tab .ins-wk-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 4.5em 4.5em;
+  /* [MC6] 6.2em / 6.8em, not 4.5em each: sized for "3h45m", the columns cut
+     "39hr 44min" and its change (the arrow takes the extra 0.6em). */
+  grid-template-columns: minmax(0, 1fr) 6.2em 6.8em;
   align-items: baseline;
   gap: var(--space-2);
   font-size: var(--fs-12);
