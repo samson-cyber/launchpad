@@ -11,7 +11,7 @@ LaunchPad is a Chrome extension that replaces Chrome's default new tab page with
 - **LaunchPad (free)** — Shipped on Chrome Web Store. Unlimited shortcuts, groups, drag-and-drop, session restore, history panel, wallpapers, backup/export. Privacy-first, all data local.
 - **LaunchPad Pro** — **Shipped and sold since v2.0.0 (2026-08-14)**, $4.99/month or $39/year with a 7-day no-card trial. Workspaces (Work/Personal) + task/goal system + tab time tracking + Day Recap + achievements. Positioned as a browser-based productivity companion for portfolio workers, deep-work seekers, and people wanting accountability without surveillance. *(This line read "in development" until 2026-09-01, more than two months after Pro went on sale — a stale tier label reads as a release-state claim, so it is corrected here rather than left to mislead a session.)*
 
-## RELEASE STATE — as of 2026-09-15
+## RELEASE STATE, as of 2026-11-08: 2.2.0's artifact predates the v2 redesign and will be rebuilt at the cut
 
 **THREE VERSIONS MATTER AT ONCE NOW, AND COLLAPSING ANY TWO OF THEM INTO ONE SENTENCE IS THE ERROR THIS BLOCK EXISTS TO PREVENT.** Read all three lines before writing anything about what shipped.
 
