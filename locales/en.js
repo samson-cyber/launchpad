@@ -5390,6 +5390,10 @@ I18n.register("en", {
       "description": "Accessible name for the deep-work bar chart, naming whichever range is selected. {range} is a phrase such as 'last 30 days'.",
       "message": "Deep work, {range}"
     },
+    "insights_deep_work_hourly_caption": {
+      "description": "Accessible name for the deep-work chart when the range is a single day, which draws that day hour by hour. {range} is a phrase such as 'today'.",
+      "message": "Deep work by hour, {range}"
+    },
     "insights_btn_today": {
       "description": "The button narrowing Insights to today alone. A BUTTON: capitalised and standing alone, where insights_today is the same range named lower-case inside a sentence. DELIBERATE DUPLICATE: Four keys already hold 'Today' - a recent-history filter, an update notice, the narrow trial chip. This one is an Insights range button and a language that inflects a standalone button differently from a filter option must be free to.",
       "message": "Today",

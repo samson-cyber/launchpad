@@ -452,6 +452,14 @@ if ! node tools/check-calendar.mjs; then
   exit 1
 fi
 
+# [IT] Insights' one-day range draws the day by hour; windows under a week cap
+# their bar width; the free preview's chart is unchanged. Before this, Today
+# drew one bar 60% of the tile wide. ~0.1s. `--mutate` runs six seeds.
+if ! node tools/check-insights-day-chart.mjs; then
+  echo 'ERROR: Insights day-chart gate failed - one day draws a slab again, or the preview chart changed.' >&2
+  exit 1
+fi
+
 # [PF.2 follow-up] The sync slice: what leaves this machine, and what must not.
 # PF.2 SHIPPED THIS GATE AND NEVER WIRED IT IN, so it has been green-by-nobody
 # since - exactly the shape of the importers.js miss recorded below, where a

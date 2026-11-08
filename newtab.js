@@ -3890,6 +3890,31 @@
   //   opts.caption  false drops the in-SVG "Hours / day". On the v2 tile the
   //                 EYEBROW says it, and the board's own rule is that a tile
   //                 names itself once.
+  // [IT] The widest a bar may be on the live board's Deep work tile, in viewBox
+  // units of its 520-wide box. 40 is just over a 7-day bar (39.1), so every
+  // preset of a week or longer draws exactly as before and only windows of one
+  // to six days are capped.
+  var INS_BAR_MAX_W = 40;
+  // One day's 24 hourly values, in MINUTES, from bestHoursForScope's grid.
+  // The window is one day, so that day's weekday row IS that day. Null when the
+  // reader excluded the day (no complete hour data) and the day had focus, so
+  // the caller falls back rather than drawing an empty day it knows nothing
+  // about. A day with no focus at all is 24 zeros, which is honest.
+  function insightsDayHours(res, key) {
+    if (!res || !res.grid) return null;
+    if (!res.includedDays && res.excludedDays) return null;
+    var parts = String(key).split("-");
+    var dow = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getDay();
+    var row = res.grid[dow] || [];
+    var out = [];
+    for (var h = 0; h < 24; h++) out.push((row[h] || 0) / 60000);
+    return out;
+  }
+  function insightsHourLabel(h) {
+    try { return new Date(2026, 0, 1, h).toLocaleTimeString(undefined, { hour: "numeric" }); }
+    catch (e) { return String(h); }
+  }
+
   function insightsBarChartSvg(hours, todayIndex, ariaLabel, startLabel, endLabel, opts) {
     // [1.8.1] THE VIEWBOX IS WIDER BECAUSE THE BOARD IS. .pp-trend-chart is
     // width:100%/height:auto, so the chart's height is purely its aspect ratio -
@@ -3921,6 +3946,11 @@
     var maxH = Math.max.apply(null, hours) || 1;
     var step = (w - 2 * padX) / hours.length;
     var barW = step * 0.6;
+    // [IT 2026-11-08] opts.maxBarW: a short window no longer draws slabs. One
+    // day used to be ONE bar 60% of the tile wide - the "giant bar" on
+    // Samson's recording - and two or three days were nearly as bad. Opt-in, so
+    // the free preview (which passes no opts) renders byte-identically.
+    if (opts && typeof opts.maxBarW === "number") barW = Math.min(barW, opts.maxBarW);
     var chartH = h - padTop - padBottom;
     var barsSvg = hours.map(function (hrs, i) {
       var x = padX + step * i + (step - barW) / 2;
@@ -5207,12 +5237,43 @@
     var hoursStart = fmtShortDate(insightsKeyToTs(keys[0]));
     var hoursEnd = endsToday ? t("insights_today")
                              : fmtShortDate(insightsKeyToTs(keys[keys.length - 1]));
-    insightsFill(panel, "[data-ins-hours]",
-      insightsBarChartSvg(hours, todayIdx, t("insights_deep_work_caption", { range: rangeLabelNow }),
-        hoursStart, hoursEnd,
-        { w: 520, h: 270, caption: false, axis: false }));
-    insightsFill(panel, "[data-ins-hours-axis]",
-      '<span>' + escapeHtml(hoursStart) + '</span><span>' + escapeHtml(hoursEnd) + '</span>');
+    var paintDaily = function () {
+      insightsFill(panel, "[data-ins-hours]",
+        insightsBarChartSvg(hours, todayIdx, t("insights_deep_work_caption", { range: rangeLabelNow }),
+          hoursStart, hoursEnd,
+          { w: 520, h: 270, caption: false, axis: false, maxBarW: INS_BAR_MAX_W }));
+      insightsFill(panel, "[data-ins-hours-axis]",
+        '<span>' + escapeHtml(hoursStart) + '</span><span>' + escapeHtml(hoursEnd) + '</span>');
+    };
+    // [IT 2026-11-08] ONE DAY IS DRAWN BY HOUR. A bars-per-day chart of one
+    // day is a single bar, which says nothing the strip's figure does not; the
+    // question a one-day view answers is "when did I work". So Today (and a
+    // one-day custom range) draws that day's 24 hours from the same per-hour
+    // read the heatmap uses, with the current hour highlighted when the day is
+    // today. A day without complete hour data (before [1.8.2], or partly
+    // reconstructed) falls back to the daily bar, width-capped - the reader
+    // already refuses to draw hours it does not know.
+    var hourlyP = null;
+    if (keys.length === 1) {
+      hourlyP = Tracking.bestHoursForScope(scope.workspaceId, keys).then(function (res) {
+        if (token !== insightsReadToken) return;
+        var byHour = insightsDayHours(res, keys[0]);
+        if (!byHour) { paintDaily(); return; }
+        var nowHour = endsToday ? new Date().getHours() : -1;
+        var first = insightsHourLabel(0), last = insightsHourLabel(23);
+        insightsFill(panel, "[data-ins-hours]",
+          insightsBarChartSvg(byHour, nowHour, t("insights_deep_work_hourly_caption", { range: rangeLabelNow }),
+            first, last,
+            { w: 520, h: 270, caption: false, axis: false, maxBarW: INS_BAR_MAX_W }));
+        insightsFill(panel, "[data-ins-hours-axis]",
+          '<span>' + escapeHtml(first) + '</span><span>' + escapeHtml(insightsHourLabel(12)) + '</span><span>' + escapeHtml(last) + '</span>');
+      }).catch(function (err) {
+        console.error("[LaunchPad] Insights: hourly read failed", err);
+        if (token === insightsReadToken) paintDaily();
+      });
+    } else {
+      paintDaily();
+    }
     // [1.8.3] The weekly card is INDEPENDENT OF THE RANGE SELECTOR - it always
     // describes this week against last, whatever window the rest of the board
     // is showing. That is deliberate: "this week vs last" is a fixed question,
@@ -5274,7 +5335,7 @@
     insightsFill(panel, "[data-ins-donut]", insightsTagDonutHtml(byTag, scopeTotalMs, d, combined, rangeLabelNow));
     insightsFill(panel, "[data-ins-topsites]", insightsTopSitesHtml(byDomain, d, combined, rangeLabelNow));
     insightsFill(panel, "[data-ins-toptasks]", insightsTopTasksHtml(byTask, d, combined, rangeLabelNow));
-    return Promise.all([weeklyP, heatP, hzP]).catch(function () {});
+    return Promise.all([weeklyP, heatP, hzP, hourlyP]).catch(function () {});
   }
 
   // Summary strip: the PERIOD TOTAL for the selected range (the hero numeral
