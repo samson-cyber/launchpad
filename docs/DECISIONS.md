@@ -4947,3 +4947,50 @@ It also showed a pre-existing copy slip: "No task focus tracked in the today yet
 - The console is clean.
 - MC5's 39 checks and MC6's 17 still pass.
 - On master, a real click on site tracking, focus chain, commitment and combined analytics changed nothing. With this fix every switch probed toggles.
+
+## 2026-11-09, Round MC8: the calendar moves to Tasks; a calm deep voice with its own switch
+
+**Context.** Samson, after living with MC7, asked for three changes:
+- "Not a fan of the vocal, it should be a calm male deep voice, saying only, 'You have a task due today'".
+- "These vocals should be able to be turned off in settings as well".
+- "In hindsight I think the new task Calendar should live on the Tasks Tab above Active Goals".
+
+**Voice.**
+- Three calm, deep male library voices × 2 takes each were approved, and the 156-credit estimate was spent exactly.
+  - Kenneth: a slow, low American baritone.
+  - Dallin: calming, warm, American.
+  - Adam Stone: smooth, relaxed, British.
+- Each take was measured and played after chime D on a listening page.
+- Samson chose **Adam Stone, take 2**, the deepest take measured (about 118 Hz; the Kenneth and Dallin takes sit at 135–145 Hz).
+- `sounds/due-reminder.wav` is now chime D + 180 ms + that line: 3.98 s, 175,634 bytes. MC7's voice and its 4.65 s file are retired.
+
+**Spoken reminder switch.**
+- It sits directly under "Sound when tasks are due". Off plays `sounds/due-chime.wav`, the same chime D on its own (1.94 s).
+- **Two packaged files rather than two plays**, so whichever is chosen is still one sound that plays whole. `Storage.dueSoundFile` picks between them, and the worker plays what it returns.
+- The voice is **on unless switched off**. It only ever speaks when the sound switch is on, and that switch carries the install-time default.
+- It is disabled while the sound is off, previews the full reminder when switched back on, and does not sync, for the same reason as the sound switch.
+- **The voice switch changes which file plays, never whether one plays.**
+
+**Calendar on Tasks.**
+- It is now a section of the Tasks tab between the count tiles and Active goals. It shows with the active sections, so the Completed view, which hides open work, hides it too.
+- Its handlers bind once on the Tasks panel. An add from the calendar repaints Tasks, and the Dashboard if it is showing.
+- The free Tasks preview shows the demo calendar above its Active goals header.
+- It is off the Dashboard and the Dashboard's preview. The bento is back to its seven tiles, with no "cal" row in any layout.
+- What it does is unchanged: month picker, drag between days through the goal-deadline path, Edit task, Delete, "Add task?" on double-click.
+
+**Gates.**
+- `check-today-cockpit` is back to seven tiles and asserts the calendar is gone from the Dashboard.
+- `check-calendar` has 70 rows, and `--mutate` kills 16 of 16 seeds. A new seed puts the calendar back under Active goals.
+- `check-due-sound` has 49 rows, and `--mutate` kills 11 of 11. It covers the voice switch, both files and the worker's choice.
+- `check-label-targets` covers the new row.
+
+**Verified** live in a scratch Edge profile:
+- MC8's own check passed 20/20 on the working tree and on the packaged build:
+  - On Tasks the calendar sits right above Active goals, at full section width with no sideways scroll, and selection, the picker and Edit task all work there.
+  - The Dashboard has seven tiles and no calendar.
+  - Settings shows Spoken reminder, on, under the sound switch.
+  - With the voice on, the reminder plays for about 4 s. A real click turns the voice off, and then the chime alone plays for about 1.9 s.
+  - Switching the voice back on previews the reminder. With the sound off, the voice switch is disabled and nothing plays.
+  - The free Tasks preview shows the calendar with no controls, and the free Dashboard preview has none.
+  - The console is clean.
+- MC5's 39 calendar checks and MC7's 33 due-sound checks, retargeted to Tasks, all pass. MC7's duration bound was updated for the new 3.98 s file.
