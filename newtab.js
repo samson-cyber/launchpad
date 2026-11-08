@@ -14997,11 +14997,18 @@
     // arbitration note on maybeShowProCelebration for why the guard lives here
     // and not inside them. The promo one is re-checked at fire time (2s later)
     // rather than now, so a buyer who dismisses the card quickly still gets it.
+    //
+    // [FR P2] ONE PLACE DECIDES THE ORDER, and it is here. The right-click tip
+    // decides first and publishes its answer as a promise; the rate toast,
+    // 2s later, awaits that answer and DEFERS to the next eligible open if the
+    // tip is up. The guard this replaces lived inside showRightClickTip and
+    // asked the DOM for a .promo-toast that had not mounted yet - it read false
+    // on every open, so both arrived together (OB finding 2).
+    if (!isProOnboardingBusy()) rcTipDecision = checkRightClickTip();
     setTimeout(function () {
       if (isProOnboardingBusy()) return;
       checkPromoToast();
     }, 2000);
-    if (!isProOnboardingBusy()) checkRightClickTip();
 
     // [1.0.23/1.0.24] Achievements on-open — beside the checkPromoToast
     // precedent. Runs the day-opened engine tick then delivers ONE queued badge
@@ -15544,6 +15551,24 @@
   // nag as a side effect of a removal, which is the opposite of the intent.
   var PROMO_FIRST_OPEN = 3;      // first ask
   var PROMO_REASK_OPENS = 40;    // opens between asks thereafter
+  // [FR P4] An ask that is never actioned is stamped on its third showing, so
+  // an unread toast cannot recur on every open forever. Same cap as the tip.
+  var PROMO_UNREAD_CAP = 3;
+
+  // [FR P4] THE ASK IS SPENT BY AN ACTION, NEVER BY A TIMER. Rate or x stamps
+  // lastPromoOpen; the 6s auto-hide only hides. Read-modify-write on the raw
+  // key, because checkPromoToast's own write may be seconds old by now.
+  async function stampPromoAsked() {
+    try {
+      var r = await chrome.storage.local.get("promoState");
+      var p = r.promoState || { openCount: 0, lastPromoOpen: 0 };
+      p.lastPromoOpen = p.openCount || 1;
+      p.unreadShows = 0;
+      await chrome.storage.local.set({ promoState: p });
+    } catch (err) {
+      console.error("[LaunchPad] Promo stamp failed", err);
+    }
+  }
 
   async function checkPromoToast() {
     // One-time migration from the pre-promoState storage keys. `bmcToastDismissed`
@@ -15581,12 +15606,33 @@
     // rather than the old exact-equality closes a dead end the coffee leg used
     // to cover: a state migrated in above openCount 3 with nothing ever shown
     // would otherwise never qualify again.
+    //
+    // [FR P5] THE FIRST ASK IS GATED ON USE, NOT ON OPENS. Three opens of a
+    // grid made entirely of our own examples says nothing about whether the
+    // product has done anything for this person, so the first ask also needs
+    // one shortcut they added themselves. The re-ask cadence is unchanged: by
+    // then they have answered, or ignored, once already.
     var show = promo.lastPromoOpen > 0
       ? (promo.openCount - promo.lastPromoOpen) >= PROMO_REASK_OPENS
-      : promo.openCount >= PROMO_FIRST_OPEN;
+      : (promo.openCount >= PROMO_FIRST_OPEN && Storage.hasUserShortcut(data));
+
+    // [FR P2] The right-click tip outranks the ask on any open where both are
+    // eligible; the ask is not spent, it simply waits for the next open.
+    if (show && rcTipDecision) {
+      var tipUp = false;
+      try { tipUp = await rcTipDecision; } catch (e) { tipUp = false; }
+      if (tipUp) show = false;
+    }
 
     if (show) {
-      promo.lastPromoOpen = promo.openCount;
+      // [FR P4] Showing is not asking. Only an action stamps lastPromoOpen
+      // (stampPromoAsked); a showing counts toward the unread cap, and the
+      // cap's showing is the one that stamps, so the ask cannot recur forever.
+      promo.unreadShows = (promo.unreadShows || 0) + 1;
+      if (promo.unreadShows >= PROMO_UNREAD_CAP) {
+        promo.lastPromoOpen = promo.openCount;
+        promo.unreadShows = 0;
+      }
       showPromoToast();
     }
 
@@ -15613,15 +15659,23 @@
       toast.classList.add("visible");
     });
 
-    // Auto-dismiss after 6 seconds
+    // Auto-hide after 6 seconds. [FR P4] HIDES, and writes nothing: a user who
+    // looked away has not answered.
     var timer = setTimeout(function () {
       toast.classList.remove("visible");
       setTimeout(function () { toast.remove(); }, 300);
     }, 6000);
 
-    // Manual dismiss
+    // Manual dismiss, and Rate: either one is an answer, so either one stamps.
     toast.querySelector(".promo-toast-dismiss").addEventListener("click", function () {
       clearTimeout(timer);
+      stampPromoAsked();
+      toast.classList.remove("visible");
+      setTimeout(function () { toast.remove(); }, 300);
+    });
+    toast.querySelector(".promo-toast-action").addEventListener("click", function () {
+      clearTimeout(timer);
+      stampPromoAsked();
       toast.classList.remove("visible");
       setTimeout(function () { toast.remove(); }, 300);
     });
@@ -15653,22 +15707,34 @@
   // ===== Right-Click Tip =====
 
   var rcTipTimer = null;
+  // [FR P2] This open's answer from checkRightClickTip: a promise of true if the
+  // tip is showing on THIS open. checkPromoToast awaits it; null until init.
+  var rcTipDecision = null;
+  // [FR P4] Shown on this many opens unread, the third showing writes the flag.
+  var RC_TIP_UNREAD_CAP = 3;
 
+  // [FR P6] THE SECOND OPEN, which is what this comment always said. openCount
+  // is incremented by checkPromoToast two seconds INTO an open, so read here at
+  // init it counts the opens BEFORE this one: 1 on the second open. The old
+  // gate was >= 2, which is the third open (OB finding 1, measured).
+  //
+  // [FR P4] THE SHOW COUNT IS WRITTEN HERE, and on the cap's showing so is the
+  // flag. Nothing else but the "Got it" click writes rightClickTipShown; the
+  // 10s timer only hides.
   async function checkRightClickTip() {
-    var result = await chrome.storage.local.get(["promoState", "rightClickTipShown"]);
-    var count = (result.promoState && result.promoState.openCount) || 0;
-    // Show on 2nd tab open (not first — user is still in onboarding)
-    if (count >= 2 && !result.rightClickTipShown) {
-      showRightClickTip();
-    }
+    var result = await chrome.storage.local.get(["promoState", "rightClickTipShown", "rightClickTipShows"]);
+    var priorOpens = (result.promoState && result.promoState.openCount) || 0;
+    if (priorOpens < 1 || result.rightClickTipShown) return false;
+    var shows = (result.rightClickTipShows || 0) + 1;
+    var write = { rightClickTipShows: shows };
+    if (shows >= RC_TIP_UNREAD_CAP) write.rightClickTipShown = true;
+    try { await chrome.storage.local.set(write); } catch (err) { console.error("[LaunchPad] rc-tip count failed", err); }
+    return showRightClickTip();
   }
 
   function showRightClickTip() {
-    // Don't show if a promo toast is already visible
-    if (document.querySelector(".promo-toast")) return;
-
     var tip = $("#rc-tip");
-    if (!tip) return;
+    if (!tip) return false;
 
     tip.classList.remove("hidden");
     requestAnimationFrame(function () {
@@ -15677,12 +15743,24 @@
       });
     });
 
+    // [FR P4] The timer HIDES. It does not write the flag: an unread tip is not
+    // a read one, and the unread cap in checkRightClickTip is what stops it
+    // showing forever.
     rcTipTimer = setTimeout(function () {
-      dismissRightClickTip();
+      hideRightClickTip();
     }, 10000);
+    return true;
   }
 
+  // "Got it" - the only control that spends the tip.
   function dismissRightClickTip() {
+    var tip = $("#rc-tip");
+    if (!tip || tip.classList.contains("hidden")) return;
+    chrome.storage.local.set({ rightClickTipShown: true });
+    hideRightClickTip();
+  }
+
+  function hideRightClickTip() {
     var tip = $("#rc-tip");
     if (!tip || tip.classList.contains("hidden")) return;
 
@@ -15690,8 +15768,6 @@
       clearTimeout(rcTipTimer);
       rcTipTimer = null;
     }
-
-    chrome.storage.local.set({ rightClickTipShown: true });
 
     tip.classList.remove("tip-visible");
     setTimeout(function () {
@@ -21645,13 +21721,18 @@
         th("demo_clear_examples") +
       '</button>';
 
+    // [FR P1] ABOVE THE STRIP, NOT INSIDE ITS FIRST TILE (ruled 2026-10-07,
+    // option a). The examples stay exactly as they are; what changes is that
+    // the way out of them is the first thing above them rather than a button
+    // inside a tile a new user reads past. Still one click, still no confirm,
+    // still restorable from Tips.
     return (
       '<section class="group demo-intro" data-group-id="demo_intro">' +
+        '<div class="demo-intro-bar">' + clearBtn + '</div>' +
         '<div class="demo-tiles">' +
           '<div class="demo-tile demo-tile-welcome">' +
             '<div class="demo-tile-title">' + th("demo_welcome_to_launchpad") + '</div>' +
             '<p class="demo-tile-body">' + th("demo_your_new_tab_organised") + '</p>' +
-            '<div class="demo-clear-wrap">' + clearBtn + '</div>' +
           '</div>' +
           '<div class="demo-tile demo-tile-teach">' +
             '<div class="demo-tile-title">' + th("demo_save_any_page") + '</div>' +

@@ -3527,7 +3527,26 @@ var Storage = (function () {
    *
    * Soft-deleted shortcuts do not count — a trashed shortcut is not content the
    * user still has.
+   *
+   * [FR P5, 2026-11-08] REINSTATED, for a different consumer. The D4 gate this
+   * comment was written for is gone (newtab.js demoIntroHTML says why) and took
+   * the function with it, leaving this comment above the wrong function. The
+   * rate toast's first ask now needs it: an ask is only fair once the product
+   * has done something for the user, and a shortcut they added is the
+   * cheapest honest evidence of that. Every workspace counts, not only the
+   * active one: a shortcut in Work is still a shortcut they made.
    */
+  function hasUserShortcut(data) {
+    var wss = (data && Array.isArray(data.workspaces)) ? data.workspaces : [];
+    return wss.some(function (ws) {
+      return Array.isArray(ws && ws.groups) && ws.groups.some(function (g) {
+        return Array.isArray(g && g.shortcuts) && g.shortcuts.some(function (s) {
+          return !!(s && !s.deletedAt && !isDemoShortcut(s));
+        });
+      });
+    });
+  }
+
   function makeDemoShortcut(seed, now, i) {
     return {
       id: "demo_s_" + now.toString(36) + "_" + i.toString(36),
@@ -10709,6 +10728,7 @@ var Storage = (function () {
     hasDemoContent: hasDemoContent,
     isDemoGroup: isDemoGroup,
     isDemoShortcut: isDemoShortcut,
+    hasUserShortcut: hasUserShortcut,
     getActiveWorkspace: getActiveWorkspace,
     getActiveWorkspaceIndex: getActiveWorkspaceIndex,
     addShortcut: addShortcut,

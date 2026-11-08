@@ -3708,12 +3708,24 @@ html.bg-image .empty-group-hint {
 
 
 
+/* [FR P3, 2026-11-08] OFF THE GRID AND OUT OF THE WAY OF ADD SHORTCUT. Round OB
+   hit-tested this tip at bottom-centre, 140px up, sitting over "Maps",
+   "Wikipedia" and the .add-tile with pointer-events: auto, on the third open of
+   a new install. It moves to the bottom inline-end corner, which the grid does
+   not reach on a fresh install at 1280, 1440 or 1920 (measured, elementFromPoint
+   across the box, on the bundled default ground).
+
+   AND IT YIELDS POINTER EVENTS OUTSIDE ITS OWN BUTTON, because a measured
+   corner is clear on OUR grid and not on every user's: a wide column setting or
+   a long group can grow into it. The text passes clicks through to whatever is
+   beneath; only "Got it" catches them. The .promo-toast below does the same. */
 #rc-tip {
   position: fixed;
-  bottom: 140px;
-  left: 50%;  /* centring */
-  transform: translateX(-50%) translateY(16px);
+  bottom: 24px;
+  inset-inline-end: 24px;
+  transform: translateY(16px);
   max-width: 400px;
+  pointer-events: none;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -3729,7 +3741,11 @@ html.bg-image .empty-group-hint {
 
 #rc-tip.tip-visible {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  transform: translateY(0);
+}
+
+#rc-tip.tip-visible #rc-tip-dismiss {
+  pointer-events: auto;
 }
 
 .rc-tip-text {
@@ -3781,11 +3797,16 @@ html.has-bg .rc-tip-text {
 
 
 
+/* [FR P3] The same corner as #rc-tip, and the same yield - see the note there.
+   OB measured this toast at bottom-centre over "LinkedIn" and the .add-tile.
+   The two never share an open now (P2, newtab.js checkPromoToast), so one
+   corner serves both. It also leaves the bottom-centre slot the nesting
+   tooltip uses, which sweep-ink recorded occluding this toast completely. */
 .promo-toast {
   position: fixed;
   bottom: 24px;
-  left: 50%;  /* centring */
-  transform: translateX(-50%) translateY(20px);
+  inset-inline-end: 24px;
+  transform: translateY(20px);
   display: flex;
   align-items: center;
   gap: var(--space-2-5);
@@ -3807,7 +3828,11 @@ html.has-bg .rc-tip-text {
 
 .promo-toast.visible {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  transform: translateY(0);
+}
+
+.promo-toast.visible .promo-toast-action,
+.promo-toast.visible .promo-toast-dismiss {
   pointer-events: auto;
 }
 
@@ -15590,11 +15615,12 @@ button.demo-tile-background:hover {
    real disabled button fires no hover and its tooltip could never appear. */
 
 
-.demo-clear-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  margin-top: var(--space-1-5);
+/* [FR P1, 2026-11-08] CLEAR EXAMPLES SITS ABOVE THE STRIP, on its own row,
+   aligned with the strip's inline-start edge the way every group header is. */
+.demo-intro-bar {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: var(--space-2);
 }/* [1.0.19 D14] SOLID fills, and deliberately NO luminance-class variants.
    The previous treatment was a translucent white wash (rgba(255,255,255,.08))
    plus a bg-light override. Two things broke it over image wallpapers: the
@@ -15625,21 +15651,38 @@ button.demo-tile-background:hover {
    window is tight enough that eyeballing will not catch a regression. */
 
 
+/* [FR P1] THE D14 FILL ABOVE IS RETIRED FOR THIS CONTROL, and its reasoning is
+   kept because .tips-action still lives by it. Clear examples is a SECONDARY
+   control - the examples are the content, and clearing them is the way out -
+   so it takes no action colour. It takes the CONTROL INK OF ITS SURFACE
+   (ruling 57), and its surface is a pill of the same card frost the four demo
+   tiles beneath it wear: so its ink is the tiles' own secondary ink,
+   rgba(255,255,255,0.78), and on html.bg-light, where that frost flips white,
+   the tiles' light secondary ink #3c4043. Hover lifts it to the primary ink of
+   the same surface.
+
+   On an IMAGE ground the frost stays dark and no luminance class applies, which
+   is the case D14 was written about. A frost pill is 85% opaque, so a bright
+   photograph lifts it; measured on all five sweep grounds plus the fresh-install
+   default with pixel-contrast in Round FR (Asana 1219245334536475). */
 .demo-clear {
   font: inherit;
-  font-size: var(--fs-12);
+  font-size: var(--fs-12-5);
   font-weight: 600;
-  padding: 5px var(--space-3);
-  border-radius:var(--radius-md);
-  border: 1px solid transparent;
-  background: #4d8bf5;
-  color: #202124;
+  padding: 6px var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--pro-frost-card-bg, rgba(30, 30, 30, 0.85));
+  backdrop-filter: var(--pro-frost-card-blur, blur(12px));
+  -webkit-backdrop-filter: var(--pro-frost-card-blur, blur(12px));
+  color: rgba(255, 255, 255, 0.78);
   text-shadow: none;
   cursor: pointer;
-  transition: background-color 120ms ease;
+  transition: color 120ms ease, border-color 120ms ease;
 }
-.demo-clear:hover { background: #5590f6; }
-.demo-clear:active { background: #4584f2; }/* Light wallpapers: the frost flips white, so the ink and borders must too. */
+.demo-clear:hover { color: #fff; border-color: rgba(255, 255, 255, 0.28); }
+html.bg-light .demo-clear { border-color: rgba(0, 0, 0, 0.12); color: #3c4043; }
+html.bg-light .demo-clear:hover { color: var(--text-primary); border-color: rgba(0, 0, 0, 0.24); }/* Light wallpapers: the frost flips white, so the ink and borders must too. */
 
 
 
@@ -15647,9 +15690,11 @@ html.bg-light .demo-tile {
   border-color: rgba(0, 0, 0, 0.12);
   color: var(--text-primary);
 }
-html.bg-light .demo-tile-body { color: #3c4043; }/* No html.bg-light override for .demo-clear — see D14 above. Its treatment is
-   deliberately luminance-class-INDEPENDENT, because bg-image carries no
-   luminance class at all and an override here would silently not apply. *//* ===== [1.0.19] Import + Tips panels ===== */
+html.bg-light .demo-tile-body { color: #3c4043; }/* [FR P1] .demo-clear now HAS an html.bg-light branch, beside its own rule
+   above, because it now sits on the card frost, which flips white under
+   bg-light exactly as the demo tiles' does. On bg-image no class applies and
+   the frost stays dark, so the dark-frost ink is the one an image gets - the
+   same answer the tiles beneath it get. *//* ===== [1.0.19] Import + Tips panels ===== */
 
 
 
@@ -16783,7 +16828,10 @@ html.bg-light .tip-vis-swatch i:nth-child(3) { background: rgba(0,0,0,0.25); }/*
    bright wallpaper bleeds through and lifts everything under the ink.
    Opaque fills, hue-distinct states, no opacity, no ring, and no bg-light
    counterpart — identical values to .demo-clear so the two [1.0.19] action
-   buttons read as one system and share one solved luminance window. */
+   buttons read as one system and share one solved luminance window.
+   [FR P1, 2026-11-08] .demo-clear has since left that system: it became a
+   secondary control on the card frost and took that surface's control ink.
+   This button keeps the D14 window unchanged. */
 
 
 .tips-action {

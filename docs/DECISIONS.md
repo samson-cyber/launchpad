@@ -4535,3 +4535,36 @@ thing worth naming: `.home-greeting-date`, under floor everywhere, falls from
 reads 3.05 against its 3.0 floor. The greeting sits on the lighter sky at the
 top of the frame. Recorded on Asana 1219244709864881 as a finding for a later
 ink round, not fixed here.
+
+## 2026-11-08, Round FR: the first run stops getting in the way
+
+**Option (a), ruled by Samson 2026-10-07 against Round OB's audit: the demo content
+stays exactly as it is, and Clear examples becomes more prominent.** It moves out
+of the welcome tile onto its own row ABOVE the strip's four tiles, as a pill of the
+same card frost the tiles wear. It is a secondary control, so it takes no action
+colour: its ink is the control ink of that frost (ruling 57), the tiles' own
+secondary ink, with an html.bg-light branch because the card frost flips white
+there. One click, no confirmation, restorable from Tips, all unchanged. Measured
+>= 8.73:1 resting and >= 13.36 hovered on all six sweep grounds.
+
+**The rate toast's first ask is gated on use, not on opens (Claude Chat's lean,
+reversible).** It needs `openCount >= PROMO_FIRST_OPEN` AND one shortcut the user
+added themselves (`Storage.hasUserShortcut`, any workspace, demo and trashed
+shortcuts excluded). Three opens of a grid made of our own examples says nothing
+about whether the product has helped anyone. `PROMO_REASK_OPENS` is unchanged.
+
+**Three behaviour rules that came with it, each from an OB finding:**
+- ONE PLACE DECIDES THE ORDER. The right-click tip decides first and publishes the
+  answer; the toast awaits it and defers to the next eligible open if the tip is
+  up. The old guard asked the DOM for a toast that had not mounted yet.
+- A TIMER HIDES, AN ACTION SPENDS. The tip's 10s timer and the toast's 6s timer
+  only hide. "Got it" spends the tip; Rate or x stamps the ask. Each has an unread
+  cap of three showings, and the third showing spends it, so neither can recur
+  forever.
+- NOTHING COVERS ADD SHORTCUT. Both overlays move to the bottom inline-end corner,
+  clear of the grid at 1280, 1440 and 1920 on a fresh install, and both yield
+  pointer events outside their own buttons, because a user's own grid can grow
+  into any corner we measure on ours.
+
+The right-click tip now shows on the second open, which is what its comment
+always said.
