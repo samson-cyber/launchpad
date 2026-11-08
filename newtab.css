@@ -8452,7 +8452,9 @@ html.has-bg.bg-light .ws-dd-add {
 }
 
 html.has-bg.bg-light .ws-dd-add {
-  color: #1e6fc9;
+  /* [DP1] #1e6fc9 measured 4.24 on the + glyph once Figtree drew it with a
+     thinner stroke; one step darker clears 4.5 for the glyph and the label. */
+  color: #1a62b5;
 }/* [WM.1] The bg-light floater is white-tinted, so every one of these would
    otherwise composite white-on-white: --ink-meta is white-alpha and
    --pro-ink-accent (#6fb1ff) is a light blue chosen for dark frost. Same
@@ -21857,7 +21859,9 @@ html.has-bg .insights-tab .ins-seg .seg-btn:hover { color: var(--ink); }/* THE A
 
 html.has-bg .insights-tab .ins-seg .seg-btn.active {
   background: var(--action-tint);
-  color: var(--action);
+  /* [DP3] --action-soft: indigo at full strength measured 4.06-4.43 on its own
+     tint; the lighter end clears the floor on every ground. */
+  color: var(--action-soft);
   box-shadow: none;
 }/* ===== THE PILL IS ON THE WALLPAPER, SO H1a'S ALPHA RULE DOES NOT REACH IT
 
@@ -21874,7 +21878,7 @@ html.has-bg.bg-light .insights-tab .ins-seg {
 }
 html.has-bg.bg-light .insights-tab .ins-seg .seg-btn.active {
   background: var(--action-tint);
-  color: var(--action);
+  color: var(--action-soft);
 }
 html.has-bg .insights-tab .ins-seg .seg-btn:focus-visible {
   outline: 2px solid var(--action);
@@ -21908,7 +21912,8 @@ html.has-bg .insights-tab .insights-export-btn {
   padding: 0;
   margin-inline-start: 10px;
   font-family: var(--font-sans);
-  color: var(--action);
+  /* [DP3] the lighter end: --action measured 3.77-4.22 on the dark photographs. */
+  color: var(--action-soft);
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
@@ -21931,7 +21936,7 @@ html.has-bg .insights-tab .insights-export-btn {
    comfortably three lines up. */
 
 html.has-bg.bg-light .insights-tab .insights-export-btn { color: var(--text-primary); }
-html.has-bg .insights-tab .insights-export-btn:hover { color: var(--action-soft); }/* The caption and the button are ONE meta line at the row's right end. */
+html.has-bg .insights-tab .insights-export-btn:hover { color: var(--ink); }/* The caption and the button are ONE meta line at the row's right end. */
 
 html.has-bg .insights-tab .insights-range-note { margin-inline-start: auto; }/* The custom date fields drop below the row when the Custom segment is on. */
 
