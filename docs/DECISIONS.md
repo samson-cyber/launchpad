@@ -4662,3 +4662,34 @@ The tints were cooled and darkened until they read as grey with a hint: hero `31
 - The v1 surfaces that never adopted the v2 tokens.
 
 **Supersedes** the colour half of the 2026-09-18 "One accent becomes one ACTION colour plus a TINT PER TILE KIND" entry. The structure that entry ruled, one action colour plus a tint per tile kind, stands.
+
+## 2026-11-08, Round DP4: the three chimes are recorded sounds, not synthesised tones
+
+**Samson's brief:** replace the chimes with "clean, crisp and professional" sounds generated with ElevenLabs. Keep the file names, the format and the offscreen path. The spend was approved in chat before anything generated.
+
+**What changed:** the bytes of `sounds/chime1.wav`, `chime2.wav` and `chime3.wav`, and nothing else. The ids, the settings labels ("soft bell", "rising triad", "warm tone"), `Storage.pomodoroSoundFile`, the page and offscreen players, and `build.sh`'s `sounds` allowlist entry are untouched.
+
+**Source:** ElevenLabs `eleven_text_to_sound_v2`, one prompt per chime with four takes each, generated in Samson's account (flow `y2wmxzCo3Vys0PWq5HK7`). That came to 12 takes at 17 credits each, 204 credits in total. The estimate had said 660.
+
+**Which take, and why.** The takes were picked by measurement, not by ear, and Samson's ear is the check on it.
+
+| Chime | Take | Why |
+|---|---|---|
+| chime1, soft bell | bell-a | One clean partial at 829 Hz. Two of the other takes are a 3.4 kHz ting, and the fourth is 94% energy above 6 kHz, which is hiss. |
+| chime2, rising triad | triad-d | The only take whose pitch actually rises (441, 528, 786, 991 Hz in 0.9 s). Take a holds one note, take c falls back, and take b is a 4.5 s scale run. |
+| chime3, warm tone | warm-b | A steady 301 Hz tone lasting 1.8 s, the nearest to the old chime's 1.7 s. warm-a sits at 786 Hz, which is not warm. |
+
+**Processing**, the same for all three:
+- Decoded in Edge and resampled to 22050 Hz mono by `OfflineAudioContext`.
+- DC removed. The tail trimmed 60 ms past the last frame above -50 dB of the peak.
+- A 3 ms fade-in, so the decoder's first sample cannot click, and an 80 ms raised-cosine fade-out.
+- Peak normalised to -6 dBFS, the old chimes' level. 16-bit with TPDF dither, behind a canonical 44-byte header.
+
+**Result:**
+- Lengths are 1.00, 0.93 and 1.82 s, and every file is under the offscreen player's 6 s belt.
+- None clips, and hiss above 6 kHz is at most 0.08% of the energy.
+- Together they are 165,244 bytes, against 202,990 before.
+
+**Verified** in a scratch profile through both shipped paths: an `Audio` element on the new-tab page, and the worker's own `ensureSoundOffscreen` plus `lp-offscreen-play`. All three report `played: true` and end on time. A packaged path that does not exist reports `false`, which proves the check can fail.
+
+**Licence, still open:** ElevenLabs grants commercial use of generated sound effects on its paid plans. Samson should confirm that the account they came from is on one before the next store submission.
