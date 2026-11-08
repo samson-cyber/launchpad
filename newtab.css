@@ -7537,6 +7537,11 @@ html.bg-light .rc-panel-item-meta {
   background: rgba(255, 255, 255, 0.2);
   border: none;
   color: #fff;
+  /* [DP1] A <button> does not inherit font-family (H3c's finding), and this one
+     was never told to, so "Don't show again" rendered in Arial beside a
+     sentence in the product face. The DP1 verify found it by asking every
+     visible text node which family it declares. */
+  font-family: inherit;
   font-size: var(--fs-12);
   padding: var(--space-1) var(--space-2-5);
   border-radius:var(--radius-lg);
