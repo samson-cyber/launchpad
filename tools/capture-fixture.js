@@ -31,7 +31,10 @@
 // value { day, workspaceId, totalFocusedMs, byDomain, byTag, byTask,
 // longestSessionMs }.
 
-async function __seedCaptureFixture() {
+// opts.wallpaper === "default" (the store screenshots since 2026-11-08) puts
+// the frames on the bundled default photograph instead of the painted ground.
+// Every other caller passes nothing and keeps the painted ground byte for byte.
+async function __seedCaptureFixture(opts) {
   try {
     const S = window.Storage;
     if (!S) return { ok: false, error: "Storage is not on the page" };
@@ -43,6 +46,17 @@ async function __seedCaptureFixture() {
     // public listing. This is ours, deterministic, dark and low-detail: a busy
     // photo fights the frosted panels, and dark is the default surface and the
     // best-tested ink branch.
+    //
+    // [DP5 2026-11-08] THE STORE FRAMES NOW TAKE THE BUNDLED DEFAULT. The
+    // reasons above held while every wallpaper was a runtime URL. Since Round W
+    // a fresh install opens on assets/wallpapers/default.webp, which ships in
+    // the zip with its credit in assets/wallpapers/CREDITS.md (Unsplash licence),
+    // so it is reproducible and licensed, and it is what a new user sees first.
+    // Stored as the product stores it: the extension-relative path, exactly as
+    // newtab.js's FRESH_INSTALL_BG writes it at first paint.
+    if (opts && opts.wallpaper === "default") {
+      await S.saveBackground("assets/wallpapers/default.webp");
+    } else {
     const cv = document.createElement("canvas");
     cv.width = 1600; cv.height = 1000;
     const g = cv.getContext("2d");
@@ -60,6 +74,7 @@ async function __seedCaptureFixture() {
     vign.addColorStop(1, "rgba(0,0,0,0.45)");
     g.fillStyle = vign; g.fillRect(0, 0, 1600, 1000);
     await S.saveBackground(cv.toDataURL("image/jpeg", 0.86));
+    }
 
     // ------------------------------------------------------------ shortcuts
     let data = await S.getAll();

@@ -319,7 +319,7 @@ await page.ev("1");
 // ------------------------------------------------------------ seed the fixture
 console.log("\n  seeding the fixture (through the product's own factories, I12/Q13)");
 const seedSrc = fs.readFileSync(new URL("./capture-fixture.js", import.meta.url), "utf8");
-const seeded = await page.ev(`(async () => { ${seedSrc} \n return await __seedCaptureFixture(); })()`, 90000);
+const seeded = await page.ev(`(async () => { ${seedSrc} \n return await __seedCaptureFixture({ wallpaper: "default" }); })()`, 90000);
 console.log("  " + JSON.stringify(seeded));
 chk("fixture seeded", seeded && seeded.ok === true, seeded && seeded.error);
 
