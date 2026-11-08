@@ -30,7 +30,7 @@ const MUTATE = args.includes("--mutate");
 const repoRoot = args.find((a) => !a.startsWith("--")) || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const clean = fs.readFileSync(path.join(repoRoot, "newtab.html"), "utf8").replace(/\r\n/g, "\n");
 const FOUND = ["pomo-chain-toggle", "pomo-notifications-toggle", "focus-commitment-toggle", "settings-track-sites",
-  "due-reminders-toggle", "due-sound-toggle", "pro-analytics-toggle"];
+  "due-reminders-toggle", "due-sound-toggle", "due-voice-toggle", "pro-analytics-toggle"];
 
 function suite(html) {
   const rows = [];

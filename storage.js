@@ -10148,6 +10148,12 @@ var Storage = (function () {
   //     matching today's key, like the reminder record.
   var DUE_SOUND_LOG_KEY = "dueSoundLog";
   var DUE_SOUND_FILE = "sounds/due-reminder.wav";
+  // [MC8] THE SPOKEN PART HAS ITS OWN SWITCH. Off plays the chime alone, the
+  // same chime with the voice cut, not a different sound. Two packaged files
+  // rather than two plays, so either one is still one sound that plays whole.
+  // ON UNLESS TURNED OFF: it only ever speaks when the sound switch is on, and
+  // that switch carries the install-time default.
+  var DUE_CHIME_FILE = "sounds/due-chime.wav";
 
   function getDueSoundEnabled(data) {
     return !!(data && data.settings && data.settings.dueSoundEnabled === true);
@@ -10161,6 +10167,25 @@ var Storage = (function () {
     data.settings.dueSoundEnabled = next;
     await saveAll(data);
     return true;
+  }
+
+  function getDueVoiceEnabled(data) {
+    return !(data && data.settings && data.settings.dueVoiceEnabled === false);
+  }
+
+  async function setDueVoiceEnabled(data, on) {
+    if (!data) return false;
+    if (!data.settings || typeof data.settings !== "object") data.settings = {};
+    var next = (on === true);
+    if (getDueVoiceEnabled(data) === next && typeof data.settings.dueVoiceEnabled === "boolean") return false;
+    data.settings.dueVoiceEnabled = next;
+    await saveAll(data);
+    return true;
+  }
+
+  /** Which file the due sound plays: the full reminder, or the chime alone. */
+  function dueSoundFile(data) {
+    return getDueVoiceEnabled(data) ? DUE_SOUND_FILE : DUE_CHIME_FILE;
   }
 
   function dueSoundToAnnounce(data, log, now) {
@@ -10317,6 +10342,7 @@ var Storage = (function () {
   //                         so the setting is a statement about this machine and
   //                         not about the user. It also rides the optional
   //                         `downloads` permission, which is per-browser.
+  //   dueVoiceEnabled       [MC8] Rides on dueSoundEnabled, for the same reason.
   //   dueSoundEnabled       [MC7] A SOUND FROM THIS MACHINE'S SPEAKERS, and its
   //                         default is written by THIS machine's install. A
   //                         second machine's fresh install turns it on there;
@@ -11325,6 +11351,10 @@ var Storage = (function () {
     nextDueSoundLog: nextDueSoundLog,
     DUE_SOUND_LOG_KEY: DUE_SOUND_LOG_KEY,
     DUE_SOUND_FILE: DUE_SOUND_FILE,
+    DUE_CHIME_FILE: DUE_CHIME_FILE,
+    getDueVoiceEnabled: getDueVoiceEnabled,
+    setDueVoiceEnabled: setDueVoiceEnabled,
+    dueSoundFile: dueSoundFile,
     dueReminderSentToday: dueReminderSentToday,
     markDueRemindersSent: markDueRemindersSent,
     nextDueReminderAt: nextDueReminderAt,

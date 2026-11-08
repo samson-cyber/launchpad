@@ -20510,15 +20510,14 @@ html.bg-light .set-tile .set-select {
 .dash-bento {
   display: grid;
   grid-template-columns: repeat(var(--cols), 1fr);
-  grid-template-rows: auto auto auto 1fr auto;
+  grid-template-rows: auto auto auto 1fr;
   grid-auto-rows: auto;
   gap: var(--gap);
   grid-template-areas:
     "hero   hero   hero     hero"
     "upnext upnext overdue  goals"
     "due    due    blocking blocking"
-    "due    due    time     time"
-    "cal    cal    cal      cal";
+    "due    due    time     time";
 }
 
 /* THE BAND. Eyebrow across the top; the focus figure (or the tracking-off
@@ -20877,15 +20876,14 @@ html.has-bg.bg-light .dash-bento .dash-inline-link {
       "overdue  goals"
       "blocking blocking"
       "due      due"
-      "time     time"
-      "cal      cal";
+      "time     time";
   }
 }@media (max-width: 720px) {
   .dash-bento {
     grid-template-rows: none;
     grid-template-columns: 1fr;
     grid-template-areas:
-      "hero" "upnext" "overdue" "goals" "blocking" "due" "time" "cal";
+      "hero" "upnext" "overdue" "goals" "blocking" "due" "time";
   }
 }/* ---- THE LIGHT GROUND, FOR THE FOUR CONTROLS -------------------------------
 
@@ -24170,8 +24168,9 @@ html.lp-vt #content-header * { transition: none !important; }
    through. Ink: the tile's own family; due is the board's primary ink, overdue
    the overdue tile's rose, scheduled the action indigo - the palette's
    existing meanings. Chips are text, so they are measured like text. */
-.dash-bento > .dash-tile-cal { grid-area: cal; }
-.dash-free-demo-grid > .dash-tile-cal { grid-column: 1 / -1; }
+/* [MC8] On the Tasks tab, a section of its own above Active goals. */
+.tt-cal-section > .dash-tile-cal, .pp-cal-wrap > .dash-tile-cal { width: 100%; box-sizing: border-box; }
+.pp-cal-wrap { margin: 0 0 var(--space-4); }
 .dash-tile-cal { display: flex; flex-direction: column; gap: var(--space-3); }
 .dash-cal-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
 .dash-cal-head .tile-eyebrow { margin: 0; }

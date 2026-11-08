@@ -6281,6 +6281,14 @@ I18n.register("en", {
       "description": "Info note on the due-sound switch. Says what plays and how often.",
       "message": "A short chime and a spoken reminder, once a day, on the first new tab after tasks reach their due date."
     },
+    "prosettings_due_voice": {
+      "description": "Settings switch under 'Sound when tasks are due': whether the due sound includes the spoken line or plays the chime alone.",
+      "message": "Spoken reminder"
+    },
+    "prosettings_due_voice_note": {
+      "description": "Info note on the Spoken reminder switch. The quoted line is the recorded English audio, so translations should quote it as heard, not translate it.",
+      "message": "Says \"You have a task due today\" after the chime. Off plays the chime alone."
+    },
     "dash_cal_empty_day": {
       "description": "Shown below the calendar when the selected day has nothing due and nothing scheduled.",
       "message": "Nothing due or scheduled."

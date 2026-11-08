@@ -253,6 +253,18 @@ async function suite(src, nt) {
       /dashPanel\.removeAttribute\("data-dash-carry"\); filling = renderDashboardTab\(dashPanel, data\);/.test(nt));
     chk("a re-render restores the carried figures before binding", /dashCarryRestore\(panel, dashCarry\);\n\n    bindDashboardEvents\(panel\);/.test(nt));
     chk("a committed dialog refreshes a visible Dashboard", (fnBody(nt, "openTasksModal").match(/dashRefreshIfShown\(\)/g) || []).length === 2);
+
+    // ---- [MC8] the calendar lives on the Tasks tab, above Active goals ----
+    const tasksR = fnBody(nt, "renderTasksTab");
+    chk("Tasks renders the calendar section", /var calendarSectionHtml = showActiveSections\s*\? '<section class="tt-section tt-cal-section" data-section="calendar">' \+\s*dashCalendarTileHtml\(workspace, null\)/.test(tasksR));
+    chk("...ABOVE Active goals (count tiles, calendar, goals)", /tasksCountTilesHtml\(tasksCounts\) \+\s*calendarSectionHtml \+\s*activeGoalsSectionHtml \+/.test(tasksR));
+    chk("its handlers bind on the Tasks panel", /panel\.dataset\.tasksTabBound = "1";[\s\S]{0,200}bindDashCalendar\(panel\);/.test(fnBody(nt, "bindTasksTabEvents")));
+    chk("...and nowhere else", (nt.match(/bindDashCalendar\(panel\);/g) || []).length === 1);
+    chk("the Dashboard no longer draws it", !/dashCalendarTileHtml/.test(fnBody(nt, "renderDashboardTab")));
+    chk("the free Tasks preview shows it above its Active goals header",
+      /'<div class="pp-cal-wrap">' \+ dashCalendarTileHtml\(dashCalDemoWorkspace\(\), \{ preview: true \}\) \+ '<\/div>' \+\s*'<div class="pp-section-header">' \+ th\("tasks_active_goals"\)/.test(nt));
+    chk("...and the Dashboard preview does not", !/dash-free-demo-grid[^;]*dashCalendarTileHtml/.test(nt) && (nt.match(/dashCalendarTileHtml\(dashCalDemoWorkspace\(\)/g) || []).length === 1);
+    chk("an add from the calendar repaints Tasks, and the Dashboard if shown", /async function dashCalCommitAdd\([\s\S]*?rerenderTasksPanel\(\);\s*dashRefreshIfShown\(\);\s*\}/.test(nt));
   }
   return rows;
 }
@@ -294,6 +306,9 @@ const SEEDS = [
    "if (preview) return '<span class=\"dash-cal-chip is-' + kind + '\" role=\"button\">' + name + '</span>';", "nt"],
   ["the edit overlay drops trashed tags", "tagIds: kept.concat(checked)", "tagIds: checked", "nt"],
   ["the count goes back to 400ms", "var LP_COUNT_MS = 560;", "var LP_COUNT_MS = 400;", "nt"],
+  ["the calendar goes back under Active goals",
+   "            calendarSectionHtml +\n            activeGoalsSectionHtml +",
+   "            activeGoalsSectionHtml +\n            calendarSectionHtml +", "nt"],
   ["opening the tab carries figures (no sweep)",
    "if (dashPanel) { dashPanel.removeAttribute(\"data-dash-carry\"); filling",
    "if (dashPanel) { filling", "nt"],
@@ -311,7 +326,7 @@ let rows;
 try { rows = await suite(clean, cleanNt); }
 catch (e) { console.error("SUBJECT DID NOT LOAD — " + e.message); process.exit(2); }
 
-const ROW_FLOOR = 60;
+const ROW_FLOOR = 70;
 if (rows.length < ROW_FLOOR) { console.error(`GATE BROKEN — produced ${rows.length} rows, floor is ${ROW_FLOOR}.`); process.exit(2); }
 
 let failed = 0;

@@ -1150,7 +1150,8 @@ function runDueSoundOnLaunch() {
     var rec = {};
     rec[key] = Storage.nextDueSoundLog(log, ids, now);
     await chrome.storage.local.set(rec);
-    var played = await playFileViaOffscreen(Storage.DUE_SOUND_FILE);
+    // [MC8] The full reminder, or the chime alone when the voice is switched off.
+    var played = await playFileViaOffscreen(Storage.dueSoundFile(d));
     return { played: played, ids: ids };
   };
   var p = _dueSoundChain.then(run, run);

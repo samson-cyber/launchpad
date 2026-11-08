@@ -2802,9 +2802,6 @@
                    : '<div class="dash-note">' + th("dash_tracking_off_note") + '</div>') +
           '</div>' +
 
-          // [MC4] THE CALENDAR, full width at the base of the board.
-          dashCalendarTileHtml(ws, null) +
-
         '</div>' +
       '</div>';
     dashCarryRestore(panel, dashCarry);
@@ -2972,7 +2969,6 @@
     // rewrite, and a dataset flag stops N renders stacking N listeners.
     if (panel.dataset.dashBound === "1") return;
     panel.dataset.dashBound = "1";
-    bindDashCalendar(panel);
 
     panel.addEventListener("click", async function (e) {
       // [FIX-7] THE DUE ROW'S PLAY GLYPH, ROUTED HERE. This panel's listener
@@ -3580,6 +3576,9 @@
         '</div>' +
         '<div class="pp-sort-dropdown">' + th("tasks_sort_by_creation_date") + '</div>' +
       '</div>' +
+      // [MC8] The calendar, same component, demo data, no navigation - above
+      // Active goals, where the live tab has it.
+      '<div class="pp-cal-wrap">' + dashCalendarTileHtml(dashCalDemoWorkspace(), { preview: true }) + '</div>' +
       '<div class="pp-section-header">' + th("tasks_active_goals") + '</div>' +
       '<div class="pp-goal-list">' + goalsHtml + '</div>' +
       '<div class="pp-section-header">' + th("tasks_standalone") + '</div>' +
@@ -3620,8 +3619,9 @@
   // `disabled`; the picker is absent entirely rather than present-and-inert,
   // because a control that cannot do anything reads as broken rather than as
   // locked ([1.1.4]'s preview-ghost rule).
-  // ===== [MC4 2026-11-08] THE DASHBOARD CALENDAR ===========================
-  // A month, full width at the base of the Dashboard, scrollable to any month
+  // ===== [MC4 2026-11-08] THE CALENDAR ======================================
+  // [MC8] On the Tasks tab, above Active goals (it began at the base of the
+  // Dashboard; Samson moved it). A month, scrollable to any month
   // (ruled by Samson over a week strip and an agenda pill). Each day shows up
   // to two items - DUE tasks (rose when overdue) and SCHEDULED recurring days
   // (indigo) - and "+n" beyond that; clicking a day lists all of it below the
@@ -3896,7 +3896,8 @@
     if (!created) { input.disabled = false; input.focus(); return; }
     var v = dashCalView || dashCalDefaultView();
     dashCalView = { y: v.y, m: v.m, sel: (typeof created.dueAt === "number") ? created.dueAt : stamp };
-    dashRepaintAfterMutation(panel);
+    rerenderTasksPanel();
+    dashRefreshIfShown();
   }
 
   function bindDashCalendar(panel) {
@@ -4302,8 +4303,6 @@
 
     return '<div class="dash-tab bento dash-free-demo-grid" data-period="day">' +
         hero + counts + due + goals +
-        // [MC4] The calendar, same component, demo data, no navigation.
-        dashCalendarTileHtml(dashCalDemoWorkspace(), { preview: true }) +
       '</div>';
   }
 
@@ -9373,6 +9372,16 @@
     // visible destination, so it must not be gated away in the default view.
     var showActiveSections = taskFilterState.status !== "completed";
 
+    // [MC8 2026-11-09] THE CALENDAR LIVES HERE NOW, ABOVE ACTIVE GOALS. Samson,
+    // in hindsight: the calendar of scheduled and due tasks belongs with the
+    // tasks, not on the Dashboard - the drags, edits and adds it carries are
+    // Tasks-tab work. It shows with the active sections, so the Completed view
+    // (which hides open work) hides it too.
+    var calendarSectionHtml = showActiveSections
+      ? '<section class="tt-section tt-cal-section" data-section="calendar">' +
+          dashCalendarTileHtml(workspace, null) +
+        '</section>'
+      : '';
     var activeGoalsSectionHtml = showActiveSections
       ? '<section class="tt-section" data-section="active-goals">' +
           '<h2 class="tt-section-title">' + th("tasks_active_goals_2") + '</h2>' +
@@ -9444,6 +9453,7 @@
           tasksHeaderHtml(tasksCounts) +
           '<div class="tasks-body">' +
             tasksCountTilesHtml(tasksCounts) +
+            calendarSectionHtml +
             activeGoalsSectionHtml +
             standaloneSectionHtml +
             recurringSectionHtml +
@@ -9508,6 +9518,8 @@
     // handlers working against the freshly-rendered children.
     if (panel.dataset.tasksTabBound === "1") return;
     panel.dataset.tasksTabBound = "1";
+    // [MC8] The calendar's own handlers, bound once on the panel it lives in.
+    bindDashCalendar(panel);
 
     // [Tasks v3] Close any open Tasks popover/context menu when the inner
     // scroll region (.tasks-body) scrolls. Those menus are body-mounted and
@@ -14314,6 +14326,10 @@
     // stored value straight.
     var dsBox = $("#due-sound-toggle");
     if (dsBox) dsBox.checked = Storage.getDueSoundEnabled(data);
+    // [MC8] The voice rides on the sound: it reads its own value, and is
+    // disabled while the sound itself is off, since there is nothing to speak over.
+    var dvBox = $("#due-voice-toggle");
+    if (dvBox) { dvBox.checked = Storage.getDueVoiceEnabled(data); dvBox.disabled = !Storage.getDueSoundEnabled(data); }
     // [A2] Reset control: enabled only with an active task carrying a count > 0.
     var resetBtn = $("#pomo-reset-cycles");
     var hint = $("#pomo-reset-hint");
@@ -15000,8 +15016,21 @@
       var on = !!e.target.checked;
       try { await Storage.setDueSoundEnabled(data, on); }
       catch (err) { console.error("[LaunchPad] Due sound: save failed", err); }
+      var dv = $("#due-voice-toggle");
+      if (dv) dv.disabled = !on;
       if (on) {
-        try { new Audio(chrome.runtime.getURL(Storage.DUE_SOUND_FILE)).play().catch(function () {}); }
+        try { new Audio(chrome.runtime.getURL(Storage.dueSoundFile(data))).play().catch(function () {}); }
+        catch (err) { /* preview only */ }
+      }
+    });
+    // [MC8] The spoken reminder. Off leaves the chime; switching it back on
+    // plays the full reminder once, the same preview the sound switch gives.
+    safeOn("#due-voice-toggle", "change", async function (e) {
+      var on = !!e.target.checked;
+      try { await Storage.setDueVoiceEnabled(data, on); }
+      catch (err) { console.error("[LaunchPad] Due voice: save failed", err); }
+      if (on && Storage.getDueSoundEnabled(data)) {
+        try { new Audio(chrome.runtime.getURL(Storage.dueSoundFile(data))).play().catch(function () {}); }
         catch (err) { /* preview only */ }
       }
     });

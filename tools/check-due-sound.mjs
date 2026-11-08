@@ -103,13 +103,21 @@ function suite(st, bg, nt, html, css, pkg) {
   eq("the log starts over on a new day", S.nextDueSoundLog({ day: "2026-11-08", ids: ["a"] }, ["b"], NOW), { day: key, ids: ["b"] });
   eq("setDueSoundEnabled / getDueSoundEnabled round-trip", (() => { const d = { settings: {} }; S.setDueSoundEnabled(d, true); return S.getDueSoundEnabled(d); })(), true);
   chk("the file the worker plays is the packaged one", S.DUE_SOUND_FILE === "sounds/due-reminder.wav" && S.DUE_SOUND_LOG_KEY === "dueSoundLog");
+  // ---- [MC8] the spoken part's own switch ----
+  eq("the voice is on unless switched off (no value)", S.getDueVoiceEnabled({ settings: {} }), true);
+  eq("...and on a profile with no settings at all", S.getDueVoiceEnabled({}), true);
+  eq("switched off, it is off", S.getDueVoiceEnabled({ settings: { dueVoiceEnabled: false } }), false);
+  eq("with the voice on, the full reminder plays", S.dueSoundFile({ settings: {} }), "sounds/due-reminder.wav");
+  eq("with the voice off, the chime alone plays", S.dueSoundFile({ settings: { dueVoiceEnabled: false } }), "sounds/due-chime.wav");
+  eq("the voice switch does not change WHETHER it plays", S.dueSoundToAnnounce({ ...fx([task("a")]), settings: { dueSoundEnabled: true, dueVoiceEnabled: false } }, null, NOW), ["a"]);
 
   // ---- the worker ----
   const runFn = (() => { const a = bg.indexOf("function runDueSoundOnLaunch()"); return a < 0 ? "" : bg.slice(a, bg.indexOf("\n}\n", a) + 3); })();
   chk("the launch message runs the worker's chain", /msg\.type === "lp-due-sound-launch"\) \{\n\s*runDueSoundOnLaunch\(\)/.test(bg));
   chk("one check at a time: each run is chained on the last", /var p = _dueSoundChain\.then\(run, run\);/.test(runFn));
   chk("the log is written BEFORE the sound plays", runFn.indexOf("await chrome.storage.local.set(rec);") > 0 &&
-    runFn.indexOf("await chrome.storage.local.set(rec);") < runFn.indexOf("playFileViaOffscreen(Storage.DUE_SOUND_FILE)"));
+    runFn.indexOf("await chrome.storage.local.set(rec);") < runFn.indexOf("playFileViaOffscreen(Storage.dueSoundFile(d))"));
+  chk("[MC8] the worker plays the file the voice switch picks", /playFileViaOffscreen\(Storage\.dueSoundFile\(d\)\)/.test(runFn));
   chk("the worker holds no policy: it asks Storage.dueSoundToAnnounce", /Storage\.dueSoundToAnnounce\(d, log, now\)/.test(runFn));
   chk("the install default is for fresh installs only", /if \(details && details\.reason === "install"\) \{\n\s*enqueueBgData\("due-sound-default"/.test(bg));
   chk("...and never overwrites a value already set", /typeof d\.settings\.dueSoundEnabled === "boolean"\) return;/.test(bg));
@@ -128,13 +136,20 @@ function suite(st, bg, nt, html, css, pkg) {
   chk("sounds/due-reminder.wav is a 22050 Hz WAV", wavOk);
   chk("...shorter than the offscreen document's 6s belt", secs > 2 && secs < 5.5, secs.toFixed(2) + "s");
   chk("...listed as a documented runtime exception for the package gate", /p: "sounds\/due-reminder\.wav"/.test(pkg));
-  const syncList = (/var SYNC_SETTING_FIELDS = \[([\s\S]*?)\];/.exec(st) || [])[1] || "";
+const syncList = (/var SYNC_SETTING_FIELDS = \[([\s\S]*?)\];/.exec(st) || [])[1] || "";
+  const chPath = path.join(repoRoot, "sounds/due-chime.wav");
+  const ch = fs.existsSync(chPath) ? fs.readFileSync(chPath) : null;
+  const chSecs = ch ? ch.readUInt32LE(40) / ch.readUInt32LE(28) : 0;
+  chk("[MC8] sounds/due-chime.wav is the chime alone (a WAV, shorter than the reminder)", ch && ch.toString("ascii", 8, 12) === "WAVE" && chSecs > 1 && chSecs < secs, chSecs.toFixed(2) + "s vs " + secs.toFixed(2) + "s");
+  chk("...and is a documented runtime exception too", /p: "sounds\/due-chime\.wav"/.test(pkg));
+  chk("the voice switch does not sync either", syncList.length > 0 && !/dueVoiceEnabled/.test(syncList));
   chk("the switch does not sync (this machine's speakers, this machine's install)", syncList.length > 0 && !/dueSoundEnabled/.test(syncList));
 
   // ---- the bell ----
   const bell = (/<button id="due-bell"[\s\S]*?<\/button>/.exec(html) || [""])[0];
   chk("the due count wears a bell icon, not the ring glyph", /<svg class="due-bell-glyph"/.test(bell) && !/○/.test(bell), bell.slice(0, 200));
   chk("the settings switch exists", /<input type="checkbox" id="due-sound-toggle">/.test(html));
+  chk("[MC8] the Spoken reminder switch exists", /<label for="due-voice-toggle"[^>]*>[\s\S]*?<input type="checkbox" id="due-voice-toggle">/.test(html));
 
   // ---- the calendar ----
   const editM = (() => { const a = nt.indexOf("  function openEditTaskModal("); return a < 0 ? "" : nt.slice(a, nt.indexOf("\n  }\n", a) + 4); })();
@@ -160,8 +175,10 @@ const SEEDS = [
    "    var ws = getActiveWorkspace(data);\n    if (getWorkspaceMode(ws) !== \"work\") return [];\n    var today = localDayKey(ref);\n    var heard", "st"],
   ["the switch is ignored", "    if (!data || !getDueSoundEnabled(data)) return [];", "    if (!data) return [];", "st"],
   ["the log is written after playing",
-   "    await chrome.storage.local.set(rec);\n    var played = await playFileViaOffscreen(Storage.DUE_SOUND_FILE);",
-   "    var played = await playFileViaOffscreen(Storage.DUE_SOUND_FILE);\n    await chrome.storage.local.set(rec);", "bg"],
+   "    await chrome.storage.local.set(rec);\n    // [MC8] The full reminder, or the chime alone when the voice is switched off.\n    var played = await playFileViaOffscreen(Storage.dueSoundFile(d));",
+   "    // [MC8] The full reminder, or the chime alone when the voice is switched off.\n    var played = await playFileViaOffscreen(Storage.dueSoundFile(d));\n    await chrome.storage.local.set(rec);", "bg"],
+  ["the voice switch is ignored", "    return getDueVoiceEnabled(data) ? DUE_SOUND_FILE : DUE_CHIME_FILE;", "    return DUE_SOUND_FILE;", "st"],
+  ["the voice is off unless switched on", "    return !(data && data.settings && data.settings.dueVoiceEnabled === false);", "    return !!(data && data.settings && data.settings.dueVoiceEnabled === true);", "st"],
   ["updates turn it on too", "  if (details && details.reason === \"install\") {", "  if (details) {", "bg"],
   ["the overlay closes on its own opening click", "if (e.target === overlay && Date.now() - openedAt > 400) doCancel();", "if (e.target === overlay) doCancel();", "nt"],
   ["Add ignores the clicked day", "dueAt: (parsed && parsed.dueAt !== null) ? parsed.dueAt : stamp,", "dueAt: (parsed && parsed.dueAt !== null) ? parsed.dueAt : dashboardTodayAsUtcDay(),", "nt"],
@@ -177,7 +194,7 @@ console.log("\nDUE SOUND — once a day, for work that arrived, decided in one p
 let rows;
 try { rows = runSuite(clean); }
 catch (e) { console.error("SUBJECT DID NOT LOAD — " + e.message); process.exit(2); }
-const ROW_FLOOR = 38;
+const ROW_FLOOR = 49;
 if (rows.length < ROW_FLOOR) { console.error(`GATE BROKEN — produced ${rows.length} rows, floor is ${ROW_FLOOR}.`); process.exit(2); }
 let failed = 0;
 for (const r of rows) if (!r.ok) { failed++; console.log(`  FAIL  ${r.name}   << ${r.extra}`); }

@@ -614,6 +614,11 @@ export const EXPECTED_UNREFERENCED = [
     reason: "Selected at runtime by Storage.pomodoroSoundFile; see chime1.wav."
   },
   {
+    p: "sounds/due-chime.wav",
+    reason: "[MC8] The due sound with the voice switched off: named by Storage.DUE_CHIME_FILE and " +
+            "chosen at runtime by Storage.dueSoundFile; see due-reminder.wav."
+  },
+  {
     p: "sounds/due-reminder.wav",
     reason: "[MC7] The due sound: named by Storage.DUE_SOUND_FILE and played by the worker " +
             "through the offscreen document (and once by Settings as a preview), always via " +

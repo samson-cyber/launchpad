@@ -773,17 +773,17 @@ await (async () => {
     // composes tile--<kind> from it, so the literal class never appears here.
     const AREAS = ["dash-tile-hero", "dash-tile-upnext", 'dashCountTileHtml("overdue"',
                    'dashCountTileHtml("goals"', 'dashCountTileHtml("blocking"',
-                   "dash-tile-due", "dash-tile-time", "dashCalendarTileHtml(ws"];
-    // [MC4] Eight since the calendar joined the base of the board.
-    check("render: all eight tiles are emitted", AREAS.every((c) => render.includes(c)), AREAS.filter((c) => !render.includes(c)).join(" "));
+                   "dash-tile-due", "dash-tile-time"];
+    // [MC8] Seven again: the calendar moved to the Tasks tab.
+    check("render: all seven tiles are emitted", AREAS.every((c) => render.includes(c)), AREAS.filter((c) => !render.includes(c)).join(" "));
+    check("render: the calendar is NOT on the Dashboard any more (MC8)", !render.includes("dashCalendarTileHtml"));
     const placed = ["dash-tile-hero", "dash-tile-upnext", "dash-tile-count.tile--overdue",
                     "dash-tile-count.tile--goals", "dash-tile-count.tile--blocking",
-                    "dash-tile-due", "dash-tile-time", "dash-tile-cal"]
+                    "dash-tile-due", "dash-tile-time"]
       .filter((sel) => new RegExp("\\." + sel.replace(/\./g, "\\.") + "\\s*\\{[^}]*grid-area:").test(SRC.css));
-    check("layout: every one of the eight is placed by grid-area in the sheet", placed.length === 8, placed.join(" "));
-    // The calendar is the board's LAST row in all three layouts, full width.
-    check("layout: the calendar spans the last row of the wide grid and both narrow branches",
-      /"cal\s+cal\s+cal\s+cal";/.test(SRC.css) && /"cal\s+cal";/.test(SRC.css) && /"time" "cal";/.test(SRC.css));
+    check("layout: every one of the seven is placed by grid-area in the sheet", placed.length === 7, placed.join(" "));
+    // [MC8] And no "cal" area is left in any of the three layouts.
+    check("layout: no calendar row remains in the Dashboard grid", !/"cal\s/.test(SRC.css) && !/"cal";/.test(SRC.css));
     // The narrow branches restate the areas rather than unsetting them, which
     // is the one way a template-areas grid can lose its layout without any
     // rule looking wrong: drop the columns, keep the areas, and every tile
