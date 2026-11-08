@@ -914,15 +914,19 @@
   //   - the header is its own transition element, so Home's tall hero and the
   //     Pro tabs' compact band morph into each other instead of the content
   //     jumping under it;
-  //   - reduced motion, or a browser without the API, runs the update directly
-  //     and instantly, exactly as before.
+  //   - REDUCED MOTION STILL GOES THROUGH THE TRANSITION, with every animation
+  //     off (the reduced-motion block in newtab.css): the old view holds until
+  //     the new one is filled, then the swap is an instant cut. Running the
+  //     update directly instead showed the Dashboard's "—" placeholders for a
+  //     frame before its numbers landed - the very jolt this exists to remove,
+  //     caught by the live verify on the reduced-motion pass;
+  //   - a browser without the API runs the update directly, as before.
   // Programmatic switches (the due bell's "go to task", redirects) do NOT go
   // through this: they act on the new tab on the very next line, and a view
   // transition runs its update a frame later.
   var LP_VT_REVEAL_CAP_MS = 350;
   function lpViewTransition(update) {
-    var reduce = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-    if (reduce || typeof document.startViewTransition !== "function") {
+    if (typeof document.startViewTransition !== "function") {
       try { return Promise.resolve(update()); } catch (e) { return Promise.reject(e); }
     }
     var root = document.documentElement;
