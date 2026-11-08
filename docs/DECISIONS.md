@@ -4768,3 +4768,30 @@ The tints were cooled and darkened until they read as grey with a hint: hero `31
 **Left open:**
 - Insights' Today range still draws one giant bar. It was seen in the same recording and is not part of this round.
 - The calendar's week start is not a setting yet.
+
+## 2026-11-08, Round IT: Insights' one-day range draws the day by hour
+
+**Context.** Samson's recording showed Insights' Today range drawing one giant bar. The Deep work chart sizes each bar at 60% of (width / days), so a one-day window drew a single slab 60% of the tile wide. A per-day chart of one day says nothing the figure above it doesn't already say.
+
+**Decision.** A one-day window (Today, or a one-day custom range) draws that day's 24 hours, using the same per-hour read the Best focus hours heatmap uses (`bestHoursForScope`):
+- The current hour is highlighted when the day is today.
+- The axis reads midnight, noon and 11pm in the user's clock format.
+- The accessible name is "Deep work by hour, {range}".
+
+The switch waits for that read, so the view is revealed filled (MC2).
+
+**Fallback.** A day without complete hour data falls back to the daily bar. That means a day recorded before [1.8.2], or one only partly reconstructed. The reader already refuses to draw hours it doesn't know, and an empty day it knows nothing about would be the wrong picture.
+
+**Bar cap.** The live board now caps bar width at 40 units of its 520 box. 40 is just over a 7-day bar (39.1), so it only applies to windows of one to six days. Seven, thirty and ninety days draw exactly as before. The free preview passes no options and is byte-identical.
+
+**Alternatives considered:**
+- Capping the single bar only. Honest, but the chart would still say nothing.
+- Showing the last 7 days with today highlighted. That answers a different question under the Today label.
+
+**Gate.** `tools/check-insights-day-chart.mjs` is in `build.sh`. It has 26 rows, and `--mutate` kills all 6 seeds.
+
+**Verified live** in a scratch Edge profile, 16/16:
+- With the fixture's hourless day, Today draws a capped single bar.
+- With complete hours, Today draws 24 bars, the tallest at the expected hour and the current hour highlighted.
+- Seven and thirty days draw at the pre-cap width.
+- The console is clean.
