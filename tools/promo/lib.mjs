@@ -10,9 +10,9 @@ import { pathToFileURL } from "node:url";
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export async function launch({ repo, ext, port, profile, width = 1920, height = 1080, dpr = 1.5 }) {
+export async function launch({ repo, ext, port, profile, width = 1920, height = 1080, dpr = 1.5, keepProfile = false }) {
   const { browserArgs, EDGE } = await import(pathToFileURL(path.join(repo, "tools/browser-launch.mjs")).href);
-  fs.rmSync(profile, { recursive: true, force: true });
+  if (!keepProfile) fs.rmSync(profile, { recursive: true, force: true });
   const proc = spawn(EDGE, browserArgs({ profileDir: profile, extDir: ext, port, headless: true }), { stdio: "ignore" });
   const j = (p, method = "GET") => new Promise((res, rej) => {
     const r = http.request({ host: "127.0.0.1", port, path: p, method }, (x) => {
@@ -38,7 +38,7 @@ export async function launch({ repo, ext, port, profile, width = 1920, height = 
     try { const v = await j("/json/version"); const b = await connect(v.webSocketDebuggerUrl); await b.send("Browser.close"); } catch {}
     await sleep(1500);
     try { process.kill(proc.pid); } catch {}
-    fs.rmSync(profile, { recursive: true, force: true });
+    if (!keepProfile) fs.rmSync(profile, { recursive: true, force: true });
   }
   return { proc, id, j, open, close };
 }
