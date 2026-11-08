@@ -478,6 +478,14 @@ if ! node tools/check-due-sound.mjs; then
   exit 1
 fi
 
+# [MC7] A label holding a button names its own control with for=. Without it
+# a click on the switch went to the info button: seven Settings switches were
+# dead to the mouse on master from 4cb7420 until MC7. ~0.05s.
+if ! node tools/check-label-targets.mjs; then
+  echo 'ERROR: label-target gate failed - a Settings switch would hand its clicks to its info button.' >&2
+  exit 1
+fi
+
 # [PF.2 follow-up] The sync slice: what leaves this machine, and what must not.
 # PF.2 SHIPPED THIS GATE AND NEVER WIRED IT IN, so it has been green-by-nobody
 # since - exactly the shape of the importers.js miss recorded below, where a

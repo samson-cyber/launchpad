@@ -736,7 +736,7 @@
                 <span class="set-row-label" data-i18n="prosettings_cycles_before_long_break">Cycles</span>
                 <input type="number" id="pomo-cycles" class="set-stepper" min="2" max="10" step="1" inputmode="numeric">
               </div>
-              <label class="set-row set-row-toggle" data-set-row>
+              <label for="pomo-chain-toggle" class="set-row set-row-toggle" data-set-row>
                 <span class="set-row-label" id="pomo-chain-label" data-i18n="prosettings_chain_after_break_short">Roll into the next phase</span>
                 <button type="button" class="set-info" data-i18n-title="prosettings_chain_after_break" data-i18n-aria-label="prosettings_chain_after_break" title="Roll into the next work phase after a break, with a 10-second countdown you can cancel" aria-label="Roll into the next work phase after a break, with a 10-second countdown you can cancel">&#9432;</button>
                 <input type="checkbox" id="pomo-chain-toggle">
@@ -749,7 +749,7 @@
                   <span id="pro-focus-target-echo" class="pomo-setting-echo"></span>
                 </div>
               </div>
-              <label class="set-row set-row-toggle" data-set-row>
+              <label for="pomo-notifications-toggle" class="set-row set-row-toggle" data-set-row>
                 <span class="set-row-label" data-i18n="prosettings_desktop_notifications_short">Desktop notifications</span>
                 <button type="button" class="set-info" data-i18n-title="prosettings_desktop_notifications_at_each_phase" data-i18n-aria-label="prosettings_desktop_notifications_at_each_phase" title="Desktop notifications at each phase boundary (fires even with no tab open)" aria-label="Desktop notifications at each phase boundary (fires even with no tab open)">&#9432;</button>
                 <input type="checkbox" id="pomo-notifications-toggle">
@@ -785,7 +785,7 @@
           <details class="set-fold" data-set-fold>
             <summary class="set-fold-head" data-i18n="settings_advanced">Advanced</summary>
             <div class="set-rows set-fold-rows">
-              <label class="set-row set-row-toggle" data-set-row>
+              <label for="focus-commitment-toggle" class="set-row set-row-toggle" data-set-row>
                 <span class="set-row-label" data-i18n="prosettings_commitment_toggle_short">Type a sentence before a repeat snooze</span>
                 <button type="button" class="set-info" data-i18n-title="prosettings_commitment_note" data-i18n-aria-label="prosettings_commitment_note" title="Off by default. When on, snoozing the same site twice in one focus session asks you to type one short sentence first." aria-label="Off by default. When on, snoozing the same site twice in one focus session asks you to type one short sentence first.">&#9432;</button>
                 <input type="checkbox" id="focus-commitment-toggle">
@@ -821,7 +821,7 @@
       <section class="tile tile--list set-tile" data-set-tile="data">
         <h3 class="tile-eyebrow set-tile-head" data-i18n="settings_data">Data</h3>
         <div class="set-rows">
-          <label class="set-row set-row-toggle" data-set-row>
+          <label for="settings-track-sites" class="set-row set-row-toggle" data-set-row>
             <span class="set-row-label" data-i18n="settings_track_time_on_sites">Track time on sites</span>
             <button type="button" class="set-info" data-i18n-title="settings_track_time_note" data-i18n-aria-label="settings_track_time_note" title="On by default. Measures how long you spend on each site so the Dashboard can show today. Stays on this device." aria-label="On by default. Measures how long you spend on each site so the Dashboard can show today. Stays on this device.">&#9432;</button>
             <input type="checkbox" id="settings-track-sites">
@@ -836,7 +836,7 @@
                works with no change to it, and .set-row.is-locked already had
                a rule. The chip on the row says why, since a row has no head
                to carry the tile's one. -->
-          <label class="set-row set-row-toggle" data-set-row data-set-pro>
+          <label for="due-reminders-toggle" class="set-row set-row-toggle" data-set-row data-set-pro>
             <span class="set-row-label" data-i18n="prosettings_reminders">Reminders</span>
             <span class="set-pro-chip set-pro-chip-row" data-i18n="apply_pro">Pro</span>
             <button type="button" class="set-info" data-i18n-title="prosettings_due_reminders_note" data-i18n-aria-label="prosettings_due_reminders_note" title="Off by default. Sends one desktop notification per task, at 9am or the first time the browser is open after it, and only in a Work workspace." aria-label="Off by default. Sends one desktop notification per task, at 9am or the first time the browser is open after it, and only in a Work workspace.">&#9432;</button>
@@ -854,14 +854,14 @@
                a desktop notification at 9am are different interruptions and a
                user can want one without the other. No permission: it plays
                through the offscreen document the focus chime already uses. -->
-          <label class="set-row set-row-toggle" data-set-row data-set-pro>
+          <label for="due-sound-toggle" class="set-row set-row-toggle" data-set-row data-set-pro>
             <span class="set-row-label" data-i18n="prosettings_due_sound">Sound when tasks are due</span>
             <span class="set-pro-chip set-pro-chip-row" data-i18n="apply_pro">Pro</span>
             <button type="button" class="set-info" data-i18n-title="prosettings_due_sound_note" data-i18n-aria-label="prosettings_due_sound_note" title="A short chime and a spoken reminder, once a day, on the first new tab after tasks reach their due date." aria-label="A short chime and a spoken reminder, once a day, on the first new tab after tasks reach their due date.">&#9432;</button>
             <input type="checkbox" id="due-sound-toggle">
             <span class="set-toggle" aria-hidden="true"></span>
           </label>
-          <label class="set-row set-row-toggle" data-set-row data-set-pro>
+          <label for="pro-analytics-toggle" class="set-row set-row-toggle" data-set-row data-set-pro>
             <span class="set-row-label" data-i18n="prosettings_combined_analytics_short">Combined analytics</span>
             <span class="set-pro-chip set-pro-chip-row" data-i18n="apply_pro">Pro</span>
             <button type="button" class="set-info" data-i18n-title="prosettings_show_combined_analytics_across_all" data-i18n-aria-label="prosettings_show_combined_analytics_across_all" title="Show combined analytics across all workspaces" aria-label="Show combined analytics across all workspaces">&#9432;</button>
