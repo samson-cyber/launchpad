@@ -4712,3 +4712,59 @@ The tints were cooled and darkened until they read as grey with a hint: hero `31
 - Quick add with `#research #writing #admin` made blue, green and orange tags, and the task carries all three.
 - Settings, then Tags, then + New tag pre-selected red, the next free colour.
 - The console stayed clean.
+
+## 2026-11-08, Round MC: smooth switches, counting numerals, "3hr 45min", a Dashboard calendar
+
+**Context.** Samson sent a screen recording with four asks. Tabs and some in-tab views "jar" when switched. Numbers should count up when a tab opens. Durations should read "3hr 45min", not "3h45m". The Dashboard needs a calendar of scheduled and due tasks. The recording showed three separate jolts:
+- Every tab swapped in a single frame.
+- The Dashboard first painted with "—" placeholders, then jumped once its reads landed.
+- Insights filled in stages over about 150 ms.
+
+**Rulings by Samson, through questions:**
+- Calendar: "A full calendar month that's scrollable throughout any month. Situated as a full width pill at the base of the dashboard tab." Chosen over a week strip and an agenda list.
+- Units: small inside the display figures.
+- Count speed: 400 ms.
+
+**MC1, durations.**
+- Hours and minutes print as "3hr 45min", seconds as "12sec", and a stopwatch past a day as "1d 3hr".
+- They are still `Intl.NumberFormat` unit formats. In English the space is closed and the unit words are pinned to hr/min/sec. Short units pluralise outside en-US (en-GB gives "hrs", "mins"), and that would split one product into two spellings.
+- Other languages keep `Intl`'s own short units. `check-duration-format` holds both rules.
+- In the display figures the unit is a `.dur-u` span, one step down the type ramp in quiet ink, so the number stays the hero.
+
+**MC2, switches.**
+- The tab bar, the Tasks status segment and the Insights range switch run inside `document.startViewTransition`, using the design guide's 150/240 ms durations and its curves. The header is its own transition element and morphs between Home's hero and the Pro tabs' band.
+- **Render before reveal.** The Dashboard and Insights renders now return their fills, and the switch waits for them, capped at 350 ms. This removes the "—" frame at its source rather than animating over it.
+- **Reduced motion still uses the transition, with every animation off.** The first version ran the update directly under reduced motion. The live verify caught the Dashboard showing "—" for a frame on that path, so it was changed.
+- Programmatic switches stay instant: the due bell, and redirects that act on the new tab on the very next line.
+
+**MC3, count-up.**
+- Display numerals on the opened tab count from zero in 400 ms with the entrance curve, once per open.
+- The value is read from the painted text, never from a second copy of the data, so it cannot count to a different number.
+- If a live repaint lands mid-count (the focus clock ticks), that repaint wins.
+- Numerals that count use tabular figures. Under reduced motion they do not count.
+
+**MC4, the calendar.**
+- `Storage.calendarMonth(ws, year, month, weekStart, now)` is pure and derived, like `habitGridMonth`.
+- **Due:** a live, open task on its `dueAt` day, overdue only before today. Completed tasks are not shown, because the calendar is what is still ahead.
+- **Scheduled:** the days an active recurring template will fire. These are projected with the sweep's own `nextRecurrenceUTC`, starting from the later of today and `nextScheduledAt`. Anything earlier has already been spawned as a real task and shows as due.
+- A day already holding the template's spawned instance is not counted twice. That double count is the failure that would look right and be wrong.
+- The tile spans the full width as the grid's last row ("cal") in all three layouts. Prev, next and Today redraw only the tile. A day click lists its items, and a due task gets "Go to task" (the due bell's own path).
+- The free preview draws the same tile from demo data, through the same model, with no buttons. It reuses the preview board's `demo_pv_task_*` sentences.
+- The week starts on Sunday, the habit grid's convention (`habitWeekStart`). The model takes a `weekStart` argument, so a setting can be wired later.
+
+**Gates.**
+- `tools/check-calendar.mjs` is new and wired into `build.sh`: 33 rows, and `--mutate` kills all 7 seeds.
+- `check-today-cockpit` asserts eight tiles and the calendar's row in all three layouts.
+- `check-duration-format` has 31 rows.
+
+**Verified** live in a scratch Edge profile against the working tree and the packaged build, 49/49 each:
+- The transitions reveal with no "—" and stay inside the cap.
+- The count rises monotonically to the painted value.
+- Each day's chips match the model, and scheduled days fall only on the template's weekdays.
+- Month stepping crosses the year, and Go to task lands on the row.
+- Reduced motion behaves as described, the narrow layout works, and the preview has no affordances.
+- The console is clean.
+
+**Left open:**
+- Insights' Today range still draws one giant bar. It was seen in the same recording and is not part of this round.
+- The calendar's week start is not a setting yet.
