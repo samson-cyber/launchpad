@@ -6229,24 +6229,8 @@ I18n.register("en", {
       "description": "Shown below the calendar when the selected day has nothing due and nothing scheduled.",
       "message": "Nothing due or scheduled."
     },
-    "dash_cal_demo_overdue": {
-      "description": "Free-preview demo task on the calendar, shown overdue. Any plausible task name.",
-      "message": "Book the studio for Thursday"
-    },
-    "dash_cal_demo_today": {
-      "description": "Free-preview demo task on the calendar, due today.",
-      "message": "Draft the launch post"
-    },
-    "dash_cal_demo_soon": {
-      "description": "Free-preview demo task on the calendar, due in two days.",
-      "message": "Review the Q3 numbers"
-    },
-    "dash_cal_demo_later": {
-      "description": "Free-preview demo task on the calendar, due in six days.",
-      "message": "Send the invoice"
-    },
     "dash_cal_demo_weekly": {
-      "description": "Free-preview demo recurring task on the calendar, scheduled weekly.",
+      "description": "Seed content for the Pro preview shown to free users: a demo recurring task on the Dashboard calendar, shown on the days it is scheduled each week. A translator should write a natural example for their own market rather than translate this literally.",
       "message": "Weekly review"
     }
   });

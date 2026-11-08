@@ -3699,7 +3699,8 @@
       if (go) { dueBellGoToTask(go.getAttribute("data-cal-goto")); }
     });
   }
-  // The preview's month: catalogue names on fixed offsets from today, and one
+  // The preview's month: the preview board's own demo tasks (the same
+  // catalogue keys its due list uses) on fixed offsets from today, and one
   // weekly template, through the SAME model function as the live board.
   function dashCalDemoWorkspace() {
     var today = Storage.habitLocalDayStamp(Date.now()), DAY = 86400000;
@@ -3707,10 +3708,10 @@
     var dow = new Date(today).getUTCDay();
     return {
       tasks: [
-        task("dash_cal_demo_overdue", -1, "high"),
-        task("dash_cal_demo_today", 0, "medium"),
-        task("dash_cal_demo_soon", 2, null),
-        task("dash_cal_demo_later", 6, null)
+        task("demo_pv_task_studio", -1, "high"),
+        task("demo_pv_task_exec_summary", 0, "medium"),
+        task("demo_pv_task_design_review", 2, null),
+        task("demo_pv_task_domain", 6, null)
       ],
       recurringTemplates: [
         { id: "demo-cal-weekly", name: t("dash_cal_demo_weekly"), frequency: "weekly", daysOfWeek: [(dow + 3) % 7], isActive: true, deletedAt: null, nextScheduledAt: null }
