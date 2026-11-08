@@ -3539,8 +3539,8 @@
   // and a custom range makes both ends arbitrary. A todayIndex of -1 highlights no
   // bar at all, which is what a range ending in the past should do.
   // [H2a] opts IS OPT-IN, AND THAT IS A SCOPE FACT RATHER THAN A STYLE ONE.
-  // FIVE builders on this board are SHARED WITH THE FREE PREVIEW -
-  // insightsBarChartSvg, insightsDonutSvg, insightsDonutLegend,
+  // FOUR builders on this board are SHARED WITH THE FREE PREVIEW -
+  // insightsBarChartSvg, insightsTagShareHtml,
   // insightsHeatmapHtml and insightsWeeklyHtml - and renderInsightsPreview is
   // H3b's surface, not this round's. So every change to a shared builder is a
   // parameter the BOARD passes and the preview does not, and the preview's
@@ -3613,48 +3613,40 @@
       '</svg>';
   }
 
-  // Donut ring. `segments` is [{ color, value }]; the ring's denominator is the
-  // SUM of the segment values, so the ring ALWAYS sums to exactly its own whole —
-  // the donut cannot lie about itself. `centerLabel` is the caller's own string;
-  // the board computes it from that same segment sum so center, ring and legend
-  // agree by construction.
-  function insightsDonutSvg(segments, centerLabel, ariaLabel) {
-    var total = segments.reduce(function (a, s) { return a + s.value; }, 0) || 1;
-    var r = 60, cx = 80, cy = 80, circ = 2 * Math.PI * r;
-    var offset = 0;
-    var segSvg = segments.map(function (s) {
-      var frac = s.value / total;
-      var dash = circ * frac;
-      var gap = circ - dash;
-      var seg = '<circle class="pp-donut-seg" cx="' + cx + '" cy="' + cy + '" r="' + r + '"' +
-        ' stroke="' + s.color + '"' +
-        ' stroke-dasharray="' + dash + ' ' + gap + '"' +
-        ' stroke-dashoffset="' + (-offset) + '"' +
-      '/>';
-      offset += dash;
-      return seg;
+  // The share bar keeps the donut's one guarantee: its denominator is the SUM of
+  // the rows it draws, so the bar always sums to exactly its own whole.
+  // [DP2 2026-11-08] TIME BY TAG IS A SHARE BAR AND A LIST, NOT A RING.
+  // Samson: the ring "is too small, try a different layout". It was 96px in a
+  // 600px tile, with its total in 13px type at its centre and a legend that
+  // carried every number anyway - the ring added a shape nobody could read the
+  // proportions off. Now: one bar across the tile, split by tag in each tag's
+  // colour, which says "how is my time divided" at a glance; then one row per
+  // tag with its share and its duration, the same row shape as Time by site and
+  // Top tasks beside and below it, so the three lists read as one family.
+  //
+  // rows: [{ color, name, value, valueText }]. Segments use flex-grow on the raw
+  // value, so the bar's proportions are exact and no rounding has to add to
+  // 100. The share column is rounded for reading, never for drawing. The colour
+  // is a tag's identifier (design-guide 3.3's sanctioned exception), so it is
+  // on the swatch and the segment and never on the words.
+  function insightsTagShareHtml(rows, ariaLabel) {
+    var total = rows.reduce(function (a, r) { return a + r.value; }, 0) || 1;
+    var bar = rows.map(function (r) {
+      return '<span class="ins-tagshare-seg" style="flex-grow:' + r.value + ';background:' + r.color + '"></span>';
     }).join("");
-    return '<svg class="pp-donut" viewBox="0 0 160 160" role="img" aria-label="' + ariaLabel + '">' +
-        '<g transform="rotate(-90 ' + cx + ' ' + cy + ')">' + segSvg + '</g>' +
-        '<text class="pp-donut-center" x="' + cx + '" y="' + cy + '" text-anchor="middle" dominant-baseline="middle">' + escapeHtml(centerLabel) + '</text>' +
-      '</svg>';
-  }
-
-  // Legend rows for the donut. `rows` is [{ color, name, valueText }].
-  function insightsDonutLegend(rows) {
-    return rows.map(function (r) {
-      return '<div class="pp-donut-legend-row">' +
-          '<span class="pp-donut-legend-swatch" style="background:' + r.color + '"></span>' +
-          // [1.8.5 ITEM G] title= carries the full name, because the CSS now
-          // truncates: at the donut card's span-4 measure the legend column is
-          // ~200px, and a real tag ("infrastructure and platform work") wrapped
-          // to two lines, which pushed its own value out of line with every
-          // other row's. Truncation matches .insights-task-name, the pattern
-          // this product already uses for long names in exactly this list shape.
-          '<span class="pp-donut-legend-name" title="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + '</span>' +
-          '<span class="pp-donut-legend-hrs">' + r.valueText + '</span>' +
+    var list = rows.map(function (r) {
+      var pct = Math.round((r.value / total) * 100);
+      return '<div class="ins-tagshare-row">' +
+          '<span class="ins-tagshare-swatch" style="background:' + r.color + '"></span>' +
+          '<span class="ins-tagshare-name" title="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + '</span>' +
+          '<span class="ins-tagshare-pct">' + (pct < 1 ? "<1" : pct) + '%</span>' +
+          '<span class="ins-tagshare-dur">' + r.valueText + '</span>' +
         '</div>';
     }).join("");
+    return '<div class="ins-tagshare">' +
+        '<div class="ins-tagshare-bar" role="img" aria-label="' + ariaLabel + '">' + bar + '</div>' +
+        '<div class="ins-tagshare-rows">' + list + '</div>' +
+      '</div>';
   }
 
   function renderInsightsPreview() {
@@ -3685,15 +3677,11 @@
     // signature for the board too. With axis:false they are simply not drawn.
     var trendSvg = insightsBarChartSvg(d.trend30.days, d.trend30.todayIndex, t("insights_trend_caption"), t("insights_axis_start_30"), t("insights_today"), { axis: false });
 
-    // Donut chart + legend — through the shared builders. The demo segments carry
-    // {tag:{name,color}, hours}; map them to the builders' {color,value}/name shape.
-    var donutSvg = insightsDonutSvg(
-      d.donut.segments.map(function (s) { return { color: s.tag.color, value: s.hours }; }),
-      d.donut.centerLabel,
+    // Time by tag - through the shared builder, from the demo segments, which
+    // carry {tag:{name,color}, hours}.
+    var tagShareHtml = insightsTagShareHtml(
+      d.donut.segments.map(function (s) { return { color: s.tag.color, name: s.tag.name, value: s.hours, valueText: s.hours + "h" }; }),
       t("insights_tag_caption_30")
-    );
-    var donutLegend = insightsDonutLegend(
-      d.donut.segments.map(function (s) { return { color: s.tag.color, name: s.tag.name, valueText: s.hours + "h" }; })
     );
 
     // Achievement badges
@@ -3795,7 +3783,7 @@
       '</div>' +
         '<div class="tile tile--goals span-2 ins-peer pp-demo-tile">' +
           previewTileHeadHtml(th("insights_time_by_tag"), t("insights_last_30_days")) +
-          '<div class="pp-donut-row">' + donutSvg + '<div class="pp-donut-legend">' + donutLegend + '</div></div>' +
+          '<div class="ins-tagshare-host">' + tagShareHtml + '</div>' +
         '</div>' +
         '<div class="tile tile--list span-2 ins-peer pp-demo-tile">' +
           previewTileHeadHtml(th("insights_time_by_site"), t("insights_last_30_days")) +
@@ -4189,7 +4177,7 @@
           '</div>' +
           '<div class="tile tile--goals span-2 ins-tag">' +
             insightsTileHeadHtml(th("insights_time_by_tag"), rangeLabel) +
-            '<div class="pp-donut-row" data-ins-donut></div>' +
+            '<div class="ins-tagshare-host" data-ins-donut></div>' +
           '</div>' +
           '<div class="tile tile--list span-2 ins-peer ins-sites">' +
             insightsTileHeadHtml(th("insights_time_by_site"), rangeLabel) +
@@ -5084,14 +5072,9 @@
       return '<div class="insights-empty">' + th("insights_no_focus_time_in_range", { range: rangeLabel }) + '</div>';
     }
 
-    var drawnTotalMs = ordered.reduce(function (a, s) { return a + s.ms; }, 0);
-    var donutSvg = insightsDonutSvg(
-      ordered.map(function (s) { return { color: s.color, value: s.ms }; }),
-      fmtDurationHM(drawnTotalMs),
+    var shareHtml = insightsTagShareHtml(
+      ordered.map(function (s) { return { color: s.color, name: s.name, value: s.ms, valueText: fmtDurationHM(s.ms) }; }),
       t("insights_tag_caption", { range: rangeLabel })
-    );
-    var legend = insightsDonutLegend(
-      ordered.map(function (s) { return { color: s.color, name: s.name, valueText: fmtDurationHM(s.ms) }; })
     );
     // THE OVERLAP NOTE, AND ONLY WHEN THE CONDITION ACTUALLY FIRES.
     //
@@ -5115,7 +5098,7 @@
     var overlapNote = (tagTotalMs > scopeTotalMs)
       ? '<p class="insights-tag-overlap-note">' + th("insights_tag_overlap_note") + '</p>'
       : "";
-    return donutSvg + '<div class="pp-donut-legend">' + legend + '</div>' + overlapNote;
+    return shareHtml + overlapNote;
   }
 
   // Top Tasks: top 6 by focused ms over the window ([1.2.1] eyeball pass — was 5;
