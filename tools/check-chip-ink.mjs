@@ -346,7 +346,9 @@ check("degenerate: a bare hex without # is parsed", C.hexToRgb("4A90E2") !== nul
   // there is no ink to choose. Verified by reading each one — an empty <button>
   // or <span> whose only job is to be the colour. (Their SELECTED ring is ink on
   // the fill and is covered separately below.)
-  const SWATCH_ONLY = ["tag-submenu-swatch", "pp-donut-legend-swatch",
+  // [DP2] The donut legend swatch retired with the donut; the tag share bar's
+  // swatch and its segments are the same kind of empty colour block.
+  const SWATCH_ONLY = ["tag-submenu-swatch", "ins-tagshare-swatch", "ins-tagshare-seg",
                        "pro-tag-color-swatch", "pro-tag-swatch"];
   const lines = SRC.nt.split("\n");
   const offenders = [];
