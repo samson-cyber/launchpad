@@ -1371,7 +1371,12 @@ applyIdleThreshold();
 runDueRemindersBg();
 
 chrome.runtime.onInstalled.addListener(function (details) {
-  // [MC7] THE DUE SOUND IS ON FOR FRESH INSTALLS ONLY (ruled). An update writes
+  requestContextMenuRebuild();
+  // [1.16.0] PF.2. A fresh install on a second machine is the case the whole
+  // slice exists for: Chrome has already populated storage.sync before any tab
+  // opens, so the settings are there to be adopted at this moment.
+  runSyncMerge("installed");
+  // [MC7] After the merge, so its queue slot comes first. THE DUE SOUND IS ON FOR FRESH INSTALLS ONLY (ruled). An update writes
   // nothing, so a profile that has never set the switch reads off and keeps
   // the silence it had. Enqueued: it is a `data` write, and the queue is what
   // stops it clobbering, or being clobbered by, the install-time sweeps.
@@ -1382,11 +1387,6 @@ chrome.runtime.onInstalled.addListener(function (details) {
       await Storage.setDueSoundEnabled(d, true);
     });
   }
-  requestContextMenuRebuild();
-  // [1.16.0] PF.2. A fresh install on a second machine is the case the whole
-  // slice exists for: Chrome has already populated storage.sync before any tab
-  // opens, so the settings are there to be adopted at this moment.
-  runSyncMerge("installed");
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
   chrome.alarms.create(PRO_RECONCILE_ALARM, { periodInMinutes: PRO_RECONCILE_PERIOD_MINUTES });
   // [1.3.0 R2] Reconciled rather than created blind: the weekly alarm exists
