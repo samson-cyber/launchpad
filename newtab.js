@@ -14933,6 +14933,17 @@
       await Storage.setOnboardingComplete();
     }
 
+    // [FR follow-up] Decided BEFORE the first render, because the pulse is
+    // emitted by the markup. Raw read (I28): promoState.openCount here is the
+    // number of EARLIER opens, since checkPromoToast increments it 2s in.
+    try {
+      var pulseRead = await chrome.storage.local.get("promoState");
+      var priorOpens = (pulseRead.promoState && pulseRead.promoState.openCount) || 0;
+      demoClearPulseThisOpen = priorOpens < DEMO_CLEAR_PULSE_OPENS;
+    } catch (err) {
+      demoClearPulseThisOpen = false;
+    }
+
     render();
     refreshOldFavicons();
     bindEvents();
@@ -21713,7 +21724,7 @@
   // gate on examples already being present, which is a correctness guard rather
   // than a nag and stays.
   // [FR follow-up, Samson 2026-11-08: "it could pulse slightly to highlight"]
-  // THREE SOFT PULSES PER PAGE LOAD, THEN STILL. Finite on purpose: the
+  // THREE SOFT PULSES PER PAGE LOAD, THEN STILL, on the first three opens. Finite on purpose: the
   // product carries one indefinite animation (the Pro CTA) and this is not a
   // second. The pulse is pinned to PAGE TIME, not to the element: render()
   // rebuilds this markup whenever data changes, and a CSS animation on a fresh
@@ -21723,8 +21734,15 @@
   // (demoClearPulseDelay returns null).
   var DEMO_CLEAR_PULSE_START_MS = 900;
   var DEMO_CLEAR_PULSE_TOTAL_MS = 3 * 1800;   // matches .demo-clear.is-pulsing
+  // [Samson 2026-11-08: "First few only"] ONLY ON THE FIRST THREE OPENS. After
+  // that the pill is a pill: someone who keeps the examples has seen the way
+  // out, and a pulse on every new tab after that is a nag. Set in init from
+  // promoState.openCount before the first render; false until then.
+  var DEMO_CLEAR_PULSE_OPENS = 3;
+  var demoClearPulseThisOpen = false;
   // Returns the delay in ms for this render, or null once the window is over.
   function demoClearPulseDelay() {
+    if (!demoClearPulseThisOpen) return null;
     var now = (window.performance && performance.now) ? performance.now() : 0;
     if (now >= DEMO_CLEAR_PULSE_START_MS + DEMO_CLEAR_PULSE_TOTAL_MS) return null;
     return Math.round(DEMO_CLEAR_PULSE_START_MS - now);

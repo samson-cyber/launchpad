@@ -15684,7 +15684,8 @@ button.demo-tile-background:hover {
 html.bg-light .demo-clear { border-color: rgba(0, 0, 0, 0.12); color: #3c4043; }
 html.bg-light .demo-clear:hover { color: var(--text-primary); border-color: rgba(0, 0, 0, 0.24); }
 /* [FR follow-up, Samson 2026-11-08] A SLIGHT PULSE TO HIGHLIGHT IT, three
-   times per page load, then it rests exactly as above. A ring breathing
+   times per page load on the FIRST THREE OPENS only (newtab.js
+   DEMO_CLEAR_PULSE_OPENS), then it rests exactly as above. A ring breathing
    outward from the pill rather than a scale or a colour change: the ink and
    the fill never move, so the measured contrast is the contrast at every frame,
    and nothing reads as the action colour. White ring on the dark frost, dark
