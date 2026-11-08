@@ -31,9 +31,10 @@
 // value { day, workspaceId, totalFocusedMs, byDomain, byTag, byTask,
 // longestSessionMs }.
 
-// opts.wallpaper === "default" (the store screenshots since 2026-11-08) puts
-// the frames on the bundled default photograph instead of the painted ground.
-// Every other caller passes nothing and keeps the painted ground byte for byte.
+// opts (the store screenshots pass both since 2026-11-08):
+//   wallpaper: "default"     the bundled default photograph, not the painted ground
+//   distinctTagColors: true  each tag its own palette colour, not four blues
+// Every other caller passes nothing and keeps the old fixture byte for byte.
 async function __seedCaptureFixture(opts) {
   try {
     const S = window.Storage;
@@ -173,7 +174,14 @@ async function __seedCaptureFixture(opts) {
     // ------------------------------------------------------------ tags
     data = await S.getAll();
     const TAGS = ["deep work", "admin", "writing", "review"];
-    for (const t of TAGS) { await S.createTag(data, { name: t }); data = await S.getAll(); }
+    // [DP5] opts.distinctTagColors gives each tag its own TAG_PALETTE colour.
+    // Without a colour, createTag rotates only for goal-made tags, so all four
+    // came out the palette's first blue and Time by tag read as one bar.
+    const TAG_COLORS = { "deep work": "#4A90E2", admin: "#F5A623", writing: "#50E3C2", review: "#9013FE" };
+    for (const t of TAGS) {
+      const f = (opts && opts.distinctTagColors) ? { name: t, color: TAG_COLORS[t] } : { name: t };
+      await S.createTag(data, f); data = await S.getAll();
+    }
     const tagByName = {};
     for (const t of S.getAllTags(S.getActiveWorkspace(data))) tagByName[t.name] = t.id;
 
