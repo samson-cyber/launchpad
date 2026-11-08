@@ -413,6 +413,11 @@ Console-based verification fully satisfies these gates when the snippet exercise
 
   **THE GENERAL RULE IS WORTH MORE THAN THE ENDPOINT: A RETRY LOOP MUST SURFACE ITS LAST ERROR, NEVER A GUESS AT ONE.** The message cost more than the bug. `throw new Error("CDP port never opened")` is a conclusion the loop is not entitled to draw - it knows only that its attempts failed, and it knows exactly HOW each one failed. Carry the last exception's message into the timeout text and the parse error identifies itself on the first read. Every waiter in this repo's harnesses now does.
 
+- **I34. A `<label>` WITH NO `for=` CLICKS ITS FIRST LABELABLE CHILD, AND A `<button>` IS LABELABLE.** 4cb7420 (2026-09-19) put an ⓘ info button ahead of the checkbox in seven Settings rows. From then on, a click on the switch, or on its words, was handed to the info button, and **the switch never moved**: site tracking, the focus chain, notifications, the commitment sentence, reminders and combined analytics. They stayed dead to the mouse on master for seven weeks. Nothing errored and the console was clean. **Every harness in that time toggled with `input.click()`, which never goes through the label**, so every one of them passed (the I11 lesson from the other side: drive the real control). MC7's live check found it when its new row copied the same shape.
+  - The fix is `for="<id>"` on each label: it targets the control whatever order the children are in, and a click on the button itself still opens the info.
+  - `tools/check-label-targets.mjs` holds it: every label holding a button names a control inside itself.
+  - **To probe a switch, click its `.set-toggle` at real coordinates and read `.checked` back.** Open any `<details>` fold around it first: a closed fold has no box, so a click there lands on nothing and reads as the same bug. (MC7)
+
 ### Section J: Verification Snippet Anti-Patterns
 
 Run before publishing any console-based verification snippet (the kind written for Section I gates or any pre-Needs-Review verification).

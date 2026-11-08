@@ -4883,3 +4883,67 @@ It also showed a pre-existing copy slip: "No task focus tracked in the today yet
 - "10hr 59min" fits every duration cell on one line.
 - The empty-state copy is fixed and the console is clean.
 - The MC5 calendar harness still passes 39/39.
+
+## 2026-11-09, Round MC7: the due sound on launch, a bell, Add task? on double-click, Delete in Edit task
+
+**Context.** Samson approved MC5's drag-and-drop and month picker after using them. He asked for four more things:
+- A Delete option in the Edit task overlay.
+- Double-clicking a day, empty or not, should slide an "Add task?" box down in that day.
+- A bell icon instead of the ring in the tab bar's due count.
+- Tasks reaching their due date should play "a unique Chime+vocal prompt on Launch".
+
+**Rulings by Samson:**
+- Credits: both the voice and the chime. The estimate was about 290 credits; the actual spend was **138**: 2 voice takes at 35 credits each, and 4 chime takes at 17 each.
+- When: **once a day**. The sound plays on the first new tab with work due, and again that day only if another task arrives.
+- Pairing: **chime D + voice A**, chosen on a listening page.
+- Default: **on for new installs only.** Profiles that update keep their silence until switched on.
+
+**Decisions:**
+- **The sound.**
+  - Assets: the ElevenLabs voice used in the store video (`hGVeHdJEcfHv6D6RUSiY`, `eleven_v4`) saying "Heads up. You have tasks due today.", and a `eleven_text_to_sound_v2` chime.
+  - The chime was chosen by measurement. D is the only take that rises (463 → 1400 → 1873 Hz), and it is unlike the focus chimes (829, 441 and 301 Hz).
+  - Both were cleaned the way DP4's chimes were: DC removed, silent tail trimmed, 3 ms fade-in, 80 ms fade-out, peak −6 dBFS, 22050 Hz mono 16-bit with dither.
+  - They ship as **one file**, chime then 180 ms then voice: `sounds/due-reminder.wav`, 4.65 s and 205,114 bytes. One file plays in one piece or not at all, and never out of order.
+- **Who decides.** Every new tab sends `lp-due-sound-launch`, and the worker answers one request at a time on its own chain.
+  - The policy is the pure `Storage.dueSoundToAnnounce`.
+  - The day's log `{ day, ids }` lives in its own storage key, outside `data`, so it can't race a data write. It is **written before the sound plays**, so five tabs opening at once ring once.
+  - It plays through the focus chime's offscreen document (`playFileViaOffscreen`), which no autoplay rule can block.
+- **What counts.**
+  - Pro, and the switch on.
+  - Due **today**: not overdue, which was announced on its own day.
+  - Not snoozed.
+  - **Reached its date rather than being added for today.** A task created today doesn't count, because adding three tasks shouldn't ring three times. A recurring instance does count, because its arrival is the event.
+  - Not already announced today.
+- **Not mode-gated, unlike the 9 am notification.** The workspace mode defaults to **Casual** (`WORKSPACE_MODE_DEFAULT`), so a Work-only rule would make an on-by-default sound silent by default. It has its own switch and plays at most once a day, which is the restraint Casual asks for.
+- **The default.** The worker writes `dueSoundEnabled: true` on `onInstalled` with reason `"install"`, only if no value is set, and only after the sync merge. An update writes nothing, so an existing profile reads off. This is the one ruled exception to [1.11.0] decision 7 (features ship off), scoped to people who never had the old silence to lose.
+- **Settings and sync.**
+  - Settings gets its own switch, "Sound when tasks are due". Switching it on plays the sound once as a preview.
+  - The setting does not sync: it is about this machine's speakers, and this machine's install sets its default.
+- **The bell.** The due count shows an SVG bell in the bell's own neutral ink, with no motion, as the bell doctrine requires.
+- **Add task?** Double-clicking a day opens a Floater anchored in that day, revealed from the top down over 240 ms with the entrance curve. It holds one quick-add box:
+  - The clicked day is the due date unless the text names another.
+  - `#tags` and `!priority` parse as they do on the Dashboard.
+  - A cadence is refused in the same words.
+  - Enter or Add commits. Escape, Cancel or a click elsewhere closes it.
+  - The double-click is read as the browser's own click count (`e.detail`), which holds even though the first click redraws the tile.
+- **Delete.** It works the way the Tasks tab's delete does: the task goes to the trash with a 5-second Undo, and there is no confirm. It sits at the footer's far end from Save, in rose ink on a ghost button. Undo now refreshes the Dashboard too.
+- **The overlay's double-click.** A click on the overlay's backdrop within 400 ms of it opening is ignored. Before this, the second click of a double-click on a calendar task opened the dialog and shut it again.
+
+**Found and fixed: seven Settings switches ignored the mouse** (BUGS **I34**). It is pre-existing on master since 4cb7420 and never built or shipped. Each label now carries `for=`, and `tools/check-label-targets.mjs` holds it.
+
+**Gates.**
+- `tools/check-due-sound.mjs` has 38 rows, and `--mutate` kills all 9 seeds.
+- `tools/check-label-targets.mjs` kills both of its 2 seeds.
+- Both are in `build.sh`.
+
+**Verified** live in a scratch Edge profile against the working tree and the packaged build, 33/33 each:
+- A fresh install starts with the sound on, and the bell shows.
+- Delete moves the task to the trash, and Undo brings it back on the calendar.
+- A double-click on a task keeps Edit task open.
+- Add task?: opens in the clicked day, mid-slide when first seen, focused. Quick-add parses, the clicked day is used, a cadence is refused, a typed date wins, and Escape or a click outside closes it.
+- On launch, the task that reached today is announced through one offscreen document, which reports `played: true` after about 4.65 s.
+- A second launch is silent, five tabs ring once, and a second arrival rings for that task only.
+- The switch, driven through the real Settings panel, turns the sound off, off is silent, and switching it on previews.
+- The console is clean.
+- MC5's 39 checks and MC6's 17 still pass.
+- On master, a real click on site tracking, focus chain, commitment and combined analytics changed nothing. With this fix every switch probed toggles.
