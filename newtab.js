@@ -4506,7 +4506,8 @@
   // --action (#ff8a3d) as channels. A CSS variable cannot be interpolated into
   // an rgba() alpha this way, so the one place the hex is duplicated outside
   // tokens.css is here, named and adjacent to what it replaces.
-  var HEAT_INK_ACTION = "255,138,61";
+  // [DP3] --action's channels, indigo since the Slate and indigo palette.
+  var HEAT_INK_ACTION = "139,147,255";
   function insightsHeatmapHtml(res, rangeLabel, opts) {
     var heatInk = (opts && opts.ink) || HEAT_INK_V1;
     if (!res || !res.includedDays) {

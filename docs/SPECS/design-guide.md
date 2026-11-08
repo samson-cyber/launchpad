@@ -133,6 +133,13 @@ No gradient washes on cards or backgrounds. The single existing gradient (the CT
 
 #### v2 — Warm Bento: one ACTION colour plus a tint per tile kind
 
+> **RECOLOURED 2026-11-08 (DP3): Slate and indigo.** The STRUCTURE below stands (one
+> action colour, a tint per tile kind, lifted eyebrow inks, no ground branch until a
+> measurement asks). The VALUES in the table are the retired warm set; the live values are
+> in `tokens.css` and DECISIONS 2026-11-08 DP3 lists both. One rule changed: the overdue
+> word takes `--ink-on-overdue` (rose), not `--action`, because an indigo warning reads as
+> a link.
+
 > **Added 2026-09-18 (H0). The v1 table above is SUPERSEDED ON A v2 SURFACE and
 > still in force everywhere else.** Surfaces migrate one round at a time; when
 > the last one has, the v1 table and its tokens are swept and this becomes the

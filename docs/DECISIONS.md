@@ -4609,3 +4609,56 @@ English only.
 **Unchanged:** every size, weight and tracking token. A face swap that also
 re-tunes the ramp could not be judged as a face swap. The ramp is reviewed in
 DP2, the layout round, where tile titles grow anyway.
+
+## 2026-11-08, Round DP2: Insights in story order, titles that say what a tile is, room between tiles
+
+**Samson's brief:** Dashboard, Insights and Tasks are "too cramped and stuck together", they don't "read and flow too well", and the tile titles are so small that "you don't really know what you're looking at". He chose option A, story order, from three options. The other two were a row of headline numbers with collapsed detail tiles, and spacing and titles alone.
+
+**Insights.** The board now reads top to bottom:
+1. Deep work: the total, best day, daily average and the hours-per-day bars, in one span-4 tile.
+2. Time by tag beside time by site.
+3. Top tasks beside this week vs last.
+4. Best focus hours, full width.
+5. Achievements, full width.
+
+Rows are content height, not `--row-h`. Every tile is one row tall, so a row is either 2 + 2 or 4 and cannot leave a hole, and FIX-1's cell arithmetic retires. The free preview tells the same story in the same order. Every `data-ins-*` hook is unchanged.
+
+**Time by tag is a share bar and a list, not a ring.** Samson called the 96px donut "too small" and asked for a different layout. The tile is now one bar split by tag, then one row per tag with its share and duration, in the row rhythm of Time by site and Top tasks. `insightsDonutSvg` and `insightsDonutLegend` retired in favour of `insightsTagShareHtml`. The `.pp-donut*` rules in newtab.css no longer have an emitter and are left for a CSS sweep.
+
+**Titles.** `.tile-eyebrow` goes from `--fs-11` (12px) to `--fs-14` (15px), and `--eyebrow-lh` from 16px to 20px. A window ("Last 30 days", a weekday span) is no longer spelled into the title. It is a second line, `.tile-sub`, at 13px in the tile's quiet ink. Six title-plus-range catalogue keys retired and three plain titles replaced them. Tasks' last all-caps labels (the three count eyebrows and "Active goals") are now sentence case, and so is "Deep work".
+
+**Spacing.** `--gap` goes from 14px to 24px for every bento.
+
+**The Dashboard.** The hero is now a band across all four columns, with the focus figure and its four small figures side by side. Rows hug their content, and the last row is `1fr`, so a long due list stretches the time tile beside it rather than the blocking tile. All seven tiles keep their named grid areas.
+
+**Supersedes:**
+- design-guide 4.2's Insights diagram.
+- The `[FIX-1]` tiling recorded in renderInsightsTab.
+- The 2x2 Dashboard hero.
+
+This is not a ruling about the Dashboard's right-column void (4.1, still open by design). The band changes the shape that void was measured on, so the 2026-09-12 measurements no longer describe the board.
+
+## 2026-11-08, Round DP3: Slate and indigo replaces Warm Bento's colours
+
+**Ruled by Samson**, from three options photographed live on the real tabs: Graphite and blue (the lean), Slate and indigo, and Monochrome. His words about the warm set: "too much orange, looks too warm. Try something more professional and minimal."
+
+**Values moved; names and jobs did not.** `--action` is still the one action colour, each tile kind still has its tint, and the per-kind eyebrow inks are still each tint lifted to text weight. The changes:
+
+| Token | Before | After |
+|---|---|---|
+| `--ink` | `#f3ede6` | `#eceef4` |
+| `--ink-mute` | `#a89c93` | `#b6bbc9` (the scoped lift: `#cfc5bc` became `#cdd1dc`, same lightness, cooled) |
+| `--action` / `--action-soft` / `--action-2` | `#ff8a3d` / `#ffb37a` / `#e06a2a` | `#8b93ff` / `#b6bbff` / `#6a72ee` |
+| `--ink-on-action` | `#1a0d05` | `#0b0d24` |
+
+The tints were cooled and darkened until they read as grey with a hint: hero `31,33,42`, overdue `52,36,44`, goals `30,46,45`, blocking `38,37,62`. The list tile is `17,19,25` at 76%. The lifted eyebrow inks are overdue `#eda9b4`, goals `#a3d4c8` and blocking `#bcb9f4`. The heatmap's channel constant follows `--action`.
+
+**The overdue word no longer takes `--action`.** An indigo "Overdue" would read as a link. It takes `--ink-on-overdue`, the overdue tile's own rose, so overdue still means rose.
+
+**Unchanged:**
+- Tag colours and priority stripes, because they identify things rather than mark state.
+- Gold for earned.
+- Amber for paused.
+- The v1 surfaces that never adopted the v2 tokens.
+
+**Supersedes** the colour half of the 2026-09-18 "One accent becomes one ACTION colour plus a TINT PER TILE KIND" entry. The structure that entry ruled, one action colour plus a tint per tile kind, stands.

@@ -4757,7 +4757,7 @@ html.has-bg:not(.bg-light) #sb-rate:hover {
    which is what lifts it off a dark frost and precisely what would sink it into
    a white-tinted one. H1a's ruling is the same shape from the other side: on a
    light ground the tint's ALPHA rises and the inks do not move. */
-html.has-bg:not(.bg-light) { --ink-mute: #cfc5bc; }
+html.has-bg:not(.bg-light) { --ink-mute: #cdd1dc; }
 
 html.has-bg { --sat-accent: #8ab4f8; }
 html.has-bg.bg-light { --sat-accent: var(--accent); }/* [2.0 timing] ACCENT INK ON A FROSTED CARD — a second token, and the reason it
@@ -9654,7 +9654,8 @@ html.has-bg.bg-light .dash-head {
 
 .dash-meta-due.is-overdue {
   background: none;
-  color: var(--action);
+  /* [DP3] rose, not the action colour: a warning, not a link. */
+  color: var(--ink-on-overdue);
   font-weight: 600;
   padding-left: 0;
   padding-right: 0;
@@ -19829,7 +19830,7 @@ html.has-bg.bg-light .mode-preset-note { color: var(--text-secondary); }/* =====
      on EVERY ground, so it wants the dark-frost mute on every ground. Taken on
      the tile rather than by widening H4.2c's rule, which would reach the v1
      cards that legitimately go white-tinted and that this round does not own. */
-  --ink-mute: #cfc5bc;
+  --ink-mute: #cdd1dc;
 
   --text-primary: var(--ink);
   --text-secondary: var(--ink-mute);
@@ -20924,7 +20925,7 @@ html.has-bg.bg-light .dash-bento .dash-inline-link {
 
 html.has-bg.bg-light .dash-meta-due.is-overdue {
   background: none;
-  color: var(--action);
+  color: var(--ink-on-overdue);
 }/* THE SAME PAIRING AS THE BASE RULE, and this line is why the ground-scoped
    forms are not busywork: it shipped as the tint pairing and measured 2.72 on
    a light wallpaper while the base rule, already corrected to the opaque fill,
@@ -21042,7 +21043,7 @@ html.has-bg .tasks-split .tt2-newmenu {
   align-items: center;
   gap: 4px;
   border: 1px solid var(--tile-line);
-  background: rgba(20, 18, 20, 0.5);
+  background: rgba(17, 19, 25, 0.5);
   color: var(--ink);
   border-radius: var(--pill);
   padding: 8px 12px 8px 14px;
@@ -21051,7 +21052,7 @@ html.has-bg .tasks-split .tt2-newmenu {
   font-weight: 600;
   cursor: pointer;
 }
-html.has-bg .tasks-split .tt2-newmenu:hover { background: rgba(20, 18, 20, 0.72); }
+html.has-bg .tasks-split .tt2-newmenu:hover { background: rgba(17, 19, 25, 0.72); }
 html.has-bg .tasks-split .tt2-caret { display: inline-flex; opacity: 0.7; }
 html.has-bg .tasks-split .tasks-templates-link {
   font-size: var(--fs-12);
@@ -21179,7 +21180,7 @@ html.has-bg.bg-light .tasks-split .tt2-seg-btn.is-on { color: var(--text-primary
    0.5 alpha let the light wallpaper through and took the label to 3.19. */
 
 html.has-bg.bg-light .tasks-split .tt2-newmenu {
-  background: rgba(20, 18, 20, 0.86);
+  background: rgba(17, 19, 25, 0.86);
   border-color: rgba(0, 0, 0, 0.16);
 }/* ---- THE THREE COUNT TILES ---- */
 
@@ -21323,7 +21324,7 @@ html.has-bg .tasks-split .tt-goal-card,
 html.has-bg .tasks-split .tt-standalone-list,
 html.has-bg .tasks-split .tt-recurring-list,
 html.has-bg .tasks-split .tt-box,
-html.has-bg .tasks-split > .notes-panel { --ink-mute: #cfc5bc; }
+html.has-bg .tasks-split > .notes-panel { --ink-mute: #cdd1dc; }
 
 html.has-bg .tasks-split .tt-goal-card {
   background: var(--tile-list);
@@ -21832,7 +21833,7 @@ html.has-bg .insights-tab .ins-seg {
   gap: 2px;
   padding: 2px;
   width: auto;
-  background: rgba(20, 18, 20, 0.5);
+  background: rgba(17, 19, 25, 0.5);
   border: 1px solid var(--tile-line);
   border-radius: var(--pill);
   box-shadow: none;
@@ -21868,7 +21869,7 @@ html.has-bg .insights-tab .ins-seg .seg-btn.active {
    remedy, one ground: the track goes opaque enough to be its own surface. */
 
 html.has-bg.bg-light .insights-tab .ins-seg {
-  background: rgba(20, 18, 20, 0.92);
+  background: rgba(17, 19, 25, 0.92);
   border-color: rgba(0, 0, 0, 0.16);
 }
 html.has-bg.bg-light .insights-tab .ins-seg .seg-btn.active {
@@ -21964,7 +21965,7 @@ html.has-bg .insights-tab .insights-range-field-label { color: var(--ink-mute); 
 
 
 
-html.has-bg .insights-tab .tile { --ink-mute: #cfc5bc; }
+html.has-bg .insights-tab .tile { --ink-mute: #cdd1dc; }
 
 html.has-bg .insights-tab .ins-bento { align-content: start; }/* ===== v1's SPANS WERE WRITTEN FOR A TWELVE-COLUMN ROW, AND THIS GRID HAS
    FOUR. A FOURTH INSTANCE OF H1b'S CLASS, in a new form =====================
@@ -23179,7 +23180,7 @@ html.has-bg.bg-light .dash-due-row .tt-task-play { color: var(--action-soft); }
    it. */
 .tt-modal {
   background: linear-gradient(160deg, var(--tile-hero), var(--tile-hero-2));
-  background-color: rgba(38, 30, 34, 0.92);
+  background-color: rgba(31, 33, 42, 0.92);
   border-color: var(--tile-line);
   color: var(--ink);
   font-family: var(--font-sans);
@@ -23191,7 +23192,7 @@ html.has-bg.bg-light .dash-due-row .tt-task-play { color: var(--action-soft); }
 html.bg-light .tt-modal,
 html.has-bg.bg-light .tt-modal {
   background: linear-gradient(160deg, var(--tile-hero), var(--tile-hero-2));
-  background-color: rgba(38, 30, 34, 0.96);
+  background-color: rgba(31, 33, 42, 0.96);
   color: var(--ink);
 }
 
@@ -23690,11 +23691,11 @@ html.has-bg.bg-image .tile--action .tile-eyebrow {
    this round a clean win.
 
    Redefining --ink-mute on the tile is the sheet's own existing pattern -
-   `html.has-bg .insights-tab .tile { --ink-mute: #cfc5bc; }` and the notes
+   `html.has-bg .insights-tab .tile { --ink-mute: #cdd1dc; }` and the notes
    panel's line do exactly this - and it is self-limiting: a node already at
    --ink does not reference the token, so it cannot be touched. */
 html.has-bg.bg-image .dash-tile {
-  --ink-mute: #cfc5bc;
+  --ink-mute: #cdd1dc;
 }
 
 /* The duration is the one node here that was stepped twice. */
@@ -23767,7 +23768,7 @@ html.bg-image .search-mode-label {
    pattern". The preview's tiles are the same dark tiles and never got it, so
    .tile-eyebrow, .dash-hero-count-label and .pp-badge-sub all sat in the 3.3 to
    4.4 band on a light solid. Same value, same pattern, one more scope. */
-html.has-bg .pro-preview-content .tile { --ink-mute: #cfc5bc; }
+html.has-bg .pro-preview-content .tile { --ink-mute: #cdd1dc; }
 
 html.has-bg.bg-light .pro-preview-content .tile {
   --ink-primary: var(--ink);

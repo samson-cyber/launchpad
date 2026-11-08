@@ -402,18 +402,27 @@ html.text-size-large {
    =========================================================================== */
 
 :root {
+  /* ---- [DP3 2026-11-08] SLATE AND INDIGO. Ruled by Samson over Graphite and
+     blue and Monochrome, after he found Warm Bento "too much orange, looks too
+     warm" and asked for "something more professional and minimal". Every
+     token below keeps its NAME and its JOB - --action is still the one action
+     colour, each tile kind still has its tint - only the values moved: cream
+     ink became a cool off-white, the orange action became a soft indigo, and
+     the rose, green and violet tints were cooled and darkened until they read
+     as grey with a hint. The warm values are in git at 08848ff and in
+     DECISIONS 2026-09-18; DECISIONS 2026-11-08 DP3 has this ruling. ---- */
   /* ---- INK. Achromatic by rule: colour lives on the tile, never on the
      words. The one coloured text run on any v2 surface is the overdue word,
      which takes --action. ---- */
-  --ink: #f3ede6;                        /* primary text on a tile; warm off-white, not pure white */
-  --ink-mute: #a89c93;                   /* eyebrows, sub-lines, counts, units */
-  --ink-faint: rgba(243, 237, 230, 0.45);/* the faintest text that is still text */
-  --ink-on-action: #1a0d05;              /* text ON the action tile and button; orange takes dark ink */
+  --ink: #eceef4;                        /* primary text on a tile; cool off-white, not pure white */
+  --ink-mute: #b6bbc9;                   /* eyebrows, sub-lines, counts, units */
+  --ink-faint: rgba(236, 238, 244, 0.45);/* the faintest text that is still text */
+  --ink-on-action: #0b0d24;              /* text ON the action tile and button; indigo takes dark ink */
 
   /* ---- THE ONE ACTION COLOUR. Never a second action on the same view. ---- */
-  --action: #ff8a3d;
-  --action-soft: #ffb37a;                /* the lighter end of the action gradient */
-  --action-tint: rgba(255, 138, 61, 0.16);/* the Work chip's ground, hover washes */
+  --action: #8b93ff;
+  --action-soft: #b6bbff;                /* the lighter end of the action gradient */
+  --action-tint: rgba(139, 147, 255, 0.16);/* the Work chip's ground, hover washes */
   /* --action-2 IS FROM BOARD 8, NOT FROM tokens.json, and it is flagged rather
      than quietly folded in. The action tile on Sw8-BentoPhoto is
      linear-gradient(160deg, #ff8a3d, #e06a2a) - an OPAQUE orange with a darker
@@ -423,20 +432,20 @@ html.text-size-large {
      reference board is not. The board is the ruling reference for layout, so
      its value is taken and named here; if the design system later publishes an
      action-2, this is the line to reconcile. */
-  --action-2: #e06a2a;
+  --action-2: #6a72ee;
 
   /* ---- THE FROST FAMILY. Each pair is a gradient from the tint to its
      darker partner. 82% everywhere except the list tile at 72%, which is what
      makes a list read as a place to rest rather than as another card. ---- */
-  --tile-hero: rgba(38, 30, 34, 0.82);
-  --tile-hero-2: rgba(26, 21, 24, 0.82);
-  --tile-overdue: rgba(90, 47, 42, 0.82);
-  --tile-overdue-2: rgba(61, 31, 28, 0.82);
-  --tile-goals: rgba(47, 74, 58, 0.82);
-  --tile-goals-2: rgba(30, 51, 40, 0.82);
-  --tile-blocking: rgba(59, 47, 74, 0.82);
-  --tile-blocking-2: rgba(38, 32, 58, 0.82);
-  --tile-list: rgba(20, 18, 20, 0.72);
+  --tile-hero: rgba(31, 33, 42, 0.82);
+  --tile-hero-2: rgba(21, 23, 31, 0.82);
+  --tile-overdue: rgba(52, 36, 44, 0.82);
+  --tile-overdue-2: rgba(35, 25, 31, 0.82);
+  --tile-goals: rgba(30, 46, 45, 0.82);
+  --tile-goals-2: rgba(20, 32, 32, 0.82);
+  --tile-blocking: rgba(38, 37, 62, 0.82);
+  --tile-blocking-2: rgba(26, 26, 45, 0.82);
+  --tile-list: rgba(17, 19, 25, 0.76);
 
   /* ---- TILE FURNITURE ---- */
   --tile-line: rgba(255, 255, 255, 0.14);/* hairline border AND the inset top highlight */
@@ -445,9 +454,9 @@ html.text-size-large {
 
   /* ---- THE LIFTED INKS. A tile's eyebrow takes its own tint raised to text
      weight. Only the eyebrow: the body on a tinted tile stays --ink. ---- */
-  --ink-on-overdue: #e8a89a;
-  --ink-on-goals: #9ccdb0;
-  --ink-on-blocking: #c0a8e0;
+  --ink-on-overdue: #eda9b4;
+  --ink-on-goals: #a3d4c8;
+  --ink-on-blocking: #bcb9f4;
 
   /* ---- SPACING. Names from tokens.json. --page is a shorthand pair
      (vertical horizontal) because that is how the artifact states it. ---- */
@@ -534,18 +543,18 @@ html.text-size-large {
    spending the thing the language is built on.
    =========================================================================== */
 html.bg-light {
-  --tile-hero: rgba(38, 30, 34, 0.94);
-  --tile-hero-2: rgba(26, 21, 24, 0.94);
-  --tile-overdue: rgba(90, 47, 42, 0.94);
-  --tile-overdue-2: rgba(61, 31, 28, 0.94);
-  --tile-goals: rgba(47, 74, 58, 0.94);
-  --tile-goals-2: rgba(30, 51, 40, 0.94);
-  --tile-blocking: rgba(59, 47, 74, 0.94);
-  --tile-blocking-2: rgba(38, 32, 58, 0.94);
+  --tile-hero: rgba(31, 33, 42, 0.94);
+  --tile-hero-2: rgba(21, 23, 31, 0.94);
+  --tile-overdue: rgba(52, 36, 44, 0.94);
+  --tile-overdue-2: rgba(35, 25, 31, 0.94);
+  --tile-goals: rgba(30, 46, 45, 0.94);
+  --tile-goals-2: rgba(20, 32, 32, 0.94);
+  --tile-blocking: rgba(38, 37, 62, 0.94);
+  --tile-blocking-2: rgba(26, 26, 45, 0.94);
   /* The list tile is the one at 72%, and it rises to 90% rather than 94% so it
      stays the FAINTEST tile on this ground too - its job is to let the eye rest
      on the rows, and matching the tints would lose that distinction. */
-  --tile-list: rgba(20, 18, 20, 0.90);
+  --tile-list: rgba(17, 19, 25, 0.90);
 }
 
 /* ===========================================================================
