@@ -6229,6 +6229,38 @@ I18n.register("en", {
       "description": "Accessible name of one calendar day. {date} is the full date in the user's locale; {due} and {scheduled} are counts.",
       "message": "{date}: {due} due, {scheduled} scheduled"
     },
+    "dash_cal_edit_task": {
+      "description": "Title of the task overlay when it is opened from the Dashboard calendar to edit an existing task. The same dialog as New task, prefilled.",
+      "message": "Edit task"
+    },
+    "dash_cal_edit_failed": {
+      "description": "Error in the Edit task overlay when the save did not take.",
+      "message": "Could not save the task."
+    },
+    "dash_cal_chip_task": {
+      "description": "Accessible name of a task on the Dashboard calendar. Activating it opens the Edit task overlay; it can also be dragged to another day. {name} is the task's name.",
+      "message": "{name}. Edit, or drag to another day"
+    },
+    "dash_cal_chip_recurring": {
+      "description": "Accessible name of a scheduled repeating task on the Dashboard calendar. Activating it opens the repeat's settings. {name} is the repeat's name.",
+      "message": "{name}, repeats. Edit the repeat"
+    },
+    "dash_cal_choose_month": {
+      "description": "Accessible name of the month label on the Dashboard calendar, which opens a month picker. {month} is the month and year in view, such as 'November 2026'.",
+      "message": "{month}. Choose a month"
+    },
+    "dash_cal_months": {
+      "description": "Accessible name of the calendar's month picker: twelve months of one year, with year arrows.",
+      "message": "Choose a month"
+    },
+    "dash_cal_prev_year": {
+      "description": "Accessible name of the month picker's previous-year arrow.",
+      "message": "Previous year"
+    },
+    "dash_cal_next_year": {
+      "description": "Accessible name of the month picker's next-year arrow.",
+      "message": "Next year"
+    },
     "dash_cal_empty_day": {
       "description": "Shown below the calendar when the selected day has nothing due and nothing scheduled.",
       "message": "Nothing due or scheduled."

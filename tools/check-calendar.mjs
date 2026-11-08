@@ -20,6 +20,15 @@
 //     a day holding the template's spawned instance is not counted again;
 //     paused and trashed templates project nothing; past months project nothing
 //   - totals match the cells
+//   [MC5] and the calendar's edits:
+//   - Storage.editTask saves name/description/priority/tags in ONE write,
+//     refuses the whole edit on any bad field, leaves dueAt alone
+//   - a live due chip drags and is a control; a scheduled chip is a control
+//     but does not drag; the PREVIEW cell has no control, role, tabindex or
+//     drag at all; the date is the day's select button
+//   - the drop and the edit overlay both set dueAt through commitTaskDueAt
+//     (the goal-deadline check), never by writing it directly
+//   - the count-up is 560ms, and opening the tab clears the carried figures
 //
 // Exit codes: 0 pass · 1 failures · 2 the subject did not load, or too few
 // rows. `--mutate` re-runs against seeded reversions, each of which must turn
@@ -35,11 +44,38 @@ const MUTATE = args.includes("--mutate");
 const repoRoot = args.find((a) => !a.startsWith("--")) || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SUBJECT = "storage.js";
 function readSubject() { return fs.readFileSync(path.join(repoRoot, SUBJECT), "utf8").replace(/\r\n/g, "\n"); }
+function readNewtab() { return fs.readFileSync(path.join(repoRoot, "newtab.js"), "utf8").replace(/\r\n/g, "\n"); }
+function extractFn(src, name) {
+  const at = src.indexOf("  function " + name + "(");
+  if (at < 0) throw new Error("function " + name + " not found in newtab.js");
+  let i = src.indexOf("{", at), depth = 0;
+  for (; i < src.length; i++) {
+    const c = src[i];
+    if (c === "{") depth++;
+    else if (c === "}") { depth--; if (depth === 0) return src.slice(at, i + 1); }
+    else if (c === "'" || c === '"') { const q = c; i++; while (i < src.length && src[i] !== q) { if (src[i] === "\\") i++; i++; } }
+    else if (c === "/" && src[i + 1] === "/") { while (i < src.length && src[i] !== "\n") i++; }
+  }
+  throw new Error("unbalanced " + name);
+}
+function bootUi(nt) {
+  const m = /var DASH_CAL_MAX_CHIPS = (\d+);/.exec(nt);
+  if (!m) throw new Error("DASH_CAL_MAX_CHIPS not found");
+  const code = ["var DASH_CAL_MAX_CHIPS = " + m[1] + ";", extractFn(nt, "dashCalDayLabel"), extractFn(nt, "dashCalChipHtml"),
+    extractFn(nt, "dashCalCellHtml"), "this.ui = { dashCalChipHtml, dashCalCellHtml };"].join("\n");
+  const esc = (x) => String(x).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const sb = { escapeHtml: esc, th: (k, p) => esc(k + (p ? JSON.stringify(p) : "")), Date, String, Number };
+  vm.createContext(sb);
+  vm.runInContext(code, sb, { filename: "newtab.js" });
+  return sb.ui;
+}
+function fnBody(nt, name) { try { return extractFn(nt, name); } catch (e) { return ""; } }
 
 function boot(src) {
+  const sets = [];
   const chrome = {
     runtime: { getManifest: () => ({ version: "2.2.0" }), lastError: null, id: "t" },
-    storage: { local: { get: async () => ({}), set: async () => {}, remove: async () => {}, getBytesInUse: async () => 0 } }
+    storage: { local: { get: async () => ({}), set: async (o) => { sets.push(o); }, remove: async () => {}, getBytesInUse: async () => 0 } }
   };
   const sandbox = {
     chrome, crypto, Date, JSON, Math, Object, Array, Set, Map, String,
@@ -54,7 +90,7 @@ function boot(src) {
   vm.runInContext(src, sandbox, { filename: SUBJECT });
   const S = sandbox.Storage;
   if (!S || typeof S.calendarMonth !== "function") throw new Error("Storage.calendarMonth missing after load");
-  return { S };
+  return { S, sets };
 }
 
 // Every day is a UTC-midnight stamp of a LOCAL date, as dueAt is.
@@ -65,11 +101,11 @@ const task = (id, dueAt, extra) => ({ id, name: id, dueAt, completed: false, del
 const tpl = (id, extra) => ({ id, name: id, isActive: true, deletedAt: null, nextScheduledAt: null, ...(extra || {}) });
 const cellOf = (model, d) => model.cells.find((c) => c && c.day === d);
 
-async function suite(src) {
+async function suite(src, nt) {
   const rows = [];
   const chk = (name, ok, extra = "") => rows.push({ name, ok: !!ok, extra });
   const eq = (name, got, want) => chk(name, JSON.stringify(got) === JSON.stringify(want), `got ${JSON.stringify(got)} want ${JSON.stringify(want)}`);
-  const { S } = boot(src);
+  const { S, sets } = boot(src);
 
   // ---- the grid ----
   {
@@ -160,6 +196,64 @@ async function suite(src) {
     const bad = S.calendarMonth({ recurringTemplates: [tpl("bad", { frequency: "weekly", daysOfWeek: [] })] }, 2026, 10, 0, NOW);
     eq("a malformed template projects nothing and does not throw", bad.totals.scheduled, 0);
   }
+
+  // ---- [MC5] Storage.editTask ----
+  {
+    const fx = () => ({ activeWorkspaceId: "main", workspaceOrder: ["main"], workspaces: [{ id: "main", name: "Main", tags: [], goals: [], recurringTemplates: [],
+      tasks: [task("t1", day(2026, 10, 12), { name: "Old", description: "d", priority: "low", tagIds: ["a"] }), task("gone", null, { deletedAt: 3 })] }] });
+    chk("editTask is exported", typeof S.editTask === "function");
+    if (typeof S.editTask === "function") {
+      let d = fx(); sets.length = 0;
+      const r = await S.editTask(d, "t1", { name: "  New name ", description: "nd", priority: "high", tagIds: ["b", "c", "b"] });
+      const t1 = d.workspaces[0].tasks[0];
+      eq("name, description, priority and tags land", [t1.name, t1.description, t1.priority, t1.tagIds], ["New name", "nd", "high", ["b", "c"]]);
+      eq("...in ONE write", sets.length, 1);
+      eq("...and dueAt is untouched (it goes through the goal-deadline path)", t1.dueAt, day(2026, 10, 12));
+      chk("it returns the task", r && r.id === "t1");
+      d = fx(); sets.length = 0;
+      eq("an empty name refuses the whole edit", await S.editTask(d, "t1", { name: "  ", priority: "high" }), null);
+      eq("...and changes nothing, writes nothing", [d.workspaces[0].tasks[0].name, d.workspaces[0].tasks[0].priority, sets.length], ["Old", "low", 0]);
+      d = fx();
+      eq("a bad priority refuses the whole edit", await S.editTask(d, "t1", { name: "X", priority: "huge" }), null);
+      eq("...the name stays", d.workspaces[0].tasks[0].name, "Old");
+      d = fx();
+      eq("bad tagIds refuse", await S.editTask(d, "t1", { tagIds: [1] }), null);
+      d = fx(); await S.editTask(d, "t1", { priority: null });
+      eq("fields left out are untouched; null priority clears", [d.workspaces[0].tasks[0].name, d.workspaces[0].tasks[0].priority, d.workspaces[0].tasks[0].tagIds], ["Old", null, ["a"]]);
+      d = fx();
+      eq("a trashed task cannot be edited", await S.editTask(d, "gone", { name: "X" }), null);
+    }
+  }
+
+  // ---- [MC5] the cell's affordances (the real builders, from newtab.js) ----
+  if (nt) {
+    const ui = bootUi(nt);
+    const cell = { stamp: day(2026, 10, 12), day: 12, isToday: false, isPast: false,
+      due: [{ id: "t1", name: "Write <it>", overdue: false }], scheduled: [{ templateId: "tp1", name: "Weekly" }] };
+    const live = ui.dashCalCellHtml(cell, null, false);
+    const pv = ui.dashCalCellHtml(cell, null, true);
+    chk("live: the due chip drags and opens the task", /<span class="dash-cal-chip is-due" role="button" tabindex="0" draggable="true" data-cal-task="t1"/.test(live), live);
+    chk("live: the scheduled chip opens its repeat and does NOT drag", /data-cal-tpl="tp1"/.test(live) && !/draggable="true" data-cal-tpl/.test(live) && (live.match(/draggable/g) || []).length === 1, live);
+    chk("live: the date is the day's select button", /<button type="button" class="dash-cal-date" data-cal-pick/.test(live), live);
+    chk("live: the cell is a box (a button cannot hold the chips)", /^<div class="dash-cal-cell[^"]*" data-cal-day="/.test(live), live.slice(0, 80));
+    chk("live: a task name is escaped", /Write &lt;it&gt;/.test(live) && !/<it>/.test(live));
+    chk("preview: no control, role, tabindex or drag anywhere in the cell", !/<button|role=|tabindex|draggable|data-cal-/.test(pv), pv);
+    chk("preview: the chips still show", (pv.match(/dash-cal-chip/g) || []).length === 2, pv);
+
+    // ---- [MC5] the wiring ----
+    const bind = fnBody(nt, "bindDashCalendar"), editM = fnBody(nt, "openEditTaskModal");
+    chk("the drop sets dueAt through commitTaskDueAt", /drop[\s\S]*commitTaskDueAt\(id, stamp\)/.test(bind));
+    chk("the calendar never writes dueAt directly", !/updateTaskDueAt/.test(bind) && !/updateTaskDueAt/.test(editM));
+    chk("a drop onto the task's own day writes nothing", /habitLocalDayStamp\(taskObj\.dueAt\) === stamp\) return;/.test(bind));
+    chk("the edit overlay saves through Storage.editTask", /Storage\.editTask\(data, taskId,/.test(editM));
+    chk("...and sends a changed due date through commitTaskDueAt after it closes", /setTimeout\(function \(\) \{ commitTaskDueAt\(taskId, dueAt\); \}, 0\)/.test(editM));
+    chk("...keeping tags it cannot show", /var kept = has\.filter/.test(editM) && /kept\.concat\(checked\)/.test(editM));
+    chk("the count-up runs 560ms", /var LP_COUNT_MS = 560;/.test(nt));
+    chk("opening the Dashboard clears the carried figures (the ring sweeps, the numbers count)",
+      /dashPanel\.removeAttribute\("data-dash-carry"\); filling = renderDashboardTab\(dashPanel, data\);/.test(nt));
+    chk("a re-render restores the carried figures before binding", /dashCarryRestore\(panel, dashCarry\);\n\n    bindDashboardEvents\(panel\);/.test(nt));
+    chk("a committed dialog refreshes a visible Dashboard", (fnBody(nt, "openTasksModal").match(/dashRefreshIfShown\(\)/g) || []).length === 2);
+  }
   return rows;
 }
 
@@ -185,20 +279,39 @@ const SEEDS = [
   ["paused templates still project",
    "if (!tpl || tpl.deletedAt || tpl.isActive === false) return;",
    "if (!tpl || tpl.deletedAt) return;"],
+  ["editTask half-saves before validating",
+   "    Object.keys(next).forEach(function (k) { task[k] = next[k]; });\n    await saveAll(data);\n    return task;\n  }",
+   "    Object.keys(next).forEach(function (k) { task[k] = next[k]; });\n    await saveAll(data);\n    await saveAll(data);\n    return task;\n  }"],
+  ["editTask keeps duplicate tag ids",
+   "next.tagIds = fields.tagIds.filter(function (x) { if (seen[x]) return false; seen[x] = true; return true; });",
+   "next.tagIds = fields.tagIds.slice();"],
+  ["the drop writes dueAt directly", "      commitTaskDueAt(id, stamp);\n", "      Storage.updateTaskDueAt(data, id, stamp);\n", "nt"],
+  ["scheduled chips drag too",
+   "return '<span class=\"dash-cal-chip is-scheduled\" role=\"button\" tabindex=\"0\" data-cal-tpl=",
+   "return '<span class=\"dash-cal-chip is-scheduled\" role=\"button\" tabindex=\"0\" draggable=\"true\" data-cal-tpl=", "nt"],
+  ["the preview chip becomes a control",
+   "if (preview) return '<span class=\"dash-cal-chip is-' + kind + '\">' + name + '</span>';",
+   "if (preview) return '<span class=\"dash-cal-chip is-' + kind + '\" role=\"button\">' + name + '</span>';", "nt"],
+  ["the edit overlay drops trashed tags", "tagIds: kept.concat(checked)", "tagIds: checked", "nt"],
+  ["the count goes back to 400ms", "var LP_COUNT_MS = 560;", "var LP_COUNT_MS = 400;", "nt"],
+  ["opening the tab carries figures (no sweep)",
+   "if (dashPanel) { dashPanel.removeAttribute(\"data-dash-carry\"); filling",
+   "if (dashPanel) { filling", "nt"],
 ];
 
 const clean = readSubject();
+const cleanNt = readNewtab();
 if (args.includes("--boot-check")) {
-  try { boot(clean); console.log("BOOT-CHECK OK   check-calendar.mjs"); process.exit(0); }
+  try { boot(clean); bootUi(cleanNt); console.log("BOOT-CHECK OK   check-calendar.mjs"); process.exit(0); }
   catch (e) { console.log("BOOT-CHECK DEAD check-calendar.mjs — " + e.message); process.exit(1); }
 }
 
 console.log("\nCALENDAR — due on its day, scheduled projected once, the grid on the right columns\n");
 let rows;
-try { rows = await suite(clean); }
+try { rows = await suite(clean, cleanNt); }
 catch (e) { console.error("SUBJECT DID NOT LOAD — " + e.message); process.exit(2); }
 
-const ROW_FLOOR = 30;
+const ROW_FLOOR = 60;
 if (rows.length < ROW_FLOOR) { console.error(`GATE BROKEN — produced ${rows.length} rows, floor is ${ROW_FLOOR}.`); process.exit(2); }
 
 let failed = 0;
@@ -209,11 +322,13 @@ if (failed > 0) { console.error("\nREFUSING TO SCORE SEEDS — the clean run is 
 
 console.log("\nMUTATION PASS — every seed must turn the suite red\n");
 let escaped = 0, broken = 0;
-for (const [name, find, repl] of SEEDS) {
-  const n = clean.split(find).length - 1;
+for (const [name, find, repl, file] of SEEDS) {
+  const base = file === "nt" ? cleanNt : clean;
+  const n = base.split(find).length - 1;
   if (n !== 1) { broken++; console.log(`  BROKEN SEED  ${name} (anchor matched ${n}x)`); continue; }
   let mrows;
-  try { mrows = await suite(clean.split(find).join(repl)); }
+  const mut = base.split(find).join(repl);
+  try { mrows = await suite(file === "nt" ? clean : mut, file === "nt" ? mut : cleanNt); }
   catch (e) { broken++; console.log(`  BROKEN SEED  ${name} (subject did not load: ${e.message})`); continue; }
   const red = mrows.filter((r) => !r.ok);
   if (!red.length) { escaped++; console.log(`  ESCAPED  ${name}`); }

@@ -24180,7 +24180,9 @@ html.lp-vt #content-header * { transition: none !important; }
 }
 .dash-cal-step { font-size: var(--fs-14); line-height: 1; }
 .dash-cal-step:hover, .dash-cal-today:hover { background: rgba(236, 238, 244, 0.12); }
-.dash-cal-step:focus-visible, .dash-cal-today:focus-visible, .dash-cal-cell:focus-visible {
+.dash-cal-step:focus-visible, .dash-cal-today:focus-visible, .dash-cal-cell:focus-visible,
+.dash-cal-date:focus-visible, .dash-cal-chip:focus-visible, .dash-cal-month-btn:focus-visible,
+.dash-cal-pick-month:focus-visible, .dash-cal-name-btn:focus-visible {
   outline: 2px solid var(--action-soft); outline-offset: 2px;
 }
 .dash-cal-legend { margin-left: auto; display: inline-flex; gap: var(--space-3); font-size: var(--fs-12); color: var(--ink-mute); }
@@ -24238,3 +24240,60 @@ html.lp-vt #content-header * { transition: none !important; }
   .dash-cal-cell.has-items::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--action-soft); }
   .dash-cal-legend { margin-left: 0; }
 }
+
+/* ---- [MC5 2026-11-08] THE CALENDAR'S CONTROLS ------------------------------
+   The day's date is its select button (the cell holds controls now, so it can
+   no longer be one), due chips drag and open the task overlay, the month
+   label opens a month picker laid OVER the grid (the Floater tier, so the tile
+   does not change height under it). */
+.dash-cal-cell .dash-cal-date {
+  appearance: none; background: none; border: 0; padding: 0; margin: 0;
+  font-family: inherit; line-height: inherit; text-align: left; cursor: pointer;
+  align-self: flex-start; min-width: 24px; border-radius: 999px;
+}
+.dash-cal-chip[role="button"] { cursor: pointer; }
+.dash-cal-chip[draggable="true"] { cursor: grab; }
+.dash-cal-chip[role="button"]:hover { filter: brightness(1.18); }
+.dash-cal-chip.is-dragging { opacity: 0.45; }
+[data-dash-cal].is-dragging .dash-cal-cell:not(.is-blank) { cursor: copy; }
+.dash-cal-cell.is-drop {
+  border-color: var(--action-soft);
+  background: rgba(139, 147, 255, 0.16);
+}
+.dash-cal-month-btn {
+  appearance: none; background: none; border: 0; margin: 0; cursor: pointer;
+  font-family: inherit; padding: 4px 22px 4px 8px; border-radius: 8px; position: relative;
+}
+.dash-cal-month-btn::after {
+  content: ""; position: absolute; right: 8px; top: 50%; width: 6px; height: 6px; margin-top: -5px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); opacity: 0.7;
+}
+.dash-cal-month-btn:hover, .dash-cal-month-btn[aria-expanded="true"] { background: rgba(236, 238, 244, 0.08); }
+.dash-cal-body { position: relative; }
+.dash-cal-picker {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-3); border-radius: var(--radius-md, 8px);
+  background: var(--pro-frost-floater-bg);
+  -webkit-backdrop-filter: var(--pro-frost-floater-blur);
+  backdrop-filter: var(--pro-frost-floater-blur);
+  border: 1px solid rgba(236, 238, 244, 0.12);
+  animation: lp-cal-in 240ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+.dash-cal-picker-head { display: flex; align-items: center; justify-content: center; gap: var(--space-3); }
+.dash-cal-picker-year { font-size: var(--fs-14); font-weight: 600; color: var(--ink); min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; }
+.dash-cal-picker-grid { flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 6px; }
+.dash-cal-pick-month {
+  appearance: none; font-family: inherit; font-size: var(--fs-13); color: var(--ink); cursor: pointer;
+  background: rgba(236, 238, 244, 0.06); border: 1px solid rgba(236, 238, 244, 0.12); border-radius: var(--radius-md, 8px);
+  min-height: 36px;
+}
+.dash-cal-pick-month:hover { background: rgba(236, 238, 244, 0.12); }
+.dash-cal-pick-month.is-this-month { border-color: var(--action-soft); }
+.dash-cal-pick-month.is-current { background: var(--action); color: var(--ink-on-action); border-color: transparent; }
+.dash-cal-name-btn {
+  appearance: none; background: none; border: 0; padding: 0; margin: 0; cursor: pointer;
+  font-family: inherit; font-size: inherit; text-align: left;
+}
+.dash-cal-name-btn:hover { text-decoration: underline; text-underline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .dash-cal-picker { animation: none; } }

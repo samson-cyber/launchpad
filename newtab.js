@@ -800,7 +800,9 @@
     var filling = null;
     if (id === "dashboard" && isProAccessibleLevel(currentAccessLevel())) {
       var dashPanel = document.getElementById("tab-dashboard");
-      if (dashPanel) filling = renderDashboardTab(dashPanel, data);
+      // [MC5] Opening is not a re-render: no carried figures, so the ring
+      // sweeps and the numbers count from zero.
+      if (dashPanel) { dashPanel.removeAttribute("data-dash-carry"); filling = renderDashboardTab(dashPanel, data); }
       dashStartPeriodWatch();
     } else {
       dashStopPeriodWatch();
@@ -863,7 +865,9 @@
   // value; the saved final HTML is only put back if nothing else wrote it.
   //
   // Reduced motion: no count, the values are simply there.
-  var LP_COUNT_MS = 400;
+  // [MC5] 560ms, not 400: Samson asked for the count 40% slower after living
+  // with it. Off the 150/240/400 ramp on purpose; DECISIONS records why.
+  var LP_COUNT_MS = 560;
   var LP_COUNT_SEL = ".dash-hero-num, .dash-hero-count-num, .dash-hero-stat-num, .dash-tile-figure, .ins-hero-stat-num, .tt2-count-num";
   function lpParseCount(el) {
     var txt = (el.textContent || "").replace(/\s+/g, " ").trim(), m;
@@ -2571,6 +2575,44 @@
       '</div>';
   }
 
+  // [MC5 2026-11-08] A RE-RENDER KEEPS THE PAINTED FIGURES. Every edit on the
+  // board re-renders it whole, and the figures that fill from an async read
+  // (focused today, the week, the streak, passive time, the recap) came back as
+  // "—" for a frame before the read landed, and the ring emptied and swept
+  // again. The calendar makes edits frequent - a drag is one - so that jolt
+  // would have become routine. Now a re-render of the SAME scope carries the
+  // painted values (and the ring's position) into the new markup, and the
+  // fresh read replaces them. Opening the tab is not a re-render: setActiveTab
+  // clears the key, so the ring still sweeps and the numbers still count once
+  // per open (design-guide 3.6).
+  var DASH_CARRY_SEL = ["[data-dash-focused]", "[data-dash-week]", "[data-dash-streak]", "[data-dash-passive]", "[data-dash-recap]"];
+  function dashCarryKey(scope) { return scope ? (scope.mode + ":" + (scope.workspaceId || "")) : "none"; }
+  function dashCarryCollect(panel, scope) {
+    var key = dashCarryKey(scope);
+    var prev = panel.getAttribute("data-dash-carry");
+    panel.setAttribute("data-dash-carry", key);
+    if (prev !== key) return null;
+    var out = { html: {}, ring: null };
+    DASH_CARRY_SEL.forEach(function (sel) {
+      var el = panel.querySelector(sel);
+      if (el && el.textContent.trim() !== "\u2014") out.html[sel] = el.innerHTML;
+    });
+    var ring = panel.querySelector("[data-dash-ring]");
+    if (ring && ring.classList.contains("is-swept")) out.ring = ring.getAttribute("stroke-dashoffset");
+    return out;
+  }
+  function dashCarryRestore(panel, carry) {
+    if (!carry) return;
+    Object.keys(carry.html).forEach(function (sel) {
+      var el = panel.querySelector(sel);
+      if (el) el.innerHTML = carry.html[sel];
+    });
+    if (carry.ring !== null) {
+      var r = panel.querySelector("[data-dash-ring]");
+      if (r) { r.classList.add("is-swept"); r.setAttribute("stroke-dashoffset", carry.ring); }
+    }
+  }
+
   function renderDashboardTab(panel, d, periodOverride) {
     if (!panel) return;
     var ws = Storage.getActiveWorkspace(d);
@@ -2647,6 +2689,7 @@
     // sixteenth and renders 2x1 rather than 1x1. It is the tile whose text is
     // longest ("Blocking on, auto"), so the extra width is content-justified -
     // and a hole in a bento reads as a tile that failed to render.
+    var dashCarry = dashCarryCollect(panel, scope);
     panel.innerHTML =
       '<div class="dash-tab" data-period="' + period + '">' +
         '<div class="dash-greeting-row">' +
@@ -2738,6 +2781,7 @@
 
         '</div>' +
       '</div>';
+    dashCarryRestore(panel, dashCarry);
 
     bindDashboardEvents(panel);
     // [MC2] THE FILLS ARE COLLECTED AND RETURNED. They used to be started and
@@ -3589,24 +3633,48 @@
         .toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
     } catch (e) { return ""; }
   }
-  function dashCalChipHtml(kind, name) {
-    return '<span class="dash-cal-chip is-' + kind + '">' + escapeHtml(name) + '</span>';
+  // [MC5 2026-11-08] Samson, after using it: "calendar month should be
+  // selectable by clicking the month", "tasks should be able to be dragged
+  // between days ... and updated everywhere", and "editable by click on the
+  // calendar with the same kind of overlay box" as New task. So a LIVE due chip
+  // is a control: click (or Enter) opens the task overlay, and it drags to
+  // another day. A SCHEDULED chip opens its repeat's own overlay - it is a
+  // projection, not a task, so it does not drag. The PREVIEW draws plain text
+  // with no role, no tabindex and no drag ([1.1.4]: a preview renders no
+  // affordance it cannot honour).
+  //
+  // The day is no longer one big button, because a button cannot hold
+  // controls: the cell is a plain box, its date is the select button, and a
+  // click anywhere else in the cell selects the day too.
+  var dashCalPicker = null;        // { y } while the month picker is open
+  var dashCalDragId = null;        // the task being dragged, as a fallback for
+                                   // dataTransfer types a browser hides in dragover
+  function dashCalChipHtml(kind, item, preview) {
+    var name = escapeHtml(item.name);
+    if (preview) return '<span class="dash-cal-chip is-' + kind + '">' + name + '</span>';
+    if (kind === "scheduled") {
+      return '<span class="dash-cal-chip is-scheduled" role="button" tabindex="0" data-cal-tpl="' + escapeHtml(item.templateId) + '"' +
+        ' title="' + name + '" aria-label="' + th("dash_cal_chip_recurring", { name: item.name }) + '">' + name + '</span>';
+    }
+    return '<span class="dash-cal-chip is-' + kind + '" role="button" tabindex="0" draggable="true" data-cal-task="' + escapeHtml(item.id) + '"' +
+      ' title="' + name + '" aria-label="' + th("dash_cal_chip_task", { name: item.name }) + '">' + name + '</span>';
   }
   function dashCalCellHtml(c, sel, preview) {
     if (!c) return '<div class="dash-cal-cell is-blank" aria-hidden="true"></div>';
-    var items = c.due.map(function (x) { return dashCalChipHtml(x.overdue ? "overdue" : "due", x.name); })
-      .concat(c.scheduled.map(function (x) { return dashCalChipHtml("scheduled", x.name); }));
+    var items = c.due.map(function (x) { return dashCalChipHtml(x.overdue ? "overdue" : "due", x, preview); })
+      .concat(c.scheduled.map(function (x) { return dashCalChipHtml("scheduled", x, preview); }));
     var shown = items.slice(0, DASH_CAL_MAX_CHIPS).join("");
     var more = items.length > DASH_CAL_MAX_CHIPS
       ? '<span class="dash-cal-more">' + th("dash_cal_more", { count: items.length - DASH_CAL_MAX_CHIPS }) + '</span>' : "";
     var cls = "dash-cal-cell" + (c.isToday ? " is-today" : "") + (c.isPast ? " is-past" : "") +
       (c.stamp === sel ? " is-selected" : "") + (items.length ? " has-items" : "");
     var label = th("dash_cal_day_label", { date: dashCalDayLabel(c.stamp), due: c.due.length, scheduled: c.scheduled.length });
-    var inner = '<span class="dash-cal-date">' + c.day + '</span>' +
-      '<span class="dash-cal-items">' + shown + more + '</span>';
-    if (preview) return '<div class="' + cls + '" aria-label="' + label + '">' + inner + '</div>';
-    return '<button type="button" class="' + cls + '" data-cal-day="' + c.stamp + '" aria-pressed="' +
-      (c.stamp === sel ? "true" : "false") + '" aria-label="' + label + '">' + inner + '</button>';
+    var items2 = '<span class="dash-cal-items">' + shown + more + '</span>';
+    if (preview) return '<div class="' + cls + '" aria-label="' + label + '"><span class="dash-cal-date">' + c.day + '</span>' + items2 + '</div>';
+    return '<div class="' + cls + '" data-cal-day="' + c.stamp + '">' +
+      '<button type="button" class="dash-cal-date" data-cal-pick aria-pressed="' + (c.stamp === sel ? "true" : "false") + '" aria-label="' + label + '">' + c.day + '</button>' +
+      items2 +
+    '</div>';
   }
   function dashCalDetailHtml(cell, preview) {
     if (!cell) return "";
@@ -3614,19 +3682,45 @@
     if (!cell.due.length && !cell.scheduled.length) {
       return head + '<div class="dash-cal-empty">' + th("dash_cal_empty_day") + '</div>';
     }
+    var nameHtml = function (attr, id, name) {
+      return preview
+        ? '<span class="dash-cal-name">' + escapeHtml(name) + '</span>'
+        : '<button type="button" class="dash-cal-name dash-cal-name-btn" ' + attr + '="' + escapeHtml(id) + '">' + escapeHtml(name) + '</button>';
+    };
     var rows = cell.due.map(function (x) {
       return '<li class="dash-cal-row">' +
         '<span class="dash-cal-kind is-' + (x.overdue ? "overdue" : "due") + '">' + th(x.overdue ? "dash_cal_overdue" : "dash_cal_due") + '</span>' +
-        '<span class="dash-cal-name">' + escapeHtml(x.name) + '</span>' +
+        nameHtml("data-cal-task", x.id, x.name) +
         (preview ? "" : '<button type="button" class="dash-inline-link dash-cal-goto" data-cal-goto="' + escapeHtml(x.id) + '">' + th("bell_go_to_task") + '</button>') +
       '</li>';
     }).concat(cell.scheduled.map(function (x) {
       return '<li class="dash-cal-row">' +
         '<span class="dash-cal-kind is-scheduled">' + th("dash_cal_scheduled") + '</span>' +
-        '<span class="dash-cal-name">' + escapeHtml(x.name) + '</span>' +
+        nameHtml("data-cal-tpl", x.templateId, x.name) +
       '</li>';
     }));
     return head + '<ul class="dash-cal-list">' + rows.join("") + '</ul>';
+  }
+  function dashCalPickerHtml(view) {
+    var y = dashCalPicker.y, now = new Date(), cells = "";
+    for (var m = 0; m < 12; m++) {
+      var nm;
+      try { nm = new Date(y, m, 1).toLocaleDateString(undefined, { month: "short" }); } catch (e) { nm = String(m + 1); }
+      var isView = (y === view.y && m === view.m);
+      cells += '<button type="button" class="dash-cal-pick-month' + (isView ? " is-current" : "") +
+        (y === now.getFullYear() && m === now.getMonth() ? " is-this-month" : "") + '" data-cal-pick-month="' + m + '"' +
+        ' aria-pressed="' + (isView ? "true" : "false") + '" aria-label="' + escapeHtml(dashCalMonthLabel(y, m)) + '">' + escapeHtml(nm) + '</button>';
+    }
+    var yLabel;
+    try { yLabel = new Date(y, 0, 1).toLocaleDateString(undefined, { year: "numeric" }); } catch (e) { yLabel = String(y); }
+    return '<div class="dash-cal-picker" role="dialog" aria-label="' + th("dash_cal_months") + '">' +
+      '<div class="dash-cal-picker-head">' +
+        '<button type="button" class="dash-cal-step" data-cal-pick-year="-1" aria-label="' + th("dash_cal_prev_year") + '">\u2039</button>' +
+        '<span class="dash-cal-picker-year">' + escapeHtml(yLabel) + '</span>' +
+        '<button type="button" class="dash-cal-step" data-cal-pick-year="1" aria-label="' + th("dash_cal_next_year") + '">\u203A</button>' +
+      '</div>' +
+      '<div class="dash-cal-picker-grid">' + cells + '</div>' +
+    '</div>';
   }
   function dashCalendarTileHtml(ws, opts) {
     var preview = !!(opts && opts.preview);
@@ -3637,6 +3731,11 @@
     var sel = view.sel;
     var selCell = null;
     model.cells.forEach(function (c) { if (c && c.stamp === sel) selCell = c; });
+    var monthLabel = escapeHtml(dashCalMonthLabel(view.y, view.m));
+    var month = preview
+      ? '<div class="dash-cal-month">' + monthLabel + '</div>'
+      : '<button type="button" class="dash-cal-month dash-cal-month-btn" data-cal-picker aria-haspopup="dialog" aria-expanded="' + (dashCalPicker ? "true" : "false") + '"' +
+          ' aria-label="' + th("dash_cal_choose_month", { month: dashCalMonthLabel(view.y, view.m) }) + '">' + monthLabel + '</button>';
     var nav = preview ? "" :
       '<div class="dash-cal-nav">' +
         '<button type="button" class="dash-cal-step" data-cal-step="-1" aria-label="' + th("dash_cal_prev") + '">\u2039</button>' +
@@ -3646,7 +3745,7 @@
     return '<div class="tile tile--list dash-tile dash-tile-cal span-4' + (preview ? " pp-demo-tile" : "") + '" data-dash-cal>' +
       '<div class="dash-cal-head">' +
         '<div class="tile-eyebrow">' + th("dash_cal_title") + (preview ? previewLabelHtml() : "") + '</div>' +
-        '<div class="dash-cal-month" aria-live="polite">' + escapeHtml(dashCalMonthLabel(view.y, view.m)) + '</div>' +
+        month +
         nav +
         '<div class="dash-cal-legend" aria-hidden="true">' +
           '<span class="dash-cal-key is-due">' + th("dash_cal_due") + '</span>' +
@@ -3654,16 +3753,20 @@
           '<span class="dash-cal-key is-scheduled">' + th("dash_cal_scheduled") + '</span>' +
         '</div>' +
       '</div>' +
-      '<div class="dash-cal-grid">' +
-        dashCalWeekdayLabels(ws0).map(function (n) { return '<div class="dash-cal-wd" aria-hidden="true">' + escapeHtml(n) + '</div>'; }).join("") +
-        model.cells.map(function (c) { return dashCalCellHtml(c, sel, preview); }).join("") +
+      '<div class="dash-cal-body">' +
+        '<div class="dash-cal-grid">' +
+          dashCalWeekdayLabels(ws0).map(function (n) { return '<div class="dash-cal-wd" aria-hidden="true">' + escapeHtml(n) + '</div>'; }).join("") +
+          model.cells.map(function (c) { return dashCalCellHtml(c, sel, preview); }).join("") +
+        '</div>' +
+        (!preview && dashCalPicker ? dashCalPickerHtml(view) : "") +
       '</div>' +
       '<div class="dash-cal-detail">' + dashCalDetailHtml(selCell, preview) + '</div>' +
     '</div>';
   }
-  // Only the tile is redrawn on a month step or a day pick: the rest of the
-  // board does not change, so it is not re-rendered (and does not re-count).
-  function dashCalRedraw(panel, fresh) {
+  // Only the tile is redrawn on a month step, a day pick or the picker: the
+  // rest of the board does not change, so it is not re-rendered. `focusSel`
+  // puts focus back on the equivalent control, since the old one is gone.
+  function dashCalRedraw(panel, fresh, focusSel) {
     var tile = panel.querySelector("[data-dash-cal]");
     if (!tile) return;
     tile.outerHTML = dashCalendarTileHtml(Storage.getActiveWorkspace(data), null);
@@ -3671,38 +3774,241 @@
       var grid = panel.querySelector("[data-dash-cal] .dash-cal-grid");
       if (grid) grid.classList.add("is-fresh");
     }
+    if (focusSel) {
+      var f = panel.querySelector("[data-dash-cal] " + focusSel);
+      if (f) { try { f.focus({ preventScroll: true }); } catch (err) { f.focus(); } }
+    }
+  }
+  // A re-render of the whole board, but only when it is on screen and live.
+  // Every path that changes a task from the calendar ends here, so the due
+  // list, the counts and the calendar all agree with what was just written.
+  function dashRefreshIfShown() {
+    var p = document.getElementById("tab-dashboard");
+    if (p && !p.classList.contains("hidden") && isProAccessibleLevel(currentAccessLevel())) renderDashboardTab(p, data);
+  }
+  function dashCalOpenTemplate(tplId) {
+    var ws = Storage.getActiveWorkspace(data);
+    var tpl = ws && Array.isArray(ws.recurringTemplates)
+      ? ws.recurringTemplates.find(function (x) { return x && x.id === tplId && !x.deletedAt; }) : null;
+    if (tpl) openRecurringModal(tpl);
+  }
+  function dashCalClearDrop(panel) {
+    panel.querySelectorAll(".dash-cal-cell.is-drop").forEach(function (c) { c.classList.remove("is-drop"); });
   }
   function bindDashCalendar(panel) {
     panel.addEventListener("click", function (e) {
       var t = e.target;
-      var step = t.closest && t.closest("[data-cal-step]");
-      if (step) {
-        var v = dashCalView || dashCalDefaultView();
-        var m = v.m + Number(step.getAttribute("data-cal-step"));
-        var y = v.y + Math.floor(m / 12);
-        m = ((m % 12) + 12) % 12;
-        dashCalView = { y: y, m: m, sel: Date.UTC(y, m, 1) };
-        dashCalRedraw(panel, true);
-        return;
-      }
-      if (t.closest && t.closest("[data-cal-today]")) {
-        dashCalView = dashCalDefaultView();
-        dashCalRedraw(panel, true);
-        return;
-      }
-      var day = t.closest && t.closest("[data-cal-day]");
-      if (day) {
-        var v2 = dashCalView || dashCalDefaultView();
-        dashCalView = { y: v2.y, m: v2.m, sel: Number(day.getAttribute("data-cal-day")) };
+      if (!t.closest || !t.closest("[data-dash-cal]")) return;
+      var v = dashCalView || dashCalDefaultView();
+      // The picker closes on any click outside it.
+      if (dashCalPicker && !t.closest(".dash-cal-picker") && !t.closest("[data-cal-picker]")) {
+        dashCalPicker = null;
         dashCalRedraw(panel, false);
-        var again = panel.querySelector('[data-cal-day="' + dashCalView.sel + '"]');
-        if (again) { try { again.focus({ preventScroll: true }); } catch (err) { again.focus(); } }
         return;
       }
-      var go = t.closest && t.closest("[data-cal-goto]");
-      if (go) { dueBellGoToTask(go.getAttribute("data-cal-goto")); }
+      if (t.closest("[data-cal-picker]")) {
+        dashCalPicker = dashCalPicker ? null : { y: v.y };
+        dashCalRedraw(panel, false, dashCalPicker ? ".dash-cal-pick-month.is-current, .dash-cal-pick-month" : "[data-cal-picker]");
+        return;
+      }
+      var py = t.closest("[data-cal-pick-year]");
+      if (py) {
+        dashCalPicker = { y: dashCalPicker.y + Number(py.getAttribute("data-cal-pick-year")) };
+        dashCalRedraw(panel, false, '[data-cal-pick-year="' + py.getAttribute("data-cal-pick-year") + '"]');
+        return;
+      }
+      var pm = t.closest("[data-cal-pick-month]");
+      if (pm) {
+        var y = dashCalPicker.y, m = Number(pm.getAttribute("data-cal-pick-month"));
+        var today = dashCalDefaultView();
+        dashCalView = { y: y, m: m, sel: (y === today.y && m === today.m) ? today.sel : Date.UTC(y, m, 1) };
+        dashCalPicker = null;
+        dashCalRedraw(panel, true, "[data-cal-picker]");
+        return;
+      }
+      var step = t.closest("[data-cal-step]");
+      if (step) {
+        var mm = v.m + Number(step.getAttribute("data-cal-step"));
+        var yy = v.y + Math.floor(mm / 12);
+        mm = ((mm % 12) + 12) % 12;
+        dashCalView = { y: yy, m: mm, sel: Date.UTC(yy, mm, 1) };
+        dashCalRedraw(panel, true, '[data-cal-step="' + step.getAttribute("data-cal-step") + '"]');
+        return;
+      }
+      if (t.closest("[data-cal-today]")) {
+        dashCalView = dashCalDefaultView();
+        dashCalRedraw(panel, true, "[data-cal-today]");
+        return;
+      }
+      var go = t.closest("[data-cal-goto]");
+      if (go) { dueBellGoToTask(go.getAttribute("data-cal-goto")); return; }
+      var task = t.closest("[data-cal-task]");
+      if (task) { openEditTaskModal(task.getAttribute("data-cal-task")); return; }
+      var tpl = t.closest("[data-cal-tpl]");
+      if (tpl) { dashCalOpenTemplate(tpl.getAttribute("data-cal-tpl")); return; }
+      var day = t.closest("[data-cal-day]");
+      if (day) {
+        dashCalView = { y: v.y, m: v.m, sel: Number(day.getAttribute("data-cal-day")) };
+        dashCalRedraw(panel, false, '[data-cal-day="' + dashCalView.sel + '"] [data-cal-pick]');
+      }
+    });
+    panel.addEventListener("keydown", function (e) {
+      var t = e.target;
+      if (!t.closest || !t.closest("[data-dash-cal]")) return;
+      if (e.key === "Escape" && dashCalPicker) {
+        e.preventDefault();
+        e.stopPropagation();
+        dashCalPicker = null;
+        dashCalRedraw(panel, false, "[data-cal-picker]");
+        return;
+      }
+      // The chips are spans with role=button, so they take Enter and Space
+      // the way a button would.
+      if ((e.key === "Enter" || e.key === " ") && t.matches && t.matches(".dash-cal-chip[role=button]")) {
+        e.preventDefault();
+        t.click();
+      }
+    });
+    // ---- drag a due chip to another day ----
+    panel.addEventListener("dragstart", function (e) {
+      var chip = e.target.closest && e.target.closest("[data-dash-cal] .dash-cal-chip[data-cal-task]");
+      if (!chip) return;
+      dashCalDragId = chip.getAttribute("data-cal-task");
+      try {
+        e.dataTransfer.setData("text/x-lp-task", dashCalDragId);
+        e.dataTransfer.effectAllowed = "move";
+      } catch (err) {}
+      chip.classList.add("is-dragging");
+      panel.querySelector("[data-dash-cal]").classList.add("is-dragging");
+    });
+    panel.addEventListener("dragend", function () {
+      dashCalDragId = null;
+      panel.querySelectorAll("[data-dash-cal] .is-dragging").forEach(function (x) { x.classList.remove("is-dragging"); });
+      var tile = panel.querySelector("[data-dash-cal]");
+      if (tile) tile.classList.remove("is-dragging");
+      dashCalClearDrop(panel);
+    });
+    panel.addEventListener("dragover", function (e) {
+      if (!dashCalDragId) return;
+      var cell = e.target.closest && e.target.closest("[data-dash-cal] [data-cal-day]");
+      if (!cell) return;
+      e.preventDefault();
+      try { e.dataTransfer.dropEffect = "move"; } catch (err) {}
+      if (!cell.classList.contains("is-drop")) { dashCalClearDrop(panel); cell.classList.add("is-drop"); }
+    });
+    panel.addEventListener("dragleave", function (e) {
+      var cell = e.target.closest && e.target.closest("[data-cal-day]");
+      if (cell && !(e.relatedTarget && cell.contains(e.relatedTarget))) cell.classList.remove("is-drop");
+    });
+    panel.addEventListener("drop", function (e) {
+      var cell = e.target.closest && e.target.closest("[data-dash-cal] [data-cal-day]");
+      if (!cell) return;
+      e.preventDefault();
+      var id = "";
+      try { id = e.dataTransfer.getData("text/x-lp-task"); } catch (err) {}
+      id = id || dashCalDragId;
+      dashCalDragId = null;
+      dashCalClearDrop(panel);
+      if (!id) return;
+      var stamp = Number(cell.getAttribute("data-cal-day"));
+      var ws = Storage.getActiveWorkspace(data);
+      var taskObj = ws ? Storage.getTaskById(ws, id) : null;
+      if (!taskObj) return;
+      if (typeof taskObj.dueAt === "number" && Storage.habitLocalDayStamp(taskObj.dueAt) === stamp) return;
+      // Select the day it lands on, so the list under the grid shows it there.
+      var v = dashCalView || dashCalDefaultView();
+      dashCalView = { y: v.y, m: v.m, sel: stamp };
+      // THE TASKS TAB'S OWN DUE PATH: the goal-deadline check runs, and a day
+      // past the goal's deadline asks before it writes, exactly as the due
+      // pill does. Nothing here writes dueAt by itself.
+      commitTaskDueAt(id, stamp);
     });
   }
+
+  // [MC5] THE TASK OVERLAY, IN EDIT MODE. The same dialog as New task - the
+  // same fields, classes and order - prefilled, with Save. Due date goes last
+  // and through commitTaskDueAt, after the overlay has closed, so a goal-
+  // deadline conflict asks in its own dialog rather than being skipped or
+  // closed by this one. Tags the overlay cannot show (trashed ones) are kept.
+  function openEditTaskModal(taskId) {
+    var workspace = Storage.getActiveWorkspace(data);
+    var task = workspace ? Storage.getTaskById(workspace, taskId) : null;
+    if (!task || task.deletedAt) return;
+    var availableTags = Storage.getActiveTags(workspace);
+    var has = Array.isArray(task.tagIds) ? task.tagIds : [];
+    var tagOptionsHtml = availableTags.map(function (tag) {
+      return '<label class="tt-modal-checkbox-row tt-modal-tag-option">' +
+        '<input type="checkbox" class="tt-task-tag" value="' + escapeHtml(tag.id) + '"' + (has.indexOf(tag.id) !== -1 ? " checked" : "") + '>' +
+        '<span class="tt-tag-pill" style="background:' + escapeHtml(tag.color) + ';color:' + tagTextColorFor(tag.color) + '">' + escapeHtml(tag.name) + '</span>' +
+      '</label>';
+    }).join("");
+    var tagsBlock = availableTags.length
+      ? '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label">' + th("feature_tags_name") + '</label>' +
+          '<div class="tt-modal-tag-list">' + tagOptionsHtml + '</div>' +
+        '</div>'
+      : "";
+    var pr = task.priority || "";
+    var opt = function (v, key) { return '<option value="' + v + '"' + (pr === v ? " selected" : "") + '>' + th(key) + '</option>'; };
+    openTasksModal({
+      title: t("dash_cal_edit_task"),
+      primaryLabel: t("common_save"),
+      bodyHtml:
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-task-name-input">' + th("new_name") + '</label>' +
+          '<input type="text" id="tt-task-name-input" class="tt-task-name-input" maxlength="200" placeholder="' + th("new_task_name") + '" autocomplete="off" spellcheck="false" value="' + escapeHtml(task.name || "") + '">' +
+        '</div>' +
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-task-desc-input">' + th("new_description") + '</label>' +
+          '<textarea id="tt-task-desc-input" class="tt-modal-textarea tt-task-desc-input" maxlength="2000" rows="3" placeholder="' + th("new_optional") + '" spellcheck="true">' + escapeHtml(task.description || "") + '</textarea>' +
+        '</div>' +
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-task-priority-select">' + th("new_priority") + '</label>' +
+          '<select id="tt-task-priority-select" class="tt-task-priority-select">' +
+            opt("", "new_none") + opt("low", "new_low") + opt("medium", "new_medium") + opt("high", "new_high") + opt("urgent", "new_urgent") +
+          '</select>' +
+        '</div>' +
+        '<div class="tt-modal-row">' +
+          '<label class="tt-modal-label" for="tt-task-due-input">' + th("new_due_date") + '</label>' +
+          '<input type="date" id="tt-task-due-input" class="tt-task-due-input" value="' + escapeHtml(ymdFromTs(task.dueAt)) + '">' +
+        '</div>' +
+        tagsBlock +
+        '<div class="tt-modal-error hidden" role="alert"></div>',
+      onMounted: function (overlay) {
+        var nameInput = overlay.querySelector(".tt-task-name-input");
+        nameInput.addEventListener("keydown", function (e) {
+          if (e.key === "Enter") { e.preventDefault(); overlay.querySelector(".tt-modal-primary").click(); }
+        });
+      },
+      onPrimary: async function (overlay) {
+        var nameInput = overlay.querySelector(".tt-task-name-input");
+        var dueInput = overlay.querySelector(".tt-task-due-input");
+        var errorEl = overlay.querySelector(".tt-modal-error");
+        var name = (nameInput.value || "").trim();
+        if (!name) { showModalError(errorEl, t("modal_name_required")); nameInput.focus(); return false; }
+        var dueAt = parseDateInputToTs(dueInput.value);
+        if (dueInput.value && dueAt === null) { showModalError(errorEl, t("modal_due_date_invalid")); return false; }
+        var offered = availableTags.map(function (x) { return x.id; });
+        var kept = has.filter(function (id) { return offered.indexOf(id) === -1; });
+        var checked = [].slice.call(overlay.querySelectorAll(".tt-task-tag:checked")).map(function (cb) { return cb.value; });
+        var saved = await Storage.editTask(data, taskId, {
+          name: name,
+          description: overlay.querySelector(".tt-task-desc-input").value || "",
+          priority: overlay.querySelector(".tt-task-priority-select").value || null,
+          tagIds: kept.concat(checked)
+        });
+        if (!saved) { showModalError(errorEl, t("dash_cal_edit_failed")); return false; }
+        var before = (typeof task.dueAt === "number") ? task.dueAt : null;
+        if (dueAt !== before) {
+          // After this overlay closes: a conflict opens a dialog of its own,
+          // and this one's close would otherwise shut it straight away.
+          setTimeout(function () { commitTaskDueAt(taskId, dueAt); }, 0);
+        }
+        rerenderTasksPanel();
+      }
+    });
+  }
+
   // The preview's month: the preview board's own demo tasks (the same
   // catalogue keys its due list uses) on fixed offsets from today, and one
   // weekly template, through the SAME model function as the live board.
@@ -10054,6 +10360,10 @@
         if (result === false) return;
       }
       closeTasksModal();
+      // [MC5] A dialog that committed may have changed what the Dashboard
+      // shows (the calendar opens task, repeat and conflict dialogs). Only a
+      // VISIBLE live board re-renders, and it keeps its figures (dashCarry).
+      dashRefreshIfShown();
     });
 
     // [1.0.13.1] Wire extra footer buttons. No-op when extraButtons is empty.
@@ -10066,6 +10376,7 @@
           if (r === false) return;
         }
         closeTasksModal();
+        dashRefreshIfShown();
       });
     });
 
@@ -11501,6 +11812,7 @@
         console.error("[LaunchPad] Tasks tab: updateTaskDueAt failed", err);
       }
       rerenderTasksPanel();
+      dashRefreshIfShown();
       return;
     }
     openTaskDueConflictModal(taskId, conflict);

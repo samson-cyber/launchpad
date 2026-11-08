@@ -4674,6 +4674,45 @@ var Storage = (function () {
   }
 
   /**
+   * [MC5] Edit a task's name, description, priority and tags in ONE write -
+   * the calendar's edit overlay. Due date is deliberately not here: it goes
+   * through the UI's commitTaskDueAt, which runs the goal-deadline check. Each
+   * field is validated as its single-field writer validates it, and a bad
+   * field refuses the whole edit (nothing is half-saved). Fields left
+   * undefined are untouched.
+   * @returns {Promise<object|null>}
+   */
+  async function editTask(data, taskId, fields, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var task = findLiveTask(ws, taskId);
+    if (!task || !fields) return null;
+    var next = {};
+    if (fields.name !== undefined) {
+      var name = typeof fields.name === "string" ? fields.name.trim() : "";
+      if (!name) { console.warn("[LaunchPad] editTask: name must be non-empty after trim"); return null; }
+      next.name = name;
+    }
+    if (fields.description !== undefined) {
+      next.description = (fields.description === null) ? "" : String(fields.description);
+    }
+    if (fields.priority !== undefined) {
+      if (!isValidPriority(fields.priority)) { console.warn("[LaunchPad] editTask: invalid priority"); return null; }
+      next.priority = fields.priority;
+    }
+    if (fields.tagIds !== undefined) {
+      if (!Array.isArray(fields.tagIds) || !fields.tagIds.every(function (x) { return typeof x === "string"; })) {
+        console.warn("[LaunchPad] editTask: tagIds must be an array of strings");
+        return null;
+      }
+      var seen = {};
+      next.tagIds = fields.tagIds.filter(function (x) { if (seen[x]) return false; seen[x] = true; return true; });
+    }
+    Object.keys(next).forEach(function (k) { task[k] = next[k]; });
+    await saveAll(data);
+    return task;
+  }
+
+  /**
    * Update a task's priority. Accepts 'low'|'medium'|'high'|'urgent'|null.
    * @returns {Promise<object|null>}
    */
@@ -10913,6 +10952,7 @@ var Storage = (function () {
     updateTaskDescription: updateTaskDescription,
     updateTaskDueAt: updateTaskDueAt,
     updateTaskPriority: updateTaskPriority,
+    editTask: editTask,
     completeTask: completeTask,
     reactivateTask: reactivateTask,
     duplicateTask: duplicateTask,
