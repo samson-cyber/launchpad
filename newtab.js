@@ -14448,7 +14448,8 @@
     if (!form || !nameInput || !paletteHost) return;
 
     var ws = Storage.getActiveWorkspace(data);
-    var defaultColor = ws ? Storage.nextAutoTagColor(ws) : (Storage.TAG_PALETTE && Storage.TAG_PALETTE[0]);
+    // [DP6] the swatch pre-selected is the colour createTag would pick itself.
+    var defaultColor = ws ? Storage.nextManualTagColor(ws) : (Storage.TAG_PALETTE && Storage.TAG_PALETTE[0]);
     var palette = Storage.TAG_PALETTE || [];
     paletteHost.innerHTML = palette.map(function (c) {
       return tagPaletteSwatchHTML(c, c === defaultColor);
@@ -20162,7 +20163,8 @@
     var saveBtn = $("#tag-create-popover-save");
 
     var palette = Storage.TAG_PALETTE || [];
-    var defaultColor = (typeof Storage.nextAutoTagColor === "function") ? Storage.nextAutoTagColor(ws) : palette[0];
+    // [DP6] the swatch pre-selected is the colour createTag would pick itself.
+    var defaultColor = (typeof Storage.nextManualTagColor === "function") ? Storage.nextManualTagColor(ws) : palette[0];
     tagCreatePopoverSelectedColor = defaultColor;
 
     paletteHost.innerHTML = palette.map(function (c) {

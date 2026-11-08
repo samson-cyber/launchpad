@@ -434,6 +434,15 @@ if ! node tools/check-quickadd.mjs; then
   exit 1
 fi
 
+# [DP6] Tag colours. A tag no goal made takes the least-used palette colour;
+# the goal rotation (monotonic, trash-counting) is untouched. Before this,
+# four #tags typed in quick add came out four identical blues and the Insights
+# share bar had no visible parts. ~0.2s. `--mutate` runs six seeded reversions.
+if ! node tools/check-tag-colors.mjs; then
+  echo 'ERROR: tag colour gate failed - new tags no longer spread across the palette, or the goal rotation moved.' >&2
+  exit 1
+fi
+
 # [PF.2 follow-up] The sync slice: what leaves this machine, and what must not.
 # PF.2 SHIPPED THIS GATE AND NEVER WIRED IT IN, so it has been green-by-nobody
 # since - exactly the shape of the importers.js miss recorded below, where a
