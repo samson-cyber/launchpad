@@ -24212,7 +24212,10 @@ html.lp-vt #content-header * { transition: none !important; }
   border-left: 2px solid transparent;
 }
 .dash-cal-chip.is-due { color: var(--ink); background: rgba(236, 238, 244, 0.08); border-left-color: var(--ink); }
-.dash-cal-chip.is-overdue { color: var(--ink-on-overdue); background: rgba(237, 169, 180, 0.12); border-left-color: var(--ink-on-overdue); }
+/* Overdue carries its rose on the EDGE and the tint, not the text: rose ink on
+   its own rose tint measured 3.76-4.38 on the light photograph (sweep-ink, MC4),
+   under the 4.5 floor at chip size. Primary ink on the tint clears it. */
+.dash-cal-chip.is-overdue { color: var(--ink); background: rgba(237, 169, 180, 0.16); border-left-color: var(--ink-on-overdue); }
 .dash-cal-chip.is-scheduled { color: var(--action-soft); background: rgba(139, 147, 255, 0.12); border-left-color: var(--action-soft); }
 .dash-cal-more { font-size: var(--fs-12); color: var(--ink-mute); padding-left: 6px; }
 .dash-cal-detail { border-top: 1px solid rgba(236, 238, 244, 0.10); padding-top: var(--space-3); }
