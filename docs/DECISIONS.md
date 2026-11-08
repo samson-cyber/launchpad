@@ -4844,3 +4844,42 @@ The switch waits for that read, so the view is revealed filled (MC2).
 - A scheduled chip opens its repeat, prefilled, and doesn't drag.
 - The preview has no controls, and the console is clean on Pro and free.
 - The MC1–MC4 harness still passes 49/49.
+
+## 2026-11-08, Round MC6: bars grow into place on tab open; durations fit their columns
+
+**Context.** Samson asked for graph bars, horizontal and vertical, to grow into position when a tab opens, "slower than the number counter by another 40%". His screenshot also showed two side effects of MC1's "hr/min" form:
+- "39hr 44min" broke across two lines in This week vs last.
+- "2hr 48min" was cut to "2hr 48m…" in Time by site.
+
+It also showed a pre-existing copy slip: "No task focus tracked in the today yet."
+
+**Decisions:**
+- **784 ms**, which is 560 × 1.4. The duration is defined relative to the count, and `check-motion` holds the ratio, so changing one without the other fails the build. It is the design guide's second sanctioned off-ramp duration.
+- **Which bars:**
+  - The chart columns (`.pp-bar`) rise from their baseline.
+  - The site, task, goal and passive rows (`.insights-task-bar-fill`), the tag share bar and the preview's goal bars extend from their start edge, or from the right edge in RTL.
+  - Transform only, so nothing beside a bar moves.
+  - Left out: the heatmap (cells, not bars), the ring (already sweeps once on open) and the live session fill (it moves with the clock).
+- **All together, once per open, after the fills.** A class is added from `setActiveTab`'s `ready.then`, beside the count, and removed when the growth ends. So a later render, a range switch or a calendar edit draws bars in place, and a live update never re-grows them. Staggering is forbidden by design-guide 3.6. Reduced motion is checked in both the JS and the CSS.
+- **The free preview grows too.** It isn't re-rendered on open, so the class is removed and re-added across a reflow.
+- **Duration columns:**
+  - The fixed value columns were sized for "3h45m". They are now 6.2em: the shared row and the site list, plus This week vs last's value with 6.8em for its change, which carries an arrow.
+  - The weekly values no longer wrap.
+  - Checked live by writing "10hr 59min" into every duration cell on both tabs and measuring for cuts and wraps.
+- **Empty states.** The three Insights empty states drop "in the {range}". Each tile's range is already the line under its title (DP2), so "No task focus tracked yet." says it once.
+
+**Gate.** `tools/check-motion.mjs` is new and in `build.sh`. It has 18 rows, and `--mutate` kills all 9 seeds. It covers:
+- The ratio, and that the JS bar list and the CSS rules name the same bars.
+- The curve, no stagger, and both reduced-motion halves.
+- After-the-fills timing and the restart.
+- The column widths.
+
+**Verified** live in a scratch Edge profile against the working tree and the packaged build, 17/17 each:
+- Insights' vertical and horizontal bars, and the Dashboard's bars, grow from under 35% of their size, never shrinking, over 640–900 ms, the first and last bar at the same scale every frame.
+- The class comes off when done.
+- A range switch draws in place.
+- Reduced motion doesn't grow anything.
+- The free preview grows on every entry.
+- "10hr 59min" fits every duration cell on one line.
+- The empty-state copy is fixed and the console is clean.
+- The MC5 calendar harness still passes 39/39.
