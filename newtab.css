@@ -24272,7 +24272,7 @@ html.lp-vt #content-header * { transition: none !important; }
 .dash-cal-body { position: relative; }
 .dash-cal-picker {
   position: absolute; inset: 0; z-index: 2;
-  display: flex; flex-direction: column; gap: var(--space-3);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3);
   padding: var(--space-3); border-radius: var(--radius-md, 8px);
   background: var(--pro-frost-floater-bg);
   -webkit-backdrop-filter: var(--pro-frost-floater-blur);
@@ -24282,7 +24282,9 @@ html.lp-vt #content-header * { transition: none !important; }
 }
 .dash-cal-picker-head { display: flex; align-items: center; justify-content: center; gap: var(--space-3); }
 .dash-cal-picker-year { font-size: var(--fs-14); font-weight: 600; color: var(--ink); min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; }
-.dash-cal-picker-grid { flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 6px; }
+/* A compact block centred over the grid, not twelve slabs stretched to fill
+   it: the grid area is 450px tall on a wide board. */
+.dash-cal-picker-grid { width: min(480px, 100%); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 44px; gap: 8px; }
 .dash-cal-pick-month {
   appearance: none; font-family: inherit; font-size: var(--fs-13); color: var(--ink); cursor: pointer;
   background: rgba(236, 238, 244, 0.06); border: 1px solid rgba(236, 238, 244, 0.12); border-radius: var(--radius-md, 8px);

@@ -3808,7 +3808,11 @@
       }
       if (t.closest("[data-cal-picker]")) {
         dashCalPicker = dashCalPicker ? null : { y: v.y };
-        dashCalRedraw(panel, false, dashCalPicker ? ".dash-cal-pick-month.is-current, .dash-cal-pick-month" : "[data-cal-picker]");
+        // The picker opens on the view's year, so the month in view is always
+        // there to take focus. (A selector LIST would match January first:
+        // querySelector returns the first node in document order, not the
+        // first selector.)
+        dashCalRedraw(panel, false, dashCalPicker ? ".dash-cal-pick-month.is-current" : "[data-cal-picker]");
         return;
       }
       var py = t.closest("[data-cal-pick-year]");
