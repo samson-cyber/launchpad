@@ -1624,14 +1624,6 @@ I18n.register("en", {
     "message": "best day",
     "description": "Aside label on the Insights preview hero. Rendered with th()."
   },
-  "insights_preview_by_site": {
-    "message": "Time by site - last 30 days",
-    "description": "Peer card title on the Insights preview. Site rows carry NO favicons here either. Rendered with th()."
-  },
-  "insights_preview_top_tasks": {
-    "message": "Top tasks - last 30 days",
-    "description": "Peer card title on the Insights preview. Rendered with th()."
-  },
   "insights_wk_preview_span": {
     "message": "Mon-Fri, against the same days last week",
     "description": "Span caption on the weekly card in the Insights PREVIEW. Rendered with th()."
@@ -2797,7 +2789,7 @@ I18n.register("en", {
     "description": "Markup label in insightsRangeSelectorHtml(). Rendered with th()."
   },
   "insights_deep_work": {
-    "message": "Deep Work",
+    "message": "Deep work",
     "description": "The Insights hero card title, on the live board and on the free preview alike. IT CARRIES NO RANGE: the card names its window once, on the label beneath the figure, because that is where a reader looking at the numeral actually is. Replaced insights_deep_work_last_30_days (preview) and insights_deep_work_range (board), both of which spelled the range into the title and were retired with this change rather than left as orphans a later round could revive. Rendered with th()."
   },
   "insights_from": {
@@ -2807,10 +2799,6 @@ I18n.register("en", {
   "insights_hours_day": {
     "message": "Hours / day",
     "description": "Markup label in insightsBarChartSvg(). Rendered with th()."
-  },
-  "insights_time_by_tag_last_30_days": {
-    "message": "Time by tag · last 30 days",
-    "description": "Markup label in renderInsightsPreview(). Rendered with th()."
   },
   "insights_to": {
     "message": "To",
@@ -3178,11 +3166,11 @@ I18n.register("en", {
     "description": "Markup label in openTaskSessionPicker(). Rendered with th()."
   },
   "tasks_active_goals": {
-    "message": "Active Goals",
+    "message": "Active goals",
     "description": "Markup label in renderTasksPreview(). Rendered with th()."
   },
   "tasks_active_goals_2": {
-    "message": "Active Goals",
+    "message": "Active goals",
     "description": "Markup label in renderTasksTab(). Rendered with th()."
   },
   "tasks_add_task": {
@@ -3626,17 +3614,17 @@ I18n.register("en", {
       "description": "Empty state for the top-tasks list. Distinct from insights_no_focus_time_in_range: this one is about time attributed to TASKS specifically, and a translation that flattens the two loses which chart is empty.",
       "message": "No task focus tracked in the {range} yet."
     },
-    "insights_time_by_site_range": {
-      "description": "Insights card title for the per-site list.",
-      "message": "Time by site · {range}"
+    "insights_time_by_tag": {
+      "description": "Insights tile title for the tag donut, on the live board and the preview. The date range is a separate second line beneath it, so this is the subject alone.",
+      "message": "Time by tag"
     },
-    "insights_time_by_tag_range": {
-      "description": "Insights card title for the tag donut.",
-      "message": "Time by tag · {range}"
+    "insights_time_by_site": {
+      "description": "Insights tile title for the per-site list, on the live board and the preview. The date range is a separate second line beneath it. Site rows carry no favicons.",
+      "message": "Time by site"
     },
-    "insights_top_tasks_range": {
-      "description": "Insights card title for the per-task list.",
-      "message": "Top tasks · {range}"
+    "insights_top_tasks": {
+      "description": "Insights tile title for the per-task list, on the live board and the preview. The date range is a separate second line beneath it.",
+      "message": "Top tasks"
     },
     "picker_search_goals": {
       "description": "Search placeholder in the goal picker modal.",

@@ -19656,9 +19656,10 @@ html.has-bg.bg-light .mode-preset-note { color: var(--text-secondary); }/* =====
   /* --fs-11 rather than --eyebrow-size, and the two are the same thing: the
      alias is declared in tokens.css and resolves here. The ramp token is named
      directly because check-text-size reads the DECLARATION - a font-size it
-     cannot recognise as ramp-derived is one the text-size setting might not
-     cover, and it is right to refuse to guess. 12px at the default tier. */
-  font-size: var(--fs-11);
+     cover, and it is right to refuse to guess. 12px at the default tier.
+     [DP2] --fs-14 now, 15px at the default tier: the title has to say what
+     the tile is for at a glance. See the DP2 block at the foot of the file. */
+  font-size: var(--fs-14);
   line-height: var(--eyebrow-lh);
   font-weight: var(--eyebrow-weight);
   color: var(--eyebrow-ink);
@@ -20488,17 +20489,53 @@ html.bg-light .set-tile .set-select {
    .span-* stays in the shared vocabulary for the surfaces that do flow. */
 
 
+/* [DP2 2026-11-08] THE HERO IS A BAND ACROSS THE TOP, AND ROWS HUG THEIR
+   CONTENT. Samson: the board is "cramped and stuck together" and does not
+   read. Measured on the busy fixture at 1440 before this: the 2x2 hero was
+   ~470px tall for ~250px of content, so FIX's auto margins floated the
+   numeral in the middle of a void; and the blocking tile was stretched to
+   half the due list's height to say one word. Both came from the same thing,
+   tiles taking the height of the rows they share rather than of what they hold.
+
+   Now: the hero is one row across all four columns, its figure and its four
+   small figures side by side (the same shape as the Insights hero). Rows are
+   content height. The last row is 1fr, so when the due list is long it is the
+   TIME tile beside it that takes the extra height - a list that can use it -
+   and the blocking tile stays the size of its one word. Every tile keeps its
+   area; check-today-cockpit still finds all seven placed. */
 .dash-bento {
   display: grid;
   grid-template-columns: repeat(var(--cols), 1fr);
-  grid-auto-rows: minmax(var(--row-h), auto);
+  grid-template-rows: auto auto auto 1fr;
+  grid-auto-rows: auto;
   gap: var(--gap);
   grid-template-areas:
-    "hero hero upnext   upnext"
-    "hero hero overdue  goals"
-    "due  due  blocking blocking"
-    "due  due  time     time";
+    "hero   hero   hero     hero"
+    "upnext upnext overdue  goals"
+    "due    due    blocking blocking"
+    "due    due    time     time";
 }
+
+/* THE BAND. Eyebrow across the top; the focus figure (or the tracking-off
+   note) on the left and the four small figures beside it, bottoms aligned so
+   the small numbers sit on the big one's baseline; the live working line, when
+   there is one, across the foot. */
+.dash-bento > .dash-tile-hero {
+  display: grid;
+  grid-template-columns: minmax(200px, auto) minmax(0, 1fr);
+  grid-template-areas:
+    "eyebrow eyebrow"
+    "figure  figures"
+    "working working";
+  column-gap: var(--space-7);
+  row-gap: var(--space-3);
+  align-items: end;
+}
+.dash-bento > .dash-tile-hero > .tile-eyebrow { grid-area: eyebrow; align-self: start; }
+.dash-bento > .dash-tile-hero > .dash-hero-figure,
+.dash-bento > .dash-tile-hero > .dash-hero-off { grid-area: figure; margin: 0; }
+.dash-bento > .dash-tile-hero > .dash-hero-figures { grid-area: figures; margin-top: 0; }
+.dash-bento > .dash-tile-hero > .dash-working { grid-area: working; }
 
 .dash-tile-hero     { grid-area: hero; }
 .dash-tile-upnext   { grid-area: upnext; }
@@ -20827,6 +20864,7 @@ html.has-bg.bg-light .dash-bento .dash-inline-link {
    grid-template-areas grid that loses its columns and keeps its areas places
    every tile in row one. */@media (max-width: 1100px) {
   .dash-bento {
+    grid-template-rows: none;
     grid-template-columns: repeat(2, 1fr);
     grid-template-areas:
       "hero     hero"
@@ -20838,6 +20876,7 @@ html.has-bg.bg-light .dash-bento .dash-inline-link {
   }
 }@media (max-width: 720px) {
   .dash-bento {
+    grid-template-rows: none;
     grid-template-columns: 1fr;
     grid-template-areas:
       "hero" "upnext" "overdue" "goals" "blocking" "due" "time";
@@ -23885,3 +23924,130 @@ html.has-bg.bg-light .pro-preview-content .pp-section-header-collapsible {
    WHAT REMAINS HERE: only ruling 32's one argument, in newtab.js, which is a
    clean win and is measured as one.
    ========================================================================= */
+/* =========================================================================
+   [DP2 2026-11-08] ROOM TO READ: TITLES THAT SAY WHAT A TILE IS, AND SPACE
+   BETWEEN THINGS
+
+   Samson, on Dashboard, Insights and Tasks: "too cramped and stuck together",
+   "doesn't read and flow too well", and the tile titles are so small that
+   "you don't really know what you're looking at". Three changes, each the
+   smallest that answers one of those:
+
+   1. THE TITLE IS 15px AT 600 IN THE TILE'S OWN EYEBROW INK. It was 12px
+      (--fs-11). The ink is unchanged - each tint still lifts its own colour to
+      text weight, ruling H0 - only the size and the line height move
+      (--eyebrow-lh 16px -> 20px, tokens.css). The size is declared on
+      .tile-eyebrow itself, above, as a ramp token, so the text-size setting
+      still scales it and check-text-size can still read it.
+
+   2. A SECOND LINE, .tile-sub, FOR THE WINDOW. A title that carried its range
+      ("Time by tag · last 30 days") was two facts in one small run. The
+      subject is the title; the window sits beneath it in the tile's quiet ink
+      at 13px. First letter capitalised here rather than in the catalogue,
+      because the same range label is also used mid-sentence.
+
+   3. --gap 14px -> 24px (tokens.css), on the 8px spacing scale. One value for
+      every bento, so the three tabs and Settings move together and nothing
+      has to remember a local override.
+
+   INSIGHTS ALSO CHANGES SHAPE: story order, content-height rows. The order and
+   its reasons are in renderInsightsTab; the rules that make it hold are here.
+   ========================================================================= */
+
+.span-4 { grid-column: span 4; }
+
+.tile-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tile-sub {
+  font-size: var(--fs-12);
+  line-height: 18px;
+  font-weight: 400;
+  color: var(--ink-mute);
+}
+.tile-sub::first-letter { text-transform: uppercase; }
+
+/* ---- INSIGHTS, STORY ORDER ------------------------------------------------
+
+   ROWS ARE CONTENT HEIGHT. The 176px --row-h grid is what made every tile the
+   same size whatever it held, and what forced FIX-1's cell arithmetic. Here a
+   row is 2 + 2 or 4, so it cannot leave a hole, and `auto` lets each row be
+   as tall as its taller tile. The preview uses the same rules so it shows the
+   board the product has. */
+
+html.has-bg .insights-tab .ins-bento.ins-story,
+.ins-bento-preview.ins-story {
+  grid-auto-rows: auto;
+}
+html.has-bg .insights-tab .ins-bento.ins-story > .tile,
+.ins-bento-preview.ins-story > .tile {
+  grid-row: auto;
+  justify-content: flex-start;
+  gap: var(--space-4);
+}
+/* The two v1/FIX-1 span rules for these cards are more specific than a span
+   class, so they are beaten by name rather than by !important. */
+html.has-bg .insights-tab .ins-bento.ins-story .ins-weekly { grid-column: span 2; grid-row: auto; }
+html.has-bg .insights-tab .ins-bento.ins-story .ins-heat-card { grid-column: span 4; grid-row: auto; }
+html.has-bg .insights-tab .ins-bento.ins-story .ins-achievements { grid-column: span 4; grid-row: auto; }
+
+/* THE HERO: the total and its context on one line, the bars beneath at a
+   fixed height. The figure, best day and daily average used to sit two rows
+   below the bars they summarise, in a different tile. */
+html.has-bg .insights-tab .ins-story .ins-hero .ins-hero-head,
+.ins-bento-preview.ins-story .ins-hero .ins-hero-head {
+  flex-direction: row;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+}
+html.has-bg .insights-tab .ins-story .ins-hero-meta {
+  font-size: var(--fs-13);
+  gap: var(--space-2) var(--space-6);
+}
+html.has-bg .insights-tab .ins-story .ins-hours-chart {
+  flex: 0 0 auto;
+  height: 200px;
+  margin-top: 0;
+}
+html.has-bg .insights-tab .ins-story .ins-hours-axis { margin-top: calc(-1 * var(--space-2)); }
+
+/* THE HEATMAP AT FULL WIDTH. Square cells across the whole board would be
+   about 46px and make it 340px tall; a fixed 26px row keeps seven days and
+   the ruler in about 220px, and the hours stay as wide as the board. */
+html.has-bg .insights-tab .ins-story .ins-heat-cell,
+.ins-bento-preview.ins-story .ins-heat-cell {
+  aspect-ratio: auto;
+  height: 26px;
+}
+
+/* Lists breathe: a little more room per row on the two list tiles. */
+html.has-bg .insights-tab .ins-story .insights-task-list,
+.ins-bento-preview.ins-story .insights-task-list { row-gap: var(--space-2); }
+
+/* Below the stacking width the board is one column, and so is every tile. */
+@media (max-width: 900px) {
+  html.has-bg .insights-tab .ins-bento.ins-story,
+  .ins-bento-preview.ins-story { grid-template-columns: 1fr; }
+  html.has-bg .insights-tab .ins-bento.ins-story > .tile,
+  .ins-bento-preview.ins-story > .tile,
+  html.has-bg .insights-tab .ins-bento.ins-story .ins-weekly,
+  html.has-bg .insights-tab .ins-bento.ins-story .ins-heat-card,
+  html.has-bg .insights-tab .ins-bento.ins-story .ins-achievements { grid-column: 1 / -1; }
+}
+
+/* ---- TASKS: THE LABELS STOP SHOUTING ---------------------------------------
+
+   OVERDUE / GOALS / RECURRING and ACTIVE GOALS were the last all-caps labels
+   on the three tabs. design-guide 3.4 and 6 ask for sentence case, and at
+   15px the case was the only thing left making them louder than the numbers
+   they label. The section title takes the same 15px. */
+html.has-bg .tasks-split .tt2-count .tile-eyebrow { letter-spacing: 0; text-transform: none; }
+html.has-bg .tasks-split .tt-section-title {
+  font-size: var(--fs-14);
+  letter-spacing: 0;
+  text-transform: none;
+}

@@ -451,7 +451,7 @@ html.text-size-large {
 
   /* ---- SPACING. Names from tokens.json. --page is a shorthand pair
      (vertical horizontal) because that is how the artifact states it. ---- */
-  --gap: 14px;                           /* THE grid gap. One value. */
+  --gap: 24px;                           /* THE grid gap. One value. 14 until DP2 (2026-11-08). */
   --tile-pad: 24px;                      /* tile padding, vertical */
   --tile-pad-x: 26px;                    /* tile padding, horizontal */
   --row: 8px;                            /* vertical padding on a list row */
@@ -511,7 +511,7 @@ html.text-size-large {
      mapping written down, not a second source. */
   --body-size: var(--fs-13);   --body-lh: 20px;  --body-weight: 400;   /* 14px at medium */
   --meta-size: var(--fs-12);   --meta-lh: 18px;  --meta-weight: 500;   /* 13px at medium */
-  --eyebrow-size: var(--fs-11);--eyebrow-lh: 16px; --eyebrow-weight: 600;/* 12px at medium */
+  --eyebrow-size: var(--fs-11);--eyebrow-lh: 20px; --eyebrow-weight: 600;/* 12px at medium */
   --hint-size: var(--fs-10);   --hint-lh: 14px;  --hint-weight: 600;   /* 11px at medium */
 }
 

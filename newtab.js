@@ -3267,6 +3267,25 @@
   // the demo label rides there rather than on a card title - and it is one
   // helper for the same reason previewLabelHtml is: a second spelling is a
   // seventh card nobody labelled.
+  // [DP2] A TILE HEAD: the title, then an optional second line in quieter ink.
+  // The title says what the tile is; the second line says over what window
+  // or span. subText is PLAIN TEXT and is escaped here, because the callers
+  // pass a range label or a weekday span built from t(), not from th().
+  function insightsTileHeadHtml(titleHtml, subText) {
+    return '<div class="tile-head">' +
+        '<div class="tile-eyebrow">' + titleHtml + '</div>' +
+        (subText ? '<div class="tile-sub">' + escapeHtml(subText) + '</div>' : "") +
+      '</div>';
+  }
+
+  // The same head on a preview tile, with the demo label riding the title row.
+  function previewTileHeadHtml(titleHtml, subText) {
+    return '<div class="tile-head">' +
+        previewTileEyebrowHtml(titleHtml) +
+        (subText ? '<div class="tile-sub">' + escapeHtml(subText) + '</div>' : "") +
+      '</div>';
+  }
+
   function previewTileEyebrowHtml(titleHtml) {
     return '<div class="tile-eyebrow">' + titleHtml + previewLabelHtml() + '</div>';
   }
@@ -3727,6 +3746,7 @@
     }, t("insights_last_30_days"));
 
     var wkHtml = insightsWeeklyHtml({
+      spanInHead: true,
       spanLabel: th("insights_wk_preview_span"),
       hasPrev: true,
       focusedNow: 12 * 3600000 + 40 * 60000, focusedPrev: 11 * 3600000 + 55 * 60000,
@@ -3749,14 +3769,12 @@
         '<span class="insights-range-static">' + th("insights_last_30_days") + '</span>' +
         '<p class="insights-range-note">' + previewLabelHtml() + '</p>' +
       '</div>' +
-      '<div class="bento ins-bento-preview">' +
-      '<div class="tile tile--hero span-2x2 ins-hero pp-demo-tile">' +
-        // [insights-rhythm] THE RANGE IS NAMED ONCE PER CARD. The title read
-        // "Deep Work \u00b7 last 30 days" with "last 30 days" printed again
-        // beneath the numeral, in a card whose whole job is one figure. The
-        // range stays on the FIGURE, because that is the label a reader needs
-        // where they are actually looking; the eyebrow keeps the subject.
-        previewTileEyebrowHtml(th("insights_deep_work")) +
+      // [DP2] THE PREVIEW TELLS THE SAME STORY IN THE SAME ORDER as the live
+      // board (see renderInsightsTab): a demo of a layout the product no longer
+      // has is worse than no demo.
+      '<div class="bento ins-bento-preview ins-story">' +
+      '<div class="tile tile--hero span-4 ins-hero pp-demo-tile">' +
+        previewTileHeadHtml(th("insights_deep_work"), "") +
         '<div class="ins-hero-head">' +
           '<div class="ins-hero-lead">' +
             '<span class="dash-hero-num">32h</span>' +
@@ -3775,30 +3793,28 @@
         '</div>' +
         '<div class="ins-hero-chart">' + trendSvg + '</div>' +
       '</div>' +
-
-        '<div class="tile tile--goals span-1x2 ins-peer pp-demo-tile">' +
-          previewTileEyebrowHtml(th("insights_time_by_tag_last_30_days")) +
+        '<div class="tile tile--goals span-2 ins-peer pp-demo-tile">' +
+          previewTileHeadHtml(th("insights_time_by_tag"), t("insights_last_30_days")) +
           '<div class="pp-donut-row">' + donutSvg + '<div class="pp-donut-legend">' + donutLegend + '</div></div>' +
         '</div>' +
         '<div class="tile tile--list span-2 ins-peer pp-demo-tile">' +
-          previewTileEyebrowHtml(th("insights_preview_by_site")) +
+          previewTileHeadHtml(th("insights_time_by_site"), t("insights_last_30_days")) +
           '<div class="insights-task-list insights-site-list">' + demoRowsHtml(DEMO_PREVIEW_SITES) + '</div>' +
         '</div>' +
-        '<div class="tile tile--list span-1x2 ins-peer pp-demo-tile">' +
-          previewTileEyebrowHtml(th("insights_preview_top_tasks")) +
+        '<div class="tile tile--list span-2 ins-peer pp-demo-tile">' +
+          previewTileHeadHtml(th("insights_top_tasks"), t("insights_last_30_days")) +
           '<div class="insights-task-list">' + demoRowsHtml(DEMO_PREVIEW_TASKS) + '</div>' +
         '</div>' +
-
-        '<div class="tile tile--list span-2x2 ins-heat-card pp-demo-tile">' +
-          previewTileEyebrowHtml(th("insights_heat_title")) +
-          heatHtml +
-        '</div>' +
         '<div class="tile tile--blocking span-2 ins-weekly pp-demo-tile">' +
-          previewTileEyebrowHtml(th("insights_wk_title")) +
+          previewTileHeadHtml(th("insights_wk_title"), t("insights_wk_preview_span")) +
           wkHtml +
         '</div>' +
+        '<div class="tile tile--list span-4 ins-heat-card pp-demo-tile">' +
+          previewTileHeadHtml(th("insights_heat_title"), "") +
+          heatHtml +
+        '</div>' +
       '<div class="tile tile--overdue span-4 pp-demo-tile">' +
-        previewTileEyebrowHtml(th("insights_achievements")) +
+        previewTileHeadHtml(th("insights_achievements"), "") +
         '<div class="pp-badge-grid">' + badgesHtml + '</div>' +
       '</div>' +
       '</div>';
@@ -4044,7 +4060,8 @@
     // count is a label rather than a finding - nobody comes to this board to
     // read "1/6" at 40px. In the eyebrow it is still on screen, still first,
     // and costs no height at all.
-    return '<div class="tile tile--overdue span-2 ins-achievements">' +
+    // [DP2] span-4: the last row of the story-order board, on its own.
+    return '<div class="tile tile--overdue span-4 ins-achievements">' +
         '<div class="tile-eyebrow">' + th("insights_achievements") +
           '<span class="ins-ach-of">' + earnedCount + '/' + INSIGHTS_BADGES.length + '</span>' +
         '</div>' +
@@ -4138,98 +4155,55 @@
         // DOM ORDER IS THE TILING. Auto-placement is sparse and never
         // backtracks, so the order below is the only one that fills row 4's
         // first two columns with the site list rather than leaving them empty.
-        '<div class="bento ins-bento">' +
-        // THE HOURS/DAY TILE IS ITS OWN NOW. It was the hero's lower half - one
-        // card carrying a figure and a chart - and board 6 splits them, which is
-        // the change that lets the bars fill 366px instead of sharing 240 with a
-        // display numeral. The hook is the same; only its host moved.
-        '<div class="tile tile--list span-2x2 ins-hours">' +
-          '<div class="tile-eyebrow">' + th("insights_hours_day") + '</div>' +
-          '<div class="ins-hours-chart" data-ins-hours></div>' +
-          // [FIX-1] THE AXIS IS HTML NOW, and that is what lets the bars fill
-          // the tile. The two labels were <text> inside the SVG, which pinned
-          // the chart to a fixed 520x270 aspect: at 596px wide it rendered
-          // 288px tall inside a 318px box and the tallest bar reached 74% of
-          // it. Text cannot survive preserveAspectRatio="none"; rects can. So
-          // the labels come out, the SVG stretches to the box, and the bars
-          // are as tall as the tile is.
-          '<div class="ins-hours-axis" data-ins-hours-axis></div>' +
-        '</div>' +
-        // [FIX-1] BEST FOCUS HOURS LEADS THE BOARD BESIDE THE HOURS CHART, and
-        // it is 2x2 rather than 3x1. At 901x176 the grid needed 285px of
-        // content in 128px of inner height and rendered four of its eight rows;
-        // the other four painted straight out of the bottom of the tile, which
-        // is Samson's "the heatmap disappears off its tile". Two columns is
-        // NARROWER than three, and that is the fix rather than a cost: 31px
-        // cells across 24 hours is what made the grid 901px wide in the first
-        // place, and cells that size the whole grid to its tile fit seven rows
-        // and a ruler into a 2x2 with room over.
-        '<div class="tile tile--list span-2x2 ins-heat-card">' +
-          '<div class="tile-eyebrow">' + th("insights_heat_title") + '</div>' +
-          '<div data-ins-heat></div>' +
-        '</div>' +
-        // [FIX-1] DEEP WORK IS 2x1 AND FOLLOWS THE TWO CHARTS. It was the
-        // 2x2 hero and it is one figure with three sub-figures - Samson's
-        // "far too big for their data", and the measurement agrees: 596x366
-        // for a numeral and three stats. At 2x1 the three sit BESIDE the
-        // figure rather than under it, which is the shape the content had
-        // all along.
-        '<div class="tile tile--hero span-2 ins-hero">' +
-          // [insights-rhythm] ONE NAMING OF THE RANGE PER CARD. This title said
-          // "Deep Work \u00b7 last 30 days" and insightsStripHtml printed "last
-          // 30 days" again directly beneath the numeral, 56px lower - the same
-          // window named twice inside one card whose whole job is one figure.
-          //
-          // THE FIGURE KEEPS THE RANGE, NOT THE EYEBROW, and [1.8.6]'s own
-          // reasoning is why: "at --fs-12 beneath a display numeral the number
-          // is what gets read". The label that travels with the number is the
-          // one a reader actually uses; an eyebrow two tiers up is the one they
-          // scroll past. The three PEER cards keep the range in their titles
-          // because a list has no figure to hang it on - they name it once too.
-          //
-          // THE BOARD STILL NAMES THE RANGE SEVEN TIMES at the 30-day preset,
-          // counted from the DOM on the busy fixture rather than estimated: five
-          // visible (the active pill, this card's lead label, three peer titles)
-          // and two aria-labels (the trend chart, the donut). It was EIGHT before
-          // this line changed. Whether a board should name its window seven times
-          // is a surface-wide question for the canvas, not a rhythm fix; what
-          // this round removes is the one repetition that happened INSIDE a
-          // single card, where the two namings are 56px apart.
-          '<div class="tile-eyebrow">' + th("insights_deep_work") + '</div>' +
-          '<div class="ins-hero-head" data-ins-strip></div>' +
-        '</div>' +
-        '<div class="tile tile--goals span-1x2 ins-tag">' +
-          '<div class="tile-eyebrow">' + th("insights_time_by_tag_range", { range: rangeLabel }) + '</div>' +
-          '<div class="pp-donut-row" data-ins-donut></div>' +
-        '</div>' +
-        '<div class="tile tile--list span-1x2 ins-peer ins-tasks">' +
-          '<div class="tile-eyebrow">' + th("insights_top_tasks_range", { range: rangeLabel }) + '</div>' +
-          '<div class="insights-task-list" data-ins-toptasks></div>' +
-        '</div>' +
-        // TIME BY SITE IS TWO WIDE BECAUSE OF THE BAR. In a 291px tile the row
-        // is a name and a value with 90px of grid column between them that the
-        // bar never got - measured at ZERO pixels wide on the shipped board,
-        // because H2a set `display:none` on it outright. Reversed by ruling:
-        // the durations say how long, the bars say how the list is SHAPED, and
-        // at 596px both fit without either crowding the other.
-        '<div class="tile tile--list span-2x2 ins-peer ins-sites">' +
-          '<div class="tile-eyebrow">' + th("insights_time_by_site_range", { range: rangeLabel }) + '</div>' +
-          '<div class="insights-task-list insights-site-list" data-ins-topsites></div>' +
-        '</div>' +
-        // [1.8.3] ROW THREE. Design guide 4.2 puts the heatmap at span 8 and
-        // the weekly review at span 4. The heatmap is [1.8.5], and the space
-        // it will occupy is RESERVED RATHER THAN FILLED WITH A PLACEHOLDER -
-        // the [1.7.1] precedent for the ring and the this-week strip, which
-        // held their shape open so the band could be judged before they landed
-        // and did not jump when they did. A placeholder would have to be
-        // designed, then deleted, and would be the only thing on the board
-        // making a promise.
-        // THIS WEEK COMES BEFORE THE HEATMAP IN THE DOM so auto-placement puts
-        // it in column one and the 3-wide heatmap fills the rest of row four.
-        // Reversed, the heatmap would take columns 1-3 and this-week column 4,
-        // which is the same tiling and the wrong reading order - the violet
-        // stat is the summary and the heatmap is the detail beside it.
-        '<div class="tile tile--blocking span-2x2 ins-weekly" data-ins-weekly></div>' +
+        // [DP2 2026-11-08] STORY ORDER, ruled by Samson (option A of three).
+        // FIX-1's tiling above was correct arithmetic and the wrong reading
+        // order: the bars sat in one tile and their total in another two rows
+        // below, and the board read as a wall of equal tiles rather than as an
+        // answer. It now reads top to bottom:
+        //
+        //   r1   DEEP WORK - the total, its context and the bars     span 4
+        //   r2   TIME BY TAG             |  TIME BY SITE             2 + 2
+        //   r3   TOP TASKS               |  THIS WEEK VS LAST        2 + 2
+        //   r4   BEST FOCUS HOURS                                    span 4
+        //   r5   ACHIEVEMENTS                                        span 4
+        //
+        // ROWS ARE CONTENT HEIGHT, NOT --row-h (.ins-story in newtab.css).
+        // Every tile is one row tall, so a row is 2 + 2 or 4 and cannot leave
+        // a hole - the cell arithmetic FIX-1 had to do no longer exists. A
+        // pair stretches to the taller of its two tiles.
+        //
+        // EACH TITLE IS ITS SUBJECT, AND THE RANGE IS A SECOND LINE BENEATH
+        // IT (insightsTileHeadHtml). Samson: the titles were too small to say
+        // what a tile is for. "Time by tag · last 30 days" at 12px is two
+        // facts in one small run; "Time by tag" at 15px over "Last 30 days"
+        // is one fact each, in the order a reader needs them.
+        //
+        // Every data-ins-* hook is the one FIX-1 wired. Only hosts moved, so
+        // insightsRefresh fills the same hooks in the same two phases.
+        '<div class="bento ins-bento ins-story">' +
+          '<div class="tile tile--hero span-4 ins-hero ins-hours">' +
+            insightsTileHeadHtml(th("insights_deep_work"), "") +
+            '<div class="ins-hero-head" data-ins-strip></div>' +
+            '<div class="ins-hours-chart" data-ins-hours></div>' +
+            '<div class="ins-hours-axis" data-ins-hours-axis></div>' +
+          '</div>' +
+          '<div class="tile tile--goals span-2 ins-tag">' +
+            insightsTileHeadHtml(th("insights_time_by_tag"), rangeLabel) +
+            '<div class="pp-donut-row" data-ins-donut></div>' +
+          '</div>' +
+          '<div class="tile tile--list span-2 ins-peer ins-sites">' +
+            insightsTileHeadHtml(th("insights_time_by_site"), rangeLabel) +
+            '<div class="insights-task-list insights-site-list" data-ins-topsites></div>' +
+          '</div>' +
+          '<div class="tile tile--list span-2 ins-peer ins-tasks">' +
+            insightsTileHeadHtml(th("insights_top_tasks"), rangeLabel) +
+            '<div class="insights-task-list" data-ins-toptasks></div>' +
+          '</div>' +
+          '<div class="tile tile--blocking span-2 ins-weekly" data-ins-weekly></div>' +
+          '<div class="tile tile--list span-4 ins-heat-card">' +
+            insightsTileHeadHtml(th("insights_heat_title"), "") +
+            '<div data-ins-heat></div>' +
+          '</div>' +
         insightsAchievementsCardHtml(d) +
         '</div>'
       : "";
@@ -4312,8 +4286,9 @@
         });
 
     el.innerHTML =
-      '<div class="pp-dash-card-title">' + th("insights_wk_title") + '</div>' +
+      insightsTileHeadHtml(th("insights_wk_title"), spanLabel) +
       insightsWeeklyHtml({
+        spanInHead: true,
         spanLabel: spanLabel,
         hasPrev: hasPrev,
         focusedNow: sum(res[0]), focusedPrev: sum(res[1]),
@@ -4500,7 +4475,9 @@
         '</div>' +
       '</div>';
 
-    return '<p class="ins-wk-span">' + escapeHtml(w.spanLabel) + '</p>' +
+    // [DP2] The span is the tile's second line now (insightsTileHeadHtml), so a
+    // caller that put it there says so and it is not printed twice.
+    return (w.spanInHead ? "" : '<p class="ins-wk-span">' + escapeHtml(w.spanLabel) + '</p>') +
       (hasPrev ? "" : '<p class="ins-wk-noprior">' + th("insights_wk_no_prior") + '</p>') +
       '<div class="ins-wk-rows">' + rows + '</div>' + tops;
   }
