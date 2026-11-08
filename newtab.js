@@ -98,11 +98,30 @@
   var TRASH_SM_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
 
   // ===== Gallery Images =====
+  //
+  // [1.11.3] amended 2026-11-08 (POOL_NARROW, ruled on Asana 1219244709864881).
+  // `rotate: false` takes an entry out of AUTOMATIC rotation and nothing else:
+  // the picker reads this array directly and still offers all twelve, because
+  // a picture the user chooses is an explicit instruction and rotation is not.
+  // Two entries carry it, and the break is the widest gap in the 2026-10-07
+  // brightness census (each image painted full-screen at 1440x900 under the
+  // bg-image scrim, screenshots decoded, I13):
+  //
+  //   entry                       mean L   % of frame above L=0.18
+  //   safe_tropical_beach   [2]   0.1989   59.2
+  //   safe_northern_lights  [11]  0.1367   36.3
+  //   the other ten               .049-.109   4.5 - 18.0
+  //
+  // applyBackground gives a photograph bg-image and NO luminance class, so no
+  // html.bg-light override can rescue ink on a bright one; the text-shadow is
+  // the whole mitigation. The beach is also the ink sweep's own photo-light
+  // ground, the one its under-floor findings are measured on. Rotation used
+  // to deliver it one day in twelve, unasked.
 
   var GALLERY_IMAGES = [
     { url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920", thumb: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=250&fit=crop", labelKey: "safe_mountains" },
     { url: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1920", thumb: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&h=250&fit=crop", labelKey: "safe_foggy_forest" },
-    { url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920", thumb: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=250&fit=crop", labelKey: "safe_tropical_beach" },
+    { url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920", thumb: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=250&fit=crop", labelKey: "safe_tropical_beach", rotate: false },
     { url: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1920", thumb: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&h=250&fit=crop", labelKey: "safe_starry_mountain" },
     { url: "https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=1920", thumb: "https://images.unsplash.com/photo-1477346611705-65d1883cee1e?w=400&h=250&fit=crop", labelKey: "safe_sunset_mountains" },
     { url: "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=1920", thumb: "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=400&h=250&fit=crop", labelKey: "safe_green_valley" },
@@ -111,7 +130,7 @@
     { url: "https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=1920", thumb: "https://images.unsplash.com/photo-1495616811223-4d98c6e9c869?w=400&h=250&fit=crop", labelKey: "safe_sunrise_field" },
     { url: "https://images.unsplash.com/photo-1534088568595-a066f410bcda?w=1920", thumb: "https://images.unsplash.com/photo-1534088568595-a066f410bcda?w=400&h=250&fit=crop", labelKey: "safe_ocean_wave" },
     { url: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1920", thumb: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=250&fit=crop", labelKey: "safe_dramatic_peaks" },
-    { url: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=1920", thumb: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=400&h=250&fit=crop", labelKey: "safe_northern_lights" }
+    { url: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=1920", thumb: "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=400&h=250&fit=crop", labelKey: "safe_northern_lights", rotate: false }
   ];
 
   // [1.0.19 D11] The first-paint default. Was "color:#f5f5f5" — an abrasive
@@ -24197,7 +24216,14 @@
   // no new destination and no new disclosure - it makes an existing one recur.
   // A user who never turns rotation on never touches it, which is why it is off
   // by default.
-  var GALLERY_URLS = GALLERY_IMAGES.map(function (g) { return g.url; });
+  //
+  // THE ROTATION POOL IS THE GALLERY MINUS ITS `rotate: false` ENTRIES (see the
+  // census at GALLERY_IMAGES). This array is consumed by resolveBackground and
+  // nothing else; the picker reads GALLERY_IMAGES, so narrowing it here leaves
+  // every picture choosable.
+  var GALLERY_URLS = GALLERY_IMAGES
+    .filter(function (g) { return g.rotate !== false; })
+    .map(function (g) { return g.url; });
   var currentBgSource = "global";
 
   async function loadBackground() {

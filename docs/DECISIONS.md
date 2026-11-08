@@ -4475,3 +4475,19 @@ ruled surface.
 a named list, never a count. It has six selected states, four links, and one
 control listed OPEN (`.pro-tag-restore`) rather than given a reason that is not
 true.
+
+## 2026-11-08, Round W commit 1: the rotation pool narrows to the ten dark gallery images
+
+**[1.11.3] amended 2026-11-08: automatic rotation draws from the ten dark gallery
+images; the picker keeps all twelve.** Ruled by Samson on Asana 1219244709864881
+(POOL_NARROW yes, Claude Chat's lean). `safe_tropical_beach` [2] and
+`safe_northern_lights` [11] carry `rotate: false` on `GALLERY_IMAGES`, and
+`GALLERY_URLS`, which only `resolveBackground` reads, is the gallery filtered on it.
+The 2026-10-07 census put them at mean L 0.1989 / 0.1367 and 59.2% / 36.3% of frame
+above L=0.18, against 4.5 to 18.0% for the other ten: the widest gap in the
+distribution. A photograph carries no luminance class, so nothing rescues ink on a
+bright one, and the beach is the ink sweep's own photo-light ground.
+
+**It is its own commit so it can be reverted alone.** It changes no one's settings,
+but it does change which picture an existing rotation user sees on a given day,
+because the day index is taken modulo a pool of ten instead of twelve.
