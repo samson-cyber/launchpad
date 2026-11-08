@@ -568,6 +568,23 @@ export const EXPECTED_UNREFERENCED = [
             "a favicon fails to load."
   },
   {
+    p: "assets/wallpapers/default.webp",
+    reason: "The fresh-install default wallpaper (Round W, ruled 2026-11-08, route A1). " +
+            "Referenced ONLY from JavaScript, as FRESH_INSTALL_BG in newtab.js, which " +
+            "loadBackground writes into the background record and applyBackground paints " +
+            "as a CSS url(). Invisible to an HTML attribute extractor for the same reason " +
+            "as assets/placeholder.svg. Deleting it would paint a fresh install's first " +
+            "new tab as a missing image over no colour, with bg-image and no luminance class."
+  },
+  {
+    p: "assets/wallpapers/CREDITS.md",
+    reason: "Provenance for default.webp beside it: the Unsplash photo id, the " +
+            "photographer and the Unsplash License line. The licence does not require " +
+            "attribution, so this is a record rather than a legal obligation like " +
+            "fonts/OFL.txt; it ships because 'assets' is allowlisted as a directory and " +
+            "the credit belongs with the file it describes. Nothing loads it."
+  },
+  {
     p: "privacy-policy.html",
     reason: "Ships for the Chrome Web Store listing and is served from GitHub Pages. " +
             "Settings links the HOSTED absolute URL, so no local reference to this file " +

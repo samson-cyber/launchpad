@@ -3311,6 +3311,40 @@ var Storage = (function () {
     }
   }
 
+  // [Round W, 2026-11-08] THE FRESH-INSTALL DISCRIMINATOR, and the reason it is
+  // a second reader rather than a flag on getBackgroundConfig. That reader
+  // normalises absence away - a profile with no record and one whose record
+  // says global:null come back identical - so a fresh install cannot be told
+  // from an existing profile through it. This one reads the RAW key once and
+  // returns both: the normalised config, and whether a record exists at all.
+  //
+  // exists IS THREE-VALUED ON PURPOSE. true and false are answers; null means
+  // the read FAILED, and a caller must treat that as "not fresh". A transient
+  // storage error read as "never written" would paint the fresh-install
+  // default over an existing user's wallpaper and then persist it.
+  //
+  // fresh NEEDS A SECOND WITNESS, and the background key cannot be it. An
+  // existing profile can have no background record (one that predates the
+  // self-heal write, or one seeded that way to test it), and that profile must
+  // self-heal to #2a2a2a, not wake up to a photograph. So fresh also requires
+  // that launchpad_onboarding is unset: the first-run latch, set at the end of
+  // the FIRST new tab's init (after loadBackground) and true on every existing
+  // install (see setOnboardingComplete). The `data` key cannot serve: getAll
+  // writes it on its first read, and the service worker can do that on install
+  // before any tab opens. Both keys come from ONE get, so they cannot disagree.
+  async function readBackgroundState() {
+    try {
+      var r = await chrome.storage.local.get(["launchpad_background", "launchpad_onboarding"]);
+      var has = Object.prototype.hasOwnProperty.call(r, "launchpad_background") &&
+        r.launchpad_background !== undefined && r.launchpad_background !== null;
+      var latched = !!r.launchpad_onboarding;
+      return { cfg: normalizeBackground(r.launchpad_background), exists: has, fresh: !has && !latched };
+    } catch (err) {
+      console.error("[LaunchPad] Background read failed:", err);
+      return { cfg: normalizeBackground(null), exists: null, fresh: false };
+    }
+  }
+
   async function saveBackgroundConfig(cfg) {
     try {
       var normalized = normalizeBackground(cfg);
@@ -10687,6 +10721,7 @@ var Storage = (function () {
     saveBackground: saveBackground,
     normalizeBackground: normalizeBackground,
     getBackgroundConfig: getBackgroundConfig,
+    readBackgroundState: readBackgroundState,
     saveBackgroundConfig: saveBackgroundConfig,
     resolveBackground: resolveBackground,
     rotationIndex: rotationIndex,

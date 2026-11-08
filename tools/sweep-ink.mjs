@@ -449,12 +449,18 @@ const DARK_PHOTO = "data:image/png;base64," + png(240, 150, (x, y) => {
   return [clamp(b - 4), clamp(b), clamp(b + 10)];
 }).toString("base64");
 
+// [Round W, 2026-11-08] `none` is the SELF-HEAL default now, not what a fresh
+// install sees: that is `fresh-default`, the bundled photograph, which takes the
+// image path (bg-image, no luminance class) like the two synthetic photos. A
+// relative path, exactly as the product stores it, so the sweep paints the same
+// file through the same writer a fresh install does.
 const GROUNDS = [
-  { key: "none",        bg: "color:#2a2a2a", note: "the shipped default (#2a2a2a -> bg-dark)" },
+  { key: "none",        bg: "color:#2a2a2a", note: "the self-heal default (#2a2a2a -> bg-dark)" },
   { key: "solid-dark",  bg: "color:#1e3a5f", note: "a dark colour preset" },
   { key: "solid-light", bg: "color:#f5f5f5", note: "a light colour preset -> bg-light" },
   { key: "photo-dark",  bg: DARK_PHOTO,      note: "a dark photograph -> bg-image, no luminance class" },
   { key: "photo-light", bg: LIGHT_PHOTO,     note: "a LIGHT photograph -> bg-image, STILL no luminance class" },
+  { key: "fresh-default", bg: "assets/wallpapers/default.webp", note: "the fresh-install default, a bundled dark photograph -> bg-image" },
 ];
 
 // [ROUND E] EVERY SURFACE NAMES ITS TIER, and the free preview is a target

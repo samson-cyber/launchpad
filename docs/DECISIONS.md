@@ -4491,3 +4491,47 @@ bright one, and the beach is the ink sweep's own photo-light ground.
 **It is its own commit so it can be reverted alone.** It changes no one's settings,
 but it does change which picture an existing rotation user sees on a given day,
 because the day index is taken modulo a pool of ten instead of twelve.
+
+## 2026-11-08, Round W commit 2: a fresh install opens on a bundled photograph
+
+**A fresh install's first new tab shows the bundled assets/wallpapers/default.webp
+(ruled 2026-11-08, route A1); rotation stays off by default. This reopens [1.10.0]
+decision 2 ('a fresh profile is unchanged') for this one default, deliberately.
+Existing profiles are untouched; the self-heal default stays #2a2a2a.**
+
+**The image.** Gallery entry [4] `safe_sunset_mountains`, Unsplash `JgOeRuGD_Y4` by
+John Towner, CDN id `photo-1477346611705-65d1883cee1e`. Chosen on the brief's three
+criteria in order: it has the lowest share of frame above L=0.18 of the ten dark
+entries, by more than the 2-point tie margin; it is a landscape with no people,
+text or buildings; and its centre, where the greeting, search and tiles sit, is
+the quietest of the twelve. Re-encoded from the w=1920 source to WebP at quality
+80, 1920x1281, 111,312 bytes. Credit in `assets/wallpapers/CREDITS.md`.
+
+**What "fresh" means, and why it takes two witnesses.** The raw
+`launchpad_background` key never written, AND the first-run latch
+`launchpad_onboarding` unset, read in one `get` (`Storage.readBackgroundState`).
+The background key alone cannot tell a fresh install from an existing profile that
+has no record, and that profile must self-heal to #2a2a2a. The latch is set at the
+end of the first new tab's init, after `loadBackground`, and is true on every
+existing install. The `data` key cannot serve: `getAll` writes it on its first
+read. A failed read is treated as not fresh.
+
+**Three things moved with it, each because the photograph is not `DEFAULT_BG`.**
+The Getting-Started retro-tick treated any non-`DEFAULT_BG` wallpaper as "you set
+a background" and would have ticked step 6 on every fresh install. A backup
+restore carrying no wallpaper removed the key; it now writes `DEFAULT_BG`, which is
+where remove-then-self-heal already landed. And `sweep-ink` gained a
+`fresh-default` ground, because `none` (#2a2a2a) is no longer what a new user sees.
+
+**[1.0.19 D11]'s two reasons, re-weighed for this one default.** Reason 1, first
+paint depending on a third-party fetch, no longer applies: the file is local, so
+the published privacy wording stands untouched and offline paints the image.
+Reason 2, a photograph carries no luminance class, is accepted on this image and
+was measured: sweep-ink on Home and its floaters, same tree, three grounds, 278 distinct
+nodes each: #2a2a2a 17 under floor, the dark photo 15, this image 15, and NONE
+under on this image that is not already under on #2a2a2a. The count hides one
+thing worth naming: `.home-greeting-date`, under floor everywhere, falls from
+3.79 (#2a2a2a) and 4.13 (dark photo) to 2.88 here, and `.home-greeting-text`
+reads 3.05 against its 3.0 floor. The greeting sits on the lighter sky at the
+top of the frame. Recorded on Asana 1219244709864881 as a finding for a later
+ink round, not fixed here.

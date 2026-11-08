@@ -146,17 +146,46 @@
   // own base is rgba(30,30,30,...) — #2a2a2a sits alongside that as one
   // continuous dark-glass system.
   //
-  // Deliberately NOT a gallery image: all twelve GALLERY_IMAGES entries are
-  // remote Unsplash URLs, so an image default would make first paint depend on
-  // a third-party fetch, and the image path adds bg-image with NEITHER
-  // luminance class — every html.bg-light override would silently stop
-  // applying. See the [1.0.19] POLISH UNBLOCK.
+  // Deliberately NOT a gallery image, for two reasons. All twelve
+  // GALLERY_IMAGES entries are remote Unsplash URLs, so an image default would
+  // make first paint depend on a third-party fetch; and the image path adds
+  // bg-image with NEITHER luminance class, so every html.bg-light override
+  // would silently stop applying. See the [1.0.19] POLISH UNBLOCK.
   //
-  // Scope: this value reaches users ONLY through loadBackground's self-heal
-  // (record falsy or "__none__"). Nothing migrates persisted records, so every
-  // existing user — including anyone who persisted the old #f5f5f5 — is
-  // untouched.
+  // [Round W, ruling 2026-11-08, route A1] THIS IS NOW THE SELF-HEAL VALUE
+  // ONLY. A FRESH INSTALL's first new tab paints FRESH_INSTALL_BG below, a
+  // photograph bundled inside the extension. The two reasons above were
+  // re-weighed for that one default, not overturned:
+  //   1. Third-party fetch: NO LONGER APPLIES to it. The file ships in the zip,
+  //      so first paint and the offline case both read a local asset, and the
+  //      published privacy wording ("if you choose a wallpaper from the
+  //      built-in gallery...") stays true without an edit.
+  //   2. No luminance class on bg-image: ACCEPTED on this image, because it is
+  //      the darkest of the twelve and the ink sweep measured Home on it
+  //      against #2a2a2a in Round W (figures in DECISIONS.md, 2026-11-08, and
+  //      on Asana 1219244709864881). It does not apply to a gallery photo a
+  //      user picks; that remains the user's choice.
+  //
+  // Scope: DEFAULT_BG reaches users through loadBackground's self-heal
+  // (record present but resolving to nothing, or "__none__") and through
+  // Remove. Nothing migrates persisted records, so every existing user,
+  // including anyone who persisted the old #f5f5f5, is untouched, and nobody
+  // currently on #2a2a2a wakes up to a photograph.
   var DEFAULT_BG = "color:#2a2a2a";
+
+  // [Round W] THE FRESH-INSTALL DEFAULT. A RELATIVE path, on purpose: the
+  // extension id differs between the store build and every unpacked load, so
+  // an absolute chrome-extension:// URL written into the record would point at
+  // nothing after a backup is restored on another install. Relative to
+  // newtab.html it resolves to this install's own copy. Same-extension, so it
+  // needs no web_accessible_resources entry, and img-src 'self' admits it.
+  //
+  // Used ONLY where the raw launchpad_background key has never been written
+  // and the first-run latch is unset (Storage.readBackgroundState's `fresh`,
+  // which says why it needs both). It is the default,
+  // not a thirteenth gallery entry: the picker does not list it, and rotation
+  // never draws it. Source and licence: assets/wallpapers/CREDITS.md.
+  var FRESH_INSTALL_BG = "assets/wallpapers/default.webp";
   var COLOR_PRESETS = [
     { value: "color:#f5f5f5", labelKey: "safe_light_gray" },
     { value: "color:#ffffff", labelKey: "safe_white" },
@@ -14890,8 +14919,9 @@
     // content heuristic alone would re-seed a user who deleted everything,
     // repeatedly. Together: seed exactly once, for genuinely new installs.
     //
-    // No background is written here — loadBackground above already substitutes
-    // and persists DEFAULT_BG when no record exists (P8).
+    // No background is written here: loadBackground above already substitutes
+    // and persists a record when none resolves (P8) - FRESH_INSTALL_BG on a
+    // genuinely fresh install, DEFAULT_BG on an existing profile (Round W).
     bindActiveTaskEngine();
     var onboardingDone = await Storage.getOnboardingComplete();
     if (!onboardingDone && Bookmarks.isFirstRun(data)) {
@@ -15026,7 +15056,10 @@
     // non-default background is persisted for step 6. Guarded by retroDone; step
     // 2 (right-click) never retro-ticks.
     try {
-      if (Storage.retroTickGettingStarted(data, { hasNonDefaultBackground: !!(currentBg && currentBg !== DEFAULT_BG) })) {
+      // [Round W] FRESH_INSTALL_BG is a default too. Without it every fresh
+      // install would have "Set a background" ticked for a wallpaper it never
+      // chose, because the bundled photograph is not DEFAULT_BG.
+      if (Storage.retroTickGettingStarted(data, { hasNonDefaultBackground: !!(currentBg && currentBg !== DEFAULT_BG && currentBg !== FRESH_INSTALL_BG) })) {
         await Storage.saveAll(data);
         refreshGettingStartedIfOpen();
       }
@@ -19253,7 +19286,12 @@
       var s = parsed.stores;
       await chrome.storage.local.set({ data: s.data });
       if (s.launchpad_background !== undefined) {
-        await Storage.saveBackground(s.launchpad_background);
+        // [Round W] A file that carries NO wallpaper (null) writes DEFAULT_BG
+        // rather than removing the key. Removing it would make the next open
+        // read as a fresh install and paint the bundled photograph over a
+        // profile that was on #2a2a2a. Writing DEFAULT_BG lands exactly where
+        // the old remove-then-self-heal did, one step sooner.
+        await Storage.saveBackground(s.launchpad_background || DEFAULT_BG);
       }
 
       // The engine stores go through the engine's own queue, which also closes
@@ -24227,12 +24265,29 @@
   var currentBgSource = "global";
 
   async function loadBackground() {
-    var cfg = await Storage.getBackgroundConfig();
+    var state = await Storage.readBackgroundState();
+    var cfg = state.cfg;
     var res = Storage.resolveBackground(cfg, data && data.activeWorkspaceId, GALLERY_URLS);
     var bgData = res.bg;
     if (!bgData || bgData === "__none__") {
-      bgData = DEFAULT_BG;
-      cfg.global = DEFAULT_BG;
+      // [Round W] TWO BRANCHES THAT USED TO BE ONE. A FRESH install (no
+      // background record ever written AND the first-run latch unset; see
+      // Storage.readBackgroundState for why it takes both) gets the bundled
+      // photograph. Everything else self-heals to #2a2a2a exactly as before:
+      // a record that resolves to nothing, an existing profile with no record,
+      // and a failed read, which is the safe answer when we cannot tell.
+      //
+      // EITHER WAY A FULL RECORD IS WRITTEN HERE, {v, global, rotate, ws}, so
+      // the second open is not a fresh install and the OB audit's note
+      // ("launchpad_background is written at first paint") stays true.
+      // Rotation is written OFF: route A1 makes no network fetch at first paint.
+      //
+      // BELT AND BRACES: nothing REMOVES the key after it has been written.
+      // Storage.saveBackground(null) is the only remover, and its one caller
+      // (the backup restore) now writes DEFAULT_BG instead, so "never written"
+      // stays true to its name even before the latch is consulted.
+      bgData = state.fresh === true ? FRESH_INSTALL_BG : DEFAULT_BG;
+      cfg.global = bgData;
       await Storage.saveBackgroundConfig(cfg);
       res = { bg: bgData, source: "global" };
     }
