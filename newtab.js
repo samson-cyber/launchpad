@@ -21712,9 +21712,25 @@
   // Restore examples re-seeds the same content, and that button carries its own
   // gate on examples already being present, which is a correctness guard rather
   // than a nag and stays.
+  // [FR follow-up, Samson 2026-11-08: "it could pulse slightly to highlight"]
+  // THREE SOFT PULSES PER PAGE LOAD, THEN STILL. Finite on purpose: the
+  // product carries one indefinite animation (the Pro CTA) and this is not a
+  // second. The pulse is pinned to PAGE TIME, not to the element: render()
+  // rebuilds this markup whenever data changes, and a CSS animation on a fresh
+  // element starts from zero, so a re-render during boot would restart it. A
+  // negative animation-delay carries the same timeline into the new element,
+  // and once the window has passed the class is simply not emitted.
+  var DEMO_CLEAR_PULSE_START_MS = 900;
+  var DEMO_CLEAR_PULSE_TOTAL_MS = 3 * 1800;   // matches .demo-clear.is-pulsing
+  function demoClearPulseAttrs() {
+    var now = (window.performance && performance.now) ? performance.now() : 0;
+    if (now >= DEMO_CLEAR_PULSE_START_MS + DEMO_CLEAR_PULSE_TOTAL_MS) return "";
+    return ' is-pulsing" style="animation-delay:' + Math.round(DEMO_CLEAR_PULSE_START_MS - now) + 'ms';
+  }
+
   function demoIntroHTML() {
     var clearBtn =
-      '<button type="button" class="demo-clear"' +
+      '<button type="button" class="demo-clear' + demoClearPulseAttrs() + '"' +
         ' data-demo-act="clear"' +
         ' aria-disabled="false">' +
         th("demo_clear_examples") +
