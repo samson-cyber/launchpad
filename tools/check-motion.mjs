@@ -92,7 +92,7 @@ function suite(js, css) {
   chk("the shared row's value column fits '10hr 59min' (>= 6em)", dashCol && Number(dashCol[1]) >= 6, dashCol && dashCol[0]);
   const siteCol = /\.ins-sites \.insights-task-row \{[^}]*grid-template-columns:[^;]*\s([\d.]+)em;/.exec(css);
   chk("the site list's value column fits '10hr 59min' (>= 6em)", siteCol && Number(siteCol[1]) >= 6, siteCol && siteCol[0]);
-  chk("the weekly values do not wrap", /\.ins-wk-now, \.ins-wk-delta \{ white-space: nowrap; \}/.test(css));
+  chk("the weekly values do not wrap", /(?:^|[\n}])\.ins-wk-now, \.ins-wk-delta \{ white-space: nowrap; \}/.test(css));
   return rows;
 }
 
