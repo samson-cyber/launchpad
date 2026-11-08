@@ -10114,6 +10114,80 @@ var Storage = (function () {
     });
   }
 
+  // ===== [MC7 2026-11-08] THE DUE SOUND ON LAUNCH =====
+  //
+  // Samson: "Tasks in the Calendar hitting the due date should run a unique
+  // Chime+vocal prompt on Launch to notify", ruled ONCE A DAY: the first new
+  // tab of the day that has work due, and again that day only if ANOTHER task
+  // reaches its due date. The sound is one packaged file (chime D, a pause,
+  // "Heads up. You have tasks due today."), played by the worker through the
+  // offscreen document so no autoplay rule can swallow it.
+  //
+  // WHAT COUNTS, and each rule is the reminder's own (dueRemindersToSend) unless
+  // it says otherwise:
+  //   - its own switch, dueSoundEnabled. ON FOR FRESH INSTALLS, OFF FOR UPDATES
+  //     (ruled): the worker writes true at install, and an updating profile has
+  //     no value, which reads off. [1.11.0] decision 7 ships features off; this
+  //     is the one ruled exception, scoped to people who never had the old
+  //     silence to lose.
+  //   - Pro.
+  //   - NOT MODE-GATED, unlike the 9am notification, and deliberately. The
+  //     workspace mode DEFAULTS TO CASUAL (WORKSPACE_MODE_DEFAULT), so a Work-
+  //     only rule would make a sound that is on by default silent by default -
+  //     the switch would read on and nothing would ever play. This has its own
+  //     switch and plays at most once a day, which is the restraint Casual asks
+  //     for; the notification keeps its rule.
+  //   - not snoozed: one dismissal, honoured everywhere.
+  //   - DUE TODAY, NOT OVERDUE: an overdue task was announced on its own day.
+  //   - IT REACHED ITS DATE, it was not just added for today: a task created
+  //     today is one the user is already looking at, and announcing it would
+  //     make adding three tasks ring three times. A recurring instance is
+  //     spawned today by definition, and its arrival IS the event, so it counts.
+  //   - not already heard today: the log is { day, ids } in its own storage key
+  //     (never in `data`, so it cannot race a data write), and it expires by not
+  //     matching today's key, like the reminder record.
+  var DUE_SOUND_LOG_KEY = "dueSoundLog";
+  var DUE_SOUND_FILE = "sounds/due-reminder.wav";
+
+  function getDueSoundEnabled(data) {
+    return !!(data && data.settings && data.settings.dueSoundEnabled === true);
+  }
+
+  async function setDueSoundEnabled(data, on) {
+    if (!data) return false;
+    if (!data.settings || typeof data.settings !== "object") data.settings = {};
+    var next = (on === true);
+    if (data.settings.dueSoundEnabled === next) return false;
+    data.settings.dueSoundEnabled = next;
+    await saveAll(data);
+    return true;
+  }
+
+  function dueSoundToAnnounce(data, log, now) {
+    var ref = (typeof now === "number") ? now : Date.now();
+    if (!data || !getDueSoundEnabled(data)) return [];
+    if (!proActive(data)) return [];
+    var ws = getActiveWorkspace(data);
+    var today = localDayKey(ref);
+    var heard = (log && log.day === today && Array.isArray(log.ids)) ? log.ids : [];
+    return getDueWork(data, { now: ref }).items.filter(function (it) {
+      if (it.snoozed || it.kind === "overdue") return false;
+      if (heard.indexOf(it.taskId) !== -1) return false;
+      if (it.isRecurringInstance) return true;
+      var t = findLiveTask(ws, it.taskId);
+      if (!t) return false;
+      return !(typeof t.createdAt === "number" && localDayKey(t.createdAt) === today);
+    }).map(function (it) { return it.taskId; });
+  }
+
+  /** The log after announcing `ids`: today's list grows, a new day starts over. */
+  function nextDueSoundLog(log, ids, now) {
+    var today = localDayKey(now);
+    var prev = (log && log.day === today && Array.isArray(log.ids)) ? log.ids.slice() : [];
+    (ids || []).forEach(function (id) { if (prev.indexOf(id) === -1) prev.push(id); });
+    return { day: today, ids: prev };
+  }
+
   /** Record that these tasks have been reminded about today. Caller saves (J5). */
   function markDueRemindersSent(data, taskIds, now) {
     if (!data || !Array.isArray(taskIds) || !taskIds.length) return false;
@@ -10243,6 +10317,11 @@ var Storage = (function () {
   //                         so the setting is a statement about this machine and
   //                         not about the user. It also rides the optional
   //                         `downloads` permission, which is per-browser.
+  //   dueSoundEnabled       [MC7] A SOUND FROM THIS MACHINE'S SPEAKERS, and its
+  //                         default is written by THIS machine's install. A
+  //                         second machine's fresh install turns it on there;
+  //                         a synced value would let one machine's silence or
+  //                         noise decide another's.
   //   notificationsEnabled  THE PERMISSION IS PER-BROWSER. `notifications` is an
   //                         OPTIONAL permission requested at first enable, so a
   //                         synced `true` arriving on a machine that never
@@ -11240,6 +11319,12 @@ var Storage = (function () {
     getDueRemindersEnabled: getDueRemindersEnabled,
     setDueRemindersEnabled: setDueRemindersEnabled,
     dueRemindersToSend: dueRemindersToSend,
+    getDueSoundEnabled: getDueSoundEnabled,
+    setDueSoundEnabled: setDueSoundEnabled,
+    dueSoundToAnnounce: dueSoundToAnnounce,
+    nextDueSoundLog: nextDueSoundLog,
+    DUE_SOUND_LOG_KEY: DUE_SOUND_LOG_KEY,
+    DUE_SOUND_FILE: DUE_SOUND_FILE,
     dueReminderSentToday: dueReminderSentToday,
     markDueRemindersSent: markDueRemindersSent,
     nextDueReminderAt: nextDueReminderAt,

@@ -614,6 +614,12 @@ export const EXPECTED_UNREFERENCED = [
     reason: "Selected at runtime by Storage.pomodoroSoundFile; see chime1.wav."
   },
   {
+    p: "sounds/due-reminder.wav",
+    reason: "[MC7] The due sound: named by Storage.DUE_SOUND_FILE and played by the worker " +
+            "through the offscreen document (and once by Settings as a preview), always via " +
+            "chrome.runtime.getURL - a runtime URL, not a static reference."
+  },
+  {
     p: "_locales/en/messages.json",
     reason: "Resolved by CHROME, not by us: the manifest's __MSG_extension_name__ / " +
             "__MSG_extension_description__ placeholders are looked up against " +

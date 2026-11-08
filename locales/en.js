@@ -6261,6 +6261,26 @@ I18n.register("en", {
       "description": "Accessible name of the month picker's next-year arrow.",
       "message": "Next year"
     },
+    "dash_cal_add_title": {
+      "description": "Heading of the small box that slides down in a calendar day when the user double-clicks it, to add a task due that day. Phrased as a question, as asked for.",
+      "message": "Add task?"
+    },
+    "dash_cal_add_placeholder": {
+      "description": "Placeholder and accessible name of the task name box in the calendar's Add task? box. Quick-add syntax works here (#tag, !high, a date).",
+      "message": "Task name"
+    },
+    "dash_cal_add_go": {
+      "description": "Button in the calendar's Add task? box that creates the task on that day.",
+      "message": "Add"
+    },
+    "prosettings_due_sound": {
+      "description": "Settings switch: play a short chime and a spoken reminder on launch when tasks reach their due date.",
+      "message": "Sound when tasks are due"
+    },
+    "prosettings_due_sound_note": {
+      "description": "Info note on the due-sound switch. Says what plays and how often.",
+      "message": "A short chime and a spoken reminder, once a day, on the first new tab after tasks reach their due date."
+    },
     "dash_cal_empty_day": {
       "description": "Shown below the calendar when the selected day has nothing due and nothing scheduled.",
       "message": "Nothing due or scheduled."

@@ -3821,11 +3821,107 @@
   function dashCalClearDrop(panel) {
     panel.querySelectorAll(".dash-cal-cell.is-drop").forEach(function (c) { c.classList.remove("is-drop"); });
   }
+  // [MC7 2026-11-08] DOUBLE-CLICK A DAY TO ADD A TASK TO IT. Samson: "the add
+  // task pop up should appear in the said day with a smooth slide down
+  // animation with the question 'Add Task?'". A small floater anchored to the
+  // day (kept inside the calendar), revealed top-down in 240ms with the
+  // entrance curve, holding one box. The box is quick-add: "#tag", "!high" and
+  // a typed date parse exactly as on the Dashboard, the day clicked is the due
+  // date unless the text names another, and a cadence is refused with the same
+  // words, since a repeat has no day to put on a calendar. Escape, Cancel or a
+  // click elsewhere closes it; Enter or Add commits.
+  function dashCalCloseAdd(panel, refocus) {
+    var pop = panel.querySelector(".dash-cal-add");
+    if (!pop) return;
+    var stamp = pop.getAttribute("data-cal-add");
+    pop.remove();
+    if (refocus) {
+      var b = panel.querySelector('[data-dash-cal] [data-cal-day="' + stamp + '"] [data-cal-pick]');
+      if (b) { try { b.focus({ preventScroll: true }); } catch (err) { b.focus(); } }
+    }
+  }
+  function dashCalOpenAdd(panel, stamp) {
+    dashCalCloseAdd(panel, false);
+    var body = panel.querySelector("[data-dash-cal] .dash-cal-body");
+    var cell = panel.querySelector('[data-dash-cal] [data-cal-day="' + stamp + '"]');
+    if (!body || !cell) return;
+    var pop = document.createElement("div");
+    pop.className = "dash-cal-add";
+    pop.setAttribute("role", "dialog");
+    pop.setAttribute("aria-label", t("dash_cal_add_title"));
+    pop.setAttribute("data-cal-add", String(stamp));
+    pop.innerHTML =
+      '<div class="dash-cal-add-title">' + th("dash_cal_add_title") + '</div>' +
+      '<div class="dash-cal-add-day">' + escapeHtml(dashCalDayLabel(stamp)) + '</div>' +
+      '<input type="text" class="dash-cal-add-input" data-cal-add-input maxlength="200" autocomplete="off" spellcheck="false"' +
+        ' placeholder="' + th("dash_cal_add_placeholder") + '" aria-label="' + th("dash_cal_add_placeholder") + '">' +
+      '<div class="qa-preview" hidden></div>' +
+      '<div class="dash-cal-add-actions">' +
+        '<button type="button" class="dash-cal-today" data-cal-add-cancel>' + th("common_cancel") + '</button>' +
+        '<button type="button" class="dash-cal-add-go" data-cal-add-go>' + th("dash_cal_add_go") + '</button>' +
+      '</div>';
+    body.appendChild(pop);
+    // In the day: under its date, as wide as it allows, kept inside the grid.
+    var bw = body.clientWidth, bh = body.clientHeight;
+    var w = Math.min(300, bw);
+    pop.style.width = w + "px";
+    pop.style.left = Math.max(0, Math.min(cell.offsetLeft, bw - w)) + "px";
+    var top = cell.offsetTop + 30;
+    if (top + pop.offsetHeight > bh) top = Math.max(0, bh - pop.offsetHeight);
+    pop.style.top = top + "px";
+    var input = pop.querySelector("[data-cal-add-input]");
+    if (input) { try { input.focus({ preventScroll: true }); } catch (err) { input.focus(); } }
+  }
+  async function dashCalCommitAdd(panel, pop) {
+    var input = pop.querySelector("[data-cal-add-input]");
+    if (!input || input.disabled) return;
+    var raw = (input.value || "").trim();
+    if (!raw) { input.focus(); return; }
+    var parsed = quickAddParse(raw);
+    if (parsed && parsed.recurrence) { quickAddRenderPreview(input); input.focus(); return; }
+    input.disabled = true;
+    var stamp = Number(pop.getAttribute("data-cal-add"));
+    var tagIds = parsed ? await quickAddResolveTagIds(parsed.tags) : [];
+    var created = null;
+    try {
+      created = await Storage.createTask(data, {
+        name: parsed ? parsed.title : raw,
+        dueAt: (parsed && parsed.dueAt !== null) ? parsed.dueAt : stamp,
+        priority: parsed ? parsed.priority : null,
+        tagIds: tagIds
+      });
+    } catch (err) {
+      console.error("[LaunchPad] Calendar: add failed", err);
+    }
+    if (!created) { input.disabled = false; input.focus(); return; }
+    var v = dashCalView || dashCalDefaultView();
+    dashCalView = { y: v.y, m: v.m, sel: (typeof created.dueAt === "number") ? created.dueAt : stamp };
+    dashRepaintAfterMutation(panel);
+  }
+
   function bindDashCalendar(panel) {
+    panel.addEventListener("input", function (e) {
+      var t = e.target;
+      if (t && t.hasAttribute && t.hasAttribute("data-cal-add-input")) quickAddRenderPreview(t);
+    });
+    // A press anywhere but the floater, or a day, closes it. A day is left to
+    // the click: one selects (and redraws, which closes it), two open a new one.
+    document.addEventListener("pointerdown", function (e) {
+      var pop = panel.querySelector(".dash-cal-add");
+      if (!pop || pop.contains(e.target)) return;
+      if (e.target.closest && e.target.closest("[data-dash-cal] [data-cal-day]")) return;
+      dashCalCloseAdd(panel, false);
+    }, true);
     panel.addEventListener("click", function (e) {
       var t = e.target;
       if (!t.closest || !t.closest("[data-dash-cal]")) return;
       var v = dashCalView || dashCalDefaultView();
+      var addPop = t.closest(".dash-cal-add");
+      if (addPop) {
+        if (t.closest("[data-cal-add-cancel]")) { dashCalCloseAdd(panel, true); return; }
+        if (t.closest("[data-cal-add-go]")) { dashCalCommitAdd(panel, addPop); return; }
+        return;
+      }
       // The picker closes on any click outside it.
       if (dashCalPicker && !t.closest(".dash-cal-picker") && !t.closest("[data-cal-picker]")) {
         dashCalPicker = null;
@@ -3878,6 +3974,14 @@
       if (tpl) { dashCalOpenTemplate(tpl.getAttribute("data-cal-tpl")); return; }
       var day = t.closest("[data-cal-day]");
       if (day) {
+        // THE SECOND CLICK OF A DOUBLE-CLICK. Counted by the browser, so it
+        // holds although the first click redrew the tile under the pointer.
+        if (e.detail >= 2) {
+          var st = Number(day.getAttribute("data-cal-day"));
+          dashCalView = { y: v.y, m: v.m, sel: st };
+          dashCalOpenAdd(panel, st);
+          return;
+        }
         dashCalView = { y: v.y, m: v.m, sel: Number(day.getAttribute("data-cal-day")) };
         dashCalRedraw(panel, false, '[data-cal-day="' + dashCalView.sel + '"] [data-cal-pick]');
       }
@@ -3885,6 +3989,12 @@
     panel.addEventListener("keydown", function (e) {
       var t = e.target;
       if (!t.closest || !t.closest("[data-dash-cal]")) return;
+      var inAdd = t.closest(".dash-cal-add");
+      if (inAdd) {
+        if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); dashCalCloseAdd(panel, true); return; }
+        if (e.key === "Enter" && t.hasAttribute("data-cal-add-input")) { e.preventDefault(); dashCalCommitAdd(panel, inAdd); }
+        return;
+      }
       if (e.key === "Escape" && dashCalPicker) {
         e.preventDefault();
         e.stopPropagation();
@@ -3983,6 +4093,14 @@
     openTasksModal({
       title: t("dash_cal_edit_task"),
       primaryLabel: t("common_save"),
+      // [MC7] Delete, as the Tasks tab deletes: to the trash, with a 5-second
+      // Undo, no confirm (trash-bin.md - the trash and Undo are the net). Drawn
+      // at the footer's far end, away from Save.
+      extraButtons: [{
+        label: t("common_delete"),
+        className: "tt-modal-btn tt-modal-btn-delete",
+        onClick: async function () { await deleteTaskWithUndo(taskId); }
+      }],
       bodyHtml:
         '<div class="tt-modal-row">' +
           '<label class="tt-modal-label" for="tt-task-name-input">' + th("new_name") + '</label>' +
@@ -8918,6 +9036,7 @@
     }
     var panel = document.getElementById("tab-tasks");
     if (panel) renderTasksTab(panel, data);
+    dashRefreshIfShown();
     showUndoToast(t("delete_deleted_restore_from_trash_within_30"), async function () {
       try {
         await Storage.restoreTask(data, taskId);
@@ -8926,6 +9045,7 @@
       }
       var p = document.getElementById("tab-tasks");
       if (p) renderTasksTab(p, data);
+      dashRefreshIfShown();
     }, 5000);
   }
 
@@ -10376,8 +10496,12 @@
       closeTasksModal();
     }
 
+    // [MC7] A click on the backdrop within 400ms of opening is the second half
+    // of the click that opened it (a double-click on a calendar task), not a
+    // request to close. It used to open the dialog and shut it again.
+    var openedAt = Date.now();
     overlay.addEventListener("click", function (e) {
-      if (e.target === overlay) doCancel();
+      if (e.target === overlay && Date.now() - openedAt > 400) doCancel();
     });
     overlay.querySelector(".tt-modal-close").addEventListener("click", doCancel);
     var cancelBtn = overlay.querySelector(".tt-modal-cancel");
@@ -12224,7 +12348,7 @@
     // carrying data-dash-quickadd, and it is the same attribute its own keydown
     // handler gates on - so the preview and the commit cannot disagree about
     // which box refuses.
-    var refuses = !!(input.hasAttribute && input.hasAttribute("data-dash-quickadd"));
+    var refuses = !!(input.hasAttribute && (input.hasAttribute("data-dash-quickadd") || input.hasAttribute("data-cal-add-input")));
     var html = quickAddPreviewHtml(quickAddParse(input.value || ""), { refusesRecurrence: refuses });
     host.innerHTML = html;
     host.hidden = !html;
@@ -14186,6 +14310,10 @@
         });
       }
     }
+    // [MC7] The due sound's switch. No permission behind it, so it reads the
+    // stored value straight.
+    var dsBox = $("#due-sound-toggle");
+    if (dsBox) dsBox.checked = Storage.getDueSoundEnabled(data);
     // [A2] Reset control: enabled only with an active task carrying a count > 0.
     var resetBtn = $("#pomo-reset-cycles");
     var hint = $("#pomo-reset-hint");
@@ -14864,6 +14992,18 @@
         renderTabPlaceholder("dashboard", currentAccessLevel());
       }
       showToast(t(e.target.checked ? "settings_track_on" : "settings_track_off"));
+    });
+
+    // [MC7] Switching it ON plays it once, so the user knows what they agreed
+    // to hear. The click is the gesture, so the page can play it directly.
+    safeOn("#due-sound-toggle", "change", async function (e) {
+      var on = !!e.target.checked;
+      try { await Storage.setDueSoundEnabled(data, on); }
+      catch (err) { console.error("[LaunchPad] Due sound: save failed", err); }
+      if (on) {
+        try { new Audio(chrome.runtime.getURL(Storage.DUE_SOUND_FILE)).play().catch(function () {}); }
+        catch (err) { /* preview only */ }
+      }
     });
 
     safeOn("#due-reminders-toggle", "change", async function (e) {
@@ -15662,6 +15802,12 @@
     bindUpgradeCta();
     bindWorkspaceSwitcher();
     applyAccessLevelUI();
+    // [MC7] Launch: the worker decides whether anything reached its due date
+    // today that has not been announced, and plays the due sound once if so.
+    if (isProAccessibleLevel(currentAccessLevel())) {
+      try { chrome.runtime.sendMessage({ type: "lp-due-sound-launch" }, function () { void chrome.runtime.lastError; }); }
+      catch (err) { /* no worker: nothing to announce with */ }
+    }
     startCtaCountdown();
     Bookmarks.bindEvents(function (newData) {
       data = newData;

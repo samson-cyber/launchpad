@@ -469,6 +469,15 @@ if ! node tools/check-motion.mjs; then
   exit 1
 fi
 
+# [MC7] The due sound: once a day, only for work that reached its date, decided
+# in the worker with the log written before the sound plays, on for fresh
+# installs only; the bell icon; the calendar's Add task? and Delete. ~0.3s.
+# `--mutate` runs nine seeds.
+if ! node tools/check-due-sound.mjs; then
+  echo 'ERROR: due-sound gate failed - the launch sound could ring too often, at the wrong time, or for updating users.' >&2
+  exit 1
+fi
+
 # [PF.2 follow-up] The sync slice: what leaves this machine, and what must not.
 # PF.2 SHIPPED THIS GATE AND NEVER WIRED IT IN, so it has been green-by-nobody
 # since - exactly the shape of the importers.js miss recorded below, where a

@@ -1095,17 +1095,27 @@ async function closeSoundOffscreen() {
 async function playSoundViaOffscreen(sound) {
   var file = Storage.pomodoroSoundFile(sound);
   if (!file) return;
-  if (!(await ensureSoundOffscreen())) return;
+  await playFileViaOffscreen(file);
+}
+
+// [MC7] The body of playSoundViaOffscreen, by packaged path, so the due sound
+// takes the same create-play-close path as the boundary chime. Resolves to
+// whether the document reported the file played to its end.
+async function playFileViaOffscreen(file) {
+  if (!file) return false;
+  if (!(await ensureSoundOffscreen())) return false;
   var url = chrome.runtime.getURL(file);
+  var played = false;
   try {
     await new Promise(function (resolve) {
       var settled = false;
       var done = function () { if (!settled) { settled = true; resolve(); } };
       var timer = setTimeout(done, POMODORO_SOUND_OFFSCREEN_TIMEOUT_MS);
       try {
-        chrome.runtime.sendMessage({ type: "lp-offscreen-play", url: url }, function () {
+        chrome.runtime.sendMessage({ type: "lp-offscreen-play", url: url }, function (res) {
           clearTimeout(timer);
           void chrome.runtime.lastError;   // no receiver yet -> the timeout already covered us
+          played = !!(res && res.played);
           done();
         });
       } catch (err) {
@@ -1116,6 +1126,36 @@ async function playSoundViaOffscreen(sound) {
   } finally {
     await closeSoundOffscreen();
   }
+  return played;
+}
+
+// ===== [MC7 2026-11-08] THE DUE SOUND ON LAUNCH =====
+//
+// Every new tab asks; THE WORKER DECIDES, so a dozen tabs opening at once
+// (a restored session) cannot ring a dozen times. The checks run one at a
+// time on their own chain, and the log is WRITTEN BEFORE THE SOUND PLAYS: the
+// next tab in the chain reads it and finds nothing left to announce. The
+// policy - which tasks, which day, which switch - is Storage.dueSoundToAnnounce,
+// and this holds none of it.
+var _dueSoundChain = Promise.resolve();
+function runDueSoundOnLaunch() {
+  var run = async function () {
+    var d = await Storage.getAll();
+    var now = Date.now();
+    var key = Storage.DUE_SOUND_LOG_KEY;
+    var got = await chrome.storage.local.get(key);
+    var log = got[key] || null;
+    var ids = Storage.dueSoundToAnnounce(d, log, now);
+    if (!ids.length) return { played: false, ids: [] };
+    var rec = {};
+    rec[key] = Storage.nextDueSoundLog(log, ids, now);
+    await chrome.storage.local.set(rec);
+    var played = await playFileViaOffscreen(Storage.DUE_SOUND_FILE);
+    return { played: played, ids: ids };
+  };
+  var p = _dueSoundChain.then(run, run);
+  _dueSoundChain = p.catch(function (err) { console.error("[LaunchPad] Due sound failed", err); });
+  return p;
 }
 
 // ===== [WM.5 / G2] DUE-DATE REMINDERS =====
@@ -1330,7 +1370,18 @@ applyIdleThreshold();
 // cannot double-post.
 runDueRemindersBg();
 
-chrome.runtime.onInstalled.addListener(function () {
+chrome.runtime.onInstalled.addListener(function (details) {
+  // [MC7] THE DUE SOUND IS ON FOR FRESH INSTALLS ONLY (ruled). An update writes
+  // nothing, so a profile that has never set the switch reads off and keeps
+  // the silence it had. Enqueued: it is a `data` write, and the queue is what
+  // stops it clobbering, or being clobbered by, the install-time sweeps.
+  if (details && details.reason === "install") {
+    enqueueBgData("due-sound-default", async function () {
+      var d = await Storage.getAll();
+      if (d && d.settings && typeof d.settings.dueSoundEnabled === "boolean") return;
+      await Storage.setDueSoundEnabled(d, true);
+    });
+  }
   requestContextMenuRebuild();
   // [1.16.0] PF.2. A fresh install on a second machine is the case the whole
   // slice exists for: Chrome has already populated storage.sync before any tab
@@ -2672,6 +2723,11 @@ chrome.webNavigation.onReferenceFragmentUpdated.addListener(focusOnNavigation);
 // is durable before it navigates — which is what stops the intercept from
 // immediately re-gating the arrival.
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+  // [MC7] A new tab opened: maybe announce what reached its due date today.
+  if (msg && msg.type === "lp-due-sound-launch") {
+    runDueSoundOnLaunch().then(function (r) { sendResponse(r || {}); }, function () { sendResponse({}); });
+    return true;
+  }
   // [1.3.0 R2] The settings toggle owns the flag; the WORKER owns the alarm. The
   // page asks for a reconcile rather than reaching into chrome.alarms itself, so
   // scheduling stays in one place.
