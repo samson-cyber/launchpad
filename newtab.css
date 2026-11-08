@@ -24091,3 +24091,22 @@ html.has-bg .tasks-split .tt-section-title {
 .ins-tagshare-name { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ins-tagshare-pct { color: var(--ink-mute); text-align: right; }
 .ins-tagshare-dur { color: var(--ink); text-align: right; }
+
+/* [MC1 2026-11-08] "3hr 45min" with the UNITS SMALL in big figures (ruled by
+   Samson, option A). The number keeps the numeral's size and weight; the unit
+   steps DOWN THE RAMP to the next display token and takes the quiet ink, so the
+   figure stays the hero. Ramp tokens, never em: the Text size setting must
+   scale these with everything else (check-text-size). Only the display
+   numerals carry .dur-u; lists and inline text print the plain string.
+     .dash-hero-num   --display-1  ->  unit --display-3
+     *-stat-num       --display-3  ->  unit --fs-14            */
+.dur-u {
+  font-size: var(--display-3);
+  font-weight: 500;
+  color: var(--ink-mute);
+  letter-spacing: 0;
+}
+.ins-hero-stat-num .dur-u,
+.dash-hero-stat-num .dur-u {
+  font-size: var(--fs-14);
+}

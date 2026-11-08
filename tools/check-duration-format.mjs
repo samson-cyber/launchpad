@@ -38,6 +38,14 @@
 // gate says nothing about what an undefined locale resolves to in a browser,
 // and does not need to: grouping is off for all of them.
 //
+// [MC1 2026-11-08] THE FORMAT MOVED: "3h45m" became "3hr 45min", ruled by
+// Samson. The reference below is the NEW rule (short units, the number-unit gap
+// closed in English, a space between the hour and minute parts), and the rows
+// that named narrow output now name short output. What did NOT move is what
+// this gate is for: no grouping in any locale, localisation still in force,
+// and the shipped bodies run rather than copied. The big-figure HTML form
+// (fmtDurationHMHtml) must read exactly the same text, which a new row checks.
+//
 // Usage: node tools/check-duration-format.mjs [repoRoot]
 // Exit 0 = PASS, 1 = FAIL, 2 = SUBJECT DID NOT LOAD.
 // ===========================================================================
@@ -97,19 +105,21 @@ function buildSubject(locale) {
       return new RealNumberFormat(loc === undefined ? locale : loc, opts);
     },
   };
-  const factory = new Function("Intl",
-    DUR_UNIT_FMT_SRC + "\n" + extract("fmtDurationHM") + "\n  return { fmtDurationHM: fmtDurationHM, durUnitFmt: durUnitFmt };");
-  return factory(shimIntl);
+  const escapeHtml = (x) => String(x).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const factory = new Function("Intl", "escapeHtml",
+    DUR_UNIT_FMT_SRC + "\n" + extract("fmtDurationHM") + "\n" + extract("fmtDurationHMHtml") +
+    "\n  return { fmtDurationHM: fmtDurationHM, fmtDurationHMHtml: fmtDurationHMHtml, durUnitFmt: durUnitFmt };");
+  return factory(shimIntl, escapeHtml);
 }
 
 // ANTI-VACUITY (BUGS.md P2). If the shim or the slice is wrong the subject can
 // come back formatting nothing, and every "no separator" row below would pass
 // on empty strings. Prove it produces a real figure first, in a way that is
-// also a check that the options object actually reached Intl: the narrow unit
+// also a check that the options object actually reached Intl: the short unit
 // must be attached, and the value must be present.
 {
   const s = buildSubject("en-US");
-  const probe = s.fmtDurationHM(90 * 60000);          // 1h30m
+  const probe = s.fmtDurationHM(90 * 60000);          // 1hr 30min
   if (!/1/.test(probe) || !/30/.test(probe) || probe.length < 4) {
     console.error(`DURATION FORMAT: SUBJECT DID NOT LOAD — 90 minutes formatted as ${JSON.stringify(probe)}, which is not a duration`);
     process.exit(2);
@@ -120,17 +130,19 @@ const rows = [];
 const check = (name, pass, detail) => rows.push({ name, pass: !!pass, detail });
 
 // ---------------------------------------------------------------- the sweep
-// THE OLD IMPLEMENTATION, verbatim in shape: letters concatenated onto a bare
-// number. This is what every value must still equal in English.
+// THE RULE AS WRITTEN, independently of the shipped code: unit words joined
+// to a bare number, the parts separated by one space. [MC1] This replaced the
+// old "letters concatenated" reference when the format moved to "3hr 45min";
+// every value must equal it in English.
 function legacy(ms) {
   const safe = Math.max(0, ms);
   const totalMin = Math.floor(safe / 60000);
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
-  if (h > 0) return m > 0 ? h + "h" + m + "m" : h + "h";
-  if (m > 0) return m + "m";
+  if (h > 0) return m > 0 ? h + "hr " + m + "min" : h + "hr";
+  if (m > 0) return m + "min";
   const sec = Math.floor(safe / 1000);
-  return sec > 0 ? sec + "s" : "0m";
+  return sec > 0 ? sec + "sec" : "0min";
 }
 
 // The value set 240d1b4 swept: every minute across a wide band, plus a dense
@@ -169,14 +181,37 @@ function sweepValues() {
   // The regression this gate exists for, named on its own so a failure says
   // WHICH property broke rather than only that the sweep moved.
   const k = s.fmtDurationHM(1095 * 3600000);
-  check("1095h renders ungrouped", k === "1095h", JSON.stringify(k));
+  check("1095hr renders ungrouped", k === "1095hr", JSON.stringify(k));
+
+  // [MC1] The ruled examples, each named, so a failure says which case broke.
+  const cases = [[225 * 60000, "3hr 45min"], [120 * 60000, "2hr"], [45 * 60000, "45min"], [40000, "40sec"], [0, "0min"], [61 * 60000, "1hr 1min"]];
+  for (const [ms, want] of cases) check(`${want} is how ${ms / 60000} minutes reads`, s.fmtDurationHM(ms) === want, JSON.stringify(s.fmtDurationHM(ms)));
+  // [MC1] Every English locale reads the RULED words. Intl pluralises in all of
+  // these but en-US ("3 hrs 45 mins"), and en-ID is the one Samson would see.
+  for (const loc of ["en-GB", "en-AU", "en-IN", "en-ID"]) {
+    const sub = buildSubject(loc), got = sub.fmtDurationHM(225 * 60000), sec = sub.fmtDurationHM(40000);
+    check(`${loc} reads "3hr 45min" and "40sec", not Intl's plurals`, got === "3hr 45min" && sec === "40sec", `${JSON.stringify(got)} / ${JSON.stringify(sec)}`);
+  }
+
+  // [MC1] THE BIG-FIGURE FORM READS THE SAME WORDS. Its text, tags stripped,
+  // must equal fmtDurationHM at every swept value, and its units must be in
+  // .dur-u spans (that is the whole point of it).
+  let htmlDiverged = 0, firstHtml = null;
+  for (const ms of values) {
+    const txt = s.fmtDurationHMHtml(ms).replace(/<[^>]+>/g, "");
+    if (txt !== s.fmtDurationHM(ms)) { htmlDiverged++; if (firstHtml === null) firstHtml = ms; }
+  }
+  check("fmtDurationHMHtml reads exactly fmtDurationHM's text at every swept value", htmlDiverged === 0,
+    htmlDiverged === 0 ? "identical" : `${htmlDiverged} diverged, e.g. ${JSON.stringify(s.fmtDurationHMHtml(firstHtml))}`);
+  const h225 = s.fmtDurationHMHtml(225 * 60000);
+  check("fmtDurationHMHtml wraps each unit in .dur-u", (h225.match(/<span class="dur-u">/g) || []).length === 2, JSON.stringify(h225));
 
   // P20 / anti-tautology: prove the sweep CAN fail. With grouping left on,
   // the same comparison must diverge at exactly 1000h — so a green sweep is
   // evidence about the flag rather than about the comparison being toothless.
-  const grouped = new Intl.NumberFormat("en-US", { style: "unit", unit: "hour", unitDisplay: "narrow" });
-  check("the sweep is not vacuous: grouping ON still diverges at 1000h",
-    grouped.format(1000) !== "1000h" && grouped.format(999) === "999h",
+  const grouped = new Intl.NumberFormat("en-US", { style: "unit", unit: "hour", unitDisplay: "short" });
+  check("the sweep is not vacuous: grouping ON still diverges at 1000hr",
+    grouped.format(1000).indexOf("1000") === -1 && grouped.format(999).indexOf("999") === 0,
     `${JSON.stringify(grouped.format(999))} then ${JSON.stringify(grouped.format(1000))}`);
 }
 
@@ -231,13 +266,18 @@ for (const loc of LOCALES) {
     de !== en, `en=${JSON.stringify(en)} de=${JSON.stringify(de)}`);
   check("hi-IN still renders its own unit convention, distinct from en",
     hi !== en, `en=${JSON.stringify(en)} hi=${JSON.stringify(hi)}`);
-  check("fr-FR narrow hour legitimately coincides with en (recorded, not asserted)",
-    true, `fr=${JSON.stringify(fr)} — same as en by ICU's convention, not by a bug`);
+  // [MC1] Under SHORT units French no longer coincides with English ("1095 h"
+  // against "1095hr"), so the old recorded-not-asserted row became a real one.
+  check("fr-FR still renders its own unit convention, distinct from en",
+    fr !== en, `en=${JSON.stringify(en)} fr=${JSON.stringify(fr)}`);
+  // And only English closes the number-unit gap: German keeps its space.
+  check("the number-unit gap is closed in English only (de-DE keeps its space)",
+    /1095\s/.test(de) && !/1095\s/.test(en), `en=${JSON.stringify(en)} de=${JSON.stringify(de)}`);
 
   // The decimal separator, under the SAME options object the subject uses.
   // A duration is an integer so the subject never shows one; this asks whether
   // the flag disabled localisation generally, which is the thing being feared.
-  const opts = { style: "unit", unit: "hour", unitDisplay: "narrow", useGrouping: false };
+  const opts = { style: "unit", unit: "hour", unitDisplay: "short", useGrouping: false };
   const frDec = new Intl.NumberFormat("fr-FR", opts).format(1234.5);
   const deDec = new Intl.NumberFormat("de-DE", opts).format(1234.5);
   const enDec = new Intl.NumberFormat("en-US", opts).format(1234.5);

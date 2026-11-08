@@ -1096,14 +1096,22 @@
   // per row is the expensive part. The catch keeps TODAY's letters, so a
   // runtime without the "unit" style degrades to the old output instead of
   // throwing on a surface that would otherwise just be a number.
+  // [MC1 2026-11-08] "3hr 45min", ruled by Samson: the SHORT unit, not the
+  // narrow one. In English Intl's short units are exactly hr / min / sec, with
+  // no plural "s"; the one change made to Intl's output is that, in English,
+  // the space between the number and its unit is closed ("3hr", not "3 hr"),
+  // because that is the form asked for. Every other locale keeps Intl's own
+  // short form untouched (de "3 Std.", fr "3 h"), which is the localisation
+  // the gate below keeps asserting. The parts are joined with a space in
+  // fmtDurationHM. The catch's letters moved with it.
   var DUR_UNIT_FMT = {};
-  var DUR_UNIT_LETTER = { hour: "h", minute: "m", second: "s" };
+  var DUR_UNIT_LETTER = { hour: "hr", minute: "min", second: "sec" };
   function durUnitFmt(unit) {
     if (DUR_UNIT_FMT[unit]) return DUR_UNIT_FMT[unit];
     var f;
     try {
       f = new Intl.NumberFormat(undefined, {
-        style: "unit", unit: unit, unitDisplay: "narrow",
+        style: "unit", unit: unit, unitDisplay: "short",
         // [2.2.0] A DURATION IS A MEASUREMENT, NOT A TALLY. Intl groups
         // thousands by default, so a year at three hours a day rendered
         // "1,095h" where it had always read "1095h". 240d1b4 found this with a
@@ -1123,8 +1131,26 @@
     } catch (e) {
       f = { format: function (n) { return n + DUR_UNIT_LETTER[unit]; } };
     }
-    DUR_UNIT_FMT[unit] = f;
-    return f;
+    // English closes the number-unit gap; the parts keep their own types so
+    // the HTML form below can style the unit on its own.
+    var lang = "";
+    try { lang = (f.resolvedOptions && f.resolvedOptions().locale) || ""; } catch (e) { lang = ""; }
+    var closeGap = /^en\b/i.test(lang);
+    var base = f;
+    var parts = function (n) {
+      var ps = base.formatToParts ? base.formatToParts(n) : [{ type: "integer", value: String(n) }, { type: "unit", value: DUR_UNIT_LETTER[unit] }];
+      if (!closeGap) return ps;
+      // English also takes the RULED unit words, hr / min / sec, never Intl's
+      // plural: every English locale but en-US prints "3 hrs 45 mins" (en-GB,
+      // en-AU, en-IN and en-ID measured), and the ruling is "3hr 45min".
+      return ps.filter(function (p) { return !(p.type === "literal" && /^[\s\u00a0\u202f]+$/.test(p.value)); })
+        .map(function (p) { return p.type === "unit" ? { type: "unit", value: DUR_UNIT_LETTER[unit] } : p; });
+    };
+    DUR_UNIT_FMT[unit] = {
+      format: function (n) { return parts(n).map(function (p) { return p.value; }).join(""); },
+      formatToParts: parts
+    };
+    return DUR_UNIT_FMT[unit];
   }
 
   // [2.0] THE shared duration formatter — Samson's locked rule (task
@@ -1151,7 +1177,7 @@
     var m = totalMin % 60;
     if (h > 0) {
       return m > 0
-        ? (durUnitFmt("hour").format(h) + durUnitFmt("minute").format(m))
+        ? (durUnitFmt("hour").format(h) + " " + durUnitFmt("minute").format(m))
         : durUnitFmt("hour").format(h);
     }
     if (m > 0) return durUnitFmt("minute").format(m);
@@ -1160,6 +1186,26 @@
     // "0m", or the one string in this function that is not localised would be
     // the one a brand-new profile sees first.
     return sec > 0 ? durUnitFmt("second").format(sec) : durUnitFmt("minute").format(0);
+  }
+
+  // [MC1] THE BIG-FIGURE FORM of fmtDurationHM: identical text, with each unit
+  // in <span class="dur-u"> so a display numeral can carry "3" and "45" at full
+  // size and "hr" / "min" small and quiet. Ruled by Samson, option A. Returns
+  // HTML; every value in it is a number or an Intl unit string, escaped anyway.
+  function fmtDurationHMHtml(ms) {
+    var safe = Math.max(0, ms);
+    var totalMin = Math.floor(safe / 60000);
+    var h = Math.floor(totalMin / 60);
+    var m = totalMin % 60;
+    var part = function (unit, n) {
+      return durUnitFmt(unit).formatToParts(n).map(function (p) {
+        return p.type === "unit" ? '<span class="dur-u">' + escapeHtml(p.value) + '</span>' : escapeHtml(p.value);
+      }).join("");
+    };
+    if (h > 0) return m > 0 ? part("hour", h) + " " + part("minute", m) : part("hour", h);
+    if (m > 0) return part("minute", m);
+    var sec = Math.floor(safe / 1000);
+    return sec > 0 ? part("second", sec) : part("minute", 0);
   }
 
   // Whether the line renders at all, and in which scope. Suppression is a
@@ -1225,7 +1271,7 @@
       return;                       // no ring sweep: there is no figure to encircle
     }
     el.removeAttribute("title");
-    el.textContent = fmtDurationHM(focusedMs);
+    el.innerHTML = fmtDurationHMHtml(focusedMs);
 
     // [1.7.2] THE RING RIDES THIS SAME READ. One reader, one staleness token,
     // one value: the ring cannot report a different day's work from the numeral
@@ -1440,7 +1486,7 @@
     // focusedRangeForScope already replaces TODAY's entry with the open-session
     // inclusive read, so this figure and the hero numeral agree by construction
     // rather than by two readers happening to match.
-    el.textContent = fmtDurationHM(total);
+    el.innerHTML = fmtDurationHMHtml(total);
   }
 
 
@@ -3184,7 +3230,7 @@
       ]
     },
     donut: {
-      centerLabel: "32h",
+      centerLabel: "32hr",
       segments: [
         { tag: DEMO_TAG_PALETTE.shipQ3,    hours: 12 },
         { tag: DEMO_TAG_PALETTE.learnTs,   hours: 9  },
@@ -3391,11 +3437,11 @@
   // because a control that cannot do anything reads as broken rather than as
   // locked ([1.1.4]'s preview-ghost rule).
   var DEMO_DASH_BOARD = {
-    focusedToday: "2h18m",
+    focusedToday: 138 * 60000,   // [MC1] a duration, printed by fmtDurationHMHtml like the live hero
     tasksCompleted: 4,
     blocked: 12,
     streak: "6",
-    weekSoFar: "9h40m",
+    weekSoFar: 580 * 60000,
     blocking: "On",
     // KEYS, not resolved strings. This object is built at module load, so a
       // t() here would freeze at the locale that happened to be active then and
@@ -3457,7 +3503,7 @@
     var hero =
       '<div class="tile tile--hero span-2 dash-tile pp-demo-tile">' +
         '<div class="tile-eyebrow">' + th("common_focused_today") + previewLabelHtml() + '</div>' +
-        '<div class="dash-hero-num">' + escapeHtml(D.focusedToday) + '</div>' +
+        '<div class="dash-hero-num">' + fmtDurationHMHtml(D.focusedToday) + '</div>' +
         '<div class="dash-hero-figures">' +
           '<div class="dash-hero-count">' +
             '<span class="dash-hero-count-num">' + D.tasksCompleted + '</span>' +
@@ -3680,7 +3726,7 @@
     // Time by tag - through the shared builder, from the demo segments, which
     // carry {tag:{name,color}, hours}.
     var tagShareHtml = insightsTagShareHtml(
-      d.donut.segments.map(function (s) { return { color: s.tag.color, name: s.tag.name, value: s.hours, valueText: s.hours + "h" }; }),
+      d.donut.segments.map(function (s) { return { color: s.tag.color, name: s.tag.name, value: s.hours, valueText: fmtDurationHM(s.hours * 3600000) }; }),
       t("insights_tag_caption_30")
     );
 
@@ -3765,16 +3811,16 @@
         previewTileHeadHtml(th("insights_deep_work"), "") +
         '<div class="ins-hero-head">' +
           '<div class="ins-hero-lead">' +
-            '<span class="dash-hero-num">32h</span>' +
+            '<span class="dash-hero-num">' + fmtDurationHMHtml(32 * 3600000) + '</span>' +
             '<span class="ins-hero-lead-label">' + th("insights_last_30_days") + '</span>' +
           '</div>' +
           '<div class="ins-hero-aside">' +
             '<div class="ins-hero-stat">' +
-              '<span class="ins-hero-stat-num">3h48m</span>' +
+              '<span class="ins-hero-stat-num">' + fmtDurationHMHtml(228 * 60000) + '</span>' +
               '<span class="ins-hero-stat-label">' + th("insights_preview_best_day") + '</span>' +
             '</div>' +
             '<div class="ins-hero-stat">' +
-              '<span class="ins-hero-stat-num">1h4m</span>' +
+              '<span class="ins-hero-stat-num">' + fmtDurationHMHtml(64 * 60000) + '</span>' +
               '<span class="ins-hero-stat-label">' + th("insights_daily_avg") + '</span>' +
             '</div>' +
           '</div>' +
@@ -4975,10 +5021,10 @@
       // it is the "Past 7 days" preset - so the range control now answers the
       // question this figure used to answer, and the two branches that used to
       // disagree are one.
-      { num: fmtDurationHM(scopeTotalMs), label: rangeLabel },
-      { num: bestMs > 0 ? fmtDurationHM(bestMs) : "—",
+      { num: fmtDurationHM(scopeTotalMs), numHtml: fmtDurationHMHtml(scopeTotalMs), label: rangeLabel },
+      { num: bestMs > 0 ? fmtDurationHM(bestMs) : "—", numHtml: bestMs > 0 ? fmtDurationHMHtml(bestMs) : "—",
         label: bestMs > 0 ? th("insights_best_day_on", { date: fmtShortDate(insightsKeyToTs(bestKey)) }) : th("insights_preview_best_day") },
-      { num: fmtDurationHM(avgMs), label: t("insights_daily_avg") }
+      { num: fmtDurationHM(avgMs), numHtml: fmtDurationHMHtml(avgMs), label: t("insights_daily_avg") }
     ];
     // [1.8.1] THE SAME THREE FIGURES, RE-TIERED. items[0] is the period total
     // and becomes the board's one hero numeral; the other two sit beside it a
@@ -5023,12 +5069,12 @@
     // total, the best day and the average are arithmetically the same number,
     // so the meta line drops to the range alone rather than printing it thrice.
     return '<div class="ins-hero-figure">' +
-        '<span class="dash-hero-num">' + escapeHtml(lead.num) + '</span>' +
+        '<span class="dash-hero-num">' + (lead.numHtml || escapeHtml(lead.num)) + '</span>' +
       '</div>' +
       '<div class="ins-hero-meta">' +
         aside.map(function (it) {
           return '<span class="ins-hero-stat">' +
-              '<b class="ins-hero-stat-num">' + escapeHtml(it.num) + '</b> ' +
+              '<b class="ins-hero-stat-num">' + (it.numHtml || escapeHtml(it.num)) + '</b> ' +
               '<span class="ins-hero-stat-label">' + it.label + '</span>' +
             '</span>';
         }).join("") +

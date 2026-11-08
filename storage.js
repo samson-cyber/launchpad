@@ -5897,7 +5897,8 @@ var Storage = (function () {
     if (totalSec < 86400) return fmtDuration(ms);
     var days = Math.floor(totalSec / 86400);
     var hours = Math.floor((totalSec % 86400) / 3600);
-    return days + "d " + hours + "h";
+    // [MC1] hours read "hr" like every other duration; days stay "d".
+    return days + "d " + hours + "hr";
   }
 
   // Fallback total (ms) for a phase from CURRENT settings. Used ONLY when a
