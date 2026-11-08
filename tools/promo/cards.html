@@ -1,0 +1,156 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>cards</title>
+<style>
+/* One design source for the promo's text surfaces:
+   ?frame=1..5  a captioned 1280x800 store frame around a product shot
+   ?frame=6     the comparison as a 1280x800 store frame
+   ?card=compare  the comparison card for the video at 1920x1080, driven by
+                  window.setT(seconds) so every frame renders deterministically.
+   Slate and indigo, Figtree, on the default wallpaper - the product's own face. */
+@font-face { font-family: Figtree; src: url(fonts/figtree-latin.woff2) format("woff2"); font-weight: 400 700; }
+:root {
+  --ink: #eceef4; --ink-mute: #b6bbc9; --ink-faint: rgba(236,238,244,0.55);
+  --action: #8b93ff; --action-soft: #b6bbff; --action-tint: rgba(139,147,255,0.16);
+  --tile: rgba(17,19,25,0.78); --line: rgba(236,238,244,0.12);
+}
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0b0d14; font-family: Figtree, system-ui, sans-serif; color: var(--ink); }
+.stage { position: fixed; inset: 0; overflow: hidden; }
+.bg { position: absolute; inset: -40px; background: url(default.webp) center 42% / cover; filter: blur(22px) saturate(0.9); }
+.veil { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(11,13,24,0.72) 0%, rgba(11,13,24,0.58) 45%, rgba(11,13,24,0.70) 100%); }
+
+/* ---- captioned store frame, 1280x800 ---- */
+.cap { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; }
+.cap .head { padding-top: 46px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.cap h1 { font-size: 44px; line-height: 1.12; font-weight: 700; letter-spacing: -0.015em; text-shadow: 0 1px 3px rgba(0,0,0,0.35); max-width: 1100px; }
+.cap p { font-size: 20px; line-height: 1.4; color: var(--ink-mute); font-weight: 500; max-width: 980px; }
+.pro { display: inline-flex; align-items: center; font-size: 14px; font-weight: 700; letter-spacing: 0.04em; color: var(--action-soft); background: var(--action-tint); border: 1px solid rgba(139,147,255,0.35); border-radius: 999px; padding: 4px 12px; }
+.cap .shot { position: absolute; left: 50%; top: 214px; width: 1100px; transform: translateX(-50%); border-radius: 14px; overflow: hidden;
+  border: 1px solid rgba(236,238,244,0.16); box-shadow: 0 24px 60px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.4); }
+.cap .shot img { display: block; width: 100%; height: auto; }
+.cap .shot.cropped { height: 560px; }
+.cap .shot.cropped img { position: absolute; max-width: none; }
+
+/* ---- the comparison ---- */
+.cmp { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 1280px; }
+.cmp h2 { font-size: 56px; font-weight: 700; letter-spacing: -0.02em; text-align: center; line-height: 1.1; text-shadow: 0 1px 3px rgba(0,0,0,0.35); }
+.cmp .sub { text-align: center; font-size: 24px; color: var(--ink-mute); margin-top: 14px; font-weight: 500; }
+.grid { margin-top: 48px; display: grid; grid-template-columns: 1fr 72px 1fr; row-gap: 14px; align-items: center; }
+.colhead { font-size: 17px; font-weight: 700; letter-spacing: 0.08em; color: var(--ink-faint); text-transform: uppercase; padding: 0 28px 4px; }
+.colhead.lp { color: var(--action-soft); }
+.cell { height: 76px; border-radius: 16px; display: flex; align-items: center; gap: 16px; padding: 0 28px; font-size: 28px; font-weight: 600; }
+.cell.old { background: rgba(236,238,244,0.06); border: 1px solid var(--line); color: var(--ink-mute); }
+.cell.new { background: var(--tile); border: 1px solid rgba(139,147,255,0.38); color: var(--ink); }
+.cell .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--action); flex: none; }
+.cell .tag { margin-left: auto; font-size: 15px; font-weight: 700; letter-spacing: 0.04em; color: var(--action-soft); background: var(--action-tint); border-radius: 999px; padding: 4px 11px; }
+.arrow { justify-self: center; width: 40px; height: 2px; background: var(--action); position: relative; }
+.arrow::after { content: ""; position: absolute; right: -2px; top: -6px; border-left: 12px solid var(--action); border-top: 7px solid transparent; border-bottom: 7px solid transparent; }
+.cell.total { height: 84px; font-size: 30px; font-weight: 700; }
+.cell.old.total { color: var(--ink); }
+.cell.new.total { background: var(--action); color: #0b0d24; border-color: var(--action); }
+.foot { margin-top: 26px; text-align: center; font-size: 19px; color: var(--ink-mute); }
+/* ---- wordmark (transparent overlay for the opening) and end card ---- */
+.mark { display: inline-flex; align-items: center; gap: 28px; }
+.mark .dots { display: grid; grid-template-columns: repeat(2, 20px); gap: 12px; }
+.mark .dots i { width: 20px; height: 20px; border-radius: 50%; background: var(--ink); display: block; }
+.mark b { font-size: 124px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
+.wm { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-shadow: 0 2px 18px rgba(0,0,0,0.45); filter: drop-shadow(0 2px 12px rgba(0,0,0,0.35)); }
+body.clear, body.clear .stage { background: transparent; }
+.endbg { position: absolute; inset: 0; background: url(end-bg.jpg) center / cover; }
+.endveil { position: absolute; inset: 0; background: rgba(11,13,24,0.62); }
+.end { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 30px; text-align: center; }
+.end .l1 { font-size: 40px; font-weight: 600; }
+.end .l2 { font-size: 30px; font-weight: 500; color: var(--ink-mute); display: inline-flex; align-items: center; gap: 14px; }
+.end .l2 .pro { font-size: 18px; padding: 5px 14px; }
+/* the store-frame variant is the same component at 1280x800 */
+.store .cmp { width: 1060px; }
+.store .cmp h2 { font-size: 46px; }
+.store .cmp .sub { font-size: 21px; }
+.store .grid { margin-top: 36px; row-gap: 11px; }
+.store .cell { height: 60px; font-size: 23px; }
+.store .cell.total { height: 66px; font-size: 25px; }
+.store .colhead { font-size: 15px; }
+.store .foot { font-size: 16px; margin-top: 20px; }
+</style>
+<div class="stage" id="stage"><div class="bg"></div><div class="veil"></div></div>
+<script>
+const q = new URLSearchParams(location.search);
+const stage = document.getElementById("stage");
+const FRAMES = {
+  1: { shot: "01-home-grid.png", head: "Every shortcut, one click from every tab", sub: "Groups you name, arranged by drag. Open a whole group at once. Free, with no limits.", pro: false },
+  2: { shot: "02-tasks-and-notes.png", head: "Tasks, goals and notes on your new tab", sub: "Tick work off where you will actually see it.", pro: true },
+  3: { shot: "03-focus-session.png", head: "Start a focus session from any task", sub: "The timer and today's focused time sit on your Dashboard.", pro: true },
+  4: { shot: "04-focus-blocking.png", head: "Distracting sites get a quiet reminder", sub: "Blocked only while you focus, with five more minutes when you need them.", pro: true, crop: { s: 1.55, cx: 640, cy: 400 } },
+  5: { shot: "05-insights.png", head: "See where your time actually went", sub: "By task, by tag and by site, measured in your browser.", pro: true },
+};
+const ROWS = [["A bookmarks bar", "Shortcuts in groups", false], ["A to-do app", "Tasks and goals", true], ["A time tracker", "Insights, measured for you", true], ["A site blocker", "Focus blocking", true]];
+function compareHtml() {
+  return '<div class="cmp"><h2 data-ink>One new tab instead of four tools</h2>' +
+    '<div class="sub" data-ink>Everything below lives on the page you see every time you open a tab.</div>' +
+    '<div class="grid"><div class="colhead" data-ink>The usual setup</div><div></div><div class="colhead lp" data-ink>LaunchPad</div>' +
+    ROWS.map((r, i) => '<div class="cell old" data-row="' + i + '" data-side="old" data-ink>' + r[0] + '</div><div class="arrow" data-row="' + i + '" data-side="arrow"></div>' +
+      '<div class="cell new" data-row="' + i + '" data-side="new" data-ink><span class="dot"></span>' + r[1] + (r[2] ? '<span class="tag">PRO</span>' : '') + '</div>').join("") +
+    '<div class="cell old total" data-row="4" data-side="old" data-ink>4 tools, 4 places to look</div><div class="arrow" data-row="4" data-side="arrow"></div>' +
+    '<div class="cell new total" data-row="4" data-side="new" data-ink>1 new tab, no account</div></div>' +
+    '<div class="foot" data-ink>Shortcuts are free forever. Tasks, Insights and focus blocking are Pro.</div></div>';
+}
+const f = q.get("frame"), card = q.get("card");
+if (f && FRAMES[f]) {
+  const d = FRAMES[f];
+  stage.insertAdjacentHTML("beforeend", '<div class="cap"><div class="head">' + (d.pro ? '<span class="pro" data-ink>PRO</span>' : '') +
+    '<h1 data-ink>' + d.head + '</h1><p data-ink>' + d.sub + '</p></div><div class="shot' + (d.crop ? ' cropped' : '') + '"><img src="shots/' + d.shot + '" alt=""></div></div>');
+  if (d.crop) {
+    // Zoom on (cx, cy) of the 1280x800 source: that point lands at the centre of the visible box.
+    const img = stage.querySelector(".shot img"), W = 1100, H = 560, k = (W / 1280) * d.crop.s;
+    img.style.width = (1280 * k) + "px"; img.style.left = (W / 2 - d.crop.cx * k) + "px"; img.style.top = (H / 2 - d.crop.cy * k) + "px";
+  }
+} else if (f === "6") {
+  document.body.classList.add("store");
+  stage.insertAdjacentHTML("beforeend", compareHtml());
+} else if (card === "wordmark") {
+  document.body.classList.add("clear"); document.documentElement.style.background = "transparent"; stage.innerHTML = "";
+  stage.insertAdjacentHTML("beforeend", '<div class="wm"><span class="mark" data-ink><span class="dots"><i></i><i></i><i></i><i></i></span><b>LaunchPad</b></span></div>');
+} else if (card === "end") {
+  stage.innerHTML = '<div class="endbg"></div><div class="endveil"></div>';
+  stage.insertAdjacentHTML("beforeend", '<div class="end"><span class="mark" data-ink data-end="mark"><span class="dots"><i></i><i></i><i></i><i></i></span><b>LaunchPad</b></span>' +
+    '<div class="l1" data-ink data-end="l1">Free on the Chrome Web Store</div>' +
+    '<div class="l2" data-end="l2"><span class="pro" data-ink>PRO</span><span data-ink>7-day trial, no card needed</span></div></div>');
+} else if (card === "compare") {
+  stage.insertAdjacentHTML("beforeend", compareHtml());
+}
+// Deterministic timeline for the video card. cues = { title, rows: [t0..t4], new: [t0..t4], foot } in seconds.
+const ease = (u) => u <= 0 ? 0 : u >= 1 ? 1 : 1 - Math.pow(1 - u, 3);
+window.setT = function (t, cues) {
+  const show = (el, t0, dur, dy) => { const u = ease((t - t0) / dur); el.style.opacity = u; el.style.transform = "translateY(" + ((1 - u) * (dy || 14)) + "px)"; };
+  document.querySelectorAll(".cmp h2, .cmp .sub").forEach((el) => show(el, cues.title, 0.6));
+  document.querySelectorAll(".colhead").forEach((el, i) => show(el, i === 1 ? cues.new[0] - 0.2 : cues.rows[0] - 0.2, 0.5, 8));
+  document.querySelectorAll("[data-row]").forEach((el) => {
+    const r = Number(el.dataset.row), side = el.dataset.side;
+    const t0 = side === "old" ? cues.rows[r] : cues.new[r] - (side === "arrow" ? 0.15 : 0);
+    show(el, t0, 0.5, side === "arrow" ? 0 : 12);
+    if (side === "old" && r < 4) { const dim = ease((t - cues.new[r]) / 0.5); el.style.opacity = Math.min(Number(el.style.opacity), 1 - 0.32 * dim); }
+  });
+  document.querySelectorAll(".foot").forEach((el) => show(el, cues.foot, 0.6, 8));
+};
+// Every TEXT RUN inside a [data-ink] element, boxed by a Range over its own
+// glyphs, with the colour of the element that paints it - so a cell measures
+// the ground under its words, not its dot, its border or its rounded corners.
+window.setEndT = function (t, cues) {
+  const show = (el, t0, dur, dy) => { const u = ease((t - t0) / dur); el.style.opacity = u; el.style.transform = "translateY(" + ((1 - u) * (dy || 14)) + "px)"; };
+  const q = (k) => document.querySelector('[data-end="' + k + '"]');
+  show(q("mark"), cues.mark, 0.8, 10); show(q("l1"), cues.l1, 0.6); show(q("l2"), cues.l2, 0.6);
+};
+window.inkBoxes = () => { const out = [];
+  for (const host of document.querySelectorAll("[data-ink]")) {
+    const w = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) {
+      if (!n.textContent.trim()) continue;
+      const rg = document.createRange(); rg.selectNodeContents(n); const r = rg.getBoundingClientRect();
+      const el = n.parentElement, cs = getComputedStyle(el);
+      out.push({ text: n.textContent.trim().slice(0, 40), color: cs.color, size: parseFloat(cs.fontSize), weight: cs.fontWeight, x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) });
+    }
+  }
+  return out; };
+window.ready = document.fonts.ready.then(() => Promise.all([...document.images].map((i) => i.decode().catch(() => {})))).then(() => document.fonts.check("700 20px Figtree"));
+</script>

@@ -25,6 +25,7 @@ try {
   await sleep(1200);
   const r = await tab.ev(`window.render(${JSON.stringify(spec)})`, 15 * 60 * 1000);
   fs.writeFileSync(OUT, Buffer.from(r.b64, "base64"));
-  console.log(JSON.stringify({ out: OUT, bytes: r.bytes, frames: r.frames, errors: tab.errors }));
+  console.log(JSON.stringify({ out: OUT, bytes: r.bytes, frames: r.frames, seconds: r.seconds, fontOk: r.fontOk, audio: r.audio, errors: tab.errors }));
+  if (r.captions && r.captions.length) fs.writeFileSync(OUT.replace(/.webm$/, ".captions.json"), JSON.stringify(r.captions, null, 1));
 } finally { await b.close(); server.close(); }
 process.exit(0);

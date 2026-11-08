@@ -1,7 +1,10 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>compositor</title>
-<style>html,body{margin:0;background:#000}canvas{display:block}</style>
+<style>
+@font-face { font-family: Figtree; src: url(fonts/figtree-latin.woff2) format("woff2"); font-weight: 400 700; }
+html,body{margin:0;background:#000}canvas{display:block}
+</style>
 <canvas id="c"></canvas>
 <script src="https://cdn.jsdelivr.net/npm/webm-muxer@5.0.2/build/webm-muxer.js"></script>
 <script>
@@ -9,12 +12,14 @@
 // timestamp (WebCodecs VP9) and muxed into a seekable WebM, so nothing depends
 // on rendering keeping up with real time and no frame can drop.
 //
-// spec = { w, h, fps, bitrate, clips: [{ dir, from, to, ghost?: {x,y,w,h}, zoom?: {s0,s1,cx,cy} }] }
-//   dir     = URL of a shot folder holding index.json + frames
-//   from/to = ms within the shot
-//   ghost   = CSS-px rect of the tile the FIRST held press (the drag) carries
-//   zoom    = scale from s0 to s1 across the clip, centred on (cx, cy) CSS px
-const SRC_W = 1920, SRC_H = 1080;
+// spec = { w, h, fps, bitrate, duration?, audio?, captions?, overlays?, clips: [...] }
+//  clip   = { dir, from, to, speed?, xfade?, ghost?: {x,y,w,h}, zoom?: {s0,s1,cx,cy}, cursor? }
+//           dir: a folder of frames + index.json (times in ms). Any source size: it is
+//           cover-fitted to the output, so a 3:2 clip is trimmed top and bottom.
+//           speed < 1 plays the source slower. xfade = ms of dissolve from the previous clip.
+//  captions = [{ from, to, text }] seconds of OUTPUT time, drawn lower-third in Figtree.
+//  overlays = [{ src, from, to, fadeIn, fadeOut }] full-frame transparent PNGs.
+//  audio  = URL of a WAV, encoded to Opus and muxed alongside.
 const cv = document.getElementById("c"), ctx = cv.getContext("2d");
 
 function cursorPath(x, y, s, down) {
@@ -40,58 +45,122 @@ async function loadClip(c) {
   const blobs = await Promise.all(meta.frames.map(async (f) => ({ t: f.t, blob: await (await fetch(c.dir + "/" + f.file)).blob() })));
   return { ...c, meta, blobs };
 }
+// Captions: wrap to two lines at most, Figtree 600, on a dark rounded plate.
+function wrap(text, maxW) {
+  const words = text.split(" "), lines = [""];
+  for (const w of words) { const t = lines.at(-1) ? lines.at(-1) + " " + w : w; if (ctx.measureText(t).width > maxW && lines.at(-1)) lines.push(w); else lines[lines.length - 1] = t; }
+  return lines;
+}
+function drawCaption(text, alpha, W, H) {
+  const fs = Math.round(H * 0.031), lh = Math.round(fs * 1.32), padX = Math.round(fs * 0.75), padY = Math.round(fs * 0.42);
+  ctx.save(); ctx.globalAlpha = alpha;
+  ctx.font = `600 ${fs}px Figtree`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const lines = wrap(text, W * 0.6), wMax = Math.max(...lines.map((l) => ctx.measureText(l).width));
+  const bw = wMax + padX * 2, bh = lines.length * lh + padY * 2, bx = (W - bw) / 2, by = H * 0.905 - bh;
+  ctx.fillStyle = "rgba(11,13,24,0.9)";
+  ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, Math.round(fs * 0.45)); ctx.fill();
+  ctx.fillStyle = "#eceef4";
+  lines.forEach((l, i) => ctx.fillText(l, W / 2, by + padY + lh * (i + 0.5)));
+  ctx.restore();
+  return { lines, box: [bx, by, bw, bh], fontPx: fs };
+}
 window.render = async function (spec) {
   cv.width = spec.w; cv.height = spec.h;
-  const muxer = new WebMMuxer.Muxer({ target: new WebMMuxer.ArrayBufferTarget(), video: { codec: "V_VP9", width: spec.w, height: spec.h, frameRate: spec.fps } });
+  await document.fonts.load("600 40px Figtree");
+  const fontOk = document.fonts.check("600 40px Figtree");
+  const W = spec.w, H = spec.h, fms = 1000 / spec.fps;
+  let audioBuf = null;
+  if (spec.audio) audioBuf = await new AudioContext({ sampleRate: 48000 }).decodeAudioData(await (await fetch(spec.audio)).arrayBuffer());
+  const muxer = new WebMMuxer.Muxer({ target: new WebMMuxer.ArrayBufferTarget(),
+    video: { codec: "V_VP9", width: W, height: H, frameRate: spec.fps },
+    audio: audioBuf ? { codec: "A_OPUS", numberOfChannels: 2, sampleRate: 48000 } : undefined });
   let encErr = null;
   const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => (encErr = String(e)) });
-  enc.configure({ codec: "vp09.00.10.08", width: spec.w, height: spec.h, bitrate: spec.bitrate || 8e6, framerate: spec.fps });
-  const fms = 1000 / spec.fps;
-  let n = 0;
+  enc.configure({ codec: "vp09.00.40.08", width: W, height: H, bitrate: spec.bitrate || 8e6, framerate: spec.fps });
+  const overlays = [];
+  for (const o of spec.overlays || []) overlays.push({ ...o, bmp: await createImageBitmap(await (await fetch(o.src)).blob()) });
+  const capLog = [];
+  let n = 0, prevSnap = null;
   for (const cs of spec.clips) {
     const c = await loadClip(cs);
-    const dur = c.to - c.from, count = Math.round(dur / fms);
+    const speed = c.speed || 1, outDur = (c.to - c.from) / speed, count = Math.round(outDur / fms);
     const idxAt = (t) => { let i = 0; while (i + 1 < c.blobs.length && c.blobs[i + 1].t <= t) i++; return i; };
-    // The drag window: the first press to the first release after it.
     const p0 = c.meta.pointer.findIndex((p) => p.down);
     const p1 = p0 < 0 ? -1 : c.meta.pointer.findIndex((p, j) => j > p0 && !p.down);
     const dragFrom = p0 < 0 ? Infinity : c.meta.pointer[p0].t, dragTo = p1 < 0 ? -Infinity : c.meta.pointer[p1].t;
     let ghostBmp = null;
-    if (c.ghost && p0 >= 0) {
-      const src = await createImageBitmap(c.blobs[idxAt(dragFrom - 40)].blob);
-      ghostBmp = await createImageBitmap(src, c.ghost.x, c.ghost.y, c.ghost.w, c.ghost.h); src.close();
-    }
+    if (c.ghost && p0 >= 0) { const src = await createImageBitmap(c.blobs[idxAt(dragFrom - 40)].blob); ghostBmp = await createImageBitmap(src, c.ghost.x, c.ghost.y, c.ghost.w, c.ghost.h); src.close(); }
+    const xfN = Math.round((c.xfade || 0) / fms);
     let curI = -1, cur = null;
     for (let f = 0; f < count; f++) {
-      const t = c.from + f * fms, i = idxAt(t);
+      const t = c.from + f * fms * speed, i = idxAt(t);
       if (i !== curI) { if (cur) cur.close(); cur = await createImageBitmap(c.blobs[i].blob); curI = i; }
+      const SW = cur.width, SH = cur.height;
+      // Cover-fit the source to the output aspect, then apply the clip's zoom.
+      const coverW = Math.min(SW, SH * W / H), coverH = coverW * H / W;
       const u = count > 1 ? f / (count - 1) : 0, e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
       const z = c.zoom ? c.zoom.s0 + (c.zoom.s1 - c.zoom.s0) * e : 1;
-      const zx = c.zoom ? c.zoom.cx : SRC_W / 2, zy = c.zoom ? c.zoom.cy : SRC_H / 2;
-      const sw = SRC_W / z, sh = SRC_H / z;
-      const sx = Math.max(0, Math.min(SRC_W - sw, zx - sw / 2)), sy = Math.max(0, Math.min(SRC_H - sh, zy - sh / 2));
-      const k = spec.w / sw;
-      ctx.drawImage(cur, sx, sy, sw, sh, 0, 0, spec.w, spec.h);
-      const p = pointerAt(c.meta.pointer, t);
-      const px = (p.x - sx) * k, py = (p.y - sy) * k;
-      if (ghostBmp && t >= dragFrom && t < dragTo) {
-        const gw = c.ghost.w * k, gh = c.ghost.h * k;
-        ctx.save(); ctx.globalAlpha = 0.82; ctx.drawImage(ghostBmp, px - gw * 0.42, py - gh * 0.45, gw, gh); ctx.restore();
+      const zx = c.zoom && c.zoom.cx != null ? c.zoom.cx : SW / 2, zy = c.zoom && c.zoom.cy != null ? c.zoom.cy : SH / 2;
+      const sw = coverW / z, sh = coverH / z;
+      const sx = Math.max(0, Math.min(SW - sw, zx - sw / 2)), sy = Math.max(0, Math.min(SH - sh, zy - sh / 2));
+      const k = W / sw;
+      ctx.globalAlpha = 1;
+      ctx.drawImage(cur, sx, sy, sw, sh, 0, 0, W, H);
+      if (c.cursor !== false) {
+        const p = pointerAt(c.meta.pointer, t), px = (p.x - sx) * k, py = (p.y - sy) * k;
+        if (ghostBmp && t >= dragFrom && t < dragTo) { const gw = c.ghost.w * k, gh = c.ghost.h * k; ctx.save(); ctx.globalAlpha = 0.82; ctx.drawImage(ghostBmp, px - gw * 0.42, py - gh * 0.45, gw, gh); ctx.restore(); }
+        cursorPath(px, py, k * 1.1, p.down);
       }
-      if (c.cursor !== false) cursorPath(px, py, k * 1.1, p.down);
+      if (prevSnap && f < xfN) { ctx.save(); ctx.globalAlpha = 1 - (f + 1) / (xfN + 1); ctx.drawImage(prevSnap, 0, 0, W, H); ctx.restore(); }
+      const T = n * fms / 1000;
+      for (const o of overlays) {
+        if (T < o.from || T > o.to) continue;
+        const a = Math.min(1, (T - o.from) / (o.fadeIn || 0.001), (o.to - T) / (o.fadeOut || 0.001));
+        ctx.save(); ctx.globalAlpha = Math.max(0, a); ctx.drawImage(o.bmp, 0, 0, W, H); ctx.restore();
+      }
+      for (const cap of spec.captions || []) {
+        if (T < cap.from || T > cap.to) continue;
+        const a = Math.min(1, (T - cap.from) / 0.15, (cap.to - T) / 0.15);
+        const d = drawCaption(cap.text, Math.max(0, a), W, H);
+        if (!capLog.find((x) => x.text === cap.text)) capLog.push({ text: cap.text, drawnLines: d.lines, at: +T.toFixed(2), fontPx: d.fontPx });
+      }
       const vf = new VideoFrame(cv, { timestamp: Math.round(n * fms * 1000), duration: Math.round(fms * 1000) });
       enc.encode(vf, { keyFrame: n % (spec.fps * 2) === 0 }); vf.close();
       n++;
       if (enc.encodeQueueSize > 8) await new Promise((r) => setTimeout(r, 5));
     }
+    if (prevSnap) prevSnap.close();
+    prevSnap = await createImageBitmap(cv);
     if (cur) cur.close();
     if (ghostBmp) ghostBmp.close();
   }
+  // Hold the last frame to the requested duration (the music's tail).
+  const total = spec.duration ? Math.round(spec.duration * spec.fps) : n;
+  while (n < total) {
+    const vf = new VideoFrame(cv, { timestamp: Math.round(n * fms * 1000), duration: Math.round(fms * 1000) });
+    enc.encode(vf, { keyFrame: n % (spec.fps * 2) === 0 }); vf.close(); n++;
+  }
   await enc.flush(); enc.close();
+  let audioInfo = null;
+  if (audioBuf) {
+    const aenc = new AudioEncoder({ output: (chunk, meta) => muxer.addAudioChunk(chunk, meta), error: (e) => (encErr = String(e)) });
+    aenc.configure({ codec: "opus", sampleRate: 48000, numberOfChannels: 2, bitrate: 160000 });
+    const L = audioBuf.getChannelData(0), R = audioBuf.numberOfChannels > 1 ? audioBuf.getChannelData(1) : L;
+    const maxS = Math.min(audioBuf.length, Math.round((n / spec.fps) * 48000)), FR = 960;
+    for (let s = 0; s < maxS; s += FR) {
+      const len = Math.min(FR, maxS - s), data = new Float32Array(len * 2);
+      data.set(L.subarray(s, s + len), 0); data.set(R.subarray(s, s + len), len);
+      const ad = new AudioData({ format: "f32-planar", sampleRate: 48000, numberOfFrames: len, numberOfChannels: 2, timestamp: Math.round(s / 48000 * 1e6), data });
+      aenc.encode(ad); ad.close();
+      if (aenc.encodeQueueSize > 32) await new Promise((r) => setTimeout(r, 2));
+    }
+    await aenc.flush(); aenc.close();
+    audioInfo = { seconds: +(maxS / 48000).toFixed(3), sourceSeconds: +audioBuf.duration.toFixed(3) };
+  }
   muxer.finalize();
   if (encErr) throw new Error(encErr);
   const buf = new Uint8Array(muxer.target.buffer);
   let s = ""; for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
-  return { b64: btoa(s), bytes: buf.length, frames: n };
+  return { b64: btoa(s), bytes: buf.length, frames: n, seconds: +(n / spec.fps).toFixed(3), fontOk, audio: audioInfo, captions: capLog };
 };
 </script>

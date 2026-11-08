@@ -95,13 +95,19 @@ export function recorder(tab) {
       await tab.send("Page.startScreencast", { format: "jpeg", quality: 92, maxWidth: 2880, maxHeight: 1620, everyNthFrame: 1 });
       await tab.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, buttons: 0 });
     },
-    async moveTo(x, y, ms = 700, down = false) {
-      const sx = mx, sy = my, steps = Math.max(2, Math.round(ms / 16));
-      for (let i = 1; i <= steps; i++) {
-        const u = ease(i / steps), px = sx + (x - sx) * u, py = sy + (y - sy) * u;
+    // TIME-BASED: the position comes from real elapsed time, so a move takes
+    // `ms` however slow each CDP round trip is (a step count made an "800 ms"
+    // move take ~1.5 s and pushed every later cue late). `each` is called at
+    // every step with the current point, for a drag that must follow it.
+    async moveTo(x, y, ms = 700, down = false, each = null) {
+      const sx = mx, sy = my, start = Date.now();
+      for (;;) {
+        const u0 = Math.min(1, (Date.now() - start) / ms), u = ease(u0), px = sx + (x - sx) * u, py = sy + (y - sy) * u;
+        if (each) await each(px, py);
         await tab.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: px, y: py, buttons: down ? 1 : 0, button: down ? "left" : "none" });
         pointer.push({ t: now(), x: px, y: py, down });
-        await sleep(ms / steps);
+        if (u0 >= 1) break;
+        await sleep(8);
       }
       mx = x; my = y;
     },
@@ -115,11 +121,21 @@ export function recorder(tab) {
     async press() { await tab.send("Input.dispatchMouseEvent", { type: "mousePressed", x: mx, y: my, button: "left", buttons: 1, clickCount: 1 }); pointer.push({ t: now(), x: mx, y: my, down: true }); },
     async release() { await tab.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: mx, y: my, button: "left", buttons: 0, clickCount: 1 }); pointer.push({ t: now(), x: mx, y: my, down: false }); },
     async wheel(dy, ms = 900) {
-      const steps = Math.max(2, Math.round(ms / 16));
-      for (let i = 0; i < steps; i++) { await tab.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: mx, y: my, deltaX: 0, deltaY: dy / steps }); await sleep(ms / steps); }
+      // Time-based too: deliver the share of `dy` that elapsed time owes.
+      const start = Date.now(); let sent = 0;
+      for (;;) {
+        const u = Math.min(1, (Date.now() - start) / ms), owe = dy * u - sent;
+        if (Math.abs(owe) >= 1 || u >= 1) { await tab.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: mx, y: my, deltaX: 0, deltaY: owe }); sent += owe; }
+        if (u >= 1) break;
+        await sleep(12);
+      }
       pointer.push({ t: now(), x: mx, y: my, down: false });
     },
     hold: (ms) => sleep(ms),
+    // Wait until `ms` after start() - absolute cue times, so a slow CDP round
+    // trip earlier in the shot cannot push every later action late.
+    async at(ms) { const w = ms - (Date.now() - t0); if (w > 0) await sleep(w); },
+    now,
     async stop(dir) {
       await sleep(300);
       await tab.send("Page.stopScreencast");
