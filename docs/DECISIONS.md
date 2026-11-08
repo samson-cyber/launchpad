@@ -4795,3 +4795,52 @@ The switch waits for that read, so the view is revealed filled (MC2).
 - With complete hours, Today draws 24 bars, the tallest at the expected hour and the current hour highlighted.
 - Seven and thirty days draw at the pre-cap width.
 - The console is clean.
+
+## 2026-11-08, Round MC5: the calendar edits tasks; the count-up runs 560 ms
+
+**Context.** Samson, after using MC1–MC4, asked for four things:
+- Slow the count-up by 40%.
+- Make the month selectable by clicking it.
+- Let tasks be dragged between days and updated everywhere.
+- Let tasks be edited by a click on the calendar, in the same overlay as New task.
+
+**Decisions:**
+- **Count-up: 560 ms.** I read "40% slower" as 40% longer, so 400 becomes 560. It is the one sanctioned exception to design-guide 3.6's 150/240/400 ramp, and design-guide 3.6 now names it.
+- **Month picker.** The month label is a button that opens a picker laid over the grid, on the Floater tier, so the tile doesn't change height. It shows a year with arrows and its twelve months; this month is outlined and the month in view is filled. Picking a month closes it. Escape or an outside click closes it without changing anything. Focus moves in and comes back.
+- **Drag between days.** Only a due chip drags. A scheduled chip is a projection of a repeat, not a task, so there is nothing to move. Clicking it opens the repeat's own dialog instead.
+  - The drop goes through `commitTaskDueAt`, the Tasks tab's own due path. A day past the task's goal deadline asks first, in the existing three-button dialog, exactly as the due pill does.
+  - A drop on the task's own day writes nothing. The day it lands on becomes the selected day, so the list under the grid shows it there.
+- **Edit overlay.** Clicking a due chip (or Enter on it), or its name in the day list, opens the New task overlay prefilled, titled "Edit task", with Save.
+  - Name, description, priority and tags save in one write through the new `Storage.editTask`. Any bad field refuses the whole edit, so nothing is half-saved.
+  - A changed due date then goes through `commitTaskDueAt`, after the overlay has closed, so a goal-deadline conflict gets its own dialog.
+  - Tags the overlay can't show (trashed ones) are kept.
+- **Updated everywhere.**
+  - Every committed task dialog now refreshes a visible Dashboard: edit, repeat, conflict, and every other `openTasksModal` caller. The direct due path does too.
+  - The Tasks tab is re-rendered as before.
+  - Other open new-tab pages follow through their storage listener.
+- **A re-render is not an open.** Edits re-render the whole board. Async-filled figures came back as "—" for a frame and the ring emptied and re-swept, and drags made that routine. A re-render of the same scope now carries the painted figures and the ring's position into the new markup until the fresh read replaces them. `setActiveTab` clears the carry, so opening the tab still sweeps and counts once.
+- **The cell is a box, not a button.** A button cannot hold controls. The date is the day's select button, and a click elsewhere in the cell also selects the day. The free preview's cell has no control, role, tabindex or drag (the [1.1.4] rule).
+
+**Alternatives considered:**
+- A native `<input type="month">` for the picker. Its popup is the browser's own, and it can't take the product's frosted tiers or its ink.
+- Pointer-event dragging instead of HTML5 drag and drop. More code, for nothing the native path doesn't give.
+- Writing `dueAt` directly on drop. That would skip the goal-deadline rule the Tasks tab enforces.
+
+**Gate.** `check-calendar` grows to 62 rows, and `--mutate` kills 15 of 15 seeds. It now covers:
+- `editTask`: one write, all-or-nothing, `dueAt` untouched, duplicate tags removed.
+- The real cell builders: live due chips drag and are controls; scheduled chips are controls but don't drag; the preview has no controls at all.
+- The wiring: drop and edit go through `commitTaskDueAt`, never `updateTaskDueAt`; 560 ms; opening clears the carry.
+
+**Verified** live in a scratch Edge profile, on the working tree and on the packaged build, 39/39 each:
+- The count runs about 560 ms.
+- Month picker: opens with focus on the month in view, the tile height doesn't change, the year arrows work, a picked month shows with focus back on the label, and Escape and an outside click close it.
+- Dragging, using Chrome's own drag pipeline intercepted over CDP:
+  - The target day highlights, the date moves, the calendar follows, and the landing day is selected.
+  - The focused figure never shows "—" and the ring holds its place.
+  - A drop on the same day writes nothing.
+  - A goal task dropped past its goal's deadline gets the conflict dialog first, and "Keep goal deadline" sets the deadline.
+- Edit overlay: same fields in the same order, prefilled; Save writes name, priority, tag and date; the calendar and the Tasks tab both show it.
+- An empty name is refused, and Enter on a chip opens the overlay.
+- A scheduled chip opens its repeat, prefilled, and doesn't drag.
+- The preview has no controls, and the console is clean on Pro and free.
+- The MC1–MC4 harness still passes 49/49.
