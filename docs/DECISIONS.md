@@ -4929,7 +4929,7 @@ It also showed a pre-existing copy slip: "No task focus tracked in the today yet
 - **Delete.** It works the way the Tasks tab's delete does: the task goes to the trash with a 5-second Undo, and there is no confirm. It sits at the footer's far end from Save, in rose ink on a ghost button. Undo now refreshes the Dashboard too.
 - **The overlay's double-click.** A click on the overlay's backdrop within 400 ms of it opening is ignored. Before this, the second click of a double-click on a calendar task opened the dialog and shut it again.
 
-**Found and fixed: seven Settings switches ignored the mouse** (BUGS **I34**). It is pre-existing on master since 4cb7420 and never built or shipped. Each label now carries `for=`, and `tools/check-label-targets.mjs` holds it.
+**Found and fixed: seven Settings switches ignored the mouse** (BUGS **I35**). It is pre-existing on master since 4cb7420 and never built or shipped. Each label now carries `for=`, and `tools/check-label-targets.mjs` holds it.
 
 **Gates.**
 - `tools/check-due-sound.mjs` has 38 rows, and `--mutate` kills all 9 seeds.
