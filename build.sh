@@ -564,11 +564,12 @@ powershell.exe -NoProfile -Command "
     'assets',
     'icons',
     'lib',
-    # [H0 2026-09-18] SPACE GROTESK SHIPS IN THE ZIP, because it has to: the
-    # manifest's CSP is font-src 'self', so a face fetched from Google Fonts is
-    # refused by the browser rather than merely discouraged. Three woff2 subsets
-    # - latin, latin-ext, vietnamese, one variable file each covering 400-700 -
-    # plus OFL.txt. 52,435 bytes in total.
+    # [H0 2026-09-18, DP1 2026-11-08] THE PRODUCT FACE SHIPS IN THE ZIP, because
+    # it has to: the manifest's CSP is font-src 'self', so a face fetched from
+    # Google Fonts is refused by the browser rather than merely discouraged.
+    # Since DP1 that face is Figtree - two woff2 subsets, latin and latin-ext,
+    # one variable file each covering 400-700 - plus OFL.txt. 33,009 bytes in
+    # total, down from Space Grotesk's 52,435.
     #
     # A DIRECTORY, like lib and sounds, so a fourth subset added later follows
     # automatically. That is the lesson PF.2 recorded when lib was renamed and

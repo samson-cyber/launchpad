@@ -228,7 +228,10 @@ body {
      then system-ui. Roboto and "Google Sans" go - design-guide 3.4's "No
      webfont" rule is superseded by the 2026-09-18 DECISIONS entry, which
      records why (the display ramp is weight 600 with -0.04em tracking at 92px,
-     which the system stack cannot deliver) and what it costs (47,940 bytes). */
+     which the system stack cannot deliver) and what it costs (47,940 bytes).
+
+     [DP1 2026-11-08] The face behind --font-sans is now Figtree (28,528
+     bytes); this line did not change, only the token it reads. */
   font-family: var(--font-sans);
   /* [1.12.1] background-color IS NO LONGER TRANSITIONED HERE, and dropping it
      is the fix rather than a side effect. It only ever reached colour-to-colour

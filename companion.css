@@ -68,7 +68,7 @@
 
 /* ----- the two surfaces -----
 
-   SPACE GROTESK REACHES THIS DOCUMENT THE SAME WAY THE TOKENS DO. The
+   THE PRODUCT FACE (FIGTREE SINCE DP1) REACHES THIS DOCUMENT THE SAME WAY THE TOKENS DO. The
    @font-face blocks live in tokens.css and its url()s resolve relative to THAT
    stylesheet, which sits at the extension root beside fonts/ - so a second HTML
    entry gets the face by linking tokens.css and nothing more. The family is

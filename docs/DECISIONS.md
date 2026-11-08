@@ -4136,6 +4136,12 @@ menus are not tiles and are not part of this family.
 
 ## 2026-09-18 — Space Grotesk, product-wide, shipped in the extension
 
+> **SUPERSEDED 2026-11-08 (DP1): the face is now Figtree.** The half of this
+> entry that still holds is the mechanism: a bundled variable woff2 in
+> `fonts/`, one `@font-face` per subset in `tokens.css`, `body` on
+> `--font-sans`. Only the face changed. See the 2026-11-08 DP1 entry at the
+> foot of this file.
+
 **Context:** the product renders in `"Google Sans", Roboto, Arial, sans-serif`
 today, and there is no `@font-face` anywhere in the tree. The v2 language is
 built on Space Grotesk — its negative tracking at display sizes and its tabular
@@ -4568,3 +4574,38 @@ about whether the product has helped anyone. `PROMO_REASK_OPENS` is unchanged.
 
 The right-click tip now shows on the second open, which is what its comment
 always said.
+
+## 2026-11-08, Round DP1: Figtree replaces Space Grotesk
+
+**Ruled by Samson 2026-11-08**, from a shortlist of four shown on the real
+Insights, Dashboard, Tasks and Home tabs. His brief: Space Grotesk is "a bit too
+rigid and square".
+
+**Shortlist and costs.** All four are OFL 1.1 and have tabular figures (`tnum`).
+Bytes are what would ship, with the weight axis cut to 400-700 where that is smaller:
+- Plus Jakarta Sans: 43,684 bytes, with a Vietnamese subset. This was the lean.
+- **Figtree: 28,528 bytes, no Vietnamese subset. Chosen.**
+- Manrope: 45,892 bytes, with a Vietnamese subset. The closest to Space Grotesk.
+- Outfit: 47,100 bytes, no Vietnamese subset. Cutting the axis makes this one larger, so it would ship uncut.
+
+For comparison, Space Grotesk was 47,940 bytes across three subsets.
+
+**Two faces were checked and left out:**
+- DM Sans: Google's current build has no `tnum`, so a ticking number would shift sideways. design-guide 3.4 forbids that.
+- Onest: 54,492 bytes, and its shapes are still a grotesque like Space Grotesk.
+
+**What ships.** `fonts/figtree-latin.woff2` (18,932 bytes) and
+`fonts/figtree-latin-ext.woff2` (9,596 bytes). These are Google's variable
+subsets, with the axis cut from 300-900 to 400-700 by fontTools' instancer.
+`fonts/OFL.txt` now carries Figtree's copyright line. The `@font-face`
+`unicode-range` values are Google's, verbatim. `--font-sans` is
+`Figtree, Inter, system-ui, sans-serif`. The fonts directory goes from
+52,435 bytes to 33,009 bytes.
+
+**No Vietnamese is an accepted cost, not an oversight.** It affects only text
+the user types, which falls back to the system face. The UI catalogue is
+English only.
+
+**Unchanged:** every size, weight and tracking token. A face swap that also
+re-tunes the ramp could not be judged as a face swap. The ramp is reviewed in
+DP2, the layout round, where tile titles grow anyway.

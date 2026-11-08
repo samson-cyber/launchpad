@@ -182,6 +182,11 @@ byte-identical rather than restating.
 
 ### 3.4 Typography
 
+- **Family — Figtree since 2026-11-08 (DP1).** Same mechanism as below, different face:
+  `fonts/figtree-latin.woff2` + `fonts/figtree-latin-ext.woff2`, 28,528 bytes, axis cut
+  to 400-700, `--font-sans` = `Figtree, Inter, system-ui, sans-serif`. Ruled by Samson
+  over Plus Jakarta Sans, Manrope and Outfit; DECISIONS 2026-11-08 DP1 has the shortlist.
+  The H0 paragraph that follows is kept as the record of the first reversal.
 - **Family — SUPERSEDED 2026-09-18 (H0).** The product now ships **Space Grotesk** in
   `fonts/`, declared by `@font-face` in `tokens.css`, with `body` on
   `var(--font-sans)` = `"Space Grotesk", Inter, system-ui, sans-serif`. The reversal is

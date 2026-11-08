@@ -547,12 +547,12 @@ export function expandAllowlist(entries, repoRoot) {
 export const EXPECTED_UNREFERENCED = [
   {
     p: "fonts/OFL.txt",
-    reason: "The SIL Open Font License, shipped because the licence REQUIRES it: Space " +
-            "Grotesk is OFL-1.1, and clause 2 says the copyright notice and licence must " +
+    reason: "The SIL Open Font License, shipped because the licence REQUIRES it: Figtree " +
+            "is OFL-1.1, and clause 2 says the copyright notice and licence must " +
             "travel with the font files in any redistribution - which is what putting a " +
             "woff2 inside a Chrome Web Store zip is. Nothing references it and nothing " +
-            "should: it is a legal artifact, not a resource the product loads. The three " +
-            "space-grotesk-*.woff2 beside it ARE referenced, from the @font-face src in " +
+            "should: it is a legal artifact, not a resource the product loads. The two " +
+            "figtree-*.woff2 beside it ARE referenced, from the @font-face src in " +
             "tokens.css, which this gate learned to read in the same commit. Deleting " +
             "this file would make the build non-compliant while changing nothing a user " +
             "can see, which is the most dangerous shape of unreferenced file there is.",

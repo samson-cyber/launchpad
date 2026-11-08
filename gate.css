@@ -40,7 +40,7 @@
  * TOKENS COME FROM tokens.css, WHICH gate.html NOW LINKS. The alternative was
  * copying a dozen values into this file, which is the exact drift tokens.css
  * was split out to prevent ([1.9.1]'s own header says so). The link also brings
- * Space Grotesk's @font-face, since it lives in that file - one line, both jobs.
+ * product face's @font-face, since it lives in that file - one line, both jobs.
  */
 
 * { box-sizing: border-box; }
