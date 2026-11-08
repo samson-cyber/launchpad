@@ -773,13 +773,17 @@ await (async () => {
     // composes tile--<kind> from it, so the literal class never appears here.
     const AREAS = ["dash-tile-hero", "dash-tile-upnext", 'dashCountTileHtml("overdue"',
                    'dashCountTileHtml("goals"', 'dashCountTileHtml("blocking"',
-                   "dash-tile-due", "dash-tile-time"];
-    check("render: all seven tiles are emitted", AREAS.every((c) => render.includes(c)), AREAS.filter((c) => !render.includes(c)).join(" "));
+                   "dash-tile-due", "dash-tile-time", "dashCalendarTileHtml(ws"];
+    // [MC4] Eight since the calendar joined the base of the board.
+    check("render: all eight tiles are emitted", AREAS.every((c) => render.includes(c)), AREAS.filter((c) => !render.includes(c)).join(" "));
     const placed = ["dash-tile-hero", "dash-tile-upnext", "dash-tile-count.tile--overdue",
                     "dash-tile-count.tile--goals", "dash-tile-count.tile--blocking",
-                    "dash-tile-due", "dash-tile-time"]
+                    "dash-tile-due", "dash-tile-time", "dash-tile-cal"]
       .filter((sel) => new RegExp("\\." + sel.replace(/\./g, "\\.") + "\\s*\\{[^}]*grid-area:").test(SRC.css));
-    check("layout: every one of the seven is placed by grid-area in the sheet", placed.length === 7, placed.join(" "));
+    check("layout: every one of the eight is placed by grid-area in the sheet", placed.length === 8, placed.join(" "));
+    // The calendar is the board's LAST row in all three layouts, full width.
+    check("layout: the calendar spans the last row of the wide grid and both narrow branches",
+      /"cal\s+cal\s+cal\s+cal";/.test(SRC.css) && /"cal\s+cal";/.test(SRC.css) && /"time" "cal";/.test(SRC.css));
     // The narrow branches restate the areas rather than unsetting them, which
     // is the one way a template-areas grid can lose its layout without any
     // rule looking wrong: drop the columns, keep the areas, and every tile
@@ -851,7 +855,7 @@ const hasClassToken = (src, name) => {
   check("render: the evening close-out still renders, in the action tile's slot",
     /period === "evening"[\s\S]{0,600}dashHeadHtml\(d, ws, period, dueItems\)/.test(render));
   check("render: the streak and focused tile suppress on the SAME scope",
-    /if \(scope\) dashRefreshStreak/.test(render) && /var streakCard = scope\s*$/m.test(render));
+    /if \(scope\) (?:fills\.push\()?dashRefreshStreak/.test(render) &&/var streakCard = scope\s*$/m.test(render));
   check("render: the strip's blocked tile reads focusStats, and 0 renders as 0",
     /Storage\.focusBlockedOnDay\(d, todayKey\)/.test(SRC.nt) && !/focusBlockedOnDay[\s\S]{0,120}\|\| *""/.test(SRC.nt));
   // [H1a] dashHeroBlockingHtml RETURNED A .dash-hero-stat and the bento has no

@@ -20509,14 +20509,15 @@ html.bg-light .set-tile .set-select {
 .dash-bento {
   display: grid;
   grid-template-columns: repeat(var(--cols), 1fr);
-  grid-template-rows: auto auto auto 1fr;
+  grid-template-rows: auto auto auto 1fr auto;
   grid-auto-rows: auto;
   gap: var(--gap);
   grid-template-areas:
     "hero   hero   hero     hero"
     "upnext upnext overdue  goals"
     "due    due    blocking blocking"
-    "due    due    time     time";
+    "due    due    time     time"
+    "cal    cal    cal      cal";
 }
 
 /* THE BAND. Eyebrow across the top; the focus figure (or the tracking-off
@@ -20875,14 +20876,15 @@ html.has-bg.bg-light .dash-bento .dash-inline-link {
       "overdue  goals"
       "blocking blocking"
       "due      due"
-      "time     time";
+      "time     time"
+      "cal      cal";
   }
 }@media (max-width: 720px) {
   .dash-bento {
     grid-template-rows: none;
     grid-template-columns: 1fr;
     grid-template-areas:
-      "hero" "upnext" "overdue" "goals" "blocking" "due" "time";
+      "hero" "upnext" "overdue" "goals" "blocking" "due" "time" "cal";
   }
 }/* ---- THE LIGHT GROUND, FOR THE FOUR CONTROLS -------------------------------
 
@@ -24109,4 +24111,127 @@ html.has-bg .tasks-split .tt-section-title {
 .ins-hero-stat-num .dur-u,
 .dash-hero-stat-num .dur-u {
   font-size: var(--fs-14);
+}
+
+/* [MC2 2026-11-08] SMOOTH TAB SWITCHES (view transitions). The header and the
+   active panel are named transition elements; everything else (the wallpaper,
+   the sidebar) is the root and does not move. Durations and curves are
+   design-guide 3.6's: 150ms exit, 240ms entrance, cubic-bezier(0.4,0,1,1) out
+   and cubic-bezier(0.2,0,0,1) in. While a transition runs, the header's own CSS
+   transitions are switched off - the view transition morphs it, and two
+   animations of one property read as a wobble. */
+#content-header { view-transition-name: lp-header; }
+.tab-panel:not(.hidden) { view-transition-name: lp-panel; }
+html.lp-vt #content-header,
+html.lp-vt #content-header * { transition: none !important; }
+::view-transition-old(root),
+::view-transition-new(root) { animation: none; }
+::view-transition-group(lp-header) {
+  animation-duration: 240ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+::view-transition-old(lp-header),
+::view-transition-new(lp-header) {
+  animation-duration: 240ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  height: 100%;
+  object-fit: none;
+  object-position: top center;
+}
+::view-transition-group(lp-panel) { animation: none; }
+::view-transition-old(lp-panel) {
+  animation: lp-panel-out 150ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+::view-transition-new(lp-panel) {
+  animation: lp-panel-in 240ms cubic-bezier(0.2, 0, 0, 1) 90ms both;
+}
+@keyframes lp-panel-out { to { opacity: 0; transform: translateY(-6px); } }
+@keyframes lp-panel-in { from { opacity: 0; transform: translateY(10px); } }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
+}
+
+/* [MC3] Numerals that count up keep a fixed digit width, so nothing beside
+   them shifts while they count (design-guide: tabular numerals on any number
+   that ticks). */
+.dash-hero-num, .dash-hero-count-num, .dash-hero-stat-num,
+.dash-tile-figure, .ins-hero-stat-num, .tt2-count-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- [MC4 2026-11-08] THE DASHBOARD CALENDAR ------------------------------
+   Full width at the base of the board (area "cal"), a month you can step
+   through. Ink: the tile's own family; due is the board's primary ink, overdue
+   the overdue tile's rose, scheduled the action indigo - the palette's
+   existing meanings. Chips are text, so they are measured like text. */
+.dash-bento > .dash-tile-cal { grid-area: cal; }
+.dash-free-demo-grid > .dash-tile-cal { grid-column: 1 / -1; }
+.dash-tile-cal { display: flex; flex-direction: column; gap: var(--space-3); }
+.dash-cal-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+.dash-cal-head .tile-eyebrow { margin: 0; }
+.dash-cal-month { font-size: var(--fs-14); font-weight: 600; color: var(--ink); }
+.dash-cal-nav { display: inline-flex; align-items: center; gap: var(--space-1); }
+.dash-cal-step, .dash-cal-today {
+  font: inherit; font-size: var(--fs-13); color: var(--ink); background: rgba(236, 238, 244, 0.06);
+  border: 1px solid rgba(236, 238, 244, 0.14); border-radius: var(--radius-pill, 999px);
+  min-width: 30px; height: 30px; padding: 0 var(--space-2-5, 10px); cursor: pointer;
+}
+.dash-cal-step { font-size: var(--fs-14); line-height: 1; }
+.dash-cal-step:hover, .dash-cal-today:hover { background: rgba(236, 238, 244, 0.12); }
+.dash-cal-step:focus-visible, .dash-cal-today:focus-visible, .dash-cal-cell:focus-visible {
+  outline: 2px solid var(--action-soft); outline-offset: 2px;
+}
+.dash-cal-legend { margin-left: auto; display: inline-flex; gap: var(--space-3); font-size: var(--fs-12); color: var(--ink-mute); }
+.dash-cal-key { display: inline-flex; align-items: center; gap: 6px; }
+.dash-cal-key::before { content: ""; width: 8px; height: 8px; border-radius: 50%; }
+.dash-cal-key.is-due::before { background: var(--ink); }
+.dash-cal-key.is-overdue::before { background: var(--ink-on-overdue); }
+.dash-cal-key.is-scheduled::before { background: none; box-shadow: inset 0 0 0 2px var(--action-soft); }
+.dash-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.dash-cal-wd { font-size: var(--fs-12); color: var(--ink-mute); padding: 0 var(--space-2) var(--space-1); }
+.dash-cal-cell {
+  all: unset; box-sizing: border-box; min-height: 84px; padding: var(--space-2); border-radius: var(--radius-md, 8px);
+  display: flex; flex-direction: column; gap: 4px; min-width: 0; cursor: pointer;
+  background: rgba(236, 238, 244, 0.035); border: 1px solid transparent;
+}
+.dash-cal-cell.is-blank { background: none; cursor: default; }
+.dash-cal-cell:hover { background: rgba(236, 238, 244, 0.07); }
+.dash-cal-cell.is-selected { border-color: rgba(139, 147, 255, 0.55); background: rgba(139, 147, 255, 0.10); }
+.dash-cal-date { font-size: var(--fs-13); font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dash-cal-cell.is-past .dash-cal-date { color: var(--ink-mute); }
+.dash-cal-cell.is-today .dash-cal-date {
+  color: var(--ink-on-action); background: var(--action); border-radius: 999px;
+  min-width: 24px; height: 24px; display: inline-grid; place-items: center; align-self: flex-start; padding: 0 6px;
+}
+.dash-cal-items { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.dash-cal-chip {
+  font-size: var(--fs-12); line-height: 1.35; padding: 1px 6px; border-radius: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+  border-left: 2px solid transparent;
+}
+.dash-cal-chip.is-due { color: var(--ink); background: rgba(236, 238, 244, 0.08); border-left-color: var(--ink); }
+.dash-cal-chip.is-overdue { color: var(--ink-on-overdue); background: rgba(237, 169, 180, 0.12); border-left-color: var(--ink-on-overdue); }
+.dash-cal-chip.is-scheduled { color: var(--action-soft); background: rgba(139, 147, 255, 0.12); border-left-color: var(--action-soft); }
+.dash-cal-more { font-size: var(--fs-12); color: var(--ink-mute); padding-left: 6px; }
+.dash-cal-detail { border-top: 1px solid rgba(236, 238, 244, 0.10); padding-top: var(--space-3); }
+.dash-cal-detail-head { font-size: var(--fs-13); font-weight: 600; color: var(--ink); margin-bottom: var(--space-2); }
+.dash-cal-empty { font-size: var(--fs-13); color: var(--ink-mute); }
+.dash-cal-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1-5, 6px); }
+.dash-cal-row { display: flex; align-items: center; gap: var(--space-3); min-width: 0; font-size: var(--fs-13); }
+.dash-cal-kind { flex: none; font-size: var(--fs-11); font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+.dash-cal-kind.is-due { color: var(--ink); background: rgba(236, 238, 244, 0.10); }
+.dash-cal-kind.is-overdue { color: var(--ink-on-overdue); background: rgba(237, 169, 180, 0.14); }
+.dash-cal-kind.is-scheduled { color: var(--action-soft); background: rgba(139, 147, 255, 0.14); }
+.dash-cal-name { color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-cal-goto { margin-left: auto; flex: none; }
+.dash-cal-grid.is-fresh { animation: lp-cal-in 240ms cubic-bezier(0.2, 0, 0, 1) both; }
+@keyframes lp-cal-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .dash-cal-grid.is-fresh { animation: none; } }
+@media (max-width: 720px) {
+  .dash-cal-cell { min-height: 56px; padding: 6px; }
+  .dash-cal-chip { display: none; }
+  .dash-cal-cell.has-items::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--action-soft); }
+  .dash-cal-legend { margin-left: 0; }
 }

@@ -443,6 +443,15 @@ if ! node tools/check-tag-colors.mjs; then
   exit 1
 fi
 
+# [MC4] The Dashboard calendar's month. Due tasks on their own day, recurring
+# days projected once (never on top of the instance the sweep already made),
+# and the grid on the right columns for Sunday- and Monday-first weeks. None
+# of those failures throws. ~0.1s. `--mutate` runs seven seeded reversions.
+if ! node tools/check-calendar.mjs; then
+  echo 'ERROR: calendar gate failed - a day shows the wrong due or scheduled items, or the grid starts on the wrong column.' >&2
+  exit 1
+fi
+
 # [PF.2 follow-up] The sync slice: what leaves this machine, and what must not.
 # PF.2 SHIPPED THIS GATE AND NEVER WIRED IT IN, so it has been green-by-nobody
 # since - exactly the shape of the importers.js miss recorded below, where a

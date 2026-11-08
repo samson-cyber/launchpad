@@ -6188,5 +6188,65 @@ I18n.register("en", {
     "dash_working_worked": {
       "description": "The lifetime clause on the Dashboard hero's working line. {duration} is every minute ever banked against this task plus the activation currently running, so it is a much larger number than the elapsed figure beside it - the words 'worked on this task' are what keep the two from reading as a contradiction and may not be shortened to 'worked'.",
       "message": "{duration} worked on this task"
+    },
+    "dash_cal_title": {
+      "description": "Eyebrow of the Dashboard's month calendar, the full-width tile at the base of the board. It shows tasks that are due and the days recurring tasks are scheduled.",
+      "message": "Calendar"
+    },
+    "dash_cal_prev": {
+      "description": "Accessible name of the calendar's previous-month arrow button.",
+      "message": "Previous month"
+    },
+    "dash_cal_next": {
+      "description": "Accessible name of the calendar's next-month arrow button.",
+      "message": "Next month"
+    },
+    "dash_cal_today": {
+      "description": "Calendar button that jumps back to the current month and selects today.",
+      "message": "Today"
+    },
+    "dash_cal_due": {
+      "description": "Calendar legend and row label for a task with a due date on that day that is not yet overdue.",
+      "message": "Due"
+    },
+    "dash_cal_overdue": {
+      "description": "Calendar legend and row label for a task whose due date has passed and is still open. Uses the overdue rose, as elsewhere.",
+      "message": "Overdue"
+    },
+    "dash_cal_scheduled": {
+      "description": "Calendar legend and row label for a day a recurring task will next appear on. It is not a task yet; it becomes one on the day.",
+      "message": "Scheduled"
+    },
+    "dash_cal_more": {
+      "description": "In a calendar day, how many more items there are beyond the two shown. {count} is that number.",
+      "plural": {"one": "+{count} more", "other": "+{count} more"}
+    },
+    "dash_cal_day_label": {
+      "description": "Accessible name of one calendar day. {date} is the full date in the user's locale; {due} and {scheduled} are counts.",
+      "message": "{date}: {due} due, {scheduled} scheduled"
+    },
+    "dash_cal_empty_day": {
+      "description": "Shown below the calendar when the selected day has nothing due and nothing scheduled.",
+      "message": "Nothing due or scheduled."
+    },
+    "dash_cal_demo_overdue": {
+      "description": "Free-preview demo task on the calendar, shown overdue. Any plausible task name.",
+      "message": "Book the studio for Thursday"
+    },
+    "dash_cal_demo_today": {
+      "description": "Free-preview demo task on the calendar, due today.",
+      "message": "Draft the launch post"
+    },
+    "dash_cal_demo_soon": {
+      "description": "Free-preview demo task on the calendar, due in two days.",
+      "message": "Review the Q3 numbers"
+    },
+    "dash_cal_demo_later": {
+      "description": "Free-preview demo task on the calendar, due in six days.",
+      "message": "Send the invoice"
+    },
+    "dash_cal_demo_weekly": {
+      "description": "Free-preview demo recurring task on the calendar, scheduled weekly.",
+      "message": "Weekly review"
     }
   });

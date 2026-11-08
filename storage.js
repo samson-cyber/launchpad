@@ -8878,6 +8878,93 @@ var Storage = (function () {
     return { year: year, month: month, cells: cells, today: todayStamp };
   }
 
+  /**
+   * [MC4 2026-11-08] THE DASHBOARD CALENDAR'S MONTH, asked for by Samson: what
+   * is DUE and what is SCHEDULED, any month, scrollable.
+   *
+   *   DUE        a live, not-completed task with a dueAt, on its day. Overdue
+   *              when that day is before today. Completed tasks are not shown:
+   *              the calendar is what is still ahead of you.
+   *   SCHEDULED  the days a live, ACTIVE recurring template will next appear,
+   *              projected with the sweep's own nextRecurrenceUTC so the two
+   *              cannot disagree about which day a template fires. Projection
+   *              starts at the later of today and the template's
+   *              nextScheduledAt: everything before that has already been
+   *              spawned as a real task and is shown as DUE, so nothing is
+   *              counted twice. A day that already holds this template's
+   *              spawned instance is skipped for the same reason.
+   *
+   * PURE AND DERIVED, like habitGridMonth beside it: it reads and returns, and
+   * stores nothing. Every day is a UTC-midnight stamp of the LOCAL calendar
+   * date - the space dueAt and the sweep already use.
+   *
+   * Returns { year, month, lead, today, cells: [null... , { stamp, day, isToday,
+   * isPast, due: [{ id, name, priority, overdue, templateId }], scheduled:
+   * [{ templateId, name }] }], totals: { due, overdue, scheduled } }.
+   *
+   * @param ws         the workspace
+   * @param year       full year
+   * @param month      0-11
+   * @param weekStart  0 = Sunday, 1 = Monday (column order only)
+   * @param now        epoch ms, for "today"
+   */
+  var CAL_PRIORITY_RANK = { urgent: 0, high: 1, medium: 2, low: 3 };
+  function calendarMonth(ws, year, month, weekStart, now) {
+    var nowTs = (typeof now === "number") ? now : Date.now();
+    var todayStamp = habitLocalDayStamp(nowTs);
+    var ws0 = (weekStart === 1) ? 1 : 0;
+    var lead = (new Date(year, month, 1).getDay() - ws0 + 7) % 7;
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    var first = Date.UTC(year, month, 1), last = Date.UTC(year, month, daysInMonth);
+    var byStamp = {}, days = [];
+    for (var d = 1; d <= daysInMonth; d++) {
+      var st = Date.UTC(year, month, d);
+      var cell = { stamp: st, day: d, isToday: st === todayStamp, isPast: st < todayStamp, due: [], scheduled: [] };
+      byStamp[st] = cell; days.push(cell);
+    }
+    var totals = { due: 0, overdue: 0, scheduled: 0 };
+    ((ws && ws.tasks) || []).forEach(function (t) {
+      if (!t || t.deletedAt || t.completed || typeof t.dueAt !== "number") return;
+      var c = byStamp[recurUtcMidnight(t.dueAt)];
+      if (!c) return;
+      var overdue = c.stamp < todayStamp;
+      c.due.push({ id: t.id, name: t.name, priority: t.priority || null, overdue: overdue,
+        templateId: (typeof t.recurringTemplateId === "string") ? t.recurringTemplateId : null });
+      totals.due++; if (overdue) totals.overdue++;
+    });
+    var tpls = (ws && Array.isArray(ws.recurringTemplates)) ? ws.recurringTemplates : [];
+    tpls.forEach(function (tpl) {
+      if (!tpl || tpl.deletedAt || tpl.isActive === false) return;
+      var from = Math.max(first, todayStamp);
+      if (typeof tpl.nextScheduledAt === "number") from = Math.max(from, recurUtcMidnight(tpl.nextScheduledAt));
+      if (from > last) return;
+      var occ = nextRecurrenceUTC(tpl, from, true), guard = 0;
+      while (occ != null && occ <= last && guard++ < 40) {
+        var c = byStamp[occ];
+        if (c && !c.due.some(function (x) { return x.templateId === tpl.id; })) {
+          c.scheduled.push({ templateId: tpl.id, name: tpl.name });
+          totals.scheduled++;
+        }
+        occ = nextRecurrenceUTC(tpl, occ, false);
+      }
+    });
+    days.forEach(function (c) {
+      c.due.sort(function (a, b) {
+        if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
+        var pa = CAL_PRIORITY_RANK[a.priority], pb = CAL_PRIORITY_RANK[b.priority];
+        pa = (pa === undefined) ? 9 : pa; pb = (pb === undefined) ? 9 : pb;
+        if (pa !== pb) return pa - pb;
+        return String(a.name).localeCompare(String(b.name));
+      });
+      c.scheduled.sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
+    });
+    var cells = [];
+    for (var i = 0; i < lead; i++) cells.push(null);
+    days.forEach(function (c) { cells.push(c); });
+    while (cells.length % 7) cells.push(null);
+    return { year: year, month: month, lead: lead, today: todayStamp, cells: cells, totals: totals };
+  }
+
   /** Is this task today's instance of a habit? Used for the one-shot only. */
   function isHabitInstanceForToday(ws, task, now) {
     if (!task || !task.recurringTemplateId) return false;
@@ -11023,6 +11110,7 @@ var Storage = (function () {
     // [1.14.4] Habits and the ceiling.
     RECUR_OVERDUE_CEILING: RECUR_OVERDUE_CEILING,
     habitGridMonth: habitGridMonth,
+    calendarMonth: calendarMonth,
     habitLocalDayStamp: habitLocalDayStamp,
     isHabitInstanceForToday: isHabitInstanceForToday,
     dismissRecurringCatchUp: dismissRecurringCatchUp,

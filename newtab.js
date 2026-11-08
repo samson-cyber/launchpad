@@ -439,7 +439,9 @@
       if (!btn) return;
       var id = btn.getAttribute("data-tab");
       if (!id) return;
-      setActiveTab(id);
+      if (id === activeTab) return;
+      // [MC2] The user's own switch is the one that animates.
+      lpViewTransition(function () { return setActiveTab(id); });
     });
   }
 
@@ -795,9 +797,10 @@
     // a function of the wall clock and of work done on other tabs. Gated on Pro
     // access so a free user's preview is never overwritten (D10); the period
     // watch is torn down on the way out so it never runs against a hidden tab.
+    var filling = null;
     if (id === "dashboard" && isProAccessibleLevel(currentAccessLevel())) {
       var dashPanel = document.getElementById("tab-dashboard");
-      if (dashPanel) renderDashboardTab(dashPanel, data);
+      if (dashPanel) filling = renderDashboardTab(dashPanel, data);
       dashStartPeriodWatch();
     } else {
       dashStopPeriodWatch();
@@ -808,7 +811,7 @@
     // Pro-gated pattern as the Dashboard hook above; no watcher to tear down.
     if (id === "insights" && isProAccessibleLevel(currentAccessLevel())) {
       var insPanel = document.getElementById("tab-insights");
-      if (insPanel) renderInsightsTab(insPanel, data);
+      if (insPanel) filling = renderInsightsTab(insPanel, data);
     }
 
     // [1.2.1 fix] Hand keyboard scrolling to the panel that just became visible.
@@ -834,6 +837,102 @@
     // re-derive the CTA state (pulse depends on whether we're on a Pro tab).
     closeUpgradePopover();
     applyCtaState(data);
+    // [MC3] The tab's numbers count up once they are filled - so the count
+    // starts from the real values, never from a "—" that is about to change.
+    var countPanel = document.getElementById("tab-" + id);
+    var ready = filling || Promise.resolve();
+    ready.then(function () { lpCountUp(countPanel); });
+    return ready;
+  }
+
+  // [MC3 2026-11-08] NUMBERS COUNT UP WHEN A TAB OPENS, asked for by Samson.
+  // Every display numeral on the opened tab counts from zero to the value it is
+  // showing, in 400ms with the entrance easing - design-guide 3.6's settle
+  // duration, the same budget as the focus ring's one-time sweep, and like that
+  // sweep it runs ONCE PER OPEN: live updates afterwards just change.
+  //
+  // IT READS THE NUMBER FROM THE SCREEN rather than from a second copy of the
+  // data, so it can never count to a different value than the one painted: a
+  // bare count, a count with "+" (the streak), or a duration in the ruled
+  // "3hr 45min" form, which it re-paints through the same formatters (the big
+  // figures keep their small units all the way up). Anything else - "On",
+  // "Off", "—" - is not a number and is left alone, and so is zero.
+  //
+  // A LIVE REPAINT WINS. If a refresh rewrites a numeral mid-count (the focus
+  // clock ticks), that numeral drops out of the count and keeps the fresh
+  // value; the saved final HTML is only put back if nothing else wrote it.
+  //
+  // Reduced motion: no count, the values are simply there.
+  var LP_COUNT_MS = 400;
+  var LP_COUNT_SEL = ".dash-hero-num, .dash-hero-count-num, .dash-hero-stat-num, .dash-tile-figure, .ins-hero-stat-num, .tt2-count-num";
+  function lpParseCount(el) {
+    var txt = (el.textContent || "").replace(/\s+/g, " ").trim(), m;
+    if ((m = /^(\d+)(\+?)$/.exec(txt))) return { kind: "int", to: Number(m[1]), suffix: m[2] };
+    if ((m = /^(?:(\d+)hr)? ?(?:(\d+)min)?$/.exec(txt)) && (m[1] || m[2])) {
+      return { kind: "dur", to: ((Number(m[1]) || 0) * 60 + (Number(m[2]) || 0)) * 60000 };
+    }
+    if ((m = /^(\d+)sec$/.exec(txt))) return { kind: "dur", to: Number(m[1]) * 1000 };
+    return null;
+  }
+  function lpCountUp(root) {
+    if (!root || root.classList.contains("hidden")) return;
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    var jobs = [];
+    root.querySelectorAll(LP_COUNT_SEL).forEach(function (el) {
+      var p = lpParseCount(el);
+      if (!p || p.to === 0) return;
+      jobs.push({ el: el, p: p, finalHtml: el.innerHTML, big: !!el.querySelector(".dur-u"), last: null });
+    });
+    if (!jobs.length) return;
+    var paint = function (job, e) {
+      if (job.last !== null && job.el.innerHTML !== job.last) { job.dead = true; return; }
+      if (job.p.kind === "int") job.el.textContent = Math.round(job.p.to * e) + job.p.suffix;
+      else if (job.big) job.el.innerHTML = fmtDurationHMHtml(job.p.to * e);
+      else job.el.textContent = fmtDurationHM(job.p.to * e);
+      job.last = job.el.innerHTML;
+    };
+    jobs.forEach(function (j) { paint(j, 0); });
+    var t0 = performance.now();
+    var step = function (now) {
+      var u = Math.min(1, (now - t0) / LP_COUNT_MS), e = 1 - Math.pow(1 - u, 3);
+      jobs.forEach(function (j) { if (!j.dead) paint(j, e); });
+      if (u < 1) { requestAnimationFrame(step); return; }
+      jobs.forEach(function (j) { if (!j.dead && j.el.innerHTML === j.last) j.el.innerHTML = j.finalHtml; });
+    };
+    requestAnimationFrame(step);
+  }
+
+  // [MC2 2026-11-08] SMOOTH SWITCHES, asked for by Samson from a recording that
+  // showed every tab swapping in one frame. One helper, used by the tab bar
+  // and by in-tab view changes (the Insights range, the Tasks views):
+  //   - the DOM change runs inside document.startViewTransition, so the old
+  //     view fades out (150ms, exit easing) and the new one rises 10px and
+  //     fades in (240ms, entrance easing) - design-guide 3.6's durations and
+  //     curves, the same shape as the shipped workspace cross-fade;
+  //   - the update WAITS for the new view's own fills (render-before-reveal),
+  //     capped at 350ms so a slow read can never hold a switch hostage;
+  //   - the header is its own transition element, so Home's tall hero and the
+  //     Pro tabs' compact band morph into each other instead of the content
+  //     jumping under it;
+  //   - reduced motion, or a browser without the API, runs the update directly
+  //     and instantly, exactly as before.
+  // Programmatic switches (the due bell's "go to task", redirects) do NOT go
+  // through this: they act on the new tab on the very next line, and a view
+  // transition runs its update a frame later.
+  var LP_VT_REVEAL_CAP_MS = 350;
+  function lpViewTransition(update) {
+    var reduce = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    if (reduce || typeof document.startViewTransition !== "function") {
+      try { return Promise.resolve(update()); } catch (e) { return Promise.reject(e); }
+    }
+    var root = document.documentElement;
+    root.classList.add("lp-vt");
+    var vt = document.startViewTransition(function () {
+      var done = Promise.resolve().then(update);
+      return Promise.race([done, new Promise(function (r) { setTimeout(r, LP_VT_REVEAL_CAP_MS); })]);
+    });
+    vt.finished.catch(function () {}).then(function () { root.classList.remove("lp-vt"); });
+    return vt.updateCallbackDone.catch(function () {});
   }
 
   // The access level is derived, never cached (applyAccessLevelUI re-reads it
@@ -2630,15 +2729,24 @@
                    : '<div class="dash-note">' + th("dash_tracking_off_note") + '</div>') +
           '</div>' +
 
+          // [MC4] THE CALENDAR, full width at the base of the board.
+          dashCalendarTileHtml(ws, null) +
+
         '</div>' +
       '</div>';
 
     bindDashboardEvents(panel);
-    dashRefreshFocused(panel, scope);
-    if (scope) dashRefreshStreak(panel, scope);
-    if (scope) dashRefreshWeek(panel, scope);
-    if (scope) dashRefreshPassive(panel, scope);
-    if (period === "evening" && scope) dashRefreshRecap(panel, scope, d);
+    // [MC2] THE FILLS ARE COLLECTED AND RETURNED. They used to be started and
+    // forgotten, so the board showed "—" for a frame or two and then filled in
+    // - one of the jolts in Samson's recording, and exactly what design-guide
+    // 3.6 forbids ("data is local; render it"). The tab switch now waits for
+    // these before it reveals the board. Every other caller ignores the return,
+    // so nothing else changes.
+    var fills = [dashRefreshFocused(panel, scope)];
+    if (scope) fills.push(dashRefreshStreak(panel, scope));
+    if (scope) fills.push(dashRefreshWeek(panel, scope));
+    if (scope) fills.push(dashRefreshPassive(panel, scope));
+    if (period === "evening" && scope) fills.push(dashRefreshRecap(panel, scope, d));
 
     // [1.0.20 F1] Reconcile the first paint against the FRESH stored boundary.
     // Skipped when we were handed a fresh period already (the watcher/reconcile),
@@ -2647,6 +2755,7 @@
     // this tab's cached `data` can lag storage after a provenance-suppressed
     // own-tab settings write.
     if (!periodOverride) dashSyncPeriod(panel);
+    return Promise.all(fills).catch(function () {});
   }
 
   // Own-tab eager repaint after a cockpit mutation. Our own write is provenance-
@@ -2789,6 +2898,7 @@
     // rewrite, and a dataset flag stops N renders stacking N listeners.
     if (panel.dataset.dashBound === "1") return;
     panel.dataset.dashBound = "1";
+    bindDashCalendar(panel);
 
     panel.addEventListener("click", async function (e) {
       // [FIX-7] THE DUE ROW'S PLAY GLYPH, ROUTED HERE. This panel's listener
@@ -3436,6 +3546,178 @@
   // `disabled`; the picker is absent entirely rather than present-and-inert,
   // because a control that cannot do anything reads as broken rather than as
   // locked ([1.1.4]'s preview-ghost rule).
+  // ===== [MC4 2026-11-08] THE DASHBOARD CALENDAR ===========================
+  // A month, full width at the base of the Dashboard, scrollable to any month
+  // (ruled by Samson over a week strip and an agenda pill). Each day shows up
+  // to two items - DUE tasks (rose when overdue) and SCHEDULED recurring days
+  // (indigo) - and "+n" beyond that; clicking a day lists all of it below the
+  // grid, where a due task has "Go to task". The model is
+  // Storage.calendarMonth; this file only draws it.
+  //
+  // The month in view is SESSION state: it opens on the current month every
+  // time the page loads, and survives re-renders while you stay.
+  var DASH_CAL_MAX_CHIPS = 2;
+  var dashCalView = null;          // { y, m, sel } - sel is a day stamp
+  function dashCalDefaultView(now) {
+    var dt = new Date(now || Date.now());
+    return { y: dt.getFullYear(), m: dt.getMonth(), sel: Storage.habitLocalDayStamp(dt.getTime()) };
+  }
+  function dashCalWeekStart() { return habitWeekStart(); }
+  function dashCalMonthLabel(y, m) {
+    try { return new Date(y, m, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" }); }
+    catch (e) { return String(m + 1) + "/" + y; }
+  }
+  function dashCalWeekdayLabels(ws0) {
+    // 2023-01-01 was a Sunday; walk a week from the column the grid starts on.
+    var out = [];
+    for (var i = 0; i < 7; i++) {
+      var dt = new Date(2023, 0, 1 + ((ws0 + i) % 7));
+      var name;
+      try { name = dt.toLocaleDateString(undefined, { weekday: "short" }); } catch (e) { name = ""; }
+      out.push(name);
+    }
+    return out;
+  }
+  function dashCalDayLabel(stamp) {
+    var dt = new Date(stamp);
+    try {
+      return new Date(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate())
+        .toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+    } catch (e) { return ""; }
+  }
+  function dashCalChipHtml(kind, name) {
+    return '<span class="dash-cal-chip is-' + kind + '">' + escapeHtml(name) + '</span>';
+  }
+  function dashCalCellHtml(c, sel, preview) {
+    if (!c) return '<div class="dash-cal-cell is-blank" aria-hidden="true"></div>';
+    var items = c.due.map(function (x) { return dashCalChipHtml(x.overdue ? "overdue" : "due", x.name); })
+      .concat(c.scheduled.map(function (x) { return dashCalChipHtml("scheduled", x.name); }));
+    var shown = items.slice(0, DASH_CAL_MAX_CHIPS).join("");
+    var more = items.length > DASH_CAL_MAX_CHIPS
+      ? '<span class="dash-cal-more">' + th("dash_cal_more", { count: items.length - DASH_CAL_MAX_CHIPS }) + '</span>' : "";
+    var cls = "dash-cal-cell" + (c.isToday ? " is-today" : "") + (c.isPast ? " is-past" : "") +
+      (c.stamp === sel ? " is-selected" : "") + (items.length ? " has-items" : "");
+    var label = th("dash_cal_day_label", { date: dashCalDayLabel(c.stamp), due: c.due.length, scheduled: c.scheduled.length });
+    var inner = '<span class="dash-cal-date">' + c.day + '</span>' +
+      '<span class="dash-cal-items">' + shown + more + '</span>';
+    if (preview) return '<div class="' + cls + '" aria-label="' + label + '">' + inner + '</div>';
+    return '<button type="button" class="' + cls + '" data-cal-day="' + c.stamp + '" aria-pressed="' +
+      (c.stamp === sel ? "true" : "false") + '" aria-label="' + label + '">' + inner + '</button>';
+  }
+  function dashCalDetailHtml(cell, preview) {
+    if (!cell) return "";
+    var head = '<div class="dash-cal-detail-head">' + escapeHtml(dashCalDayLabel(cell.stamp)) + '</div>';
+    if (!cell.due.length && !cell.scheduled.length) {
+      return head + '<div class="dash-cal-empty">' + th("dash_cal_empty_day") + '</div>';
+    }
+    var rows = cell.due.map(function (x) {
+      return '<li class="dash-cal-row">' +
+        '<span class="dash-cal-kind is-' + (x.overdue ? "overdue" : "due") + '">' + th(x.overdue ? "dash_cal_overdue" : "dash_cal_due") + '</span>' +
+        '<span class="dash-cal-name">' + escapeHtml(x.name) + '</span>' +
+        (preview ? "" : '<button type="button" class="dash-inline-link dash-cal-goto" data-cal-goto="' + escapeHtml(x.id) + '">' + th("bell_go_to_task") + '</button>') +
+      '</li>';
+    }).concat(cell.scheduled.map(function (x) {
+      return '<li class="dash-cal-row">' +
+        '<span class="dash-cal-kind is-scheduled">' + th("dash_cal_scheduled") + '</span>' +
+        '<span class="dash-cal-name">' + escapeHtml(x.name) + '</span>' +
+      '</li>';
+    }));
+    return head + '<ul class="dash-cal-list">' + rows.join("") + '</ul>';
+  }
+  function dashCalendarTileHtml(ws, opts) {
+    var preview = !!(opts && opts.preview);
+    var now = Date.now();
+    var view = preview ? dashCalDefaultView(now) : (dashCalView || (dashCalView = dashCalDefaultView(now)));
+    var ws0 = dashCalWeekStart();
+    var model = Storage.calendarMonth(ws, view.y, view.m, ws0, now);
+    var sel = view.sel;
+    var selCell = null;
+    model.cells.forEach(function (c) { if (c && c.stamp === sel) selCell = c; });
+    var nav = preview ? "" :
+      '<div class="dash-cal-nav">' +
+        '<button type="button" class="dash-cal-step" data-cal-step="-1" aria-label="' + th("dash_cal_prev") + '">\u2039</button>' +
+        '<button type="button" class="dash-cal-step" data-cal-step="1" aria-label="' + th("dash_cal_next") + '">\u203A</button>' +
+        '<button type="button" class="dash-cal-today" data-cal-today>' + th("dash_cal_today") + '</button>' +
+      '</div>';
+    return '<div class="tile tile--list dash-tile dash-tile-cal span-4' + (preview ? " pp-demo-tile" : "") + '" data-dash-cal>' +
+      '<div class="dash-cal-head">' +
+        '<div class="tile-eyebrow">' + th("dash_cal_title") + (preview ? previewLabelHtml() : "") + '</div>' +
+        '<div class="dash-cal-month" aria-live="polite">' + escapeHtml(dashCalMonthLabel(view.y, view.m)) + '</div>' +
+        nav +
+        '<div class="dash-cal-legend" aria-hidden="true">' +
+          '<span class="dash-cal-key is-due">' + th("dash_cal_due") + '</span>' +
+          '<span class="dash-cal-key is-overdue">' + th("dash_cal_overdue") + '</span>' +
+          '<span class="dash-cal-key is-scheduled">' + th("dash_cal_scheduled") + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="dash-cal-grid">' +
+        dashCalWeekdayLabels(ws0).map(function (n) { return '<div class="dash-cal-wd" aria-hidden="true">' + escapeHtml(n) + '</div>'; }).join("") +
+        model.cells.map(function (c) { return dashCalCellHtml(c, sel, preview); }).join("") +
+      '</div>' +
+      '<div class="dash-cal-detail">' + dashCalDetailHtml(selCell, preview) + '</div>' +
+    '</div>';
+  }
+  // Only the tile is redrawn on a month step or a day pick: the rest of the
+  // board does not change, so it is not re-rendered (and does not re-count).
+  function dashCalRedraw(panel, fresh) {
+    var tile = panel.querySelector("[data-dash-cal]");
+    if (!tile) return;
+    tile.outerHTML = dashCalendarTileHtml(Storage.getActiveWorkspace(data), null);
+    if (fresh) {
+      var grid = panel.querySelector("[data-dash-cal] .dash-cal-grid");
+      if (grid) grid.classList.add("is-fresh");
+    }
+  }
+  function bindDashCalendar(panel) {
+    panel.addEventListener("click", function (e) {
+      var t = e.target;
+      var step = t.closest && t.closest("[data-cal-step]");
+      if (step) {
+        var v = dashCalView || dashCalDefaultView();
+        var m = v.m + Number(step.getAttribute("data-cal-step"));
+        var y = v.y + Math.floor(m / 12);
+        m = ((m % 12) + 12) % 12;
+        dashCalView = { y: y, m: m, sel: Date.UTC(y, m, 1) };
+        dashCalRedraw(panel, true);
+        return;
+      }
+      if (t.closest && t.closest("[data-cal-today]")) {
+        dashCalView = dashCalDefaultView();
+        dashCalRedraw(panel, true);
+        return;
+      }
+      var day = t.closest && t.closest("[data-cal-day]");
+      if (day) {
+        var v2 = dashCalView || dashCalDefaultView();
+        dashCalView = { y: v2.y, m: v2.m, sel: Number(day.getAttribute("data-cal-day")) };
+        dashCalRedraw(panel, false);
+        var again = panel.querySelector('[data-cal-day="' + dashCalView.sel + '"]');
+        if (again) { try { again.focus({ preventScroll: true }); } catch (err) { again.focus(); } }
+        return;
+      }
+      var go = t.closest && t.closest("[data-cal-goto]");
+      if (go) { dueBellGoToTask(go.getAttribute("data-cal-goto")); }
+    });
+  }
+  // The preview's month: catalogue names on fixed offsets from today, and one
+  // weekly template, through the SAME model function as the live board.
+  function dashCalDemoWorkspace() {
+    var today = Storage.habitLocalDayStamp(Date.now()), DAY = 86400000;
+    var task = function (key, off, pr) { return { id: "demo-cal-" + key, name: t(key), dueAt: today + off * DAY, priority: pr || null, completed: false, deletedAt: null }; };
+    var dow = new Date(today).getUTCDay();
+    return {
+      tasks: [
+        task("dash_cal_demo_overdue", -1, "high"),
+        task("dash_cal_demo_today", 0, "medium"),
+        task("dash_cal_demo_soon", 2, null),
+        task("dash_cal_demo_later", 6, null)
+      ],
+      recurringTemplates: [
+        { id: "demo-cal-weekly", name: t("dash_cal_demo_weekly"), frequency: "weekly", daysOfWeek: [(dow + 3) % 7], isActive: true, deletedAt: null, nextScheduledAt: null }
+      ]
+    };
+  }
+
   var DEMO_DASH_BOARD = {
     focusedToday: 138 * 60000,   // [MC1] a duration, printed by fmtDurationHMHtml like the live hero
     tasksCompleted: 4,
@@ -3561,6 +3843,8 @@
 
     return '<div class="dash-tab bento dash-free-demo-grid" data-period="day">' +
         hero + counts + due + goals +
+        // [MC4] The calendar, same component, demo data, no navigation.
+        dashCalendarTileHtml(dashCalDemoWorkspace(), { preview: true }) +
       '</div>';
   }
 
@@ -4253,7 +4537,9 @@
       '</div>';
 
     bindInsightsEvents(panel);
-    if (scope) insightsRefresh(panel, scope, d, rangeDays, customKeys);
+    // [MC2] Returned so a switch can reveal the board filled, not in stages.
+    if (scope) return insightsRefresh(panel, scope, d, rangeDays, customKeys);
+    return Promise.resolve();
   }
 
   // [1.8.3] Reads both weeks and paints the card. Separate from insightsRefresh
@@ -4370,7 +4656,9 @@
       insightsCustom = null;
       var changed = await Storage.setInsightsRangeDays(data, days);
       if (!changed && !wasCustom) return;
-      renderInsightsTab(panel, data);
+      // [MC2] The range change re-renders the board; it fades like a tab
+      // switch and reveals the board filled.
+      lpViewTransition(function () { return renderInsightsTab(panel, data); });
     });
 
     // The Custom segment. Opens on the widest honest default - the whole
@@ -4925,12 +5213,16 @@
     // is showing. That is deliberate: "this week vs last" is a fixed question,
     // and re-scoping it to a 30-day selection would make it answer a different
     // one under the same title.
-    insightsFillWeekly(panel, scope, d);
+    // [MC2] The weekly card, the heatmap and the horizon caption used to arrive
+    // AFTER the rest of the board - the "This week vs last" pop-in on Samson's
+    // recording. They are still fetched in parallel, and now awaited together
+    // at the end, so a caller can wait for the whole board.
+    var weeklyP = insightsFillWeekly(panel, scope, d);
     // [1.8.5] The heatmap follows the SELECTED range, unlike the weekly card:
     // "when do I focus" is a question about whatever window is on screen, where
     // "this week vs last" is a fixed question. Different questions, different
     // scoping, stated rather than inherited.
-    Tracking.bestHoursForScope(scope.workspaceId, keys).then(function (res) {
+    var heatP = Tracking.bestHoursForScope(scope.workspaceId, keys).then(function (res) {
       if (token !== insightsReadToken) return;
       // 255,138,61 is --action. The token cannot be read from here - this is a
       // channel triple spliced into an rgba(), not a colour value - so it is
@@ -4959,11 +5251,11 @@
     // the alternative is reusing `range`, which would flip the caption to "no
     // focus time recorded" every time a short range happened to be empty, which
     // is a different and wronger claim.
-    (function () {
+    var hzP = (function () {
       var cap = panel.querySelector("[data-ins-horizon]");
       if (!cap) return;
       var hzKeys = Tracking.lastNLocalDayKeys(Tracking.RETENTION_DAYS || 30);
-      Tracking.focusedRangeForScope(scope.workspaceId, hzKeys).then(function (hzRange) {
+      return Tracking.focusedRangeForScope(scope.workspaceId, hzKeys).then(function (hzRange) {
         if (token !== insightsReadToken) return;
         var any = hzKeys.some(function (k) { return (hzRange[k] || 0) > 0; });
         if (!any) cap.textContent = t("insights_history_none");
@@ -4977,6 +5269,7 @@
     insightsFill(panel, "[data-ins-donut]", insightsTagDonutHtml(byTag, scopeTotalMs, d, combined, rangeLabelNow));
     insightsFill(panel, "[data-ins-topsites]", insightsTopSitesHtml(byDomain, d, combined, rangeLabelNow));
     insightsFill(panel, "[data-ins-toptasks]", insightsTopTasksHtml(byTask, d, combined, rangeLabelNow));
+    return Promise.all([weeklyP, heatP, hzP]).catch(function () {});
   }
 
   // Summary strip: the PERIOD TOTAL for the selected range (the hero numeral
@@ -8821,7 +9114,8 @@
         var segVal = segBtn.getAttribute("data-status") || "active";
         if (taskFilterState.status !== segVal) {
           taskFilterState.status = segVal;
-          renderTasksTab(panel, data);
+          // [MC2] The view change fades like a tab switch.
+          lpViewTransition(function () { renderTasksTab(panel, data); });
         }
         return;
       }
