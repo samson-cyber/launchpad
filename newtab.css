@@ -15689,7 +15689,7 @@ html.bg-light .demo-clear:hover { color: var(--text-primary); border-color: rgba
    the fill never move, so the measured contrast is the contrast at every frame,
    and nothing reads as the action colour. White ring on the dark frost, dark
    ring where html.bg-light flips the frost white. The timeline is pinned to
-   page time from newtab.js (demoClearPulseAttrs), which sets animation-delay
+   page time from newtab.js (demoClearPulseDelay), which sets animation-delay
    inline; 1800ms x 3 here must match DEMO_CLEAR_PULSE_TOTAL_MS there. */
 @keyframes demo-clear-pulse {
   0%   { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.38); }

@@ -21719,18 +21719,22 @@
   // rebuilds this markup whenever data changes, and a CSS animation on a fresh
   // element starts from zero, so a re-render during boot would restart it. A
   // negative animation-delay carries the same timeline into the new element,
-  // and once the window has passed the class is simply not emitted.
+  // and once the window has passed the class is simply not emitted
+  // (demoClearPulseDelay returns null).
   var DEMO_CLEAR_PULSE_START_MS = 900;
   var DEMO_CLEAR_PULSE_TOTAL_MS = 3 * 1800;   // matches .demo-clear.is-pulsing
-  function demoClearPulseAttrs() {
+  // Returns the delay in ms for this render, or null once the window is over.
+  function demoClearPulseDelay() {
     var now = (window.performance && performance.now) ? performance.now() : 0;
-    if (now >= DEMO_CLEAR_PULSE_START_MS + DEMO_CLEAR_PULSE_TOTAL_MS) return "";
-    return ' is-pulsing" style="animation-delay:' + Math.round(DEMO_CLEAR_PULSE_START_MS - now) + 'ms';
+    if (now >= DEMO_CLEAR_PULSE_START_MS + DEMO_CLEAR_PULSE_TOTAL_MS) return null;
+    return Math.round(DEMO_CLEAR_PULSE_START_MS - now);
   }
 
   function demoIntroHTML() {
+    var pulseDelay = demoClearPulseDelay();
     var clearBtn =
-      '<button type="button" class="demo-clear' + demoClearPulseAttrs() + '"' +
+      '<button type="button" class="demo-clear' + (pulseDelay === null ? "" : " is-pulsing") + '"' +
+        (pulseDelay === null ? "" : ' style="animation-delay: ' + pulseDelay + 'ms;"') +
         ' data-demo-act="clear"' +
         ' aria-disabled="false">' +
         th("demo_clear_examples") +
