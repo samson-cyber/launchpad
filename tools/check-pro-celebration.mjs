@@ -185,7 +185,9 @@ function initBlock() {
 const IB = initBlock();
 ok("the celebration is decided BEFORE the other surfaces",
   IB.indexOf("maybeShowProCelebration") < IB.indexOf("checkRightClickTip"));
-ok("right-click tip is guarded", /if \(!isProOnboardingBusy\(\)\) checkRightClickTip\(\)/.test(IB));
+// [FR P2] The call may assign its answer to rcTipDecision; the guard is what
+// this asserts, and it must still wrap the call.
+ok("right-click tip is guarded", /if \(!isProOnboardingBusy\(\)\) (rcTipDecision = )?checkRightClickTip\(\)/.test(IB));
 ok("achievements splash is guarded", /if \(!isProOnboardingBusy\(\)\) runAchievementsOnOpen\(\)/.test(IB));
 ok("promo toast is guarded INSIDE its timeout (re-checked at fire time)",
   /setTimeout\(function \(\) \{\s*if \(isProOnboardingBusy\(\)\) return;\s*checkPromoToast\(\);/.test(IB));
@@ -385,7 +387,17 @@ const promoSrc = (() => {
 
 // Drives n consecutive new-tab opens against a seeded storage. Returns the open
 // ordinals on which the toast fired, plus the storage as it finally stands.
-async function opens(n, seed) {
+//
+// [FR P4/P5, 2026-11-08] THREE KNOBS, because the ask now depends on three
+// things it did not before. `answers` (default true): the user clicks Rate or x
+// on every toast they are shown, which is what stamps lastPromoOpen now - the
+// stamp moved from SHOW to ACTION. `user` (default true): a user-added shortcut
+// exists, which the FIRST ask now requires. `tipUpAt`: opens on which the
+// right-click tip is up, which defer the ask. The defaults reproduce the old
+// schedule exactly, so every assertion written before FR still means what it
+// meant; the cases after them exercise the three new rules.
+async function opens(n, seed, opt = {}) {
+  const answers = opt.answers !== false, user = opt.user !== false, tipUpAt = opt.tipUpAt || [];
   const store = JSON.parse(JSON.stringify(seed || {}));
   const shows = [];
   let at = 0;
@@ -395,6 +407,9 @@ async function opens(n, seed) {
     chrome: { storage: { local: {
       get: (keys) => {
         const o = {};
+        // A single string key is legal in the real API and the FR stamp uses
+        // it; iterating a string here would walk its characters and read nothing.
+        if (typeof keys === "string") keys = [keys];
         for (const k of keys) if (k in store) o[k] = JSON.parse(JSON.stringify(store[k]));
         return Promise.resolve(o);
       },
@@ -402,13 +417,23 @@ async function opens(n, seed) {
       remove: (keys) => { for (const k of keys) delete store[k]; return Promise.resolve(); },
     } } },
     showPromoToast: () => { shows.push(at); },
+    Storage: { hasUserShortcut: () => user },
+    data: {},
+    rcTipDecision: null,
     JSON, Object, Promise, Array, Number, String, Boolean,
     console: { log() {}, warn() {}, error() {} },
   };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
   vm.runInContext(promoSrc + "\nglobalThis.__run = checkPromoToast;", ctx, { filename: "promo.js" });
-  for (at = 1; at <= n; at++) await ctx.__run();
+  vm.runInContext("globalThis.__stamp = stampPromoAsked;", ctx);
+  for (at = 1; at <= n; at++) {
+    ctx.rcTipDecision = tipUpAt.includes(at) ? Promise.resolve(true) : Promise.resolve(false);
+    const before = shows.length;
+    await ctx.__run();
+    // The click lands after checkPromoToast's own write, as it does on screen.
+    if (answers && shows.length > before) await ctx.__stamp();
+  }
   return { shows, store };
 }
 
@@ -422,7 +447,8 @@ ok("the re-ask interval is 40, not the pair's 20", !fresh.shows.includes(23));
 ok("nothing fires before the third open", fresh.shows[0] === 3);
 
 console.log("PROMO MIGRATION — legacy state parses, history is not reset");
-// A long-standing user mid-rotation, carrying the retired field.
+// A long-standing user mid-rotation, carrying the retired field. (Answers each
+// ask, the default above; the unanswered schedule is asserted further down.)
 const legacy = await opens(60, { promoState: { openCount: 30, lastPromo: "coffee", lastPromoOpen: 28 } });
 eq("legacy promoState: history is carried, not reset", legacy.store.promoState.openCount, 90);
 eq("...next ask honours the stored lastPromoOpen (28 + 40 = 68)", legacy.shows, [38]);
@@ -451,6 +477,23 @@ eq("a never-asked legacy user is asked, not stranded forever", orphan.shows, [1]
 eq("empty promoState object is safe", (await opens(4, { promoState: {} })).shows, [3]);
 eq("promoState with only openCount is safe", (await opens(2, { promoState: { openCount: 1 } })).shows, [2]);
 eq("a null-ish stored state is safe", (await opens(3, { promoState: null })).shows, [3]);
+
+console.log("PROMO, FR RULES - stamped by action, capped unread, gated on use, deferred to the tip");
+// P4: an ask nobody answers shows on three opens, and the third showing spends it.
+const unread = await opens(50, {}, { answers: false });
+eq("never answered: shown on 3, 4, 5, then re-asked 40 later on 45, 46, 47", unread.shows, [3, 4, 5, 45, 46, 47]);
+eq("...the third unread showing is what stamps", unread.store.promoState.lastPromoOpen, 47);
+// The auto-hide stamps nothing: one unanswered showing leaves lastPromoOpen at 0.
+const once = await opens(3, {}, { answers: false });
+eq("one unanswered showing: lastPromoOpen stays 0", once.store.promoState.lastPromoOpen, 0);
+eq("...and it is counted as unread", once.store.promoState.unreadShows, 1);
+// P5: a grid of nothing but our own examples is never asked, however many opens.
+eq("no user-added shortcut: 200 opens, never asked", (await opens(200, {}, { user: false })).shows, []);
+// ...but the gate is the FIRST ask only; the re-ask cadence is untouched.
+eq("the use gate does not touch a re-ask", (await opens(60, { promoState: { openCount: 30, lastPromoOpen: 28 } }, { user: false })).shows, [38]);
+// P2: the tip outranks the ask; the ask is not spent, it waits.
+const deferred = await opens(10, {}, { tipUpAt: [3, 4] });
+eq("tip up on opens 3 and 4: the ask defers to open 5", deferred.shows, [5]);
 
 console.log(`\nPRO CELEBRATION: ${fail ? "FAIL" : "PASS"} — ${pass} passed, ${fail} failed.`);
 process.exit(fail ? 1 : 0);

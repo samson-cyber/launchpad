@@ -14997,13 +14997,7 @@
     // arbitration note on maybeShowProCelebration for why the guard lives here
     // and not inside them. The promo one is re-checked at fire time (2s later)
     // rather than now, so a buyer who dismisses the card quickly still gets it.
-    //
-    // [FR P2] ONE PLACE DECIDES THE ORDER, and it is here. The right-click tip
-    // decides first and publishes its answer as a promise; the rate toast,
-    // 2s later, awaits that answer and DEFERS to the next eligible open if the
-    // tip is up. The guard this replaces lived inside showRightClickTip and
-    // asked the DOM for a .promo-toast that had not mounted yet - it read false
-    // on every open, so both arrived together (OB finding 2).
+    // [FR P2] The tip decides FIRST; the toast awaits rcTipDecision (see there).
     if (!isProOnboardingBusy()) rcTipDecision = checkRightClickTip();
     setTimeout(function () {
       if (isProOnboardingBusy()) return;
@@ -15707,8 +15701,13 @@
   // ===== Right-Click Tip =====
 
   var rcTipTimer = null;
-  // [FR P2] This open's answer from checkRightClickTip: a promise of true if the
-  // tip is showing on THIS open. checkPromoToast awaits it; null until init.
+  // [FR P2] ONE PLACE DECIDES THE ORDER. This is this open's answer from
+  // checkRightClickTip, a promise of true if the tip is showing on THIS open;
+  // init sets it before the toast's 2s timer, and checkPromoToast awaits it
+  // and DEFERS to the next eligible open if the tip is up. The guard it
+  // replaces lived inside showRightClickTip and asked the DOM for a
+  // .promo-toast that had not mounted yet - it read false on every open, so
+  // both arrived together (OB finding 2). null until init.
   var rcTipDecision = null;
   // [FR P4] Shown on this many opens unread, the third showing writes the flag.
   var RC_TIP_UNREAD_CAP = 3;
