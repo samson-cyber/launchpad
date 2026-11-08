@@ -3603,16 +3603,16 @@ I18n.register("en", {
       "message": "A session can carry several tags, so these add up to more than the period total and untagged time is not shown."
     },
     "insights_no_focus_time_in_range": {
-      "description": "Empty state for the tag donut. VOCABULARY LAW: 'focus time' is the engine's measured figure, not self-reported effort.",
-      "message": "No focus time tracked in the {range} yet."
+      "description": "Empty state for the Time by tag tile. The tile's range (today, past 7 days...) is the line under its title, so the sentence does not repeat it. VOCABULARY LAW: 'focus time' is the engine's measured figure, not self-reported effort.",
+      "message": "No focus time tracked yet."
     },
     "insights_no_site_time_in_range": {
-      "description": "Empty state for the top-sites list. 'Site time' is time on a web domain, which is measured separately from task focus.",
-      "message": "No site time tracked in the {range} yet."
+      "description": "Empty state for the Time by site tile. The tile's range is the line under its title, so the sentence does not repeat it. 'Site time' is time on a web domain, which is measured separately from task focus.",
+      "message": "No site time tracked yet."
     },
     "insights_no_task_focus_in_range": {
-      "description": "Empty state for the top-tasks list. Distinct from insights_no_focus_time_in_range: this one is about time attributed to TASKS specifically, and a translation that flattens the two loses which chart is empty.",
-      "message": "No task focus tracked in the {range} yet."
+      "description": "Empty state for the Top tasks tile. The tile's range is the line under its title, so the sentence does not repeat it. Distinct from insights_no_focus_time_in_range: this one is about time attributed to TASKS specifically, and a translation that flattens the two loses which chart is empty.",
+      "message": "No task focus tracked yet."
     },
     "insights_time_by_tag": {
       "description": "Insights tile title for the tag donut, on the live board and the preview. The date range is a separate second line beneath it, so this is the subject alone.",

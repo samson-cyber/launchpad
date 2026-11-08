@@ -460,6 +460,15 @@ if ! node tools/check-insights-day-chart.mjs; then
   exit 1
 fi
 
+# [MC6] Tab-open motion. Bars grow at the count x 1.4, together, once per open,
+# after the fills, never under reduced motion; the JS bar list and the CSS
+# rules name the same bars; durations fit their columns. ~0.1s. `--mutate`
+# runs nine seeds.
+if ! node tools/check-motion.mjs; then
+  echo 'ERROR: motion gate failed - the bar grow drifted from the count, its lists disagree, or reduced motion animates.' >&2
+  exit 1
+fi
+
 # [PF.2 follow-up] The sync slice: what leaves this machine, and what must not.
 # PF.2 SHIPPED THIS GATE AND NEVER WIRED IT IN, so it has been green-by-nobody
 # since - exactly the shape of the importers.js miss recorded below, where a

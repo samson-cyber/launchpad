@@ -843,7 +843,7 @@
     // starts from the real values, never from a "—" that is about to change.
     var countPanel = document.getElementById("tab-" + id);
     var ready = filling || Promise.resolve();
-    ready.then(function () { lpCountUp(countPanel); });
+    ready.then(function () { lpCountUp(countPanel); lpGrowBars(countPanel); });
     return ready;
   }
 
@@ -878,6 +878,32 @@
     if ((m = /^(\d+)sec$/.exec(txt))) return { kind: "dur", to: Number(m[1]) * 1000 };
     return null;
   }
+  // [MC6 2026-11-08] BARS GROW INTO PLACE WHEN A TAB OPENS, asked for by
+  // Samson: "graph bars, both horizontal and vertical", "slower than the
+  // number counter by another 40%" - 560ms x 1.4 = 784ms. The chart columns
+  // (.pp-bar) rise from their baseline, and the horizontal bars (site, task,
+  // goal and passive rows, the tag share bar, the preview's goal bars) extend
+  // from their start edge. ALL TOGETHER, never staggered (design-guide 3.6
+  // forbids entrance cascades), with the entrance curve, once per open, and
+  // never on a live update or a re-render: the class is added here, after the
+  // tab's fills have landed, and taken off when the growth is done, so a later
+  // render of the same panel draws its bars in place. Reduced motion: none.
+  //
+  // The free preview's bars grow too: the preview is not re-rendered on open,
+  // so the class is removed and re-added across a reflow to restart them.
+  var LP_GROW_MS = 784;
+  var LP_GROW_SEL = ".pp-bar, .insights-task-bar-fill, .ins-tagshare-bar, .pp-progress-fill";
+  function lpGrowBars(root) {
+    if (!root || root.classList.contains("hidden")) return;
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!root.querySelector(LP_GROW_SEL)) return;
+    root.classList.remove("lp-grow");
+    void root.offsetWidth;
+    root.classList.add("lp-grow");
+    clearTimeout(root.__lpGrowTimer);
+    root.__lpGrowTimer = setTimeout(function () { root.classList.remove("lp-grow"); }, LP_GROW_MS + 80);
+  }
+
   function lpCountUp(root) {
     if (!root || root.classList.contains("hidden")) return;
     if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -5785,7 +5811,7 @@
     if (untaggedMs > 0) ordered.push({ color: INSIGHTS_UNTAGGED_COLOR, name: t("insights_untagged"), ms: untaggedMs });
 
     if (scopeTotalMs <= 0 || ordered.length === 0) {
-      return '<div class="insights-empty">' + th("insights_no_focus_time_in_range", { range: rangeLabel }) + '</div>';
+      return '<div class="insights-empty">' + th("insights_no_focus_time_in_range") + '</div>';
     }
 
     var shareHtml = insightsTagShareHtml(
@@ -5836,7 +5862,7 @@
     rows.sort(function (a, b) { return b.ms - a.ms; });
 
     if (rows.length === 0) {
-      return '<div class="insights-empty">' + th("insights_no_task_focus_in_range", { range: rangeLabel }) + '</div>';
+      return '<div class="insights-empty">' + th("insights_no_task_focus_in_range") + '</div>';
     }
 
     var maxMs = rows[0].ms || 1;
@@ -5885,7 +5911,7 @@
     rows.sort(function (a, b) { return b.ms - a.ms; });
 
     if (rows.length === 0) {
-      return '<div class="insights-empty">' + th("insights_no_site_time_in_range", { range: rangeLabel }) + '</div>';
+      return '<div class="insights-empty">' + th("insights_no_site_time_in_range") + '</div>';
     }
 
     var maxMs = rows[0].ms || 1;

@@ -11406,7 +11406,8 @@ html.has-bg.bg-light .due-bell-list {
    fixing it here fixes both, and scoping a copy to the Dashboard would be the
    one-fix-in-two-places this codebase has already paid for. */
 .insights-task-row {
-  --dash-row-value: 4.4em;
+  /* [MC6] 6.2em, not 4.4: sized for "3h45m", the column cut "10hr 59min". */
+  --dash-row-value: 6.2em;
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) var(--dash-row-value);
   align-items: center;
@@ -22249,7 +22250,8 @@ html.has-bg .insights-tab .insights-task-bar { display: none; }
 
 html.has-bg .insights-tab .ins-sites .insights-task-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(64px, 1.1fr) 4.5em;
+  /* [MC6] 6.2em, not 4.5: "2hr 48min" was cut to "2hr 48m..." (Samson's screenshot). */
+  grid-template-columns: minmax(0, 1fr) minmax(64px, 1.1fr) 6.2em;
   align-items: center;
   gap: var(--space-3);
 }
@@ -24299,3 +24301,32 @@ html.lp-vt #content-header * { transition: none !important; }
 }
 .dash-cal-name-btn:hover { text-decoration: underline; text-underline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { .dash-cal-picker { animation: none; } }
+
+/* [MC6 2026-11-08] A DURATION IS ONE UNIT OF READING. "39hr 44min" broke
+   across two lines in This week vs last, number from number; the value and
+   its change hold together and the label column gives way instead. */
+.ins-wk-now, .ins-wk-delta { white-space: nowrap; }
+html.has-bg .insights-tab .ins-wk-label { min-width: 0; }
+
+/* [MC6 2026-11-08] BARS GROW INTO PLACE ON TAB OPEN - 784ms, the entrance
+   curve, all together. Added by lpGrowBars after the tab's fills land and
+   removed when done. transform only, so nothing beside a bar moves. */
+.lp-grow .pp-bar {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: lp-grow-y 784ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+.lp-grow .insights-task-bar-fill,
+.lp-grow .pp-progress-fill,
+.lp-grow .ins-tagshare-bar {
+  transform-origin: 0 50%;
+  animation: lp-grow-x 784ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+html[dir="rtl"] .lp-grow .insights-task-bar-fill,
+html[dir="rtl"] .lp-grow .pp-progress-fill,
+html[dir="rtl"] .lp-grow .ins-tagshare-bar { transform-origin: 100% 50%; }
+@keyframes lp-grow-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes lp-grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .lp-grow .pp-bar, .lp-grow .insights-task-bar-fill, .lp-grow .pp-progress-fill, .lp-grow .ins-tagshare-bar { animation: none; }
+}
