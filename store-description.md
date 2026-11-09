@@ -102,10 +102,25 @@ What the build actually uses each for, read from `manifest.json` at `2.1.0`:
   stating as optional in the justification, because a reviewer reading the manifest
   will see it in `optional_permissions`.
 
-Full declared set at 2.1.0, for reference: `storage`, `bookmarks`, `contextMenus`,
+- **`sidePanel`** (required, **NEW IN 2.2.0** - the Privacy tab needs a justification for
+  it before the upload is accepted). Paste-ready text:
+
+  > Shows LaunchPad's companion view in Chrome's side panel: the user's current task, the focus timer and today's time, beside the page they are working on. The user opens it from Chrome's side panel menu. The extension makes no calls to the sidePanel API; the permission is required only because the manifest declares a side panel page. The panel reads LaunchPad's own data stored on the device and sends nothing anywhere.
+
+  Read from the build: `manifest.json` declares `side_panel.default_path = side-panel.html`
+  and there is no `chrome.sidePanel` call anywhere in the code. The panel is the same
+  companion module as the toolbar popup (`companion.js`), mounted in a second page.
+  **Install warnings are unchanged by it**: the browser's own
+  `getPermissionWarningsByManifest` returns the same four warnings for the store 2.1.0
+  manifest and the 2.2.0 artifact's manifest (checked 2026-11-09; a control that adds
+  `management` gained a fifth line, so the check can fail). Existing users are not asked to
+  re-approve.
+
+Full declared set at 2.2.0, for reference: `storage`, `bookmarks`, `contextMenus`,
 `history`, `topSites`, `tabs`, `webNavigation`, `alarms`, `search`, `idle`,
-`offscreen`; optional `notifications`, `downloads`; hosts
-`https://live.dodopayments.com/*` and `https://mylaunchpad.me/*`.
+`offscreen`, `sidePanel`; optional `notifications`, `downloads`; hosts
+`https://live.dodopayments.com/*` and `https://mylaunchpad.me/*`. At 2.1.0 it was the same
+without `sidePanel`.
 
 ## Tags
 
