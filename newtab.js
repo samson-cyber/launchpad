@@ -8309,9 +8309,15 @@
         '<div class="tasks-header-top">' +
           '<h1 class="tasks-title">' + th('tasks_header_title') + '</h1>' +
           '<div class="tasks-header-right">' +
-            '<button class="tt2-action tasks-action" data-action="new-task" type="button">' + th('new_new_task') + '</button>' +
-            '<button class="tt2-newmenu" data-action="new-more" type="button" aria-haspopup="menu">' +
-              th('tasks_new_menu') + '<span class="tt2-caret" aria-hidden="true">' + CHEVRON_DOWN_SVG + '</span></button>' +
+            // [MC11] FOUR EQUALS IN A ROW, IN THE ONE STYLE. Samson: the orange-
+            // then-indigo New task button read as faded on a photograph, and the
+            // New menu hid three of the four things this tab creates. The dark
+            // outlined pill that was the menu's trigger is the style all four
+            // take; they route through the existing .tasks-action handler.
+            '<button class="tt2-newbtn tasks-action" data-action="new-task" type="button">' + th('new_new_task') + '</button>' +
+            '<button class="tt2-newbtn tasks-action" data-action="new-goal" type="button">' + th('tasks_btn_new_goal') + '</button>' +
+            '<button class="tt2-newbtn tasks-action" data-action="new-recurring" type="button">' + th('tasks_btn_new_recurring') + '</button>' +
+            '<button class="tt2-newbtn tasks-action" data-action="new-tag" type="button">' + th('tasks_btn_new_tag') + '</button>' +
             '<a class="tasks-templates-link" data-action="templates" href="#">' + th('tasks_action_templates') + '</a>' +
           '</div>' +
         '</div>' +
@@ -8334,42 +8340,6 @@
       '</header>';
   }
 
-  // The "New" menu. It mounts through mountTasksPopover, which owns the single
-  // open-menu slot and its outside-click and Escape handlers - so this cannot be
-  // open at the same time as a task or goal context menu, and neither of them
-  // had to learn about it.
-  function openTasksNewMenu(anchorEl) {
-    closeGoalContextMenu();
-    var menu = document.createElement("div");
-    menu.className = "tt-context-menu";
-    menu.innerHTML =
-      '<button type="button" class="tt-ctx-item" data-new="goal">' + th("tasks_new_goal") + '</button>' +
-      '<button type="button" class="tt-ctx-item" data-new="recurring">' + th("tasks_recurring") + '</button>' +
-      // data-action="new-tag" IS ON THIS ITEM ON PURPOSE, and without it the tag
-      // palette would open and shut in the same tick. The document-level guard
-      // at the bottom of this file keeps a REGISTRY OF ANCHORS that may open the
-      // create popover, and its own comment records [1.1.6] hitting exactly this
-      // - the click that opens the popover counting as an outside click. The
-      // menu item is a new anchor, so it joins the registry by carrying the
-      // attribute the registry matches on. closest() starts at the element
-      // itself, so it still matches after the menu is detached.
-      '<button type="button" class="tt-ctx-item" data-new="tag" data-action="new-tag">' + th("tasks_tag") + '</button>';
-    menu.addEventListener("click", function (e) {
-      var btn = e.target && e.target.closest && e.target.closest(".tt-ctx-item");
-      if (!btn) return;
-      var kind = btn.getAttribute("data-new");
-      closeGoalContextMenu();
-      // The SAME three openers the four v1 buttons called, reached from a menu
-      // instead of from a row of equals. openStandaloneTagCreate wants an
-      // anchor element and the menu item is about to be detached, so it takes
-      // the New button - which is where the palette should appear from anyway.
-      if (kind === "goal") openNewGoalModal();
-      else if (kind === "recurring") openRecurringModal(null);
-      else if (kind === "tag") openStandaloneTagCreate(anchorEl);
-    });
-    mountTasksPopover(menu, anchorEl);
-  }
-
   // ===== [H1b] THE THREE COUNT TILES =====
   //
   // FROM COUNTS renderTasksTab HAS ALREADY READ. Every number here is a filter
@@ -8383,9 +8353,45 @@
   // whose zero cannot be told from "not measured" - the tracking figures. A
   // count of overdue tasks is exact: zero overdue is a fact, and a good one. So
   // the tile renders its zero and simply has no sub-line to offer.
+  // [MC11] EACH TILE DOES ITS OWN THING, drawn the way the calendar's split
+  // pill is: an icon and a short label on the tile's own surface, no chip or
+  // shadow. Goals and Recurring add; Overdue takes you to the tasks. Shown on
+  // hover and on keyboard focus, and always on a screen with no hover.
+  // Overdue's appears only when there is something overdue to see.
+  var TT2_PLUS_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>';
+  var TT2_DOWN_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M6 13l6 6 6-6"/></svg>';
+  function tasksTileActHtml(act, icon, label) {
+    return '<button type="button" class="tt2-tile-act" data-tile-act="' + act + '">' + icon + '<span>' + label + '</span></button>';
+  }
+  // Open every overdue task to view: expand the goals they sit under, show
+  // the Active list if Completed was showing, then scroll to the oldest and
+  // light all of them for a moment - the due bell's go-to, for the set.
+  async function tasksViewOverdue() {
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws) return;
+    var od = Storage.getActiveTasks(ws).filter(function (t) { return isOverdue(t.dueAt); })
+      .sort(function (a, b) { return (a.dueAt || 0) - (b.dueAt || 0); });
+    if (!od.length) return;
+    var goals = [];
+    od.forEach(function (t) { if (t.goalId && goals.indexOf(t.goalId) === -1) goals.push(t.goalId); });
+    for (var i = 0; i < goals.length; i++) {
+      try { await Storage.updateGoalCollapsed(data, goals[i], false); } catch (err) {}
+    }
+    if (taskFilterState.status === "completed") taskFilterState.status = "active";
+    rerenderTasksPanel();
+    setTimeout(function () {
+      var rows = od.map(function (t) { return document.querySelector('#tab-tasks .tt-task-row[data-task-id="' + t.id + '"]'); })
+        .filter(Boolean);
+      if (!rows.length) return;
+      if (rows[0].scrollIntoView) rows[0].scrollIntoView({ block: "center" });
+      rows.forEach(function (r) { r.classList.add("is-bell-target"); });
+      setTimeout(function () { rows.forEach(function (r) { r.classList.remove("is-bell-target"); }); }, 1600);
+    }, 60);
+  }
   function tasksCountTilesHtml(o) {
-    function tile(kind, eyebrow, n, sub) {
+    function tile(kind, eyebrow, n, sub, act) {
       return '<div class="tile tile--' + kind + ' tt2-count">' +
+          (act || "") +
           '<div class="tile-eyebrow">' + eyebrow + '</div>' +
           '<div class="tt2-count-num">' + n + '</div>' +
           (sub ? '<div class="tt2-count-sub">' + sub + '</div>' : '<div class="tt2-count-sub"></div>') +
@@ -8393,11 +8399,14 @@
     }
     return '<div class="tt2-counts">' +
         tile("overdue", th("goal_overdue"), o.overdue,
-          o.overdueOldest ? th("tasks_tile_overdue_oldest", { name: o.overdueOldest }) : "") +
+          o.overdueOldest ? th("tasks_tile_overdue_oldest", { name: o.overdueOldest }) : "",
+          o.overdue > 0 ? tasksTileActHtml("view-overdue", TT2_DOWN_SVG, th("tasks_tile_view_overdue")) : "") +
         tile("goals", th("dashboard_goals"), o.goals,
-          th("tasks_tile_goals_sub", { complete: o.goalsComplete, open: o.openTasks })) +
+          th("tasks_tile_goals_sub", { complete: o.goalsComplete, open: o.openTasks }),
+          tasksTileActHtml("add-goal", TT2_PLUS_SVG, th("tasks_tile_add_goal"))) +
         tile("blocking", th("tasks_recurring"), o.recurring,
-          o.recurringNext ? th("tasks_tile_recurring_next", { name: o.recurringNext }) : "") +
+          o.recurringNext ? th("tasks_tile_recurring_next", { name: o.recurringNext }) : "",
+          tasksTileActHtml("add-recurring", TT2_PLUS_SVG, th("tasks_tile_add_recurring"))) +
       '</div>';
   }
 
@@ -9856,12 +9865,14 @@
         return;
       }
 
-      // [H1b] The "New" menu, holding Goal / Recurring / Tag.
-      var newMoreBtn = target.closest && target.closest('[data-action="new-more"]');
-      if (newMoreBtn) {
+      // [MC11] The count tiles' own actions.
+      var tileAct = target.closest && target.closest("[data-tile-act]");
+      if (tileAct) {
         e.preventDefault();
-        e.stopPropagation();
-        openTasksNewMenu(newMoreBtn);
+        var ta = tileAct.getAttribute("data-tile-act");
+        if (ta === "add-goal") openNewGoalModal();
+        else if (ta === "add-recurring") openRecurringModal(null);
+        else if (ta === "view-overdue") tasksViewOverdue();
         return;
       }
 

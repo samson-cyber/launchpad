@@ -494,6 +494,14 @@ if ! node tools/check-reminders.mjs; then
   exit 1
 fi
 
+# [MC11] The Tasks header's four New buttons in one style, and the count tiles'
+# own actions (Add goal, Add recurring, View overdue). ~0.1s. `--mutate` runs
+# seven seeds.
+if ! node tools/check-tasks-header.mjs; then
+  echo 'ERROR: tasks-header gate failed - a New button lost its style or a count tile its action.' >&2
+  exit 1
+fi
+
 # [PF.2 follow-up] The sync slice: what leaves this machine, and what must not.
 # PF.2 SHIPPED THIS GATE AND NEVER WIRED IT IN, so it has been green-by-nobody
 # since - exactly the shape of the importers.js miss recorded below, where a

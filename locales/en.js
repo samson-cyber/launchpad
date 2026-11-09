@@ -1112,13 +1112,29 @@ I18n.register("en", {
 // is a MARKUP sink and is read with th(), never t().
 // ======================================================================
 I18n.register("en", {
-  "tasks_new_goal": {
-    "message": "Goal",
-    "description": "The Goal item in the Tasks tab's New menu. Replaced tasks_action_new_goal (\"+ New Goal\"): the plus belonged to a row of four equal buttons that H1b collapsed into one action plus this menu, and a menu item names the thing while the menu it sits in already says New. The Recurring and Tag items reuse tasks_recurring and tasks_tag rather than taking keys of their own. Rendered with th()."
+  "tasks_btn_new_goal": {
+    "message": "New goal",
+    "description": "Tasks tab header button, one of four in a row (New task, New goal, New recurring, New tag). Opens the new-goal dialog."
   },
-  "tasks_new_menu": {
-    "message": "New",
-    "description": "The Tasks tab's secondary create button, which opens a menu of Goal / Recurring / Tag. A chevron sits beside it in the markup, so the word is the whole label. It took the slot of tasks_action_new_task (\"+ New Task\"), retired because the primary create button now renders new_new_task (\"New task\"), which is the string the rest of the product already uses for the same act. Rendered with th()."
+  "tasks_btn_new_recurring": {
+    "message": "New recurring",
+    "description": "Tasks tab header button: opens the dialog for a new repeating task."
+  },
+  "tasks_btn_new_tag": {
+    "message": "New tag",
+    "description": "Tasks tab header button: opens the new-tag popover."
+  },
+  "tasks_tile_add_goal": {
+    "message": "Add goal",
+    "description": "Small action on the Goals count tile at the top of the Tasks tab, shown on hover with a plus. Opens the new-goal dialog."
+  },
+  "tasks_tile_add_recurring": {
+    "message": "Add recurring",
+    "description": "Small action on the Recurring count tile, shown on hover with a plus. Opens the new repeating-task dialog."
+  },
+  "tasks_tile_view_overdue": {
+    "message": "View overdue tasks",
+    "description": "Small action on the Overdue count tile, shown on hover when anything is overdue. Scrolls down to the overdue tasks and highlights them."
   },
   "tasks_tile_overdue_oldest": {
     "message": "{name} is oldest",

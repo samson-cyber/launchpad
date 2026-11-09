@@ -21029,19 +21029,7 @@ html.has-bg .tasks-split .tasks-header-right { display: flex; align-items: cente
    button: "the one thing to do" has to win against any wallpaper. */
 
 
-html.has-bg .tasks-split .tt2-action {
-  border: 0;
-  background: var(--action);
-  color: var(--ink-on-action);
-  border-radius: var(--pill);
-  padding: 9px 18px;
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  font-weight: 700;
-  cursor: pointer;
-}
-html.has-bg .tasks-split .tt2-action:hover { background: var(--action-soft); }
-html.has-bg .tasks-split .tt2-newmenu {
+html.has-bg .tasks-split .tt2-newbtn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -21055,8 +21043,7 @@ html.has-bg .tasks-split .tt2-newmenu {
   font-weight: 600;
   cursor: pointer;
 }
-html.has-bg .tasks-split .tt2-newmenu:hover { background: rgba(17, 19, 25, 0.72); }
-html.has-bg .tasks-split .tt2-caret { display: inline-flex; opacity: 0.7; }
+html.has-bg .tasks-split .tt2-newbtn:hover { background: rgba(17, 19, 25, 0.72); }
 html.has-bg .tasks-split .tasks-templates-link {
   font-size: var(--fs-12);
   color: var(--ink-mute);
@@ -21109,8 +21096,7 @@ html.has-bg.bg-light .tasks-split .tt2-seg-btn.is-on {
 }
 html.has-bg .tasks-split .tt2-seg-count { font-variant-numeric: tabular-nums; }
 html.has-bg .tasks-split .tt2-seg-btn:focus-visible,
-html.has-bg .tasks-split .tt2-action:focus-visible,
-html.has-bg .tasks-split .tt2-newmenu:focus-visible {
+html.has-bg .tasks-split .tt2-newbtn:focus-visible {
   outline: 2px solid var(--action);
   outline-offset: 2px;
 }/* The two multi-select filters and the sort keep their popovers and their
@@ -21182,7 +21168,7 @@ html.has-bg.bg-light .tasks-split .tt2-seg-btn.is-on { color: var(--text-primary
    on the page - so it needs a ground that its near-white ink can sit on. The
    0.5 alpha let the light wallpaper through and took the label to 3.19. */
 
-html.has-bg.bg-light .tasks-split .tt2-newmenu {
+html.has-bg.bg-light .tasks-split .tt2-newbtn {
   background: rgba(17, 19, 25, 0.86);
   border-color: rgba(0, 0, 0, 0.16);
 }/* ---- THE THREE COUNT TILES ---- */
@@ -24452,3 +24438,24 @@ html[dir="rtl"] .lp-grow .ins-tagshare-bar { transform-origin: 100% 50%; }
 }
 .dash-cal-rem-delete:hover { background: rgba(237, 169, 180, 0.12); }
 @media (prefers-reduced-motion: reduce) { .dash-cal-split { animation: none; } }
+
+/* ---- [MC11 2026-11-09] THE TASKS HEADER AND COUNT TILES --------------------
+   Four New buttons share the dark outlined pill (.tt2-newbtn, the old menu
+   trigger's style), padded evenly now that none carries a caret. The tiles'
+   actions are an icon and a short label on the tile's own surface - no chip,
+   no shadow - the calendar split pill's language. */
+html.has-bg .tasks-split .tt2-newbtn { padding: 8px 14px; }
+html.has-bg .tasks-split .tt2-count { position: relative; }
+.tt2-tile-act {
+  position: absolute; top: 14px; right: 14px;
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px;
+  font-family: inherit; font-size: var(--fs-12); font-weight: 600; color: inherit;
+  opacity: 0; transition: opacity 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+.tt2-count:hover .tt2-tile-act, .tt2-count:focus-within .tt2-tile-act { opacity: 1; }
+.tt2-tile-act:hover span { text-decoration: underline; text-underline-offset: 3px; }
+.tt2-tile-act:focus-visible { outline: 2px solid var(--action-soft); outline-offset: 2px; }
+.tt2-tile-act svg { flex: none; }
+@media (hover: none) { .tt2-tile-act { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .tt2-tile-act { transition: none; } }
