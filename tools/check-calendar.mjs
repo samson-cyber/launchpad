@@ -148,7 +148,7 @@ async function suite(src, nt) {
     chk("completed, trashed and undated tasks are absent", !m.cells.some((c) => c && c.due.some((x) => ["done", "trashed", "undated"].includes(x.id))));
     chk("next month's task is not in this month", !m.cells.some((c) => c && c.due.some((x) => x.id === "next-month")));
     eq("a day sorts by priority, then name", cellOf(m, 12).due.map((x) => x.id), ["z-urgent", "m-high", "b-low", "a-none"]);
-    eq("totals count due and overdue", m.totals, { due: 7, overdue: 1, scheduled: 0 });
+    eq("totals count due and overdue", m.totals, { due: 7, overdue: 1, scheduled: 0, reminders: 0 });
     const dec = S.calendarMonth(ws, 2026, 11, 0, NOW);
     eq("next month shows its own task", cellOf(dec, 2).due.map((x) => x.id), ["next-month"]);
     const ov = S.calendarMonth({ tasks: [task("b", day(2026, 10, 8)), task("a", day(2026, 10, 2))] }, 2026, 10, 0, NOW);
