@@ -24444,7 +24444,10 @@ html[dir="rtl"] .lp-grow .ins-tagshare-bar { transform-origin: 100% 50%; }
    trigger's style), padded evenly now that none carries a caret. The tiles'
    actions are an icon and a short label on the tile's own surface - no chip,
    no shadow - the calendar split pill's language. */
-html.has-bg .tasks-split .tt2-newbtn { padding: 8px 14px; }
+/* NO TEXT SHADOW. The buttons inherited the header title's soft shadow
+   (rgba(0,0,0,0.55) 0 1px 3px), which on their own dark fill only blurred the
+   words - Samson: "it's got a background shadow on the text". */
+html.has-bg .tasks-split .tt2-newbtn { padding: 8px 14px; text-shadow: none; }
 html.has-bg .tasks-split .tt2-count { position: relative; }
 .tt2-tile-act {
   position: absolute; top: 14px; right: 14px;
