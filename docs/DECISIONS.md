@@ -4994,3 +4994,44 @@ It also showed a pre-existing copy slip: "No task focus tracked in the today yet
   - The free Tasks preview shows the calendar with no controls, and the free Dashboard preview has none.
   - The console is clean.
 - MC5's 39 calendar checks and MC7's 33 due-sound checks, retargeted to Tasks, all pass. MC7's duration bound was updated for the new 3.98 s file.
+
+## 2026-11-09, Round MC9: calendar reminders; the split pill; Spoken reminder always toggles
+
+**Context.** Samson replaced the double-click "Add task?" box with a sketch: the date pill itself splits into "Add Task" (with a tick box) and "Add Reminder" (with a bell). A reminder is "more just a spoken reminder ... set to a date and time, and it just gives a sound", with an optional title and two switches, one for the voice and one for a desktop notification. He also reported "I can't seem to toggle Spoken reminder off".
+
+**Rulings by Samson:**
+- The voice says **"You have a reminder"** in Adam Stone's voice. The estimate was about 52 credits; the exact cost was **40** for 2 takes. Take 1 (about 178 Hz) was chosen over take 2 (about 296 Hz) as the calmer, deeper one.
+- A reminder missed while the browser was closed goes off **late on the same day only**. One from an earlier day shows as missed, silently.
+- Reminders appear **on the calendar only**: in no list, count or bell.
+- The time is **typed, default 9:00**.
+
+**Decisions:**
+- **The split pill** covers the double-clicked day and slides down the way the boxes do. The task half opens the existing "Add task?" box; the bell half opens the reminder box in the same day. Escape or a click elsewhere puts the day back. The labels wrap to two lines rather than truncate, since a day is about 135px wide.
+- **The reminder box** has:
+  - an optional title, the date (preset to the day), and the time (9:00)
+  - Spoken reminder (on) and Desktop notification (off)
+  - a refusal for any time already passed
+  
+  Editing opens the same box with Delete, and Delete has an Undo.
+- **A reminder always sounds.** It plays chime D, plus the spoken line when its voice is on (`sounds/reminder.wav`, 3.44 s); otherwise the chime alone (`due-chime.wav`). The title is never spoken; it appears in the notification and on the calendar.
+- **The notification** asks for the optional `notifications` permission at save, before any other await, while the click is still a user gesture. If the permission is refused, the reminder is saved without its notification and a toast says so.
+- **Firing belongs to the worker.**
+  - One alarm points at the next reminder. It is re-pointed whenever the page reports a change, at startup and at worker boot.
+  - A cheap raw read stops the worker from queueing a write just to learn that nothing is due.
+  - Due reminders are **marked fired and saved inside the data queue before anything sounds or notifies**, so two wakes cannot ring twice.
+  - Reminders fire from **every workspace**: a reminder is about the clock, not about which workspace is open. They are Pro only.
+- **Model.** `ws.reminders = [{ id, title, at, voice, notify, createdAt, firedAt, deletedAt }]`, where `at` is a local wall-clock epoch. `calendarMonth` places each reminder on its local day with fired and missed marked.
+- **Spoken reminder switch.** MC8 disabled it while the sound was off. A disabled switch still drawn ON read as broken, so it is now never disabled. It only speaks when the sound is on.
+
+**Release notes.** `docs/RELEASE-NOTES-NEXT.md` now covers everything since 2.1.0. It folds in 2.2.0, which was cut but never uploaded, and every bullet was verified against source. It records four corrections to earlier notes. It also raises pre-build conflicts in the packaged description and the privacy policy, which are Samson's to rule on.
+
+**Gate.** `tools/check-reminders.mjs` is in `build.sh`. It has 42 rows, and `--mutate` kills all 9 seeds.
+
+**Verified** live in a scratch Edge profile, 26/26 on the working tree and on the packaged build:
+- The split pill covers its day exactly, shows both halves with their icons, and slides in. Each half opens its box, and Escape restores the day.
+- The reminder box defaults hold. Enter saves at 9:00 local on that day, with a bell chip, and the worker's alarm points at it.
+- Edit prefills, a past time is refused, and Delete with Undo works.
+- A reminder 6 s ahead re-pointed the alarm and went off on time through one offscreen document: about 3.4 s with voice, about 1.9 s without.
+- One missed earlier today goes off late. Yesterday's does not, and shows struck through.
+- Spoken reminder toggles with the sound off. The free preview shows a demo reminder with no controls, and the console is clean.
+- MC5 (39/39), MC7 (33/33, after the double-click step was updated for the pill) and MC8 (20/20, after the "disabled" expectation was inverted) still pass.
