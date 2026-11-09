@@ -496,6 +496,8 @@ website repo is at `origin/main`; whether Cloudflare is serving that commit was 
 - **CWS Privacy-practices form.** Re-answer it with passive site-time on by default for all users
   and Chrome sync of a licence key. Both are local or Google-account-held and not sent to the
   developer, but the answers should be re-checked against the new behaviour, not carried over.
+- **ElevenLabs licence: CLOSED 2026-11-09.** Samson confirmed the account was on a paid plan when
+  every sound was made. Recorded in DECISIONS. The original note follows.
 - **ElevenLabs licence (DECISIONS DP4, still open).** The three chimes, `due-reminder.wav` and
   `due-chime.wav` are ElevenLabs output. The reminder includes a library voice ("Adam Stone").
   DP4 says Samson should confirm the account was on a paid plan **before the next store

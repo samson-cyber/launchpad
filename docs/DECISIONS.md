@@ -5081,3 +5081,13 @@ It also showed a pre-existing copy slip: "No task focus tracked in the today yet
 - `v2.2.0` is deleted locally and on origin, then re-applied as an annotated tag at submission, on the build commit, with the artifact's sha256 in its message.
 - `RELEASE-NOTES-NEXT.md` becomes `RELEASE-NOTES-2.2.0.md` and replaces the September file, whose content it already folded in. A fresh `RELEASE-NOTES-NEXT.md` starts for the release after.
 - **The cause, so it does not recur: the September tag was applied at the CUT.** CLAUDE.md already said "applied AT SUBMISSION"; the release-state block then announced "`v2.2.0` joins them at the 2026-09-15 cut", and nobody read that as the contradiction it was. The block now names it.
+
+## 2026-11-09, 2.2.0 submitted; the ElevenLabs licence question is closed
+
+- **2.2.0 was uploaded and submitted** by Samson on 2026-11-09, from `launchpad-2.2.0-f8b05da.zip`. Tag `v2.2.0` is on `f8b05da`. The zip was deleted after upload. 2.1.0 stays live until review passes.
+- **ElevenLabs licence, open since DP4: closed.** Samson confirmed that the account was on a paid plan when all of these were generated:
+  - the three chimes
+  - `due-reminder.wav`, `due-chime.wav` and `reminder.wav`, including the "Adam Stone" library voice
+  - the store-video audio
+
+  Paid plans grant commercial use, so the bundled sounds and the video are clear to ship.
