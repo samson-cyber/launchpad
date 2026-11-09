@@ -24384,3 +24384,58 @@ html[dir="rtl"] .lp-grow .ins-tagshare-bar { transform-origin: 100% 50%; }
 }
 .dash-cal-add-go:focus-visible { outline: 2px solid var(--action-soft); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .dash-cal-add { animation: none; } }
+
+/* ---- [MC9 2026-11-09] CALENDAR REMINDERS -----------------------------------
+   The split pill sits ON the double-clicked day (Samson's sketch): two halves,
+   a tick box for a task and a bell for a reminder, a hairline between them.
+   It slides down like the boxes (lp-cal-add-in). Reminder chips carry a bell
+   and the time; missed ones are struck through, fired ones quiet. */
+.dash-cal-split {
+  position: absolute; z-index: 3; box-sizing: border-box;
+  display: grid; grid-template-columns: 1fr 1fr;
+  border-radius: 999px; overflow: hidden;
+  background: var(--pro-frost-floater-bg);
+  -webkit-backdrop-filter: var(--pro-frost-floater-blur);
+  backdrop-filter: var(--pro-frost-floater-blur);
+  border: 1px solid rgba(236, 238, 244, 0.22);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  animation: lp-cal-add-in 240ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+.dash-cal-split-btn {
+  appearance: none; border: 0; margin: 0; cursor: pointer; background: transparent;
+  font-family: inherit; font-size: var(--fs-12); font-weight: 600; color: var(--ink);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  min-width: 0; padding: 4px;
+}
+.dash-cal-split-btn + .dash-cal-split-btn { border-left: 1px solid rgba(236, 238, 244, 0.22); }
+.dash-cal-split-btn:hover { background: rgba(236, 238, 244, 0.10); }
+.dash-cal-split-btn:focus-visible { outline: 2px solid var(--action-soft); outline-offset: -3px; }
+.dash-cal-split-btn span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.dash-cal-split-btn[data-cal-split="reminder"] svg { color: var(--action-soft); }
+
+.dash-cal-chip.is-reminder { color: var(--ink); background: rgba(139, 147, 255, 0.10); border-left-color: var(--action-soft);
+  display: inline-flex; align-items: center; gap: 4px; }
+.dash-cal-chip.is-reminder .dash-cal-bell { flex: none; color: var(--action-soft); }
+.dash-cal-chip-time { font-variant-numeric: tabular-nums; color: var(--ink-mute); flex: none; }
+.dash-cal-chip.is-missed { text-decoration: line-through; opacity: 0.75; }
+.dash-cal-chip.is-fired { opacity: 0.75; }
+.dash-cal-key.is-reminder::before { display: none; }
+.dash-cal-key.is-reminder .dash-cal-bell { color: var(--action-soft); }
+.dash-cal-kind.is-reminder { color: var(--action-soft); background: rgba(139, 147, 255, 0.14); display: inline-flex; align-items: center; gap: 4px; }
+.dash-cal-row-time { flex: none; font-size: var(--fs-12); color: var(--ink-mute); font-variant-numeric: tabular-nums; }
+.dash-cal-row-state { flex: none; font-size: var(--fs-12); color: var(--ink-mute); }
+
+.dash-cal-rem .dash-cal-add-title { display: flex; align-items: center; gap: 6px; }
+.dash-cal-rem .dash-cal-add-title svg { color: var(--action-soft); }
+.dash-cal-rem-when { display: grid; grid-template-columns: 1fr auto; gap: var(--space-2); }
+.dash-cal-rem-when .dash-cal-add-input { color-scheme: dark; }
+.dash-cal-rem-opt { display: flex; align-items: center; gap: 8px; font-size: var(--fs-13); color: var(--ink); cursor: pointer; }
+.dash-cal-rem-opt input { width: 16px; height: 16px; accent-color: var(--action); margin: 0; }
+.dash-cal-rem-error { font-size: var(--fs-12); color: var(--ink-on-overdue); }
+.dash-cal-rem-delete {
+  appearance: none; font-family: inherit; font-size: var(--fs-13); cursor: pointer; margin-inline-end: auto;
+  background: transparent; color: var(--ink-on-overdue); border: 1px solid rgba(237, 169, 180, 0.35);
+  border-radius: var(--radius-pill, 999px); height: 30px; padding: 0 12px;
+}
+.dash-cal-rem-delete:hover { background: rgba(237, 169, 180, 0.12); }
+@media (prefers-reduced-motion: reduce) { .dash-cal-split { animation: none; } }

@@ -1370,6 +1370,9 @@ applyIdleThreshold();
 // was not. dueRemindersToSend is idempotent per task per day, so the two paths
 // cannot double-post.
 runDueRemindersBg();
+// [MC9] And reminders, on every worker start: cheap-gated, so a profile with
+// none reads once and writes nothing.
+runRemindersBg();
 
 chrome.runtime.onInstalled.addListener(function (details) {
   requestContextMenuRebuild();
@@ -1416,6 +1419,9 @@ chrome.runtime.onInstalled.addListener(function (details) {
 chrome.runtime.onStartup.addListener(function () {
   requestContextMenuRebuild();
   runSyncMerge("startup");
+  // [MC9] A reminder due while the browser was closed goes off now - if it is
+  // still the same day (Storage.remindersToFire holds that rule).
+  runRemindersBg();
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
   chrome.alarms.create(PRO_RECONCILE_ALARM, { periodInMinutes: PRO_RECONCILE_PERIOD_MINUTES });
   // [1.3.0 R2] Reconciled rather than created blind: the weekly alarm exists
@@ -1903,6 +1909,7 @@ function addShortcutFromContextMenuBg(shortcut, menuId) {
 }
 
 chrome.alarms.onAlarm.addListener(function (alarm) {
+  if (alarm.name === REMINDER_ALARM) { runRemindersBg(); return; }   // [MC9]
   if (alarm.name === "save-session") {
     saveCurrentSession();
   } else if (alarm.name === PRO_RECONCILE_ALARM) {
@@ -2723,7 +2730,71 @@ chrome.webNavigation.onReferenceFragmentUpdated.addListener(focusOnNavigation);
 // background `data` writer (BUGS.md L1). The page awaits the reply, so the write
 // is durable before it navigates — which is what stops the intercept from
 // immediately re-gating the arrival.
+// ===== [MC9 2026-11-09] CALENDAR REMINDERS =====
+//
+// ONE ALARM, ALWAYS POINTED AT THE NEXT REMINDER. The page says when the set
+// changed; startup, install and every firing re-point it. When it fires: the
+// due reminders are MARKED FIRED AND SAVED FIRST, inside the data queue, and
+// only then sound and notify, outside it - so a second wake (a duplicate alarm,
+// a startup catch-up racing the alarm) finds nothing left to fire.
+//
+// THE CHEAP GATE FIRST (runDueRemindersBg's lesson): a raw read decides there
+// is nothing due without putting a getAll on the write queue.
+var REMINDER_ALARM = "lp-calendar-reminder";
+var REMINDER_NOTIF_PREFIX = "lp-rem-";
+
+async function reconcileReminderAlarm() {
+  var raw;
+  try { raw = (await chrome.storage.local.get("data")).data || {}; }
+  catch (err) { return; }
+  var next = Storage.nextReminderAt(raw, Date.now());
+  if (next == null) { try { await chrome.alarms.clear(REMINDER_ALARM); } catch (err) {} return; }
+  chrome.alarms.create(REMINDER_ALARM, { when: Math.max(next, Date.now() + 500) });
+}
+
+async function runRemindersBg() {
+  var raw;
+  try { raw = (await chrome.storage.local.get("data")).data || {}; }
+  catch (err) { return null; }
+  if (!Storage.remindersToFire(raw, Date.now()).length) { await reconcileReminderAlarm(); return null; }
+  var due = await enqueueBgData("calendar-reminders", async function () {
+    var d = await Storage.getAll();
+    var now = Date.now();
+    var list = Storage.remindersToFire(d, now);
+    if (!list.length) return null;
+    Storage.markRemindersFired(d, list.map(function (r) { return r.id; }), now);
+    await Storage.saveAll(d);
+    return list.map(function (r) { return { id: r.id, title: r.title, voice: r.voice !== false, notify: r.notify === true }; });
+  });
+  if (due && due.length) {
+    if (due.some(function (r) { return r.notify; }) && await hasNotificationsPermission()) {
+      due.forEach(function (r) {
+        if (!r.notify) return;
+        try {
+          chrome.notifications.create(REMINDER_NOTIF_PREFIX + r.id, {
+            type: "basic",
+            iconUrl: "icons/icon128.png",
+            title: I18n.t("notif_reminder_title"),
+            message: r.title || I18n.t("dash_cal_rem_untitled")
+          });
+        } catch (err) {
+          console.error("[LaunchPad] Calendar reminder: notification create failed", err);
+        }
+      });
+    }
+    await playFileViaOffscreen(Storage.reminderSoundFile(due));
+  }
+  await reconcileReminderAlarm();
+  return due;
+}
+
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+  // [MC9] The page created, edited or deleted a reminder: re-point the alarm,
+  // and fire anything now due (a time set a minute ahead, then the tab closed).
+  if (msg && msg.type === "lp-reminders-changed") {
+    runRemindersBg().then(function (r) { sendResponse({ fired: r || [] }); }, function () { sendResponse({}); });
+    return true;
+  }
   // [MC7] A new tab opened: maybe announce what reached its due date today.
   if (msg && msg.type === "lp-due-sound-launch") {
     runDueSoundOnLaunch().then(function (r) { sendResponse(r || {}); }, function () { sendResponse({}); });

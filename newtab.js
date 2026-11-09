@@ -3675,6 +3675,22 @@
   var dashCalPicker = null;        // { y } while the month picker is open
   var dashCalDragId = null;        // the task being dragged, as a fallback for
                                    // dataTransfer types a browser hides in dragover
+  // [MC9] A reminder's time, in the user's clock.
+  function dashCalTimeLabel(at) {
+    try { return new Date(at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }); }
+    catch (e) { return ""; }
+  }
+  var DASH_CAL_BELL_SVG = '<svg class="dash-cal-bell" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
+  var DASH_CAL_TICK_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M8 12.5l2.8 2.8L16.5 9"/></svg>';
+  var DASH_CAL_BELL_LG_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
+  function dashCalReminderChipHtml(r, preview) {
+    var title = r.title || t("dash_cal_rem_untitled");
+    var cls = "dash-cal-chip is-reminder" + (r.missed ? " is-missed" : "") + (r.fired ? " is-fired" : "");
+    var inner = DASH_CAL_BELL_SVG + '<span class="dash-cal-chip-time">' + escapeHtml(dashCalTimeLabel(r.at)) + '</span> ' + escapeHtml(title);
+    if (preview) return '<span class="' + cls + '">' + inner + '</span>';
+    return '<span class="' + cls + '" role="button" tabindex="0" data-cal-rem="' + escapeHtml(r.id) + '"' +
+      ' title="' + escapeHtml(title) + '" aria-label="' + th("dash_cal_chip_reminder", { time: dashCalTimeLabel(r.at), title: title }) + '">' + inner + '</span>';
+  }
   function dashCalChipHtml(kind, item, preview) {
     var name = escapeHtml(item.name);
     if (preview) return '<span class="dash-cal-chip is-' + kind + '">' + name + '</span>';
@@ -3688,13 +3704,14 @@
   function dashCalCellHtml(c, sel, preview) {
     if (!c) return '<div class="dash-cal-cell is-blank" aria-hidden="true"></div>';
     var items = c.due.map(function (x) { return dashCalChipHtml(x.overdue ? "overdue" : "due", x, preview); })
+      .concat((c.reminders || []).map(function (r) { return dashCalReminderChipHtml(r, preview); }))
       .concat(c.scheduled.map(function (x) { return dashCalChipHtml("scheduled", x, preview); }));
     var shown = items.slice(0, DASH_CAL_MAX_CHIPS).join("");
     var more = items.length > DASH_CAL_MAX_CHIPS
       ? '<span class="dash-cal-more">' + th("dash_cal_more", { count: items.length - DASH_CAL_MAX_CHIPS }) + '</span>' : "";
     var cls = "dash-cal-cell" + (c.isToday ? " is-today" : "") + (c.isPast ? " is-past" : "") +
       (c.stamp === sel ? " is-selected" : "") + (items.length ? " has-items" : "");
-    var label = th("dash_cal_day_label", { date: dashCalDayLabel(c.stamp), due: c.due.length, scheduled: c.scheduled.length });
+    var label = th("dash_cal_day_label", { date: dashCalDayLabel(c.stamp), due: c.due.length, scheduled: c.scheduled.length, reminders: (c.reminders || []).length });
     var items2 = '<span class="dash-cal-items">' + shown + more + '</span>';
     if (preview) return '<div class="' + cls + '" aria-label="' + label + '"><span class="dash-cal-date">' + c.day + '</span>' + items2 + '</div>';
     return '<div class="' + cls + '" data-cal-day="' + c.stamp + '">' +
@@ -3705,7 +3722,8 @@
   function dashCalDetailHtml(cell, preview) {
     if (!cell) return "";
     var head = '<div class="dash-cal-detail-head">' + escapeHtml(dashCalDayLabel(cell.stamp)) + '</div>';
-    if (!cell.due.length && !cell.scheduled.length) {
+    var rems = cell.reminders || [];
+    if (!cell.due.length && !cell.scheduled.length && !rems.length) {
       return head + '<div class="dash-cal-empty">' + th("dash_cal_empty_day") + '</div>';
     }
     var nameHtml = function (attr, id, name) {
@@ -3719,7 +3737,15 @@
         nameHtml("data-cal-task", x.id, x.name) +
         (preview ? "" : '<button type="button" class="dash-inline-link dash-cal-goto" data-cal-goto="' + escapeHtml(x.id) + '">' + th("bell_go_to_task") + '</button>') +
       '</li>';
-    }).concat(cell.scheduled.map(function (x) {
+    }).concat(rems.map(function (r) {
+      var state = r.missed ? th("dash_cal_rem_missed") : (r.fired ? th("dash_cal_rem_done") : "");
+      return '<li class="dash-cal-row">' +
+        '<span class="dash-cal-kind is-reminder">' + DASH_CAL_BELL_SVG + th("dash_cal_reminder") + '</span>' +
+        '<span class="dash-cal-row-time">' + escapeHtml(dashCalTimeLabel(r.at)) + '</span>' +
+        nameHtml("data-cal-rem", r.id, r.title || t("dash_cal_rem_untitled")) +
+        (state ? '<span class="dash-cal-row-state">' + state + '</span>' : "") +
+      '</li>';
+    })).concat(cell.scheduled.map(function (x) {
       return '<li class="dash-cal-row">' +
         '<span class="dash-cal-kind is-scheduled">' + th("dash_cal_scheduled") + '</span>' +
         nameHtml("data-cal-tpl", x.templateId, x.name) +
@@ -3777,6 +3803,7 @@
           '<span class="dash-cal-key is-due">' + th("dash_cal_due") + '</span>' +
           '<span class="dash-cal-key is-overdue">' + th("dash_cal_overdue") + '</span>' +
           '<span class="dash-cal-key is-scheduled">' + th("dash_cal_scheduled") + '</span>' +
+          '<span class="dash-cal-key is-reminder">' + DASH_CAL_BELL_SVG + th("dash_cal_reminder") + '</span>' +
         '</div>' +
       '</div>' +
       '<div class="dash-cal-body">' +
@@ -3830,8 +3857,161 @@
   // date unless the text names another, and a cadence is refused with the same
   // words, since a repeat has no day to put on a calendar. Escape, Cancel or a
   // click elsewhere closes it; Enter or Add commits.
+  // [MC9 2026-11-09] DOUBLE-CLICK A DAY: THE DAY ITSELF OFFERS TWO THINGS.
+  // Samson's sketch: the date pill splits in two - "Add Task" with a tick box,
+  // "Add Reminder" with a bell. It covers the day it was opened in and slides
+  // down the way the boxes do; either half opens its box, anchored in the same
+  // day. Escape or a click elsewhere puts the day back.
+  function dashCalOpenSplit(panel, stamp) {
+    dashCalCloseAdd(panel, false);
+    var body = panel.querySelector("[data-dash-cal] .dash-cal-body");
+    var cell = panel.querySelector('[data-dash-cal] [data-cal-day="' + stamp + '"]');
+    if (!body || !cell) return;
+    var pop = document.createElement("div");
+    pop.className = "dash-cal-split";
+    pop.setAttribute("role", "group");
+    pop.setAttribute("aria-label", dashCalDayLabel(stamp));
+    pop.setAttribute("data-cal-add", String(stamp));
+    pop.innerHTML =
+      '<button type="button" class="dash-cal-split-btn" data-cal-split="task">' + DASH_CAL_TICK_SVG + '<span>' + th("dash_cal_split_task") + '</span></button>' +
+      '<button type="button" class="dash-cal-split-btn" data-cal-split="reminder">' + DASH_CAL_BELL_LG_SVG + '<span>' + th("dash_cal_split_reminder") + '</span></button>';
+    pop.style.left = cell.offsetLeft + "px";
+    pop.style.top = cell.offsetTop + "px";
+    pop.style.width = cell.offsetWidth + "px";
+    pop.style.height = cell.offsetHeight + "px";
+    body.appendChild(pop);
+    var first = pop.querySelector("[data-cal-split]");
+    if (first) { try { first.focus({ preventScroll: true }); } catch (err) { first.focus(); } }
+  }
+  // One placement rule for both boxes: in the day, under its date, kept inside the grid.
+  function dashCalPlacePop(body, cell, pop) {
+    var bw = body.clientWidth, bh = body.clientHeight;
+    var w = Math.min(300, bw);
+    pop.style.width = w + "px";
+    pop.style.left = Math.max(0, Math.min(cell.offsetLeft, bw - w)) + "px";
+    var top = cell.offsetTop + 30;
+    if (top + pop.offsetHeight > bh) top = Math.max(0, bh - pop.offsetHeight);
+    pop.style.top = top + "px";
+  }
+  function dashCalHHMM(at) {
+    var d = new Date(at);
+    return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+  // THE REMINDER BOX. Title (optional), date, time (default 9:00, ruled), and
+  // the two switches Samson named: the spoken reminder and the desktop
+  // notification. A time already gone is refused - a reminder is about the
+  // future. Editing opens the same box with Delete.
+  function dashCalOpenReminder(panel, stamp, reminderId) {
+    dashCalCloseAdd(panel, false);
+    var ws = Storage.getActiveWorkspace(data);
+    var existing = reminderId && ws && Array.isArray(ws.reminders)
+      ? ws.reminders.find(function (x) { return x && x.id === reminderId && !x.deletedAt; }) : null;
+    if (reminderId && !existing) return;
+    var day = existing ? Storage.habitLocalDayStamp(existing.at) : stamp;
+    var body = panel.querySelector("[data-dash-cal] .dash-cal-body");
+    var cell = panel.querySelector('[data-dash-cal] [data-cal-day="' + day + '"]');
+    if (!body || !cell) return;
+    var pop = document.createElement("div");
+    pop.className = "dash-cal-add dash-cal-rem";
+    pop.setAttribute("role", "dialog");
+    pop.setAttribute("aria-label", t(existing ? "dash_cal_rem_edit_title" : "dash_cal_rem_title"));
+    pop.setAttribute("data-cal-add", String(day));
+    if (existing) pop.setAttribute("data-cal-rem-id", existing.id);
+    var voiceOn = existing ? existing.voice !== false : true;
+    var notifyOn = existing ? existing.notify === true : false;
+    pop.innerHTML =
+      '<div class="dash-cal-add-title">' + DASH_CAL_BELL_LG_SVG + th(existing ? "dash_cal_rem_edit_title" : "dash_cal_rem_title") + '</div>' +
+      '<input type="text" class="dash-cal-add-input" data-cal-rem-title maxlength="200" autocomplete="off" spellcheck="true"' +
+        ' placeholder="' + th("dash_cal_rem_name_placeholder") + '" aria-label="' + th("dash_cal_rem_name_placeholder") + '" value="' + escapeHtml(existing ? existing.title || "" : "") + '">' +
+      '<div class="dash-cal-rem-when">' +
+        '<input type="date" class="dash-cal-add-input" data-cal-rem-date aria-label="' + th("dash_cal_rem_date") + '" value="' + escapeHtml(ymdFromTs(day)) + '">' +
+        '<input type="time" class="dash-cal-add-input" data-cal-rem-time aria-label="' + th("dash_cal_rem_time") + '" value="' + (existing ? dashCalHHMM(existing.at) : "09:00") + '">' +
+      '</div>' +
+      '<label class="dash-cal-rem-opt" for="dash-cal-rem-voice"><input type="checkbox" id="dash-cal-rem-voice" data-cal-rem-voice' + (voiceOn ? " checked" : "") + '><span>' + th("dash_cal_rem_voice") + '</span></label>' +
+      '<label class="dash-cal-rem-opt" for="dash-cal-rem-notify"><input type="checkbox" id="dash-cal-rem-notify" data-cal-rem-notify' + (notifyOn ? " checked" : "") + '><span>' + th("dash_cal_rem_notify") + '</span></label>' +
+      '<div class="dash-cal-rem-error" role="alert" hidden></div>' +
+      '<div class="dash-cal-add-actions">' +
+        (existing ? '<button type="button" class="dash-cal-rem-delete" data-cal-rem-delete>' + th("common_delete") + '</button>' : "") +
+        '<button type="button" class="dash-cal-today" data-cal-add-cancel>' + th("common_cancel") + '</button>' +
+        '<button type="button" class="dash-cal-add-go" data-cal-rem-go>' + th(existing ? "common_save" : "dash_cal_add_go") + '</button>' +
+      '</div>';
+    body.appendChild(pop);
+    dashCalPlacePop(body, cell, pop);
+    var ti = pop.querySelector("[data-cal-rem-title]");
+    if (ti) { try { ti.focus({ preventScroll: true }); } catch (err) { ti.focus(); } }
+  }
+  function dashCalRemError(pop, key) {
+    var el = pop.querySelector(".dash-cal-rem-error");
+    if (!el) return;
+    el.textContent = t(key);
+    el.hidden = false;
+  }
+  function dashCalAfterReminderChange(panel, day) {
+    try { chrome.runtime.sendMessage({ type: "lp-reminders-changed" }, function () { void chrome.runtime.lastError; }); }
+    catch (err) { /* no worker: the next startup re-points the alarm */ }
+    var v = dashCalView || dashCalDefaultView();
+    dashCalView = { y: v.y, m: v.m, sel: day };
+    rerenderTasksPanel();
+    dashRefreshIfShown();
+  }
+  async function dashCalCommitReminder(panel, pop) {
+    var go = pop.querySelector("[data-cal-rem-go]");
+    if (!go || go.disabled) return;
+    var notifyBox = pop.querySelector("[data-cal-rem-notify]");
+    var notify = !!(notifyBox && notifyBox.checked);
+    // THE PERMISSION IS ASKED FIRST, while this click is still the user's
+    // gesture - any await before it and Chrome refuses the prompt.
+    if (notify && chrome.permissions && chrome.permissions.request) {
+      var granted = false;
+      try {
+        granted = await new Promise(function (res) {
+          chrome.permissions.request({ permissions: ["notifications"] }, function (g) { void chrome.runtime.lastError; res(!!g); });
+        });
+      } catch (err) { granted = false; }
+      if (!granted) {
+        notify = false;
+        if (notifyBox) notifyBox.checked = false;
+        showToast(t("dash_cal_rem_notify_denied"));
+      }
+    }
+    var dateV = (pop.querySelector("[data-cal-rem-date]") || {}).value || "";
+    var timeV = (pop.querySelector("[data-cal-rem-time]") || {}).value || "";
+    var dm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateV), tm = /^(\d{2}):(\d{2})/.exec(timeV);
+    if (!dm || !tm) { dashCalRemError(pop, "dash_cal_rem_bad_time"); return; }
+    var at = new Date(Number(dm[1]), Number(dm[2]) - 1, Number(dm[3]), Number(tm[1]), Number(tm[2]), 0, 0).getTime();
+    if (!(at > Date.now())) { dashCalRemError(pop, "dash_cal_rem_past"); return; }
+    var fields = {
+      title: (pop.querySelector("[data-cal-rem-title]") || {}).value || "",
+      at: at,
+      voice: !!(pop.querySelector("[data-cal-rem-voice]") || {}).checked,
+      notify: notify
+    };
+    go.disabled = true;
+    var id = pop.getAttribute("data-cal-rem-id");
+    var saved = null;
+    try { saved = id ? await Storage.updateReminder(data, id, fields) : await Storage.createReminder(data, fields); }
+    catch (err) { console.error("[LaunchPad] Calendar: reminder save failed", err); }
+    if (!saved) { go.disabled = false; dashCalRemError(pop, "dash_cal_rem_save_failed"); return; }
+    dashCalAfterReminderChange(panel, Storage.habitLocalDayStamp(saved.at));
+  }
+  async function dashCalDeleteReminder(panel, pop) {
+    var id = pop.getAttribute("data-cal-rem-id");
+    if (!id) return;
+    var removed = null;
+    try { removed = await Storage.deleteReminder(data, id); }
+    catch (err) { console.error("[LaunchPad] Calendar: reminder delete failed", err); }
+    if (!removed) return;
+    var day = Storage.habitLocalDayStamp(removed.at);
+    dashCalAfterReminderChange(panel, day);
+    showUndoToast(t("dash_cal_rem_deleted"), async function () {
+      try { await Storage.restoreReminder(data, removed); }
+      catch (err) { console.error("[LaunchPad] Calendar: reminder restore failed", err); }
+      dashCalAfterReminderChange(panel, day);
+    }, 5000);
+  }
+
   function dashCalCloseAdd(panel, refocus) {
-    var pop = panel.querySelector(".dash-cal-add");
+    var pop = panel.querySelector(".dash-cal-add, .dash-cal-split");
     if (!pop) return;
     var stamp = pop.getAttribute("data-cal-add");
     pop.remove();
@@ -3908,7 +4088,7 @@
     // A press anywhere but the floater, or a day, closes it. A day is left to
     // the click: one selects (and redraws, which closes it), two open a new one.
     document.addEventListener("pointerdown", function (e) {
-      var pop = panel.querySelector(".dash-cal-add");
+      var pop = panel.querySelector(".dash-cal-add, .dash-cal-split");
       if (!pop || pop.contains(e.target)) return;
       if (e.target.closest && e.target.closest("[data-dash-cal] [data-cal-day]")) return;
       dashCalCloseAdd(panel, false);
@@ -3917,12 +4097,27 @@
       var t = e.target;
       if (!t.closest || !t.closest("[data-dash-cal]")) return;
       var v = dashCalView || dashCalDefaultView();
+      // [MC9] The split pill: either half opens its box in the same day.
+      var split = t.closest(".dash-cal-split");
+      if (split) {
+        var half = t.closest("[data-cal-split]");
+        if (half) {
+          var sst = Number(split.getAttribute("data-cal-add"));
+          if (half.getAttribute("data-cal-split") === "reminder") dashCalOpenReminder(panel, sst, null);
+          else dashCalOpenAdd(panel, sst);
+        }
+        return;
+      }
       var addPop = t.closest(".dash-cal-add");
       if (addPop) {
         if (t.closest("[data-cal-add-cancel]")) { dashCalCloseAdd(panel, true); return; }
+        if (t.closest("[data-cal-rem-go]")) { dashCalCommitReminder(panel, addPop); return; }
+        if (t.closest("[data-cal-rem-delete]")) { dashCalDeleteReminder(panel, addPop); return; }
         if (t.closest("[data-cal-add-go]")) { dashCalCommitAdd(panel, addPop); return; }
         return;
       }
+      var remChip = t.closest("[data-cal-rem]");
+      if (remChip) { dashCalOpenReminder(panel, null, remChip.getAttribute("data-cal-rem")); return; }
       // The picker closes on any click outside it.
       if (dashCalPicker && !t.closest(".dash-cal-picker") && !t.closest("[data-cal-picker]")) {
         dashCalPicker = null;
@@ -3980,7 +4175,7 @@
         if (e.detail >= 2) {
           var st = Number(day.getAttribute("data-cal-day"));
           dashCalView = { y: v.y, m: v.m, sel: st };
-          dashCalOpenAdd(panel, st);
+          dashCalOpenSplit(panel, st);
           return;
         }
         dashCalView = { y: v.y, m: v.m, sel: Number(day.getAttribute("data-cal-day")) };
@@ -3990,10 +4185,11 @@
     panel.addEventListener("keydown", function (e) {
       var t = e.target;
       if (!t.closest || !t.closest("[data-dash-cal]")) return;
-      var inAdd = t.closest(".dash-cal-add");
+      var inAdd = t.closest(".dash-cal-add, .dash-cal-split");
       if (inAdd) {
         if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); dashCalCloseAdd(panel, true); return; }
         if (e.key === "Enter" && t.hasAttribute("data-cal-add-input")) { e.preventDefault(); dashCalCommitAdd(panel, inAdd); }
+        if (e.key === "Enter" && t.hasAttribute("data-cal-rem-title")) { e.preventDefault(); dashCalCommitReminder(panel, inAdd); }
         return;
       }
       if (e.key === "Escape" && dashCalPicker) {
@@ -4174,7 +4370,10 @@
       ],
       recurringTemplates: [
         { id: "demo-cal-weekly", name: t("dash_cal_demo_weekly"), frequency: "weekly", daysOfWeek: [(dow + 3) % 7], isActive: true, deletedAt: null, nextScheduledAt: null }
-      ]
+      ],
+      // [MC9] One reminder, tomorrow at 3pm local, so the preview shows the bell.
+      reminders: [(function () { var dt = new Date(today + DAY); return { id: "demo-cal-rem", title: t("dash_cal_demo_reminder"),
+        at: new Date(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate(), 15, 0).getTime(), voice: true, notify: false, firedAt: null, deletedAt: null }; })()]
     };
   }
 
@@ -14326,10 +14525,12 @@
     // stored value straight.
     var dsBox = $("#due-sound-toggle");
     if (dsBox) dsBox.checked = Storage.getDueSoundEnabled(data);
-    // [MC8] The voice rides on the sound: it reads its own value, and is
-    // disabled while the sound itself is off, since there is nothing to speak over.
+    // [MC8] The voice reads its own value. [MC9] NEVER DISABLED: MC8 disabled
+    // it while the sound was off, and a disabled switch still drawn blue and ON
+    // read as broken - Samson "can't seem to toggle Spoken reminder off". It is
+    // a preference in its own right; it only speaks when the sound is on.
     var dvBox = $("#due-voice-toggle");
-    if (dvBox) { dvBox.checked = Storage.getDueVoiceEnabled(data); dvBox.disabled = !Storage.getDueSoundEnabled(data); }
+    if (dvBox) dvBox.checked = Storage.getDueVoiceEnabled(data);
     // [A2] Reset control: enabled only with an active task carrying a count > 0.
     var resetBtn = $("#pomo-reset-cycles");
     var hint = $("#pomo-reset-hint");
@@ -15016,8 +15217,6 @@
       var on = !!e.target.checked;
       try { await Storage.setDueSoundEnabled(data, on); }
       catch (err) { console.error("[LaunchPad] Due sound: save failed", err); }
-      var dv = $("#due-voice-toggle");
-      if (dv) dv.disabled = !on;
       if (on) {
         try { new Audio(chrome.runtime.getURL(Storage.dueSoundFile(data))).play().catch(function () {}); }
         catch (err) { /* preview only */ }

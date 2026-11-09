@@ -6227,7 +6227,7 @@ I18n.register("en", {
     },
     "dash_cal_day_label": {
       "description": "Accessible name of one calendar day. {date} is the full date in the user's locale; {due} and {scheduled} are counts.",
-      "message": "{date}: {due} due, {scheduled} scheduled"
+      "message": "{date}: {due} due, {scheduled} scheduled, {reminders} reminders"
     },
     "dash_cal_edit_task": {
       "description": "Title of the task overlay when it is opened from the Dashboard calendar to edit an existing task. The same dialog as New task, prefilled.",
@@ -6288,6 +6288,90 @@ I18n.register("en", {
     "prosettings_due_voice_note": {
       "description": "Info note on the Spoken reminder switch. The quoted line is the recorded English audio, so translations should quote it as heard, not translate it.",
       "message": "Says \"You have a task due today\" after the chime. Off plays the chime alone."
+    },
+    "dash_cal_split_task": {
+      "description": "Left half of the split pill that appears in a calendar day when it is double-clicked: add a task due that day.",
+      "message": "Add task"
+    },
+    "dash_cal_split_reminder": {
+      "description": "Right half of the calendar day's split pill: add a reminder (a sound and optional notification at a set time) on that day.",
+      "message": "Add reminder"
+    },
+    "dash_cal_reminder": {
+      "description": "Calendar legend and row label for a reminder: a timed sound, optionally with a desktop notification. Not a task.",
+      "message": "Reminder"
+    },
+    "dash_cal_rem_title": {
+      "description": "Heading of the box for creating a calendar reminder.",
+      "message": "Add reminder"
+    },
+    "dash_cal_rem_edit_title": {
+      "description": "Heading of the box for editing an existing calendar reminder.",
+      "message": "Edit reminder"
+    },
+    "dash_cal_rem_name_placeholder": {
+      "description": "Placeholder and accessible name of the reminder's title box. The title is optional.",
+      "message": "Title (optional)"
+    },
+    "dash_cal_rem_date": {
+      "description": "Accessible name of the reminder's date field.",
+      "message": "Date"
+    },
+    "dash_cal_rem_time": {
+      "description": "Accessible name of the reminder's time field. Defaults to 9:00.",
+      "message": "Time"
+    },
+    "dash_cal_rem_voice": {
+      "description": "Checkbox in the reminder box: play the spoken line 'You have a reminder' after the chime. Off plays the chime alone.",
+      "message": "Spoken reminder"
+    },
+    "dash_cal_rem_notify": {
+      "description": "Checkbox in the reminder box: also show a desktop notification with the reminder's title. Asks for the notifications permission the first time.",
+      "message": "Desktop notification"
+    },
+    "dash_cal_rem_past": {
+      "description": "Error in the reminder box when the chosen date and time have already passed.",
+      "message": "That time has already passed."
+    },
+    "dash_cal_rem_bad_time": {
+      "description": "Error in the reminder box when the date or time field is empty or invalid.",
+      "message": "Pick a date and a time."
+    },
+    "dash_cal_rem_save_failed": {
+      "description": "Error in the reminder box when saving did not take.",
+      "message": "Could not save the reminder."
+    },
+    "dash_cal_rem_notify_denied": {
+      "description": "Toast when the user ticked Desktop notification but did not allow notifications. The reminder still plays its sound.",
+      "message": "Notifications weren't allowed, so this reminder will play its sound only."
+    },
+    "dash_cal_rem_deleted": {
+      "description": "Undo toast after deleting a calendar reminder.",
+      "message": "Reminder deleted"
+    },
+    "dash_cal_rem_untitled": {
+      "description": "Shown for a calendar reminder that has no title, on its chip and in its notification.",
+      "message": "Reminder"
+    },
+    "dash_cal_rem_missed": {
+      "description": "State beside a reminder whose day passed while the browser was closed, so it never went off.",
+      "message": "Missed"
+    },
+    "dash_cal_rem_done": {
+      "description": "State beside a reminder that has already gone off.",
+      "message": "Done"
+    },
+    "dash_cal_chip_reminder": {
+      "description": "Accessible name of a reminder on the calendar. Activating it opens the Edit reminder box. {time} is its time, {title} its title.",
+      "message": "{time}, {title}. Edit reminder"
+    },
+    "dash_cal_demo_reminder": {
+      "description": "Free-preview demo reminder title on the calendar. A translator should write a natural example for their own market.",
+      "message": "Call the accountant"
+    },
+    "notif_reminder_title": {
+      "description": "Title of the desktop notification a calendar reminder shows; the body is the reminder's own title.",
+      "message": "LaunchPad reminder"
     },
     "dash_cal_empty_day": {
       "description": "Shown below the calendar when the selected day has nothing due and nothing scheduled.",

@@ -8958,10 +8958,10 @@ var Storage = (function () {
     var byStamp = {}, days = [];
     for (var d = 1; d <= daysInMonth; d++) {
       var st = Date.UTC(year, month, d);
-      var cell = { stamp: st, day: d, isToday: st === todayStamp, isPast: st < todayStamp, due: [], scheduled: [] };
+      var cell = { stamp: st, day: d, isToday: st === todayStamp, isPast: st < todayStamp, due: [], scheduled: [], reminders: [] };
       byStamp[st] = cell; days.push(cell);
     }
-    var totals = { due: 0, overdue: 0, scheduled: 0 };
+    var totals = { due: 0, overdue: 0, scheduled: 0, reminders: 0 };
     ((ws && ws.tasks) || []).forEach(function (t) {
       if (!t || t.deletedAt || t.completed || typeof t.dueAt !== "number") return;
       var c = byStamp[recurUtcMidnight(t.dueAt)];
@@ -8987,7 +8987,20 @@ var Storage = (function () {
         occ = nextRecurrenceUTC(tpl, occ, false);
       }
     });
+    // [MC9] This workspace's reminders, on the local day they go off. FIRED:
+    // it went off. MISSED: its day is over and it never did (the browser was
+    // closed all that day) - shown, silently, never sounded late.
+    ((ws && Array.isArray(ws.reminders)) ? ws.reminders : []).forEach(function (r) {
+      if (!r || r.deletedAt || typeof r.at !== "number") return;
+      var c = byStamp[habitLocalDayStamp(r.at)];
+      if (!c) return;
+      var fired = typeof r.firedAt === "number";
+      c.reminders.push({ id: r.id, title: r.title || "", at: r.at, voice: r.voice !== false, notify: r.notify === true,
+        fired: fired, missed: !fired && c.stamp < todayStamp });
+      totals.reminders++;
+    });
     days.forEach(function (c) {
+      c.reminders.sort(function (a, b) { return a.at - b.at; });
       c.due.sort(function (a, b) {
         if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
         var pa = CAL_PRIORITY_RANK[a.priority], pb = CAL_PRIORITY_RANK[b.priority];
@@ -10206,6 +10219,142 @@ var Storage = (function () {
   }
 
   /** The log after announcing `ids`: today's list grows, a new day starts over. */
+  // ===== [MC9 2026-11-09] CALENDAR REMINDERS =====
+  //
+  // Samson: double-click a day for "Add task" or "Add reminder"; a reminder is
+  // "more just a spoken reminder ... set to a date and time, and it just gives a
+  // sound", with a title, a spoken switch and a desktop notification switch.
+  // Ruled: Adam's recorded "You have a reminder" (the title is in the
+  // notification and on the calendar, never spoken); a reminder missed while
+  // the browser was closed goes off LATE ON THE SAME DAY ONLY, and an earlier
+  // day's is shown as missed, silently; calendar only - reminders are not tasks
+  // and appear in no list, count or bell; time typed, default 9:00.
+  //
+  // A reminder ALWAYS sounds: the chime, plus the line when voice is on. Its
+  // notification is its own switch (and needs the notifications permission).
+  //
+  // Per workspace, like tasks: ws.reminders = [{ id, title, at, voice, notify,
+  // createdAt, firedAt, deletedAt }], `at` an epoch in LOCAL wall time. They
+  // FIRE from every workspace, though - a reminder is about the clock, not
+  // about which workspace happens to be open.
+  var REMINDER_FILE = "sounds/reminder.wav";
+  var REMINDER_TITLE_MAX = 200;
+
+  function ensureRemindersArray(ws) {
+    if (!ws) return null;
+    if (!Array.isArray(ws.reminders)) ws.reminders = [];
+    return ws.reminders;
+  }
+  function genReminderId() {
+    return "rem_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+  function cleanReminderTitle(t) {
+    return (typeof t === "string" ? t.trim() : "").slice(0, REMINDER_TITLE_MAX);
+  }
+
+  /** Create a reminder. Refuses a missing or past time. @returns {Promise<object|null>} */
+  async function createReminder(data, fields, workspaceId, now) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws || !fields) return null;
+    var ref = (typeof now === "number") ? now : Date.now();
+    if (typeof fields.at !== "number" || !isFinite(fields.at) || fields.at <= ref) return null;
+    var r = {
+      id: genReminderId(), title: cleanReminderTitle(fields.title), at: fields.at,
+      voice: fields.voice !== false, notify: fields.notify === true,
+      createdAt: ref, firedAt: null, deletedAt: null
+    };
+    ensureRemindersArray(ws).push(r);
+    await saveAll(data);
+    return r;
+  }
+
+  /** Edit a reminder. A new time re-arms it (firedAt cleared). @returns {Promise<object|null>} */
+  async function updateReminder(data, id, fields, workspaceId, now) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var r = ws && ensureRemindersArray(ws).find(function (x) { return x && x.id === id && !x.deletedAt; });
+    if (!r || !fields) return null;
+    var ref = (typeof now === "number") ? now : Date.now();
+    if (fields.at !== undefined) {
+      if (typeof fields.at !== "number" || !isFinite(fields.at) || fields.at <= ref) return null;
+      if (fields.at !== r.at) { r.at = fields.at; r.firedAt = null; }
+    }
+    if (fields.title !== undefined) r.title = cleanReminderTitle(fields.title);
+    if (fields.voice !== undefined) r.voice = fields.voice !== false;
+    if (fields.notify !== undefined) r.notify = fields.notify === true;
+    await saveAll(data);
+    return r;
+  }
+
+  /** Remove a reminder; returns the removed record, so Undo can put it back. */
+  async function deleteReminder(data, id, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    var list = ws && ensureRemindersArray(ws);
+    var i = list ? list.findIndex(function (x) { return x && x.id === id; }) : -1;
+    if (i < 0) return null;
+    var removed = list.splice(i, 1)[0];
+    await saveAll(data);
+    return removed;
+  }
+  async function restoreReminder(data, record, workspaceId) {
+    var ws = resolveWorkspaceFromData(data, workspaceId);
+    if (!ws || !record || !record.id) return null;
+    var list = ensureRemindersArray(ws);
+    if (list.some(function (x) { return x && x.id === record.id; })) return null;
+    list.push(record);
+    await saveAll(data);
+    return record;
+  }
+
+  function allLiveReminders(data) {
+    var out = [];
+    ((data && data.workspaces) || []).forEach(function (w) {
+      ((w && Array.isArray(w.reminders)) ? w.reminders : []).forEach(function (r) {
+        if (r && !r.deletedAt && typeof r.at === "number") out.push(r);
+      });
+    });
+    return out;
+  }
+
+  /**
+   * Which reminders go off now. Unfired, due (at <= now), and ON TODAY'S LOCAL
+   * DAY - one missed on an earlier day never sounds (ruled). Pro only.
+   */
+  function remindersToFire(data, now) {
+    var ref = (typeof now === "number") ? now : Date.now();
+    if (!data || !proActive(data)) return [];
+    var today = localDayKey(ref);
+    return allLiveReminders(data).filter(function (r) {
+      return typeof r.firedAt !== "number" && r.at <= ref && localDayKey(r.at) === today;
+    }).sort(function (a, b) { return a.at - b.at; });
+  }
+
+  /** Mark these reminders fired. Caller saves (J5). */
+  function markRemindersFired(data, ids, now) {
+    var ref = (typeof now === "number") ? now : Date.now();
+    var changed = false;
+    allLiveReminders(data).forEach(function (r) {
+      if (ids.indexOf(r.id) !== -1 && typeof r.firedAt !== "number") { r.firedAt = ref; changed = true; }
+    });
+    return changed;
+  }
+
+  /** The next time the worker must wake for a reminder, or null. Pro only. */
+  function nextReminderAt(data, now) {
+    var ref = (typeof now === "number") ? now : Date.now();
+    if (!data || !proActive(data)) return null;
+    var next = null;
+    allLiveReminders(data).forEach(function (r) {
+      if (typeof r.firedAt === "number" || r.at <= ref) return;
+      if (next === null || r.at < next) next = r.at;
+    });
+    return next;
+  }
+
+  /** The sound for a batch going off: the line if any of them speaks, else the chime. */
+  function reminderSoundFile(reminders) {
+    return (reminders || []).some(function (r) { return r.voice !== false; }) ? REMINDER_FILE : DUE_CHIME_FILE;
+  }
+
   function nextDueSoundLog(log, ids, now) {
     var today = localDayKey(now);
     var prev = (log && log.day === today && Array.isArray(log.ids)) ? log.ids.slice() : [];
@@ -11352,6 +11501,15 @@ var Storage = (function () {
     DUE_SOUND_LOG_KEY: DUE_SOUND_LOG_KEY,
     DUE_SOUND_FILE: DUE_SOUND_FILE,
     DUE_CHIME_FILE: DUE_CHIME_FILE,
+    REMINDER_FILE: REMINDER_FILE,
+    createReminder: createReminder,
+    updateReminder: updateReminder,
+    deleteReminder: deleteReminder,
+    restoreReminder: restoreReminder,
+    remindersToFire: remindersToFire,
+    markRemindersFired: markRemindersFired,
+    nextReminderAt: nextReminderAt,
+    reminderSoundFile: reminderSoundFile,
     getDueVoiceEnabled: getDueVoiceEnabled,
     setDueVoiceEnabled: setDueVoiceEnabled,
     dueSoundFile: dueSoundFile,

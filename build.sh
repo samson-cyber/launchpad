@@ -486,6 +486,14 @@ if ! node tools/check-label-targets.mjs; then
   exit 1
 fi
 
+# [MC9] Calendar reminders: today-only late firing, once (marked and saved
+# before they sound), from every workspace, the alarm re-pointed on every
+# change, the split pill, a past time refused. ~0.3s. `--mutate` runs nine seeds.
+if ! node tools/check-reminders.mjs; then
+  echo 'ERROR: reminders gate failed - a reminder could go off twice, late, never, or in the past.' >&2
+  exit 1
+fi
+
 # [PF.2 follow-up] The sync slice: what leaves this machine, and what must not.
 # PF.2 SHIPPED THIS GATE AND NEVER WIRED IT IN, so it has been green-by-nobody
 # since - exactly the shape of the importers.js miss recorded below, where a

@@ -619,6 +619,11 @@ export const EXPECTED_UNREFERENCED = [
             "chosen at runtime by Storage.dueSoundFile; see due-reminder.wav."
   },
   {
+    p: "sounds/reminder.wav",
+    reason: "[MC9] A calendar reminder going off with its spoken line: Storage.REMINDER_FILE, " +
+            "chosen by Storage.reminderSoundFile and played by the worker via chrome.runtime.getURL."
+  },
+  {
     p: "sounds/due-reminder.wav",
     reason: "[MC7] The due sound: named by Storage.DUE_SOUND_FILE and played by the worker " +
             "through the offscreen document (and once by Settings as a preview), always via " +

@@ -155,7 +155,8 @@ const syncList = (/var SYNC_SETTING_FIELDS = \[([\s\S]*?)\];/.exec(st) || [])[1]
   const editM = (() => { const a = nt.indexOf("  function openEditTaskModal("); return a < 0 ? "" : nt.slice(a, nt.indexOf("\n  }\n", a) + 4); })();
   chk("Delete in the Edit task overlay goes through deleteTaskWithUndo", /extraButtons: \[\{[\s\S]{0,200}deleteTaskWithUndo\(taskId\)/.test(editM));
   chk("the delete's Undo refreshes the Dashboard too", /restoreTask\(data, taskId\);[\s\S]{0,260}dashRefreshIfShown\(\);/.test(nt));
-  chk("a second click on a day opens Add task?", /if \(e\.detail >= 2\) \{[\s\S]{0,200}dashCalOpenAdd\(panel, st\);/.test(nt));
+  chk("a second click on a day opens the split pill, whose task half opens Add task?",
+    /if \(e\.detail >= 2\) \{[\s\S]{0,200}dashCalOpenSplit\(panel, st\);/.test(nt) && /else dashCalOpenAdd\(panel, sst\);/.test(nt));
   const commit = (() => { const a = nt.indexOf("  async function dashCalCommitAdd("); return a < 0 ? "" : nt.slice(a, nt.indexOf("\n  }\n", a) + 4); })();
   chk("Add uses the clicked day unless the text names one", /dueAt: \(parsed && parsed\.dueAt !== null\) \? parsed\.dueAt : stamp,/.test(commit));
   chk("Add refuses a cadence, as the Dashboard box does", /if \(parsed && parsed\.recurrence\) \{ quickAddRenderPreview\(input\); input\.focus\(\); return; \}/.test(commit) &&
