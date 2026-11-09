@@ -5035,3 +5035,36 @@ It also showed a pre-existing copy slip: "No task focus tracked in the today yet
 - One missed earlier today goes off late. Yesterday's does not, and shows struck through.
 - Spoken reminder toggles with the sound off. The free preview shows a demo reminder with no controls, and the console is clean.
 - MC5 (39/39), MC7 (33/33, after the double-click step was updated for the pill) and MC8 (20/20, after the "disabled" expectation was inverted) still pass.
+
+## 2026-11-09, Rounds MC10 and MC11: the split pill on the tile; the Tasks header and count tiles
+
+**MC10.** Samson: "I don't want the black weird oval in the background. It should just be a divided pill with the text and icons rendered on the frosting background of the date tile."
+- The split pill has no fill, blur, border or shadow of its own. It takes the tile's corner radius.
+- Its divider stops short of the edges.
+- The day's own number and chips are hidden while it is open (`.is-splitting`) and come back when it closes.
+
+**MC11.** Samson asked for four changes:
+- The New task button "seems kind of hard to read and faded".
+- "Instead of the drop down for new, we just have new task, new goal, new recurring and new tag in a line ... all with the same aesthetic as the new button".
+- The count tiles at the top should do more: "a hover add function for goals ... a small plus with add goals and small text in the same style as what we're building for the calendar". Recurring should do the same.
+- Overdue should have "a button to click view overdue tasks".
+
+**Decisions:**
+- **Header.** Four `.tt2-newbtn` buttons (New task, New goal, New recurring, New tag) in the dark outlined pill style that was the New menu's trigger. They route through the existing `.tasks-action` handler. The indigo `.tt2-action` button, the menu, its handler and its two catalogue keys are gone.
+- **The faded look had a measured cause.** The buttons inherited the header title's text shadow, `rgba(0,0,0,0.55) 0 1px 3px`, which on a dark fill only blurs the words. The buttons now set `text-shadow: none`.
+- **Count tiles.** Each action is an icon plus a short label drawn on the tile's own surface, with no chip or shadow, in the calendar split pill's style.
+  - It sits top-right. It shows on hover and on keyboard focus, and always on a screen with no hover. It fades in over 150 ms, with no fade under reduced motion.
+  - **Add goal** opens the new-goal dialog. **Add recurring** opens the repeat dialog.
+  - **View overdue tasks** shows only when something is overdue. It uses the same `isOverdue` test over open tasks as the tile's count. It expands the goals those tasks sit under, leaves the Completed view, then scrolls to the oldest and lights every overdue row: the due bell's go-to, applied to the whole set.
+
+**Gates.**
+- `check-reminders` gains 3 rows and 2 seeds for the pill: 45 rows, 11 of 11 seeds killed.
+- New `tools/check-tasks-header.mjs` in `build.sh`: 20 rows, and `--mutate` kills all 8 seeds.
+
+**Verified** live in a scratch Edge profile:
+- MC10: the reminders harness, now 29 checks, passed 29/29 on the working tree and on the packaged build. The pill measured transparent with no shadow, at the tile's radius, with the day's contents hidden and then restored.
+- MC11 passed 22/22 on the working tree and on the packaged build:
+  - The four buttons are identical in fill, border, ink, type and height, with no text shadow, and each opens its dialog or popover.
+  - Tile actions are hidden until hover, show on hover and on keyboard focus, and have no chip.
+  - View overdue switched off the Completed view, expanded collapsed goals, and lit and scrolled to every overdue row.
+  - The console is clean.
