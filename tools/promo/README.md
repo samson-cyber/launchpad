@@ -52,3 +52,14 @@ The 52 s store video is built from these files, in this order. `<work>` is a scr
 Traps met in this round:
 - `Page.captureScreenshot` keeps an alpha channel only when the page's ROOT element is transparent too, not just the body.
 - A text box for contrast must be the text RUN's own range. A whole cell includes its dot, border and rounded corners, and fails on pixels no letter sits on.
+
+## Store promo tiles
+
+`tiles.html` lays out the two Chrome Web Store promo tiles, the 440 x 280 small tile and the 1400 x 560 marquee. `render-tiles.mjs` renders them as 24-bit PNG with no alpha (the store refuses alpha) and writes the text boxes and text-free grounds that `card-contrast.py` measures.
+
+    node --experimental-websocket render-tiles.mjs <repo> <unpacked-pkg> <bg.png> <shots-dir> <out-dir>
+    python -I card-contrast.py <out-dir>
+
+- **The backdrop is the only generated image.** For 2.2.0 it is `store-assets/2.2.0/promo/bg-blue-hour.png`, from Eromify `nano-banana-pro` at 21:9. The two windows hold real listing frames from `<shots-dir>`, captured from the packaged build by `tools/capture-screenshots.mjs`. AI-drawn UI garbles, and a store image showing UI that does not exist misleads.
+- **Pro features carry a PRO pill.** A promo tile that lists a paid feature as if it were free misleads too.
+- 2.2.0: every line passes, lowest 5.11:1. One of the two generated backdrops came back rotated 90 degrees. Look at a generation before spending another.

@@ -1,0 +1,96 @@
+<!doctype html>
+<!-- The two Chrome Web Store promo tiles, ?tile=small (440x280) or
+     ?tile=marquee (1400x560). render-tiles.mjs serves this from a work folder
+     holding fonts/, bg.png (the generated blue-hour backdrop) and shots/
+     (the listing frames from the PACKAGED build). The backdrop is the only
+     generated pixel: every piece of product UI is a real screenshot, because a
+     drawn UI garbles and a store image of UI that does not exist misleads. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+@font-face { font-family: Figtree; src: url(fonts/figtree-latin.woff2) format("woff2"); font-weight: 400 700; }
+:root {
+  --ink: #eceef4; --ink-mute: #c9cddb; --action: #8b93ff; --action-soft: #c3c8ff;
+  --line: rgba(236,238,244,0.14);
+}
+* { box-sizing: border-box; margin: 0; }
+html, body { background: #0f1424; overflow: hidden; }
+body { font-family: Figtree, system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+.tile { position: relative; overflow: hidden; background: #0f1424 url(bg.png) center / cover no-repeat; }
+.scrim { position: absolute; inset: 0; }
+.brand { display: flex; align-items: center; font-weight: 700; letter-spacing: -0.01em; }
+.brand svg { flex: none; }
+.win { position: absolute; border-radius: 12px; overflow: hidden; background: #161a26;
+  border: 1px solid var(--line); box-shadow: 0 28px 60px rgba(4,6,14,0.55), 0 4px 14px rgba(4,6,14,0.35); }
+.win-bar { height: 26px; display: flex; align-items: center; gap: 7px; padding: 0 12px; background: #1d2231; border-bottom: 1px solid var(--line); }
+.win-bar i { width: 9px; height: 9px; border-radius: 50%; background: rgba(236,238,244,0.22); }
+.win-shot { display: block; background-repeat: no-repeat; }
+
+/* ---- small: 440 x 280 ---- */
+.small { width: 440px; height: 280px; background-position: 70% 40%; }
+.small .scrim { background: linear-gradient(100deg, rgba(10,14,28,0.62) 0%, rgba(10,14,28,0.32) 48%, rgba(10,14,28,0) 72%); }
+.small .brand { position: absolute; left: 26px; top: 30px; font-size: 34px; gap: 10px; }
+.small .tag { position: absolute; left: 28px; top: 82px; font-size: 18px; font-weight: 500; line-height: 1.3; width: 180px; }
+.small .win { left: 206px; top: 112px; width: 260px; }
+.small .win-bar { height: 18px; gap: 5px; padding: 0 8px; }
+.small .win-bar i { width: 6px; height: 6px; }
+.small .win-shot { width: 260px; height: 168px; background: url(shots/01-home-grid.png) -54px -50px / 461px 288px no-repeat; }
+
+/* ---- marquee: 1400 x 560 ---- */
+.marquee { width: 1400px; height: 560px; background-position: 60% 45%; }
+.marquee .scrim { background: linear-gradient(90deg, rgba(10,14,28,0.60) 0%, rgba(10,14,28,0.36) 38%, rgba(10,14,28,0) 58%); }
+.marquee .copy { position: absolute; left: 88px; top: 0; bottom: 0; width: 520px; display: flex; flex-direction: column; justify-content: center; }
+.marquee .brand { font-size: 64px; gap: 16px; }
+.marquee .tag { margin-top: 18px; font-size: 27px; font-weight: 500; line-height: 1.3; }
+.marquee ul { list-style: none; padding: 0; margin-top: 30px; display: grid; gap: 14px; }
+.marquee li { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 500; color: var(--ink); }
+.marquee li::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--action); flex: none; }
+.pro { font-size: 13px; font-weight: 700; letter-spacing: 0.04em; color: var(--action-soft); border: 1px solid rgba(195,200,255,0.55); border-radius: 999px; padding: 2px 9px; }
+.marquee .back { left: 790px; top: 44px; width: 560px; opacity: 0.96; }
+.marquee .front { left: 652px; top: 182px; width: 600px; }
+.marquee .back .win-shot { width: 560px; height: 350px; background: url(shots/02-tasks-and-notes.png) 0 0 / 560px 350px no-repeat; }
+.marquee .front .win-shot { width: 600px; height: 375px; background: url(shots/01-home-grid.png) 0 0 / 600px 375px no-repeat; }
+</style>
+</head>
+<body>
+<script>
+const LOGO = (s) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+  <circle cx="7" cy="7" r="3" fill="#4285F4"/><circle cx="17" cy="7" r="3" fill="#EA4335"/>
+  <circle cx="7" cy="17" r="3" fill="#34A853"/><circle cx="17" cy="17" r="3" fill="#FBBC05"/></svg>`;
+const WIN = (cls, shot) => `<div class="win ${cls}"><div class="win-bar"><i></i><i></i><i></i></div><div class="win-shot ${shot || ""}"></div></div>`;
+const tile = new URLSearchParams(location.search).get("tile") || "marquee";
+document.body.innerHTML = tile === "small"
+  ? `<div class="tile small"><div class="scrim"></div>
+       <div class="brand" data-ink>${LOGO(34)}<span>LaunchPad</span></div>
+       <div class="tag" data-ink>Your new tab, organised.</div>
+       ${WIN("")}
+     </div>`
+  : `<div class="tile marquee"><div class="scrim"></div>
+       ${WIN("back")}${WIN("front")}
+       <div class="copy">
+         <div class="brand" data-ink>${LOGO(60)}<span>LaunchPad</span></div>
+         <div class="tag" data-ink>Shortcuts, tasks and focus time, right on your new tab.</div>
+         <ul data-ink>
+           <li>Unlimited shortcuts and groups, free</li>
+           <li>Tasks, a calendar and reminders <span class="pro">PRO</span></li>
+           <li>Focus sessions with site blocking <span class="pro">PRO</span></li>
+         </ul>
+       </div>
+     </div>`;
+window.inkBoxes = () => { const out = [];
+  for (const host of document.querySelectorAll("[data-ink]")) {
+    const w = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) {
+      if (!n.textContent.trim()) continue;
+      const rg = document.createRange(); rg.selectNodeContents(n); const r = rg.getBoundingClientRect();
+      const el = n.parentElement, cs = getComputedStyle(el);
+      out.push({ text: n.textContent.trim().slice(0, 40), color: cs.color, size: parseFloat(cs.fontSize), weight: cs.fontWeight, x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) });
+    }
+  }
+  return out; };
+const imgs = ["bg.png", "shots/01-home-grid.png", "shots/02-tasks-and-notes.png"].map((src) => new Promise((r) => { const i = new Image(); i.onload = i.onerror = () => r(i.naturalWidth > 0); i.src = src; }));
+window.ready = document.fonts.ready.then(() => Promise.all(imgs)).then((ok) => ({ font: document.fonts.check("700 20px Figtree"), images: ok }));
+</script>
+</body>
+</html>
