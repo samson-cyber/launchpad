@@ -118,13 +118,19 @@ New for everyone.
 Pro: tasks and a calendar.
 
 • A month calendar on the Tasks tab: drag a task to another day,
-  click it to edit or delete it, or double-click a day to add one.
+  click it to edit or delete it, or double-click a day and choose
+  Add task.
 • Reminders on the calendar: double-click a day and choose Add
   reminder. Give it a title if you like, pick a time, and at that
   moment a chime and a short spoken reminder play. Turn the voice
   off for just the chime, or add a desktop notification.
 • A reminder missed while your browser was closed goes off when
   you open it, if it is still the same day.
+• Four buttons along the top of Tasks: New task, New goal, New
+  recurring and New tag, one click each.
+• The Overdue, Goals and Recurring tiles do more: hover for Add
+  goal or Add recurring, or View overdue tasks to jump straight to
+  them.
 • Type tasks naturally: "Call Nadia tomorrow !high #acme" sets the
   due date, priority and tag. Add "every Monday" to make it repeat.
 • A bell beside the tabs counts work due. Snooze it, jump to the
@@ -179,7 +185,7 @@ Fixes.
   not in the corner of the screen.
 ```
 
-**Bullet count: 51** bullets plus the calendar-reminders placeholder line, in 14 blocks.
+**Bullet count: 55**, in 14 blocks. The reminders placeholder became two bullets (MC9) and the Tasks header and tiles added two (MC11).
 
 ---
 
@@ -236,6 +242,9 @@ Line numbers are master `0d7971a`. "2.2.0" in the Source column means the item i
 | 48 | Per-workspace wallpaper | `locales/en.js:1015-1019` "Just for this workspace" | 2.2.0 |
 | 49 | Fix: Nest with... | `newtab.js:26984` `!!(...)`, `:26996`; bug present in v2.1.0 (`newtab.js:14477` + `:17565`, un-coerced toggle) | RC `3e2e44e` |
 | 50 | Fix: tag popover position | RC `3e2e44e`; v2.1.0 `newtab.js:17277-17279` closes the submenu before measuring it | RC `3e2e44e` |
+| 51 | Calendar reminders, the split pill on double-click | `storage.js` `createReminder`/`remindersToFire`; `background.js` `runRemindersBg`; `newtab.js` `dashCalOpenSplit`, `dashCalOpenReminder`; verified live 29/29 (MC9 + MC10) | MC9 `6569288`, MC10 `43901ef`; gate `check-reminders` |
+| 52 | Four New buttons on Tasks | `newtab.js:8300` `tasksHeaderHtml`, `:8317` four `.tt2-newbtn tasks-action`; verified live 22/22 | MC11 `1a12ba8`, `d197727`; gate `check-tasks-header` |
+| 53 | Count tiles: Add goal, Add recurring, View overdue | `newtab.js:8363` `tasksTileActHtml`, `:8369` `tasksViewOverdue`, `:8403` overdue only when > 0 | MC11 `1a12ba8`; gate `check-tasks-header` |
 
 ---
 
@@ -405,6 +414,9 @@ Field by field:
    popup is a single Pro upsell line.
 9. **The whole visual language changes** (v2). Text sizes, spacing and colours move on every
    surface except Home's grid geometry.
+10. **Pro: the Tasks tab's New menu is now four buttons** (New task, New goal, New recurring,
+   New tag), and double-clicking a calendar day opens a choice of Add task or Add reminder
+   rather than going straight to the task box. Nothing is removed; things move.
 
 **Also not a change for existing users: calendar reminders** (MC9). A reminder exists only
 if the user makes one. Its desktop notification asks for the `notifications` permission at
