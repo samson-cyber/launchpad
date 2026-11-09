@@ -1,6 +1,6 @@
 # Chrome Web Store Listing
 
-**Live as of the 2.1.0 submission, 2026-09-01.** This file is the canonical record of
+**Updated 2026-11-09 for the NEXT submission - not live until it is uploaded.** (Was: live as of the 2.1.0 submission, 2026-09-01.) This file is the canonical record of
 what is on the listing. If it disagrees with the dashboard, the dashboard is right and
 this file is stale: fix the file. Title and Short Description below are byte-identical
 to `_locales/en/messages.json`, which is what Chrome resolves `__MSG_extension_name__`
@@ -10,7 +10,7 @@ and `__MSG_extension_description__` against at install time.
 LaunchPad - New Tab Dashboard, Shortcuts, Tasks & Focus Time
 
 ## Short Description (132 characters max)
-Unlimited shortcuts on your new tab, free. Add tasks, focus sessions and measured time. No account, nothing leaves your browser.
+Unlimited shortcuts on your new tab, free. Add tasks, focus sessions and measured time. No account; your work stays on your device.
 
 ## Category
 Productivity
@@ -34,30 +34,35 @@ FREE, FOREVER
 - Import from Chrome bookmarks or top sites
 - Right-click any page to add it
 - Backup and restore: export everything you have as a file you own
+- See where your time went today: time on each site, on the Dashboard
+- Open tabs: every window and tab in one panel, park a window, reopen recently closed tabs
 
 PRO
 
 - Tasks and goals that live on your new tab, with tags, priorities and due dates
 - A clock attached to whichever task is active, so you can see what a piece of work actually cost
 - Focus sessions with a break cycle, and site blocking that shows a quiet reminder page instead of taking your attention
-- Deep Work Time, time by site, time by tag, and your top tasks, measured automatically while you work
+- Deep Work Time, time by tag, and your top tasks, plus the full history of time by site, measured automatically while you work
+- A month calendar of due and repeating tasks: drag to reschedule, double-click to add a task or a reminder with a chime and a spoken prompt
 - Insights over today, the past 7 days, the last 30, or any range inside your history
 - Lifetime focused time per task, once there is more of it than the 30-day window can show
 - Sticky notes beside your tasks, with drag to reorder, search, a trash you can restore from, and promote-a-note-into-a-task
 - Weekly automatic backup to your Downloads folder
 - Multiple workspaces, each with its own shortcuts, tasks and tracked time
 
-NOTHING LEAVES YOUR BROWSER
+YOUR WORK STAYS ON YOUR DEVICE
 
-There is no LaunchPad server. Your shortcuts, tasks, goals, notes, sessions and tracked time live in Chrome's local storage on your machine. No account to create, no analytics, no tracking, no scores and no reports sent anywhere. LaunchPad loads site icons and wallpaper images the way any web page loads an image, and on Pro it checks your licence key about once a day. Nothing else leaves your browser.
+There is no LaunchPad server and no LaunchPad account. Your shortcuts, tasks, goals, notes, sessions and tracked time live in Chrome's storage on your machine and are never sent to us. No analytics, no scores and no reports sent anywhere.
+
+A few things do leave, and we say exactly which. Site icons and gallery wallpapers load the way any web page loads an image. AI Search, the search bar's default tab, opens Google with what you typed; the Search tab uses your own default engine. On Pro, your licence key is checked with our payment provider at most every six hours. And if you use Chrome sync, your LaunchPad settings and licence key follow you to your other computers through your own Google account. Your shortcuts, tasks and tracked time never do.
 
 PRICING
 
 The launcher is free forever. Pro is $4.99 a month or $39 a year, with a 7-day trial that needs no card and no sign-up.
 
-WHAT IS NEW IN 2.1.0
+WHAT IS NEW
 
-Sticky notes beside your tasks. Named sessions you save and relaunch. Insights date ranges including custom ranges. Lifetime focused time per task. Full backup and restore, with optional weekly automatic backups on Pro. Plus descriptions on new tasks and goals, a New Tag button, a task options menu, and a long list of fixes.
+A fresh new look. Time on sites is now free for today. AI Search in the search bar, with one click back to your own engine. Your settings follow you between computers with Chrome sync. On Pro: a month calendar with reminders, workspace modes with scheduled blocking, the toolbar popup and side panel, and Insights that read top to bottom.
 
 ## Permission justifications (Privacy tab)
 

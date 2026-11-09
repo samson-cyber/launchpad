@@ -4,7 +4,7 @@
     "description": "The extension's name, shown on the Chrome Web Store listing, in chrome://extensions and under the toolbar icon. The store truncates the displayed title around 45 characters, so the words that must survive truncation come first. 'LaunchPad' is the product name and is NOT translated; neither is the ampersand, which is there to save characters."
   },
   "extension_description": {
-    "message": "Unlimited shortcuts on your new tab, free. Add tasks, focus sessions and measured time. No account, nothing leaves your browser.",
-    "description": "The Chrome Web Store short description, limit 132 characters, and the text that appears under the title in search results. Every claim is factual and must stay accurate in every language rather than becoming a marketing flourish: the shortcut tier really is unlimited and free, and 'no account, nothing leaves your browser' is the product's privacy posture stated plainly, not a slogan."
+    "message": "Unlimited shortcuts on your new tab, free. Add tasks, focus sessions and measured time. No account; your work stays on your device.",
+    "description": "The Chrome Web Store short description, limit 132 characters, and the text that appears under the title in search results. Every claim is factual and must stay accurate in every language rather than becoming a marketing flourish: the shortcut tier really is unlimited and free, and 'no account; your work stays on your device' is the product's privacy posture stated plainly, not a slogan. It says WORK, not data, on purpose: with Chrome sync on, settings and the licence key travel through the user's own Google account, while shortcuts, tasks, notes and tracked time never leave the device."
   }
 }
