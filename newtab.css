@@ -24410,7 +24410,10 @@ html[dir="rtl"] .lp-grow .ins-tagshare-bar { transform-origin: 100% 50%; }
 .dash-cal-split-btn + .dash-cal-split-btn { border-left: 1px solid rgba(236, 238, 244, 0.22); }
 .dash-cal-split-btn:hover { background: rgba(236, 238, 244, 0.10); }
 .dash-cal-split-btn:focus-visible { outline: 2px solid var(--action-soft); outline-offset: -3px; }
-.dash-cal-split-btn span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+/* The labels WRAP rather than truncate: a day is ~135px, so each half is ~68px
+   and "Add reminder" does not fit on one line. Two short lines under the icon
+   read as the sketch does; "Add re..." read as broken. */
+.dash-cal-split-btn span { white-space: normal; text-align: center; line-height: 1.15; max-width: 100%; overflow-wrap: anywhere; }
 .dash-cal-split-btn[data-cal-split="reminder"] svg { color: var(--action-soft); }
 
 .dash-cal-chip.is-reminder { color: var(--ink); background: rgba(139, 147, 255, 0.10); border-left-color: var(--action-soft);
