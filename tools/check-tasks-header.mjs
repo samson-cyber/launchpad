@@ -99,7 +99,8 @@ function suite(c) {
   chk("it appears on hover and on keyboard focus", /(?:^|[\n}])\.tt2-count:hover \.tt2-tile-act, \.tt2-count:focus-within \.tt2-tile-act \{ opacity: 1; \}/.test(c.css));
   chk("...and is always visible on a screen with no hover", /@media \(hover: none\) \{ \.tt2-tile-act \{ opacity: 1; \} \}/.test(c.css));
   chk("its fade is still under reduced motion", /@media \(prefers-reduced-motion: reduce\) \{ \.tt2-tile-act \{ transition: none; \} \}/.test(c.css));
-  chk("the faded indigo button's style is gone", !/(?:^|[\n}])html\.has-bg \.tasks-split \.tt2-action \{/.test(c.css));
+  chk("the New buttons carry no text shadow (the blur on their words)", /(?:^|[\n}])html\.has-bg \.tasks-split \.tt2-newbtn \{ padding: 8px 14px; text-shadow: none; \}/.test(c.css));
+  chk("the faded indigo button's style is gone",!/(?:^|[\n}])html\.has-bg \.tasks-split \.tt2-action \{/.test(c.css));
   return rows;
 }
 
@@ -111,6 +112,7 @@ const SEEDS = [
   ["View overdue forgets collapsed goals", `      try { await Storage.updateGoalCollapsed(data, goals[i], false); } catch (err) {}\n`, "", "nt"],
   ["the action grows a chip", `  appearance: none; border: 0; background: transparent; cursor: pointer;\n  display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px;`,
    `  appearance: none; border: 0; background: rgba(17, 19, 25, 0.6); cursor: pointer;\n  display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px;`, "css"],
+  ["the text shadow comes back", "{ padding: 8px 14px; text-shadow: none; }", "{ padding: 8px 14px; }", "css"],
   ["keyboard users never see it", `.tt2-count:hover .tt2-tile-act, .tt2-count:focus-within .tt2-tile-act { opacity: 1; }`, `.tt2-count:hover .tt2-tile-act { opacity: 1; }`, "css"],
 ];
 
