@@ -3879,6 +3879,8 @@
     pop.style.top = cell.offsetTop + "px";
     pop.style.width = cell.offsetWidth + "px";
     pop.style.height = cell.offsetHeight + "px";
+    // [MC10] The pill is drawn ON the tile: the tile's own contents step aside.
+    cell.classList.add("is-splitting");
     body.appendChild(pop);
     var first = pop.querySelector("[data-cal-split]");
     if (first) { try { first.focus({ preventScroll: true }); } catch (err) { first.focus(); } }
@@ -4011,6 +4013,7 @@
   }
 
   function dashCalCloseAdd(panel, refocus) {
+    panel.querySelectorAll(".dash-cal-cell.is-splitting").forEach(function (c) { c.classList.remove("is-splitting"); });
     var pop = panel.querySelector(".dash-cal-add, .dash-cal-split");
     if (!pop) return;
     var stamp = pop.getAttribute("data-cal-add");

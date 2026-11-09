@@ -157,6 +157,14 @@ async function suite(c) {
   chk("the notification permission is asked before any other await",
     commit.indexOf("chrome.permissions.request") > 0 && commit.indexOf("chrome.permissions.request") < commit.indexOf("await Storage."));
   chk("every change tells the worker", /type: "lp-reminders-changed"/.test(c.nt) && /dashCalAfterReminderChange\(panel, Storage\.habitLocalDayStamp\(saved\.at\)\);/.test(commit));
+  // [MC10] The pill is drawn ON the day tile: no surface of its own.
+  const pillRule = (/(?:^|[\n}])\.dash-cal-split \{([^}]*)\}/.exec(c.css) || [])[1] || "";
+  chk("the split pill has no surface of its own (transparent, no shadow, blur or border)",
+    /background:\s*transparent/.test(pillRule) && !/box-shadow|backdrop-filter|border:/.test(pillRule), pillRule);
+  chk("...it takes the tile's corner radius, not an oval", /border-radius:\s*var\(--radius-md/.test(pillRule) && !/999px/.test(pillRule), pillRule);
+  chk("...and the day's own contents step aside while it is open",
+    /(?:^|[\n}])\.dash-cal-cell\.is-splitting > \* \{ visibility: hidden; \}/.test(c.css) &&
+    /cell\.classList\.add\("is-splitting"\);/.test(c.nt) && /classList\.remove\("is-splitting"\)/.test(c.nt));
   chk("a reminder chip opens its box", /if \(remChip\) \{ dashCalOpenReminder\(panel, null, remChip\.getAttribute\("data-cal-rem"\)\); return; \}/.test(c.nt));
 
   // ---- the file ----
@@ -179,10 +187,12 @@ const SEEDS = [
    "    Storage.markRemindersFired(d, list.map(function (r) { return r.id; }), now);\n    await playFileViaOffscreen(Storage.REMINDER_FILE);\n    await Storage.saveAll(d);", "bg"],
   ["startup forgets the catch-up", "  // [MC9] A reminder due while the browser was closed goes off now - if it is\n  // still the same day (Storage.remindersToFire holds that rule).\n  runRemindersBg();", "", "bg"],
   ["the page forgets to tell the worker", "    try { chrome.runtime.sendMessage({ type: \"lp-reminders-changed\" }", "    try { void ({ type: \"lp-reminders-x\" }", "nt"],
+  ["the oval comes back", "  background: transparent;\n  animation: lp-cal-add-in", "  background: var(--pro-frost-floater-bg);\n  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);\n  animation: lp-cal-add-in", "css"],
+  ["the day's contents show through", "    cell.classList.add(\"is-splitting\");", "", "nt"],
   ["double-click goes straight to the task box", "          dashCalOpenSplit(panel, st);", "          dashCalOpenAdd(panel, st);", "nt"],
 ];
 
-const clean = { st: read("storage.js"), bg: read("background.js"), nt: read("newtab.js"), pkg: read("tools/lib/package-sources.mjs") };
+const clean = { st: read("storage.js"), bg: read("background.js"), nt: read("newtab.js"), css: read("newtab.css"), pkg: read("tools/lib/package-sources.mjs") };
 if (args.includes("--boot-check")) {
   try { boot(clean.st, true); console.log("BOOT-CHECK OK   check-reminders.mjs"); process.exit(0); }
   catch (e) { console.log("BOOT-CHECK DEAD check-reminders.mjs — " + e.message); process.exit(1); }
@@ -191,7 +201,7 @@ console.log("\nREMINDERS — on time, once, today only, from the worker; the spl
 let rows;
 try { rows = await suite(clean); }
 catch (e) { console.error("SUBJECT DID NOT LOAD — " + e.message); process.exit(2); }
-const ROW_FLOOR = 40;
+const ROW_FLOOR = 45;
 if (rows.length < ROW_FLOOR) { console.error(`GATE BROKEN — produced ${rows.length} rows, floor is ${ROW_FLOOR}.`); process.exit(2); }
 let failed = 0;
 for (const r of rows) if (!r.ok) { failed++; console.log(`  FAIL  ${r.name}   << ${r.extra}`); }
