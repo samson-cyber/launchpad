@@ -5068,3 +5068,16 @@ It also showed a pre-existing copy slip: "No task focus tracked in the today yet
   - Tile actions are hidden until hover, show on hover and on keyboard focus, and have no chip.
   - View overdue switched off the Completed view, expanded collapsed goals, and lit and scrolled to every overdue row.
   - The console is clean.
+
+## 2026-11-09, The 2.2.0 cut: 2.1.0 is live, the number is reused, and the tag moves
+
+**Facts from Samson, 2026-11-09.**
+- The store dashboard shows 2.1.0 Published, with the status "Published - public". **2.1.0 is the live baseline.**
+- The September 2.2.0 artifact was never uploaded.
+
+**Ruled: ship master as `2.2.0` and move the tag.** The alternative was to bump to `2.3.0` and keep `v2.2.0` on `5c585ae` as a documented never-submitted tag. That would leave permanently in place the one tag that contradicts the rule "a present tag means submitted". Reusing the number costs one deleted remote tag. No user ever had 2.2.0, so the number carries no history.
+
+**What changes:**
+- `v2.2.0` is deleted locally and on origin, then re-applied as an annotated tag at submission, on the build commit, with the artifact's sha256 in its message.
+- `RELEASE-NOTES-NEXT.md` becomes `RELEASE-NOTES-2.2.0.md` and replaces the September file, whose content it already folded in. A fresh `RELEASE-NOTES-NEXT.md` starts for the release after.
+- **The cause, so it does not recur: the September tag was applied at the CUT.** CLAUDE.md already said "applied AT SUBMISSION"; the release-state block then announced "`v2.2.0` joins them at the 2026-09-15 cut", and nobody read that as the contradiction it was. The block now names it.
