@@ -23016,11 +23016,13 @@
   // than a nag and stays.
   // [1.17.1] THE FIRST-OPEN TOUR (Samson, 2026-11-10), replacing the FR
   // three-open pulse on Clear examples. New users clear the examples before
-  // reading them. So on the FIRST open each card lights up in turn, a pulse
-  // and then a held --action ring, one card every 2 seconds. Every card stays
-  // lit until the whole row is lit; the last one holds 2 seconds; then the row
-  // fades back to grey AS A GROUP, and Clear examples turns blue and STAYS
-  // blue on every later open.
+  // reading them. So on the FIRST open each card lights up in turn: a glow
+  // that grows slowly and then settles into a held --action ring, one card
+  // every 3 seconds. Every card stays lit until the whole row is lit; the last
+  // one holds 3 seconds; then the row fades back to grey AS A GROUP, slowly,
+  // over 5 seconds, while Clear examples turns blue and STAYS blue on every
+  // later open. (Paced by Samson after the first build: 2s per card with a
+  // 0.6s fade read as too quick.)
   //
   // CLEAR EXAMPLES IS MUTED DURING THE TOUR, NEVER DISABLED. It looks waiting,
   // and a click still clears (the tour simply ends with the strip). A dead
@@ -23032,8 +23034,10 @@
   // performance.now() at every render (demoTourPhase), and timers move the
   // CURRENT DOM between renders (scheduleDemoTour). A re-render mid-tour
   // therefore lands on the right step instead of restarting it.
-  var DEMO_TOUR_START_MS = 600;
-  var DEMO_TOUR_STEP_MS = 2000;
+  var DEMO_TOUR_START_MS = 800;
+  var DEMO_TOUR_STEP_MS = 3000;
+  var DEMO_TOUR_GLOW_MS = 1800;   // matches the demo-tile-light keyframes
+  var DEMO_TOUR_FADE_MS = 5000;   // matches .demo-tiles.is-fading
   var DEMO_TOUR_CARDS = 4;
   // The last card lights at START + 3 * STEP and holds one STEP more.
   var DEMO_TOUR_END_MS = DEMO_TOUR_START_MS + DEMO_TOUR_CARDS * DEMO_TOUR_STEP_MS;
@@ -23057,13 +23061,19 @@
           var el = document.querySelector('.demo-tile[data-tour-index="' + idx + '"]');
           if (!el) return;
           el.classList.add("is-lit", "is-lighting");
-          setTimeout(function () { el.classList.remove("is-lighting"); }, 700);
+          setTimeout(function () { el.classList.remove("is-lighting"); }, DEMO_TOUR_GLOW_MS + 100);
         });
       })(i);
     }
     at(DEMO_TOUR_END_MS, function () {
+      // THE SLOW GROUP FADE. The 5s transition exists only while .is-fading is
+      // on the row: if it lived on the tiles permanently, the ring arriving at
+      // light-up would also crawl in over 5s and fight the glow animation.
+      var row = document.querySelector(".demo-tiles");
+      if (row) row.classList.add("is-fading");
       var tiles = document.querySelectorAll(".demo-tile.is-lit");
       for (var j = 0; j < tiles.length; j++) tiles[j].classList.remove("is-lit", "is-lighting");
+      setTimeout(function () { var r = document.querySelector(".demo-tiles"); if (r) r.classList.remove("is-fading"); }, DEMO_TOUR_FADE_MS + 200);
       var btn = document.querySelector(".demo-clear");
       if (btn) { btn.classList.remove("is-waiting"); btn.classList.add("is-ready"); }
     });

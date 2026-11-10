@@ -15706,7 +15706,7 @@ html.bg-light .demo-clear:hover { color: var(--text-primary); border-color: rgba
    that kept the pill out of the action colour (ruling 57), by Samson's
    direction; DECISIONS 2026-11-10 [1.17.1] records it. */
 .demo-clear {
-  transition: color 120ms ease, border-color 600ms ease, background-color 600ms ease, opacity 600ms ease;
+  transition: color 120ms ease, border-color 1500ms ease, background-color 1500ms ease, opacity 1500ms ease;
 }
 .demo-clear.is-waiting { opacity: 0.6; }
 .demo-clear.is-ready,
@@ -15722,29 +15722,40 @@ html.bg-light .demo-clear.is-ready:hover {
   color: var(--ink-on-action);
 }
 
-/* THE CARDS. A lit card wears an --action ring; it arrives with one pulse
-   (is-lighting, added by the timer only, so a re-render never replays it) and
-   leaves through the 600ms transition, which is what makes the four fade back
-   AS A GROUP when the timer clears them in one pass. The html.bg-light
-   selector is listed because html.bg-light .demo-tile sets border-color at a
-   higher specificity than .demo-tile.is-lit alone. The transition is written
-   as .demo-tiles .demo-tile so it outranks button.demo-tile-import's 120ms
-   one: otherwise two cards would fade fast and two slow, not as a group. */
+/* THE CARDS. A lit card's glow GROWS SLOWLY AND THEN SETTLES into a held
+   --action ring (is-lighting, 1.8s, added by the timer only, so a re-render
+   never replays it); the keyframes end exactly on the .is-lit values, so
+   nothing jumps when the animation is removed. Paced by Samson after the first
+   build (2s per card and a 0.6s fade read as too quick).
+
+   NO STANDING TRANSITION ON border-color OR box-shadow. The slow 5s fade lives
+   only on .demo-tiles.is-fading, which the timer puts on the row for the fade
+   and takes off after: a permanent 5s transition would also make the ring
+   crawl in at light-up, underneath the glow. Written as .demo-tiles .demo-tile
+   so it outranks button.demo-tile-import's own 120ms rule, which would
+   otherwise fade two of the four cards fast. The html.bg-light selector is
+   listed because html.bg-light .demo-tile sets border-color at a higher
+   specificity than .demo-tile.is-lit alone. */
 .demo-tiles .demo-tile {
-  transition: border-color 600ms ease, box-shadow 600ms ease, background-color 120ms ease;
+  transition: background-color 120ms ease;
+}
+.demo-tiles.is-fading .demo-tile {
+  transition: border-color 5000ms ease, box-shadow 5000ms ease, background-color 120ms ease;
 }
 .demo-tile.is-lit,
 html.bg-light .demo-tile.is-lit {
   border-color: var(--action);
-  box-shadow: 0 0 0 1px var(--action);
+  box-shadow: 0 0 0 1px var(--action), 0 0 14px 1px color-mix(in srgb, var(--action) 28%, transparent);
 }
 @keyframes demo-tile-light {
-  0%   { box-shadow: 0 0 0 1px var(--action), 0 0 0 0 color-mix(in srgb, var(--action) 55%, transparent); }
-  100% { box-shadow: 0 0 0 1px var(--action), 0 0 0 12px color-mix(in srgb, var(--action) 0%, transparent); }
+  0%   { border-color: rgba(255, 255, 255, 0.14); box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent; }
+  55%  { border-color: var(--action); box-shadow: 0 0 0 1px var(--action), 0 0 28px 6px color-mix(in srgb, var(--action) 45%, transparent); }
+  100% { border-color: var(--action); box-shadow: 0 0 0 1px var(--action), 0 0 14px 1px color-mix(in srgb, var(--action) 28%, transparent); }
 }
-.demo-tile.is-lighting { animation: demo-tile-light 700ms ease-out 1; }
+.demo-tile.is-lighting { animation: demo-tile-light 1800ms ease-in-out 1; }
 @media (prefers-reduced-motion: reduce) {
   .demo-tiles .demo-tile,
+  .demo-tiles.is-fading .demo-tile,
   .demo-clear { transition: none; }
   .demo-tile.is-lighting { animation: none; }
 }/* Light wallpapers: the frost flips white, so the ink and borders must too. */
