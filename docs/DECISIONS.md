@@ -5130,3 +5130,16 @@ Bug task 1220374189243383.
 - **Amazon** follows navigator.language's region (amazon.co.uk for en-GB), and falls back to .com where there is no local store.
 - **Icons come from the grid's existing source** (getFaviconUrl), which the privacy policy already discloses under "Website icons". This changes Claude Code's earlier suggestion to bundle icons: bundling would have put ten companies' trademark artwork in the package, for icons the grid fetches the same way the moment the site is added.
 - **Signing in needs nothing from LaunchPad.** A chip opens the site's normal address in a normal tab, so the browser's existing session is used.
+
+## 2026-11-10, 2.3.0 ships everything from the first look, and the tour slows down
+
+**Ruled by Samson after his second pass:** the first-open tour ([1.17.1]) and one-click add ([1.17.2]) go into 2.3.0, not the release after. 2.3.0 is re-cut a second time; the `fb959be` artifact is deleted without being uploaded. The prompt also returned in his test on the tab opened by "Open my first new tab", so the button does trigger it. The earlier miss was most likely Chrome showing the prompt once per browser session, and the "may ask" copy stays right either way.
+
+**The tour's pace, by Samson:** "a slow growing glow, solidify, maybe three seconds on each one, and then very slowly fade back to grey over like five seconds for the group".
+- Each glow now grows over 1.8s and settles into the held ring.
+- Cards light 3s apart, and the last one holds 3s.
+- The row then fades back over 5s, while Clear examples turns blue over 1.5s.
+- The whole tour takes about 18s, and Clear examples works throughout.
+- **The 5s transition exists only while the row carries .is-fading.** A standing transition would make the ring crawl in under the glow at light-up.
+
+**One behaviour change for EXISTING users, stated so it is not discovered:** the Home one-click strip appears for anyone with fewer than six shortcuts and no examples. It has Hide and retires at six. RELEASE-NOTES-2.3.0 section D lists it.
