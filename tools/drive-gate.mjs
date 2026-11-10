@@ -30,7 +30,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { browserArgs, EDGE } from "./browser-launch.mjs";
+import { browserArgs, EDGE, dismissWelcomeTab } from "./browser-launch.mjs";
 
 // Derived from cwd, NOT hardcoded - drive-dialogs.mjs's own header records the
 // bug this avoids: an absolute REPO means a worktree drives the main checkout.
@@ -298,6 +298,8 @@ try {
 
   const ver = await waitForPort();
   const id = await extensionIdWait();
+  // [1.17.0] WP (BUGS I36): the welcome tab opens on every --load-extension launch; close it by URL before opening our own page.
+  console.log("  welcome tab:", JSON.stringify(await dismissWelcomeTab({ port: PORT, extId: id, extDir: REPO })));
   cdp = connect(ver.webSocketDebuggerUrl);
   await cdp.ready;
 

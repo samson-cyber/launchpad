@@ -11,7 +11,7 @@ import { pathToFileURL } from "node:url";
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function launch({ repo, ext, port, profile, width = 1920, height = 1080, dpr = 1.5, keepProfile = false }) {
-  const { browserArgs, EDGE } = await import(pathToFileURL(path.join(repo, "tools/browser-launch.mjs")).href);
+  const { browserArgs, EDGE, dismissWelcomeTab } = await import(pathToFileURL(path.join(repo, "tools/browser-launch.mjs")).href);
   if (!keepProfile) fs.rmSync(profile, { recursive: true, force: true });
   const proc = spawn(EDGE, browserArgs({ profileDir: profile, extDir: ext, port, headless: true }), { stdio: "ignore" });
   const j = (p, method = "GET") => new Promise((res, rej) => {
@@ -26,6 +26,8 @@ export async function launch({ repo, ext, port, profile, width = 1920, height = 
   const sp = JSON.parse(fs.readFileSync(path.join(profile, "Default/Secure Preferences"), "utf8"));
   const norm = (p) => p.replace(/\\/g, "/").toLowerCase().replace(/\/$/, "");
   const id = Object.entries(sp.extensions.settings).find(([, v]) => norm(v.path || "") === norm(ext))[0];
+  // [1.17.0] WP (BUGS I36): the welcome tab opens on every --load-extension launch; close it by URL before opening our own page.
+  if (dismissWelcomeTab) await dismissWelcomeTab({ port, extId: id, extDir: ext });
   async function open(url) {
     const t = await j(`/json/new?${url}`, "PUT");
     const tab = await connect(t.webSocketDebuggerUrl);

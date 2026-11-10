@@ -54,7 +54,7 @@ import { spawn } from "node:child_process";
 
 
 
-import { browserArgs } from "./browser-launch.mjs";
+import { browserArgs, dismissWelcomeTab } from "./browser-launch.mjs";
 import { decodePNG, ratio } from "./pixel-contrast.mjs";
 
 // [H3a] DERIVED FROM cwd, and the note this replaces had been recording the
@@ -197,6 +197,8 @@ fs.rmSync(PROFILE, { recursive: true, force: true });
 const proc = launch(PROFILE, PORT);
 const ver = await waitForPort(PORT);
 const id = await extensionIdWait(PROFILE);
+// [1.17.0] WP (BUGS I36): the welcome tab opens on every --load-extension launch; close it by URL before opening our own page.
+console.log("  welcome tab:", JSON.stringify(await dismissWelcomeTab({ port: PORT, extId: id, extDir: REPO })));
 const cdp = connect(ver.webSocketDebuggerUrl);
 await cdp.ready;
 const URL_ = `chrome-extension://${id}/newtab.html`;

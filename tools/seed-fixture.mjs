@@ -48,7 +48,7 @@ import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import { spawn, execSync } from "node:child_process";
-import { browserArgs } from "./browser-launch.mjs";
+import { browserArgs, dismissWelcomeTab } from "./browser-launch.mjs";
 
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
 const argv = process.argv.slice(2);
@@ -155,6 +155,8 @@ for (let i = 0; i < 20 && !ID; i++) {
   if (!ID) await sleep(1000);
 }
 if (!ID) { console.error("BROKEN: extension id not resolved"); process.exit(2); }
+// [1.17.0] WP (BUGS I36): the welcome tab opens on every --load-extension launch; close it by URL before opening our own page.
+console.log("  welcome tab:", JSON.stringify(await dismissWelcomeTab({ port: PORT, extId: ID, extDir: REPO })));
 
 const target = await j(`/json/new?chrome-extension://${ID}/newtab.html`, "PUT");
 await sleep(3500);

@@ -174,3 +174,60 @@ export function isOffScreen(bounds, displays) {
     bounds.left < d.x + d.width && bounds.left + bounds.width > d.x &&
     bounds.top < d.y + d.height && bounds.top + bounds.height > d.y);
 }
+
+// ---------------------------------------------------------------------------
+// [1.17.0] WP - THE WELCOME TAB OPENS ON EVERY HARNESS LAUNCH (BUGS I36).
+//
+// background.js opens welcome.html, ACTIVE, on onInstalled reason "install",
+// and under --load-extension the browser fires "install" on EVERY launch -
+// measured 2026-11-10 on Edge 157: a fresh profile and two relaunches of the
+// same kept profile each opened one welcome tab (BUGS I8). Nothing in a harness
+// counted tabs or took the first target, so nothing broke outright. What could
+// break is the RACE: if the welcome tab lands after the harness's own page, it
+// takes the foreground and the harness page becomes a hidden background tab -
+// rAF throttled, and in a headed run possibly not painted, which is exactly
+// what a pixel harness cannot survive.
+//
+// So every extension-loading harness calls this AFTER resolving the id and
+// BEFORE opening its own page. It waits for the welcome target by URL (I7:
+// never "the first target") and closes it by target id, which removes the race
+// and the extra renderer together. It is NOT gated on IS_UNPACKED in the
+// product: the shipped path stays the tested path, and the harness steps
+// around it.
+//
+// Only when the loaded extension HAS a welcome.html, so an older artifact (the
+// release upgrade tests load 2.0.0) never waits for a tab it cannot open.
+// Chrome's own "Change back to Google?" bubble may also appear in a scratch
+// run; it is browser chrome outside every page, no CDP target, and nothing
+// here or in any harness may try to click it.
+//
+// Returns { applicable, seen, closed, waitedMs }. Never throws: a welcome tab
+// that does not appear is reported, not fatal, because the harness's own page
+// works either way.
+// ---------------------------------------------------------------------------
+export async function dismissWelcomeTab({ port, extId, extDir, host = "127.0.0.1", timeoutMs = 10000 }) {
+  const t0 = Date.now();
+  const res = { applicable: false, seen: false, closed: false, waitedMs: 0 };
+  try {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    if (!extId || !extDir || !fs.existsSync(path.join(String(extDir), "welcome.html"))) return res;
+    res.applicable = true;
+    const want = `chrome-extension://${extId}/welcome.html`;
+    while (Date.now() - t0 < timeoutMs) {
+      let list = [];
+      try { list = await (await fetch(`http://${host}:${port}/json/list`)).json(); } catch { list = []; }
+      const hits = (Array.isArray(list) ? list : []).filter((t) => t && t.type === "page" && t.url === want);
+      if (hits.length) {
+        res.seen = true;
+        for (const t of hits) {
+          try { await fetch(`http://${host}:${port}/json/close/${t.id}`); res.closed = true; } catch { /* reported below */ }
+        }
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  } catch { /* never fatal */ }
+  res.waitedMs = Date.now() - t0;
+  return res;
+}
