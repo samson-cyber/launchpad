@@ -5822,6 +5822,18 @@ I18n.register("en", {
       "description": "Name of the group created by 'Import Top Sites'. Becomes an ordinary group the user can rename, so it is a name rather than a label.",
       "message": "Top Sites"
     },
+    "topsites_added": {
+      "description": "Toast after Import > Most visited sites adds shortcuts. {group} is the group they went into (normally Top Sites, unless the user renamed it); the page scrolls to that group.",
+      "plural": {"one": "Added 1 site to {group}.", "other": "Added {count} sites to {group}."}
+    },
+    "topsites_all_present": {
+      "description": "Toast when Import > Most visited sites finds nothing new: every most-visited site is already a shortcut, so nothing is added.",
+      "message": "Your most visited sites are already on LaunchPad."
+    },
+    "topsites_none_yet": {
+      "description": "Toast when the browser reports no most-visited sites at all (a new or rarely used profile). Points at the alternative on the same panel.",
+      "message": "Your browser has no most visited sites yet. Try Paste links instead."
+    },
     "backup_contains_core": {
       "description": "The first item in the list of what a backup file holds. Lower case because it sits inside a sentence built from backup_restore_confirm.",
       "message": "shortcuts, groups and settings"
@@ -6406,8 +6418,8 @@ I18n.register("en", {
       "message": "LaunchPad is installed. One quick thing first."
     },
     "welcome_body_1": {
-      "description": "Welcome page, first body line, Chrome only. Quotes Chrome's own prompt title, which appears on the user's first new tab after installing. The quoted text must match the prompt Chrome shows in this locale exactly, or be dropped; never paraphrase a browser's own wording.",
-      "message": "When you open a new tab, Chrome will ask \"Change back to Google?\" This is normal for any new tab extension."
+      "description": "Welcome page, first body line, Chrome only. Quotes Chrome's own prompt title, which appears on the user's first new tab after installing. The quoted text must match the prompt Chrome shows in this locale exactly, or be dropped; never paraphrase a browser's own wording. MAY, not will (Samson, 2026-11-10): Chrome does not show the prompt every time, so a promise that it will is wrong whenever it does not.",
+      "message": "When you open a new tab, Chrome may ask \"Change back to Google?\" This is normal for any new tab extension."
     },
     "welcome_body_2": {
       "description": "Welcome page, second body line, Chrome only. Keep it and Change it back are the LABELS OF CHROME'S OWN BUTTONS and must match what Chrome shows in this locale exactly. Chrome focuses Change it back by default, and choosing it disables LaunchPad; this line exists to prevent that.",
@@ -6415,7 +6427,7 @@ I18n.register("en", {
     },
     "welcome_body_generic": {
       "description": "Welcome page body for browsers whose prompt has not been observed (Edge today). Deliberately names no button: a browser's labels are never guessed.",
-      "message": "Your browser will ask if you want to keep this change. Choose to keep it to use LaunchPad."
+      "message": "Your browser may ask if you want to keep this change. Choose to keep it to use LaunchPad."
     },
     "welcome_click_this_one": {
       "description": "Small label on the welcome page pointing up at the Keep it button in a screenshot of Chrome's prompt. Short; it sits under one button.",

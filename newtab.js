@@ -16883,38 +16883,81 @@
     }, 400);
   }
 
+  // [fix 2026-11-10] MOST VISITED SITES USED TO IMPORT SILENTLY. The button
+  // closed the Import panel and appended a new "Top Sites" group below
+  // Ungrouped, out of sight, with no message and no duplicate check - so it
+  // read as "nothing happened" and a second click made a second identical
+  // group (Samson, 2026-11-10). Now: sites already on this workspace are
+  // skipped, new ones join an existing live Top Sites group rather than
+  // founding another, and every outcome says what happened in a toast; the
+  // group is scrolled into view when something was added.
+  function topSitesUrlKey(url) {
+    try {
+      var u = new URL(normalizeUrl(url));
+      return u.hostname.toLowerCase().replace(/^www\./, "") + u.pathname.replace(/\/+$/, "") + u.search;
+    } catch (e) { return String(url || "").toLowerCase(); }
+  }
+
   function importTopSites(callback) {
+    function done() { if (callback) callback(); }
     if (!chrome.topSites || !chrome.topSites.get) {
       console.warn("[LaunchPad] chrome.topSites not available");
-      if (callback) callback();
+      showToast(t("topsites_none_yet"), 4000);
+      done();
       return;
     }
     chrome.topSites.get(function (sites) {
       if (!sites || !sites.length) {
-        if (callback) callback();
+        showToast(t("topsites_none_yet"), 4000);
+        done();
         return;
       }
-      var groupId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-      var shortcuts = sites.map(function (site, i) {
-        return {
-          id: Date.now().toString(36) + i.toString(36) + Math.random().toString(36).slice(2, 7),
+      var topSitesWs = Storage.getActiveWorkspace(data);
+      if (!topSitesWs) { done(); return; }
+      var have = {};
+      (topSitesWs.groups || []).forEach(function (g) {
+        if (!g || g.deletedAt) return;
+        (g.shortcuts || []).forEach(function (s) {
+          if (!s || s.deletedAt) return;
+          if (s.url) have[topSitesUrlKey(s.url)] = true;
+          (s.variants || []).forEach(function (v) { if (v && !v.deletedAt && v.url) have[topSitesUrlKey(v.url)] = true; });
+        });
+      });
+      var stamp = Date.now();
+      var shortcuts = [];
+      sites.forEach(function (site, i) {
+        var key = topSitesUrlKey(site.url);
+        if (!site.url || have[key]) return;
+        have[key] = true;
+        shortcuts.push({
+          id: stamp.toString(36) + i.toString(36) + Math.random().toString(36).slice(2, 7),
           url: site.url,
           title: site.title || getDomain(site.url),
-          addedAt: Date.now(),
+          addedAt: stamp,
           deletedAt: null
-        };
+        });
       });
-      var topSitesWs = Storage.getActiveWorkspace(data);
-      if (!topSitesWs) {
-        if (callback) callback();
+      if (!shortcuts.length) {
+        showToast(t("topsites_all_present"), 4000);
+        done();
         return;
       }
-      topSitesWs.groups.push({ id: groupId, name: t("topsites_group_name"), shortcuts: shortcuts, deletedAt: null });
-      topSitesWs.groupOrder.push(groupId);
+      var groupName = t("topsites_group_name");
+      var group = (topSitesWs.groups || []).filter(function (g) { return g && !g.deletedAt && g.name === groupName; })[0];
+      if (group) {
+        group.shortcuts = (group.shortcuts || []).concat(shortcuts);
+      } else {
+        group = { id: stamp.toString(36) + Math.random().toString(36).slice(2, 7), name: groupName, shortcuts: shortcuts, deletedAt: null };
+        topSitesWs.groups.push(group);
+        topSitesWs.groupOrder.push(group.id);
+      }
+      var groupId = group.id;
       Storage.saveAll(data).then(function () {
         render();
-        console.log("[LaunchPad] Imported", shortcuts.length, "top sites");
-        if (callback) callback();
+        showToast(t("topsites_added", { count: shortcuts.length, group: group.name }), 4000);
+        var el = document.querySelector('section[data-group-id="' + groupId + '"]');
+        if (el && el.scrollIntoView) el.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
+        done();
       });
     });
   }
