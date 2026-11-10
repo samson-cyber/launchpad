@@ -1,7 +1,8 @@
 # Release notes - 2.3.0
 
-**Cut 2026-11-10 against the LIVE `v2.2.0` (`f8b05da`), at the commit that bumps the manifest to
-`2.3.0`.** Renamed from `RELEASE-NOTES-NEXT.md`, which was still empty, by Round WP on 2026-11-10. RELEASE_VERSION `2.3.0` was ruled by Samson on
+**Cut 2026-11-10 against the LIVE `v2.2.0` (`f8b05da`), and RE-CUT the same day** after Samson's first
+look at the welcome page: the build commit is now the re-cut commit (section B), not `62d761d`, whose
+artifact was replaced before upload. Renamed from `RELEASE-NOTES-NEXT.md`, which was still empty, by Round WP on 2026-11-10. RELEASE_VERSION `2.3.0` was ruled by Samson on
 2026-11-10. A fresh `RELEASE-NOTES-NEXT.md` starts for the release after.
 
 Same rule as the files beside it: **nothing here describes a feature that is not in the build.**
@@ -22,15 +23,19 @@ scratch Chrome 156 and Edge 157, on the working tree and on the packaged build (
 A short welcome for new installs.
 
 • When you first install LaunchPad, it opens one welcome tab
-  before your first new tab. It shows the question Chrome is
-  about to ask, "Change back to Google?", and points at Keep it,
-  the button that keeps LaunchPad on.
+  before your first new tab. It shows the question Chrome may
+  ask, "Change back to Google?", and points at Keep it, the
+  button that keeps LaunchPad on.
 • From there, one click opens your first new tab.
 • If LaunchPad gets switched off by mistake, the page tells you
   how to switch it back on.
 
 Updating from an earlier version changes nothing: the welcome tab
 only opens on a fresh install.
+
+Import > Most visited sites now tells you what it added, skips
+sites you already have, and adds to your Top Sites group instead
+of making a second one.
 ```
 
 ### Listing copy
@@ -59,10 +64,14 @@ everything else is internal and is listed so the range is complete.
 | `bee5616` | test: harnesses close the welcome tab by URL | No, test harnesses |
 | `e80ee42` | docs: Round WP, this file, DECISIONS, BUGS I36, CLAUDE.md release state | No, docs |
 | `a9bbfc0` | chore: default.webp no longer needs an EXPECTED_UNREFERENCED excuse | No, build tooling |
-| the cut | chore: 2.3.0 cut, manifest to 2.3.0 (the build commit; its hash is in the tag) | No |
+| `62d761d` | chore: 2.3.0 cut, manifest to 2.3.0 (first cut; its artifact was replaced before upload) | No |
+| `ef76356` | chore: 2.3.0 store frames | No, store assets |
+| `6ead142` | fix: Most visited sites feedback and no duplicates; welcome copy "may ask" | **Yes** |
+| the re-cut | chore: 2.3.0 re-cut (THE BUILD COMMIT; its hash is in the tag) | No |
 
 **Shipped files changed since 2.2.0:** `background.js` (one block in onInstalled),
-`locales/en.js` (13 new `welcome_*` messages, none changed), and the new `welcome.html`,
+`newtab.js` (importTopSites only), `locales/en.js` (13 `welcome_*` and 3 `topsites_*` messages
+added, none existing changed), and the new `welcome.html`,
 `welcome.js`, `welcome.css` and `assets/welcome/chrome-keep-prompt.webp`. Nothing else that
 ships has changed: the three store-asset commits touch `store-assets/`, `store-description.md`
 and `tools/promo/` only.
