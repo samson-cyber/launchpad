@@ -567,15 +567,13 @@ export const EXPECTED_UNREFERENCED = [
             "mentions. Ships deliberately; deleting it would show broken images wherever " +
             "a favicon fails to load."
   },
-  {
-    p: "assets/wallpapers/default.webp",
-    reason: "The fresh-install default wallpaper (Round W, ruled 2026-11-08, route A1). " +
-            "Referenced ONLY from JavaScript, as FRESH_INSTALL_BG in newtab.js, which " +
-            "loadBackground writes into the background record and applyBackground paints " +
-            "as a CSS url(). Invisible to an HTML attribute extractor for the same reason " +
-            "as assets/placeholder.svg. Deleting it would paint a fresh install's first " +
-            "new tab as a missing image over no colour, with bg-image and no luminance class."
-  },
+  // assets/wallpapers/default.webp WAS EXCUSED HERE until [1.17.0], when
+  // welcome.css began referencing it by url() and verify-package flagged the
+  // excuse as stale. It is still also used at runtime by newtab.js
+  // (FRESH_INSTALL_BG -> loadBackground -> applyBackground), invisible to any
+  // extractor: if welcome.css ever drops the backdrop, restore the entry rather
+  // than the file going unexplained - deleting it would paint a fresh install's
+  // first new tab as a missing image over no colour.
   {
     p: "assets/wallpapers/CREDITS.md",
     reason: "Provenance for default.webp beside it: the Unsplash photo id, the " +
