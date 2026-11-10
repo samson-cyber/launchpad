@@ -1391,6 +1391,20 @@ chrome.runtime.onInstalled.addListener(function (details) {
       await Storage.setDueSoundEnabled(d, true);
     });
   }
+  // [1.17.0] WP. THE WELCOME TAB, ON A FRESH INSTALL ONLY. Chrome asks
+  // "Change back to Google?" on the first new tab with Change it back focused,
+  // and choosing it disables LaunchPad - after which nothing here runs again.
+  // This tab reaches the user before that prompt. Never on "update",
+  // "chrome_update" or "shared_module_update": existing users never see it.
+  // No latch: a real install fires "install" once, and a reinstall wipes data,
+  // so showing it again is correct. Its own block, fire-and-forget, so it
+  // neither delays nor reorders the install work around it and the queued
+  // write above is byte-for-byte untouched. tools/check-welcome.mjs holds
+  // this wiring, because onInstalled cannot be driven end to end (BUGS I8).
+  if (details && details.reason === "install") {
+    chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html"), active: true })
+      .catch(function () { /* no window to open into; nothing to recover */ });
+  }
   chrome.alarms.create("save-session", { periodInMinutes: 5 });
   chrome.alarms.create(PRO_RECONCILE_ALARM, { periodInMinutes: PRO_RECONCILE_PERIOD_MINUTES });
   // [1.3.0 R2] Reconciled rather than created blind: the weekly alarm exists

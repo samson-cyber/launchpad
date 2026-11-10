@@ -117,8 +117,11 @@ const PATTERN_FLOORS = {
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const JS_FILES = ["newtab.js", "background.js", "storage.js", "bookmarks.js",
-                  "license.js", "pro-access.js", "tracking.js", "gate.js", "offscreen.js"];
-const HTML_FILES = ["newtab.html", "gate.html", "offscreen.html"];
+                  "license.js", "pro-access.js", "tracking.js", "gate.js", "offscreen.js",
+                  // [1.17.0] WP: a new page, so the gate covers it rather than
+                  // silently skipping it.
+                  "welcome.js"];
+const HTML_FILES = ["newtab.html", "gate.html", "offscreen.html", "welcome.html"];
 
 // NOT LOCALIZED, BY DECISION - excluded with the reason recorded here rather
 // than silently absent, so the next reader learns why instead of assuming an

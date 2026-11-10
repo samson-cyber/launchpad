@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="welcome_title">Welcome to LaunchPad</title>
+  <!-- [1.17.0] WP. THE WELCOME TAB, opened once by background.js onInstalled on
+       reason "install" and never on an update. Its whole job is to reach a new
+       user BEFORE their first new tab, where Chrome asks "Change back to
+       Google?" with Change it back focused. Once that click disables
+       LaunchPad the extension runs no code, so nothing can win the user back
+       afterwards; this page is the only lever there is.
+       tokens.css FIRST, exactly as newtab.html and gate.html link it: the v2
+       token set and the product face's @font-face both live there. Not
+       newtab.css - this is a page, not a panel over the new tab.
+       NO NETWORK. Every URL on this page is the extension's own; the gate
+       tools/check-welcome.mjs refuses an http(s) URL in any welcome file. -->
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="welcome.css">
+</head>
+<body class="wl">
+  <main class="wl-card">
+    <div class="wl-brand">
+      <svg class="wl-brand-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="7" cy="7" r="3"/><circle cx="17" cy="7" r="3"/>
+        <circle cx="7" cy="17" r="3"/><circle cx="17" cy="17" r="3"/>
+      </svg>
+      <span data-i18n="page_launchpad" class="wl-brand-text">LaunchPad</span>
+    </div>
+
+    <h1 data-i18n="welcome_headline" class="wl-headline">LaunchPad is installed. One quick thing first.</h1>
+
+    <!-- Chrome copy and the generic copy are BOTH in the markup, and welcome.js
+         removes the one that does not apply, so neither branch is ever built
+         from a string in JS. The generic line is the Edge branch until Edge's
+         own prompt has been observed (D5): never guess another browser's
+         labels. -->
+    <div class="wl-copy wl-copy-chrome">
+      <p data-i18n="welcome_body_1" class="wl-body">When you open a new tab, Chrome will ask "Change back to Google?" This is normal for any new tab extension.</p>
+      <p data-i18n="welcome_body_2" class="wl-body">Click Keep it, the button on the right. Chrome highlights Change it back, and choosing it switches LaunchPad off.</p>
+    </div>
+    <div class="wl-copy wl-copy-generic">
+      <p data-i18n="welcome_body_generic" class="wl-body">Your browser will ask if you want to keep this change. Choose to keep it to use LaunchPad.</p>
+    </div>
+
+    <!-- THE HERO. The overlay is positioned in PERCENTAGES OF THE IMAGE BOX, so
+         it tracks the image at every rendered size, and it marks Keep it ONLY.
+         Change it back gets no mark of any kind: a red X or a strike reads as a
+         threat and pulls the eye to the wrong button, and its focus look is
+         already in the screenshot. The image is the bubble alone, cropped and
+         corner-masked from a full-window capture; nothing else survived. -->
+    <figure class="wl-hero wl-copy-chrome">
+      <div class="wl-shot">
+        <img class="wl-shot-img" src="assets/welcome/chrome-keep-prompt.webp" width="450" height="168"
+             data-i18n-alt="welcome_image_alt" alt="Chrome's Change back to Google prompt, with the Keep it button on the right">
+        <span class="wl-ring" aria-hidden="true"></span>
+        <span data-i18n="welcome_click_this_one" class="wl-pointer" aria-hidden="true">Click this one</span>
+      </div>
+    </figure>
+
+    <button data-i18n="welcome_open_first_tab" type="button" id="wl-open" class="wl-primary">Open my first new tab</button>
+
+    <p class="wl-recovery">
+      <span data-i18n="welcome_recovery" class="wl-copy-chrome">Clicked Change it back by mistake? Open your extensions page, find LaunchPad and switch it back on.</span>
+      <span data-i18n="welcome_recovery_generic" class="wl-copy-generic">Switched LaunchPad off by mistake? Open your extensions page, find LaunchPad and switch it back on.</span>
+      <button data-i18n="welcome_open_extensions" type="button" id="wl-ext" class="wl-text-btn">Open extensions page</button>
+    </p>
+    <!-- Shown only if the browser refuses to open the extensions page from
+         here; an extension page cannot link to chrome:// with an href. -->
+    <p class="wl-ext-address" id="wl-ext-address" hidden>
+      <span data-i18n="welcome_extensions_address">Your extensions page is at this address:</span>
+      <code id="wl-ext-url" class="wl-ext-url"></code>
+    </p>
+
+    <p data-i18n="welcome_privacy" class="wl-privacy">Everything you add stays on this device.</p>
+  </main>
+  <script src="i18n.js"></script>
+  <script src="locales/en.js"></script>
+  <script src="i18n-dom.js"></script>
+  <script src="welcome.js"></script>
+</body>
+</html>

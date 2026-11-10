@@ -486,6 +486,16 @@ if ! node tools/check-label-targets.mjs; then
   exit 1
 fi
 
+# [1.17.0] WP. The welcome tab: opened by onInstalled on reason install and
+# nowhere else (BUGS I8: no harness can show an update leaving it closed),
+# allowlisted, catalogued, no em dash, no network, no storage, never closed by
+# code, the Keep it ring on Keep it, and the capture folder absent. ~0.1s.
+# `--mutate` runs twelve seeded reversions.
+if ! node tools/check-welcome.mjs; then
+  echo 'ERROR: welcome gate failed - the welcome tab could open on an update, ship broken, reach the network, or point at the wrong button.' >&2
+  exit 1
+fi
+
 # [MC9] Calendar reminders: today-only late firing, once (marked and saved
 # before they sound), from every workspace, the alarm re-pointed on every
 # change, the split pill, a past time refused. ~0.3s. `--mutate` runs nine seeds.
@@ -628,6 +638,14 @@ powershell.exe -NoProfile -Command "
     'gate.html',
     'gate.js',
     'gate.css',
+    # [1.17.0] WP. The welcome tab, ADDED IN THE SAME COMMIT AS THE FILES - the
+    # rule the importers.js and quickadd.js misses taught. Its screenshot lives
+    # under assets, which is a directory entry and needs no line here; the
+    # source capture folder assets/welcome/_incoming is never committed, and
+    # tools/check-welcome.mjs fails the build if it reappears.
+    'welcome.html',
+    'welcome.js',
+    'welcome.css',
     'privacy-policy.html',
     'assets',
     'icons',

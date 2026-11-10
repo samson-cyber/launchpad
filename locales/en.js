@@ -6396,5 +6396,57 @@ I18n.register("en", {
     "dash_cal_demo_weekly": {
       "description": "Seed content for the Pro preview shown to free users: a demo recurring task on the Dashboard calendar, shown on the days it is scheduled each week. A translator should write a natural example for their own market rather than translate this literally.",
       "message": "Weekly review"
+    },
+    "welcome_title": {
+      "description": "[1.17.0] Browser tab title of the welcome page, which opens once on a fresh install, before the user's first new tab.",
+      "message": "Welcome to LaunchPad"
+    },
+    "welcome_headline": {
+      "description": "Headline of the welcome page. Says the install worked, then that there is exactly one thing to know before the first new tab. Calm, not alarming.",
+      "message": "LaunchPad is installed. One quick thing first."
+    },
+    "welcome_body_1": {
+      "description": "Welcome page, first body line, Chrome only. Quotes Chrome's own prompt title, which appears on the user's first new tab after installing. The quoted text must match the prompt Chrome shows in this locale exactly, or be dropped; never paraphrase a browser's own wording.",
+      "message": "When you open a new tab, Chrome will ask \"Change back to Google?\" This is normal for any new tab extension."
+    },
+    "welcome_body_2": {
+      "description": "Welcome page, second body line, Chrome only. Keep it and Change it back are the LABELS OF CHROME'S OWN BUTTONS and must match what Chrome shows in this locale exactly. Chrome focuses Change it back by default, and choosing it disables LaunchPad; this line exists to prevent that.",
+      "message": "Click Keep it, the button on the right. Chrome highlights Change it back, and choosing it switches LaunchPad off."
+    },
+    "welcome_body_generic": {
+      "description": "Welcome page body for browsers whose prompt has not been observed (Edge today). Deliberately names no button: a browser's labels are never guessed.",
+      "message": "Your browser will ask if you want to keep this change. Choose to keep it to use LaunchPad."
+    },
+    "welcome_click_this_one": {
+      "description": "Small label on the welcome page pointing up at the Keep it button in a screenshot of Chrome's prompt. Short; it sits under one button.",
+      "message": "Click this one"
+    },
+    "welcome_image_alt": {
+      "description": "Alt text for the screenshot of Chrome's prompt on the welcome page. Names the prompt and where the right button is, for a screen reader user who cannot see the pointer.",
+      "message": "Chrome's Change back to Google prompt, with the Keep it button on the right"
+    },
+    "welcome_open_first_tab": {
+      "description": "Primary button on the welcome page. Opens a new tab, where Chrome's prompt will appear. The welcome page stays open behind it.",
+      "message": "Open my first new tab"
+    },
+    "welcome_recovery": {
+      "description": "Quiet recovery line on the welcome page, Chrome only, shown BEFORE anything is clicked because a disabled extension can show nothing afterwards. Change it back is Chrome's button label and must match it exactly.",
+      "message": "Clicked Change it back by mistake? Open your extensions page, find LaunchPad and switch it back on."
+    },
+    "welcome_recovery_generic": {
+      "description": "The same recovery line for a browser whose prompt labels have not been observed (Edge today), so it names no button.",
+      "message": "Switched LaunchPad off by mistake? Open your extensions page, find LaunchPad and switch it back on."
+    },
+    "welcome_open_extensions": {
+      "description": "Text button after the recovery line on the welcome page. Opens the browser's extensions page on LaunchPad's entry, where the user can switch it back on.",
+      "message": "Open extensions page"
+    },
+    "welcome_extensions_address": {
+      "description": "Shown only if the browser refuses to open its extensions page from the welcome page; the address follows as selectable text for the user to copy into the address bar.",
+      "message": "Your extensions page is at this address:"
+    },
+    "welcome_privacy": {
+      "description": "One-line privacy note at the foot of the welcome page. Matches the published privacy policy's What stays on your device section.",
+      "message": "Everything you add stays on this device."
     }
   });

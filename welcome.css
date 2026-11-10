@@ -1,0 +1,236 @@
+/* ===========================================================================
+   [1.17.0] WP - the welcome tab. One glass card on the bundled default
+   wallpaper, one hero (the prompt screenshot), one accent.
+
+   EVERY VALUE IS A tokens.css TOKEN except three, each named where it sits:
+   the image's pixel geometry (it is a fact about the screenshot, not a design
+   choice), the product's wallpaper text-shadow (CLAUDE.md's documented
+   literal), and the ring's spread. The card is the v2 tile material - the
+   hero tint gradient, the hairline, --frost blur with the saturate half -
+   never a literal rgba or blur (BUGS D5).
+
+   --action is used TWICE AND ONLY TWICE: the primary button, and the Keep it
+   emphasis (ring + pointer label). Since DP3 it is soft indigo, not orange;
+   the token is the rule, the value is whatever the design system says today.
+   =========================================================================== */
+
+html {
+  height: 100%;
+}
+
+body.wl {
+  margin: 0;
+  min-height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5) var(--space-4);
+  font-family: var(--font-sans);
+  color: var(--ink);
+  /* The fresh-install default wallpaper (Round W), bundled in the extension.
+     A solid ground underneath, so the first frame before the image decodes is
+     dark rather than white. */
+  background-color: var(--tile-hero-2);
+  background-image: url("assets/wallpapers/default.webp");
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+
+.wl-card {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 600px;
+  padding: var(--space-5) var(--tile-pad-x);
+  border-radius: var(--tile);
+  border: 1px solid var(--tile-line);
+  background: linear-gradient(160deg, var(--tile-hero), var(--tile-hero-2));
+  -webkit-backdrop-filter: blur(var(--frost)) saturate(130%);
+  backdrop-filter: blur(var(--frost)) saturate(130%);
+  box-shadow: inset 0 1px 0 var(--tile-line);
+  text-align: center;
+  /* The wallpaper text-shadow rule: text that sits over imagery carries it,
+     and glass over a photograph is imagery. */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.wl-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  color: var(--ink);
+  font-size: var(--fs-14);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.wl-brand-icon circle {
+  fill: var(--ink);
+}
+
+.wl-headline {
+  margin: 0 0 var(--space-3);
+  font-size: 26px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.wl-body {
+  margin: 0 auto var(--space-2);
+  max-width: 34em;
+  font-size: var(--fs-14);
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.wl-copy {
+  margin-bottom: var(--space-4);
+}
+
+.wl-copy .wl-body:last-child {
+  margin-bottom: 0;
+}
+
+/* ---- THE HERO -------------------------------------------------------- */
+
+.wl-hero {
+  margin: 0 0 var(--space-3);
+  /* Room below the image for the pointer label (10px drop + ~25px tall),
+     which is positioned from the image box and so takes no part in the flow.
+     PADDING, not a margin on .wl-shot: a child's bottom margin collapses into
+     the figure's, and the first build put the label on the button's top edge. */
+  padding-bottom: var(--space-7);
+}
+
+.wl-shot {
+  position: relative;
+  width: 450px;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.wl-shot-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--inner);
+}
+
+/* KEEP IT, measured on the cropped 450x168 image: x 355-428, y 109-146.
+   As percentages of the image box: left 78.89%, top 64.88%, width 16.44%,
+   height 22.62%. Change it back is x 227-346, so the 8px gap between the two
+   buttons is what the ring's 3px spread has to stay inside. */
+.wl-ring {
+  position: absolute;
+  left: 78.89%;
+  top: 64.88%;
+  width: 16.44%;
+  height: 22.62%;
+  border-radius: var(--pill);
+  box-shadow: 0 0 0 3px var(--action);
+  pointer-events: none;
+}
+
+/* Below the image, centred under Keep it (87.11% = the button's centre), with
+   a caret pointing up at it. Below rather than beside, so it can never sit on
+   the body text of the prompt or anywhere near Change it back. */
+.wl-pointer {
+  position: absolute;
+  left: 87.11%;
+  top: calc(100% + 10px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: var(--space-1) var(--space-2-5);
+  border-radius: var(--pill);
+  background: var(--action);
+  color: var(--ink-on-action);
+  font-size: var(--fs-12);
+  font-weight: 600;
+  line-height: 1.3;
+  text-shadow: none;
+  pointer-events: none;
+}
+
+.wl-pointer::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-bottom-color: var(--action);
+}
+
+/* ---- ACTIONS ---------------------------------------------------------- */
+
+.wl-primary {
+  display: inline-block;
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  border: 0;
+  border-radius: var(--inner);
+  background: var(--action);
+  color: var(--ink-on-action);
+  font-family: inherit;
+  font-size: var(--fs-14);
+  font-weight: 600;
+  text-shadow: none;
+  cursor: pointer;
+}
+
+.wl-primary:hover {
+  background: var(--action-soft);
+}
+
+.wl-primary:focus-visible,
+.wl-text-btn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.wl-recovery,
+.wl-ext-address {
+  margin: 0 auto var(--space-2);
+  max-width: 34em;
+  font-size: var(--fs-12);
+  line-height: 1.5;
+  color: var(--ink-mute);
+}
+
+.wl-text-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-shadow: inherit;
+  cursor: pointer;
+}
+
+.wl-ext-url {
+  user-select: all;
+  color: var(--ink);
+}
+
+.wl-privacy {
+  margin: var(--space-3) 0 0;
+  font-size: var(--fs-12);
+  color: var(--ink-mute);
+}
+
+/* A 1366x768 laptop leaves about 650px of viewport once the browser's own
+   toolbars are drawn. The card fits in that at the default padding; this
+   only stops the page padding from being what tips it into a scrollbar. */
+@media (max-height: 680px) {
+  body.wl {
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
+  }
+}

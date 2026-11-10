@@ -601,6 +601,11 @@ export const EXPECTED_UNREFERENCED = [
             "again a runtime URL, not a static reference."
   },
   {
+    p: "welcome.html",
+    reason: "[1.17.0] Opened once at runtime by background.js onInstalled (reason install only) " +
+            "via chrome.tabs.create + chrome.runtime.getURL, which no static reference can express."
+  },
+  {
     p: "sounds/chime1.wav",
     reason: "Selected at runtime by Storage.pomodoroSoundFile; the path is built from the " +
             "user's chosen sound, so no static reference names it."
