@@ -1,7 +1,7 @@
 # Release notes - 2.3.0
 
-**Cut against the LIVE `v2.2.0` (`f8b05da`).** Renamed from `RELEASE-NOTES-NEXT.md`, which was
-still empty, by Round WP on 2026-11-10. RELEASE_VERSION `2.3.0` was ruled by Samson on
+**Cut 2026-11-10 against the LIVE `v2.2.0` (`f8b05da`), at the commit that bumps the manifest to
+`2.3.0`.** Renamed from `RELEASE-NOTES-NEXT.md`, which was still empty, by Round WP on 2026-11-10. RELEASE_VERSION `2.3.0` was ruled by Samson on
 2026-11-10. A fresh `RELEASE-NOTES-NEXT.md` starts for the release after.
 
 Same rule as the files beside it: **nothing here describes a feature that is not in the build.**
@@ -46,8 +46,8 @@ After installing, Chrome asks whether to keep the new tab change. Choose Keep it
 
 ## B. Every commit in the range
 
-Filled in from `git log --oneline v2.2.0..<release commit>` at the cut. User-facing commits
-are marked; everything else is internal and is listed so the range is complete.
+From `git log --oneline v2.2.0..<release commit>` at the cut. User-facing commits are marked;
+everything else is internal and is listed so the range is complete.
 
 | Commit | What | User-facing |
 |---|---|---|
@@ -57,8 +57,9 @@ are marked; everything else is internal and is listed so the range is complete.
 | `46ef03c` | docs: 2.2.0 submitted; the ElevenLabs licence question is closed | No, docs |
 | `9092819` | [1.17.0] feat(onboarding): welcome page on install | **Yes, the welcome tab** |
 | `bee5616` | test: harnesses close the welcome tab by URL | No, test harnesses |
-| (docs) | docs: Round WP, this file, DECISIONS, BUGS I36, CLAUDE.md release state | No, docs |
-| (cut) | the manifest bump to 2.3.0 | No |
+| `e80ee42` | docs: Round WP, this file, DECISIONS, BUGS I36, CLAUDE.md release state | No, docs |
+| `a9bbfc0` | chore: default.webp no longer needs an EXPECTED_UNREFERENCED excuse | No, build tooling |
+| the cut | chore: 2.3.0 cut, manifest to 2.3.0 (the build commit; its hash is in the tag) | No |
 
 **Shipped files changed since 2.2.0:** `background.js` (one block in onInstalled),
 `locales/en.js` (13 new `welcome_*` messages, none changed), and the new `welcome.html`,
