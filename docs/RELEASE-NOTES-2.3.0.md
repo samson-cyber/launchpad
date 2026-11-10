@@ -88,7 +88,8 @@ everything else is internal and is listed so the range is complete.
 | `2448897` | [1.17.2] feat(import): one click to add, in Import and on a nearly empty Home | **Yes** |
 | `6cb5e7a` | docs: DECISIONS for the four items from the first look | No, docs |
 | `e164808` | [1.17.1] fix(first-run): the tour slows down (3s per card, 5s group fade) | **Yes** |
-| the re-cut | chore: 2.3.0 re-cut 2 (THE BUILD COMMIT; its hash is in the tag) | No |
+| `449fa94` | docs: 2.3.0 takes the tour and one-click add; the slower pace | No, docs |
+| the re-cut | chore: 2.3.0 re-cut 2, this table final (THE BUILD COMMIT; its hash is in the tag) | No |
 
 **Shipped files changed since 2.2.0:** `background.js` (one block in onInstalled); `newtab.js`
 (importTopSites, the first-open tour replacing the Clear examples pulse, one-click add, one
