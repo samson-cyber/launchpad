@@ -15695,33 +15695,58 @@ button.demo-tile-background:hover {
 .demo-clear:hover { color: #fff; border-color: rgba(255, 255, 255, 0.28); }
 html.bg-light .demo-clear { border-color: rgba(0, 0, 0, 0.12); color: #3c4043; }
 html.bg-light .demo-clear:hover { color: var(--text-primary); border-color: rgba(0, 0, 0, 0.24); }
-/* [FR follow-up, Samson 2026-11-08] A SLIGHT PULSE TO HIGHLIGHT IT, three
-   times per page load on the FIRST THREE OPENS only (newtab.js
-   DEMO_CLEAR_PULSE_OPENS), then it rests exactly as above. A ring breathing
-   outward from the pill rather than a scale or a colour change: the ink and
-   the fill never move, so the measured contrast is the contrast at every frame,
-   and nothing reads as the action colour. White ring on the dark frost, dark
-   ring where html.bg-light flips the frost white. The timeline is pinned to
-   page time from newtab.js (demoClearPulseDelay), which sets animation-delay
-   inline; 1800ms x 3 here must match DEMO_CLEAR_PULSE_TOTAL_MS there. */
-@keyframes demo-clear-pulse {
-  0%   { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.38); }
-  70%  { box-shadow: 0 0 0 7px rgba(255, 255, 255, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+/* [1.17.1] THE FIRST-OPEN TOUR (Samson, 2026-11-10). Replaces the FR
+   three-open pulse that stood here. newtab.js demoTourPhase / scheduleDemoTour
+   own the timeline: one card lit every 2s, all held until the row is lit, then
+   the row fades back together and Clear examples turns blue for good.
+
+   CLEAR EXAMPLES: WAITING, THEN READY. Waiting is a muted pill that still
+   works (a click clears, and ends the tour). Ready is the action colour, and
+   it is ready on every open after the first. This REVERSES the FR P1 ruling
+   that kept the pill out of the action colour (ruling 57), by Samson's
+   direction; DECISIONS 2026-11-10 [1.17.1] records it. */
+.demo-clear {
+  transition: color 120ms ease, border-color 600ms ease, background-color 600ms ease, opacity 600ms ease;
 }
-@keyframes demo-clear-pulse-light {
-  0%   { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.22); }
-  70%  { box-shadow: 0 0 0 7px rgba(0, 0, 0, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); }
+.demo-clear.is-waiting { opacity: 0.6; }
+.demo-clear.is-ready,
+html.bg-light .demo-clear.is-ready {
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--ink-on-action);
 }
-.demo-clear.is-pulsing { animation: demo-clear-pulse 1800ms ease-out 3 both; }
-html.bg-light .demo-clear.is-pulsing { animation-name: demo-clear-pulse-light; }
-/* Both selectors, because the bg-light one outranks the base one and would
-   otherwise put animation-name back after the shorthand cleared it - measured:
-   the light-ground pulse kept running under reduced motion until this listed it. */
+.demo-clear.is-ready:hover,
+html.bg-light .demo-clear.is-ready:hover {
+  background: var(--action-soft);
+  border-color: var(--action-soft);
+  color: var(--ink-on-action);
+}
+
+/* THE CARDS. A lit card wears an --action ring; it arrives with one pulse
+   (is-lighting, added by the timer only, so a re-render never replays it) and
+   leaves through the 600ms transition, which is what makes the four fade back
+   AS A GROUP when the timer clears them in one pass. The html.bg-light
+   selector is listed because html.bg-light .demo-tile sets border-color at a
+   higher specificity than .demo-tile.is-lit alone. The transition is written
+   as .demo-tiles .demo-tile so it outranks button.demo-tile-import's 120ms
+   one: otherwise two cards would fade fast and two slow, not as a group. */
+.demo-tiles .demo-tile {
+  transition: border-color 600ms ease, box-shadow 600ms ease, background-color 120ms ease;
+}
+.demo-tile.is-lit,
+html.bg-light .demo-tile.is-lit {
+  border-color: var(--action);
+  box-shadow: 0 0 0 1px var(--action);
+}
+@keyframes demo-tile-light {
+  0%   { box-shadow: 0 0 0 1px var(--action), 0 0 0 0 color-mix(in srgb, var(--action) 55%, transparent); }
+  100% { box-shadow: 0 0 0 1px var(--action), 0 0 0 12px color-mix(in srgb, var(--action) 0%, transparent); }
+}
+.demo-tile.is-lighting { animation: demo-tile-light 700ms ease-out 1; }
 @media (prefers-reduced-motion: reduce) {
-  .demo-clear.is-pulsing,
-  html.bg-light .demo-clear.is-pulsing { animation: none; }
+  .demo-tiles .demo-tile,
+  .demo-clear { transition: none; }
+  .demo-tile.is-lighting { animation: none; }
 }/* Light wallpapers: the frost flips white, so the ink and borders must too. */
 
 

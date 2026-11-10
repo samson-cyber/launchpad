@@ -16025,18 +16025,21 @@
       await Storage.setOnboardingComplete();
     }
 
-    // [FR follow-up] Decided BEFORE the first render, because the pulse is
+    // [1.17.1] Decided BEFORE the first render, because the tour's state is
     // emitted by the markup. Raw read (I28): promoState.openCount here is the
-    // number of EARLIER opens, since checkPromoToast increments it 2s in.
+    // number of EARLIER opens, since checkPromoToast increments it 2s in. The
+    // tour runs on the FIRST open only, and never under reduced motion (the
+    // end state is shown at once instead).
     try {
-      var pulseRead = await chrome.storage.local.get("promoState");
-      var priorOpens = (pulseRead.promoState && pulseRead.promoState.openCount) || 0;
-      demoClearPulseThisOpen = priorOpens < DEMO_CLEAR_PULSE_OPENS;
+      var tourRead = await chrome.storage.local.get("promoState");
+      var priorOpens = (tourRead.promoState && tourRead.promoState.openCount) || 0;
+      demoTourThisOpen = priorOpens === 0 && !prefersReducedMotion();
     } catch (err) {
-      demoClearPulseThisOpen = false;
+      demoTourThisOpen = false;
     }
 
     render();
+    scheduleDemoTour();
     refreshOldFavicons();
     bindEvents();
     bindTabBar();
@@ -22865,36 +22868,67 @@
   // Restore examples re-seeds the same content, and that button carries its own
   // gate on examples already being present, which is a correctness guard rather
   // than a nag and stays.
-  // [FR follow-up, Samson 2026-11-08: "it could pulse slightly to highlight"]
-  // THREE SOFT PULSES PER PAGE LOAD, THEN STILL, on the first three opens. Finite on purpose: the
-  // product carries one indefinite animation (the Pro CTA) and this is not a
-  // second. The pulse is pinned to PAGE TIME, not to the element: render()
-  // rebuilds this markup whenever data changes, and a CSS animation on a fresh
-  // element starts from zero, so a re-render during boot would restart it. A
-  // negative animation-delay carries the same timeline into the new element,
-  // and once the window has passed the class is simply not emitted
-  // (demoClearPulseDelay returns null).
-  var DEMO_CLEAR_PULSE_START_MS = 900;
-  var DEMO_CLEAR_PULSE_TOTAL_MS = 3 * 1800;   // matches .demo-clear.is-pulsing
-  // [Samson 2026-11-08: "First few only"] ONLY ON THE FIRST THREE OPENS. After
-  // that the pill is a pill: someone who keeps the examples has seen the way
-  // out, and a pulse on every new tab after that is a nag. Set in init from
-  // promoState.openCount before the first render; false until then.
-  var DEMO_CLEAR_PULSE_OPENS = 3;
-  var demoClearPulseThisOpen = false;
-  // Returns the delay in ms for this render, or null once the window is over.
-  function demoClearPulseDelay() {
-    if (!demoClearPulseThisOpen) return null;
+  // [1.17.1] THE FIRST-OPEN TOUR (Samson, 2026-11-10), replacing the FR
+  // three-open pulse on Clear examples. New users clear the examples before
+  // reading them. So on the FIRST open each card lights up in turn, a pulse
+  // and then a held --action ring, one card every 2 seconds. Every card stays
+  // lit until the whole row is lit; the last one holds 2 seconds; then the row
+  // fades back to grey AS A GROUP, and Clear examples turns blue and STAYS
+  // blue on every later open.
+  //
+  // CLEAR EXAMPLES IS MUTED DURING THE TOUR, NEVER DISABLED. It looks waiting,
+  // and a click still clears (the tour simply ends with the strip). A dead
+  // button here is exactly what 2026-09-14 removed: a control that conditions
+  // its own removal on compliance (see the D4 note above).
+  //
+  // PINNED TO PAGE TIME, like the pulse it replaces: render() rebuilds this
+  // markup whenever data changes, so the state is computed from
+  // performance.now() at every render (demoTourPhase), and timers move the
+  // CURRENT DOM between renders (scheduleDemoTour). A re-render mid-tour
+  // therefore lands on the right step instead of restarting it.
+  var DEMO_TOUR_START_MS = 600;
+  var DEMO_TOUR_STEP_MS = 2000;
+  var DEMO_TOUR_CARDS = 4;
+  // The last card lights at START + 3 * STEP and holds one STEP more.
+  var DEMO_TOUR_END_MS = DEMO_TOUR_START_MS + DEMO_TOUR_CARDS * DEMO_TOUR_STEP_MS;
+  var demoTourThisOpen = false;
+  function demoTourPhase() {
+    if (!demoTourThisOpen) return { lit: 0, done: true };
+    var now = (window.performance && performance.now) ? performance.now() : DEMO_TOUR_END_MS;
+    if (now >= DEMO_TOUR_END_MS) return { lit: 0, done: true };
+    if (now < DEMO_TOUR_START_MS) return { lit: 0, done: false };
+    return { lit: Math.min(DEMO_TOUR_CARDS, 1 + Math.floor((now - DEMO_TOUR_START_MS) / DEMO_TOUR_STEP_MS)), done: false };
+  }
+  function scheduleDemoTour() {
+    if (!demoTourThisOpen) return;
     var now = (window.performance && performance.now) ? performance.now() : 0;
-    if (now >= DEMO_CLEAR_PULSE_START_MS + DEMO_CLEAR_PULSE_TOTAL_MS) return null;
-    return Math.round(DEMO_CLEAR_PULSE_START_MS - now);
+    function at(ms, fn) { setTimeout(fn, Math.max(0, ms - now)); }
+    for (var i = 0; i < DEMO_TOUR_CARDS; i++) {
+      (function (idx) {
+        var lightAt = DEMO_TOUR_START_MS + idx * DEMO_TOUR_STEP_MS;
+        if (lightAt + DEMO_TOUR_STEP_MS <= now) return;
+        at(lightAt, function () {
+          var el = document.querySelector('.demo-tile[data-tour-index="' + idx + '"]');
+          if (!el) return;
+          el.classList.add("is-lit", "is-lighting");
+          setTimeout(function () { el.classList.remove("is-lighting"); }, 700);
+        });
+      })(i);
+    }
+    at(DEMO_TOUR_END_MS, function () {
+      var tiles = document.querySelectorAll(".demo-tile.is-lit");
+      for (var j = 0; j < tiles.length; j++) tiles[j].classList.remove("is-lit", "is-lighting");
+      var btn = document.querySelector(".demo-clear");
+      if (btn) { btn.classList.remove("is-waiting"); btn.classList.add("is-ready"); }
+    });
   }
 
   function demoIntroHTML() {
-    var pulseDelay = demoClearPulseDelay();
+    var tour = demoTourPhase();
+    var tourAttr = function (idx) { return ' data-tour-index="' + idx + '"'; };
+    var litCls = function (idx) { return idx < tour.lit ? " is-lit" : ""; };
     var clearBtn =
-      '<button type="button" class="demo-clear' + (pulseDelay === null ? "" : " is-pulsing") + '"' +
-        (pulseDelay === null ? "" : ' style="animation-delay: ' + pulseDelay + 'ms;"') +
+      '<button type="button" class="demo-clear ' + (tour.done ? "is-ready" : "is-waiting") + '"' +
         ' data-demo-act="clear"' +
         ' aria-disabled="false">' +
         th("demo_clear_examples") +
@@ -22909,25 +22943,25 @@
       '<section class="group demo-intro" data-group-id="demo_intro">' +
         '<div class="demo-intro-bar">' + clearBtn + '</div>' +
         '<div class="demo-tiles">' +
-          '<div class="demo-tile demo-tile-welcome">' +
+          '<div class="demo-tile demo-tile-welcome' + litCls(0) + '"' + tourAttr(0) + '>' +
             '<div class="demo-tile-title">' + th("demo_welcome_to_launchpad") + '</div>' +
             '<p class="demo-tile-body">' + th("demo_your_new_tab_organised") + '</p>' +
           '</div>' +
-          '<div class="demo-tile demo-tile-teach">' +
+          '<div class="demo-tile demo-tile-teach' + litCls(1) + '"' + tourAttr(1) + '>' +
             '<div class="demo-tile-title">' + th("demo_save_any_page") + '</div>' +
             '<p class="demo-tile-body">' +
               thHtml("demo_right_click_any_page", {}, {
                 action: '<strong>' + th("demo_add_to_launchpad") + '</strong>'
               }) + '</p>' +
           '</div>' +
-          '<button type="button" class="demo-tile demo-tile-import" data-demo-act="import">' +
+          '<button type="button" class="demo-tile demo-tile-import' + litCls(2) + '"' + tourAttr(2) + ' data-demo-act="import">' +
             '<span class="demo-tile-title">' + th("demo_already_have_bookmarks") + '</span>' +
             '<span class="demo-tile-body">' + th("demo_bring_them_in_from_top_sites") + '</span>' +
           '</button>' +
           // [1.0.19 D12] A door to the picker that already exists — no new UI.
           // This revives the one genuinely liked job of the dead wizard's
           // screen 2, as a tile the user can ignore rather than a gate.
-          '<button type="button" class="demo-tile demo-tile-background" data-demo-act="background">' +
+          '<button type="button" class="demo-tile demo-tile-background' + litCls(3) + '"' + tourAttr(3) + ' data-demo-act="background">' +
             '<span class="demo-tile-title">' + th("demo_pick_a_background") + '</span>' +
             '<span class="demo-tile-body">' + th("demo_make_it_yours_pick_a_background") + '</span>' +
           '</button>' +
