@@ -5105,3 +5105,28 @@ A fresh install opens one welcome tab before the first new tab, to prepare peopl
 **Harnesses (P6).** Under --load-extension the browser fires "install" on every launch (BUGS I8), so every harness launch now opens the welcome tab, active. No harness counted tabs or took the first target, but the tab could land after a harness's own page and push it into the background, where a headed pixel harness stops painting. Ruled: option (a). tools/browser-launch.mjs exports dismissWelcomeTab, which waits for the welcome target by URL and closes it by id, only when the loaded extension has a welcome.html; every extension-loading harness calls it before opening its page. A launch flag read by the worker (option b) was rejected: an extension cannot read a browser command-line flag, a marker file in the extension directory would also reach Samson's own unpacked load, and the tested path would no longer be the shipped one. The product is not gated on IS_UNPACKED for the same reason. BUGS I36.
 
 **Standing gate.** tools/check-welcome.mjs (in build.sh) holds the install-only wiring, because no harness can show an update leaving the tab closed. It also holds the allowlist, catalogue keys, no em dash, no network, no storage, the ring geometry, and that assets/welcome/_incoming (a full-window capture of a real profile) never returns. --mutate: 12 of 12 seeds caught.
+
+## 2026-11-10, After the first look at 2.3.0: the prompt copy, Most visited, the first-open tour, one-click add
+
+Four items from Samson's first hands-on pass over the 2.3.0 build. The first two went into the 2.3.0 re-cut (`fb959be`). The last two are for the release after it.
+
+**The welcome page says Chrome "may ask".** In Samson's test the "Change back to Google?" prompt did not appear after "Open my first new tab". The cause is not proven, because the bubble is invisible to every harness. Chrome may show it once per browser session, or it may not show it on a tab an extension opens. Either way "will ask" was a promise the page could not keep, so both bodies hedge.
+
+**Import > Most visited sites stops importing silently.** It had appended a new "Top Sites" group out of sight, with no message, and a second click made a second identical group. Now:
+- sites already on the board are skipped;
+- new ones join the existing Top Sites group;
+- a toast says what happened, and the group is scrolled into view.
+Bug task 1220374189243383.
+
+**[1.17.1] The first-open tour, ruled by Samson.** New users clear the examples before reading them. On the first open each card lights in turn, one every 2 seconds, and holds its --action ring until the whole row is lit. The row then fades back to grey as a group, and Clear examples turns blue and stays blue. Samson pushed back on the first proposal, where each card lit and then dimmed one at a time: the cards hold until the row is complete.
+- **Clear examples is muted during the tour, never disabled.** The 2026-09-14 ruling removed a disabled Clear examples as a control that conditions its own removal on compliance, and that still holds. A click mid-tour clears.
+- **This reverses two FR rulings for this control.** The three-open pulse is replaced, and FR P1 (ruling 57) kept the pill out of the action colour; it now ends in it, by Samson's direction. Two indigo pills (Clear examples and Start free trial) now share Home while examples exist, and that is a taste check for Samson.
+- First open only, judged from promoState.openCount before the first render. It is skipped under reduced motion. The timeline is pinned to page time, so a re-render lands on the right step.
+
+**[1.17.2] One click to add.**
+- **The Import panel** opens with chips: the user's own most visited sites first, read locally from chrome.topSites, then ten popular sites.
+- **Home** shows the popular chips while the board has fewer than six shortcuts and no examples. The strip has a Hide control, remembered per device in chrome.storage.local quickStartHidden. That key is outside data on purpose: it is a view preference, not something to sync or back up.
+- **One add path.** Chips add through the bookmarks panel's bmAddToLaunchPad, which writes through Storage.addShortcut into Ungrouped with a duplicate guard at the writer.
+- **Amazon** follows navigator.language's region (amazon.co.uk for en-GB), and falls back to .com where there is no local store.
+- **Icons come from the grid's existing source** (getFaviconUrl), which the privacy policy already discloses under "Website icons". This changes Claude Code's earlier suggestion to bundle icons: bundling would have put ten companies' trademark artwork in the package, for icons the grid fetches the same way the moment the site is added.
+- **Signing in needs nothing from LaunchPad.** A chip opens the site's normal address in a normal tab, so the browser's existing session is used.
