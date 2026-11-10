@@ -219,7 +219,11 @@
     "slides.google.com": "https://ssl.gstatic.com/docs/presentations/images/favicon5.ico",
     "drive.google.com": "https://ssl.gstatic.com/images/branding/product/1x/drive_2020q4_48dp.png",
     "calendar.google.com": "https://calendar.google.com/googlecalendar/images/favicons_2020q4/calendar_31.ico",
-    "meet.google.com": "https://fonts.gstatic.com/s/i/productlogos/meet_2020q4/v1/web-48dp/logo_meet_2020q4_color_1x_web_48dp.png"
+    "meet.google.com": "https://fonts.gstatic.com/s/i/productlogos/meet_2020q4/v1/web-48dp/logo_meet_2020q4_color_1x_web_48dp.png",
+    // [1.17.2] The web client's host has no icon in Google's service (a generic
+    // globe came back); the parent domain's is the real WhatsApp mark. Same
+    // service, same disclosure, just the domain it is asked about.
+    "web.whatsapp.com": "https://www.google.com/s2/favicons?domain=whatsapp.com&sz=256"
   };
 
   function getFaviconUrl(urlOrShortcut) {
@@ -16031,7 +16035,8 @@
     // tour runs on the FIRST open only, and never under reduced motion (the
     // end state is shown at once instead).
     try {
-      var tourRead = await chrome.storage.local.get("promoState");
+      var tourRead = await chrome.storage.local.get(["promoState", "quickStartHidden"]);
+      quickHomeDismissed = !!tourRead.quickStartHidden;
       var priorOpens = (tourRead.promoState && tourRead.promoState.openCount) || 0;
       demoTourThisOpen = priorOpens === 0 && !prefersReducedMotion();
     } catch (err) {
@@ -16965,6 +16970,146 @@
     });
   }
 
+  // ===== [1.17.2] ONE-CLICK QUICK ADD (Samson, 2026-11-10) ===================
+  //
+  // Setting up a board from nothing is the job, and typing URLs is the friction.
+  // So the Import panel opens with "One click to add": the user's own most
+  // visited sites first (chrome.topSites, read locally), then ten popular ones.
+  // Home shows the same popular chips while the board is nearly empty. A chip
+  // adds through bmAddToLaunchPad - the bookmarks panel's one-click add, which
+  // goes through Storage.addShortcut into Ungrouped and guards duplicates at
+  // the writer - so there is one add path, not a third.
+  //
+  // A chip opens the site's normal address in a normal tab, so whatever account
+  // the user is already signed into is used; LaunchPad does nothing to sign
+  // anyone in. Icons come from getFaviconUrl, the same source every shortcut on
+  // the grid already uses (disclosed under "Website icons" in the privacy
+  // policy); no brand artwork is bundled.
+  //
+  // Names are brand names and are not translated, so they live here rather than
+  // in the catalogue.
+  var QUICK_HOME_MAX_SHORTCUTS = 6;
+  function quickAmazonUrl() {
+    // Amazon is a different store per country. Follow the browser's region; an
+    // unmapped region gets amazon.com, which serves every country.
+    var map = { GB: "co.uk", DE: "de", FR: "fr", IT: "it", ES: "es", CA: "ca", AU: "com.au", IN: "in",
+                JP: "co.jp", MX: "com.mx", BR: "com.br", NL: "nl", SE: "se", PL: "pl", SG: "sg",
+                AE: "ae", SA: "sa", TR: "com.tr", BE: "com.be", IE: "ie" };
+    var region = "";
+    try { region = (new Intl.Locale(navigator.language || "en-US")).maximize().region || ""; } catch (e) { region = ""; }
+    return "https://www.amazon." + (map[region] || "com") + "/";
+  }
+  function quickPopularSites() {
+    return [
+      { name: "YouTube", url: "https://www.youtube.com/" },
+      { name: "Gmail", url: "https://mail.google.com/" },
+      { name: "Google Drive", url: "https://drive.google.com/" },
+      { name: "Outlook", url: "https://outlook.live.com/mail/" },
+      { name: "WhatsApp", url: "https://web.whatsapp.com/" },
+      { name: "ChatGPT", url: "https://chatgpt.com/" },
+      { name: "Netflix", url: "https://www.netflix.com/" },
+      { name: "LinkedIn", url: "https://www.linkedin.com/" },
+      { name: "Reddit", url: "https://www.reddit.com/" },
+      { name: "Amazon", url: quickAmazonUrl() }
+    ];
+  }
+  // Keys by host without www, path without a trailing slash: the seeded
+  // examples store https://www.youtube.com, the chip https://www.youtube.com/,
+  // and those are the same site.
+  function quickHaveSet() {
+    var ws = Storage.getActiveWorkspace(data);
+    var have = Object.create(null);
+    if (!ws) return have;
+    (ws.groups || []).forEach(function (g) {
+      if (!g || g.deletedAt) return;
+      (g.shortcuts || []).forEach(function (s) {
+        if (!s || s.deletedAt) return;
+        if (s.url) have[topSitesUrlKey(s.url)] = true;
+        (s.variants || []).forEach(function (v) { if (v && !v.deletedAt && v.url) have[topSitesUrlKey(v.url)] = true; });
+      });
+    });
+    return have;
+  }
+  function quickLiveShortcutCount() {
+    var ws = Storage.getActiveWorkspace(data);
+    var n = 0;
+    ((ws && ws.groups) || []).forEach(function (g) {
+      if (!g || g.deletedAt || g.id === "demo_intro") return;
+      (g.shortcuts || []).forEach(function (s) { if (s && !s.deletedAt) n++; });
+    });
+    return n;
+  }
+  function quickChipsHTML(sites) {
+    var have = quickHaveSet();
+    return sites.map(function (s) {
+      var icon = '<img class="quick-chip-icon" src="' + esc(getFaviconUrl(s.url)) + '" alt="" width="20" height="20" loading="lazy">';
+      var label = '<span class="quick-chip-name">' + esc(s.name) + '</span>';
+      if (have[topSitesUrlKey(s.url)]) {
+        // Done, not dead: a completed state with its check, not a control.
+        return '<span class="quick-chip is-added" title="' + th("quick_added_title") + '">' + icon + label +
+          '<span class="quick-chip-check" aria-hidden="true">&#10003;</span>' +
+          '<span class="sr-only">' + th("quick_added_title") + '</span></span>';
+      }
+      return '<button type="button" class="quick-chip" data-quick-url="' + esc(s.url) + '" data-quick-name="' + esc(s.name) + '"' +
+        ' title="' + th("quick_add_title", { name: s.name }) + '">' + icon + label + '</button>';
+    }).join("");
+  }
+  function renderImportQuick() {
+    var pop = $("#import-quick-popular");
+    if (pop) pop.innerHTML = quickChipsHTML(quickPopularSites());
+    var mineRow = $("#import-quick-mine-row");
+    var mine = $("#import-quick-mine");
+    if (!mine || !mineRow || !chrome.topSites || !chrome.topSites.get) { if (mineRow) mineRow.hidden = true; return; }
+    chrome.topSites.get(function (sites) {
+      var popularKeys = Object.create(null);
+      quickPopularSites().forEach(function (p) { popularKeys[topSitesUrlKey(p.url)] = true; });
+      var list = (sites || []).filter(function (s) {
+        return s && s.url && /^https?:/i.test(s.url) && !popularKeys[topSitesUrlKey(s.url)];
+      }).slice(0, 6).map(function (s) {
+        return { name: s.title || getDomain(s.url).replace(/^www\./, ""), url: s.url };
+      });
+      mineRow.hidden = !list.length;
+      mine.innerHTML = list.length ? quickChipsHTML(list) : "";
+    });
+  }
+  var quickHomeDismissed = false;
+  function homeQuickStartHTML() {
+    var ws = Storage.getActiveWorkspace(data);
+    if (!ws || ws.isReadOnly || quickHomeDismissed) return "";
+    var hasDemo = (ws.groupOrder || []).indexOf("demo_intro") !== -1 &&
+      (ws.groups || []).some(function (g) { return g.id === "demo_intro" && !g.deletedAt; });
+    if (hasDemo || quickLiveShortcutCount() >= QUICK_HOME_MAX_SHORTCUTS) return "";
+    return '<div class="home-quickstart">' +
+      '<div class="home-quickstart-bar">' +
+        '<span class="home-quickstart-heading">' + th("home_quickstart_heading") + '</span>' +
+        '<button type="button" class="home-quickstart-more" data-quick-act="import">' + th("home_quickstart_more") + '</button>' +
+        '<button type="button" class="home-quickstart-hide" data-quick-act="hide" title="' + th("home_quickstart_hide") + '" aria-label="' + th("home_quickstart_hide") + '">&times;</button>' +
+      '</div>' +
+      '<div class="quick-chips">' + quickChipsHTML(quickPopularSites()) + '</div>' +
+    '</div>';
+  }
+  async function quickAdd(url, name) {
+    if (quickHaveSet()[topSitesUrlKey(url)]) { showToast(t("bookmarks_already_added")); return; }
+    await bmAddToLaunchPad(url, name);
+    if (!$("#import-panel").classList.contains("hidden")) renderImportQuick();
+  }
+  function bindQuickAdd() {
+    document.addEventListener("click", function (e) {
+      var chip = e.target.closest && e.target.closest("button.quick-chip[data-quick-url]");
+      if (chip) { quickAdd(chip.getAttribute("data-quick-url"), chip.getAttribute("data-quick-name")); return; }
+      var act = e.target.closest && e.target.closest("[data-quick-act]");
+      if (!act) return;
+      if (act.getAttribute("data-quick-act") === "import") { openImportPanel(); return; }
+      if (act.getAttribute("data-quick-act") === "hide") {
+        quickHomeDismissed = true;
+        // Per device, outside `data`: it is a view preference, not something to
+        // sync or to restore with a backup.
+        try { chrome.storage.local.set({ quickStartHidden: true }); } catch (err) { /* view still hides */ }
+        render();
+      }
+    });
+  }
+
 
   // ===== Sidebar Panel Mutual Exclusion =====
   //
@@ -17178,6 +17323,7 @@
     if (openSimplePanel("#import-panel")) {
       importHidePreview();
       importRenderUndo();
+      renderImportQuick();
       bindSimplePanelOutside("#import-panel", "#sb-import", function () { closeImportPanel(); });
     }
   }
@@ -22659,7 +22805,7 @@
     groups.forEach(function (g) { groupMap[g.id] = g; });
     var singleGroup = groupOrder.length <= 1;
     document.body.classList.toggle("workspace-readonly", !!(ws && ws.isReadOnly));
-    container.innerHTML = groupOrder
+    container.innerHTML = homeQuickStartHTML() + groupOrder
       .map(function (id) { return groupMap[id]; })
       .filter(Boolean)
       // [1.0.19 D3] The demo intro group renders as a teaching strip, not a
@@ -23296,7 +23442,7 @@
         Storage.ensureGroupsArray(ws);
         ws.groups.forEach(function (g) { groupMap[g.id] = g; });
         var singleGroup = ws.groupOrder.length <= 1;
-        container.innerHTML = ws.groupOrder
+        container.innerHTML = homeQuickStartHTML() + ws.groupOrder
           .map(function (id) { return groupMap[id]; })
           .filter(Boolean)
           // [1.0.19 D3] The demo intro group renders as a teaching strip, not a
@@ -23368,7 +23514,7 @@
     var groupMap = {};
     groups.forEach(function (g) { groupMap[g.id] = g; });
     var singleGroup = groupOrder.length <= 1;
-    container.innerHTML = groupOrder
+    container.innerHTML = homeQuickStartHTML() + groupOrder
       .map(function (id) { return groupMap[id]; })
       .filter(Boolean)
       // [1.0.19 D3] The demo intro group renders as a teaching strip, not a
@@ -25908,6 +26054,7 @@
   // ===== Events =====
 
   function bindEvents() {
+    bindQuickAdd();   // [1.17.2]
     // Native <input type="date"> only opens its picker from the small calendar
     // glyph at the right edge — a poor hit target, and users read the whole
     // field as clickable. Delegate on document so this covers every date input

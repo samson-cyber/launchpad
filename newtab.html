@@ -398,6 +398,20 @@
     <div class="settings-body">
       <div class="settings-section">
         <p data-i18n="import_bring_your_existing_links_into" class="import-intro">Bring your existing links into LaunchPad.</p>
+        <!-- [1.17.2] ONE CLICK TO ADD. Chips are drawn by newtab.js renderImportQuick
+             on every open: the user's own most visited first (hidden when the
+             browser has none), then ten popular sites. -->
+        <div id="import-quick" class="import-quick">
+          <p data-i18n="import_quick_heading" class="import-quick-heading">One click to add</p>
+          <div id="import-quick-mine-row" class="import-quick-group" hidden>
+            <p data-i18n="import_quick_mine" class="import-quick-label">Your most visited</p>
+            <div id="import-quick-mine" class="quick-chips"></div>
+          </div>
+          <div class="import-quick-group">
+            <p data-i18n="import_quick_popular" class="import-quick-label">Popular sites</p>
+            <div id="import-quick-popular" class="quick-chips"></div>
+          </div>
+        </div>
         <button id="import-top-sites" class="import-option" type="button">
           <span data-i18n="import_most_visited_sites" class="import-option-title">Most visited sites</span>
           <span data-i18n="import_add_your_top_sites_from" class="import-option-desc">Add your top sites from Chrome</span>

@@ -6460,5 +6460,37 @@ I18n.register("en", {
     "welcome_privacy": {
       "description": "One-line privacy note at the foot of the welcome page. Matches the published privacy policy's What stays on your device section.",
       "message": "Everything you add stays on this device."
+    },
+    "import_quick_heading": {
+      "description": "[1.17.2] Heading of the one-click section at the top of the Import panel. Each chip below adds that site as a shortcut in one click.",
+      "message": "One click to add"
+    },
+    "import_quick_mine": {
+      "description": "Import panel, label over the chips built from the browser's own most visited sites (read locally). Hidden when the browser has none.",
+      "message": "Your most visited"
+    },
+    "import_quick_popular": {
+      "description": "Import panel, label over the ten popular-site chips.",
+      "message": "Popular sites"
+    },
+    "quick_added_title": {
+      "description": "Tooltip and screen-reader text on a one-click chip whose site is already a shortcut on this board. Same wording as the bookmarks panel's toast.",
+      "message": "Already in LaunchPad"
+    },
+    "quick_add_title": {
+      "description": "Tooltip on a one-click chip. {name} is the site's brand name (YouTube, Gmail...), never translated.",
+      "message": "Add {name} to LaunchPad"
+    },
+    "home_quickstart_heading": {
+      "description": "Home, heading of the one-click strip shown while the board has fewer than six shortcuts and no examples. Friendly, not a task.",
+      "message": "Start with a few favourites"
+    },
+    "home_quickstart_more": {
+      "description": "Home one-click strip, text button that opens the Import panel (bookmarks, most visited, paste, files).",
+      "message": "More ways to add"
+    },
+    "home_quickstart_hide": {
+      "description": "Home one-click strip, the close control's tooltip and accessible name. Hides the strip on this device for good.",
+      "message": "Hide these suggestions"
     }
   });

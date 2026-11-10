@@ -16568,7 +16568,116 @@ html.bg-light #tips-close:hover { color: #202124; background: rgba(0, 0, 0, 0.06
 .import-option-desc {
   font-size: var(--fs-11-5);
   color: rgba(255, 255, 255, 0.78);
-}/* ===== [1.11.2 B10] Paste, preview and undo ==============================
+}
+
+/* ===== [1.17.2] ONE-CLICK QUICK ADD ======================================
+   Chips in the Import panel and, while the board is nearly empty, on Home.
+   A chip is icon + brand name, two to a row in the panel (the panel is
+   narrow and names like "Google Drive" must not truncate) and as many as fit
+   on Home. An added chip is a completed state with a check, not a control.
+
+   INK: the panel declares color: #fff and flips white under html.bg-light, so
+   every text node here carries a colour in both branches. On Home the strip
+   sits on the wallpaper, so it wears the same card frost as the example tiles
+   and takes their inks, including their bg-light branch. */
+.import-quick { margin: 0 0 var(--space-3); }
+.import-quick-heading {
+  margin: 0 0 var(--space-2);
+  font-size: var(--fs-13);
+  font-weight: 600;
+}
+.import-quick-group { margin-bottom: var(--space-2-5); }
+.import-quick-label {
+  margin: 0 0 var(--space-1-5);
+  font-size: var(--fs-11-5);
+  color: rgba(255, 255, 255, 0.78);
+}
+.quick-chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1-5);
+}
+.quick-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-1-5) var(--space-2);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-12);
+  text-align: start;
+  text-shadow: none;
+}
+button.quick-chip {
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+button.quick-chip:hover {
+  border-color: var(--action);
+  background: var(--action-tint);
+}
+button.quick-chip:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
+.quick-chip-icon {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+}
+.quick-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.quick-chip.is-added { color: rgba(255, 255, 255, 0.78); }
+.quick-chip-check { margin-inline-start: auto; font-weight: 700; }
+html.bg-light .import-quick-label { color: #3c4043; }
+html.bg-light .quick-chip { border-color: rgba(0, 0, 0, 0.12); background: rgba(0, 0, 0, 0.03); }
+html.bg-light .quick-chip.is-added { color: #3c4043; }
+
+/* Home: the strip. Same frost and inks as .demo-tile. */
+.home-quickstart {
+  margin: 0 auto var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--pro-frost-card-bg, rgba(30, 30, 30, 0.85));
+  backdrop-filter: var(--pro-frost-card-blur, blur(12px));
+  -webkit-backdrop-filter: var(--pro-frost-card-blur, blur(12px));
+  color: #fff;
+  text-shadow: none;
+}
+.home-quickstart-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2-5);
+}
+.home-quickstart-heading { font-size: var(--fs-14); font-weight: 600; }
+.home-quickstart-more,
+.home-quickstart-hide {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.78);
+  font: inherit;
+  font-size: var(--fs-12-5);
+  cursor: pointer;
+}
+.home-quickstart-more { text-decoration: underline; text-underline-offset: 2px; }
+.home-quickstart-hide { margin-inline-start: auto; font-size: var(--fs-15); line-height: 1; }
+.home-quickstart-more:hover,
+.home-quickstart-hide:hover { color: #fff; }
+.home-quickstart .quick-chips { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+html.bg-light .home-quickstart { border-color: rgba(0, 0, 0, 0.12); color: var(--text-primary); }
+html.bg-light .home-quickstart-more,
+html.bg-light .home-quickstart-hide { color: #3c4043; }
+html.bg-light .home-quickstart-more:hover,
+html.bg-light .home-quickstart-hide:hover { color: var(--text-primary); }/* ===== [1.11.2 B10] Paste, preview and undo ==============================
    THE INK RULE ON THIS PANEL, which [1.11.1] flagged as a latent hazard and
    this round is the first to test: #import-panel declares `color: #fff`, and
    --pro-frost-floater-bg flips to rgba(255,255,255,0.92) under html.bg-light -

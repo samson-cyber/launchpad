@@ -289,6 +289,12 @@ const ALLOW = [
   // The classic shape of a string that looks like prose and must not move.
   { why: "a Chrome error message this code MATCHES, not emits", re: /^No last-focused window$/ },
 
+  // [1.17.2] A BRAND NAME, NOT PROSE. The one-click chips name sites by their
+  // own trademark (newtab.js quickPopularSites), and a translator must not
+  // touch a trademark. Only the two-word one reaches this gate; anchored, so
+  // it can never excuse a sentence that merely contains the words.
+  { why: "brand name on a one-click chip - a trademark, never translated", re: /^Google Drive$/ },
+
   // --- THE LAST TWELVE (Asana 1218570830287300) ---
   // c04eba2 left twelve survivors in the three files it did not own. Three of
   // them were user-facing and are now catalogue keys; these eight were READ AT
