@@ -2213,8 +2213,8 @@ I18n.register("en", {
     "description": "Text sink in showVariantDropdown(). Rendered with t()."
   },
   "variant_u22ee": {
-    "message": "\\u22EE",
-    "description": "Text sink in showVariantDropdown(). Rendered with t()."
+    "message": "⋮",
+    "description": "The vertical-ellipsis glyph on each variant row's options button in showVariantDropdown(). Rendered with t(). [VR] From [1.5.0] R3 until 2026-11-19 the escape was doubled, so the button showed the escape text itself instead of the glyph."
   },
   "wire_clear_search": {
     "message": "Clear search",

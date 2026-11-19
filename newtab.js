@@ -21165,42 +21165,53 @@
       var row = document.querySelector('.variant-dropdown-row[data-variant-id="' + item.id + '"]');
       if (row) showVariantIconDialog(row, item, parentId, groupId);
       return;
-    } else if (action === "ungroup") {
-      // Remove variant and make it standalone
+    } else if (action === "ungroup" || action === "delete") {
       var group = findGroup(groupId);
       if (!group) return;
       var parent = group.shortcuts.find(function (s) { return s.id === parentId; });
-      if (!parent || !parent.variants) return;
-      var vIdx = parent.variants.findIndex(function (v) { return v.id === item.id; });
-      if (vIdx === -1) return;
-      var removed = parent.variants.splice(vIdx, 1)[0];
-      if (!parent.variants.length) delete parent.variants;
-      // Add as standalone after parent
-      var pIdx = group.shortcuts.indexOf(parent);
-      group.shortcuts.splice(pIdx + 1, 0, {
-        id: removed.id,
-        url: removed.url,
-        title: removed.customLabel || removed.title,
-        favicon: removed.favicon,
-        addedAt: Date.now(),
-        deletedAt: null
-      });
-      await Storage.saveAll(data);
-      closeVariantDropdown();
-      data = await Storage.getAll();
-      render();
-    } else if (action === "delete") {
-      var group2 = findGroup(groupId);
-      if (!group2) return;
-      var parent2 = group2.shortcuts.find(function (s) { return s.id === parentId; });
-      if (!parent2 || !parent2.variants) return;
-      parent2.variants = parent2.variants.filter(function (v) { return v.id !== item.id; });
-      if (!parent2.variants.length) delete parent2.variants;
+      if (!parent) return;
+      var changed = action === "ungroup"
+        ? ungroupVariant(group, parent, item.id)
+        : deleteVariant(parent, item.id);
+      if (!changed) return;
       await Storage.saveAll(data);
       closeVariantDropdown();
       data = await Storage.getAll();
       render();
     }
+  }
+
+  // [VR] The two variant removals, shared by the grid dropdown's ⋮ menu and
+  // the sidebar child-row menu so the two surfaces cannot drift. Each mutates
+  // `data` in place and returns whether anything changed; the caller saves.
+  //
+  // Ungroup: the variant leaves the stack and becomes a standalone shortcut
+  // directly after it.
+  function ungroupVariant(group, parent, variantId) {
+    if (!parent || !parent.variants) return false;
+    var vIdx = parent.variants.findIndex(function (v) { return v.id === variantId; });
+    if (vIdx === -1) return false;
+    var removed = parent.variants.splice(vIdx, 1)[0];
+    if (!parent.variants.length) delete parent.variants;
+    var pIdx = group.shortcuts.indexOf(parent);
+    group.shortcuts.splice(pIdx + 1, 0, {
+      id: removed.id,
+      url: removed.url,
+      title: removed.customLabel || removed.title,
+      favicon: removed.favicon,
+      addedAt: Date.now(),
+      deletedAt: null
+    });
+    return true;
+  }
+
+  function deleteVariant(parent, variantId) {
+    if (!parent || !parent.variants) return false;
+    var before = parent.variants.length;
+    parent.variants = parent.variants.filter(function (v) { return v.id !== variantId; });
+    if (parent.variants.length === before) return false;
+    if (!parent.variants.length) delete parent.variants;
+    return true;
   }
 
   // ===== Variant Icon Dialog =====
@@ -23404,8 +23415,11 @@
       '</div>';
       if (hasVariants) {
         html += '<div class="sidebar-variant-list" data-parent-id="' + s.id + '">';
-        // Parent as first sub-item
-        html += '<div class="sidebar-variant-item sidebar-shortcut-item" data-variant-url="' + esc(s.url) + '" title="' + esc(s.title || s.url) + '">' +
+        // Parent as first sub-item. [VR] data-parent-id + data-variant-id let the
+        // delegated contextmenu listener resolve WHICH url a row is; without
+        // them no handler claimed the row and Chrome's own menu opened.
+        // "__parent__" is the stack's default URL, as in the grid dropdown.
+        html += '<div class="sidebar-variant-item sidebar-shortcut-item" data-parent-id="' + s.id + '" data-variant-id="__parent__" data-variant-url="' + esc(s.url) + '" title="' + esc(s.title || s.url) + '">' +
           iconHtml +
           '<span class="sidebar-shortcut-name">' + esc(s.title || getDomain(s.url)) + '</span>' +
         '</div>';
@@ -23416,7 +23430,7 @@
           // has no customIcon to read; and painting the parent's chosen icon on
           // every variant would make several distinct URLs look identical.
           var vFavicon = v.favicon || getFaviconUrl(v);
-          html += '<div class="sidebar-variant-item sidebar-shortcut-item" data-variant-url="' + esc(v.url) + '" title="' + esc(v.title || v.url) + '">' +
+          html += '<div class="sidebar-variant-item sidebar-shortcut-item" data-parent-id="' + s.id + '" data-variant-id="' + esc(v.id || "") + '" data-variant-url="' + esc(v.url) + '" title="' + esc(v.title || v.url) + '">' +
             '<img src="' + esc(vFavicon) + '" alt="" width="16" height="16">' +
             '<span class="sidebar-shortcut-name">' + esc(v.customLabel || v.title || v.url) + '</span>' +
           '</div>';
@@ -23540,7 +23554,13 @@
 
   var sidebarCtxState = null;
 
-  function showSidebarShortcutCtxMenu(e, shortcutId, groupId) {
+  // [VR] variantId is set when the row right-clicked is one of a stack's child
+  // rows: a variant's id, or "__parent__" for the stack's own default URL. It
+  // is the sidebar twin of the grid dropdown's ⋮ menu, so it offers the same
+  // things that menu does (Rename, Ungroup, Delete; neither of the last two on
+  // the default row) plus the sidebar's own Open / Open in new tab / Edit URL.
+  // Add tag is hidden: tags belong to the shortcut, and a variant has none.
+  function showSidebarShortcutCtxMenu(e, shortcutId, groupId, variantId) {
     e.preventDefault();
     e.stopPropagation();
     closeSidebarShortcutCtxMenu();
@@ -23549,11 +23569,26 @@
     if (!group) return;
     var shortcut = group.shortcuts.find(function (s) { return s.id === shortcutId; });
     if (!shortcut) return;
+    if (variantId && variantId !== "__parent__" && !findSidebarVariant(shortcut, variantId)) return;
 
-    sidebarCtxState = { shortcutId: shortcutId, groupId: groupId };
+    sidebarCtxState = { shortcutId: shortcutId, groupId: groupId, variantId: variantId || null };
 
     var menu = $("#sidebar-shortcut-ctx-menu");
     if (!menu) return;
+
+    var isVariantRow = !!variantId;
+    var isRealVariant = isVariantRow && variantId !== "__parent__";
+    var toggleOpt = function (action, show) {
+      var opt = menu.querySelector('.sb-ctx-option[data-action="' + action + '"]');
+      if (opt) opt.classList.toggle("hidden", !show);
+    };
+    toggleOpt("add-tag", !isVariantRow);
+    toggleOpt("ungroup-variant", isRealVariant);
+    toggleOpt("delete", !isVariantRow || isRealVariant);
+    // The separator above Ungroup/Delete would otherwise dangle at the foot of
+    // the default row's menu, which has neither.
+    var seps = menu.querySelectorAll(".sb-ctx-separator");
+    if (seps.length) seps[seps.length - 1].classList.toggle("hidden", isVariantRow && !isRealVariant);
 
     // Lock sidebar open
     sidebarLocked = true;
@@ -23604,6 +23639,32 @@
     var shortcut = group.shortcuts.find(function (s) { return s.id === shortcutId; });
     if (!shortcut) { closeSidebarShortcutCtxMenu(); return; }
 
+    // [VR] A stack's child row. Every action addresses the variant (or, for
+    // "__parent__", the stack's default URL) rather than the stack as a whole.
+    var variantId = sidebarCtxState.variantId;
+    if (variantId) {
+      var variant = variantId === "__parent__" ? null : findSidebarVariant(shortcut, variantId);
+      if (variantId !== "__parent__" && !variant) { closeSidebarShortcutCtxMenu(); return; }
+      var rowUrl = variant ? variant.url : shortcut.url;
+      closeSidebarShortcutCtxMenu();
+      if (action === "open") {
+        chrome.tabs.update({ url: rowUrl });
+      } else if (action === "open-new-tab") {
+        chrome.tabs.create({ url: rowUrl });
+      } else if (action === "rename") {
+        startSidebarInlineEdit(shortcutId, groupId, "title", variantId);
+      } else if (action === "edit-url") {
+        startSidebarInlineEdit(shortcutId, groupId, "url", variantId);
+      } else if (variant && (action === "ungroup-variant" || action === "delete")) {
+        if (action === "ungroup-variant") await ungroupVariant(group, shortcut, variantId);
+        else await deleteVariant(shortcut, variantId);
+        await Storage.saveAll(data);
+        data = await Storage.getAll();
+        render();
+      }
+      return;
+    }
+
     // [1.0.9.2 round 3] Add-tag opens tag submenu as a sibling popover and
     // KEEPS the sidebar ctx menu visible (Finder-style). The previous
     // capture-then-close-then-reopen pattern was needed only because tag
@@ -23651,13 +23712,42 @@
     }
   }
 
-  function startSidebarInlineEdit(shortcutId, groupId, field) {
-    var itemEl = document.querySelector('.sidebar-shortcut-item[data-shortcut-id="' + shortcutId + '"]');
+  function findSidebarVariant(shortcut, variantId) {
+    if (!shortcut || !shortcut.variants || !variantId) return null;
+    return shortcut.variants.find(function (v) { return v.id === variantId; }) || null;
+  }
+
+  // [VR] WHICH FIELD A RENAME WRITES, and it must be the one the row DISPLAYS.
+  // A stack's row and tile show customLabel first (the name given at nest time,
+  // "Personal" over three Gmail URLs), so writing `title` there saved
+  // successfully and changed nothing on screen. A variant row shows its own
+  // customLabel first, which is also what the grid dropdown's Rename writes.
+  // The "__parent__" child row shows the default URL's own title.
+  function sidebarRenameTarget(shortcut, variantId) {
+    if (variantId === "__parent__") return { obj: shortcut, key: "title", shown: shortcut.title || getDomain(shortcut.url) };
+    if (variantId) {
+      var v = findSidebarVariant(shortcut, variantId);
+      return v ? { obj: v, key: "customLabel", shown: v.customLabel || v.title || v.url } : null;
+    }
+    if (shortcut.variants && shortcut.variants.length) {
+      return { obj: shortcut, key: "customLabel", shown: shortcut.customLabel || shortcut.title || getDomain(shortcut.url) };
+    }
+    return { obj: shortcut, key: "title", shown: shortcut.title || getDomain(shortcut.url) };
+  }
+
+  function startSidebarInlineEdit(shortcutId, groupId, field, variantId) {
+    var itemEl = variantId
+      ? document.querySelector('.sidebar-variant-list[data-parent-id="' + shortcutId + '"] .sidebar-variant-item[data-variant-id="' + variantId + '"]')
+      : document.querySelector('.sidebar-shortcut-item[data-shortcut-id="' + shortcutId + '"]');
     if (!itemEl) return;
     var group = findGroup(groupId);
     if (!group) return;
     var shortcut = group.shortcuts.find(function (s) { return s.id === shortcutId; });
     if (!shortcut) return;
+    var renameTarget = sidebarRenameTarget(shortcut, variantId);
+    if (!renameTarget) return;
+    // The record whose URL this row opens: the variant, or the shortcut itself.
+    var urlTarget = (variantId && variantId !== "__parent__") ? renameTarget.obj : shortcut;
 
     // Lock sidebar
     sidebarLocked = true;
@@ -23668,7 +23758,7 @@
     var nameEl = itemEl.querySelector(".sidebar-shortcut-name");
     if (!nameEl) return;
 
-    var currentVal = field === "url" ? shortcut.url : (shortcut.title || getDomain(shortcut.url));
+    var currentVal = field === "url" ? urlTarget.url : renameTarget.shown;
     var input = document.createElement("input");
     input.type = "text";
     input.className = "sidebar-inline-edit";
@@ -23693,10 +23783,17 @@
           var normalized = val;
           if (!/^https?:\/\//i.test(normalized)) normalized = "https://" + normalized;
           try { new URL(normalized); } catch (e) { return; }
-          shortcut.url = normalized;
-          itemEl.dataset.url = normalized;
+          urlTarget.url = normalized;
+          if (urlTarget !== shortcut) {
+            // A variant stores the favicon it was nested with; drop it so the
+            // row repaints from the new URL instead of keeping the old site's.
+            delete urlTarget.favicon;
+            itemEl.dataset.variantUrl = normalized;
+          } else if (!variantId) {
+            itemEl.dataset.url = normalized;
+          }
         } else {
-          shortcut.title = val;
+          renameTarget.obj[renameTarget.key] = val;
         }
         await Storage.saveAll(data);
         refreshSidebarGroup(groupId);
@@ -23729,7 +23826,17 @@
     var group = findGroup(groupId);
     if (!group) return;
     var wasExpanded = wrapper.classList.contains("sb-expanded");
+    // [VR] Keep open stacks open. A rename or URL edit on a child row lands
+    // here, and rewriting the list folded the stack shut under the row the
+    // user had just edited.
+    var openStacks = [].map.call(listEl.querySelectorAll(".sidebar-variant-list.expanded"), function (l) { return l.dataset.parentId; });
     listEl.innerHTML = sidebarShortcutListHTML(group);
+    openStacks.forEach(function (pid) {
+      var vl = listEl.querySelector('.sidebar-variant-list[data-parent-id="' + pid + '"]');
+      var ch = listEl.querySelector('.sidebar-variant-chevron[data-shortcut-id="' + pid + '"]');
+      if (vl) vl.classList.add("expanded");
+      if (ch) ch.classList.add("expanded");
+    });
     // Update shortcut count
     var countEl = wrapper.querySelector(".sb-group-count");
     if (countEl) countEl.textContent = group.shortcuts.length;
@@ -26268,6 +26375,18 @@
     // (#sb-group-list never re-renders; renderSidebarGroups rewrites only
     // its innerHTML, so the listener survives every render lifecycle).
     safeOn("#sb-group-list", "contextmenu", function (e) {
+      // [VR] A stack's child row, checked FIRST: it also carries
+      // .sidebar-shortcut-item but no data-shortcut-id, so the branch below
+      // skipped it, the group-row branch could not match it either, and the
+      // event fell through to Chrome's own menu (reported 2026-11-19).
+      var variantRow = e.target.closest(".sidebar-variant-item");
+      if (variantRow) {
+        var vListEl = variantRow.closest(".sidebar-shortcut-list");
+        if (vListEl && variantRow.dataset.parentId && variantRow.dataset.variantId) {
+          showSidebarShortcutCtxMenu(e, variantRow.dataset.parentId, vListEl.dataset.groupId, variantRow.dataset.variantId);
+        }
+        return;
+      }
       // Shortcut row right-click
       var shortcutItem = e.target.closest(".sidebar-shortcut-item");
       if (shortcutItem && shortcutItem.dataset.shortcutId) {
@@ -27279,7 +27398,12 @@
         closeTagSubmenu();
         closeTagCreatePopover();
       }
-      if (!e.target.closest(".variant-dropdown") && !e.target.closest("#variant-ctx-menu") && !e.target.closest("#variant-icon-dialog") && !e.target.closest(".shortcut.has-variants")) {
+      // [VR] #menu-manage-variants is an ANCHOR that opens the dropdown, the
+      // same role the tile itself has. Without it here, the click that opened
+      // the dropdown reached this handler as an "outside" click and removed it
+      // in the same tick: "Manage variants" visibly did nothing, and had done
+      // nothing since the dropdown replaced the slide-out panel (0cced1c).
+      if (!e.target.closest(".variant-dropdown") && !e.target.closest("#variant-ctx-menu") && !e.target.closest("#variant-icon-dialog") && !e.target.closest(".shortcut.has-variants") && !e.target.closest("#menu-manage-variants")) {
         closeVariantDropdown();
       }
       if (!e.target.closest("#group-menu") && !e.target.closest(".group-more-btn") && !e.target.closest(".sb-group-more")
@@ -27388,7 +27512,7 @@
 
     // Click outside to close variant dropdown
     document.addEventListener("click", function (e) {
-      if (variantDropdownState && !e.target.closest(".variant-dropdown") && !e.target.closest(".shortcut.has-variants") && !e.target.closest("#variant-ctx-menu") && !e.target.closest("#variant-icon-dialog")) {
+      if (variantDropdownState && !e.target.closest(".variant-dropdown") && !e.target.closest(".shortcut.has-variants") && !e.target.closest("#menu-manage-variants") && !e.target.closest("#variant-ctx-menu") && !e.target.closest("#variant-icon-dialog")) {
         closeVariantDropdown();
       }
     });
@@ -27482,7 +27606,10 @@
   function openModal(mode, groupId, shortcut) {
     modalState = { mode: mode, groupId: groupId, shortcut: shortcut || null };
     $("#modal-title").textContent = t(mode === "edit" ? "page_edit_shortcut" : "add_add_shortcut");
-    $("#modal-name").value = shortcut ? (shortcut.title || "") : "";
+    // [VR] A stack's tile shows customLabel first, so that is the name its
+    // Name field edits; saveModal writes it back to the same field.
+    var isStack = !!(shortcut && shortcut.variants && shortcut.variants.length);
+    $("#modal-name").value = shortcut ? ((isStack && shortcut.customLabel) || shortcut.title || "") : "";
     $("#modal-url").value = shortcut ? (shortcut.url || "") : "";
     $("#modal-name").dataset.edited = mode === "edit" ? "true" : "false";
 
@@ -27550,7 +27677,16 @@
       var sc = group && group.shortcuts.find(function (s) { return s.id === modalState.shortcut.id; });
       if (sc) {
         sc.url = url;
-        sc.title = name || getDomain(url).replace(/^www\./, "");
+        if (sc.variants && sc.variants.length) {
+          // [VR] A stack: the Name is the label the tile shows. Writing title
+          // here saved and changed nothing visible whenever the stack had been
+          // named at nest time, which is how most stacks get a name.
+          if (name) sc.customLabel = name;
+          else delete sc.customLabel;
+          if (!sc.title) sc.title = getDomain(url).replace(/^www\./, "");
+        } else {
+          sc.title = name || getDomain(url).replace(/^www\./, "");
+        }
         // [1.10.9] The icon is NOT saved here any more. The picker writes
         // customIcon the moment a choice is made, on both surfaces, so a second
         // write from Save could only disagree with it.

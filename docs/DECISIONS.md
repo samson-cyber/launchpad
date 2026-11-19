@@ -5143,3 +5143,13 @@ Bug task 1220374189243383.
 - **The 5s transition exists only while the row carries .is-fading.** A standing transition would make the ring crawl in under the glow at light-up.
 
 **One behaviour change for EXISTING users, stated so it is not discovered:** the Home one-click strip appears for anyone with fewer than six shortcuts and no examples. It has Hide and retires at six. RELEASE-NOTES-2.3.0 section D lists it.
+
+## 2026-11-19, the stack menus: what a sidebar variant row offers, and which field a rename writes
+
+**Samson reported that stacked shortcuts could no longer be managed or renamed.** The round is [VR], Asana 1220694906838673. It ships on master and is not a submission. Three rules come out of it:
+
+- **A sidebar variant row gets its own LaunchPad menu: Open, Open in new tab, Rename, Edit URL, Ungroup, Delete.** It is the sidebar twin of the grid dropdown's options menu, so it uses the same verbs: **Ungroup**, not a new "Remove from stack" string. Delete has no confirm, the same as the grid dropdown, because one variant is one saved URL. Add tag is hidden, since tags belong to the shortcut. The stack's own default child row offers only Open, Open in new tab, Rename and Edit URL: removing the default would take the stack apart, and that is what Ungroup all on the stack is for. Both menus run the same code (`ungroupVariant` / `deleteVariant`), so they cannot drift.
+- **A rename writes the field its row displays.** A stack shows `customLabel` (the name given at nest time) ahead of `title`, so sidebar Rename on a stack row, and the Name field of Edit shortcut on a stack, now both read and write `customLabel`. The stack's default URL keeps its `title`. Clearing the Name in Edit shortcut drops `customLabel`, and the stack falls back to that title. A variant row renames the variant's `customLabel`, as the grid dropdown always did. Plain shortcuts are unchanged and still write `title`.
+- **The native browser menu is suppressed only where LaunchPad opens its own.** Variant rows now call `preventDefault`. Elsewhere, for example on the greeting, the browser menu still appears, and the harness asserts that.
+
+**Editing a variant's URL drops its stored favicon,** so the row repaints from the new site instead of keeping the old one. None of these are 2.3.0 regressions: all reproduce on the live `v2.2.0` tree. BUGS.md **N4** and the 2026-11-19 Recently Resolved entry have the history.

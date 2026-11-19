@@ -706,6 +706,8 @@ Run when the task touched: any `window` / `document`-level listener, any body-mo
   **Scope the guard to the specific overlay, never a blanket check.** Yielding the whole sweep to `anyPanelOverlayOpen()` would have stranded `#bg-overlay` and the history overlay, which have no Escape handler of their own and are closed BY that sweep two lines above. The shipped guard tests for `.tt-modal-overlay` alone, which is exact rather than approximate: `openTasksModal` appends that element and `closeTasksModal` removes it, so presence IS openness.
 
   This is the ESCAPE half of the rule the outside-click path already encodes by listing `.tt-modal-overlay` in `PANEL_OVERLAY_SELECTORS` (**E7**, instance 3): **a spawned overlay is not "outside" the panel that spawned it, and it is not deaf to the key that dismisses it either.** The two halves are separate code paths, and fixing one does not fix the other — the click half shipped first and the Escape half survived it. A guard added inside a shared sweep also obliges you to re-prove that sweep's OWN documented behaviour in the same round: `[1.4.1]`'s "Escape is a sweep, an outside click is a peel" (flyout alone closes on one press; row menu plus flyout go together) was re-asserted rather than assumed. `6496cca`.
+
+- **N4. EVERY CONTROL THAT OPENS A POPOVER IS AN ANCHOR, AND THE OUTSIDE-CLICK CLOSER MUST EXEMPT IT.** The click that opens a body-mounted popover keeps bubbling after its own handler returns, so it reaches the document-level outside-click closer as an "outside" click and removes the popover in the same tick. On screen the control does nothing, and there is no error. The tile exempted itself (`.shortcut.has-variants`), but the stack menu's **Manage variants** item did not, so that item had done nothing since the dropdown replaced the slide-out panel in `0cced1c` (2026-03-11). That covers every store build from 1.0.4 on, and it was confirmed by driving `v2.2.0`. The tag create popover hit the same thing in `[1.1.6]`, and the comment above the tag branch calls that list "the registry of ANCHORS". **When you add an entry point to an existing popover, add it to every closer that names the popover's other anchors.** The variant dropdown has two such closers. **To catch it at runtime, record removals, don't take snapshots:** a `MutationObserver` saw the dropdown added once, and a patched `Element.prototype.remove` caught the stack trace of the closer that removed it. Asana 1220694906838673 ([VR], 2026-11-19).
 ### Section O: Wallpaper-Panel Ink and Stacking Context
 
 Run when the task added or changed any text, badge, or control that renders inside a panel whose surface darkens under `html.has-bg`, or applied `opacity` to anything containing a control. Companion to **J6** (assert what the cascade produces) and **Section K** (how computed-style harnesses lie).
@@ -1223,6 +1225,16 @@ Measured on the four reachable frames (Section O) rather than looked at, 2026-09
 ## Recently Resolved
 
 Short history of recently-fixed bugs, ordered newest first. For pattern recognition during audits — if an old bug shape looks similar to something you're about to ship, pause.
+
+### 2026-11-19 — Free Tier — stacks and their variants could not be managed or renamed (reported by Samson)
+
+**Fixed in:** [VR], on master after 2.3.0 (not a submission). Asana 1220694906838673. **None of it is a 2.3.0 regression:** every symptom reproduces when the live `v2.2.0` tree is driven.
+- **Manage variants did nothing.** This is **N4**, the anchor missing from the outside-click closer, and it dates from `0cced1c`.
+- **Right-clicking a sidebar variant row opened Chrome's menu.** Child rows carried `.sidebar-shortcut-item` but no id, so the delegated listener skipped them and nothing called `preventDefault`. They never had a menu. They now get Open / Open in new tab / Rename / Edit URL / Ungroup / Delete. The stack's own default row drops Ungroup and Delete, as the grid dropdown's menu does.
+- **Renaming a named stack saved and changed nothing on screen.** A stack displays `customLabel` (its nest-time name) ahead of `title`. Sidebar Rename and the Edit-shortcut modal both wrote `title`.
+- **The variant dropdown's options button showed the literal escape text.** `locales/en.js` stored `variant_u22ee` double-escaped from `[1.5.0]` R3 (`067494c`), so the button read backslash-u-22EE instead of the vertical ellipsis.
+
+**Pattern:** the 2026-04-23 entry below, RECURRING. That fix reached the display paths that existed then, and two later write paths still wrote the field the stack does not show. **A rename must write the field its row DISPLAYS.** `sidebarRenameTarget` in `newtab.js` now records that mapping for every sidebar row.
 
 ### 2026-07-15 — Release Build — prototype import vs. `build.sh` allowlist would have killed the service worker
 
