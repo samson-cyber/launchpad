@@ -21214,6 +21214,319 @@
     return true;
   }
 
+  // ===== [VR2] Manage variants dialog =====
+  //
+  // Asked for by Samson 2026-11-19, after [VR] made Manage variants open the
+  // dropdown: "it would be better to have a pop up box. So you can drag and
+  // drop the order of the variants ... and also have an edit button for each".
+  //
+  // The dropdown stays as the quick launcher (a left-click on the tile); this
+  // dialog is the place to manage a stack. Every action SAVES AT ONCE, as the
+  // rest of the product does, so the footer has Done and no Cancel.
+  //
+  // THE FIRST ROW IS THE DEFAULT, and it can be dragged like any other. A
+  // variant dropped on top is promoted: its URL, name and icon become the
+  // stack's default entry, and the old default takes the variant's place
+  // and id. That restores the "promote variant to parent" capability the
+  // radial-to-dropdown refactor lost (BUGS.md known limitation, 2026-04-24).
+  // Stack-level fields (id, customLabel, customIcon, tags) never move.
+
+  var variantManagerState = null;   // { shortcutId, groupId, editingId }
+  var variantManagerSortable = null;
+  var UNGROUP_SM_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4l-8 8"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>';
+
+  function variantManagerStack() {
+    if (!variantManagerState) return null;
+    var g = findGroup(variantManagerState.groupId);
+    var s = g && g.shortcuts.find(function (x) { return x.id === variantManagerState.shortcutId; });
+    return (s && s.variants && s.variants.length) ? { group: g, stack: s } : null;
+  }
+
+  // The rows, default first. `name` is what the row DISPLAYS and what its
+  // Edit form writes back: the default entry's own title (never the stack's
+  // customLabel, which names the whole stack), and a variant's customLabel.
+  function variantManagerEntries(stack) {
+    var rows = [{
+      id: "__parent__",
+      url: stack.url,
+      name: stack.title || getDomain(stack.url),
+      favicon: getFaviconUrl({ url: stack.url, favicon: stack.favicon }),
+      isDefault: true
+    }];
+    stack.variants.forEach(function (v) {
+      rows.push({
+        id: v.id,
+        url: v.url,
+        name: v.customLabel || v.title || getDomain(v.url),
+        favicon: v.customIcon || v.favicon || getFaviconUrl(v),
+        isDefault: false
+      });
+    });
+    return rows;
+  }
+
+  // A row, or a control inside it, by entry id. Built in one place so the
+  // attribute selector is written once.
+  function vmRowSel(id, sub) {
+    var sel = '.vm-row[data-entry-id="' + id + '"]';
+    return sub ? sel + ' ' + sub : sel;
+  }
+
+  function variantManagerUrlLine(url) {
+    try {
+      var u = new URL(url);
+      var rest = (u.pathname === "/" ? "" : u.pathname) + u.search;
+      return u.hostname.replace(/^www\./, "") + rest;
+    } catch (e) { return url || ""; }
+  }
+
+  function openVariantManager(shortcutId, groupId) {
+    closeVariantDropdown();
+    variantManagerState = { shortcutId: shortcutId, groupId: groupId, editingId: null };
+    if (!variantManagerStack()) { variantManagerState = null; return; }
+    openTasksModal({
+      title: t("page_manage_variants"),
+      bodyHtml:
+        '<p class="vm-hint">' + th("variants_manager_hint") + '</p>' +
+        '<ul class="vm-list" role="list"></ul>',
+      primaryLabel: t("common_done"),
+      hideCancel: true,
+      defaultFocus: "primary",
+      onMounted: function (overlay) {
+        var modal = overlay.querySelector(".tt-modal");
+        if (modal) modal.classList.add("vm-modal");
+        bindVariantManager(overlay);
+        renderVariantManagerList(overlay);
+      },
+      onDestroy: function () {
+        if (variantManagerSortable) { variantManagerSortable.destroy(); variantManagerSortable = null; }
+        variantManagerState = null;
+      }
+    });
+  }
+
+  function renderVariantManagerList(overlay, focusSel) {
+    var list = overlay && overlay.querySelector(".vm-list");
+    if (!list) return;
+    var found = variantManagerStack();
+    if (!found) { closeTasksModal(); return; }
+    var editingId = variantManagerState.editingId;
+    list.innerHTML = variantManagerEntries(found.stack).map(function (r) {
+      var nameEsc = esc(r.name);
+      if (r.id === editingId) {
+        return '<li class="vm-row is-editing" data-entry-id="' + esc(r.id) + '">' +
+          '<div class="vm-form">' +
+            '<label class="tt-modal-label" for="vm-name-input">' + th("page_name") + '</label>' +
+            '<input type="text" id="vm-name-input" class="vm-name-input" value="' + nameEsc + '" autocomplete="off">' +
+            '<label class="tt-modal-label" for="vm-url-input">' + th("shortcutmodal_url_label") + '</label>' +
+            '<input type="text" id="vm-url-input" class="vm-url-input" value="' + esc(r.url) + '" autocomplete="off">' +
+            '<div class="vm-error tt-modal-error" role="alert" hidden></div>' +
+            '<div class="vm-form-actions">' +
+              '<button type="button" class="tt-modal-btn vm-btn vm-cancel">' + th("common_cancel") + '</button>' +
+              '<button type="button" class="tt-modal-btn tt-modal-btn-primary-fill vm-save">' + th("common_save") + '</button>' +
+            '</div>' +
+          '</div>' +
+        '</li>';
+      }
+      return '<li class="vm-row' + (r.isDefault ? ' is-default' : '') + '" data-entry-id="' + esc(r.id) + '">' +
+        '<button type="button" class="vm-handle" aria-label="' + th("variants_manager_move_named", { name: r.name }) + '">⠇</button>' +
+        '<img class="vm-favicon" src="' + esc(r.favicon) + '" data-url="' + esc(r.url) + '" alt="" width="16" height="16">' +
+        '<span class="vm-text">' +
+          // The chip rides on the name line, so every row's Edit button sits
+          // in the same column whatever the row carries.
+          '<span class="vm-name-line">' +
+            '<span class="vm-name">' + nameEsc + '</span>' +
+            (r.isDefault ? '<span class="vm-default">' + th("variants_manager_default") + '</span>' : '') +
+          '</span>' +
+          '<span class="vm-url">' + esc(variantManagerUrlLine(r.url)) + '</span>' +
+        '</span>' +
+        '<span class="vm-actions">' +
+          '<button type="button" class="tt-modal-btn vm-btn vm-edit" aria-label="' + th("variants_manager_edit_named", { name: r.name }) + '">' + th("variants_manager_edit") + '</button>' +
+          (r.isDefault ? '<span class="vm-icon-spacer" aria-hidden="true"></span>' :
+            '<button type="button" class="vm-icon-btn vm-ungroup" title="' + th("variantmenu_ungroup") + '" aria-label="' + th("variants_manager_ungroup_named", { name: r.name }) + '">' + UNGROUP_SM_SVG + '</button>' +
+            '<button type="button" class="vm-icon-btn vm-delete" title="' + th("common_delete") + '" aria-label="' + th("variants_manager_delete_named", { name: r.name }) + '">' + TRASH_SM_SVG + '</button>') +
+        '</span>' +
+      '</li>';
+    }).join("");
+
+    if (variantManagerSortable) { variantManagerSortable.destroy(); variantManagerSortable = null; }
+    if (typeof Sortable !== "undefined") {
+      variantManagerSortable = new Sortable(list, {
+        handle: ".vm-handle",
+        draggable: ".vm-row",
+        animation: 150,
+        // Pointer-driven rather than native HTML5 drag: it stays inside the
+        // modal's stacking context, and it is the form a harness can drive
+        // (native drags swallow synthetic input, BUGS.md I8's neighbourhood).
+        forceFallback: true,
+        fallbackOnBody: true,
+        ghostClass: "vm-ghost",
+        disabled: !!editingId,
+        onEnd: function (evt) {
+          if (evt.oldIndex === evt.newIndex) return;
+          var order = [].map.call(list.querySelectorAll(".vm-row"), function (li) { return li.dataset.entryId; });
+          var movedId = evt.item && evt.item.dataset.entryId;
+          commitVariantOrder(overlay, order, movedId);
+        }
+      });
+    }
+
+    if (editingId) {
+      var nameInput = list.querySelector(".vm-name-input");
+      if (nameInput) { nameInput.focus(); nameInput.select(); }
+    } else if (focusSel) {
+      var f = list.querySelector(focusSel);
+      if (f) f.focus();
+    }
+  }
+
+  // order: entry ids top to bottom, "__parent__" for the default entry.
+  // Returns false when nothing changed.
+  function applyVariantOrder(stack, order) {
+    var byId = {};
+    stack.variants.forEach(function (v) { byId[v.id] = v; });
+    if (order.length !== stack.variants.length + 1) return false;
+    var top = order[0];
+    if (top !== "__parent__") {
+      var promoted = byId[top];
+      if (!promoted) return false;
+      // The old default keeps its place in the list under the promoted
+      // variant's id, so the set of ids is unchanged.
+      byId.__parent__ = { id: promoted.id, url: stack.url, title: stack.title, favicon: stack.favicon, deletedAt: null };
+      stack.url = promoted.url;
+      stack.title = promoted.customLabel || promoted.title || getDomain(promoted.url);
+      // A variant's own icon override is a URL, which is what favicon holds,
+      // so it carries across rather than being lost on promotion.
+      var icon = promoted.customIcon || promoted.favicon;
+      if (icon) stack.favicon = icon; else delete stack.favicon;
+    }
+    var next = order.slice(1).map(function (id) { return byId[id]; });
+    if (next.some(function (v) { return !v; })) return false;
+    stack.variants = next;
+    return true;
+  }
+
+  async function commitVariantOrder(overlay, order, movedId) {
+    var found = variantManagerStack();
+    if (!found) return;
+    if (!applyVariantOrder(found.stack, order)) { renderVariantManagerList(overlay); return; }
+    await saveVariantManager(overlay, movedId ? vmRowSel(movedId, '.vm-handle') : null);
+  }
+
+  async function saveVariantManager(overlay, focusSel) {
+    await Storage.saveAll(data);
+    data = await Storage.getAll();
+    render();
+    renderVariantManagerList(overlay, focusSel);
+  }
+
+  function bindVariantManager(overlay) {
+    var list = overlay.querySelector(".vm-list");
+    if (!list) return;
+
+    list.addEventListener("click", async function (e) {
+      var row = e.target.closest(".vm-row");
+      if (!row || !variantManagerState) return;
+      var id = row.dataset.entryId;
+      var found = variantManagerStack();
+      if (!found) return;
+
+      if (e.target.closest(".vm-edit")) {
+        variantManagerState.editingId = id;
+        renderVariantManagerList(overlay);
+      } else if (e.target.closest(".vm-cancel")) {
+        variantManagerState.editingId = null;
+        renderVariantManagerList(overlay, vmRowSel(id, '.vm-edit'));
+      } else if (e.target.closest(".vm-save")) {
+        await saveVariantManagerEdit(overlay, row, id);
+      } else if (e.target.closest(".vm-ungroup") || e.target.closest(".vm-delete")) {
+        var changed = e.target.closest(".vm-ungroup")
+          ? ungroupVariant(found.group, found.stack, id)
+          : deleteVariant(found.stack, id);
+        if (!changed) return;
+        // With no variants left the stack is a plain shortcut, and
+        // renderVariantManagerList closes the dialog.
+        await saveVariantManager(overlay, ".vm-row:last-child .vm-edit");
+      }
+    });
+
+    list.addEventListener("keydown", async function (e) {
+      if (!variantManagerState) return;
+      var row = e.target.closest(".vm-row");
+      if (!row) return;
+      if (row.classList.contains("is-editing")) {
+        // Escape cancels the EDIT, and must not reach the modal's own Escape
+        // handler, which would close the whole dialog under the user.
+        if (e.key === "Escape") {
+          e.preventDefault(); e.stopPropagation();
+          variantManagerState.editingId = null;
+          renderVariantManagerList(overlay, vmRowSel(row.dataset.entryId, '.vm-edit'));
+        } else if (e.key === "Enter" && e.target.tagName === "INPUT") {
+          e.preventDefault();
+          await saveVariantManagerEdit(overlay, row, row.dataset.entryId);
+        }
+        return;
+      }
+      // The keyboard form of the drag: arrows on a focused handle.
+      if (e.target.closest(".vm-handle") && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+        e.preventDefault();
+        var order = [].map.call(list.querySelectorAll(".vm-row"), function (li) { return li.dataset.entryId; });
+        var i = order.indexOf(row.dataset.entryId);
+        var j = e.key === "ArrowUp" ? i - 1 : i + 1;
+        if (i < 0 || j < 0 || j >= order.length) return;
+        order.splice(j, 0, order.splice(i, 1)[0]);
+        await commitVariantOrder(overlay, order, row.dataset.entryId);
+      }
+    });
+  }
+
+  async function saveVariantManagerEdit(overlay, row, id) {
+    var found = variantManagerStack();
+    if (!found) return;
+    var nameVal = (row.querySelector(".vm-name-input").value || "").trim();
+    var urlVal = (row.querySelector(".vm-url-input").value || "").trim();
+    var errEl = row.querySelector(".vm-error");
+    var normalized = normalizeUrl(urlVal);
+    // new URL() alone is not a check: Chrome percent-encodes spaces into the
+    // host, so "not a url" parsed and was saved in the first harness run. So:
+    // no whitespace, a host of real hostname characters (IDNs arrive as
+    // punycode), and a dot in it unless the user typed the scheme out, which
+    // keeps http://intranet and localhost working.
+    var ok = false;
+    if (normalized && !/\s/.test(urlVal)) {
+      try {
+        var host = new URL(normalized).hostname;
+        var typedScheme = /^https?:\/\//i.test(urlVal);
+        ok = /^(\[[0-9a-f:.]+\]|[a-z0-9.-]+)$/i.test(host) &&
+          (host.indexOf(".") !== -1 || host === "localhost" || host.charAt(0) === "[" || typedScheme);
+      } catch (err) { ok = false; }
+    }
+    if (!ok) {
+      if (errEl) { errEl.textContent = t("variants_manager_bad_url"); errEl.hidden = false; }
+      var urlInput = row.querySelector(".vm-url-input");
+      if (urlInput) urlInput.focus();
+      return;
+    }
+    var stack = found.stack;
+    if (id === "__parent__") {
+      if (normalized !== stack.url) delete stack.favicon;
+      stack.url = normalized;
+      stack.title = nameVal || getDomain(normalized);
+    } else {
+      var v = findSidebarVariant(stack, id);
+      if (!v) return;
+      // The captured favicon belonged to the old site; an icon the user chose
+      // (customIcon) is theirs and stays.
+      if (normalized !== v.url) delete v.favicon;
+      v.url = normalized;
+      // An empty name hands the row back to the page title it was saved with.
+      if (nameVal && nameVal !== v.title) v.customLabel = nameVal;
+      else delete v.customLabel;
+    }
+    variantManagerState.editingId = null;
+    await saveVariantManager(overlay, vmRowSel(id, '.vm-edit'));
+  }
+
   // ===== Variant Icon Dialog =====
 
   var iconDialogState = null;
@@ -23583,6 +23896,7 @@
       if (opt) opt.classList.toggle("hidden", !show);
     };
     toggleOpt("add-tag", !isVariantRow);
+    toggleOpt("manage-variants", !isVariantRow && !!(shortcut.variants && shortcut.variants.length));
     toggleOpt("ungroup-variant", isRealVariant);
     toggleOpt("delete", !isVariantRow || isRealVariant);
     // The separator above Ungroup/Delete would otherwise dangle at the foot of
@@ -23685,7 +23999,9 @@
 
     closeSidebarShortcutCtxMenu();
 
-    if (action === "open") {
+    if (action === "manage-variants") {
+      openVariantManager(shortcutId, groupId);
+    } else if (action === "open") {
       chrome.tabs.update({ url: shortcut.url });
     } else if (action === "open-new-tab") {
       chrome.tabs.create({ url: shortcut.url });
@@ -26988,7 +27304,9 @@
         return;
       }
 
-      if (!img.closest(".shortcut-icon, .rc-icon, .ob-popular-icon, .ob-preview-favicon, .restore-tab-item, .rc-panel-item")) return;
+      // [VR2] .vm-row: the Manage variants dialog shows the same shortcuts as
+      // the grid, so it takes the grid's fallback (its img carries data-url).
+      if (!img.closest(".shortcut-icon, .rc-icon, .ob-popular-icon, .ob-preview-favicon, .restore-tab-item, .rc-panel-item, .vm-row")) return;
 
       var url = img.dataset.url || (img.closest("a[href]") && img.closest("a[href]").href) || "";
       var domain;
@@ -27204,13 +27522,13 @@
       if (sc) chrome.tabs.update({ url: sc.url });
       hideMenu();
     });
+    // [VR2] Manage variants opens the dialog. The dropdown stays on the
+    // tile's left-click as the quick way to OPEN a variant.
     safeOn("#menu-manage-variants", "click", function () {
       if (!activeMenu) return;
-      var tile = document.querySelector('.shortcut[data-id="' + activeMenu.shortcutId + '"]');
-      if (tile) {
-        showVariantDropdown(activeMenu.shortcutId, activeMenu.groupId, tile.querySelector(".shortcut-icon"));
-      }
+      var sid = activeMenu.shortcutId, gid = activeMenu.groupId;
       hideMenu();
+      openVariantManager(sid, gid);
     });
     safeOn("#menu-ungroup", "click", async function () {
       if (!activeMenu) return;
@@ -27398,12 +27716,11 @@
         closeTagSubmenu();
         closeTagCreatePopover();
       }
-      // [VR] #menu-manage-variants is an ANCHOR that opens the dropdown, the
-      // same role the tile itself has. Without it here, the click that opened
-      // the dropdown reached this handler as an "outside" click and removed it
-      // in the same tick: "Manage variants" visibly did nothing, and had done
-      // nothing since the dropdown replaced the slide-out panel (0cced1c).
-      if (!e.target.closest(".variant-dropdown") && !e.target.closest("#variant-ctx-menu") && !e.target.closest("#variant-icon-dialog") && !e.target.closest(".shortcut.has-variants") && !e.target.closest("#menu-manage-variants")) {
+      // [VR2] #menu-manage-variants is NOT listed here any more. It was, for one
+      // commit ([VR], BUGS.md N4), while it opened this dropdown; it now opens
+      // the Manage variants dialog, so its click closing an open dropdown is
+      // exactly right. Anything that opens THIS dropdown must be listed.
+      if (!e.target.closest(".variant-dropdown") && !e.target.closest("#variant-ctx-menu") && !e.target.closest("#variant-icon-dialog") && !e.target.closest(".shortcut.has-variants")) {
         closeVariantDropdown();
       }
       if (!e.target.closest("#group-menu") && !e.target.closest(".group-more-btn") && !e.target.closest(".sb-group-more")
@@ -27512,7 +27829,7 @@
 
     // Click outside to close variant dropdown
     document.addEventListener("click", function (e) {
-      if (variantDropdownState && !e.target.closest(".variant-dropdown") && !e.target.closest(".shortcut.has-variants") && !e.target.closest("#menu-manage-variants") && !e.target.closest("#variant-ctx-menu") && !e.target.closest("#variant-icon-dialog")) {
+      if (variantDropdownState && !e.target.closest(".variant-dropdown") && !e.target.closest(".shortcut.has-variants") && !e.target.closest("#variant-ctx-menu") && !e.target.closest("#variant-icon-dialog")) {
         closeVariantDropdown();
       }
     });

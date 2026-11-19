@@ -5153,3 +5153,15 @@ Bug task 1220374189243383.
 - **The native browser menu is suppressed only where LaunchPad opens its own.** Variant rows now call `preventDefault`. Elsewhere, for example on the greeting, the browser menu still appears, and the harness asserts that.
 
 **Editing a variant's URL drops its stored favicon,** so the row repaints from the new site instead of keeping the old one. None of these are 2.3.0 regressions: all reproduce on the live `v2.2.0` tree. BUGS.md **N4** and the 2026-11-19 Recently Resolved entry have the history.
+
+## 2026-11-19, Manage variants is a dialog ([VR2])
+
+**Samson, after [VR]:** "it would be better to have a pop up box. So you can drag and drop the order of the variants in the menu and also have an edit button for each within the pop up box." It shipped on master as [VR2], Asana 1220694906838673, and is not a submission.
+
+- **Manage variants opens a dialog** from both the grid stack menu and the sidebar stack-row menu (the sidebar item is new). The dropdown stays on the tile's left-click as the quick way to open a variant. The dialog is the place to manage the stack.
+- **Each row shows a drag handle, the icon, the name, and the URL beneath it.** Each row has an Edit button. Variant rows also have Ungroup and Delete. Edit turns the row into Name and URL fields with Cancel and Save; Enter saves and Escape cancels the edit, not the dialog.
+- **Every action saves at once,** like the rest of the product, so the footer is Done alone, with no Cancel. It is built on `openTasksModal`, which provides the frost tier, focus trap, Escape and focus return.
+- **The first row is the default, and it drags like any other row.** A variant dropped on top is promoted. Its URL, its name (its label if it has one) and its icon become the stack's default entry. The old default takes the variant's place in the list, under the variant's id, so the set of ids never changes. Stack-level fields (id, customLabel, customIcon, tags) never move. This restores the "promote variant to parent" capability lost in the radial-to-dropdown refactor. **An unnamed stack's tile follows its default's name;** a named stack keeps its name.
+- **Keyboard reorder:** the up and down arrow keys on a focused handle move the row. Drag uses Sortable's pointer fallback (`forceFallback`), which stays inside the modal and is what a harness can drive.
+- **The URL field refuses what is not a web address:** whitespace, a host that is not hostname characters, or a host with no dot unless the scheme was typed out (`http://intranet` and `localhost` still work). `new URL()` alone is not enough, because Chrome percent-encodes spaces into the host. The Add-shortcut modal is unchanged and still accepts anything.
+- **Ungroup or Delete of the last variant closes the dialog,** because the stack is now a plain shortcut.

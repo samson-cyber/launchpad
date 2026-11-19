@@ -24607,3 +24607,166 @@ html.has-bg .tasks-split .tt2-count { position: relative; }
 .tt2-tile-act svg { flex: none; }
 @media (hover: none) { .tt2-tile-act { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .tt2-tile-act { transition: none; } }
+
+/* [VR2] MANAGE VARIANTS DIALOG. It lives inside .tt-modal, which [H3a] keeps
+   DARK ON EVERY GROUND (the hero tint at 92-96%), so these rules carry no
+   light-ground flip: a flip would put dark ink on a surface that stays dark,
+   which is exactly what the first ink measurement of this round found. The
+   one guard needed is against the v1 light rule on .tt-modal-btn, which would
+   otherwise turn the neutral buttons #1f1f1f; .vm-btn names all three grounds,
+   as H3a's own .tt-modal-cancel does. The row follows the guide's List row:
+   36px, the name in primary ink, the URL as the one secondary value, controls
+   quiet until the row is hovered or focused. Colour carries no state here. */
+.tt-modal.vm-modal { max-width: 540px; }
+
+.tt-modal .vm-hint {
+  margin: 0;
+  font-size: var(--fs-12);
+  color: var(--ink-meta);
+}
+
+.vm-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tt-modal .vm-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: var(--space-1) var(--space-1-5) var(--space-1) var(--space-1);
+  border-radius: var(--radius-lg);
+  color: var(--ink);
+}
+.tt-modal .vm-row:hover,
+.tt-modal .vm-row:focus-within { background: var(--tile-fill); }
+
+.tt-modal .vm-handle {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--ink-chrome);
+  font: inherit;
+  font-size: var(--fs-15);
+  line-height: 1;
+  padding: 2px var(--space-1);
+  border-radius: var(--radius-sm);
+  cursor: grab;
+}
+.tt-modal .vm-handle:active { cursor: grabbing; }
+.tt-modal .vm-handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.vm-favicon { flex: none; border-radius: var(--radius-sm); }
+
+.vm-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.vm-name,
+.vm-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vm-name { font-size: var(--fs-13); font-weight: 500; }
+.vm-name-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.vm-name-line .vm-name { min-width: 0; }
+/* Two icon buttons wide (25px each plus the 2px gap), so the default row's
+   Edit lines up with every other row's. */
+.vm-icon-spacer { width: 52px; flex: none; }
+.tt-modal .vm-url { font-size: var(--fs-11-5); color: var(--ink-meta); }
+
+.tt-modal .vm-default {
+  flex: none;
+  font-size: var(--fs-11);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--tile-fill);
+  border: 1px solid var(--tile-line);
+  color: var(--ink);
+}
+
+.vm-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Edit and the form's Cancel: the tile's hairline, never a colour, so the
+   one coloured control in the form is Save. */
+.tt-modal .tt-modal-btn.vm-btn,
+html.bg-light .tt-modal .tt-modal-btn.vm-btn,
+html.has-bg.bg-light .tt-modal .tt-modal-btn.vm-btn {
+  background: var(--tile-fill);
+  border-color: var(--tile-line);
+  color: var(--ink);
+}
+.tt-modal .tt-modal-btn.vm-btn:hover,
+html.bg-light .tt-modal .tt-modal-btn.vm-btn:hover,
+html.has-bg.bg-light .tt-modal .tt-modal-btn.vm-btn:hover { background: rgba(255, 255, 255, 0.14); }
+.tt-modal .tt-modal-btn.vm-edit {
+  padding: 3px var(--space-2-5);
+  font-size: var(--fs-12);
+}
+
+.tt-modal .vm-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--ink-meta);
+  padding: var(--space-1);
+  cursor: pointer;
+}
+.tt-modal .vm-icon-btn:hover {
+  color: var(--ink);
+  background: var(--tile-fill);
+}
+.tt-modal .vm-icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.tt-modal .vm-row.is-editing {
+  background: var(--tile-fill);
+  padding: var(--space-2) var(--space-2-5);
+}
+.vm-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.vm-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+.vm-error[hidden] { display: none; }
+
+.vm-ghost { opacity: 0.35; }
+/* The drag clone is appended to <body> (fallbackOnBody), outside .tt-modal,
+   so it carries the modal's own fill and ink with it. */
+.vm-row.sortable-fallback {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background-color: rgba(31, 33, 42, 0.96);
+  color: var(--ink);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-floater);
+  font-family: var(--font-sans);
+}

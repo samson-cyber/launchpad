@@ -2216,6 +2216,38 @@ I18n.register("en", {
     "message": "⋮",
     "description": "The vertical-ellipsis glyph on each variant row's options button in showVariantDropdown(). Rendered with t(). [VR] From [1.5.0] R3 until 2026-11-19 the escape was doubled, so the button showed the escape text itself instead of the glyph."
   },
+  "variants_manager_hint": {
+    "message": "Drag to reorder. The first link is the default.",
+    "description": "One line at the top of the Manage variants dialog. It names the rule a drag changes: whichever link sits first is the one the stack opens by default."
+  },
+  "variants_manager_default": {
+    "message": "Default",
+    "description": "Small chip on the first row of the Manage variants dialog, marking the link the stack opens by default."
+  },
+  "variants_manager_edit": {
+    "message": "Edit",
+    "description": "Button on each row of the Manage variants dialog. Turns the row into a name and URL form."
+  },
+  "variants_manager_edit_named": {
+    "message": "Edit {name}",
+    "description": "Accessible label for a row's Edit button in the Manage variants dialog. {name} is the link's name."
+  },
+  "variants_manager_move_named": {
+    "message": "Move {name}. Drag, or use the up and down arrow keys.",
+    "description": "Accessible label for a row's drag handle in the Manage variants dialog. {name} is the link's name."
+  },
+  "variants_manager_ungroup_named": {
+    "message": "Ungroup {name}",
+    "description": "Accessible label for a row's Ungroup button in the Manage variants dialog: the link leaves the stack and becomes its own shortcut. {name} is the link's name."
+  },
+  "variants_manager_delete_named": {
+    "message": "Delete {name}",
+    "description": "Accessible label for a row's Delete button in the Manage variants dialog. {name} is the link's name."
+  },
+  "variants_manager_bad_url": {
+    "message": "Enter a web address, like example.com",
+    "description": "Inline error under the URL field in the Manage variants dialog when the address cannot be read."
+  },
   "wire_clear_search": {
     "message": "Clear search",
     "description": "Text sink in wirePicker(). Rendered with t()."
